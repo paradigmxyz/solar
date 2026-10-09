@@ -39,7 +39,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if dynamic {
             // object.len = element_count
             let length = self.builder.imm(u64::try_from(elements.len()).ok()?);
-            self.builder.set_memory_object_len(object, length, layout.kind());
+            self.builder.set_memory_len(object, length);
         }
 
         // for element, i { object[i] = coerce(element) }
@@ -240,9 +240,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 unreachable!("allocation result must reference its instruction")
             };
             builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-            builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+            builder.set_memory_len(object, length);
             let zero = builder.imm(0);
-            builder.memory_object_store_word(object, zero, word);
+            builder.memory_store_word(object, zero, word);
             builder.ret([object]);
             Some(())
         })
@@ -333,15 +333,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
     ) -> (ValueId, ValueId) {
         // object = bytes(size) !preserves_fmp
-        // set_memory_object_len object, len
-        // data = memory_object_data object
+        // mstore (ptrtoint object), len
+        // data = slice_ptr (memory_slice object)
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")
         };
         builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-        builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
-        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        builder.set_memory_len(object, len);
+        let data = builder.memory_data(object);
         (object, data)
     }
 
@@ -407,7 +407,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             | TyKind::DynArray(_) => {
                 // object.len = 0
                 let zero = self.builder.imm(U256::ZERO);
-                self.builder.set_memory_object_len(object, zero, layout.kind());
+                self.builder.set_memory_len(object, zero);
             }
             TyKind::Struct(id) => {
                 let fields = self.cx.gcx.hir.strukt(id).fields;

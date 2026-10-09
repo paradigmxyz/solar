@@ -194,7 +194,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return match self.builder.func().value_ty(object) {
                 Some(MirType::MemPtr) => {
                     // length = object.len
-                    Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                    Some(self.builder.memory_len(object))
                 }
                 _ => self.cx.report_unsupported(span, what),
             };
@@ -208,7 +208,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match layout.kind() {
             MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
                 // length = object.len
-                Some(self.builder.memory_object_len(object, layout.kind()))
+                Some(self.builder.memory_len(object))
             }
             _ => self.cx.report_unsupported(span, what),
         }

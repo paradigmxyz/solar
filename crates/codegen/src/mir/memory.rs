@@ -12,8 +12,8 @@ pub(crate) trait MemoryLayoutPolicy {
     /// Target word size in bytes.
     const WORD_SIZE: u64;
 
-    /// Returns the byte offset of an object's logical length word.
-    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64>;
+    /// Size of the length header in front of a dynamic object's payload.
+    const DYNAMIC_HEADER_SIZE: u64;
 
     /// Returns the byte offset of the first payload byte.
     fn object_data_offset(kind: MemoryObjectKind) -> u64;
@@ -65,13 +65,7 @@ impl EvmMemoryLayout {
 
 impl MemoryLayoutPolicy for EvmMemoryLayout {
     const WORD_SIZE: u64 = Self::WORD_SIZE;
-
-    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64> {
-        match kind {
-            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Some(0),
-            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => None,
-        }
-    }
+    const DYNAMIC_HEADER_SIZE: u64 = Self::DYNAMIC_HEADER_SIZE;
 
     fn object_data_offset(kind: MemoryObjectKind) -> u64 {
         match kind {

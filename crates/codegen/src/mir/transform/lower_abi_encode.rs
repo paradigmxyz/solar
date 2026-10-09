@@ -40,10 +40,9 @@ use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation,
-        Terminator, Value, ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout,
-        pass::MirPass, transform::utils::redirect_successor_predecessors,
-        utils::resolve_replacement,
+        MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation, Terminator, Value,
+        ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
+        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
     target::{Cost, Target},
 };
@@ -651,14 +650,10 @@ fn encode_dynamic_return_in_place(
     }
     let [object] = args else { unreachable!() };
 
-    let kind = match &*layout.types {
-        [AbiType::DynamicArray { .. }] => MemoryObjectKind::DynamicArray,
-        [AbiType::Bytes(_)] => MemoryObjectKind::Bytes,
-        _ => unreachable!(),
-    };
-    let length = memory_object_len(builder, *object, kind);
-    let source = builder.memory_object_data(*object, kind);
-    let bytes = if kind == MemoryObjectKind::DynamicArray {
+    let is_array = matches!(&*layout.types, [AbiType::DynamicArray { .. }]);
+    let length = memory_object_len(builder, *object);
+    let source = builder.memory_data(*object);
+    let bytes = if is_array {
         let five = builder.imm(5);
         builder.shl(five, length)
     } else {
@@ -677,7 +672,7 @@ fn encode_dynamic_return_in_place(
     // object: [length, payload...]
     // => [32, length, payload...]
     let destination = builder.add_u64_offset(source, 32);
-    let copy_size = if kind == MemoryObjectKind::Bytes { length } else { bytes };
+    let copy_size = if is_array { bytes } else { length };
     builder.mcopy(destination, source, copy_size);
     let offset = builder.imm(32);
     builder.mstore(*object, offset);
@@ -757,8 +752,8 @@ fn lower_encode(
                 builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
             }
             let total = builder.imm(total_size);
-            builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
-            let buffer = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            builder.set_memory_len(object, total);
+            let buffer = builder.memory_data(object);
             if let Some(selector) = selector {
                 builder.mstore(buffer, selector);
             }
@@ -777,8 +772,8 @@ fn lower_encode(
                 crate::mir::AllocationSemantics::INTERNAL,
             );
             let total = builder.imm(total_size);
-            builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
-            let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            builder.set_memory_len(object, total);
+            let data = builder.memory_data(object);
             encode_tuple(builder, args, &layout.types, data, helpers);
             return builder.make_slice(data, total, SliceLocation::Memory);
         }
@@ -847,7 +842,7 @@ fn lower_encode(
             crate::mir::AllocationSemantics::INTERNAL,
         );
         preserve_encoding_address(builder, object);
-        builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
+        builder.set_memory_len(object, total);
         return object;
     }
     if mode == AbiEncodeMode::Scratch {
@@ -1341,7 +1336,7 @@ fn encode_memory_array_elements(
 ) -> ValueId {
     let (len, element_area) = match layout {
         MemoryObjectLayout::DynamicArray { .. } => {
-            let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
+            let len = memory_object_len(builder, value);
             builder.mstore(dest, len);
             let word = builder.imm(32);
             (len, builder.add(dest, word))
@@ -1354,7 +1349,10 @@ fn encode_memory_array_elements(
     let element_head_size = builder.imm(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_tail = builder.add(element_area, head_bytes);
-    let source_cursor = builder.memory_object_data(value, layout.kind());
+    let source_cursor = match layout {
+        MemoryObjectLayout::FixedArray { .. } => builder.cast(value, MirType::I256),
+        _ => builder.memory_data(value),
+    };
     let word = builder.imm(32);
 
     let preheader = builder.current_block();
@@ -1486,7 +1484,7 @@ fn encode_word_array(
     cleanup: Option<AbiWordValidator>,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::DynamicArray),
+        SliceLocation::Memory => memory_object_len(builder, value),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -1494,7 +1492,7 @@ fn encode_word_array(
     let bytes = builder.mul(len, word);
     let data_dest = builder.add(dest, word);
     let data_source = match location {
-        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
+        SliceLocation::Memory => builder.memory_data(value),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
@@ -1582,7 +1580,7 @@ fn encode_bytes(
     }
 
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::Bytes),
+        SliceLocation::Memory => memory_object_len(builder, value),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     if !branchless_padding {
@@ -1620,7 +1618,7 @@ fn encode_bytes(
         builder.switch_to_block(copy_block);
     }
     let data_source = match location {
-        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
+        SliceLocation::Memory => builder.memory_data(value),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
@@ -1654,16 +1652,12 @@ fn copy_source_data(
     }
 }
 
-fn memory_object_len(
-    builder: &mut FunctionBuilder<'_>,
-    value: ValueId,
-    kind: MemoryObjectKind,
-) -> ValueId {
+fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
     if builder.func().value_slice_location(value).is_some() {
         // len = slice_len value
         return builder.slice_len(value);
     }
-    let len = builder.memory_object_len(value, kind);
+    let len = builder.memory_len(value);
     let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)
 }
@@ -1719,16 +1713,13 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
         InstKind::Alloc { kind: AllocationKind::Object(_), .. } | InstKind::AbiEncode { .. } => {
             false
         }
-        InstKind::SetMemoryObjectLen(object, ..) => {
-            !literal_store_in_bounds(func, *object, Some(32))
+        InstKind::MStore(address, _) => !literal_word_in_bounds(func, *address, Some(0)),
+        InstKind::SliceStoreWord { slice, offset, .. } => {
+            !literal_word_in_bounds(func, *slice, func.value_u64(*offset))
         }
-        InstKind::MemoryObjectStoreWord { object, offset, .. } => !literal_store_in_bounds(
-            func,
-            *object,
-            func.value_u64(*offset).and_then(|offset| offset.checked_add(64)),
-        ),
-        InstKind::MemoryObjectData(..)
-        | InstKind::MemoryObjectFieldAddr { .. }
+        // Reading a fresh object's own length word observes nothing else.
+        InstKind::MemorySlice(object) => !literal_word_in_bounds(func, *object, Some(0)),
+        InstKind::MemoryObjectFieldAddr { .. }
         | InstKind::MemoryObjectElementAddr { .. }
         | InstKind::MSize => true,
         _ => matches!(
@@ -1743,12 +1734,24 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
     }
 }
 
-/// A semantic store to a different object is disjoint only inside its fresh
-/// allocation. An unknown or wrapping offset can overwrite a preceding object.
-fn literal_store_in_bounds(func: &Function, object: ValueId, end: Option<u64>) -> bool {
+/// A store to a different object is disjoint only inside its fresh allocation. An
+/// unknown or wrapping offset can overwrite a preceding object.
+fn literal_word_in_bounds(func: &Function, address: ValueId, offset: Option<u64>) -> bool {
+    let Some((object, base)) = func.object_address(address) else { return false };
+    let end = offset.and_then(|offset| base.checked_add(offset)?.checked_add(32));
     matches!((func.value(object), end), (Value::Inst(alloc), Some(end))
         if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), size, .. }
             if func.value_u64(size).is_some_and(|size| end <= size)))
+}
+
+/// Instructions other than its allocation that use a literal object or an address into it.
+fn literal_object_uses(func: &Function, object: ValueId) -> impl Iterator<Item = InstId> + '_ {
+    func.instructions().filter(move |&inst| {
+        func.inst_result_value(inst) != Some(object)
+            && func.inst(inst).operands().iter().any(|&operand| {
+                func.object_address(operand).is_some_and(|(base, _)| base == object)
+            })
+    })
 }
 
 /// Returns the bytes represented by an immutable literal object when all active
@@ -1770,36 +1773,35 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
 
     let mut length = None;
     let mut words = FxHashMap::default();
-    for inst in func.instructions() {
-        if inst == *defining_inst {
-            continue;
-        }
-        let instruction = func.inst(inst);
-        if !instruction.operands().contains(&object) {
-            continue;
-        }
+    for inst in literal_object_uses(func, object) {
         if !func.blocks[block].instructions.contains(&inst) {
             return None;
         }
-        match &instruction.kind {
-            InstKind::SetMemoryObjectLen(value, len, MemoryObjectKind::Bytes)
-                if *value == object =>
-            {
-                if length.replace(func.value_u64(*len)?).is_some() {
-                    return None;
+        if func.is_object_derivation(inst) {
+            continue;
+        }
+        // Payload offset and stored word.
+        let (offset, word) = match func.inst(inst).kind {
+            InstKind::MStore(address, word) => {
+                let (base, offset) = func.object_address(address)?;
+                (base == object).then_some(())?;
+                if offset == 0 {
+                    if length.replace(func.value_u64(word)?).is_some() {
+                        return None;
+                    }
+                    continue;
                 }
+                (offset.checked_sub(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)?, word)
             }
-            InstKind::MemoryObjectStoreWord { object: value, offset, value: word }
-                if *value == object =>
-            {
-                let offset = func.value_u64(*offset)?;
-                if !offset.is_multiple_of(32)
-                    || words.insert(offset, func.value_u256(*word)?).is_some()
-                {
-                    return None;
-                }
+            InstKind::SliceStoreWord { slice, offset, value } => {
+                let (base, data) = func.object_address(slice)?;
+                (base == object && data == EvmMemoryLayout::DYNAMIC_HEADER_SIZE).then_some(())?;
+                (func.value_u64(offset)?, value)
             }
             _ => return None,
+        };
+        if !offset.is_multiple_of(32) || words.insert(offset, func.value_u256(word)?).is_some() {
+            return None;
         }
     }
 
@@ -1845,11 +1847,7 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
             continue;
         }
         removed.insert(*defining_inst);
-        for inst_id in func.instructions() {
-            if inst_id != *defining_inst && func.inst(inst_id).operands().contains(&object) {
-                removed.insert(inst_id);
-            }
-        }
+        removed.extend(literal_object_uses(func, object));
     }
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !removed.contains(inst));

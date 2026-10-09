@@ -141,9 +141,7 @@ impl MirPass for ElementCleanup {
             for inst in func.instructions() {
                 if let Some((element, bits)) = masked_element(func, inst)
                     && let Value::Inst(load) = func.value(element)
-                    && let InstKind::MemoryObjectLoadElement { object, layout, .. } =
-                        func.inst(*load).kind
-                    && is_word_array(layout)
+                    && let Some(object) = word_element_object(func, *load)
                     && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
                     && let Some(result) = func.inst_result_value(inst)
                 {
@@ -190,6 +188,22 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
     )
 }
 
+/// The array a word element load or store accesses.
+fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
+    match func.inst(inst).kind {
+        InstKind::MemoryObjectLoadElement { object, layout, .. }
+        | InstKind::MemoryObjectStoreElement { object, layout, .. }
+            if is_word_array(layout) =>
+        {
+            Some(object)
+        }
+        InstKind::SliceLoadElement { slice, .. } | InstKind::SliceStoreElement { slice, .. } => {
+            func.memory_slice_object(slice)
+        }
+        _ => None,
+    }
+}
+
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
 fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
     if let InstKind::Zext(narrow) = func.inst(inst).kind
@@ -214,17 +228,22 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            InstKind::MemoryObjectStoreElement { object, value, .. }
-                if objects.is_none_or(|objects| {
-                    objects.get(object).is_some_and(|&bound| bound < FULL_WIDTH)
+            InstKind::MemoryObjectStoreElement { value, .. }
+            | InstKind::SliceStoreElement { value, .. }
+                if word_element_object(func, inst).is_some_and(|object| {
+                    objects.is_none_or(|objects| {
+                        objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)
+                    })
                 }) =>
             {
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
             }
             // A direct allocation's header is separate from existing array elements.
-            InstKind::SetMemoryObjectLen(object, ..)
-                if matches!(func.value(*object), Value::Inst(alloc)
-                    if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. })) =>
+            InstKind::MStore(..)
+                if func.memory_length_store(inst).is_some_and(|(object, _)| {
+                    matches!(func.value(object), Value::Inst(alloc)
+                        if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }))
+                }) =>
             {
                 0
             }

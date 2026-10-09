@@ -69,8 +69,8 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType,
-        Module, Terminator, Value, ValueId,
+        ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, Terminator,
+        Value, ValueId,
         analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -1106,7 +1106,7 @@ fn is_small_literal_return(func: &Function) -> bool {
         return false;
     }
     let block = &func.blocks[BlockId::ENTRY];
-    let [alloc, len, rest @ ..] = block.instructions.as_slice() else { return false };
+    let [alloc, rest @ ..] = block.instructions.as_slice() else { return false };
     if func.inst(*alloc).metadata.preserves_fmp() {
         return false;
     }
@@ -1116,31 +1116,38 @@ fn is_small_literal_return(func: &Function) -> bool {
         return false;
     };
     let Some(object) = func.inst_result_value(*alloc) else { return false };
-    let InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) = func.inst(*len).kind
-    else {
-        return false;
-    };
-    if value != object
-        || !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
+    if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
     {
         return false;
     }
-    let Some(length) = func.value_u64(length) else { return false };
-    if length > 32 || func.value_u64(size) != Some(32 + length.next_multiple_of(32)) {
-        return false;
+    let mut length = None;
+    let mut words = 0;
+    for &inst in rest {
+        if func.is_object_derivation(inst) {
+            continue;
+        }
+        let (address, value) = match func.inst(inst).kind {
+            InstKind::MStore(address, value) => (func.object_address(address), value),
+            InstKind::SliceStoreWord { slice, offset, value } => (
+                func.object_address(slice).and_then(|(base, data)| {
+                    Some((base, data.checked_add(func.value_u64(offset)?)?))
+                }),
+                value,
+            ),
+            _ => return false,
+        };
+        match address {
+            Some((base, 0)) if base == object && length.is_none() => {
+                length = func.value_u64(value);
+            }
+            Some((base, 32)) if base == object && func.value_u256(value).is_some() => words += 1,
+            _ => return false,
+        }
     }
-    match rest {
-        [] => length == 0,
-        [store] => matches!(func.inst(*store).kind,
-            InstKind::MemoryObjectStoreWord { object: value, offset, value: word }
-            if length != 0 && value == object && func.value_u64(offset) == Some(0)
-                && func.value_u256(word).is_some()),
-        [data, store] => matches!((&func.inst(*data).kind, &func.inst(*store).kind),
-            (InstKind::MemoryObjectData(value, MemoryObjectKind::Bytes), InstKind::MStore(ptr, word))
-            if length != 0 && *value == object && func.inst_result_value(*data) == Some(*ptr)
-                && func.value_u256(*word).is_some()),
-        _ => false,
-    }
+    let Some(length) = length else { return false };
+    length <= 32
+        && func.value_u64(size) == Some(32 + length.next_multiple_of(32))
+        && words == usize::from(length != 0)
 }
 
 /// A direct call whose callee cannot resume the caller. Keep tail-call chains
@@ -1626,13 +1633,6 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
-        InstKind::MemoryObjectData(_, kind) => {
-            if EvmMemoryLayout::object_data_offset(*kind) == 0 {
-                Cost::ZERO
-            } else {
-                seq(&[op::ADD])
-            }
-        }
         InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
             if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
                 Cost::ZERO
@@ -1674,20 +1674,16 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
                 Cost::ZERO
             })
         }
-        InstKind::MemoryObjectLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
-        InstKind::MemoryObjectStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
-        InstKind::MemoryObjectStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
+        InstKind::SliceLoadElement { .. } => seq(&[op::MUL, op::ADD, op::MLOAD]),
+        InstKind::SliceStoreElement { .. } => seq(&[op::MUL, op::ADD, op::MSTORE]),
+        InstKind::SliceLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
+        InstKind::SliceStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
+        InstKind::SliceStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
         InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
         InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
-        InstKind::MemoryObjectCopyFromSlice { .. }
-        | InstKind::MemoryObjectCopyFromSliceAt { .. }
-        | InstKind::MemoryObjectCopy { .. } => seq(&[op::MCOPY]),
-        InstKind::MemoryObjectLen(_, _) | InstKind::Fmp | InstKind::FrameLoad { .. } => {
-            seq(&[op::MLOAD])
-        }
-        InstKind::SetMemoryObjectLen(_, _, _)
-        | InstKind::SetFmp(_)
-        | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
+        InstKind::SliceCopy { .. } => seq(&[op::MCOPY]),
+        InstKind::MemorySlice(_) | InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
+        InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
         // Bump the free-memory pointer past the allocation.
         InstKind::Alloc { .. } => seq(&[op::MLOAD, op::ADD, op::MSTORE]),
         // Reserve the buffer, store the selector, produce the slice, store every argument's
@@ -2274,8 +2270,8 @@ fn inline_literal_call(
     let mut instructions = Vec::new();
     // object = icall @literal
     //   => object = alloc memorybytes, size
-    //      set_memory_object_len object, length
-    //      memory_object_store_word object, 0, word
+    //      mstore (ptrtoint object), length
+    //      slice_store_word (memory_slice object), 0, word
     for &inst in &callee.blocks[BlockId::ENTRY].instructions {
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
@@ -2288,17 +2284,6 @@ fn inline_literal_call(
             // The inlined result escapes the call. Preserve its heap reservation even when a
             // later ABI encoding embeds the literal bytes and removes its initialization stores.
             instruction.metadata.set_preserves_fmp(true);
-        }
-        if let InstKind::MStore(ptr, value) = instruction.kind
-            && let Value::Inst(data) = cloner.caller.value(ptr)
-            && let InstKind::MemoryObjectData(object, MemoryObjectKind::Bytes) =
-                cloner.caller.inst(*data).kind
-        {
-            // mstore memory_object_data(object), word
-            //   => memory_object_store_word object, 0, word
-            let offset =
-                cloner.caller.alloc_value(Value::Immediate(Immediate::I256(Default::default())));
-            instruction.kind = InstKind::MemoryObjectStoreWord { object, offset, value };
         }
         let new_inst = if let Some(value) = callee.inst_result_value(inst) {
             let (new_inst, new_value) = cloner.caller.alloc_value_inst(instruction);

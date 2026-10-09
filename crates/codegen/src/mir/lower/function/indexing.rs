@@ -9,9 +9,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: MemoryObjectLayout,
     ) -> ValueId {
         match layout {
-            MemoryObjectLayout::DynamicArray { .. } => {
-                self.builder.memory_object_len(object, layout.kind())
-            }
+            MemoryObjectLayout::DynamicArray { .. } => self.builder.memory_len(object),
             MemoryObjectLayout::FixedArray { len, .. } => self.builder.imm(len),
             _ => unreachable!("array layout expected"),
         }
@@ -142,9 +140,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             MemoryObjectLayout::Bytes => {
                 // bounds_check(index, object.length)
                 // value = load_byte(object, index)
-                let length = self.builder.memory_object_len(object, layout.kind());
+                let length = self.builder.memory_len(object);
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_byte(object, index);
+                let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
@@ -169,12 +167,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if layout != MemoryObjectLayout::Bytes {
                     return self.cx.report_unsupported(expr.span, "slice");
                 }
-                let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                (
-                    self.builder.make_slice(pointer, length, SliceLocation::Memory),
-                    SliceLocation::Memory,
-                )
+                (self.builder.memory_slice(value), SliceLocation::Memory)
             }
         };
         let is_bytes = self.is_dynamic_bytes_type(receiver_ty);

@@ -9,9 +9,9 @@
 //! Bytes results retain their FMP bump at the encoding point even when their size becomes constant.
 
 use crate::mir::{
-    AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectKind,
-    MemoryObjectLayout, PackedArraySource, PackedPart, PanicCode, SliceLocation, Value, ValueId,
-    ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
+    AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectLayout,
+    PackedArraySource, PackedPart, PanicCode, SliceLocation, Value, ValueId, ValueLayout,
+    memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -65,26 +65,15 @@ impl PackedEncoder<'_, '_> {
                     )
                 }
                 PackedPart::Bytes(value) => {
-                    let is_slice = self.builder.func().value_slice_location(value).is_some();
-                    let length = if is_slice {
-                        self.builder.slice_len(value)
-                    } else {
-                        self.builder.memory_object_len(value, MemoryObjectKind::Bytes)
-                    };
-                    let source = if is_slice {
-                        value
-                    } else {
-                        let pointer =
-                            self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                        self.builder.make_slice(pointer, length, SliceLocation::Memory)
-                    };
+                    let source = self.builder.memory_view(value);
+                    let length = self.builder.slice_len(source);
                     (PackedPiece::Dynamic { source, length }, length)
                 }
                 PackedPart::Array { value, element, source } => {
                     let length = match source {
                         PackedArraySource::Memory {
                             layout: MemoryObjectLayout::DynamicArray { .. },
-                        } => self.builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
+                        } => self.builder.memory_len(value),
                         PackedArraySource::Memory {
                             layout: MemoryObjectLayout::FixedArray { len, .. },
                         } => self.builder.imm(len),
@@ -114,7 +103,7 @@ impl PackedEncoder<'_, '_> {
         let output = if word_aligned {
             // size = checked_add(total, 32)
             // output = alloc_object size, bytes
-            // set_memory_object_len output, total
+            // mstore (ptrtoint output), total
             let header = self.builder.imm(32);
             let size = self.builder.checked_add(total, header);
             let output = self.builder.alloc_object(
@@ -122,7 +111,7 @@ impl PackedEncoder<'_, '_> {
                 MemoryObjectLayout::Bytes,
                 AllocationSemantics::INTERNAL,
             );
-            self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
+            self.builder.set_memory_len(output, total);
             output
         } else {
             // output = bytes(total)
@@ -153,19 +142,14 @@ impl PackedEncoder<'_, '_> {
                         let mut padded = [0u8; 32];
                         padded[..chunk.len()].copy_from_slice(chunk);
                         let value = self.builder.imm(U256::from_be_bytes(padded));
-                        self.builder.memory_object_store_word(output, offset, value);
+                        self.builder.memory_store_word(output, offset, value);
                         let length = self.builder.imm(chunk.len() as u64);
                         offset = self.builder.checked_add(offset, length);
                     }
                 }
                 PackedPiece::Dynamic { source, length } => {
                     // copy(source, output + offset)
-                    self.builder.memory_object_copy_from_slice_at(
-                        output,
-                        MemoryObjectKind::Bytes,
-                        offset,
-                        *source,
-                    );
+                    self.builder.memory_copy_from_slice_at(output, offset, *source);
                     offset = self.builder.checked_add(offset, *length);
                 }
                 PackedPiece::Array { value, length, element, source } => {
@@ -181,7 +165,7 @@ impl PackedEncoder<'_, '_> {
                         let shift = self.builder.imm((32 - *length) * 8);
                         self.builder.shl(shift, *value)
                     };
-                    self.builder.memory_object_store_word(output, offset, value);
+                    self.builder.memory_store_word(output, offset, value);
                     let length = self.builder.imm(*length);
                     offset = self.builder.checked_add(offset, length);
                 }
@@ -391,7 +375,7 @@ impl PackedEncoder<'_, '_> {
                 } else {
                     element_value
                 };
-                self.builder.memory_object_store_word(output, destination, element_value);
+                self.builder.memory_store_word(output, destination, element_value);
             }
             AbiType::FixedArray { element: nested, len } => {
                 // copy_packed_array(output, destination, value[i])
@@ -507,7 +491,7 @@ impl PackedEncoder<'_, '_> {
         pieces: &[PackedPiece],
     ) -> Option<(usize, u64)> {
         let (consumed, length, value) = self.try_pack_packed_word(pieces)?;
-        self.builder.memory_object_store_word(output, offset, value);
+        self.builder.memory_store_word(output, offset, value);
         Some((consumed, length))
     }
 }

@@ -712,8 +712,9 @@ fn local_summary(
                 | InstKind::SetFmp(value)
                 | InstKind::MemoryObjectStoreField { value, .. }
                 | InstKind::MemoryObjectStoreElement { value, .. }
-                | InstKind::MemoryObjectStoreByte { value, .. }
-                | InstKind::MemoryObjectStoreWord { value, .. }
+                | InstKind::SliceStoreElement { value, .. }
+                | InstKind::SliceStoreByte { value, .. }
+                | InstKind::SliceStoreWord { value, .. }
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
@@ -1100,8 +1101,9 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::Keccak256(_, _)
             | InstKind::MemoryObjectLoadField { .. }
             | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
-            | InstKind::MemoryObjectLen(_, _)
+            | InstKind::SliceLoadElement { .. }
+            | InstKind::SliceLoadByte { .. }
+            | InstKind::MemorySlice(_)
             | InstKind::MemorySliceLoadWord { .. }
             | InstKind::CalldataSliceLoadWord { .. }
             | InstKind::SliceLen(_)

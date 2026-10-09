@@ -421,11 +421,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
                     self.validate_calldata_bytes_slice(value);
-                    self.builder.memory_object_copy_from_slice(
-                        object,
-                        MemoryObjectKind::Bytes,
-                        value,
-                    );
+                    self.builder.memory_copy_from_slice(object, value);
                     Some(object)
                 } else {
                     self.validate_calldata_bytes_slice(value);
@@ -476,9 +472,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.checked_add(word, byte_length);
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        self.builder.set_memory_object_len(object, length, layout.kind());
+        self.builder.set_memory_len(object, length);
         let source = self.builder.make_slice(data, byte_length, SliceLocation::Calldata);
-        self.builder.memory_object_copy_from_slice(object, layout.kind(), source);
+        self.builder.memory_copy_from_slice(object, source);
         object
     }
 
@@ -499,7 +495,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.checked_add(word, payload_size);
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
-        self.builder.set_memory_object_len(object, length, layout.kind());
+        self.builder.set_memory_len(object, length);
 
         self.counted_loop(length, |this, index| {
             // The checked payload size bounds offsets for one-word ABI heads.
@@ -861,9 +857,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 });
             }
             let byte_length = self.builder.imm(byte_length);
-            // copy(calldata(base, byte_length), object.data)
+            // copy(calldata(base, byte_length), object)
             let source = self.builder.make_slice(base, byte_length, SliceLocation::Calldata);
-            self.builder.memory_object_copy_from_slice(object, layout.kind(), source);
+            self.builder.memory_copy_to_object(object, source);
             return Some(object);
         }
         let nested_validate = validate_bounds && element_abi.is_dynamic();

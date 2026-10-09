@@ -454,9 +454,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             }
 
-            InstKind::MemoryObjectLen(_, _)
-            | InstKind::SetMemoryObjectLen(_, _, _)
-            | InstKind::MemoryObjectData(_, _)
+            InstKind::MemorySlice(_)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
             | InstKind::Keccak256Bytes(_) => {

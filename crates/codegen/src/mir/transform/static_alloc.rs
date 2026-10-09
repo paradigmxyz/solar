@@ -20,8 +20,8 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, Module, Terminator, Value, ValueId,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectLayout,
+    Module, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, ModuleAnalyses},
@@ -329,9 +329,27 @@ fn candidate_uses_are_safe(
                     };
                     base_offset.checked_add(offset)
                 }
-                InstKind::MemoryObjectData(object, kind) if object == value => derived
-                    .get(&value)
-                    .and_then(|&base| base.checked_add(EvmMemoryLayout::object_data_offset(kind))),
+                // A view's data may start at the end of an object that holds no elements.
+                InstKind::MemorySlice(object) if object == value => {
+                    let Some(data) = derived
+                        .get(&value)
+                        .and_then(|&base| base.checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+                    else {
+                        return false;
+                    };
+                    if data > cand.size {
+                        return false;
+                    }
+                    derived.insert(result, data);
+                    pending.push(result);
+                    continue;
+                }
+                InstKind::SlicePtr(slice) => {
+                    let Some(&data) = derived.get(&slice) else { continue };
+                    derived.insert(result, data);
+                    pending.push(result);
+                    continue;
+                }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } if object == value => {
                     derived.get(&value).and_then(|&base| {
                         EvmMemoryLayout::field_offset(layout, field)?.checked_add(base)
@@ -393,22 +411,18 @@ fn candidate_uses_are_safe(
                 InstKind::Add(_, _) | InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
-                InstKind::MemoryObjectData(_, _)
+                InstKind::SlicePtr(_)
                 | InstKind::MemoryObjectFieldAddr { .. }
                 | InstKind::MemoryObjectElementAddr { .. } => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
-                InstKind::MemoryObjectLen(object, kind) => {
+                // The view reads the length word in front of its data.
+                InstKind::MemorySlice(object) => {
                     operand == object
-                        && EvmMemoryLayout::object_length_offset(kind)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
+                        && func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
+                        && in_range(off, 32)
                 }
-                InstKind::SetMemoryObjectLen(object, len, kind) => {
-                    operand == object
-                        && !derived.contains_key(&len)
-                        && EvmMemoryLayout::object_length_offset(kind)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
+                InstKind::SliceLen(_) => true,
                 InstKind::MemoryObjectLoadField { object, layout, field } => {
                     operand == object
                         && EvmMemoryLayout::field_offset(layout, field)
@@ -425,12 +439,16 @@ fn candidate_uses_are_safe(
                         && object_element_offset(layout, func.value_u64(index))
                             .is_some_and(|offset| in_range_at(off, offset, 32))
                 }
-                InstKind::MemoryObjectLoadByte { object, index } => {
-                    operand == object
-                        && func.value_u64(index).is_some_and(|index| {
-                            object_byte_offset(index)
-                                .is_some_and(|offset| in_range_at(off, offset, 1))
-                        })
+                InstKind::SliceLoadElement { slice, index } => {
+                    operand == slice
+                        && func
+                            .value_u64(index)
+                            .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
+                            .is_some_and(|offset| in_range_at(off, offset, 32))
+                }
+                InstKind::SliceLoadByte { slice, index } => {
+                    operand == slice
+                        && func.value_u64(index).is_some_and(|index| in_range_at(off, index, 1))
                 }
                 InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
                     operand == object
@@ -438,22 +456,23 @@ fn candidate_uses_are_safe(
                         && object_element_offset(layout, func.value_u64(index))
                             .is_some_and(|offset| in_range_at(off, offset, 32))
                 }
-                InstKind::MemoryObjectStoreByte { object, index, value } => {
-                    operand == object
+                InstKind::SliceStoreElement { slice, index, value } => {
+                    operand == slice
                         && !derived.contains_key(&value)
-                        && func.value_u64(index).is_some_and(|index| {
-                            object_byte_offset(index)
-                                .is_some_and(|offset| in_range_at(off, offset, 1))
-                        })
+                        && func
+                            .value_u64(index)
+                            .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
+                            .is_some_and(|offset| in_range_at(off, offset, 32))
                 }
-                InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                    operand == object
+                InstKind::SliceStoreByte { slice, index, value } => {
+                    operand == slice
                         && !derived.contains_key(&value)
-                        && func.value_u64(offset).is_some_and(|offset| {
-                            EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes)
-                                .checked_add(offset)
-                                .is_some_and(|offset| in_range_at(off, offset, 32))
-                        })
+                        && func.value_u64(index).is_some_and(|index| in_range_at(off, index, 1))
+                }
+                InstKind::SliceStoreWord { slice, offset, value } => {
+                    operand == slice
+                        && !derived.contains_key(&value)
+                        && func.value_u64(offset).is_some_and(|offset| in_range_at(off, offset, 32))
                 }
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
@@ -489,10 +508,6 @@ fn object_element_offset(layout: MemoryObjectLayout, index: Option<u64>) -> Opti
     let index = index?;
     let stride = EvmMemoryLayout::element_stride(layout)?;
     EvmMemoryLayout::object_data_offset(layout.kind()).checked_add(index.checked_mul(stride)?)
-}
-
-fn object_byte_offset(index: u64) -> Option<u64> {
-    EvmMemoryLayout::object_data_offset(MemoryObjectKind::Bytes).checked_add(index)
 }
 
 fn call_use_is_safe(

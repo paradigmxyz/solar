@@ -223,7 +223,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result.length = length
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
-            self.builder.set_memory_object_len(object, len, layout.kind());
+            self.builder.set_memory_len(object, len);
             if let TyKind::DynArray(element) = ty.peel_refs().kind
                 && self.types.memory_layout(element).is_some()
             {
@@ -657,7 +657,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         MemoryObjectLayout::Bytes,
                         zero,
                     );
-                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+                    let length = self.builder.memory_len(value);
                     Some((word, length))
                 }
                 Some(MirType::Slice(SliceLocation::Calldata)) => {
@@ -1535,8 +1535,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 AllocationSemantics::INTERNAL,
             );
             let size = self.builder.imm(size);
-            self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
-            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            self.builder.set_memory_len(object, size);
+            let data = self.builder.memory_data(object);
             return Some((object, data, size));
         }
         let size = self.builder.imm(size);

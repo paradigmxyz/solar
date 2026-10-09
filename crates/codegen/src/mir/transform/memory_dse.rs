@@ -11,8 +11,8 @@
 //! the complete access range to fit; wider accesses may overlap adjacent allocations.
 
 use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
-    Terminator, Value, ValueId,
+    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryRegion, Module, Terminator,
+    Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
         MemoryBase, MemoryLocation,
@@ -82,7 +82,6 @@ fn has_memory_writes(func: &Function) -> bool {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::SetMemoryObjectLen(_, _, _)
                 | InstKind::StorageToMemory { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. }
@@ -789,7 +788,7 @@ impl MemoryStoreEliminator {
         let mut has_keccak = false;
         for &inst_id in &func.blocks[block_id].instructions {
             match func.inst(inst_id).kind {
-                InstKind::MStore(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => {
+                InstKind::MStore(_, _) => {
                     mstores += 1;
                     memory_writes += 1;
                 }
@@ -803,7 +802,7 @@ impl MemoryStoreEliminator {
                 | InstKind::Alloc { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. } => memory_writes += 1,
-                InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) => has_load = true,
+                InstKind::MLoad(_) | InstKind::MemorySlice(_) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
                     .alias()
@@ -847,19 +846,6 @@ impl MemoryStoreEliminator {
                         scratch.overwritten.clear();
                     }
                 }
-                InstKind::SetMemoryObjectLen(object, _, kind) => {
-                    if let Some(key) = self.memory_object_length_key(func, inst_id, *object, *kind)
-                    {
-                        if scratch.overwritten.contains(&key) {
-                            scratch.dead.insert(inst_id);
-                            self.eliminated_count += 1;
-                        } else {
-                            scratch.overwritten.insert(key);
-                        }
-                    } else {
-                        scratch.overwritten.clear();
-                    }
-                }
                 InstKind::MLoad(addr) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         Self::remove_overlapping_set(&mut scratch.overwritten, key);
@@ -867,9 +853,8 @@ impl MemoryStoreEliminator {
                         scratch.overwritten.clear();
                     }
                 }
-                InstKind::MemoryObjectLen(object, kind) => {
-                    if let Some(key) = self.memory_object_length_key(func, inst_id, *object, *kind)
-                    {
+                InstKind::MemorySlice(object) => {
+                    if let Some(key) = self.memory_object_length_key(func, inst_id, *object) {
                         Self::remove_overlapping_set(&mut scratch.overwritten, key);
                     } else {
                         scratch.overwritten.clear();
@@ -1324,32 +1309,8 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                     }
                 }
-                InstKind::SetMemoryObjectLen(object, value, kind) => {
-                    let Some(key) = self.memory_object_length_key(func, inst_id, *object, *kind)
-                    else {
-                        scratch.stored_values.clear();
-                        continue;
-                    };
-                    scratch.stored_values.invalidate(key, 32);
-                    scratch
-                        .stored_values
-                        .insert(key, mir_utils::resolve_replacement(*value, &scratch.replacements));
-                }
                 InstKind::MLoad(addr) => {
                     let Some(key) = self.mem_addr_key(func, *addr, 32) else {
-                        continue;
-                    };
-                    let Some(&stored_value) = scratch.stored_values.get(key) else {
-                        continue;
-                    };
-                    if let Some(loaded_value) = func.inst_result_value(inst_id) {
-                        scratch.replacements.insert(loaded_value, stored_value);
-                        scratch.dead.insert(inst_id);
-                    }
-                }
-                InstKind::MemoryObjectLen(object, kind) => {
-                    let Some(key) = self.memory_object_length_key(func, inst_id, *object, *kind)
-                    else {
                         continue;
                     };
                     let Some(&stored_value) = scratch.stored_values.get(key) else {
@@ -1429,10 +1390,9 @@ impl MemoryStoreEliminator {
         func: &Function,
         inst_id: InstId,
         object: ValueId,
-        kind: MemoryObjectKind,
     ) -> Option<MemAddrKey> {
         self.alias()
-            .memory_object_length_location(func, inst_id, object, kind)
+            .memory_object_length_location(func, inst_id, object)
             .map(|location| MemAddrKey(location.address))
     }
 

@@ -281,7 +281,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let object = self
                             .builder
                             .alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
-                        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+                        let data = self.builder.memory_data(object);
                         let zero = self.builder.imm(U256::ZERO);
                         self.builder.extcodecopy_heap(address, data, zero, length);
                         Some(object)

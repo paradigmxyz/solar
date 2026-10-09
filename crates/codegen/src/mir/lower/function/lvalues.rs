@@ -66,7 +66,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::Bytes => {
-                        let length = self.builder.memory_object_len(object, layout.kind());
+                        let length = self.builder.memory_len(object);
                         self.builder.bounds_check(index, length);
                         let ty = self.type_of_expr_or_variable(expr)?;
                         Some(LValuePlace::MemoryByte { object, index, ty })
@@ -105,7 +105,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
-                let value = self.builder.memory_object_load_byte(object, index);
+                let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
         }
@@ -153,7 +153,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
         let zero = self.builder.imm(U256::ZERO);
         let value = self.builder.byte(zero, value);
-        self.builder.memory_object_store_byte(object, index, value);
+        self.builder.memory_store_byte(object, index, value);
     }
 
     pub(super) fn resolve_storage_byte_place(

@@ -156,14 +156,8 @@
 (decl alloc (Value AllocationKind AllocationSemantics) Value)
 (extractor (alloc size kind semantics) (inst (Op.Alloc size kind semantics)))
 
-(decl memoryobjectlen (Value MemoryObjectKind) Value)
-(extractor (memoryobjectlen object kind) (inst (Op.MemoryObjectLen object kind)))
-
-(decl setmemoryobjectlen (Value Value MemoryObjectKind) Value)
-(extractor (setmemoryobjectlen object len kind) (inst (Op.SetMemoryObjectLen object len kind)))
-
-(decl memoryobjectdata (Value MemoryObjectKind) Value)
-(extractor (memoryobjectdata object kind) (inst (Op.MemoryObjectData object kind)))
+(decl memoryslice (Value) Value)
+(extractor (memoryslice object) (inst (Op.MemorySlice object)))
 
 (decl memoryobjectfieldaddr (Value MemoryObjectLayout u64) Value)
 (extractor (memoryobjectfieldaddr object layout field) (inst (Op.MemoryObjectFieldAddr object layout field)))
@@ -180,17 +174,23 @@
 (decl memoryobjectloadelement (Value MemoryObjectLayout Value) Value)
 (extractor (memoryobjectloadelement object layout index) (inst (Op.MemoryObjectLoadElement object layout index)))
 
-(decl memoryobjectloadbyte (Value Value) Value)
-(extractor (memoryobjectloadbyte object index) (inst (Op.MemoryObjectLoadByte object index)))
-
 (decl memoryobjectstoreelement (Value MemoryObjectLayout Value Value) Value)
 (extractor (memoryobjectstoreelement object layout index value) (inst (Op.MemoryObjectStoreElement object layout index value)))
 
-(decl memoryobjectstorebyte (Value Value Value) Value)
-(extractor (memoryobjectstorebyte object index value) (inst (Op.MemoryObjectStoreByte object index value)))
+(decl sliceloadelement (Value Value) Value)
+(extractor (sliceloadelement slice index) (inst (Op.SliceLoadElement slice index)))
 
-(decl memoryobjectstoreword (Value Value Value) Value)
-(extractor (memoryobjectstoreword object offset value) (inst (Op.MemoryObjectStoreWord object offset value)))
+(decl slicestoreelement (Value Value Value) Value)
+(extractor (slicestoreelement slice index value) (inst (Op.SliceStoreElement slice index value)))
+
+(decl sliceloadbyte (Value Value) Value)
+(extractor (sliceloadbyte slice index) (inst (Op.SliceLoadByte slice index)))
+
+(decl slicestorebyte (Value Value Value) Value)
+(extractor (slicestorebyte slice index value) (inst (Op.SliceStoreByte slice index value)))
+
+(decl slicestoreword (Value Value Value) Value)
+(extractor (slicestoreword slice offset value) (inst (Op.SliceStoreWord slice offset value)))
 
 (decl memorysliceloadword (Value Value) Value)
 (extractor (memorysliceloadword slice offset) (inst (Op.MemorySliceLoadWord slice offset)))
@@ -198,14 +198,8 @@
 (decl calldatasliceloadword (Value Value) Value)
 (extractor (calldatasliceloadword slice offset) (inst (Op.CalldataSliceLoadWord slice offset)))
 
-(decl memoryobjectcopyfromslice (Value MemoryObjectKind Value) Value)
-(extractor (memoryobjectcopyfromslice object kind source) (inst (Op.MemoryObjectCopyFromSlice object kind source)))
-
-(decl memoryobjectcopyfromsliceat (Value MemoryObjectKind Value Value) Value)
-(extractor (memoryobjectcopyfromsliceat object kind offset source) (inst (Op.MemoryObjectCopyFromSliceAt object kind offset source)))
-
-(decl memoryobjectcopy (Value MemoryObjectKind Value MemoryObjectKind Value) Value)
-(extractor (memoryobjectcopy destination destination_kind source source_kind length) (inst (Op.MemoryObjectCopy destination destination_kind source source_kind length)))
+(decl slicecopy (Value Value Value) Value)
+(extractor (slicecopy destination offset source) (inst (Op.SliceCopy destination offset source)))
 
 (decl abiencode (AbiEncodeMode OptionValue Unit Unit) Value)
 (extractor (abiencode mode selector args layout) (inst (Op.AbiEncode mode selector args layout)))

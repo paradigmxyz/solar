@@ -16,8 +16,7 @@
 
 use crate::mir::{
     AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate,
-    InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation,
-    Value,
+    InstKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Value,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::MirPass,
 };
@@ -104,44 +103,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
-                    InstKind::MemoryObjectLen(object, kind) => {
-                        if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                            builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
-                            return true;
-                        }
-                        let Some(offset) = P::object_length_offset(kind) else {
-                            return true;
-                        };
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::SetMemoryObjectLen(object, len, kind) => {
-                        let Some(offset) = P::object_length_offset(kind) else {
-                            return true;
-                        };
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, len);
-                    }
-                    InstKind::MemoryObjectData(object, kind) => {
-                        if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
-                            let Some(result) = builder.func().inst_result_value(inst) else {
-                                return false;
-                            };
-                            let pointer = builder.slice_ptr(object);
-                            // pointer = inttoptr slice_ptr to memptr
-                            let pointer = builder.cast(pointer, MirType::MemPtr);
-                            replacements.insert(result, pointer);
-                            return false;
-                        }
-                        let offset = P::object_data_offset(kind);
-                        if offset == 0 {
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, object);
-                            }
-                            return false;
-                        }
-                        let offset = builder.imm(offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
+                    InstKind::MemorySlice(object) => {
+                        let (ptr, len) = memory_slice_parts::<P>(&mut builder, object);
+                        builder.func_mut().inst_mut(inst).kind =
+                            InstKind::MakeSlice { ptr, len, location: SliceLocation::Memory };
                     }
                     InstKind::MLoad(object) => {
                         let Some(location) = builder.func().value_slice_location(object) else {
@@ -251,13 +216,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
                             return true;
                         }
-                        let kind = crate::mir::MemoryObjectKind::Bytes;
-                        let Some(length_offset) = P::object_length_offset(kind) else {
-                            return true;
-                        };
-                        let length_address = builder.add_u64_offset(object, length_offset);
-                        let len = builder.mload(length_address);
-                        let data = builder.add_u64_offset(object, P::object_data_offset(kind));
+                        let (data, len) = memory_slice_parts::<P>(&mut builder, object);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
                     }
                     InstKind::MemoryObjectElementAddr { object, layout, index } => {
@@ -294,34 +253,17 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let address = builder.add_u64_offset(object, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
-                    InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            if !matches!(
-                                layout,
-                                MemoryObjectLayout::DynamicArray { element_words: 1 }
-                                    | MemoryObjectLayout::FixedArray { element_words: 1, .. }
-                            ) {
-                                return true;
-                            }
-                            let Some(stride) = P::element_stride(layout) else {
-                                return true;
-                            };
-                            let base = builder.slice_ptr(object);
-                            let address = if let Some(index) = builder.func().value_u64(index)
-                                && let Some(offset) = index.checked_mul(stride)
-                            {
-                                builder.add_u64_offset(base, offset)
-                            } else {
-                                let stride = builder.imm(stride);
-                                let offset = builder.mul(index, stride);
-                                builder.add(base, offset)
-                            };
-                            let Some(kind) = slice_load_kind(location, address) else {
-                                return true;
-                            };
-                            builder.func_mut().inst_mut(inst).kind = kind;
+                    InstKind::SliceLoadElement { slice, index } => {
+                        let Some(location) = builder.func().value_slice_location(slice) else {
                             return true;
-                        }
+                        };
+                        let address = slice_element_address::<P>(&mut builder, slice, index);
+                        let Some(kind) = slice_load_kind(location, address) else {
+                            return true;
+                        };
+                        builder.func_mut().inst_mut(inst).kind = kind;
+                    }
+                    InstKind::MemoryObjectLoadElement { object, layout, index } => {
                         let Some(address) =
                             memory_element_address::<P>(&mut builder, object, index, layout)
                         else {
@@ -329,23 +271,16 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         };
                         builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
-                    InstKind::MemoryObjectLoadByte { object, index } => {
-                        let word = if let Some(location) =
-                            builder.func().value_slice_location(object)
-                        {
-                            let source = builder.slice_ptr(object);
-                            let address = dynamic_offset_address(&mut builder, source, index);
-                            match location {
-                                crate::mir::SliceLocation::Calldata => {
-                                    builder.calldataload(address)
-                                }
-                                crate::mir::SliceLocation::Memory => builder.mload(address),
-                                crate::mir::SliceLocation::Returndata => return true,
-                            }
-                        } else {
-                            let address = memory_bytes_address::<P>(&mut builder, object, index);
-                            builder.mload(address)
+                    InstKind::SliceLoadByte { slice, index } => {
+                        let Some(location) = builder.func().value_slice_location(slice) else {
+                            return true;
                         };
+                        let source = builder.slice_ptr(slice);
+                        let address = dynamic_offset_address(&mut builder, source, index);
+                        let Some(load) = slice_load_kind(location, address) else {
+                            return true;
+                        };
+                        let word = builder.emit_inst(load, Some(MirType::I256));
                         let zero = builder.imm(0);
                         let byte = builder.byte(zero, word);
                         if let Some(result) = builder.func().inst_result_value(inst) {
@@ -361,12 +296,18 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         };
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
-                    InstKind::MemoryObjectStoreByte { object, index, value } => {
-                        let address = memory_bytes_address::<P>(&mut builder, object, index);
+                    InstKind::SliceStoreElement { slice, index, value } => {
+                        let address = slice_element_address::<P>(&mut builder, slice, index);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                    }
+                    InstKind::SliceStoreByte { slice, index, value } => {
+                        let base = builder.slice_ptr(slice);
+                        let address = dynamic_offset_address(&mut builder, base, index);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
                     }
-                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                        let address = memory_bytes_address::<P>(&mut builder, object, offset);
+                    InstKind::SliceStoreWord { slice, offset, value } => {
+                        let base = builder.slice_ptr(slice);
+                        let address = dynamic_offset_address(&mut builder, base, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::MemorySliceLoadWord { slice, offset } => {
@@ -379,39 +320,14 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let address = dynamic_offset_address(&mut builder, source, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
                     }
-                    InstKind::MemoryObjectCopyFromSlice { object, kind, source } => {
-                        let Some(physical) =
-                            lower_object_copy::<P>(&mut builder, object, kind, None, source)
+                    InstKind::SliceCopy { destination, offset, source } => {
+                        let base = builder.slice_ptr(destination);
+                        let destination = dynamic_offset_address(&mut builder, base, offset);
+                        let Some(physical) = lower_slice_copy(&mut builder, destination, source)
                         else {
                             return true;
                         };
                         builder.func_mut().inst_mut(inst).kind = physical;
-                    }
-                    InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => {
-                        let Some(physical) = lower_object_copy::<P>(
-                            &mut builder,
-                            object,
-                            kind,
-                            Some(offset),
-                            source,
-                        ) else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = physical;
-                    }
-                    InstKind::MemoryObjectCopy {
-                        destination,
-                        destination_kind,
-                        source,
-                        source_kind,
-                        length,
-                    } => {
-                        let destination = builder
-                            .add_u64_offset(destination, P::object_data_offset(destination_kind));
-                        let source =
-                            builder.add_u64_offset(source, P::object_data_offset(source_kind));
-                        builder.func_mut().inst_mut(inst).kind =
-                            InstKind::MCopy(destination, source, length);
                     }
                     _ => {}
                 }
@@ -635,10 +551,9 @@ fn materialize_mixed_byte_phis(func: &mut Function) {
                     alignment: AllocationAlignment::Word,
                     ..AllocationSemantics::SOLIDITY_UNINITIALIZED
                 };
-                let layout = MemoryObjectLayout::Bytes;
-                let object = builder.alloc_object(size, layout, semantics);
-                builder.set_memory_object_len(object, length, layout.kind());
-                builder.memory_object_copy_from_slice(object, layout.kind(), value);
+                let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+                builder.set_memory_len(object, length);
+                builder.memory_copy_from_slice(object, value);
                 lowered.push((predecessor, object));
             }
             func.inst_mut(inst).kind = InstKind::Phi(lowered);
@@ -654,13 +569,35 @@ fn dynamic_offset_address(
     if builder.func().value_u64(offset) == Some(0) { base } else { builder.add(base, offset) }
 }
 
-fn memory_bytes_address<P: MemoryLayoutPolicy>(
+/// Expands a dynamic object's header into its payload address and length.
+fn memory_slice_parts<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
     object: crate::mir::ValueId,
-    offset: crate::mir::ValueId,
+) -> (crate::mir::ValueId, crate::mir::ValueId) {
+    // header = ptrtoint object to i256
+    // len = mload header
+    // data = add header, P::DYNAMIC_HEADER_SIZE
+    let header = builder.cast(object, MirType::I256);
+    let len = builder.mload(header);
+    let data = builder.add_u64_offset(header, P::DYNAMIC_HEADER_SIZE);
+    (data, len)
+}
+
+fn slice_element_address<P: MemoryLayoutPolicy>(
+    builder: &mut FunctionBuilder<'_>,
+    slice: crate::mir::ValueId,
+    index: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let base = builder.add_u64_offset(object, P::object_data_offset(MemoryObjectKind::Bytes));
-    builder.add(base, offset)
+    let base = builder.slice_ptr(slice);
+    if let Some(index) = builder.func().value_u64(index)
+        && let Some(offset) = index.checked_mul(P::WORD_SIZE)
+    {
+        builder.add_u64_offset(base, offset)
+    } else {
+        let stride = builder.imm(P::WORD_SIZE);
+        let offset = builder.mul(index, stride);
+        builder.add(base, offset)
+    }
 }
 
 fn memory_element_address<P: MemoryLayoutPolicy>(
@@ -695,41 +632,19 @@ fn memory_element_address_parts<P: MemoryLayoutPolicy>(
     }
 }
 
-fn lower_slice_copy<P: MemoryLayoutPolicy>(
+fn lower_slice_copy(
     builder: &mut FunctionBuilder<'_>,
     destination: crate::mir::ValueId,
     source: crate::mir::ValueId,
 ) -> Option<InstKind> {
-    match builder.func().value_ty(source)? {
-        MirType::Slice(location) => {
-            let source_ptr = builder.slice_ptr(source);
-            let length = builder.slice_len(source);
-            Some(match location {
-                crate::mir::SliceLocation::Memory => {
-                    InstKind::MCopy(destination, source_ptr, length)
-                }
-                crate::mir::SliceLocation::Calldata => {
-                    InstKind::CalldataCopy(destination, source_ptr, length)
-                }
-                crate::mir::SliceLocation::Returndata => {
-                    InstKind::ReturnDataCopy(destination, source_ptr, length)
-                }
-            })
-        }
-        _ => None,
-    }
-}
-
-fn lower_object_copy<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
-    kind: MemoryObjectKind,
-    offset: Option<crate::mir::ValueId>,
-    source: crate::mir::ValueId,
-) -> Option<InstKind> {
-    let base = builder.add_u64_offset(object, P::object_data_offset(kind));
-    let destination = offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset));
-    lower_slice_copy::<P>(builder, destination, source)
+    let MirType::Slice(location) = builder.func().value_ty(source)? else { return None };
+    let source_ptr = builder.slice_ptr(source);
+    let length = builder.slice_len(source);
+    Some(match location {
+        SliceLocation::Memory => InstKind::MCopy(destination, source_ptr, length),
+        SliceLocation::Calldata => InstKind::CalldataCopy(destination, source_ptr, length),
+        SliceLocation::Returndata => InstKind::ReturnDataCopy(destination, source_ptr, length),
+    })
 }
 
 /// Materializes integer operands and pointer results at the physical opcode boundary.

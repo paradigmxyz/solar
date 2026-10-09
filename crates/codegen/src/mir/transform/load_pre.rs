@@ -94,8 +94,8 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
-        MemoryObjectKind, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata, MirType,
+        Module, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
             Location, LocationSize, MemoryAddress, MemoryLocation, ModRef,
@@ -1183,12 +1183,6 @@ impl LoadRedundancyEliminator {
             InstKind::MStore(addr, value) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
-            InstKind::MemoryObjectLen(object, kind) => self
-                .memory_object_addr(func, inst_id, object, kind)
-                .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
-            InstKind::SetMemoryObjectLen(object, value, kind) => self
-                .memory_object_addr(func, inst_id, object, kind)
-                .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
                 let addr = self.mem_addr(func, inst_id, offset, aa.location_size(func, size))?;
                 let size = match func.value_u64(size) {
@@ -1331,18 +1325,6 @@ impl LoadRedundancyEliminator {
         size: LocationSize,
     ) -> Option<MemoryAddress> {
         self.alias().memory_location(func, inst_id, addr, size).map(|location| location.address)
-    }
-
-    fn memory_object_addr(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        object: ValueId,
-        kind: MemoryObjectKind,
-    ) -> Option<MemoryAddress> {
-        self.alias()
-            .memory_object_length_location(func, inst_id, object, kind)
-            .map(|location| location.address)
     }
 
     fn fmp_addr() -> MemoryAddress {

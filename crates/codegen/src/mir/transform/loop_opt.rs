@@ -481,13 +481,13 @@ impl LoopOptimizer {
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
-            // A semantic length read lowers to one word load of the object's
-            // header. Element, byte, and word stores address the payload that
-            // follows the header, so alias analysis can prove the loop leaves
-            // the length alone while the object identity is still explicit.
+            // A `memory_slice` view lowers to one word load of the object's
+            // length header. Slice stores address the payload that follows the
+            // header, so alias analysis can prove the loop leaves the length
+            // alone while the object identity is still explicit.
             // An object layout does not prove that the header is allocated.
             // As with raw loads, require execution on every path through the loop.
-            InstKind::MemoryObjectLen(..) => {
+            InstKind::MemorySlice(..) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_write_read_locations(func, ctx, inst_id);
@@ -497,7 +497,8 @@ impl LoopOptimizer {
             // in the loop cannot be missed by the dependence check above.
             InstKind::MemoryObjectLoadField { .. }
             | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::SliceLoadElement { .. }
+            | InstKind::SliceLoadByte { .. }
             | InstKind::MemorySliceLoadWord { .. }
             | InstKind::Keccak256Bytes(_)
             | InstKind::FrameLoad { .. } => return false,
@@ -682,7 +683,7 @@ impl LoopOptimizer {
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
             | InstKind::Clz(_) => 5,
-            InstKind::MLoad(_) | InstKind::CalldataLoad(_) | InstKind::MemoryObjectLen(_, _) => 3,
+            InstKind::MLoad(_) | InstKind::CalldataLoad(_) | InstKind::MemorySlice(_) => 3,
             _ => 0,
         }
     }

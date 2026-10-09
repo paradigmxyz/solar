@@ -535,11 +535,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // selector = mload(data) >> 224
         let catch_data = (supports_returndata && needs_data).then(|| {
             let object = self.materialize_returndata_bytes();
-            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-            let len = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+            let view = self.builder.memory_slice(object);
+            let data = self.builder.slice_ptr(view);
+            let len = self.builder.slice_len(view);
             let zero = self.builder.imm(U256::ZERO);
-            let selector_slice = self.builder.make_slice(data, len, SliceLocation::Memory);
-            let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
+            let selector_word = self.builder.memory_slice_load_word(view, zero);
             let selector_shift = self.builder.imm(224);
             let selector = self.builder.shr(selector_shift, selector_word);
             TryCatchData { object, data, len, selector }

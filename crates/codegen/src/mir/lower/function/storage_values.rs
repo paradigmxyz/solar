@@ -1185,7 +1185,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = MemoryObjectLayout::DynamicArray { element_words };
         let object =
             self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        self.builder.set_memory_object_len(object, length, layout.kind());
+        self.builder.set_memory_len(object, length);
 
         self.counted_loop(length, |this, index| {
             let access = this.storage_array_element_access(slot, index, element, true, span)?;
@@ -1383,7 +1383,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source_layout = self.types.memory_layout(source_ty)?;
         let (source_element, length, fixed_length) = match source_ty.kind {
             TyKind::DynArray(source_element) => {
-                (source_element, self.builder.memory_object_len(object, source_layout.kind()), None)
+                (source_element, self.builder.memory_len(object), None)
             }
             TyKind::Array(source_element, source_len) => {
                 let source_len = u64::try_from(source_len).ok()?;

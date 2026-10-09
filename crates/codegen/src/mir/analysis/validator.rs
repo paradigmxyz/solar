@@ -1135,8 +1135,7 @@ impl<'a> Validator<'a> {
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
-                    InstKind::MemoryObjectCopyFromSlice { source, .. }
-                    | InstKind::MemoryObjectCopyFromSliceAt { source, .. } => {
+                    InstKind::SliceCopy { source, .. } => {
                         matches!(func.value_ty(*source), Some(MirType::Slice(_)))
                     }
                     _ => true,

@@ -191,6 +191,68 @@ impl Function {
         }
     }
 
+    /// Returns the object a `memory_slice` view reads, if `id` is one.
+    #[must_use]
+    pub(crate) fn memory_slice_object(&self, id: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst) = self.value(id) else { return None };
+        match self.inst(*inst).kind {
+            InstKind::MemorySlice(object) => Some(object),
+            _ => None,
+        }
+    }
+
+    /// Returns the object and length of a store to an object's length word:
+    /// `mstore (ptrtoint object), len`.
+    #[must_use]
+    pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
+        let InstKind::MStore(address, len) = self.inst(inst).kind else { return None };
+        match self.object_address(address) {
+            Some((object, 0)) if object != address => Some((object, len)),
+            _ => None,
+        }
+    }
+
+    /// Resolves an address to the object it points into and its byte offset from the object
+    /// start, through pointer casts, constant additions, and `memory_slice` views, whose data
+    /// starts after the length word.
+    #[must_use]
+    pub(crate) fn object_address(&self, mut value: ValueId) -> Option<(ValueId, u64)> {
+        let mut offset = 0_u64;
+        for _ in 0..self.num_values() {
+            let Value::Inst(inst) = self.value(value) else { break };
+            value = match self.inst(*inst).kind {
+                InstKind::PtrToInt(base, 256)
+                | InstKind::IntToPtr(base)
+                | InstKind::SlicePtr(base) => base,
+                InstKind::MemorySlice(object) => {
+                    offset =
+                        offset.checked_add(super::memory::EvmMemoryLayout::DYNAMIC_HEADER_SIZE)?;
+                    object
+                }
+                InstKind::Add(base, delta) if let Some(delta) = self.value_u64(delta) => {
+                    offset = offset.checked_add(delta)?;
+                    base
+                }
+                _ => break,
+            };
+        }
+        Some((value, offset))
+    }
+
+    /// Returns whether an instruction only derives an address or view from another one, as
+    /// [`Self::object_address`] follows.
+    #[must_use]
+    pub(crate) fn is_object_derivation(&self, inst: InstId) -> bool {
+        match self.inst(inst).kind {
+            InstKind::PtrToInt(_, 256)
+            | InstKind::IntToPtr(_)
+            | InstKind::SlicePtr(_)
+            | InstKind::MemorySlice(_) => true,
+            InstKind::Add(_, delta) => self.value_u64(delta).is_some(),
+            _ => false,
+        }
+    }
+
     /// Returns the type of an argument.
     #[must_use]
     pub(crate) fn arg_ty(&self, index: ArgIdx) -> MirType {

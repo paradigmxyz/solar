@@ -9,7 +9,7 @@
 //! Memory DSE and CSE also clean up the physical stores and hashes after expansion.
 
 use crate::mir::{
-    FunctionBuilder, InstKind, MemoryObjectKind, Module, SliceLocation,
+    FunctionBuilder, InstKind, Module, SliceLocation,
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::FxHashMap;
@@ -161,14 +161,14 @@ fn lower_slice_mapping_slot(
     // mstore(scratch + length, slot)
     // result = keccak256(scratch, length + 32)
     let len = match location {
-        SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
+        SliceLocation::Memory => builder.memory_len(value),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     let word_size = builder.imm(32);
     let payload_size = builder.add(len, word_size);
     let scratch = builder.fmp();
     let source = match location {
-        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
+        SliceLocation::Memory => builder.memory_data(value),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     builder.copy_slice_data(location, scratch, source, len);
