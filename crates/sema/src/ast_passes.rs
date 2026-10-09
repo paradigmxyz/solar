@@ -5,7 +5,7 @@ use solar_data_structures::Never;
 use solar_interface::{
     Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code, sym,
 };
-use std::ops::ControlFlow;
+use std::{ops::ControlFlow, sync::LazyLock};
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) {
@@ -186,7 +186,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().emit_err(name.span, msg);
                 } else if let Some(version) = current_solc_version()
-                    && !req.matches(&version)
+                    && !req.matches(version)
                 {
                     let msg = format!(
                         "source file requires different compiler version \
@@ -525,6 +525,8 @@ enum YulForPart {
 }
 
 /// Returns the solc version that version pragmas are checked against.
-fn current_solc_version() -> Option<ast::SemverVersion> {
-    semver::Version::parse(solc_semver_version()).ok().map(Into::into)
+fn current_solc_version() -> Option<&'static ast::SemverVersion> {
+    static VERSION: LazyLock<Option<ast::SemverVersion>> =
+        LazyLock::new(|| semver::Version::parse(solc_semver_version()).ok().map(Into::into));
+    VERSION.as_ref()
 }
