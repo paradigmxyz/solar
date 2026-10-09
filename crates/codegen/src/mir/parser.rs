@@ -1981,15 +1981,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )) => Some(location),
                     _ => None,
                 };
-                if !matches!(data_ty, Some(MirType::MemPtr))
-                    && slice.is_none()
-                    && !(data_ty == Some(MirType::I256)
-                        && !layout.types.iter().any(AbiParamType::has_dynamic_child))
-                    && !pending_call
-                {
+                if !matches!(data_ty, Some(MirType::MemPtr)) && slice.is_none() && !pending_call {
                     return Err(self
                         .parser
-                        .error("ABI decode requires bytes or a static memory pointer"));
+                        .error("ABI decode requires bytes or a memory or calldata slice"));
                 }
                 // `views`: every `bytes`, array, and struct value is a view of the data, in its
                 // location.

@@ -191,24 +191,20 @@ bb30 [loop]:
   add
   jump bb19
 bb28 [loop]:
-  dup 5
+  pop
+  dup 4
   push 0
   mstore
-  pop
-  push 32
-  push 0
-  keccak256
-  swap 1
   push 255
   not
   and
-  swap 2
+  swap 1
   push 0
   byte
-  swap 1
-  swap 2
   or
-  swap 1
+  push 32
+  push 0
+  keccak256
   sstore
   push 65
   dup 3
@@ -221,37 +217,36 @@ bb29 [loop]:
   dup 5
   sstore
   dup 4
-  push 0
-  mstore
-  dup 1
-  push 5
-  shr
-  push 32
-  push 0
-  keccak256
-  add
-  swap 1
+  dup 2
   push 31
   and
   push 31
   sub
   push 3
   shl
-  push 255
-  dup 2
-  shl
-  dup 3
-  sload
-  swap 1
-  not
-  and
   swap 3
   push 248
   shr
-  swap 1
+  dup 4
   shl
   swap 1
+  push 0
+  mstore
+  swap 1
+  push 5
+  shr
+  push 32
+  push 0
+  keccak256
+  add
   swap 2
+  push 255
+  dup 4
+  sload
+  swap 2
+  shl
+  not
+  and
   or
   swap 1
   sstore

@@ -114,24 +114,23 @@ bb7:
   exchange 1, 2
   jump bb33
 bb33:
+  dup 2
+  dup 1
+  push 32
+  add
+  swap 2
   push 224
   mstore
+  dup 2
   push 64
   mload
-  swap 1
-  push 32
-  dup 2
-  add
-  dup 2
+  swap 4
   mload
-  dup 2
   add
-  swap 2
+  swap 1
   dup 4
   sub
-  dup 2
-  swap 3
-  swap 2
+  dup 3
   jump bb34
 bb35 [loop]:
   dup 1

@@ -3,14 +3,16 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // The stack entering the outer loop holds one value twice. Gas mode searches
-// such permutations exactly up to six words, so three swaps reach the loop
-// layout instead of two `exchange` pseudo-ops that lower to six swaps.
+// such permutations exactly up to six words, so three swaps and a pop of the
+// stale copy reach the loop layout instead of two `exchange` pseudo-ops that
+// lower to six swaps.
 // CHECK-LABEL: @module Test_runtime
 // CHECK: calldatacopy
-// CHECK: dup 4
+// CHECK: add
 // CHECK-NEXT: swap 2
-// CHECK-NEXT: swap 3
 // CHECK-NEXT: swap 4
+// CHECK-NEXT: swap 5
+// CHECK-NEXT: pop
 // CHECK-NEXT: jump bb{{[0-9]+}}
 // CHECK-NOT: exchange
 contract Test {

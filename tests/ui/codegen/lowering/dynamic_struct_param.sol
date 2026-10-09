@@ -32,7 +32,7 @@ contract DynamicStructParam {
     // keep their source base and are decoded only when accessed.
     // CHECK-LABEL: fn @init{{[( ]}}
     // CHECK: calldataload
-    // CHECK: {{v[0-9]+}} = and {{v[0-9]+}}, 255
+    // CHECK: {{v[0-9]+}} = shr 8, {{v[0-9]+}}
     // CHECK: gt {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
         return input.decimals + uint160(sink);

@@ -84,8 +84,8 @@ fn @run() -> i256 [selector=0xc0406226, inline_assembly, abi_params=[], abi_retu
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = eq v21, v22
+    v22 = shr 160, v21
+    v23 = eq v22, 0
     v24 = eq v23, false
     icall revert_if<empty>, v24
     v25 = trunc i256 v21 to i160

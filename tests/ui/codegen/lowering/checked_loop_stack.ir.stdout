@@ -143,9 +143,9 @@ bb5 [cold]:
   push 0
   revert
 bb14:
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb5
   jumpi
   push 4

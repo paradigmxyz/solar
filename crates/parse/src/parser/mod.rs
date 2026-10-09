@@ -21,7 +21,7 @@ mod ty;
 mod yul;
 
 /// Maximum allowed recursive descent depth for selected parser entry points.
-const PARSER_RECURSION_LIMIT: usize = 128;
+const PARSER_RECURSION_LIMIT: usize = 256;
 
 /// Solidity and Yul parser.
 ///
@@ -48,6 +48,13 @@ pub struct Parser<'sess, 'ast, 'cb> {
     last_unexpected_token_span: Option<Span>,
     /// The current doc-comments.
     docs: Vec<DocComment<'ast>>,
+    /// The statements of the blocks being parsed, innermost last.
+    ///
+    /// Blocks collect their statements here instead of in a buffer on the stack, which would take
+    /// space in every level of nesting.
+    stmts: Vec<ast::Stmt<'ast>>,
+    /// Like `stmts`, for Yul blocks.
+    yul_stmts: Vec<ast::yul::Stmt<'ast>>,
 
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
@@ -158,6 +165,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
             docs: Vec::with_capacity(4),
+            stmts: Vec::new(),
+            yul_stmts: Vec::new(),
             tokens: tokens.into_iter(),
             in_yul: false,
             pure_yul: false,
@@ -264,6 +273,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         values: SmallVec<A>,
     ) -> BoxSlice<'ast, A::Item> {
         self.arena.alloc_smallvec_thin((), values)
+    }
+
+    /// Moves the elements of `values` into a list on the AST arena.
+    ///
+    /// Unlike [`alloc_smallvec`](Self::alloc_smallvec), this does not move `values` itself, which
+    /// would copy its inline buffer when its address has escaped.
+    fn alloc_drain<A: smallvec::Array>(&self, values: &mut SmallVec<A>) -> BoxSlice<'ast, A::Item> {
+        self.arena.alloc_smallvec_drain_thin((), values)
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub fn alloc_from_iter<T>(&self, values: impl Iterator<Item = T>) -> BoxSlice<'ast, T> {
+        self.arena.alloc_from_iter_thin((), values)
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
@@ -609,7 +631,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
-        self.parse_unspanned_seq(
+        self.parse_unspanned_seq::<_, 8>(
             TokenKind::OpenDelim(delim),
             TokenKind::CloseDelim(delim),
             sep,
@@ -622,8 +644,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
-    #[inline]
-    fn parse_unspanned_seq<T>(
+    #[inline(always)]
+    fn parse_unspanned_seq<T, const N: usize>(
         &mut self,
         bra: TokenKind,
         ket: TokenKind,
@@ -632,22 +654,22 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.expect(bra)?;
-        self.parse_seq_to_end(ket, sep, allow_empty, f)
+        self.parse_seq_to_end::<_, N>(ket, sep, allow_empty, f)
     }
 
     /// Parses a sequence, including only the closing delimiter. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
-    #[inline]
-    fn parse_seq_to_end<T>(
+    #[inline(always)]
+    fn parse_seq_to_end<T, const N: usize>(
         &mut self,
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
-        let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
+        let (val, recovered) = self.parse_seq_to_before_tokens::<_, N>(ket, sep, allow_empty, f)?;
         if recovered == Recovered::No {
             self.expect(ket)?;
         }
@@ -666,24 +688,64 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
-        self.parse_seq_to_before_tokens(ket, sep, allow_empty, f)
+        self.parse_seq_to_before_tokens::<_, 8>(ket, sep, allow_empty, f)
     }
 
     /// Parses a sequence until the specified delimiters. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
-    fn parse_seq_to_before_tokens<T>(
+    fn parse_seq_to_before_tokens<T, const N: usize>(
+        &mut self,
+        ket: TokenKind,
+        sep: SeqSep,
+        allow_empty: bool,
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
+        let mut v = SmallVec::<[T; N]>::new();
+        let recovered = self.parse_seq_into(ket, sep, allow_empty, f, |_, value| v.push(value))?;
+        Ok((self.alloc_drain(&mut v), recovered))
+    }
+
+    /// Parses a brace-delimited block, collecting the items in `buf` instead of on the stack.
+    #[track_caller]
+    fn parse_block_seq<T>(
+        &mut self,
+        buf: impl Fn(&mut Self) -> &mut Vec<T> + Copy,
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
+        self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
+        let start = buf(self).len();
+        let ket = TokenKind::CloseDelim(Delimiter::Brace);
+        let res =
+            self.parse_seq_into(ket, SeqSep::none(), true, f, |this, value| buf(this).push(value));
+        let arena = self.arena;
+        let items = buf(self);
+        // SAFETY: The moved elements are removed from `items` without being dropped.
+        let slice = unsafe {
+            let slice = arena.alloc_thin_slice_unchecked((), &items[start..]);
+            items.set_len(start);
+            slice
+        };
+        if res? == Recovered::No {
+            self.expect(ket)?;
+        }
+        Ok(slice)
+    }
+
+    /// Parses a sequence until the specified delimiters, passing each item to `push`.
+    #[track_caller]
+    fn parse_seq_into<T>(
         &mut self,
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
+        mut push: impl FnMut(&mut Self, T),
+    ) -> PResult<'sess, Recovered> {
         let mut first = true;
         let mut recovered = Recovered::No;
         let mut trailing = false;
-        let mut v = SmallVec::<[T; 8]>::new();
 
         loop {
             let required_first = first && !allow_empty;
@@ -713,7 +775,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
 
             match f(self) {
-                Ok(value) => v.push(value),
+                Ok(value) => push(self, value),
                 Err(err) if self.can_recover_sequence(ket) => {
                     err.emit();
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
@@ -748,7 +810,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         }
 
-        Ok((self.alloc_smallvec(v), recovered))
+        Ok(recovered)
     }
 
     fn can_recover_sequence(&self, ket: TokenKind) -> bool {
@@ -799,14 +861,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
+        let mut items = SmallVec::new();
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                let natspec = if let Some(items) =
-                    parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
-                {
-                    self.alloc_smallvec(items)
-                } else {
+                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
+                let natspec = if items.is_empty() {
                     BoxSlice::default()
+                } else {
+                    self.alloc_drain(&mut items)
                 };
                 self.docs.push(DocComment { kind, span: self.token.span, symbol, natspec });
             }
@@ -1118,25 +1180,25 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 // - Defers validation to lowering phase.
 // - Follows Solc's Yul behavior: silently ignores unknown tags in Yul context https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151
 
-/// Parses NatSpec items from a single doc comment.
+/// Parses NatSpec items from a single doc comment and appends them to `items`.
 fn parse_natspec(
     comment_span: Span,
     comment_symbol: Symbol,
     comment_kind: ast::CommentKind,
     in_yul: bool,
     dcx: &DiagCtxt,
-) -> Option<SmallVec<[ast::NatSpecItem; 6]>> {
+    items: &mut SmallVec<[ast::NatSpecItem; 6]>,
+) {
     let content = comment_symbol.as_str();
     let bytes = content.as_bytes();
 
     // Early-exit if no tag is found.
     if memchr::memchr(b'@', bytes).is_none() {
         if content.trim().is_empty() {
-            return None;
+            return;
         }
 
         // Create a synthetic @notice tag for the entire comment
-        let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
         items.push(ast::NatSpecItem {
             kind: ast::NatSpecKind::Notice,
             span: comment_span,
@@ -1144,13 +1206,12 @@ fn parse_natspec(
             content_start: 0,
             content_end: content.len() as u32,
         });
-        return Some(items);
+        return;
     }
 
     // Line comments: '///', Block comments: '/**'.
     const PREFIX_BYTES: u32 = 3;
     let (mut line_start, mut content_start, mut span, mut kind) = (0, 0usize, None, None);
-    let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
 
     fn flush_item(
         items: &mut SmallVec<[ast::NatSpecItem; 6]>,
@@ -1169,6 +1230,17 @@ fn parse_natspec(
                 content_end: content_end as u32,
             });
         }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn invalid_tag(dcx: &DiagCtxt, tag: &str, span: Span) {
+        dcx.warn(format!(
+            "invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"
+        ))
+        .code(error_code!(6546))
+        .span(span)
+        .emit();
     }
 
     // Check if '@' is located at the logical start of the line.
@@ -1208,14 +1280,7 @@ fn parse_natspec(
                 continue;
             }
 
-            flush_item(
-                &mut items,
-                &mut kind,
-                &mut span,
-                comment_symbol,
-                content_start,
-                prev_line_end,
-            );
+            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
 
             // Calculate span: from the char after '@' to end of tag name.
             let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
@@ -1255,11 +1320,7 @@ fn parse_natspec(
                     } else {
                         // Emit error for invalid solidity tags, but ignore in Yul.
                         if !in_yul {
-                            dcx
-                                .warn(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
-                                .code(error_code!(6546))
-                                .span(comment_span)
-                                .emit();
+                            invalid_tag(dcx, tag, comment_span);
                         }
                         line_start = line_end + 1;
                         prev_line_end = line_end;
@@ -1272,8 +1333,7 @@ fn parse_natspec(
         prev_line_end = line_end;
         line_start = line_end + 1;
     }
-    flush_item(&mut items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
-    Some(items)
+    flush_item(items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
 }
 
 #[cfg(test)]

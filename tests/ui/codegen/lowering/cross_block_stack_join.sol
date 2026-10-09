@@ -23,9 +23,8 @@ contract CrossBlockStackJoin {
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
     // CHECK-NEXT: [[JOIN]]:
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: dup 1
-    // CHECK-NEXT: add
+    // CHECK-NOT: mload
+    // CHECK: return
     function carry(uint256 x) external pure returns (uint256 result) {
         uint256 kept;
         assembly {

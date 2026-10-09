@@ -822,6 +822,7 @@ impl Instruction {
             | InstKind::InternalFrameAddr(..)
             | InstKind::ConstructorArgsBase
             | InstKind::ConstructorArgsEnd
+            | InstKind::HeapFloor
             | InstKind::DataCopy(..)
             | InstKind::CodeSize
             | InstKind::CodeCopy(..)

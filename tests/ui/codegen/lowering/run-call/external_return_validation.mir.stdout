@@ -22,37 +22,34 @@ fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view
     icall revert_if<tuple_data_too_short>, v8
     v9 = add v3, 0
     v10 = mload v9
-    v11 = and v10, 255
-    v12 = eq v10, v11
+    v11 = shr 8, v10
+    v12 = eq v11, 0
     v13 = eq v12, false
     icall revert_if<empty>, v13
     v14 = add v3, 32
     v15 = mload v14
-    v16 = eq v15, 0
+    v16 = lt v15, 2
     v17 = eq v16, false
-    v18 = zext i1 v17 to i256
-    v19 = eq v15, v18
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = add v3, 64
-    v22 = mload v21
-    v23 = and v22, 0xffffffffffffffffffffffffffffffff
-    v24 = eq v22, v23
-    v25 = eq v24, false
-    icall revert_if<empty>, v25
-    v26 = trunc i256 v10 to i8
-    v27 = ne v15, 0
-    v28 = trunc i256 v22 to i128
-    v29 = insert_value struct0, undef struct0, 0, v26
-    v30 = insert_value struct0, v29, 1, v27
-    v31 = insert_value struct0, v30, 2, v28
-    v32 = extract_value struct0, v31, 0
-    v33 = extract_value struct0, v31, 1
-    v34 = extract_value struct0, v31, 2
-    v35 = insert_value struct0, undef struct0, 0, v32
-    v36 = insert_value struct0, v35, 1, v33
-    v37 = insert_value struct0, v36, 2, v34
-    ret v37
+    icall revert_if<empty>, v17
+    v18 = add v3, 64
+    v19 = mload v18
+    v20 = shr 128, v19
+    v21 = eq v20, 0
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
+    v23 = trunc i256 v10 to i8
+    v24 = ne v15, 0
+    v25 = trunc i256 v19 to i128
+    v26 = insert_value struct0, undef struct0, 0, v23
+    v27 = insert_value struct0, v26, 1, v24
+    v28 = insert_value struct0, v27, 2, v25
+    v29 = extract_value struct0, v28, 0
+    v30 = extract_value struct0, v28, 1
+    v31 = extract_value struct0, v28, 2
+    v32 = insert_value struct0, undef struct0, 0, v29
+    v33 = insert_value struct0, v32, 1, v30
+    v34 = insert_value struct0, v33, 2, v31
+    ret v34
 }
 
 fn @tupleTarget(arg0: i256, arg1: i256) [selector=0xe1ee60dd, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<u8>, word<bool>, word<u128>], abi_return_params=[u8, bool, u128]] {
@@ -107,8 +104,8 @@ fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
-    v11 = and v10, 255
-    v12 = eq v10, v11
+    v11 = shr 8, v10
+    v12 = eq v11, 0
     v13 = eq v12, false
     icall revert_if<empty>, v13
     v14 = trunc i256 v10 to i8
@@ -164,19 +161,10 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
     icall revert_if<tuple_data_too_short>, v10
     v11 = ptrtoint memptr v5 to i256
     v12 = make_memory_slice v11, 64
-    v13 = slice_len v12
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    memory_object_copy_from_slice memorybytes, v18, v12
-    v19 = abi_decode [tuple<u8, bool>], v18
-    v20 = memory_object_load_field memorystruct<2>, v19, 0
-    v21 = trunc i256 v20 to i8
-    ret v21
+    v13 = abi_decode [tuple<u8, bool>], v12
+    v14 = memory_object_load_field memorystruct<2>, v13, 0
+    v15 = trunc i256 v14 to i8
+    ret v15
 }
 
 fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, inline_assembly, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {

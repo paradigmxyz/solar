@@ -59,9 +59,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
                     && let Some(value) = value.as_u256()
                 {
-                    // value = constant
-                    let value = self.builder.imm(value);
-                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                    let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                    let value = self.lower_const_integer(expr_ty, value);
+                    self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
                         self.lower_yul_word_expr(expr)?

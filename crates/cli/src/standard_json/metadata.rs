@@ -1,9 +1,6 @@
 //! Solidity contract metadata and bytecode auxiliary data.
 
-use super::{
-    compile::standard_json_source_name,
-    data::{MetadataHash, Settings, optimizer_settings},
-};
+use super::data::{MetadataHash, Settings, optimizer_settings};
 use alloy_primitives::{Bytes, keccak256};
 use rayon::prelude::*;
 use serde_json::{Map, Value, json};
@@ -198,8 +195,8 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
     Value::Object(value)
 }
 
-fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
-    standard_json_source_name(gcx, &gcx.hir.source(source_id).file.name)
+pub(super) fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
+    gcx.hir.source(source_id).file.name.display().to_string()
 }
 
 /// The sources `root` reaches through its imports, itself included, sorted by name.

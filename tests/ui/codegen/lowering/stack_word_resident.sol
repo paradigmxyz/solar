@@ -8,7 +8,8 @@
 contract ResidentWords {
     // Reuse both earlier results while they stay resident: x | y => (x & y) + (x ^ y).
     // CHECK-LABEL: @module ResidentWords_runtime
-    // CHECK: and
+    // CHECK-DAG: and
+    // CHECK-DAG: xor
     // CHECK-NOT: {{^ +or$}}
     // CHECK-DAG: xor
     // CHECK-DAG: add

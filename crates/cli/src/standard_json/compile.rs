@@ -8,7 +8,7 @@ use super::{
         SourceOutput, StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
         strip_json_comments,
     },
-    metadata::Metadata,
+    metadata::{Metadata, source_name},
 };
 use crate::{
     bytecode::MaybeHexBytecode,
@@ -25,7 +25,7 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
-    source_map::{FileLoader, FileName},
+    source_map::FileLoader,
 };
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
@@ -414,8 +414,7 @@ fn compile(
                     gcx.hir
                         .par_contracts_enumerated()
                         .filter_map(|(contract_id, contract)| {
-                            let source = gcx.hir.source(contract.source);
-                            let source_name = standard_json_source_name(gcx, &source.file.name);
+                            let source_name = source_name(gcx, contract.source);
                             let contract_name = contract.name.as_str();
                             let contract_selection =
                                 output_selection.contract(&source_name, contract_name);
@@ -516,8 +515,7 @@ impl StandardJsonFileLoader {
                 "File import callback not supported",
             ));
         };
-        let data = callback_path(path);
-        match read_callback.read("source", &data) {
+        match read_callback.read("source", &path.to_string_lossy()) {
             ReadCallbackResult::Success(contents) => Ok(contents),
             ReadCallbackResult::Error(error) => Err(io::Error::other(error)),
             ReadCallbackResult::Unsupported => {
@@ -530,33 +528,6 @@ impl StandardJsonFileLoader {
 /// Returns the diagnostic message for an unsupported Standard JSON callback kind.
 pub(crate) fn unsupported_callback_kind(kind: &str) -> String {
     format!("Callback kind `{kind}` is not supported")
-}
-
-fn callback_path(path: &Path) -> Cow<'_, str> {
-    let path = if path.is_absolute()
-        && let Ok(cwd) = std::env::current_dir()
-        && let Ok(path) = path.strip_prefix(cwd)
-    {
-        path
-    } else {
-        path
-    };
-    generic_separators(path.to_string_lossy())
-}
-
-pub(super) fn standard_json_source_name(gcx: Gcx<'_>, name: &FileName) -> String {
-    let name = name.display().to_string();
-    // Input keys are opaque; only names the resolver built from native paths get `/`.
-    match generic_separators(Cow::Borrowed(&name)) {
-        Cow::Owned(generic) if !gcx.sess.opts.input.contains(&name) => generic,
-        _ => name,
-    }
-}
-
-/// Uses `/` in a source unit name built from native path components.
-fn generic_separators(name: Cow<'_, str>) -> Cow<'_, str> {
-    // Backslashes are path separators only on Windows; elsewhere they belong to the name.
-    if cfg!(windows) && name.contains('\\') { name.replace('\\', "/").into() } else { name }
 }
 
 fn disallowed_io(path: &Path) -> io::Error {
@@ -574,10 +545,7 @@ fn source_outputs_from_compiler(
     gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (
-                standard_json_source_name(gcx, &source.file.name),
-                SourceOutput { id: id.index() as u32 },
-            )
+            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }
@@ -819,8 +787,7 @@ fn requested_bytecode_contracts(
             continue;
         }
 
-        let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(gcx, &source.file.name);
+        let source_name = source_name(gcx, contract.source);
         let contract_name = contract.name.as_str();
         if output_selection.contract(&source_name, contract_name).intersects(bytecode_outputs) {
             contracts.insert(contract_id);
@@ -850,8 +817,7 @@ fn requested_metadata_contracts(
     }
     if requests_metadata {
         for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-            let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(gcx, &source.file.name);
+            let source_name = source_name(gcx, contract.source);
             if output_selection
                 .contract(&source_name, contract.name.as_str())
                 .contains(OutputSelectionFlags::METADATA)
@@ -882,8 +848,7 @@ fn requested_debug_info_contracts(
             continue;
         }
 
-        let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(gcx, &source.file.name);
+        let source_name = source_name(gcx, contract.source);
         if output_selection.contract(&source_name, contract.name.as_str()).intersects(debug_outputs)
         {
             contracts.insert(contract_id);
@@ -899,8 +864,7 @@ fn contract_output_requested(
 ) -> bool {
     output_selection.all().intersects(outputs)
         || gcx.hir.contracts().any(|contract| {
-            let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(gcx, &source.file.name);
+            let source_name = source_name(gcx, contract.source);
             output_selection.contract(&source_name, contract.name.as_str()).intersects(outputs)
         })
 }

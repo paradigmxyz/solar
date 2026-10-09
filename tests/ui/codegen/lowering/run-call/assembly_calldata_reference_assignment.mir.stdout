@@ -249,8 +249,8 @@ fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, inline_as
     v30 = mul v28, 32
     v31 = add v7, v30
     v32 = calldataload v31
-    v33 = and v32, 255
-    v34 = eq v32, v33
+    v33 = shr 8, v32
+    v34 = eq v33, 0
     v35 = eq v34, false
     icall revert_if<empty>, v35
     memory_object_store_element memoryarray<1>, v27, v28, v32

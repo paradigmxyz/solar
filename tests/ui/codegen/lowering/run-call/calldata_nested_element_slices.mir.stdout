@@ -165,20 +165,17 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v25 = mload v24
     v26 = add v18, 32
     v27 = mload v26
-    v28 = eq v27, 0
+    v28 = lt v27, 2
     v29 = eq v28, false
-    v30 = zext i1 v29 to i256
-    v31 = eq v27, v30
-    v32 = eq v31, false
-    icall revert_if<empty>, v32
-    v33 = ne v27, 0
-    v34 = insert_value struct0, undef struct0, 0, v25
-    v35 = insert_value struct0, v34, 1, v33
-    v36 = extract_value struct0, v35, 0
-    v37 = extract_value struct0, v35, 1
-    v38 = insert_value struct0, undef struct0, 0, v36
-    v39 = insert_value struct0, v38, 1, v37
-    ret v39
+    icall revert_if<empty>, v29
+    v30 = ne v27, 0
+    v31 = insert_value struct0, undef struct0, 0, v25
+    v32 = insert_value struct0, v31, 1, v30
+    v33 = extract_value struct0, v32, 0
+    v34 = extract_value struct0, v32, 1
+    v35 = insert_value struct0, undef struct0, 0, v33
+    v36 = insert_value struct0, v35, 1, v34
+    ret v36
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0

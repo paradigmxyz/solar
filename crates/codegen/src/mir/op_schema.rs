@@ -145,6 +145,36 @@ impl ResultKind {
     }
 }
 
+/// How an operation accesses a raw memory range at an `i256` address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RawMemoryAccess {
+    /// The operation reads the range.
+    Read,
+    /// The operation writes the whole range.
+    Write,
+    /// The operation writes a prefix of the range, which may be shorter or empty.
+    PartialWrite,
+}
+
+/// The size of a raw memory range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RawMemorySize {
+    /// A fixed number of bytes.
+    Bytes(u64),
+    /// The number of bytes an operand holds.
+    Value(ValueId),
+}
+
+impl RawMemorySize {
+    /// Returns the size in bytes when it is a constant.
+    pub(crate) fn constant(self, func: &Function) -> Option<u64> {
+        match self {
+            Self::Bytes(bytes) => Some(bytes),
+            Self::Value(size) => func.value_u64(size),
+        }
+    }
+}
+
 /// Instruction field types, classified as value operands or attributes.
 pub(crate) trait Operands {
     /// Copyable projection of the field seen by rewrite rules.
@@ -545,6 +575,24 @@ macro_rules! commutative_trait {
     };
 }
 
+/// Emits the size of a raw memory range declared with `#[raw_memory]`.
+macro_rules! raw_memory_size {
+    ($bytes:literal) => {
+        RawMemorySize::Bytes($bytes)
+    };
+    ($size:ident) => {
+        RawMemorySize::Value(*$size)
+    };
+}
+
+/// Visits the size operand of a raw memory range declared with `#[raw_memory]`, if it has one.
+macro_rules! visit_raw_memory_size {
+    ($f:ident, $bytes:literal) => {};
+    ($f:ident, $size:ident) => {
+        $f($size)
+    };
+}
+
 macro_rules! define_mir_ops {
     (
         enum $inst_name:ident {
@@ -562,6 +610,7 @@ macro_rules! define_mir_ops {
                 $(#[mnemonic($mnemonic_pattern:pat => $alternate_mnemonic:literal)])*
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
+                $(#[raw_memory($( $access:ident($address:ident, $size:tt) ),+)])?
                 #[operand_types($func:ident => $operand_types:expr)]
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
@@ -684,6 +733,36 @@ macro_rules! define_mir_ops {
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
                             $( $( Operands::visit_mut($operand, &mut f); )+ )?
                             $( $( Operands::visit_mut($field, &mut f); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits each raw memory range the operation reads or writes at an `i256` address,
+            /// with its offset and size, reads before writes. Operations that reach memory only through memory objects,
+            /// slices, frames, or the free memory pointer have none.
+            #[allow(unused_variables)]
+            pub(crate) fn visit_raw_memory(
+                &self,
+                mut f: impl FnMut(RawMemoryAccess, ValueId, RawMemorySize),
+            ) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( f(RawMemoryAccess::$access, *$address, raw_memory_size!($size)); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits the offset and size operands of the raw memory ranges the operation
+            /// accesses, mutably.
+            #[allow(unused_variables)]
+            pub(crate) fn visit_raw_memory_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( f($address); visit_raw_memory_size!(f, $size); )+ )?
                         }
                     )+
                 }
@@ -1397,6 +1476,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mload)]
+    #[raw_memory(Read(offset, 32))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     MLoad(offset: ValueId),
     /// Store to memory: `mstore(offset, value)`
@@ -1410,6 +1490,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mstore, void)]
+    #[raw_memory(Write(offset, 32))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MStore(offset: ValueId, value: ValueId),
     /// Store a single byte: `mstore8(offset, value)`
@@ -1423,6 +1504,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mstore8, void)]
+    #[raw_memory(Write(offset, 1))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MStore8(offset: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
@@ -1436,6 +1518,7 @@ define_mir_ops! {
         category = Some("memory zero")
     )]
     #[builder(memory_zero, void)]
+    #[raw_memory(Write(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
@@ -1476,6 +1559,20 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     SetFmp(value: ValueId),
+    /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
+    /// can run this function, which codegen fixes once it has placed the frames and spill slots
+    /// below it.
+    #[mir_op(
+        mnemonic = "heap_floor",
+        result = I256,
+        phases = PhaseSet::ALL,
+        effect = EnvironmentRead,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
         mnemonic = "alloc",
@@ -1914,6 +2011,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mcopy, void)]
+    #[raw_memory(Read(src, len), Write(dest, len))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     MCopy(dest: ValueId, src: ValueId, len: ValueId),
 
@@ -1996,6 +2094,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(calldatacopy, void)]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     CalldataCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get calldata size: `calldatasize()`
@@ -2152,6 +2251,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Byte length of deferred module data, such as another contract's
@@ -2195,6 +2295,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(codecopy, void)]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code size: `extcodesize(addr)`
@@ -2220,6 +2321,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code hash: `extcodehash(addr)`
@@ -2305,6 +2407,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(returndatacopy, void)]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     ReturnDataCopy(dest: ValueId, offset: ValueId, size: ValueId),
 
@@ -2568,6 +2671,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(keccak256)]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Keccak256(offset: ValueId, size: ValueId),
     /// Keccak256 hash of a `memorybytes` object's contents:
@@ -2677,6 +2781,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Call {
         gas: ValueId,
@@ -2697,6 +2802,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     CallCode {
         gas: ValueId,
@@ -2717,6 +2823,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     StaticCall {
         gas: ValueId,
@@ -2736,6 +2843,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     DelegateCall {
         gas: ValueId,
@@ -2770,6 +2878,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(create)]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     Create(value: ValueId, offset: ValueId, size: ValueId),
     /// Create2 contract: `create2(value, offset, size, salt)`
@@ -2782,6 +2891,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
@@ -2797,6 +2907,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Log0(offset: ValueId, size: ValueId),
     /// Log with 1 topic: `log1(offset, size, topic1)`
@@ -2809,6 +2920,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     Log1(offset: ValueId, size: ValueId, topic1: ValueId),
     /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
@@ -2821,6 +2933,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log2(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId),
     /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
@@ -2833,6 +2946,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log3(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId),
     /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
@@ -2845,6 +2959,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log4(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId, topic4: ValueId),
 
