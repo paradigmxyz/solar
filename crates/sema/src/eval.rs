@@ -8,7 +8,8 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed, error_code};
 use std::fmt;
 
-const RECURSION_LIMIT: usize = 64;
+// Like solc, this limits the depth of constants defined by other constants.
+const RECURSION_LIMIT: usize = 32;
 // Typed arithmetic can temporarily need one bit beyond the EVM word before its
 // result is checked against the type.
 const MAX_INTERMEDIATE_BITS: u64 = solar_ast::TypeSize::MAX as u64 + 1;
@@ -170,6 +171,11 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 let v = self.gcx.hir.variable(id);
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
+                }
+                // Like solc, leave `bytesN` constants to lowering, as their values are
+                // left-aligned and convert between sizes unlike integers.
+                if let hir::TypeKind::Elementary(ElementaryType::FixedBytes(_)) = v.ty.kind {
+                    return Err(EE::UnsupportedExpr.into());
                 }
                 let value = match self.constants.get(&id) {
                     Some(value) => value.clone(),
@@ -534,17 +540,14 @@ impl PartialEq for IntTy {
 
 impl IntTy {
     /// Returns the integer type denoted by the given type, if it is an integer type.
-    ///
-    /// A `bytesN` value is computed like a `uintN`, so a left shift that drops bits fails instead
-    /// of keeping them, and lowering computes it at runtime.
     fn from_hir_ty(ty: &hir::Type<'_>) -> Option<Self> {
         match ty.kind {
             hir::TypeKind::Elementary(ElementaryType::Int(size)) => {
                 Some(Self { signed: true, size })
             }
-            hir::TypeKind::Elementary(
-                ElementaryType::UInt(size) | ElementaryType::FixedBytes(size),
-            ) => Some(Self { signed: false, size }),
+            hir::TypeKind::Elementary(ElementaryType::UInt(size)) => {
+                Some(Self { signed: false, size })
+            }
             _ => None,
         }
     }

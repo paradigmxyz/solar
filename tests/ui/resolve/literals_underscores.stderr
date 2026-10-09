@@ -119,6 +119,22 @@ LL │     uint D7 = 0_E5;
 error: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
+LL │     uint D8 = 1e-_0;
+   │               ━━━━━
+   │
+   ╰ help: remove underscores in front of the exponent
+
+error: invalid use of underscores in number literal
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
+LL │     uint D9 = 1E-_0;
+   │               ━━━━━
+   │
+   ╰ help: remove underscores in front of the exponent
+
+error: invalid use of underscores in number literal
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
 LL │     uint F1 = 3.1415_;
    │               ━━━━━━━
    │
@@ -156,5 +172,13 @@ LL │     uint F5 = 1.2e_12;
    │
    ╰ help: remove underscores in front of the exponent
 
-error: aborting due to 20 previous errors
+error: invalid use of underscores in number literal
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
+LL │     uint F7 = 1.5e-_1 * 20;
+   │               ━━━━━━━
+   │
+   ╰ help: remove underscores in front of the exponent
+
+error: aborting due to 23 previous errors
 

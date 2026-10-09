@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_widths.sol:FixedBytesConstantWidths ===
+@module FixedBytesConstantWidths
+fn @widened() -> i256 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    ret 0x1234000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @combined() -> i256 [selector=0xc51157e0, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = or 0x1234567800000000000000000000000000000000000000000000000000000000, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @compared() -> i1 [selector=0xee4feb9a, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x1234000000000000000000000000000000000000000000000000000000000000, 0x1234000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @selected() -> i256 [selector=0x6b35120d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    jumpi false, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 0x1234567800000000000000000000000000000000000000000000000000000000], [bb2: 0x1234000000000000000000000000000000000000000000000000000000000000]
+    ret v0
+}

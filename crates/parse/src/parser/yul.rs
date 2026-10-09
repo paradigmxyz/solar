@@ -99,7 +99,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         });
         let (mut lit, subdenomination) = self.parse_lit(false)?;
         assert!(subdenomination.is_none());
-        if invalid_number {
+        if invalid_number && !matches!(lit.kind, LitKind::Err(_)) {
             let msg = "invalid number literal";
             lit.kind =
                 LitKind::Err(self.dcx().err(msg).code(error_code!(4828)).span(lit.span).emit());

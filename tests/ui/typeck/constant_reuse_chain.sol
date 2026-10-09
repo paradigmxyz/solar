@@ -1,5 +1,5 @@
 // Each constant uses the previous one three times, so evaluating every use again would take
-// 3**39 steps. Constant evaluation computes each constant once.
+// 3**30 steps. Constant evaluation computes each constant once.
 contract ConstantReuseChain {
     uint256 constant C0 = 1;
     uint256 constant C1 = C0 + C0 - C0;
@@ -32,15 +32,6 @@ contract ConstantReuseChain {
     uint256 constant C28 = C27 + C27 - C27;
     uint256 constant C29 = C28 + C28 - C28;
     uint256 constant C30 = C29 + C29 - C29;
-    uint256 constant C31 = C30 + C30 - C30;
-    uint256 constant C32 = C31 + C31 - C31;
-    uint256 constant C33 = C32 + C32 - C32;
-    uint256 constant C34 = C33 + C33 - C33;
-    uint256 constant C35 = C34 + C34 - C34;
-    uint256 constant C36 = C35 + C35 - C35;
-    uint256 constant C37 = C36 + C36 - C36;
-    uint256 constant C38 = C37 + C37 - C37;
-    uint256 constant C39 = C38 + C38 - C38;
 
-    uint256[C39] lengths;
+    uint256[C30] lengths;
 }

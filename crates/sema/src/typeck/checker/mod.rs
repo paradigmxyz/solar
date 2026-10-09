@@ -1175,11 +1175,9 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             err.emit()
         };
-        // Constant evaluation can report the same error, such as for an array length.
-        let guar = match expr_id {
-            Some(id) => self.gcx.emit_once(id, emit),
-            None => emit(),
-        };
+        // Constant evaluation reports the same error, such as for an array length.
+        let guar =
+            if too_large && let Some(id) = expr_id { self.gcx.emit_once(id, emit) } else { emit() };
         self.gcx.mk_ty_err(guar)
     }
 
