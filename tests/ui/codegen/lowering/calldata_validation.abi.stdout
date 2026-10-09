@@ -136,8 +136,8 @@ fn @vEnum() [selector=0x5aa5e60a, abi_wrapper, pure] {
     v12 = sub v11, 128
     returndata 128, v12
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 33 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     revert 0, 0

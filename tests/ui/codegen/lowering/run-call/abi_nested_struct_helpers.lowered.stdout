@@ -97,8 +97,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v17 = lt v2, v16
     jumpi v17, bb9, bb8
   bb8:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:
     v19 = mload v75
@@ -128,8 +128,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v35 = add v2, 1
     jump bb1
   bb10:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb18:
     v65 = icall @decode_calldata_type.4, v62, v41
@@ -142,8 +142,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v69 = add v63, 1
     jump bb17
   bb14:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb12:
     revert 0, 0
@@ -227,8 +227,8 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     mstore v35, v2
     ret v7
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

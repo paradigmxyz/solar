@@ -251,13 +251,14 @@ impl<'a> FunctionBuilder<'a> {
             self.invalid();
             return;
         }
-        // mstore(0, Panic.selector); mstore(32, code); revert(28, 36)
-        let selector = self.imm(0x4e48_7b71_u64);
+        // Store the code first so every panic ends in the same tail.
+        // mstore(32, code); mstore(0, Panic.selector); revert(28, 36)
         let code = self.imm(code.as_u64());
-        let zero = self.imm(U256::ZERO);
-        self.mstore(zero, selector);
         let word = self.imm(32);
         self.mstore(word, code);
+        let selector = self.imm(0x4e48_7b71_u64);
+        let zero = self.imm(U256::ZERO);
+        self.mstore(zero, selector);
         let offset = self.imm(28);
         let size = self.imm(36);
         self.revert(offset, size);

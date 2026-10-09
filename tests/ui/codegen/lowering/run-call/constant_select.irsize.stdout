@@ -61,21 +61,18 @@ bb11 [cold]:
 bb42 [continuation]:
   return
 bb29 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   jump bb88
 bb88 [cold]:
   push 32
   mstore
+  push 0x4e487b71
+  push 0
+  mstore
   push 36
   push 28
   revert
 bb79 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 34
   jump bb88
 bb12:

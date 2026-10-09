@@ -37,11 +37,11 @@ bb5:
   jumpi
   jump bb6
 bb6 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 18
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28

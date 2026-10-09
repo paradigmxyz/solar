@@ -24,7 +24,7 @@ contract LoopRotation {
     // CHECK-NEXT: JUMPI
     // CHECK: {{^}}; [[PANIC]]{{$}}
     // CHECK-NEXT: JUMPDEST
-    // CHECK-NEXT: PUSH4 0x4e487b71
+    // CHECK-NEXT: PUSH1 0x11
     function route(uint256 amount, uint256 hops) external pure returns (uint256) {
         for (uint256 i = 0; i < hops; ++i) {
             amount = amount * 997 / 1000;

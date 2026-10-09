@@ -93,11 +93,11 @@ bb6:
   push 128
   return
 bb8 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28

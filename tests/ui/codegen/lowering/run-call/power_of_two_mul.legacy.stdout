@@ -59,13 +59,13 @@ bb9:
   push 128
   return
 bb37 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   jump bb39
 bb39 [cold]:
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -152,9 +152,6 @@ bb19 [loop]:
   jumpi
   jump bb21
 bb21 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   jump bb39
 bb23:
@@ -289,8 +286,5 @@ bb29:
   push 128
   return
 bb36 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 50
   jump bb39

@@ -41,11 +41,11 @@ bb6:
   push 2
   jump bb8
 bb12 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -168,11 +168,11 @@ bb16 [loop]:
   dup 1
   push bb16
   jumpi
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -225,11 +225,11 @@ bb23 [loop]:
   push 128
   return
 bb12 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28

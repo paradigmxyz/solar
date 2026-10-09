@@ -44,13 +44,13 @@ bb8 [cold]:
   push 0
   revert
 bb37 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   jump bb41
 bb41 [cold]:
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -135,9 +135,6 @@ bb19 [loop]:
   swap 1
   jump bb17
 bb21 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   jump bb41
 bb24:
@@ -268,9 +265,6 @@ bb30:
   mload
   jump bb38
 bb36 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 50
   jump bb41
 bb40:

@@ -160,11 +160,11 @@ bb24 [loop]:
   jumpi
   jump bb45
 bb45 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28

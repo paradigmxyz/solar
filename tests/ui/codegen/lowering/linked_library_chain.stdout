@@ -52,11 +52,11 @@ bb3 [cold]:
   push 0
   revert
 bb7 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -186,11 +186,11 @@ bb10 [cold]:
   push 0
   revert
 bb11 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -304,11 +304,11 @@ bb9 [cold]:
   push 0
   revert
 bb10 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28

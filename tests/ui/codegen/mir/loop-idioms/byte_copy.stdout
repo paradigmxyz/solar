@@ -124,12 +124,12 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     mstore 128, v10
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -190,8 +190,8 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     v25 = add v10, 1
     jump bb1
   bb8:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -363,12 +363,12 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     v40 = add v22, 1
     jump bb3
   bb10:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -426,8 +426,8 @@ fn @copyRaw(arg0: i256, arg1: i256) -> memptr [may_return_memory, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -466,8 +466,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

@@ -13,21 +13,18 @@ bb0:
   and
   indexed_jump bb2, bb31, bb31, bb31, bb31, bb3, bb4, bb5, bb31, bb31, bb6, bb31, bb31, bb7, bb31, bb31
 bb75 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 34
   jump bb77
 bb77 [cold]:
   push 32
   mstore
+  push 0x4e487b71
+  push 0
+  mstore
   push 36
   push 28
   revert
 bb76 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 50
   jump bb77
 bb2:
@@ -769,14 +766,8 @@ bb69 [loop]:
   swap 4
   jump bb70
 bb40 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 49
   jump bb77
 bb72 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   jump bb77

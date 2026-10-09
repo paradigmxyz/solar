@@ -16,13 +16,13 @@ bb3 [cold]:
   push 0
   revert
 bb23 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   jump bb24
 bb24 [cold]:
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -356,15 +356,9 @@ bb19 [loop]:
   jumpi
   jump bb22
 bb22 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   jump bb24
 bb21 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 50
   jump bb24
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
@@ -787,11 +781,11 @@ bb17 [cold]:
   push 0
   revert
 bb20 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 65
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
