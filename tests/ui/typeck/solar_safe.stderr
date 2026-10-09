@@ -296,5 +296,19 @@ LL │ /// @custom:solar-safe
    ├ note: it runs this through `SafeConstant.open` → `wrapped`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
-error: aborting due to 23 previous errors
+error: `SafeConstantOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { r = r - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedConstant.run` → `SafeConstantOverride._value`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: aborting due to 24 previous errors
 

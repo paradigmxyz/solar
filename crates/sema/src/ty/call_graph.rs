@@ -34,6 +34,9 @@ struct CallGraphBuilder<'gcx, 's> {
     graph: ReferencedItems,
     worklist: VecDeque<hir::FunctionId>,
     visited_constants: DenseBitSet<hir::VariableId>,
+    /// The constants whose initializers a stopped body walked, which reaches only what they
+    /// dispatch to.
+    stopped_constants: DenseBitSet<hir::VariableId>,
     direct_callee: Option<hir::ExprId>,
     /// Whether the traversal enters a function's body only for the targets its calls dispatch to.
     stop: &'s dyn Fn(hir::FunctionId) -> bool,
@@ -60,6 +63,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             graph: ReferencedItems::new(gcx),
             worklist: VecDeque::new(),
             visited_constants: DenseBitSet::new_empty(gcx.hir.variable_ids().count()),
+            stopped_constants: DenseBitSet::new_empty(gcx.hir.variable_ids().count()),
             direct_callee: None,
             stop,
             current: None,
@@ -255,15 +259,17 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     }
 
     fn collect_constant_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
-        // A stopped body does not reach what a constant's initializer names; leave it unvisited so
-        // other readers can reach it.
-        if self.stopped {
-            return;
-        }
         let Some(id) = self.gcx.resolved_variable(expr) else { return };
         let variable = self.gcx.hir.variable(id);
+        // A stopped body reaches only what a constant's initializer dispatches to, so its walk
+        // leaves the constant to a full walk by another reader.
+        let first = if self.stopped {
+            !self.visited_constants.contains(id) && self.stopped_constants.insert(id)
+        } else {
+            self.visited_constants.insert(id)
+        };
         if variable.is_constant()
-            && self.visited_constants.insert(id)
+            && first
             && let Some(initializer) = variable.initializer
         {
             let _ = self.visit_expr(initializer);

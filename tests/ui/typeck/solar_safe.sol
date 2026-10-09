@@ -262,3 +262,38 @@ contract SafeConstant {
         return K;
     }
 }
+
+// The overrides a constant's initializer dispatches to are traced even when
+// only trusted code reads the constant.
+/// @custom:solar-trusted
+abstract contract ReviewedConstant {
+    uint256 internal constant VALUE = _value();
+
+    function run() external pure returns (uint256) {
+        return VALUE;
+    }
+
+    function _value() internal pure virtual returns (uint256) {
+        return 1;
+    }
+}
+
+/// @custom:solar-safe
+contract SafeConstantOverride is ReviewedConstant {
+    function _value() internal pure override returns (uint256 r) {
+        unchecked { r = r - 1; } //~ ERROR: `SafeConstantOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+    }
+}
+
+// Trusted code walks each constant's initializer once, so constants that name
+// each other end the walk.
+/// @custom:solar-safe
+contract SafeConstantCycle {
+    uint256 internal constant A = B + 1;
+    uint256 internal constant B = A + 1;
+
+    /// @custom:solar-trusted
+    function f() external pure returns (uint256) {
+        return A;
+    }
+}
