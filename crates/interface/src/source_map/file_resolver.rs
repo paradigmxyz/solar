@@ -395,10 +395,14 @@ impl<'a> FileResolver<'a> {
         } else {
             self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
         };
+        let allowed_dirs = self.allowed_dirs();
         let mut found = SmallVec::<[(PathBuf, String); 1]>::new();
         let mut read_error = None;
         for candidate in candidates {
             let Ok(path) = loader.canonicalize_path(&candidate) else { continue };
+            if !is_allowed(&path, allowed_dirs) {
+                return Err(ResolveError::NotAllowed(candidate));
+            }
             if found.iter().any(|(found, _)| *found == path) {
                 continue;
             }
@@ -552,10 +556,7 @@ impl<'a> FileResolver<'a> {
             trace!(path=%path.display(), "not found");
             return Ok(None);
         };
-        if let Some(allowed_dirs) = allowed_dirs
-            && let plain = without_verbatim_prefix(&canonical)
-            && !allowed_dirs.iter().any(|dir| plain.starts_with(dir))
-        {
+        if !is_allowed(&canonical, allowed_dirs) {
             return Err(ResolveError::NotAllowed(path));
         }
         self.source_map()
@@ -741,6 +742,13 @@ fn without_verbatim_prefix(path: &Path) -> Cow<'_, Path> {
     let mut plain = PathBuf::from(prefix);
     plain.push(components.as_path());
     Cow::Owned(plain)
+}
+
+/// Returns whether the canonical path `path` is inside `allowed_dirs`, if restricted.
+fn is_allowed(path: &Path, allowed_dirs: Option<&[PathBuf]>) -> bool {
+    let Some(allowed_dirs) = allowed_dirs else { return true };
+    let path = without_verbatim_prefix(path);
+    allowed_dirs.iter().any(|dir| path.starts_with(dir))
 }
 
 /// Normalizes a source unit name like [`lexical_normalize`], with `/` separators, keeping the `//`
@@ -1357,6 +1365,24 @@ mod tests {
         let url = format!("file://{}", root.join("A.sol").display());
         let resolved = resolver.resolve_file(Path::new(&url), Some(Path::new("B.sol"))).unwrap();
         assert_eq!(resolved.name.as_real(), Some(root.join("A.sol").as_path()));
+    }
+
+    #[test]
+    fn allowed_paths_restrict_source_unit_reads() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let root = tmp.path();
+        write_files(root, &["outside/Secret.sol"]);
+        std::fs::create_dir(root.join("project")).unwrap();
+        let secret = root.join("outside/Secret.sol");
+
+        let sm = SourceMap::empty();
+        sm.set_roots(Some(PathBuf::new()), Vec::new(), None);
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&root.join("project"));
+        resolver.set_allowed_paths([root.join("project")]);
+
+        let resolved = resolver.resolve_file(&secret, Some(Path::new("A.sol")));
+        assert!(matches!(resolved, Err(ResolveError::NotAllowed(_))), "{resolved:?}");
     }
 }
 
