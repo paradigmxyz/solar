@@ -387,8 +387,8 @@ pub struct EvmCodegen<'gcx> {
     immutable_staging_base: u64,
     /// Deferred absolute base of the copied constructor ABI argument blob.
     constructor_args_base_const: Option<DeferredConst>,
-    /// Deferred code offset of the copied constructor ABI argument blob.
-    constructor_args_offset_const: Option<DeferredConst>,
+    /// Code offset of the constructor ABI argument blob: the end of the runtime code data.
+    constructor_args_offset: Option<ir::DataRef>,
     /// Whether we're currently generating constructor code.
     /// When true, arguments load from the copied deployment ABI blob.
     in_constructor: bool,
@@ -472,7 +472,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 + EvmMemoryLayout::WORD_SIZE,
             constructor_args_base_const: None,
-            constructor_args_offset_const: None,
+            constructor_args_offset: None,
             in_constructor: false,
             constructor_exit: None,
             constructor_param_count: 0,
@@ -534,7 +534,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.immutable_staging_base =
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
         self.constructor_args_base_const = None;
-        self.constructor_args_offset_const = None;
+        self.constructor_args_offset = None;
         self.in_constructor = false;
         self.constructor_exit = None;
         self.constructor_param_count = 0;

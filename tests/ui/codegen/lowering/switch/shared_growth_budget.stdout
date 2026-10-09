@@ -1,11 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
 @module SwitchSharedGrowthBudget_deployment
+@data
+  SwitchSharedGrowthBudget_runtime_code_0: hex"34603e575f3560e01c8063839a19d903603e5760243610603e5761012c60a05260043580600f166010016f96964260969696758a9696a196b696cb901a565b5f5ffd5b80633b88f6c2036096575061013260a0525b60a05160805260206080f35b8063920f5c73036096575061012e60a0526054565b8063905f7d67036096575061013160a0526054565b8063cbf99d3803156054575b506103e760a0526054565b806387d912cb036096575061012d60a0526054565b806341052a0d036096575061012f60a0526054565b80637238232f036096575061013060a052605456"
+
 bb0:
-  push 430
+  push_data SwitchSharedGrowthBudget_runtime_code_0+224
   codesize
   sub
   dup 1
-  push 430
+  push_data SwitchSharedGrowthBudget_runtime_code_0+224
   push 192
   codecopy
   push 192
@@ -21,7 +24,7 @@ bb0:
   push bb19
   jumpi
   push 192
-  push 430
+  push_data SwitchSharedGrowthBudget_runtime_code_0+224
   codesize
   sub
   add
@@ -49,7 +52,7 @@ bb0:
 bb20:
   push 224
   dup 1
-  push 206
+  push_data SwitchSharedGrowthBudget_runtime_code_0
   push 0
   codecopy
   push 0

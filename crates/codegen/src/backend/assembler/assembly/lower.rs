@@ -89,14 +89,7 @@ impl Assembler<'_> {
         };
         self.block_labels = labels;
         self.block_labels.clear();
-        PreparedAssembly {
-            evm_ir,
-            program,
-            push_values: std::mem::take(&mut self.push_values),
-            immutable_pushes: std::mem::take(&mut self.immutable_pushes),
-            next_label: std::mem::take(&mut self.next_label),
-            deferred_values: std::mem::take(&mut self.deferred_values),
-        }
+        PreparedAssembly { evm_ir, program }
     }
 }
 
@@ -364,9 +357,10 @@ fn lower_instruction(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
 ) {
-    let inst = if let Some(id) = inst.deferred_push() {
-        AsmInst::push_deferred(id)
-    } else if let Some(id) = inst.immutable_push() {
+    if let Some(id) = inst.deferred_push() {
+        panic!("deferred constant {id:?} was never resolved");
+    }
+    let inst = if let Some(id) = inst.immutable_push() {
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {

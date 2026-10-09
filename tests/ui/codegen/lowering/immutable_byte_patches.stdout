@@ -1,11 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
 @module ImmutableBytePatches_deployment
+@data
+  ImmutableBytePatches_runtime_code_0: hex"346033575f3560e01c806357de26a4036033576000600060f81b60005f0b60ff165f0b916080529060a05260c05260606080f35b5f5ffd"
+
 bb0:
-  push 190
+  push_data ImmutableBytePatches_runtime_code_0+55
   codesize
   sub
   dup 1
-  push 190
+  push_data ImmutableBytePatches_runtime_code_0+55
   push 320
   codecopy
   push 320
@@ -22,7 +25,7 @@ bb0:
   jumpi
   push 320
   dup 1
-  push 190
+  push_data ImmutableBytePatches_runtime_code_0+55
   codesize
   sub
   add
@@ -71,7 +74,7 @@ bb0:
   mstore
   push 55
   dup 1
-  push 135
+  push_data ImmutableBytePatches_runtime_code_0
   push 0
   codecopy
   push 192

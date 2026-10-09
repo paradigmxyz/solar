@@ -12,7 +12,7 @@ use crate::{
             op::{self, push_len},
         },
     },
-    link::LibraryId,
+    link::{LibraryId, LibraryTable},
     mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
@@ -138,6 +138,18 @@ impl<'gcx> Assembler<'gcx> {
                 data.emit_in_runtime = false;
             }
         }
+    }
+
+    /// Appends deployed runtime code as the last data entry of creation code.
+    pub(crate) fn append_runtime_code(
+        &mut self,
+        runtime: ir::Data,
+        libraries: &LibraryTable,
+    ) -> ir::DataId {
+        debug_assert_eq!(self.artifact_kind, ArtifactKind::Constructor);
+        // Runtime relocations can name libraries that runtime linking interned.
+        self.program.libraries.clone_from(libraries);
+        self.program.data.push(runtime)
     }
 
     /// Emits a relocatable constant-data address push.
