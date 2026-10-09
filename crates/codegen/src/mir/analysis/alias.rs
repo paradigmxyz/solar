@@ -10,8 +10,8 @@
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, RequireKind,
-    SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    ImmutableId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, MirType,
+    RequireKind, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
 use smallvec::SmallVec;
@@ -1316,7 +1316,16 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::AbiDecode { data, .. } => {
-                read_memory(&mut effects, data, SizeOperand::Unknown);
+                if !matches!(func.value_ty(data), Some(MirType::Slice(_))) {
+                    read_memory(&mut effects, data, SizeOperand::Unknown);
+                } else if let Value::Inst(slice) = func.value(resolve(data))
+                    && let InstKind::MakeSlice { ptr, len, location: SliceLocation::Memory } =
+                        func.inst(*slice).kind
+                {
+                    read_memory(&mut effects, ptr, SizeOperand::Value(len));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::StorageToMemory { .. } => {

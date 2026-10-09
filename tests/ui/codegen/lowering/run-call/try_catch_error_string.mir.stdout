@@ -77,8 +77,8 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
   bb8:
     jumpi true, bb9, bb10
   bb10:
-    v36 = ptrtoint memptr v12 to i256
-    revert v36, v13
+    v30 = ptrtoint memptr v12 to i256
+    revert v30, v13
   bb9:
     ret 0
   bb7:
@@ -88,18 +88,9 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v25 = add v24, 4
     v26 = sub v23, 4
     v27 = make_memory_slice v25, v26
-    v28 = slice_len v27
-    v29 = add v28, 63
-    v30 = lt v29, v28
-    icall panic_if<0x41>, v30
-    v31 = not 31
-    v32 = and v29, v31
-    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
-    set_memory_object_len memorybytes, v33, v28
-    memory_object_copy_from_slice memorybytes, v33, v27
-    v34 = abi_decode [bytes], v33
-    v35 = memory_object_len memorybytes, v34
-    ret v35
+    v28 = abi_decode [bytes], v27
+    v29 = memory_object_len memorybytes, v28
+    ret v29
   bb1:
     ret 0
   bb3:

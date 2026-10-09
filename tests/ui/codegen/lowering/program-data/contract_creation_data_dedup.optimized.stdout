@@ -173,12 +173,11 @@ bb6:
   dup 6
   gas
   staticcall
-  swap 2
-  pop
-  pop
   iszero
   push bb26
   jumpi
+  pop
+  pop
   returndatasize
   push 32
   gt
@@ -192,7 +191,7 @@ bb6:
   push 0
   return
 bb18:
-  push 256
+  push 224
   push 64
   mstore
   push 0
@@ -260,14 +259,12 @@ bb18:
   dup 7
   gas
   staticcall
-  swap 3
-  pop
-  pop
-  push 224
-  mstore
   iszero
   push bb26
   jumpi
+  pop
+  swap 1
+  pop
   returndatasize
   push 32
   gt
@@ -291,15 +288,15 @@ bb18:
   push 0
   push 4
   dup 4
-  push 224
-  mload
+  dup 7
   gas
   staticcall
-  swap 1
-  pop
   iszero
   push bb26
   jumpi
+  pop
+  swap 1
+  pop
   returndatasize
   push 32
   gt

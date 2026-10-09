@@ -186,8 +186,8 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v80 = mul v78, 32
     v81 = add v67, v80
     v82 = calldataload v81
-    v83 = and v82, 255
-    v84 = eq v82, v83
+    v83 = shr 8, v82
+    v84 = eq v83, 0
     v85 = eq v84, false
     icall revert_if<empty>, v85
     memory_object_store_element memoryarray<1>, v77, v78, v82
@@ -347,8 +347,8 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v55 = mul v53, 32
     v56 = add v42, v55
     v57 = calldataload v56
-    v58 = and v57, 255
-    v59 = eq v57, v58
+    v58 = shr 8, v57
+    v59 = eq v58, 0
     v60 = eq v59, false
     icall revert_if<empty>, v60
     memory_object_store_element memoryarray<1>, v52, v53, v57
@@ -540,8 +540,8 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v59 = mul v57, 32
     v60 = add v55, v59
     v61 = calldataload v60
-    v62 = and v61, 255
-    v63 = eq v61, v62
+    v62 = shr 8, v61
+    v63 = eq v62, 0
     v64 = eq v63, false
     icall revert_if<empty>, v64
     v65 = add v57, 1

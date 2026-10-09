@@ -198,12 +198,11 @@ bb28:
   dup 6
   gas
   staticcall
-  swap 2
-  pop
-  pop
   iszero
   push bb26
   jumpi
+  pop
+  pop
   returndatasize
   push 32
   gt
@@ -264,7 +263,7 @@ bb12:
   create2
   jump bb28
 bb18:
-  push 192
+  push 160
   dup 1
   push 64
   mstore
@@ -377,14 +376,12 @@ bb18:
   dup 7
   gas
   staticcall
-  swap 3
-  pop
-  pop
-  push 160
-  mstore
   iszero
   push bb26
   jumpi
+  pop
+  swap 1
+  pop
   returndatasize
   push 32
   gt
@@ -408,15 +405,15 @@ bb18:
   push 0
   push 4
   dup 4
-  push 160
-  mload
+  dup 7
   gas
   staticcall
-  swap 1
-  pop
   iszero
   push bb26
   jumpi
+  pop
+  swap 1
+  pop
   returndatasize
   push 32
   gt
@@ -431,10 +428,10 @@ bb18:
   lt
   push bb27
   jumpi
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb27 [cold]:
   push 0x4e487b71

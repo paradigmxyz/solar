@@ -1,23 +1,17 @@
 //! Deployment bytecode, constructor arguments, and immutable patching.
 
 use super::{
-    ArtifactKind, CallGraphInfo, DeferredConst, DenseBitSet, EmbeddedBytecodes, EvmArtifact,
-    EvmCodegen, EvmMemoryLayout, GeneratedCode, ImmutableEncoding, ImmutableId, ImmutableRef,
-    MAX_STACK_DEPTH, Module, OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES,
-    immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
-    immutable_staging_end, op,
+    ArtifactKind, AssembledCode, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmArtifact,
+    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, MAX_STACK_DEPTH,
+    Module, OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
+    immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
-    backend::assembler::PreparedAssembly,
-    link::LibraryRelocation,
+    link::{CodeKind, LibraryTable},
     mir::{MirPhase, analysis::cold_functions},
 };
-
-struct PreparedDeploymentPrefix {
-    assembly: PreparedAssembly,
-    constructor_arg_offset: Option<DeferredConst>,
-    runtime_offset: DeferredConst,
-}
+use alloy_primitives::Bytes;
+use solar_interface::Symbol;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Optimizes `module` and schedules its runtime code.
@@ -103,9 +97,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
-        let runtime_code = self.assemble_runtime_code(bytecodes, &mut libraries);
-        let runtime_len = runtime_code.bytecode.len();
-        let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
+        let AssembledCode {
+            bytecode: runtime_bytecode,
+            immutable_refs,
+            library_relocations: runtime_library_relocations,
+            evm_ir: runtime_evm_ir,
+            debug_info: runtime_debug_info,
+        } = self.asm.assemble_linked(
+            bytecodes,
+            &mut libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
+        let runtime_bytecode = Bytes::from(runtime_bytecode);
+        let runtime_len = runtime_bytecode.len();
+        let runtime_name =
+            Symbol::intern(&format!("{}_{}", module.name.name, CodeKind::Runtime.keyword()));
+        let runtime_data = ir::Data {
+            library_relocations: runtime_library_relocations.clone(),
+            ..ir::Data::new(runtime_bytecode.clone(), Some(runtime_name))
+        };
 
         // The constructor copies the runtime code to memory and patches the
         // immutable placeholders with the staged words before
@@ -114,49 +125,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         let copy_base = Self::runtime_copy_base(module, runtime_len, &immutable_refs);
 
         // Generate constructor initialization and the deployment postlude as
-        // one control-flow graph and optimize it once. Constructor arguments
-        // are appended after the generated deployment prefix, so their offset
-        // and the runtime-code offset depend on its final push widths. Only
-        // repeat final assembly while both offsets stabilize.
-        let (constructor_arg_offset, runtime_offset) = self.emit_deployment_prefix(
-            module,
-            &call_graph,
-            runtime_len,
-            copy_base,
-            &immutable_refs,
-        );
-        self.asm.optimize();
-        let assembly = self.asm.prepare_linked(
-            bytecodes,
-            &mut libraries,
-            self.capture_evm_ir,
-            self.capture_debug_info,
-        );
-        let prepared_deploy_code =
-            PreparedDeploymentPrefix { assembly, constructor_arg_offset, runtime_offset };
-        let mut deploy_code_len = 0usize;
-        let mut constructor_arg_offset = runtime_len;
-        let mut deploy_code = self.assemble_deployment_prefix(
-            &prepared_deploy_code,
-            constructor_arg_offset,
-            deploy_code_len,
-        );
-        for _ in 0..8 {
-            let next_deploy_code_len = deploy_code.bytecode.len();
-            let next_arg_offset = next_deploy_code_len + runtime_len;
-            if next_deploy_code_len == deploy_code_len && next_arg_offset == constructor_arg_offset
-            {
-                break;
-            }
-            deploy_code_len = next_deploy_code_len;
-            constructor_arg_offset = next_arg_offset;
-            deploy_code = self.assemble_deployment_prefix(
-                &prepared_deploy_code,
-                constructor_arg_offset,
-                deploy_code_len,
-            );
-        }
-
+        // one control-flow graph and optimize it once.
+        //
         // Deploy code structure:
         // [constructor_code]    ; run constructor (SSTOREs + immutable staging)
         // PUSH<n> runtime_len   ; size to copy from creation code
@@ -167,29 +137,47 @@ impl<'gcx> EvmCodegen<'gcx> {
         // [immutable patches]   ; patch staged words into the PUSH<N> placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
-        let mut deployment_library_relocations = deploy_code.library_relocations;
-        deployment_library_relocations.extend(runtime_code.library_relocations.iter().map(
-            |reloc| LibraryRelocation {
-                offset: deploy_code.bytecode.len() + reloc.offset,
-                library: reloc.library,
-            },
-        ));
-        let mut deploy_bytecode = deploy_code.bytecode;
-        deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
+        // [program data]        ; constructor data, then the runtime code last
+        // [constructor args]    ; appended by the deployer
+        self.emit_deployment_prefix(
+            module,
+            &call_graph,
+            runtime_data,
+            &libraries,
+            copy_base,
+            &immutable_refs,
+        );
+        self.asm.optimize();
+        let deploy_code = self.asm.assemble_linked(
+            bytecodes,
+            &mut libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
+        let has_constructor_args = module
+            .functions
+            .iter()
+            .any(|func| func.attributes.is_constructor && !func.params.is_empty());
+        assert!(
+            !has_constructor_args
+                || deploy_code.bytecode.is_empty()
+                || deploy_code.bytecode.ends_with(&runtime_bytecode),
+            "constructor arguments must start where the runtime code ends"
+        );
 
         // The returned runtime artifact keeps the zero placeholders, like
         // solc's `deployedBytecode` for contracts with immutables.
         EvmArtifact {
             libraries,
-            deployment: deploy_bytecode,
-            runtime: runtime_code.bytecode,
-            deployment_library_relocations,
-            runtime_library_relocations: runtime_code.library_relocations,
+            deployment: deploy_code.bytecode,
+            runtime: runtime_bytecode.into(),
+            deployment_library_relocations: deploy_code.library_relocations,
+            runtime_library_relocations,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
-            runtime_evm_ir: runtime_code.evm_ir,
+            runtime_evm_ir,
             deployment_debug_info: deploy_code.debug_info,
-            runtime_debug_info: runtime_code.debug_info,
+            runtime_debug_info,
         }
     }
 
@@ -218,7 +206,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn emit_deployment_postlude(
         &mut self,
         module: &Module,
-        runtime_offset: DeferredConst,
+        runtime: ir::DataId,
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
@@ -226,7 +214,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Copy runtime code from creation code to memory at `copy_base`.
         self.asm.emit_push(U256::from(runtime_len as u64));
         self.asm.emit_stack_op(StackOp::Dup(1));
-        self.asm.emit_push_deferred(runtime_offset);
+        self.asm.emit_push_data(ir::DataRef::new(runtime, 0));
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
 
@@ -339,8 +327,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// This includes state variable initializers.
     ///
     /// Constructor arguments are read from the end of the initcode using CODECOPY.
-    /// The args are ABI-encoded and appended after the deployment bytecode.
-    /// Returns the deferred constructor-argument and runtime-code offsets.
+    /// The args are ABI-encoded and appended after the runtime code, which is the
+    /// last data entry of the deployment bytecode.
     #[tracing::instrument(
         name = "stack_scheduling",
         level = "debug",
@@ -351,15 +339,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         module: &Module,
         call_graph: &CallGraphInfo,
-        runtime_len: usize,
+        runtime_data: ir::Data,
+        libraries: &LibraryTable,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
-    ) -> (Option<DeferredConst>, DeferredConst) {
+    ) {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);
-        let runtime_offset = self.asm.new_deferred_const();
+        let runtime_len = runtime_data.bytes.linked().len();
+        let runtime = self.asm.append_runtime_code(runtime_data, libraries);
 
         // Find constructor function if it exists
         let constructor =
@@ -372,7 +362,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::JUMPI);
         }
 
-        let constructor_arg_offset = if let Some((ctor_id, ctor)) = constructor {
+        if let Some((ctor_id, ctor)) = constructor {
             // Generate constructor bytecode
             // Clear state and generate function body
             self.block_labels.clear();
@@ -392,6 +382,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
             self.runtime_free_memory_consts.clear();
+            self.fmp_floor_consts.clear();
             self.runtime_entry_reachability.clear();
             self.runtime_entry_funcs.clear();
             self.current_internal_function = None;
@@ -428,8 +419,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             // compiler-owned regions. The ABI blob starts after their exact
             // post-emission end. The heap prefix follows the complete ABI blob.
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
-            let constructor_arg_offset =
-                (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
+            // The arguments start where the runtime code, the last data entry, ends.
+            // Their size reads `CODESIZE`, which makes the data layout observable, so
+            // data packing keeps every entry in place.
+            let constructor_arg_offset = (!ctor.params.is_empty()).then(|| {
+                let runtime_end = u32::try_from(runtime_len).expect("runtime code exceeds `u32`");
+                ir::DataRef::new(runtime, runtime_end)
+            });
+            self.constructor_heap_start = Some((constructor_fixed_memory_end, heap_guard));
 
             // Set constructor context for LoadArg handling
             self.in_constructor = true;
@@ -440,30 +437,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             // then place the free-memory pointer after its word-aligned end.
             if let Some(arg_offset) = constructor_arg_offset {
                 self.constructor_args_base_const = Some(constructor_fixed_memory_end);
-                self.constructor_args_offset_const = Some(arg_offset);
-                self.asm.emit_push_deferred(arg_offset);
+                self.constructor_args_offset = Some(arg_offset);
+                self.asm.emit_push_data(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
                 self.asm.emit_stack_op(StackOp::Dup(1));
-                self.asm.emit_push_deferred(arg_offset); // code offset
+                self.asm.emit_push_data(arg_offset); // code offset
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
-
-                self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-                self.asm.emit_op(op::AND);
-            } else {
-                self.asm.emit_push_deferred(constructor_fixed_memory_end);
             }
-            // heap_start = aligned_args_end + heap_guard
             // mstore(FMP_SLOT, heap_start)
-            if heap_guard != 0 {
-                self.asm.emit_push(U256::from(heap_guard));
-                self.asm.emit_op(op::ADD);
-            }
+            self.emit_constructor_heap_start();
             self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MSTORE);
 
@@ -517,49 +501,45 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Reset constructor context
             self.in_constructor = false;
             self.constructor_args_base_const = None;
-            self.constructor_args_offset_const = None;
+            self.constructor_args_offset = None;
+            self.constructor_heap_start = None;
             self.constructor_exit = None;
             self.constructor_param_count = 0;
 
             self.asm.define_label(constructor_exit);
-            constructor_arg_offset
-        } else {
-            None
-        };
+        }
 
-        self.emit_deployment_postlude(
-            module,
-            runtime_offset,
-            runtime_len,
-            copy_base,
-            immutable_refs,
-        );
+        self.emit_deployment_postlude(module, runtime, runtime_len, copy_base, immutable_refs);
         if let Some(revert) = implicit_constructor_revert {
             self.asm.define_label(revert);
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_op(op::REVERT);
         }
-        (constructor_arg_offset, runtime_offset)
     }
 
-    fn assemble_deployment_prefix(
-        &mut self,
-        prepared: &PreparedDeploymentPrefix,
-        constructor_arg_offset: usize,
-        runtime_offset: usize,
-    ) -> GeneratedCode {
-        let mut deferred_values = Vec::with_capacity(2);
-        if let Some(id) = prepared.constructor_arg_offset {
-            deferred_values.push((id, U256::from(constructor_arg_offset)));
+    /// Emits the constructor's initial free memory pointer, consuming the size of the argument
+    /// blob from the stack when the constructor takes arguments.
+    pub(super) fn emit_constructor_heap_start(&mut self) {
+        let (fixed_memory_end, heap_guard) = self
+            .constructor_heap_start
+            .expect("constructor heap start is recorded before its code");
+        if self.constructor_args_offset.is_some() {
+            // heap_start = align32(fixed_memory_end + args_size)
+            self.asm.emit_push_deferred(fixed_memory_end);
+            self.asm.emit_op(op::ADD);
+            self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+            self.asm.emit_op(op::ADD);
+            self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+            self.asm.emit_op(op::AND);
+        } else {
+            // heap_start = fixed_memory_end
+            self.asm.emit_push_deferred(fixed_memory_end);
         }
-        deferred_values.push((prepared.runtime_offset, U256::from(runtime_offset)));
-        let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
-        GeneratedCode {
-            bytecode: result.bytecode,
-            library_relocations: result.library_relocations,
-            evm_ir: result.evm_ir,
-            debug_info: result.debug_info,
+        // heap_start += heap_guard
+        if heap_guard != 0 {
+            self.asm.emit_push(U256::from(heap_guard));
+            self.asm.emit_op(op::ADD);
         }
     }
 }

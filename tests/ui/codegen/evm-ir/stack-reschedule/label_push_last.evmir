@@ -1,0 +1,46 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// A check's pushed target stays right before its `JUMPI` when the run between checks is
+// searched on its own, here because the constants after the check exceed one search.
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=4]:
+// CHECK: push bb1
+// CHECK-NEXT: jumpi
+bb0 [stack=4]:
+  dup 1
+  iszero
+  swap 1
+  swap 1
+  pop
+  dup 1
+  iszero
+  pop
+  swap 1
+  swap 2
+  swap 1
+  push bb1
+  jumpi
+  push 1
+  push 2
+  add
+  push 3
+  add
+  push 4
+  add
+  push 5
+  add
+  push 6
+  add
+  push 7
+  add
+  push 8
+  add
+  push 9
+  add
+  pop
+  stop
+bb1 [cold]:
+  push 0
+  push 0
+  revert

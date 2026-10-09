@@ -4,6 +4,29 @@
 //! conversions consume typed values. Propagate assembly exposure through the
 //! copy graph before choosing signatures and loop phi types. These carriers
 //! are explicitly i256; ordinary integer values retain their native width.
+//!
+//! Internal function pointers are scalars too. Calls through them dispatch
+//! over the functions of the pointer's type, but assembly can retype a
+//! pointer: `outFn := inFn` makes a function returning a `MemoryPointer` word
+//! callable as one returning a `memory` struct. Taint the bindings assembly
+//! reads or writes, closed over the copy graph, over copies that only change a
+//! pointer's state mutability, over the edges between a reference and the
+//! pointers or references loaded from or stored into its object, and from a
+//! called pointer to the call's results. A function whose pointer flows into a
+//! tainted binding is exposed to assembly, and a pointer call whose callee may
+//! read a tainted binding dispatches over the exposed functions too,
+//! reinterpreting one-word parameters and returns. Calls whose pointers never
+//! touch assembly keep the per-type dispatch.
+//!
+//! A retyped call can also retype what it passes and returns: Seaport's
+//! helpers map typed arrays through a generic function over `MemoryPointer`
+//! words and hand it a typed callback. So the functions such a call passes are
+//! exposed, and the parameters and returns of every exposed function are
+//! tainted. These rules feed each other and iterate to a fixpoint.
+//!
+//! NOTE: Pointers reach this graph only through bindings. Assembly that writes
+//! a pointer into memory or storage through an address it computed, rather
+//! than through a reference binding, is not tracked.
 
 use super::*;
 use smallvec::SmallVec;
@@ -19,8 +42,24 @@ struct Exposure<'gcx> {
     indirect_callees: FxHashMap<Ty<'gcx>, SmallVec<[hir::FunctionId; 1]>>,
     visited: FxHashSet<hir::FunctionId>,
     edges: FxHashMap<VariableId, Vec<VariableId>>,
+    /// Edges that carry internal function pointers but not raw scalar bits.
+    pointer_edges: FxHashMap<VariableId, Vec<VariableId>>,
+    /// Each internal function with a binding its pointer flows into.
+    pointer_values: Vec<(hir::FunctionId, VariableId)>,
+    pointer_calls: Vec<PointerCall>,
     returns: &'gcx [VariableId],
     assembly: bool,
+}
+
+/// An internal function pointer call with the pointers it reads.
+struct PointerCall {
+    call: hir::ExprId,
+    /// Bindings the callee may read.
+    callee: SmallVec<[VariableId; 4]>,
+    /// Bindings the arguments may copy or load pointers from.
+    arguments: SmallVec<[VariableId; 4]>,
+    /// Functions whose pointers the arguments take.
+    functions: SmallVec<[hir::FunctionId; 1]>,
 }
 
 impl<'gcx> Exposure<'gcx> {
@@ -96,6 +135,172 @@ impl<'gcx> Exposure<'gcx> {
                 }
             }
         }
+        self.connect_pointers(destinations, expr);
+    }
+
+    /// Returns the internal function whose pointer an expression takes.
+    fn function_reference(&self, expr: &hir::Expr<'_>) -> Option<hir::FunctionId> {
+        if !matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..)) {
+            return None;
+        }
+        let TyKind::Fn(function) = self.gcx.type_of_expr(expr.id)?.kind else { return None };
+        if !function.is_internal() {
+            return None;
+        }
+        let id = self.gcx.resolved_function(expr)?;
+        Some(super::resolve_call_target(self.gcx, self.contract, expr, id))
+    }
+
+    /// Collects the bindings whose pointers an expression's value may copy or load, and the
+    /// functions whose pointers it takes.
+    fn pointer_sources(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        bindings: &mut SmallVec<[VariableId; 4]>,
+        functions: &mut SmallVec<[hir::FunctionId; 1]>,
+    ) {
+        if let Some(function) = self.function_reference(expr) {
+            functions.push(function);
+            return;
+        }
+        if let Some(id) = self.gcx.user_operator(expr.id) {
+            bindings.extend_from_slice(self.gcx.hir.function(id).returns);
+            return;
+        }
+        match expr.kind {
+            ExprKind::Ident(_) => bindings.extend(self.gcx.resolved_variable(expr)),
+            ExprKind::Tuple(items) => {
+                for item in items.iter().flatten() {
+                    self.pointer_sources(item, bindings, functions);
+                }
+            }
+            ExprKind::Array(items) => {
+                for item in items {
+                    self.pointer_sources(item, bindings, functions);
+                }
+            }
+            ExprKind::Ternary(_, yes, no) => {
+                self.pointer_sources(yes, bindings, functions);
+                self.pointer_sources(no, bindings, functions);
+            }
+            // A value loaded from an object comes from the reference that reaches it.
+            ExprKind::Member(base, _) | ExprKind::Index(base, _) | ExprKind::Slice(base, ..) => {
+                self.pointer_sources(base, bindings, functions);
+            }
+            ExprKind::Call(callee, args) => {
+                if self.gcx.resolved_expr(callee).is_some_and(
+                    |res| matches!(res, hir::Res::Item(item) if item.as_struct().is_some()),
+                ) {
+                    for argument in args.exprs() {
+                        self.pointer_sources(argument, bindings, functions);
+                    }
+                } else if let Some(builtin) = self.gcx.resolved_builtin(callee) {
+                    // `array.push()` returns a reference into the array.
+                    if builtin == Builtin::ArrayPush0
+                        && let ExprKind::Member(base, _) = callee.kind
+                    {
+                        self.pointer_sources(base, bindings, functions);
+                    }
+                } else {
+                    for id in self.callees(callee) {
+                        bindings.extend_from_slice(self.gcx.hir.function(id).returns);
+                    }
+                    // A retyped callee can return values of other types.
+                    if is_pointer_callee(self.gcx, callee) {
+                        self.pointer_sources(callee, bindings, &mut SmallVec::new());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Records the internal function pointers an expression may carry into bindings.
+    fn connect_pointers(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
+        let destinations = destinations
+            .iter()
+            .copied()
+            .filter(|&id| can_hold_function_pointer(self.gcx.type_of_item(id.into())))
+            .collect::<SmallVec<[_; 4]>>();
+        if destinations.is_empty() {
+            return;
+        }
+        let mut bindings = SmallVec::new();
+        let mut functions = SmallVec::new();
+        self.pointer_sources(expr, &mut bindings, &mut functions);
+        bindings.retain(|&mut id| can_hold_function_pointer(self.gcx.type_of_item(id.into())));
+        for &to in &destinations {
+            self.pointer_values.extend(functions.iter().map(|&function| (function, to)));
+            for &from in &bindings {
+                if from != to {
+                    self.pointer_edges.entry(from).or_default().push(to);
+                    self.pointer_edges.entry(to).or_default().push(from);
+                }
+            }
+        }
+    }
+
+    /// Records the references whose objects an assignment target stores into.
+    fn store_roots(&mut self, target: &hir::Expr<'_>, roots: &mut SmallVec<[VariableId; 4]>) {
+        match target.kind {
+            ExprKind::Tuple(items) => {
+                for item in items.iter().flatten() {
+                    self.store_roots(item, roots);
+                }
+            }
+            ExprKind::Member(base, _) | ExprKind::Index(base, _) => {
+                self.pointer_sources(base, roots, &mut SmallVec::new());
+            }
+            ExprKind::Call(..) => self.pointer_sources(target, roots, &mut SmallVec::new()),
+            _ => {}
+        }
+    }
+
+    /// Records an internal function pointer call with the pointers it reads.
+    fn record_pointer_call(
+        &mut self,
+        call: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        args: hir::CallArgs<'_>,
+    ) {
+        if !is_pointer_callee(self.gcx, callee) {
+            return;
+        }
+        let mut bindings = SmallVec::new();
+        self.pointer_sources(callee, &mut bindings, &mut SmallVec::new());
+        if bindings.is_empty() {
+            return;
+        }
+        let mut arguments = SmallVec::new();
+        let mut functions = SmallVec::new();
+        for argument in args.exprs() {
+            self.pointer_sources(argument, &mut arguments, &mut functions);
+        }
+        self.pointer_calls.push(PointerCall {
+            call: call.id,
+            callee: bindings,
+            arguments,
+            functions,
+        });
+    }
+}
+
+/// Returns whether a call through this callee goes through an internal function pointer.
+fn is_pointer_callee(gcx: Gcx<'_>, callee: &hir::Expr<'_>) -> bool {
+    gcx.resolved_builtin(callee).is_none()
+        && gcx.type_of_expr(callee.id).is_some_and(|ty| {
+            matches!(ty.kind, TyKind::Fn(function)
+                if function.function_id.is_none() && function.is_internal())
+        })
+}
+
+/// Returns whether a value of this type can hold an internal function pointer, directly or in
+/// the object it references.
+fn can_hold_function_pointer(ty: Ty<'_>) -> bool {
+    match ty.kind {
+        TyKind::Fn(function) => function.is_internal(),
+        TyKind::Ref(..) | TyKind::Mapping(..) => true,
+        _ => false,
     }
 }
 
@@ -176,8 +381,20 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     let mut ids = SmallVec::new();
                     self.sources(lhs, &mut ids);
                     self.connect(&ids, rhs);
+                    let mut roots = SmallVec::new();
+                    self.store_roots(lhs, &mut roots);
+                    self.connect_pointers(&roots, rhs);
                 }
                 ExprKind::Call(callee, args) => {
+                    self.record_pointer_call(expr, callee, args);
+                    if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush)
+                        && let ExprKind::Member(base, _) = callee.kind
+                        && let Some(value) = args.exprs().next()
+                    {
+                        let mut roots = SmallVec::new();
+                        self.pointer_sources(base, &mut roots, &mut SmallVec::new());
+                        self.connect_pointers(&roots, value);
+                    }
                     let callees = self.callees(callee);
                     if callees.is_empty() {
                         return self.walk_expr(expr);
@@ -226,6 +443,9 @@ impl LoweringState {
             visited: FxHashSet::default(),
             raw: FxHashSet::default(),
             edges: FxHashMap::default(),
+            pointer_edges: FxHashMap::default(),
+            pointer_values: Vec::new(),
+            pointer_calls: Vec::new(),
             returns: &[],
             assembly: false,
         };
@@ -233,8 +453,16 @@ impl LoweringState {
             let _ = exposure.visit_nested_function(id);
         }
         for &base in gcx.hir.contract(contract).linearized_bases {
-            if let Some(id) = gcx.hir.contract(base).ctor {
+            let base = gcx.hir.contract(base);
+            if let Some(id) = base.ctor {
                 let _ = exposure.visit_nested_function(id);
+            }
+            for id in base.variables() {
+                if gcx.hir.variable(id).is_state_variable()
+                    && let Some(initializer) = gcx.hir.variable(id).initializer
+                {
+                    exposure.connect_pointers(&[id], initializer);
+                }
             }
         }
         let mut pending = exposure.raw.iter().copied().collect::<Vec<_>>();
@@ -247,6 +475,63 @@ impl LoweringState {
                 }
             }
         }
+
+        let mut tainted = exposure.raw.clone();
+        let mut pending = tainted.iter().copied().collect::<Vec<_>>();
+        let mut exposed = FxHashSet::default();
+        let mut calls = FxHashSet::default();
+        loop {
+            // tainted = closure(tainted, copy edges + pointer edges)
+            while let Some(id) = pending.pop() {
+                let neighbors = exposure.edges.get(&id).into_iter().flatten();
+                for &neighbor in
+                    neighbors.chain(exposure.pointer_edges.get(&id).into_iter().flatten())
+                {
+                    if tainted.insert(neighbor) {
+                        pending.push(neighbor);
+                    }
+                }
+            }
+            // A function whose pointer reaches a tainted binding is exposed to assembly.
+            let mut newly_exposed = exposure
+                .pointer_values
+                .iter()
+                .filter(|&&(function, binding)| {
+                    tainted.contains(&binding) && exposed.insert(function)
+                })
+                .map(|&(function, _)| function)
+                .collect::<Vec<_>>();
+            // A tainted call can pass its arguments to an exposed function of another type.
+            for call in &exposure.pointer_calls {
+                if !calls.contains(&call.call)
+                    && call.callee.iter().any(|binding| tainted.contains(binding))
+                {
+                    calls.insert(call.call);
+                    pending.extend(call.arguments.iter().filter(|&&id| tainted.insert(id)));
+                    newly_exposed.extend(
+                        call.functions.iter().filter(|&&function| exposed.insert(function)),
+                    );
+                }
+            }
+            // An exposed function can run behind a retyped pointer, so its parameters and
+            // returns can hold values of other types.
+            for function in newly_exposed {
+                let function = gcx.hir.function(function);
+                pending.extend(
+                    function
+                        .parameters
+                        .iter()
+                        .chain(function.returns)
+                        .filter(|&&id| tainted.insert(id)),
+                );
+            }
+            if pending.is_empty() {
+                break;
+            }
+        }
+        self.pointer_registry.assembly_exposed = exposed;
+        self.pointer_registry.assembly_calls = calls;
+
         self.raw_pointer_types = exposure
             .raw
             .iter()

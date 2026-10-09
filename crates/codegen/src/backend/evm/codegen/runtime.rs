@@ -1,9 +1,8 @@
 //! Runtime emission, retry policies, and whole-program stack limits.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmCodegen, FunctionId,
-    GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
-    OptimizationMode, Terminator, index_vec, run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, IndexVec, Liveness,
+    MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec, run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -68,26 +67,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             break;
         }
-    }
-
-    /// Links embedded bytecode into the optimized runtime code and assembles it.
-    pub(super) fn assemble_runtime_code(
-        &mut self,
-        bytecodes: &EmbeddedBytecodes,
-        libraries: &mut LibraryTable,
-    ) -> GeneratedCode {
-        let result = self.asm.assemble_linked(
-            bytecodes,
-            libraries,
-            self.capture_evm_ir,
-            self.capture_debug_info,
-        );
-        self.runtime_immutable_refs = result.immutable_refs;
-        GeneratedCode {
-            bytecode: result.bytecode,
-            library_relocations: result.library_relocations,
-            evm_ir: result.evm_ir,
-            debug_info: result.debug_info,
+        if let Some(func_id) = self.lost_frame_stack_value {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                    module.functions[func_id].name
+                ))
+                .emit();
         }
     }
 
@@ -110,9 +97,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
+        self.fmp_floor_consts.clear();
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
         self.current_internal_function = None;
+        self.lost_frame_stack_value = None;
         self.block_copies.clear();
         self.stack_phi_sources.clear();
         self.static_call_abis.clear();

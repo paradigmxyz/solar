@@ -30,9 +30,9 @@ use super::{
 };
 use crate::{
     backend::assembler::{
-        ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
+        ArtifactKind, AssembledCode, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
-    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
+    link::{EmbeddedBytecodes, LibraryRelocation},
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -79,14 +79,6 @@ mod values;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
-
-#[derive(Default)]
-struct GeneratedCode {
-    bytecode: Vec<u8>,
-    library_relocations: Vec<LibraryRelocation>,
-    evm_ir: Option<ir::Module>,
-    debug_info: Option<DebugInfo>,
-}
 
 /// Describes the stack effect of an EVM instruction.
 /// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
@@ -277,6 +269,10 @@ pub struct EvmCodegen<'gcx> {
     /// Functions whose stack-only argument convention had to materialize a frame fallback during
     /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
     disabled_stack_only_functions: DenseBitSet<FunctionId>,
+    /// An internal function already on the frame-backed convention that lost a stack-only value
+    /// in this emission attempt. Regenerating cannot give the value a reload route, so a kept
+    /// attempt reports an error instead of shipping the placeholder.
+    lost_frame_stack_value: Option<FunctionId>,
     /// Whether stack-native return tuples may be selected. Cleared when the
     /// whole-program stack proof fails even without preserved prefixes or
     /// stack arguments, falling back to the frame-backed return convention.
@@ -335,6 +331,9 @@ pub struct EvmCodegen<'gcx> {
     /// Per-external-entry free-memory-pointer constants, resolved after static-frame placement.
     /// Entries that never use dynamic memory omit the initialization entirely.
     runtime_free_memory_consts: FxHashMap<FunctionId, DeferredConst>,
+    /// Heap floors, by the function that pushes each one. Each resolves to the highest initial
+    /// free memory pointer of the entries reaching the function.
+    fmp_floor_consts: Vec<(FunctionId, DeferredConst)>,
     /// Internal functions reachable from each entry that initializes the free-memory pointer.
     runtime_entry_reachability: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     /// Every external body emitted this pass, for sizing the heap floor.
@@ -379,16 +378,17 @@ pub struct EvmCodegen<'gcx> {
     /// Calldata words physically identical to arguments in the active global
     /// layout, adopted after their final validation use.
     global_stack_aliases: FxHashMap<ValueId, ValueId>,
-    /// Immutable `PUSH<N>` placeholders in the last assembled runtime code.
-    runtime_immutable_refs: Vec<ImmutableRef>,
     /// Backend encodings derived from the current module's immutable declarations.
     immutable_encodings: IndexVec<ImmutableId, ImmutableEncoding>,
     /// First constructor-memory word reserved for immutable staging.
     immutable_staging_base: u64,
     /// Deferred absolute base of the copied constructor ABI argument blob.
     constructor_args_base_const: Option<DeferredConst>,
-    /// Deferred code offset of the copied constructor ABI argument blob.
-    constructor_args_offset_const: Option<DeferredConst>,
+    /// Code offset of the constructor ABI argument blob: the end of the runtime code data.
+    constructor_args_offset: Option<ir::DataRef>,
+    /// The deferred end of the constructor's fixed compiler-owned memory and the heap prefix
+    /// guard, from which the constructor derives its initial free memory pointer.
+    constructor_heap_start: Option<(DeferredConst, u64)>,
     /// Whether we're currently generating constructor code.
     /// When true, arguments load from the copied deployment ABI blob.
     in_constructor: bool,
@@ -431,6 +431,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_frame_size_consts: Vec::new(),
             static_call_abis: FxHashMap::default(),
             disabled_stack_only_functions: DenseBitSet::new_empty(0),
+            lost_frame_stack_value: None,
             stack_returns_enabled: true,
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
@@ -448,6 +449,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             packed_static_frame_sizes: FxHashMap::default(),
             pending_static_allocs: FxHashMap::default(),
             runtime_free_memory_consts: FxHashMap::default(),
+            fmp_floor_consts: Vec::new(),
             runtime_entry_reachability: FxHashMap::default(),
             runtime_entry_funcs: Vec::new(),
             current_internal_function: None,
@@ -467,12 +469,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_runtime: None,
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
-            runtime_immutable_refs: Vec::new(),
             immutable_encodings: IndexVec::new(),
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 + EvmMemoryLayout::WORD_SIZE,
             constructor_args_base_const: None,
-            constructor_args_offset_const: None,
+            constructor_args_offset: None,
+            constructor_heap_start: None,
             in_constructor: false,
             constructor_exit: None,
             constructor_param_count: 0,
@@ -498,6 +500,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.pending_frame_size_consts.clear();
         self.static_call_abis.clear();
         self.disabled_stack_only_functions.clear_to(module.functions.len());
+        self.lost_frame_stack_value = None;
         self.stack_returns_enabled = true;
         self.preserve_caller_stack = false;
         self.recursive_stack_functions.clear_to(module.functions.len());
@@ -515,6 +518,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.packed_static_frame_sizes.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
+        self.fmp_floor_consts.clear();
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
         self.current_internal_function = None;
@@ -529,12 +533,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();
-        self.runtime_immutable_refs.clear();
         self.immutable_encodings.clear();
         self.immutable_staging_base =
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
         self.constructor_args_base_const = None;
-        self.constructor_args_offset_const = None;
+        self.constructor_args_offset = None;
+        self.constructor_heap_start = None;
         self.in_constructor = false;
         self.constructor_exit = None;
         self.constructor_param_count = 0;

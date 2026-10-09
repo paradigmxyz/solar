@@ -15,9 +15,7 @@
 contract LoopBoundResident {
     // CHECK-LABEL: @module LoopBoundResident_runtime
     // The header duplicates both the resident bound and the current counter.
-    // CHECK: dup 4
-    // CHECK-NEXT: dup 4
-    // CHECK-NEXT: lt
+    // CHECK: dup 4{{[[:space:]]+}}dup 4{{[[:space:]]+}}lt
     function accumulate(uint256 x, uint256 y, uint256 rounds) external pure returns (uint256) {
         assembly {
             for { let i := 0 } lt(i, rounds) { i := add(i, 1) } {
