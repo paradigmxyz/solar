@@ -1,0 +1,929 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol:AssemblyLowMemoryLayouts ===
+@module AssemblyLowMemoryLayouts
+@types
+  struct0: {i256, i256}
+  struct1: {i8, i256}
+
+fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = callvalue
+    mstore 0, v0 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    mstore 64, 3 !metadata(memory=scratch)
+    v1 = keccak256 0, 96 !metadata(memory=scratch)
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret
+}
+
+fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (u256 arg0, u256 0)
+    v1 = keccak256_packed (u256 arg0, u256 1)
+    v2 = keccak256_packed (u256 arg0, u256 2)
+    v3 = keccak256_packed (u256 arg0, u256 3)
+    v4 = keccak256_packed (u256 arg0, u256 4)
+    v5 = keccak256_packed (u256 arg0, u256 5)
+    v6 = keccak256_packed (u256 arg0, u256 6)
+    v7 = keccak256_packed (u256 arg0, u256 7)
+    v8 = keccak256_packed (u256 arg0, u256 8)
+    v9 = keccak256_packed (u256 arg0, u256 9)
+    v10 = keccak256_packed (u256 arg0, u256 10)
+    v11 = keccak256_packed (u256 arg0, u256 11)
+    v12 = keccak256_packed (u256 arg0, u256 12)
+    v13 = keccak256_packed (u256 arg0, u256 13)
+    v14 = keccak256_packed (u256 arg0, u256 14)
+    v15 = keccak256_packed (u256 arg0, u256 15)
+    v16 = keccak256_packed (u256 arg0, u256 16)
+    mstore 64, 128 !metadata(memory=scratch)
+    v17 = ne arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = icall @_copy, 0x400
+    v19 = memory_object_len memorybytes, v18
+    v20 = shl 0, v19
+    jump bb3
+  bb3:
+    v21 = phi [bb1: v20], [bb2: 0]
+    v22 = xor v0, v1
+    v23 = xor v22, v2
+    v24 = xor v23, v3
+    v25 = xor v24, v4
+    v26 = xor v25, v5
+    v27 = xor v26, v6
+    v28 = xor v27, v7
+    v29 = xor v28, v8
+    v30 = xor v29, v9
+    v31 = xor v30, v10
+    v32 = xor v31, v11
+    v33 = xor v32, v12
+    v34 = xor v33, v13
+    v35 = xor v34, v14
+    v36 = xor v35, v15
+    v37 = xor v36, v16
+    v38 = xor v21, v37
+    ret v38
+}
+
+fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (u256 arg0, u256 0)
+    v1 = keccak256_packed (u256 arg0, u256 1)
+    v2 = keccak256_packed (u256 arg0, u256 2)
+    v3 = keccak256_packed (u256 arg0, u256 3)
+    v4 = keccak256_packed (u256 arg0, u256 4)
+    v5 = keccak256_packed (u256 arg0, u256 5)
+    v6 = keccak256_packed (u256 arg0, u256 6)
+    v7 = keccak256_packed (u256 arg0, u256 7)
+    v8 = keccak256_packed (u256 arg0, u256 8)
+    v9 = keccak256_packed (u256 arg0, u256 9)
+    v10 = keccak256_packed (u256 arg0, u256 10)
+    v11 = keccak256_packed (u256 arg0, u256 11)
+    v12 = keccak256_packed (u256 arg0, u256 12)
+    v13 = keccak256_packed (u256 arg0, u256 13)
+    v14 = keccak256_packed (u256 arg0, u256 14)
+    v15 = keccak256_packed (u256 arg0, u256 15)
+    v16 = keccak256_packed (u256 arg0, u256 16)
+    v17 = ne arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = icall @_lay, arg0
+    jump bb3
+  bb3:
+    v19 = phi [bb1: v18], [bb2: 0]
+    v20 = xor v0, v1
+    v21 = xor v20, v2
+    v22 = xor v21, v3
+    v23 = xor v22, v4
+    v24 = xor v23, v5
+    v25 = xor v24, v6
+    v26 = xor v25, v7
+    v27 = xor v26, v8
+    v28 = xor v27, v9
+    v29 = xor v28, v10
+    v30 = xor v29, v11
+    v31 = xor v30, v12
+    v32 = xor v31, v13
+    v33 = xor v32, v14
+    v34 = xor v33, v15
+    v35 = xor v34, v16
+    v36 = xor v19, v35
+    ret v36
+}
+
+fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (u256 arg0, u256 0)
+    v1 = keccak256_packed (u256 arg0, u256 1)
+    v2 = keccak256_packed (u256 arg0, u256 2)
+    v3 = keccak256_packed (u256 arg0, u256 3)
+    v4 = keccak256_packed (u256 arg0, u256 4)
+    v5 = keccak256_packed (u256 arg0, u256 5)
+    v6 = keccak256_packed (u256 arg0, u256 6)
+    v7 = keccak256_packed (u256 arg0, u256 7)
+    v8 = keccak256_packed (u256 arg0, u256 8)
+    v9 = keccak256_packed (u256 arg0, u256 9)
+    v10 = keccak256_packed (u256 arg0, u256 10)
+    v11 = keccak256_packed (u256 arg0, u256 11)
+    v12 = keccak256_packed (u256 arg0, u256 12)
+    v13 = keccak256_packed (u256 arg0, u256 13)
+    v14 = keccak256_packed (u256 arg0, u256 14)
+    v15 = keccak256_packed (u256 arg0, u256 15)
+    v16 = keccak256_packed (u256 arg0, u256 16)
+    v17 = ne arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = icall @_lay, arg0
+    jump bb3
+  bb3:
+    v19 = phi [bb1: v18], [bb2: 0]
+    v20 = calldatasize
+    calldatacopy 0x2080, v20, 0x400
+    v21 = xor v0, v1
+    v22 = xor v21, v2
+    v23 = xor v22, v3
+    v24 = xor v23, v4
+    v25 = xor v24, v5
+    v26 = xor v25, v6
+    v27 = xor v26, v7
+    v28 = xor v27, v8
+    v29 = xor v28, v9
+    v30 = xor v29, v10
+    v31 = xor v30, v11
+    v32 = xor v31, v12
+    v33 = xor v32, v13
+    v34 = xor v33, v14
+    v35 = xor v34, v15
+    v36 = xor v35, v16
+    v37 = xor v19, v36
+    ret v37
+}
+
+fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    mstore 0x2400, arg0
+    v0 = ne arg1, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = icall @_lay, arg0
+    jump bb3
+  bb3:
+    v2 = not 31
+    v3 = and 0x43f, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, 0x400
+    v5 = ptrtoint memptr v4 to i256
+    v6 = mload v5
+    v7 = mload 0x2400
+    v8 = add v7, v6
+    ret v8
+}
+
+fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = gas
+    v1 = staticcall v0, 4, 0, 1, 0, 0
+    v2 = zext i1 v1 to i256
+    v3 = calldataload 4
+    returndatacopy v3, 1, 0
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = lt v4, 0x2000
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
+fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (u256 arg0, u256 0)
+    v1 = keccak256_packed (u256 arg0, u256 1)
+    v2 = keccak256_packed (u256 arg0, u256 2)
+    v3 = keccak256_packed (u256 arg0, u256 3)
+    v4 = keccak256_packed (u256 arg0, u256 4)
+    v5 = keccak256_packed (u256 arg0, u256 5)
+    v6 = keccak256_packed (u256 arg0, u256 6)
+    v7 = keccak256_packed (u256 arg0, u256 7)
+    v8 = keccak256_packed (u256 arg0, u256 8)
+    v9 = keccak256_packed (u256 arg0, u256 9)
+    v10 = keccak256_packed (u256 arg0, u256 10)
+    v11 = keccak256_packed (u256 arg0, u256 11)
+    v12 = keccak256_packed (u256 arg0, u256 12)
+    v13 = keccak256_packed (u256 arg0, u256 13)
+    v14 = keccak256_packed (u256 arg0, u256 14)
+    v15 = keccak256_packed (u256 arg0, u256 15)
+    v16 = keccak256_packed (u256 arg0, u256 16)
+    mstore 64, 128 !metadata(memory=scratch)
+    v17 = mload 64 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v18 = phi [bb0: 0], [bb3: v46]
+    v19 = phi [bb0: v4], [bb3: v19]
+    v20 = phi [bb0: v15], [bb3: v20]
+    v21 = phi [bb0: v1], [bb3: v21]
+    v22 = phi [bb0: v12], [bb3: v22]
+    v23 = phi [bb0: arg1], [bb3: v23]
+    v24 = phi [bb0: v9], [bb3: v24]
+    v25 = phi [bb0: v17], [bb3: v25]
+    v26 = phi [bb0: v6], [bb3: v26]
+    v27 = phi [bb0: v14], [bb3: v27]
+    v28 = phi [bb0: v3], [bb3: v28]
+    v29 = phi [bb0: v0], [bb3: v29]
+    v30 = phi [bb0: v11], [bb3: v30]
+    v31 = phi [bb0: arg0], [bb3: v31]
+    v32 = phi [bb0: v8], [bb3: v32]
+    v33 = phi [bb0: v5], [bb3: v33]
+    v34 = phi [bb0: v16], [bb3: v34]
+    v35 = phi [bb0: v2], [bb3: v35]
+    v36 = phi [bb0: v13], [bb3: v36]
+    v37 = phi [bb0: v10], [bb3: v37]
+    v38 = phi [bb0: 0], [bb3: v38]
+    v39 = phi [bb0: v7], [bb3: v39]
+    v40 = lt v18, v23
+    v41 = zext i1 v40 to i256
+    v42 = ne v41, 0
+    jumpi v42, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v47 = shl 5, v23
+    v48 = add v25, v47
+    mstore 64, v48 !metadata(memory=scratch)
+    v49 = xor v29, v21
+    v50 = xor v49, v35
+    v51 = xor v50, v28
+    v52 = xor v51, v19
+    v53 = xor v52, v33
+    v54 = xor v53, v26
+    v55 = xor v54, v39
+    v56 = xor v55, v32
+    v57 = xor v56, v24
+    v58 = xor v57, v37
+    v59 = xor v58, v30
+    v60 = xor v59, v22
+    v61 = xor v60, v36
+    v62 = xor v61, v27
+    v63 = xor v62, v20
+    v64 = xor v63, v34
+    v65 = shl 0, v23
+    v66 = xor v64, v65
+    ret v66
+  bb4:
+    v43 = not 0
+    v44 = shl 5, v18
+    v45 = add v25, v44
+    mstore v45, v43
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v46 = add v18, 1
+    jump bb1
+}
+
+fn @revertWithTime(arg0: i256, arg1: i256) [selector=0xa03dd0df, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    mstore 0, 0x21ccfeb7 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v0 = calldataload 36
+    mstore 64, v0 !metadata(memory=scratch)
+    revert 28, 68
+}
+
+fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a9e6e6, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v1 = calldataload 68
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = keccak256 0, 96 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v3 = not 31
+    v4 = and 68, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 5
+    v6 = memory_object_len memorybytes, v5
+    v7 = insert_value struct0, undef struct0, 0, v2
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
+}
+
+fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f5115, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v1 = calldataload 68
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = icall @hashScratch.49
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @storeInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0c3d9af0, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    icall @put, arg0, arg1
+    v1 = keccak256 0, 96 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v1
+}
+
+fn @deepAddress(arg0: i256) -> i256 [selector=0xb1cb77b2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = calldataload 4
+    v1 = add v0, v0
+    v2 = add v1, v1
+    v3 = add v2, v2
+    v4 = add v3, v3
+    v5 = add v4, v4
+    v6 = add v5, v5
+    v7 = add v6, v6
+    v8 = add v7, v7
+    v9 = add v8, v8
+    v10 = add v9, v9
+    v11 = add v10, v10
+    v12 = add v11, v11
+    v13 = add v12, v12
+    v14 = add v13, v13
+    v15 = add v14, v14
+    v16 = add v15, v15
+    v17 = add v16, v16
+    v18 = add v17, v17
+    v19 = add v18, v18
+    v20 = add v19, v19
+    v21 = add v20, v20
+    v22 = add v21, v21
+    v23 = add v22, v22
+    v24 = add v23, v23
+    v25 = add v24, v24
+    v26 = add v25, v25
+    v27 = add v26, v26
+    v28 = add v27, v27
+    v29 = add v28, v28
+    v30 = add v29, v29
+    v31 = add v30, v30
+    v32 = add v31, v31
+    v33 = add v32, v32
+    v34 = add v33, v33
+    v35 = add v34, v34
+    v36 = add v35, v35
+    v37 = add v36, v36
+    v38 = add v37, v37
+    v39 = add v38, v38
+    v40 = add v39, v39
+    v41 = add v40, v40
+    v42 = add v41, v41
+    v43 = add v42, v42
+    v44 = add v43, v43
+    v45 = add v44, v44
+    v46 = add v45, v45
+    v47 = add v46, v46
+    v48 = add v47, v47
+    v49 = calldataload 4
+    v50 = and v48, 31
+    mstore v50, v49
+    v51 = mload 0 !metadata(memory=scratch)
+    ret v51
+}
+
+fn @hashRecursive(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x56f931cd, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v1 = calldataload 68
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = icall @hashFrom, 0
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @hashThenCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x52d607e7, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v0 = calldataload 68
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = keccak256 0, 96 !metadata(memory=scratch)
+    calldatacopy 64, 36, 32 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore v2, v1
+    ret v1
+}
+
+fn @readScratch(arg0: i256) -> i256 [selector=0x29c22c76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @readInHelper(arg0: i256) -> i256 [selector=0xe70d1a86, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @readWord
+    ret v0
+}
+
+fn @hashAt(arg0: i256, arg1: i256) -> i256 [selector=0xf170e9dc, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = calldataload 36
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = keccak256 arg0, 32
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore v2, v1
+    ret v1
+}
+
+fn @mixedLoad(arg0: i256) -> i256 [selector=0x5fc7002c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    mstore v1, 1
+    v2 = add v1, 32
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+}
+
+fn @dataThenMixed(arg0: i256) -> struct0 [selector=0xa625ab9b, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore v2, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+fn @tupleReturn(arg0: i256) -> struct0 [selector=0x6661d15f, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @tupleThroughHelper(arg0: i256) -> struct0 [selector=0xb567d612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = icall @_scratchPair
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+fn @tupleThroughYul(arg0: i256) -> struct0 [selector=0x2cb8ee56, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = icall @scratchPair
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+fn @tupleReturnPublic(arg0: i256) -> struct0 [selector=0xada7ba42, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @tupleThroughPublic(arg0: i256) -> struct0 [selector=0x6993efc2, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = icall @tupleReturnPublic, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+fn @publicRead(arg0: i256) -> i256 [selector=0xd3e4ec77, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @writeThroughPublicRead(arg0: i256) -> i256 [selector=0x09891331, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @publicRead, arg0
+    mstore v0, 1
+    v1 = mload v0
+    ret v1
+}
+
+fn @returnAndWriteThroughPublicRead(arg0: i256) -> i256 [selector=0x047fa66e, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @publicRead, arg0
+    mstore v0, 1
+    ret v0
+}
+
+fn @writeThroughPublicPair(arg0: i256) -> struct0 [selector=0x10a87d15, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = icall @tupleReturnPublic, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    mstore v1, 1
+    v3 = mload v1
+    v4 = insert_value struct0, undef struct0, 0, v3
+    v5 = insert_value struct0, v4, 1, v2
+    ret v5
+}
+
+fn @revertAtLoadedOffset(arg0: i256, arg1: i256) [selector=0xf3970891, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = ne arg1, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = mload 0x10000
+    revert v3, 96
+  bb1:
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore v2, 1
+    returndata 0, 0
+}
+
+fn @revertBelowPointer(arg0: i256, arg1: i256) [selector=0x7f4c2912, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, 64
+    mstore 0, v1 !metadata(memory=scratch)
+    v2 = calldataload 4
+    mstore 64, v2 !metadata(memory=scratch)
+    v3 = ne arg1, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = mload 0 !metadata(memory=scratch)
+    v6 = sub v0, v5
+    revert v6, 32
+  bb1:
+    v4 = mload 64 !metadata(memory=scratch)
+    mstore v4, 1
+    returndata 0, 0
+}
+
+fn @revertPastPointer(arg0: i256, arg1: i256) [selector=0x866f32cc, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub 64, v0
+    mstore 0, v1 !metadata(memory=scratch)
+    v2 = calldataload 4
+    mstore 64, v2 !metadata(memory=scratch)
+    v3 = ne arg1, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = mload 0 !metadata(memory=scratch)
+    v6 = add v0, v5
+    revert v6, 32
+  bb1:
+    v4 = mload 64 !metadata(memory=scratch)
+    mstore v4, 1
+    returndata 0, 0
+}
+
+fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0 !metadata(memory=scratch)
+    mstore 32, 32 !metadata(memory=scratch)
+    v1 = keccak256_bytes memptr 32
+    v2 = not 31
+    v3 = and 64, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, 1
+    v5 = memory_object_len memorybytes, v4
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}
+
+fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u256], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 64, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 1
+    v3 = not 0
+    v4 = ptrtoint memptr v2 to i256
+    mstore v4, v3
+    v5 = calldataload 4
+    mstore 64, v5 !metadata(memory=scratch)
+    v6 = ptrtoint memptr v2 to i256
+    v7 = add v6, 32
+    v8 = sub 95, v7
+    v9 = memory_object_len memorybytes, v2
+    v10 = lt v8, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_byte memorybytes, v2, v8
+    v13 = shl 248, v12
+    v14 = shr 248, v13
+    v15 = trunc i256 v14 to i8
+    v16 = not 31
+    v17 = and 64, v16
+    v18 = alloc memorybytes, exact, zeroed, panic, v17
+    set_memory_object_len memorybytes, v18, 1
+    v19 = memory_object_len memorybytes, v18
+    v20 = insert_value struct1, undef struct1, 0, v15
+    v21 = insert_value struct1, v20, 1, v19
+    ret v21
+}
+
+fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = not 0
+    v2 = ptrtoint memptr v0 to i256
+    mstore v2, v1
+    v3 = calldataload 4
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = ptrtoint memptr v0 to i256
+    v5 = add v4, 32
+    v6 = sub 64, v5
+    v7 = shr 5, v6
+    v8 = memory_object_len memoryarray, v0
+    v9 = lt v7, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryarray<1>, v0, v7
+    v12 = not 31
+    v13 = and 64, v12
+    v14 = alloc memorybytes, exact, zeroed, panic, v13
+    set_memory_object_len memorybytes, v14, 1
+    v15 = memory_object_len memorybytes, v14
+    v16 = insert_value struct0, undef struct0, 0, v11
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
+}
+
+fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @_scratchWord
+    v1 = keccak256_packed (u256 v0)
+    ret v1
+}
+
+fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @_scratchWord
+    v1 = mapping_slot v0, 1
+    sstore v1, 1 !metadata(storage=symbolic(v1))
+    v2 = mapping_slot 5, 1
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
+}
+
+fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = icall @_scratchWord
+    v2 = memory_object_len memoryarray, v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    memory_object_store_element memoryarray<1>, v0, 0, v1
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_element memoryarray<1>, v0, 0
+    ret v8
+}
+
+fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @_scratchWord
+    v1 = abi_encode [word], object, args v0
+    v2 = abi_decode [u256], v1
+    ret v2
+}
+
+fn @scratchError(arg0: i256) [selector=0x0ba9186e, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @_scratchWord
+    icall require<custom_error [word]>, false, 0x42886c3400000000000000000000000000000000000000000000000000000000, v0
+    invalid
+}
+
+fn @checkedScaled(arg0: i256) -> i256 [selector=0x0cc852a0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = checked_mul u256, v1, 0x8000000000000000000000000000000000000000000000000000000000000000
+    mstore v2, 1
+    ret v1
+}
+
+fn @hashHelperScratch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x75fdf974, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    icall @_putScratch
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v1 = keccak256 0, 96 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v1
+}
+
+fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x12d260c9, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall @_putScratch
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg2
+    v5 = memory_object_len memorybytes, v4
+    ret v5
+}
+
+fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe3ce866b, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 68
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = checked_add u256, arg0, arg1
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v3 = keccak256 0, 96 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v4 = checked_sub u256, v2, arg0
+    v5 = checked_sub u256, v4, arg1
+    v6 = shl 0, v5
+    v7 = xor v3, v6
+    ret v7
+}
+
+fn @_putScratch() [pure] {
+  bb0:
+    v0 = calldataload 68
+    mstore 64, v0 !metadata(memory=scratch)
+    ret
+}
+
+fn @_copy(arg0: i256) -> memptr [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, arg0
+    v1 = add v0, 32
+    codecopy v1, 0, arg0
+    v2 = add v0, 32
+    v3 = add v2, arg0
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = inttoptr i256 v0 to memptr
+    ret v4
+}
+
+fn @_lay(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = calldataload 36
+    v1 = shl 5, v0
+    v2 = add 160, v1
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 160], [bb3: v10]
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: v2], [bb3: v6]
+    v7 = lt v4, v6
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    mstore v6, v5
+    v11 = sub v6, 160
+    v12 = add v11, 32
+    v13 = keccak256 160, v12
+    ret v13
+  bb4:
+    mstore v4, v5
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v4, 32
+    jump bb1
+}
+
+fn @_scratchWord() -> i256 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @_scratchPair() -> struct0 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @hashScratch.49() -> i256 {
+  bb0:
+    v0 = keccak256 0, 96 !metadata(memory=scratch)
+    ret v0
+}
+
+fn @put(arg0: i256, arg1: i256) {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v0 = calldataload 68
+    mstore 64, v0 !metadata(memory=scratch)
+    ret
+}
+
+fn @hashFrom(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    v0 = keccak256 0, 96 !metadata(memory=scratch)
+    jump bb1
+  bb3:
+    v1 = sub arg0, 1
+    v2 = icall @hashFrom, v1
+    jump bb1
+  bb1:
+    v3 = phi [bb2: v0], [bb3: v2]
+    ret v3
+}
+
+fn @readWord() -> i256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @scratchPair() -> struct0 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}

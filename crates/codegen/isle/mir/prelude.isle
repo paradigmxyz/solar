@@ -74,6 +74,7 @@
   (MSize)
   (Fmp)
   (SetFmp (value Value))
+  (HeapFloor)
   (Alloc (size Value) (kind AllocationKind) (semantics AllocationSemantics))
   (MemorySlice (object Value))
   (MemoryObjectFieldAddr (object Value) (layout MemoryObjectLayout) (field u64))

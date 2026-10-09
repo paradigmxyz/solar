@@ -202,6 +202,7 @@ impl InstKind {
             | Self::FrameStore { .. }
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
+            | Self::HeapFloor
             | Self::DataCopy(..)
             | Self::CodeSize
             | Self::CodeCopy(..)

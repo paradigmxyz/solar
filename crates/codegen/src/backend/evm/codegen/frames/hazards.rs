@@ -6,7 +6,7 @@ use super::{
         FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
         Value, ValueId,
     },
-    SPILL_HAZARD_BOUND,
+    LOW_MEMORY_BOUND,
 };
 use crate::mir::Callee;
 
@@ -169,9 +169,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
             | MemoryBase::InternalFrame => false,
-            MemoryBase::Absolute => {
-                address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
-            }
+            MemoryBase::Absolute => address.offset < LOW_MEMORY_BOUND,
             MemoryBase::Value(value) => {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
                 let mut memo = FxHashMap::default();

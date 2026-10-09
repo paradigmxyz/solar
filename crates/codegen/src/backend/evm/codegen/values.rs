@@ -150,7 +150,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn emit_fresh_scheduled_value(&mut self, func: &Function, value: ValueId, op: ScheduledOp) {
+    pub(super) fn emit_fresh_scheduled_value(
+        &mut self,
+        func: &Function,
+        value: ValueId,
+        op: ScheduledOp,
+    ) {
         self.record_scheduled_ops_peak(self.scheduler.depth(), &[op]);
         self.emit_scheduled_ops(func, [op]);
         self.scheduler.stack.push(value);

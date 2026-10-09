@@ -120,7 +120,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {
                 self.emit_operand_plan(func, plan);
             } else {
-                self.preserve_stack_only_operands(&[value], liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &[value], liveness, block, inst_idx);
                 self.emit_value(func, value);
                 if !self.block_local_copy_survives(liveness, block, value, 1) {
                     self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
@@ -234,6 +234,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.pending_static_allocs.entry(func_id).or_default().push((alloc, size));
                 self.scheduler.instruction_executed(0, result_value);
             }
+            InstKind::HeapFloor => {
+                // push heap_floor
+                self.emit_heap_floor(func_id);
+                self.scheduler.instruction_executed(0, result_value);
+            }
             InstKind::Fmp | InstKind::SetFmp(_) => {
                 unreachable!("abstract allocation instruction reached EVM emission")
             }
@@ -257,7 +262,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let Some(plan) = self.plan_operands(func, &operands, liveness, block, inst_idx) {
                     self.emit_operand_plan(func, plan);
                 } else {
-                    self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                    self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                     self.emit_value(func, *false_val);
                     self.emit_operand(func, *cond);
                     self.emit_operand(func, *true_val);
@@ -291,17 +296,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // last (TOS)
                 let operands =
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *value,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    block,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *value, *addr, *gas],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -326,17 +327,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             } => {
                 let operands =
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *value,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    block,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *value, *addr, *gas],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -352,16 +349,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // STATICCALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    block,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *addr, *gas],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -375,16 +369,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    block,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *addr, *gas],
+                );
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
@@ -402,7 +393,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             InstKind::ICall { function: Callee::Function(function), args } => {
-                self.preserve_stack_only_operands(args, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, args, liveness, block, inst_idx);
                 self.emit_icall(
                     func_id,
                     func,
@@ -618,7 +609,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        self.preserve_stack_only_operands(&[a, b], liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &[a, b], liveness, block, inst_idx);
 
         // Check if operands are still live after this instruction.
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
@@ -751,7 +742,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        self.preserve_stack_only_operands(&[a], liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &[a], liveness, block, inst_idx);
 
         self.emit_value(func, a);
         if !self.block_local_copy_survives(liveness, block, a, 1) {
@@ -785,7 +776,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, operands, liveness, block, inst_idx);
 
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
@@ -826,7 +817,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &[addr, val], liveness, block, inst_idx);
 
         // Check if addr is still live after this instruction.
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
@@ -877,6 +868,29 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(2, None);
     }
 
+    /// Pushes the heap floor: the initial free memory pointer of the code being emitted, above
+    /// every static frame and spill slot that code can reach. The caller records the pushed word.
+    ///
+    /// A runtime function can serve several external entries, so it gets the highest of their
+    /// initial pointers once frame placement fixes them. A constructor recomputes its own from
+    /// the copied argument blob, whose words its parameters are read back from.
+    fn emit_heap_floor(&mut self, func_id: FunctionId) {
+        if !self.in_constructor {
+            // push floor
+            let floor = self.asm.new_deferred_const();
+            self.asm.emit_push_deferred(floor);
+            self.fmp_floor_consts.push((func_id, floor));
+            return;
+        }
+        // args_size = codesize - arg_offset
+        if let Some(arg_offset) = self.constructor_args_offset_const {
+            self.asm.emit_push_deferred(arg_offset);
+            self.asm.emit_op(op::CODESIZE);
+            self.asm.emit_op(op::SUB);
+        }
+        self.emit_constructor_heap_start();
+    }
+
     /// Emits a copy-style instruction (no result) with liveness awareness.
     /// `operands` are pushed in order, so the last one ends up on top of the
     /// stack; any operand still live after this instruction is spilled before
@@ -890,7 +904,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
-        self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, operands, liveness, block, inst_idx);
 
         for (i, &op) in operands.iter().enumerate() {
             if i == 0 {
@@ -923,7 +937,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         let operands = [size, dest];
-        self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
 
         if let Value::Inst(size_inst) = *func.value(size)
             && let InstKind::DataSize(data_size) = func.inst(size_inst).kind
@@ -974,7 +988,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, operands, liveness, block, inst_idx);
 
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
