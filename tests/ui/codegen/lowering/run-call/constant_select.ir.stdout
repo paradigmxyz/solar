@@ -244,10 +244,9 @@ bb16:
   push 32
   dup 7
   lt
-  dup 1
-  iszero
   swap 1
-  swap 2
+  dup 2
+  iszero
   mul
   swap 3
   dup 7
@@ -580,12 +579,11 @@ bb73:
   or
   dup 2
   calldataload
+  swap 1
   swap 3
   calldatasize
   sub
-  swap 1
-  swap 3
-  gt
+  lt
   swap 1
   swap 2
   or
@@ -612,12 +610,11 @@ bb46 [continuation]:
   not
   swap 1
   shl
+  swap 1
   push 1
   swap 1
   swap 3
   sub
-  swap 1
-  swap 2
   or
   and
   push 128

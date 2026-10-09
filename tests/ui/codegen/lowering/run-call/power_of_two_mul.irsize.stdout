@@ -113,17 +113,15 @@ bb19 [loop]:
   swap 2
   push 1
   shr
+  swap 1
   dup 4
   dup 1
   mul
-  dup 5
-  dup 2
+  swap 4
+  dup 1
+  dup 6
   div
-  swap 1
-  swap 5
   eq
-  swap 1
-  swap 2
   or
   iszero
   dup 2
@@ -204,11 +202,10 @@ bb30:
   push 32
   dup 3
   add
-  dup 3
-  dup 2
-  lt
   swap 1
-  swap 2
+  dup 3
+  dup 3
+  lt
   or
   push bb37
   jumpi

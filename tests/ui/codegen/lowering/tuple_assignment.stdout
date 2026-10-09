@@ -63,23 +63,21 @@ bb6:
   or
   swap 1
   calldataload
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   gt
-  swap 1
-  swap 2
   or
   gas
+  swap 1
   push 0
   not
   push 192
   shr
   dup 4
   gt
-  swap 1
-  swap 2
   or
   dup 3
   calldatasize

@@ -403,17 +403,15 @@ bb42:
   sub
   push 127
   or
+  swap 1
   swap 2
   push 1
   shr
-  swap 1
-  swap 2
   and
-  push 32
-  dup 2
-  lt
   swap 1
-  swap 2
+  push 32
+  dup 3
+  lt
   eq
   push bb75
   jumpi

@@ -60,12 +60,11 @@ bb15:
   or
   dup 2
   calldataload
+  swap 1
   swap 3
   calldatasize
   sub
-  swap 1
-  swap 3
-  gt
+  lt
   swap 1
   swap 2
   or

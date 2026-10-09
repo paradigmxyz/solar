@@ -225,11 +225,10 @@ bb29:
   push 32
   dup 3
   add
-  dup 3
-  dup 2
-  lt
   swap 1
-  swap 2
+  dup 3
+  dup 3
+  lt
   or
   push bb36
   jumpi

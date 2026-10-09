@@ -314,12 +314,11 @@ bb33 [continuation]:
   not
   swap 1
   shl
+  swap 1
   push 1
   swap 1
   swap 3
   sub
-  swap 1
-  swap 2
   or
   and
   jump bb89
@@ -811,10 +810,9 @@ bb94 [continuation]:
   push 32
   dup 8
   lt
-  dup 1
-  iszero
   swap 1
-  swap 2
+  dup 2
+  iszero
   mul
   swap 4
   dup 8
@@ -839,12 +837,11 @@ bb94 [continuation]:
 bb95 [continuation]:
   dup 2
   calldataload
+  swap 1
   swap 3
   calldatasize
   sub
-  swap 1
-  swap 3
-  gt
+  lt
   swap 1
   swap 2
   or

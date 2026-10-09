@@ -81,26 +81,24 @@ bb8:
   or
   swap 2
   calldataload
+  swap 2
   dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 2
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   dup 3
   push 5
   shl
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   sgt
-  swap 1
-  swap 2
   or
   push bb6
   jumpi
@@ -189,26 +187,24 @@ bb16:
   or
   swap 2
   calldataload
+  swap 2
   dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 2
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   dup 3
   push 5
   shl
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   sgt
-  swap 1
-  swap 2
   or
   push bb6
   jumpi
@@ -266,15 +262,14 @@ bb19:
   or
   swap 2
   calldataload
+  swap 2
   dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 2
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   push 68
   calldataload
@@ -296,13 +291,12 @@ bb19:
   or
   swap 1
   calldataload
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   gt
-  swap 1
-  swap 2
   or
   swap 1
   swap 3

@@ -150,11 +150,10 @@ bb54:
   dup 1
   dup 1
   add
-  dup 1
+  swap 1
+  dup 2
   push 1
   shr
-  swap 1
-  swap 2
   sub
   push bb66
   jumpi

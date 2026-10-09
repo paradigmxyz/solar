@@ -643,10 +643,6 @@ impl<'a> Planner<'a> {
             return Ok(());
         };
         let plain = self.plain_prefix(sim, block, planned, next, last + 1, uses);
-        // Outside loops a single saved swap rarely outweighs the shared block tails that a
-        // uniform layout lets EVM IR merge.
-        let margin =
-            if self.weight(block) > 1 { Cost::ZERO } else { self.target.opcode(op::SWAP1) };
         let mut best: Option<(Cost, usize)> = None;
         for (depth, end) in candidates {
             // Without a swap in the plain plan, an early one cannot pay for itself.
@@ -656,7 +652,7 @@ impl<'a> Planner<'a> {
                 continue;
             }
             if let Some(cost) = self.trial(&swapped, block, &rest[..=end], uses, &[], Some(plain))
-                && self.target.cmp(cost.plus(margin), plain).is_lt()
+                && self.target.cmp(cost, plain).is_lt()
                 && best.is_none_or(|(best, _)| self.target.cmp(cost, best).is_lt())
             {
                 best = Some((cost, depth));
