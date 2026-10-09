@@ -73,31 +73,6 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     Ok(())
 }
 
-/// Rejects different files with the same source unit name, which solc reports for input files.
-fn check_source_unit_names<'a>(
-    sess: &Session,
-    files: impl IntoIterator<Item = &'a Arc<SourceFile>>,
-) -> Result {
-    let mut names = FxHashMap::<String, &Arc<SourceFile>>::default();
-    let mut result = Ok(());
-    for file in files {
-        let name = file.name.display().to_string();
-        if let Some(other) = names.insert(name.clone(), file)
-            && !Arc::ptr_eq(other, file)
-        {
-            let note =
-                format!("`{}` and `{}`", real_path(other).display(), real_path(file).display());
-            let msg = format!("source unit name `{name}` matches multiple files");
-            result = Err(sess.dcx.err(msg).note(note).emit());
-        }
-    }
-    result
-}
-
-fn real_path(file: &SourceFile) -> &Path {
-    file.name.as_real().unwrap_or(Path::new(""))
-}
-
 pub(crate) fn run_pipeline(
     compiler: &mut CompilerRef<'_>,
     load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
@@ -174,4 +149,32 @@ fn finish_session(sess: &Session, result: Result) -> Result {
     let diagnostics = sess.dcx.print_error_count();
     result?;
     diagnostics
+}
+
+/// Rejects different files with the same source unit name, which solc reports for input files.
+fn check_source_unit_names<'a>(
+    sess: &Session,
+    files: impl IntoIterator<Item = &'a Arc<SourceFile>>,
+) -> Result {
+    // Sort for a deterministic order, since parsing adds sources in parallel.
+    let mut files = files.into_iter().collect::<Vec<_>>();
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut names = FxHashMap::default();
+    let mut result = Ok(());
+    for file in files {
+        let name = file.name.display().to_string();
+        if let Some(other) = names.insert(name.clone(), file)
+            && !Arc::ptr_eq(other, file)
+        {
+            let note =
+                format!("`{}` and `{}`", real_path(other).display(), real_path(file).display());
+            let msg = format!("source unit name `{name}` matches multiple files");
+            result = Err(sess.dcx.err(msg).note(note).emit());
+        }
+    }
+    result
+}
+
+fn real_path(file: &SourceFile) -> &Path {
+    file.name.as_real().unwrap_or(Path::new(""))
 }

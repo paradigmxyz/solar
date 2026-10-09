@@ -61,7 +61,9 @@ path, so all of these are one source unit named `src/B.sol`. A file that
 imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
 declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
 import paths and remapping targets as they are, where `solc` prepends a
-non-empty base path to them.
+non-empty base path to them. Since names come from paths, two different files
+can get the same name; `solar` reports this for any source, where `solc` only
+checks the files given on the command line.
 
 Rationale: duplicate copies of one file only produce spurious conflicts. Build
 tools such as Foundry preload sources under relative names and pass absolute
@@ -72,29 +74,35 @@ Coverage: `absolute_remapping_reuses_preloaded_source_unit_name` and
 `direct_import_reuses_preloaded_source_unit_name` in
 `crates/interface/src/source_map/file_resolver.rs`.
 
-### IMPORT-002: Names of files in include paths inside the base path
+### IMPORT-002: Names of files in nested include paths
 
 Status: intentional.
 
 Difference: `solar` names every file from disk the way `solc` names files given
 on the command line: relative to the base path, else to the first include path
 that contains it. `solc` names an imported file by the import's source unit
-name instead. The two agree unless an include path is inside the base path:
-with `--base-path . --include-path node_modules`, `solc` names an import of
-`@oz/A.sol` `@oz/A.sol`, and `solar` names it `node_modules/@oz/A.sol`. The
-importing file's name is also the context that remappings match, so in this
-setup a context-dependent remapping such as `@oz/:x/=y/` applies in `solc` and
-not in `solar`, and `node_modules/@oz/:x/=y/` the other way around. A relative
-import in a file outside the base path is resolved against the file's path, so
-`../` can leave an include path, where `solc` would drop the `..` segment.
+name instead. The two differ when a file lies in more than one root, such as an
+include path inside the base path or inside an earlier include path. With
+`--base-path . --include-path node_modules`, `solc` names an import of
+`@oz/A.sol` `@oz/A.sol`, and `solar` names it `node_modules/@oz/A.sol`. Since
+remapping contexts match the importing file's name, a context such as
+`@oz/:x/=y/` applies in `solc` and not in `solar`, and `node_modules/@oz/:x/=y/`
+the other way around.
+
+For a file named relative to an include path outside the base path, `solar` also
+matches remapping contexts against the file's absolute path, and resolves a
+relative import against that path when `../` leaves the include path, where
+`solc` drops the `..` segment.
 
 Rationale: a name that depends only on the file's path is the same for every
 import of the file. It also keeps remapping contexts such as `lib/dep/` matching
 files in Foundry's `lib` include path, as `solc` does for files that remappings
-route through the base path.
+route through the base path. Foundry names sources outside the project by their
+absolute paths and writes remapping contexts for them.
 
-Coverage: `nested_include_paths_name_by_base_path` and
-`include_paths_name_source_units` in
+Coverage: `nested_include_paths_name_by_base_path`,
+`include_paths_name_source_units`, `relative_imports_leave_include_paths` and
+`remapping_contexts_match_absolute_paths_outside_base_path` in
 `crates/interface/src/source_map/file_resolver.rs`, and
 `crates/solar/tests/it/paths.rs`.
 
@@ -108,7 +116,7 @@ when several roots contain the same file, as with a repeated include path.
 
 Rationale: these inputs have a single sensible meaning.
 
-Coverage: no dedicated tests.
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
 
 ## Parsing
 

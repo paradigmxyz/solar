@@ -28,7 +28,7 @@ pub enum ResolveError {
     ReadFile(PathBuf, #[source] io::Error),
     #[error("file {0} not found")]
     NotFound(PathBuf),
-    #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|f| f.name.display()).format(", "))]
+    #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|f| real_path(f).display()).format(", "))]
     MultipleMatches(PathBuf, Vec<Arc<SourceFile>>),
 }
 
@@ -251,8 +251,9 @@ impl<'a> FileResolver<'a> {
             return Ok(Some(file));
         }
 
-        let mut found = SmallVec::<[Arc<SourceFile>; 1]>::new();
+        let mut found = SmallVec::<[_; 1]>::new();
         for candidate in self.search_paths(&unit) {
+            // Quick deduplication when include paths are duplicated.
             if let Some(file) = self.load(&candidate)?
                 && !found.iter().any(|f| Arc::ptr_eq(f, &file))
             {
@@ -267,19 +268,30 @@ impl<'a> FileResolver<'a> {
 
     /// Returns the source unit name that `path` refers to when imported from `parent`.
     fn import_source_unit_name<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
+        let name = self.source_unit_name(parent);
+        // Unlike solc, also use the importing file's path relative to the base path, which is
+        // absolute outside of it, when its name is relative to an include path: `../` can leave
+        // the include path, and remapping contexts can name the absolute path.
+        let base_relative = strip_root(parent, self.try_base_path());
+        let fallback = (name != base_relative).then_some(base_relative);
+
         // Only paths starting with `./` or `../` are relative to the importing source unit;
         // `import "b.sol";` is looked up in the base path and include paths.
         let path = if path.starts_with("./") || path.starts_with("../") {
-            // Unlike solc, keep files outside the base path absolute here, so that `../` can leave
-            // an include path.
-            let parent = strip_root(parent, self.try_base_path());
-            Cow::Owned(join_relative_import(parent, path))
+            let (joined, left) = join_relative_import(name, path);
+            Cow::Owned(match fallback {
+                Some(fallback) if left => join_relative_import(fallback, path).0,
+                _ => joined,
+            })
         } else {
             Cow::Borrowed(path)
         };
-        let parent = self.source_unit_name(parent);
-        match self.remap_path(&path, Some(parent)) {
-            Cow::Owned(remapped) => Cow::Owned(remapped),
+        let contexts = std::iter::once(name).chain(fallback).collect::<SmallVec<[_; 2]>>();
+        match remap_in_contexts(&self.remappings, &path, &contexts) {
+            Cow::Owned(remapped) => {
+                trace!(remapped=%remapped.display());
+                Cow::Owned(remapped)
+            }
             Cow::Borrowed(_) => path,
         }
     }
@@ -297,10 +309,23 @@ impl<'a> FileResolver<'a> {
 
     /// Returns the loaded source with the given source unit name.
     fn get_source_unit(&self, unit: &Path) -> Option<Arc<SourceFile>> {
+        let source_map = self.source_map();
+        if let Some(file) = source_map.get_file(unit) {
+            return Some(file);
+        }
         // An absolute name inside the base path may refer to a source loaded under its relative
         // name, like the ones a build tool preloads.
-        self.source_map().get_file(unit).or_else(|| {
-            self.source_map().get_file(self.source_unit_name(&self.rooted(unit).normalize()))
+        let unit = self.rooted(unit).normalize();
+        if let Some(file) = source_map.get_file(self.source_unit_name(&unit)) {
+            return Some(file);
+        }
+        // Like solc, prefer a loaded file with this source unit name over searching the disk.
+        if unit.has_root() {
+            return None;
+        }
+        self.roots().find_map(|root| {
+            let path = generic_path(root.join(&unit).normalize());
+            source_map.get_file(&path).filter(|_| self.source_unit_name(&path) == unit)
         })
     }
 
@@ -360,17 +385,18 @@ impl<'a> FileResolver<'a> {
 
     /// Loads the file at `path`, named by its normalized path.
     fn load(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
-        let path = generic_path(path.normalize());
-        if let Some(file) = self.source_map().get_file(&path) {
+        let name = generic_path(path.normalize());
+        if let Some(file) = self.source_map().get_file(&name) {
             return Ok(Some(file));
         }
-        // Check that the file exists. Its name keeps symbolic links, like solc.
-        let Ok(canonical) = self.canonicalize_unchecked(&path) else {
-            trace!(path=%path.display(), "not found");
+        // Check that the file exists. Like solc, resolve symbolic links before `..` segments, but
+        // keep them in the name.
+        let Ok(canonical) = self.canonicalize_unchecked(&generic_path(path.to_path_buf())) else {
+            trace!(path=%name.display(), "not found");
             return Ok(None);
         };
         self.source_map()
-            .load_file_with_name(path.into(), &canonical)
+            .load_file_with_name(name.into(), &canonical)
             .map(Some)
             .map_err(|e| ResolveError::ReadFile(canonical, e))
     }
@@ -382,8 +408,18 @@ pub fn apply_import_remappings<'a>(
     path: &'a Path,
     parent: Option<&Path>,
 ) -> Cow<'a, Path> {
-    let context_path = parent.map(Path::to_string_lossy).unwrap_or_default();
-    let context_path = sanitize_path(&context_path);
+    remap_in_contexts(remappings, path, &[parent.unwrap_or(Path::new(""))])
+}
+
+/// Like [`apply_import_remappings`], but a remapping applies if its context matches any of
+/// `contexts`.
+fn remap_in_contexts<'a>(
+    remappings: &[ImportRemapping],
+    path: &'a Path,
+    contexts: &[&Path],
+) -> Cow<'a, Path> {
+    let contexts = contexts.iter().map(|context| context.to_string_lossy()).collect_vec();
+    let contexts = contexts.iter().map(|context| sanitize_path(context)).collect_vec();
 
     let mut longest_prefix = 0;
     let mut longest_context = 0;
@@ -400,7 +436,7 @@ pub fn apply_import_remappings<'a>(
             continue;
         }
         // Skip if current context is not a prefix of the context.
-        if !context_path.starts_with(context) {
+        if !contexts.iter().any(|context_path| context_path.starts_with(context)) {
             continue;
         }
         // Skip if we already have a closer prefix match.
@@ -421,42 +457,6 @@ pub fn apply_import_remappings<'a>(
     } else {
         Cow::Borrowed(path)
     }
-}
-
-/// Joins `path` with the current directory, if any, and normalizes it.
-pub(crate) fn absolute_path(current_dir: Option<&Path>, path: &Path) -> PathBuf {
-    match current_dir {
-        Some(current_dir) if !path.is_absolute() => current_dir.join(path).normalize(),
-        _ => path.normalize(),
-    }
-}
-
-/// Strips the first root that strictly contains `path`.
-pub(crate) fn strip_root(path: &Path, roots: impl IntoIterator<Item: AsRef<Path>>) -> &Path {
-    roots
-        .into_iter()
-        .filter(|root| !root.as_ref().as_os_str().is_empty())
-        .find_map(|root| path.strip_prefix(root).ok().filter(|p| !p.as_os_str().is_empty()))
-        .unwrap_or(path)
-}
-
-/// Resolves a relative import against the source unit name of the importing file.
-///
-/// Only the import path is normalized; the importing name may contain `..` segments, or `//` in
-/// URLs, that are part of its identity.
-// Reference: <https://github.com/argotorg/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolutil/CommonIO.cpp#L140>
-fn join_relative_import(parent: &Path, path: &Path) -> PathBuf {
-    let mut unit = parent.parent().unwrap_or(Path::new("")).to_path_buf();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                unit.pop();
-            }
-            component => unit.push(component),
-        }
-    }
-    unit
 }
 
 /// Joins the components of `path` with `/`, like boost's `generic_string`.
@@ -480,6 +480,46 @@ fn sanitize_path(s: &str) -> Cow<'_, str> {
         }
     }
     Cow::Borrowed(s)
+}
+
+/// Joins `path` with the current directory, if any, and normalizes it.
+pub(crate) fn absolute_path(current_dir: Option<&Path>, path: &Path) -> PathBuf {
+    match current_dir {
+        Some(current_dir) if !path.is_absolute() => current_dir.join(path).normalize(),
+        _ => path.normalize(),
+    }
+}
+
+/// Strips the first root that strictly contains `path`.
+pub(crate) fn strip_root(path: &Path, roots: impl IntoIterator<Item: AsRef<Path>>) -> &Path {
+    roots
+        .into_iter()
+        .filter(|root| !root.as_ref().as_os_str().is_empty())
+        .find_map(|root| path.strip_prefix(root).ok().filter(|p| !p.as_os_str().is_empty()))
+        .unwrap_or(path)
+}
+
+/// Resolves a relative import against the source unit name of the importing file.
+///
+/// Only the import path is normalized; the importing name may contain `..` segments, or `//` in
+/// URLs, that are part of its identity. Also returns whether a `..` segment left the importing
+/// name's directory, which solc ignores.
+// Reference: <https://github.com/argotorg/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolutil/CommonIO.cpp#L140>
+fn join_relative_import(parent: &Path, path: &Path) -> (PathBuf, bool) {
+    let mut unit = parent.parent().unwrap_or(Path::new("")).to_path_buf();
+    let mut left = false;
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => left |= !unit.pop(),
+            component => unit.push(component),
+        }
+    }
+    (unit, left)
+}
+
+fn real_path(file: &SourceFile) -> &Path {
+    file.name.as_real().unwrap_or(Path::new(""))
 }
 
 #[cfg(test)]
@@ -966,6 +1006,26 @@ mod tests {
             .resolve_file(Path::new("../Tokens/Token.sol"), Some(&root.join("Events/Event.sol")))
             .unwrap();
         assert_eq!(token.name.as_real(), Some(root.join("Tokens/Token.sol").as_path()));
+    }
+
+    #[test]
+    fn remapping_contexts_match_absolute_paths_outside_base_path() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let root = tmp.path();
+        write_files(root, &["ext/foo/A.sol", "proj/y/X.sol", "proj/z/X.sol"]);
+
+        let sm = SourceMap::empty();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_base_path(&root.join("proj"));
+        resolver.add_include_path(root.join("ext"));
+        resolver.add_import_remapping("x/=z/".parse().unwrap());
+        // Build tools such as Foundry name files outside the base path by their absolute paths.
+        let context = root.join("ext/foo/").display().to_string();
+        resolver.add_import_remapping(format!("{context}:x/=y/").parse().unwrap());
+
+        let parent = root.join("ext/foo/A.sol");
+        let resolved = resolver.resolve_file(Path::new("x/X.sol"), Some(&parent)).unwrap();
+        assert_eq!(resolved.name.as_real(), Some(root.join("proj/y/X.sol").as_path()));
     }
 
     #[test]

@@ -4592,6 +4592,7 @@ dependencies = [
  "alloy-primitives",
  "idna_adapter",
  "serde_json",
+ "snapbox",
  "solar-ast",
  "solar-cli",
  "solar-codegen",

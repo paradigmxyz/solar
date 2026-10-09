@@ -229,18 +229,6 @@ impl Session {
         result
     }
 
-    fn validate_base_path(&self) -> crate::Result<()> {
-        // Standard JSON mode does not access the file system.
-        if let Some(base_path) = &self.opts.base_path
-            && !self.opts.standard_json
-            && self.source_map().file_loader().canonicalize_path(base_path).is_err()
-        {
-            let msg = format!("base path `{}` does not exist", base_path.display());
-            return Err(self.dcx.err(msg).emit());
-        }
-        Ok(())
-    }
-
     fn validate_language(&self) -> crate::Result<()> {
         if self.opts.language.is_source() {
             return Ok(());
@@ -255,6 +243,18 @@ impl Session {
         }
         if self.opts.language.is_evm_ir() && self.opts.unstable.mir_pipeline.is_some() {
             return Err(self.dcx.err("`-Zmir-pipeline` requires a .sol or .mir input file").emit());
+        }
+        Ok(())
+    }
+
+    fn validate_base_path(&self) -> crate::Result<()> {
+        // Standard JSON mode does not access the file system.
+        if let Some(base_path) = &self.opts.base_path
+            && !self.opts.standard_json
+            && self.source_map().file_loader().canonicalize_path(base_path).is_err()
+        {
+            let msg = format!("base path `{}` does not exist", base_path.display());
+            return Err(self.dcx.err(msg).emit());
         }
         Ok(())
     }
