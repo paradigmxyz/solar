@@ -636,6 +636,10 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
         self.placeholder = Some((entry, exit));
         let source = std::mem::replace(&mut self.source, modifier.source);
         self.extend(modifier.span);
+        let docs = self.cx.gcx.hir.doc(modifier.doc).ast_comments();
+        if !docs.is_empty() {
+            self.extend(docs.span());
+        }
         self.stmts(body.stmts);
         self.source = source;
         self.connect(self.current, self.return_node);
@@ -677,7 +681,7 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
     }
 
     /// Returns the range solc attaches to a statement.
-    fn stmt_span(&self, stmt: &hir::Stmt<'gcx>) -> Option<Span> {
+    fn stmt_span(&self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<Span> {
         if self.in_assembly {
             return Some(stmt.span);
         }
@@ -697,17 +701,31 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
             StmtKind::Expr(expr) => expr.span,
             StmtKind::Break => stmt.span.with_hi(stmt.span.lo() + "break".len() as u32),
             StmtKind::Continue => stmt.span.with_hi(stmt.span.lo() + "continue".len() as u32),
-            StmtKind::Return(None)
-            | StmtKind::Block(_)
-            | StmtKind::UncheckedBlock(_)
-            | StmtKind::Loop(..)
-            | StmtKind::If(..) => stmt.span,
+            // Compound statements end where their last statement does.
+            StmtKind::If(_, then, else_) => stmt.span.with_hi(self.stmt_end(else_.unwrap_or(then))),
+            StmtKind::Loop(ref block, LoopSource::For { .. } | LoopSource::While) => {
+                loop_parts(block)
+                    .1
+                    .last()
+                    .map_or(stmt.span, |body| stmt.span.with_hi(self.stmt_end(body)))
+            }
+            StmtKind::Block(ref block) => lowered_for(block)
+                .map_or(stmt.span, |(_, for_)| stmt.span.with_hi(self.stmt_end(for_))),
+            StmtKind::Return(None) | StmtKind::UncheckedBlock(_) | StmtKind::Loop(..) => stmt.span,
             StmtKind::AssemblyBlock(_)
             | StmtKind::Switch(_)
             | StmtKind::Try(_)
             | StmtKind::Placeholder
             | StmtKind::Err(_) => return None,
         })
+    }
+
+    /// Returns the end of the range solc attaches to a statement.
+    fn stmt_end(&self, stmt: &'gcx hir::Stmt<'gcx>) -> BytePos {
+        match stmt.kind {
+            StmtKind::Placeholder => stmt.span.lo() + "_".len() as u32,
+            _ => self.stmt_span(stmt).unwrap_or(stmt.span).hi(),
+        }
     }
 
     fn stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) {
@@ -734,7 +752,13 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
                 }
             }
             StmtKind::Block(ref block) | StmtKind::UncheckedBlock(ref block) => {
-                if self.in_assembly {
+                // The range of a `for` loop precedes its initializer.
+                if let Some((init, for_)) = lowered_for(block)
+                    && let StmtKind::Loop(ref body, source) = for_.kind
+                {
+                    self.for_part(init);
+                    self.loop_stmt(body, source);
+                } else if self.in_assembly {
                     self.yul_stmts(block);
                 } else {
                     self.stmts(block.stmts);
@@ -862,35 +886,42 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
         // <update>
         self.next();
         let condition = self.current;
-        let body = match block.stmts {
-            [hir::Stmt { kind: StmtKind::If(cond, then, Some(else_)), .. }]
-                if matches!(else_.kind, StmtKind::Break)
-                    && (else_.span == block.span || else_.span == cond.span) =>
-            {
-                self.expr(cond);
-                std::slice::from_ref(*then)
-            }
-            stmts => stmts,
-        };
+        let (cond, body) = loop_parts(block);
+        if let Some(cond) = cond {
+            self.expr(cond);
+        }
         let [body_start, after] = self.split();
         let (update, post) = match source {
             LoopSource::For { update } => (update, self.new_node()),
             _ => (None, condition),
         };
         self.current = body_start;
-        self.in_loop(after, post, |this| this.stmts(body));
+        self.in_loop(after, post, |this| {
+            for stmt in body {
+                this.for_part(stmt);
+            }
+        });
         if post != condition {
             self.connect(self.current, post);
             self.current = post;
         }
         if let Some(update) = update {
-            match update.kind {
-                StmtKind::Block(ref step) if self.in_assembly => self.yul_stmts(step),
-                _ => self.stmt(update),
-            }
+            self.for_part(update);
         }
         self.connect(self.current, condition);
         self.current = after;
+    }
+
+    /// Builds the initializer, body, or update of a loop. The blocks of inline assembly `for`
+    /// loops, and the blocks the lowering wraps them in, carry no range.
+    fn for_part(&mut self, stmt: &'gcx hir::Stmt<'gcx>) {
+        match stmt.kind {
+            StmtKind::Block(ref block) if self.in_assembly => match block.stmts {
+                [inner] if inner.span == stmt.span => self.for_part(inner),
+                _ => self.yul_stmts(block),
+            },
+            _ => self.stmt(stmt),
+        }
     }
 
     fn expr(&mut self, expr: &'gcx hir::Expr<'gcx>) {
@@ -1345,4 +1376,35 @@ fn analyze(template: &Template, pruned: &DenseBitSet<NodeId>) -> Analysis {
     }
 
     Analysis { reachable_calls, reaches_exit, uninitialized, unreachable }
+}
+
+/// Splits the block of a lowered `while` or `for` loop into its condition and body.
+fn loop_parts<'gcx>(
+    block: &'gcx hir::Block<'gcx>,
+) -> (Option<&'gcx hir::Expr<'gcx>>, &'gcx [hir::Stmt<'gcx>]) {
+    // if (<cond>) <body> else break;
+    match block.stmts {
+        [hir::Stmt { kind: StmtKind::If(cond, then, Some(else_)), .. }]
+            if matches!(else_.kind, StmtKind::Break)
+                && (else_.span == block.span || else_.span == cond.span) =>
+        {
+            (Some(cond), std::slice::from_ref(*then))
+        }
+        stmts => (None, stmts),
+    }
+}
+
+/// Returns the initializer and the loop of a lowered `for` loop with an initializer.
+fn lowered_for<'gcx>(
+    block: &'gcx hir::Block<'gcx>,
+) -> Option<(&'gcx hir::Stmt<'gcx>, &'gcx hir::Stmt<'gcx>)> {
+    // { <init>; loop { ... } }
+    match block.stmts {
+        [init, for_ @ hir::Stmt { kind: StmtKind::Loop(_, LoopSource::For { .. }), .. }]
+            if for_.span.hi() == block.span.hi() =>
+        {
+            Some((init, for_))
+        }
+        _ => None,
+    }
 }
