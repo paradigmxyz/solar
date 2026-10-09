@@ -1,41 +1,41 @@
 error[2592]: keyword `break` needs to be inside a for-loop body
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                 break
    ╰╴                ━━━━━
 
 error[2592]: keyword `continue` needs to be inside a for-loop body
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                 continue
    ╰╴                ━━━━━━━━
 
 error[2592]: keyword `break` needs to be inside a for-loop body
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                 if 1 { break }
    ╰╴                       ━━━━━
 
 error[2592]: keyword `continue` needs to be inside a for-loop body
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                 { continue }
    ╰╴                  ━━━━━━━━
 
 error[9615]: keyword `break` in for-loop init block is not allowed
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                 for { break } 1 { continue } {
    ╰╴                      ━━━━━
 
 error[2461]: keyword `continue` in for-loop post block is not allowed
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                 for { break } 1 { continue } {
    ╰╴                                  ━━━━━━━━
 
 error[2592]: keyword `break` needs to be inside a for-loop body
-   ╭▸ ROOT/tests/ui/parser/yul/break_continue_in_solidity_loop.sol:LL:CC
+   ╭▸ ROOT/tests/ui/assembly/break_continue_in_solidity_loop.sol:LL:CC
    │
 LL │                         break
    ╰╴                        ━━━━━

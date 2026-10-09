@@ -793,7 +793,7 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
         let function = self.hir().function(id);
-        // The parser checks Yul `break` and `continue`.
+        // AST validation checks Yul `break` and `continue`.
         if function.is_yul {
             return ControlFlow::Continue(());
         }

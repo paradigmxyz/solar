@@ -63,8 +63,6 @@ pub struct Parser<'sess, 'ast, 'cb> {
     in_yul: bool,
     /// Whether the parser is parsing a standalone Yul file.
     pure_yul: bool,
-    /// The part of the innermost Yul `for` loop that the parser is in.
-    yul_for_part: yul::ForPart,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
     /// Whether the parser is currently parsing a modifier body.
@@ -172,7 +170,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             tokens: tokens.into_iter(),
             in_yul: false,
             pure_yul: false,
-            yul_for_part: yul::ForPart::None,
             in_contract: false,
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
@@ -947,15 +944,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let old = std::mem::replace(&mut self.pure_yul, true);
         let res = f(self);
         self.pure_yul = old;
-        res
-    }
-
-    /// Runs `f` inside the given part of a Yul `for` loop.
-    #[inline]
-    fn in_yul_for_part<R>(&mut self, part: yul::ForPart, f: impl FnOnce(&mut Self) -> R) -> R {
-        let old = std::mem::replace(&mut self.yul_for_part, part);
-        let res = f(self);
-        self.yul_for_part = old;
         res
     }
 
