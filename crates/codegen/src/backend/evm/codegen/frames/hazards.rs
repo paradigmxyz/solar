@@ -376,15 +376,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         derive(*base, visiting, memo)
                     }
-                    // A pointer loaded from a heap object, such as an array element or a
-                    // struct field, points into the heap too.
-                    InstKind::IntToPtr(base)
-                        if let Value::Inst(load) = func.value(*base)
-                            && let InstKind::MLoad(address) = func.inst(*load).kind
-                            && func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) =>
-                    {
-                        derive(address, visiting, memo)
-                    }
                     InstKind::IntToPtr(base) | InstKind::PtrToInt(base, 256) => {
                         derive(*base, visiting, memo)
                     }
