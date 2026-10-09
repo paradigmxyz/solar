@@ -861,14 +861,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
+        let mut items = SmallVec::new();
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                let natspec = if let Some(mut items) =
-                    parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
-                {
-                    self.alloc_drain(&mut items)
-                } else {
+                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
+                let natspec = if items.is_empty() {
                     BoxSlice::default()
+                } else {
+                    self.alloc_drain(&mut items)
                 };
                 self.docs.push(DocComment { kind, span: self.token.span, symbol, natspec });
             }
@@ -1180,25 +1180,25 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 // - Defers validation to lowering phase.
 // - Follows Solc's Yul behavior: silently ignores unknown tags in Yul context https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151
 
-/// Parses NatSpec items from a single doc comment.
+/// Parses NatSpec items from a single doc comment and appends them to `items`.
 fn parse_natspec(
     comment_span: Span,
     comment_symbol: Symbol,
     comment_kind: ast::CommentKind,
     in_yul: bool,
     dcx: &DiagCtxt,
-) -> Option<SmallVec<[ast::NatSpecItem; 6]>> {
+    items: &mut SmallVec<[ast::NatSpecItem; 6]>,
+) {
     let content = comment_symbol.as_str();
     let bytes = content.as_bytes();
 
     // Early-exit if no tag is found.
     if memchr::memchr(b'@', bytes).is_none() {
         if content.trim().is_empty() {
-            return None;
+            return;
         }
 
         // Create a synthetic @notice tag for the entire comment
-        let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
         items.push(ast::NatSpecItem {
             kind: ast::NatSpecKind::Notice,
             span: comment_span,
@@ -1206,13 +1206,12 @@ fn parse_natspec(
             content_start: 0,
             content_end: content.len() as u32,
         });
-        return Some(items);
+        return;
     }
 
     // Line comments: '///', Block comments: '/**'.
     const PREFIX_BYTES: u32 = 3;
     let (mut line_start, mut content_start, mut span, mut kind) = (0, 0usize, None, None);
-    let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
 
     fn flush_item(
         items: &mut SmallVec<[ast::NatSpecItem; 6]>,
@@ -1231,6 +1230,17 @@ fn parse_natspec(
                 content_end: content_end as u32,
             });
         }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn invalid_tag(dcx: &DiagCtxt, tag: &str, span: Span) {
+        dcx.warn(format!(
+            "invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"
+        ))
+        .code(error_code!(6546))
+        .span(span)
+        .emit();
     }
 
     // Check if '@' is located at the logical start of the line.
@@ -1270,14 +1280,7 @@ fn parse_natspec(
                 continue;
             }
 
-            flush_item(
-                &mut items,
-                &mut kind,
-                &mut span,
-                comment_symbol,
-                content_start,
-                prev_line_end,
-            );
+            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
 
             // Calculate span: from the char after '@' to end of tag name.
             let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
@@ -1317,11 +1320,7 @@ fn parse_natspec(
                     } else {
                         // Emit error for invalid solidity tags, but ignore in Yul.
                         if !in_yul {
-                            dcx
-                                .warn(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
-                                .code(error_code!(6546))
-                                .span(comment_span)
-                                .emit();
+                            invalid_tag(dcx, tag, comment_span);
                         }
                         line_start = line_end + 1;
                         prev_line_end = line_end;
@@ -1334,8 +1333,7 @@ fn parse_natspec(
         prev_line_end = line_end;
         line_start = line_end + 1;
     }
-    flush_item(&mut items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
-    Some(items)
+    flush_item(items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
 }
 
 #[cfg(test)]
