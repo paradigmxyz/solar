@@ -1557,9 +1557,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let more = self.builder.lt(left, right);
         self.builder.branch(more, reverse_body, done);
 
+        // A reversed address is cleaned, as every other moved key is.
+        // left_value, right_value = key(left), key(right)
+        // exchange left, right
         self.builder.switch_to_block(reverse_body);
-        let left_value = self.builder.mload(left);
-        let right_value = self.builder.mload(right);
+        let left_value = self.core_sort_key(left, order);
+        let right_value = self.core_sort_key(right, order);
         self.core_sort_exchange(left, right, left_value, right_value, pair);
         let next_left = self.builder.add(left, word);
         let next_right = self.builder.sub(right, word);

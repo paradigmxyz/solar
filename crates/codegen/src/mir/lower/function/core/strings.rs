@@ -1077,6 +1077,13 @@ impl FunctionLowerer<'_, '_> {
             AllocationSemantics::INTERNAL,
         );
         self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
+        // The word after the data zeroes its padding, as `new bytes` does; past the allocation it
+        // is free memory.
+        // mstore data(out) + length, 0
+        let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
+        let end = self.builder.add(data, length);
+        let zero = self.builder.imm(0);
+        self.builder.mstore(end, zero);
         out
     }
 
@@ -1652,7 +1659,12 @@ impl FunctionLowerer<'_, '_> {
         self.builder.add_phi_incoming(index, next_without_byte, next_index);
         self.builder.add_phi_incoming(output, next_without_byte, after_replacement);
 
+        // The word after the output zeroes its padding; past the allocation it is free memory.
+        // mstore destination + capacity, 0
         self.builder.switch_to_block(done);
+        let output_end = self.builder.add(destination, capacity);
+        let zero = self.builder.imm(0);
+        self.builder.mstore(output_end, zero);
         self.builder.ret([out]);
     }
 
@@ -1836,6 +1848,7 @@ impl FunctionLowerer<'_, '_> {
     ) {
         // tail = last + needle_length - copied
         // mcopy output, copied, tail
+        // mstore output + tail, 0
         // output_length = output + tail - (fmp + 32)
         // out = alloc bytes at fmp, padded(output_length); len(out) = output_length
         let kind = MemoryObjectKind::Bytes;
@@ -1843,6 +1856,10 @@ impl FunctionLowerer<'_, '_> {
         let tail = self.builder.sub(end, copied);
         self.builder.mcopy_heap(output, copied, tail);
         let output_end = self.builder.add(output, tail);
+        // The word after the output zeroes its padding, as `new bytes` does; it lies past the
+        // allocation, in free memory.
+        let zero = self.builder.imm(0);
+        self.builder.mstore(output_end, zero);
         // The scans allocate nothing, so the free-memory pointer still marks
         // the output header; reading it again keeps the destination out of
         // the loops' live state.

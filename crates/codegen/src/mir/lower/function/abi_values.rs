@@ -78,9 +78,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// The length of the encoding the call [`Self::encoding_call`] found would produce, from its
     /// arguments' lengths without encoding them when every argument is a value, a byte string,
-    /// an array of values or a static aggregate, and none holds an enum, whose range the encoding
-    /// checks. Otherwise the encoding is staged past the free memory pointer, without reserving
-    /// it, and measured. The arguments are evaluated either way.
+    /// an array of values or a static aggregate, and none holds an enum or is a calldata array of
+    /// narrow values, which the encoding checks. Otherwise the encoding is staged past the free
+    /// memory pointer, without reserving it, and measured. The arguments are evaluated either
+    /// way.
     pub(super) fn lower_abi_encoded_size(
         &mut self,
         builtin: Builtin,
@@ -103,10 +104,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
+        // A calldata array of narrow values is validated as it is encoded.
         let measurable = |ty: &AbiType| {
             !checks_enum_range(ty)
                 && match ty {
                     AbiType::Bytes(_) => true,
+                    AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
+                        !element.is_dynamic() && !validates_words(element)
+                    }
                     AbiType::DynamicArray { element, .. } => !element.is_dynamic(),
                     _ => !ty.is_dynamic(),
                 }
@@ -1190,5 +1195,17 @@ fn checks_enum_range(ty: &AbiType) -> bool {
             checks_enum_range(element)
         }
         AbiType::Tuple(fields) => fields.iter().any(checks_enum_range),
+    }
+}
+
+/// Whether `ty` holds a word whose encoding validates it, such as a narrow integer or an address.
+fn validates_words(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(validator) => validator.is_some(),
+        AbiType::Function | AbiType::Bytes(_) => false,
+        AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => {
+            validates_words(element)
+        }
+        AbiType::Tuple(fields) => fields.iter().any(validates_words),
     }
 }

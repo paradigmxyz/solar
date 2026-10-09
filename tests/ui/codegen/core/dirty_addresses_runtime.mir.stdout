@@ -138,21 +138,12 @@ fn @differenceWords(arg0: memptr, arg1: memptr) -> memptr [selector=0x719aea33, 
     ret v3
 }
 
-fn @truncate.13(arg0: memptr, arg1: i256) [inline_assembly, pure] {
+fn @groupSumWords(arg0: memptr, arg1: memptr) -> memptr [selector=0x6c827b41, pure, abi_params=[array<_, u256>, array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = gt arg1, v0
-    jumpi v1, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    v2 = icall @_outOfBounds.15
-    jump bb3
-  bb3:
-    v3 = phi [bb1: v2], [bb2: arg1]
-    v4 = ptrtoint memptr arg0 to i256
-    mstore v4, v3
-    ret
+    v0 = icall @addresses, arg0
+    icall @core_array_group_sum_address, v0, arg1
+    v1 = icall @words, v0
+    ret v1
 }
 
 fn @truncate.14(arg0: memptr, arg1: i256) [inline_assembly, pure] {
@@ -163,7 +154,7 @@ fn @truncate.14(arg0: memptr, arg1: i256) [inline_assembly, pure] {
   bb2:
     jump bb3
   bb1:
-    v2 = icall @_outOfBounds.15
+    v2 = icall @_outOfBounds.16
     jump bb3
   bb3:
     v3 = phi [bb1: v2], [bb2: arg1]
@@ -172,7 +163,24 @@ fn @truncate.14(arg0: memptr, arg1: i256) [inline_assembly, pure] {
     ret
 }
 
-fn @_outOfBounds.15() -> i256 [pure] {
+fn @truncate.15(arg0: memptr, arg1: i256) [inline_assembly, pure] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = gt arg1, v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = icall @_outOfBounds.16
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: arg1]
+    v4 = ptrtoint memptr arg0 to i256
+    mstore v4, v3
+    ret
+}
+
+fn @_outOfBounds.16() -> i256 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
@@ -184,7 +192,7 @@ fn @_outOfBounds.15() -> i256 [pure] {
     ret v4
 }
 
-fn @sort.16(arg0: memptr) [pure] {
+fn @sort.17(arg0: memptr) [pure] {
   bb0:
     jump bb1
   bb1:
@@ -262,7 +270,7 @@ fn @sort.16(arg0: memptr) [pure] {
     jump bb7
 }
 
-fn @hasDuplicate.17(arg0: memptr) -> i1 [pure] {
+fn @hasDuplicate.18(arg0: memptr) -> i1 [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt v0, 2
@@ -456,7 +464,7 @@ fn @copy(arg0: memptr) -> memptr [pure] {
     jump bb1
 }
 
-fn @uniquifySorted.19(arg0: memptr) [pure] {
+fn @uniquifySorted.20(arg0: memptr) [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt v0, 2
@@ -525,7 +533,7 @@ fn @uniquifySorted.19(arg0: memptr) [pure] {
     ret
 }
 
-fn @union.20(arg0: memptr, arg1: memptr) -> memptr [pure] {
+fn @union.21(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = memory_object_len memoryarray, arg1
@@ -706,7 +714,7 @@ fn @union.20(arg0: memptr, arg1: memptr) -> memptr [pure] {
     jump bb1
 }
 
-fn @intersection.21(arg0: memptr, arg1: memptr) -> memptr [pure] {
+fn @intersection.22(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = memory_object_len memoryarray, arg1
@@ -817,7 +825,7 @@ fn @intersection.21(arg0: memptr, arg1: memptr) -> memptr [pure] {
     jump bb4
 }
 
-fn @difference.22(arg0: memptr, arg1: memptr) -> memptr [pure] {
+fn @difference.23(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = mul v0, 1
@@ -950,7 +958,7 @@ fn @difference.22(arg0: memptr, arg1: memptr) -> memptr [pure] {
     jump bb1
 }
 
-fn @groupSum.23(arg0: memptr, arg1: memptr) [pure] {
+fn @groupSum.24(arg0: memptr, arg1: memptr) [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = memory_object_len memoryarray, arg1
@@ -959,7 +967,7 @@ fn @groupSum.23(arg0: memptr, arg1: memptr) [pure] {
   bb2:
     jump bb3
   bb1:
-    v3 = icall @_outOfBounds.24
+    v3 = icall @_outOfBounds.25
     jump bb3
   bb3:
     v4 = phi [bb1: v3], [bb2: v0]
@@ -1162,7 +1170,7 @@ fn @groupSum.23(arg0: memptr, arg1: memptr) [pure] {
     ret
 }
 
-fn @_outOfBounds.24() -> i256 [pure] {
+fn @_outOfBounds.25() -> i256 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0
