@@ -9,7 +9,6 @@
 use super::SourceFile;
 use crate::{BytePos, Session, SourceMap};
 use itertools::Itertools;
-use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, ImportRemapping};
 use solar_data_structures::smallvec::{SmallVec, smallvec};
 use std::{
@@ -189,9 +188,7 @@ impl<'a> FileResolver<'a> {
     ///
     /// Does not perform I/O.
     pub fn normalize<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
-        // NOTE: checking `is_normalized` will not produce the correct result since it won't
-        // consider `./` segments. See its documentation.
-        Cow::Owned(path.normalize())
+        Cow::Owned(lexical_normalize(path))
     }
 
     /// Makes the path absolute by joining it with the current directory.
@@ -265,9 +262,9 @@ impl<'a> FileResolver<'a> {
         if let Some(last_input) = last_input
             && !unit.has_root()
         {
-            let name = unit.normalize();
+            let name = lexical_normalize(&unit);
             let input = self.roots().find_map(|root| {
-                let path = generic_path(root.join(&unit).normalize());
+                let path = generic_path(lexical_normalize(&root.join(&unit)));
                 let file = self.source_map().get_file(&path)?;
                 (file.start_pos <= last_input && self.source_unit_name(&path) == name)
                     .then_some(file)
@@ -339,13 +336,7 @@ impl<'a> FileResolver<'a> {
     /// Returns the loaded source with the given source unit name.
     fn get_source_unit(&self, unit: &Path) -> Option<Arc<SourceFile>> {
         let source_map = self.source_map();
-        if let Some(file) = source_map.get_file(unit) {
-            return Some(file);
-        }
-        // An absolute name inside the base path may refer to a source loaded under its relative
-        // name, like the ones a build tool preloads.
-        let unit = self.rooted(unit).normalize();
-        source_map.get_file(strip_root(&unit, self.try_base_path()))
+        source_map.get_file(unit).or_else(|| source_map.get_file(lexical_normalize(unit)))
     }
 
     /// Returns the paths that the host filesystem loader looks up for a source unit name.
@@ -404,8 +395,14 @@ impl<'a> FileResolver<'a> {
 
     /// Loads the file at `path`, named by its normalized path.
     fn load(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
-        let name = generic_path(path.normalize());
-        if let Some(file) = self.source_map().get_file(&name) {
+        let name = generic_path(lexical_normalize(path));
+        // A file inside the base path may be loaded under its relative name, like the ones a build
+        // tool preloads.
+        let source_map = self.source_map();
+        if let Some(file) = source_map
+            .get_file(&name)
+            .or_else(|| source_map.get_file(strip_root(&name, self.try_base_path())))
+        {
             return Ok(Some(file));
         }
         // Check that the file exists. Its name keeps symbolic links, like solc.
@@ -503,8 +500,8 @@ fn sanitize_path(s: &str) -> Cow<'_, str> {
 /// Joins `path` with the current directory, if any, and normalizes it.
 pub(crate) fn absolute_path(current_dir: Option<&Path>, path: &Path) -> PathBuf {
     match current_dir {
-        Some(current_dir) if !path.is_absolute() => current_dir.join(path).normalize(),
-        _ => path.normalize(),
+        Some(current_dir) if !path.is_absolute() => lexical_normalize(&current_dir.join(path)),
+        _ => lexical_normalize(path),
     }
 }
 
@@ -534,6 +531,26 @@ fn join_relative_import(parent: &Path, path: &Path) -> PathBuf {
         }
     }
     unit
+}
+
+/// Removes `.` segments and applies `..` segments lexically, keeping the leading `..` segments of
+/// a relative path.
+fn lexical_normalize(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if matches!(normalized.components().next_back(), Some(Component::Normal(_))) {
+                    normalized.pop();
+                } else if !normalized.has_root() {
+                    normalized.push(component);
+                }
+            }
+            component => normalized.push(component),
+        }
+    }
+    normalized
 }
 
 fn real_path(file: &SourceFile) -> &Path {
@@ -1069,6 +1086,22 @@ mod tests {
 
         let resolved = resolver.resolve_file(Path::new("dep/X.sol"), Some(Path::new("src/A.sol")));
         assert_eq!(resolved.unwrap().name.as_real(), Some(root.join("ext/src/X.sol").as_path()));
+    }
+
+    #[test]
+    fn include_path_imports_reuse_relative_sources() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let root = tmp.path();
+        write_files(root, &["lib/dep/X.sol"]);
+
+        let sm = SourceMap::empty();
+        let preloaded = sm.new_source_file(PathBuf::from("lib/dep/X.sol"), "").unwrap();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_base_path(root);
+        resolver.add_include_path(root.join("lib"));
+
+        let resolved = resolver.resolve_file(Path::new("dep/X.sol"), Some(Path::new("src/A.sol")));
+        assert!(Arc::ptr_eq(&resolved.unwrap(), &preloaded));
     }
 
     #[test]

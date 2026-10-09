@@ -111,3 +111,24 @@ fn windows_backslash_keys_and_callback_imports() {
         })
     );
 }
+
+/// A leading `..` is part of a source unit name, so `../shared/X.sol` is not the source
+/// `shared/X.sol`.
+#[test]
+fn leading_parent_segments_keep_source_unit_names() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "src/A.sol": {"content": "import \"shared/X.sol\"; contract A {}"},
+            "shared/X.sol": {"content": "contract X {}"}
+        },
+        "settings": {"remappings": ["shared/=../shared/"], "outputSelection": {}}
+    });
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), CompileOpts::default(), None, &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output["errors"][0]["message"],
+        "couldn't read ../shared/X.sol: File import callback not supported"
+    );
+}
