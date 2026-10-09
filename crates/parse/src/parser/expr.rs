@@ -103,19 +103,24 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if let Some(with) = with {
             parse_lhs(self, Some(with))
         } else if self.eat_keyword(kw::Delete) {
-            self.parse_unary_expr(None).map(|expr| {
+            self.parse_prefix_operand().map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Delete(expr) })
             })
         } else if let Some(unop) = self.token.as_unop(false) {
             self.bump(); // unop
-            self.parse_unary_expr(None).map(|expr| {
+            self.parse_prefix_operand().map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
             })
         } else {
             parse_lhs(self, None)
         }
+    }
+
+    /// Parses the operand of a prefix operator, which counts toward the recursion limit like solc.
+    fn parse_prefix_operand(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        self.with_recursion_limit("expression", |this| this.parse_unary_expr(None))
     }
 
     /// Parses a primary left-hand-side expression.
