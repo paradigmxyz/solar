@@ -4776,6 +4776,7 @@ dependencies = [
  "once_map",
  "paste",
  "rayon",
+ "semver 1.0.28",
  "serde",
  "serde_json",
  "snapbox",
