@@ -198,12 +198,11 @@ bb28:
   dup 6
   gas
   staticcall
-  swap 2
-  pop
-  pop
   iszero
   push bb26
   jumpi
+  pop
+  pop
   returndatasize
   push 32
   gt
@@ -412,11 +411,10 @@ bb18:
   mload
   gas
   staticcall
-  swap 1
-  pop
   iszero
   push bb26
   jumpi
+  pop
   returndatasize
   push 32
   gt

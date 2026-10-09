@@ -1869,8 +1869,8 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         // A product by `2^k` tests `eq (shr k, (shl k, x)), x`, which holds iff the left
-        // shift kept every bit of `x`, as a calldata element offset `i * 32` does for
-        // `i < length` once decoding bounded the length.
+        // shift kept every bit of `x` within its width, as a calldata element offset `i * 32`
+        // does for `i < length` once decoding bounded the length.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, inner)) = inst_kind(func, shifted)
                 && let Some(&InstKind::Shl(inner_count, value)) = inst_kind(func, inner)
@@ -1878,7 +1878,8 @@ impl<'a> CheckEliminator<'a> {
                 && let Some(bits) = const_of(func, count)
                 && const_of(func, inner_count) == Some(bits)
                 && bits < U256::from(256)
-                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
+                && self.range_of(func, expected, depth).hi
+                    <= integer_max(func, expected) >> bits.to::<usize>()
             {
                 return Some(true);
             }

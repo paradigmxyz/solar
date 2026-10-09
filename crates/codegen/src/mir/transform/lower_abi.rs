@@ -24,6 +24,12 @@
 //! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
 //! tuple so enclosing decoders can call them for nested values.
 //!
+//! Each `abi_decode` reads a bytes object or a memory slice in place. A slice's pointer is the
+//! base and its length is checked against the head size, so a constant-length slice, such as an
+//! external call's static return buffer, needs no length word. Repeated decodes of a layout from
+//! the same kind of input share a helper; one that static slices share takes only the base, and
+//! each caller checks its own length, which then usually folds away.
+//!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
 //! Argument-free functions that only return a short literal use direct fixed-buffer stores;
@@ -597,14 +603,15 @@ impl LowerAbiCx {
         let mut decode_functions = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
-                let InstKind::AbiDecode { data: _, layout } = &func.inst(inst_id).kind else {
+                let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
                 decode_functions.insert(func_id);
                 if layout.checked_head_size().is_none() {
                     return false;
                 }
-                let count = decode_counts.entry(layout.clone()).or_insert(0);
+                let data_ty = crate::mir::typing::memory_object(func, *data);
+                let count = decode_counts.entry((layout.clone(), data_ty)).or_insert(0);
                 if *count == 0 {
                     for ty in &layout.types {
                         count_dynamic_tuple_types(ty, 1, &mut memory_type_counts);
@@ -627,23 +634,25 @@ impl LowerAbiCx {
         }
 
         let mut decode_helpers = FxHashMap::default();
-        for (layout, count) in decode_counts {
+        for ((layout, data_ty), count) in decode_counts {
             if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
                 let helper = self.synthesize_decode_helper(
                     module,
                     layout.clone(),
+                    data_ty,
                     sym::decode_static,
                     &memory_type_helpers,
                 );
-                decode_helpers.insert(layout, helper);
+                decode_helpers.insert((layout, data_ty), helper);
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
                 let helper = self.synthesize_decode_helper(
                     module,
                     layout.clone(),
+                    data_ty,
                     sym::decode_aggregate,
                     &memory_type_helpers,
                 );
-                decode_helpers.insert(layout, helper);
+                decode_helpers.insert((layout, data_ty), helper);
             }
         }
 
@@ -666,25 +675,33 @@ impl LowerAbiCx {
                         continue;
                     };
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
-                    let layout = layout.clone();
+                    let key =
+                        (layout.clone(), crate::mir::typing::memory_object(builder.func(), data));
+                    let (layout, data_ty) = &key;
 
                     let result = builder.func().inst_result_value(inst);
-                    let data = if matches!(builder.func().value_ty(data), Some(MirType::I256)) {
-                        Self::materialize_static_decode_bytes(&mut builder, data, &layout)
-                    } else {
-                        data
-                    };
-                    if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
-                        // result = icall decode_helper(data)
+                    if let Some(&helper) = decode_helpers.get(&key) {
+                        let arg = if passes_slice_base(*data_ty, layout) {
+                            // if slt(slice_len(data), head_size) { revert }
+                            // arg = slice_ptr(data)
+                            let (base, length) = decode_input(&mut builder, data);
+                            let head_size = layout.checked_head_size().expect("checked ABI layout");
+                            let head_size = builder.imm(head_size);
+                            let short = builder.slt(length, head_size);
+                            builder.revert_if(short, RevertReason::TupleDataTooShort);
+                            base
+                        } else {
+                            data
+                        };
+                        // result = icall decode_helper(arg)
                         let result = result.expect("decode helpers have outputs");
                         let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
-                        let value = builder.icall(helper, vec![data], result_ty);
+                        let value = builder.icall(helper, vec![arg], result_ty);
                         replacements.insert(result, value);
                         continue;
                     }
 
-                    let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
-                    let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
+                    let (base, length) = decode_input(&mut builder, data);
                     let Some(values) = decode_memory_tuple(
                         &mut builder,
                         base,
@@ -882,17 +899,24 @@ impl LowerAbiCx {
         &self,
         module: &mut Module,
         layout: AbiParamLayoutRef,
+        data_ty: MirType,
         name: Symbol,
         memory_type_helpers: &FxHashMap<AbiParamType, FunctionId>,
     ) -> FunctionId {
         let mut function = Function::new(Ident::with_dummy_span(name));
         {
             let mut builder = self.builder(&mut function);
-            let data = builder.add_param(MirType::MemPtr);
+            let (base, length) = if passes_slice_base(data_ty, &layout) {
+                // The callers check the slice length, so the input is the head alone.
+                let base = builder.add_param(MirType::MemPtr);
+                let head_size = layout.checked_head_size().expect("checked ABI layout");
+                (base, builder.imm(head_size))
+            } else {
+                let data = builder.add_param(data_ty);
+                decode_input(&mut builder, data)
+            };
             let fields = layout.types.iter().map(AbiParamType::mir_type).collect();
             builder.set_return_type(module.intern_return_type(fields).expect("decode has outputs"));
-            let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
-            let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let values = decode_memory_tuple(
                 &mut builder,
                 base,
@@ -912,18 +936,6 @@ impl LowerAbiCx {
             builder.ret(values);
         }
         module.add_function(function)
-    }
-
-    fn materialize_static_decode_bytes(
-        builder: &mut FunctionBuilder<'_>,
-        data: ValueId,
-        layout: &AbiParamLayout,
-    ) -> ValueId {
-        let size = builder.imm(layout.checked_head_size().expect("static ABI layout"));
-        let object = builder.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
-        let source = builder.make_slice(data, size, SliceLocation::Memory);
-        builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-        object
     }
 
     fn validate_memory_tuple_input(
@@ -3165,6 +3177,29 @@ fn decode_memory_tuple(
             .checked_add(ty.checked_head_size().expect("ABI head size exceeds u64 range"))?;
     }
     Some(values)
+}
+
+/// Returns whether a shared decoder of a memory slice takes only the slice's base, which holds for
+/// static layouts: they read the head alone, so the caller checks the length, which is usually the
+/// constant head size, and the check folds away.
+fn passes_slice_base(data_ty: MirType, layout: &AbiParamLayout) -> bool {
+    matches!(data_ty, MirType::Slice(_)) && !layout.types.iter().any(AbiParamType::is_dynamic)
+}
+
+/// Returns the base and length of an ABI decode's input, a bytes object or a memory slice.
+fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, ValueId) {
+    if matches!(builder.func().value_ty(data), Some(MirType::Slice(_))) {
+        // base = inttoptr slice_ptr(data)
+        // length = slice_len(data)
+        let ptr = builder.slice_ptr(data);
+        let base = builder.cast(ptr, MirType::MemPtr);
+        (base, builder.slice_len(data))
+    } else {
+        // base = memory_object_data(data)
+        // length = memory_object_len(data)
+        let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        (base, builder.memory_object_len(data, MemoryObjectKind::Bytes))
+    }
 }
 
 /// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes

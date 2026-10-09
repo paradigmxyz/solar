@@ -996,15 +996,21 @@ impl<'a> StackPhiPlanner<'a> {
                 })
                 .collect::<Vec<_>>();
             let live_in = liveness.live_in(arm);
-            // branch; arm-local uses; join-only immediates on the join edge
-            if self.target.optimization().is_gas() {
-                sources.retain(|&value| {
-                    !matches!(self.func.value(value), crate::mir::Value::Immediate(_))
-                        || live_in.contains(value)
-                });
-            }
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
             let wanted = state.wanted.row(arm);
+            // branch; arm-local uses; join-only immediates and reloads on the join edge
+            // A computed word the branch does not hold and the arm does not want would be
+            // reloaded ahead of the branch on every execution, rotated under the condition and
+            // popped again in the arm. The join edge reloads it after the branch instead, only
+            // when it is taken. Residency does not track arguments, which may still be on the
+            // stack, so they stay.
+            if self.target.optimization().is_gas() {
+                sources.retain(|&value| {
+                    resident.contains(&value)
+                        || wanted.contains(value)
+                        || !matches!(self.func.value(value), crate::mir::Value::Inst(_))
+                });
+            }
             let mut carried = resident
                 .iter()
                 .copied()
@@ -1268,12 +1274,15 @@ impl<'a> StackPhiPlanner<'a> {
     }
 
     /// Whether a block may be entered with arbitrary words beneath the stack it expects: it
-    /// reads no live-in value and aborts, directly or through a cold tail call.
+    /// reads no live-in value and aborts, directly or through a cold tail call. A phi reads its
+    /// incoming value on the edge rather than as a live-in, and a branch planned around a junk
+    /// arm drops its predecessor's phi copies, so a block with phis never qualifies.
     fn junk_tolerant_terminal(&self, liveness: &Liveness, block: BlockId) -> bool {
-        liveness
-            .live_in(block)
-            .iter()
-            .all(|value| matches!(self.func.value(value), crate::mir::Value::Immediate(_)))
+        self.phi_insts(&self.func.blocks[block]).is_empty()
+            && liveness
+                .live_in(block)
+                .iter()
+                .all(|value| matches!(self.func.value(value), crate::mir::Value::Immediate(_)))
             && match &self.func.blocks[block].terminator {
                 Some(
                     Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
