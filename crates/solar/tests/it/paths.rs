@@ -160,7 +160,8 @@ fn allowed_paths() {
         ("outside/O.sol", "contract O {}"),
     ]);
     let outside = dir.path().join("outside/O.sol");
-    let source = format!("import \"{}\"; contract B {{}}", outside.display());
+    let outside = outside.display().to_string().replace('\\', "/");
+    let source = format!("import \"{outside}\"; contract B {{}}");
     std::fs::write(dir.path().join("proj/src/B.sol"), source).unwrap();
     let proj = dir.path().join("proj");
     let compiles = |args: &[&str]| compile(&proj, args).status.success();

@@ -57,7 +57,9 @@ Difference: `solc` treats source unit names as opaque strings, so `src/B.sol`,
 `src//B.sol`, `src/./B.sol`, `./src/B.sol` from a remapping target, and an
 absolute path to the same file are separate source units. `solar` names a file
 that it loads from disk by its normalized path, shown relative to the base
-path, so all of these are one source unit named `src/B.sol`. A file that
+path, so all of these are one source unit named `src/B.sol`. In Standard JSON,
+a file loaded through the read callback is named by its normalized source unit
+name. A file that
 imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
 declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
 import paths and remapping targets as they are, where `solc` prepends a
@@ -98,7 +100,7 @@ the other way around.
 For a file named relative to an include path outside the base path, `solar`
 resolves relative imports against the file's absolute path. Remappings for
 source unit names then do not apply to them, they do not search the other
-roots, and `../` can leave the include path.
+roots, and `../` can leave the include path, into the allowed directories.
 Remapping contexts match both the file's name and its absolute path. Like
 `solc`, an import resolves to an input file with its source unit name before
 searching the disk, but files loaded for other imports don't count, so where

@@ -96,6 +96,7 @@ impl<'a> FileResolver<'a> {
         self.custom_current_dir = None;
         self.env_current_dir.take();
         self.last_input.take();
+        self.allowed_paths = None;
     }
 
     /// Sets the current directory.
@@ -148,9 +149,10 @@ impl<'a> FileResolver<'a> {
     pub fn set_allowed_paths(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
         // Remapping targets that name a directory, and the directories of the others.
         let targets = self.remappings.iter().filter(|r| !r.path.is_empty()).map(|r| {
-            let target = Path::new(&r.path);
-            let is_dir = r.path.ends_with('/') || r.path.ends_with("/.") || target.ends_with("..");
-            if is_dir { target } else { target.parent().unwrap_or(Path::new("")) }.to_path_buf()
+            let target = sanitize_path(&r.path);
+            let path = Path::new(&*target);
+            let is_dir = target.ends_with('/') || target.ends_with("/.") || path.ends_with("..");
+            if is_dir { path } else { path.parent().unwrap_or(Path::new("")) }.to_path_buf()
         });
         let roots = self.roots().map(Path::to_path_buf).collect_vec();
         let mut allowed = paths
@@ -158,6 +160,7 @@ impl<'a> FileResolver<'a> {
             .chain(roots)
             .chain(targets.collect_vec())
             .filter_map(|path| self.canonicalize(&path).ok())
+            .map(without_verbatim_prefix)
             .collect_vec();
         // Keep only the outermost directories.
         allowed.sort();
@@ -308,11 +311,14 @@ impl<'a> FileResolver<'a> {
         // Standard JSON.
         let roots = self.source_map().roots();
         let base_path = roots.as_ref().and_then(|roots| roots.base_path.as_deref());
-        let name = base_path.is_some_and(|path| path.as_os_str().is_empty()).then_some(&*unit);
+        let name = base_path
+            .is_some_and(|path| path.as_os_str().is_empty())
+            .then(|| generic_path(lexical_normalize(&unit)));
         let mut found = SmallVec::<[_; 1]>::new();
         for candidate in self.search_paths(&unit) {
             // Quick deduplication when include paths are duplicated.
-            if let Some(file) = self.load(&candidate, name)?
+            if let Some(file) =
+                self.load(&candidate, name.as_deref(), self.allowed_paths.as_deref())?
                 && !found.iter().any(|f| Arc::ptr_eq(f, &file))
             {
                 found.push(file);
@@ -425,14 +431,17 @@ impl<'a> FileResolver<'a> {
         if let Some(file) = self.source_map().get_file(path) {
             return Ok(Some(file));
         }
-        self.load(&self.make_absolute(path), None)
+        // Like solc, don't restrict input files to the allowed paths.
+        self.load(&self.make_absolute(path), None, None)
     }
 
-    /// Loads the file at `path`, named by `name` or else its normalized path.
+    /// Loads the file at `path`, named by `name` or else its normalized path, if it is inside
+    /// `allowed_paths`.
     fn load(
         &self,
         path: &Path,
         name: Option<&Path>,
+        allowed_paths: Option<&[PathBuf]>,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         let path = generic_path(lexical_normalize(path));
         // A file inside the base path may be loaded under its relative name, like the ones a build
@@ -450,7 +459,8 @@ impl<'a> FileResolver<'a> {
             trace!(path=%path.display(), "not found");
             return Ok(None);
         };
-        if let Some(allowed_paths) = &self.allowed_paths
+        if let Some(allowed_paths) = allowed_paths
+            && let canonical = without_verbatim_prefix(canonical.clone())
             && !allowed_paths.iter().any(|allowed| canonical.starts_with(allowed))
         {
             return Err(ResolveError::NotAllowed(path));
@@ -620,6 +630,25 @@ fn lexical_normalize(path: &Path) -> PathBuf {
         }
     }
     normalized
+}
+
+/// Replaces a verbatim `\\?\` Windows prefix with the plain prefix, which canonical paths keep when
+/// they are too long, so that they compare equal to other canonical paths.
+fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let mut components = path.components();
+    let prefix = match components.next() {
+        Some(Component::Prefix(prefix)) => match prefix.kind() {
+            Prefix::VerbatimDisk(drive) => format!("{}:", char::from(drive)),
+            Prefix::VerbatimUNC(server, share) => {
+                format!(r"\\{}\{}", server.to_string_lossy(), share.to_string_lossy())
+            }
+            _ => return path,
+        },
+        _ => return path,
+    };
+    let mut plain = PathBuf::from(prefix);
+    plain.push(components.as_path());
+    plain
 }
 
 fn real_path(file: &SourceFile) -> &Path {
