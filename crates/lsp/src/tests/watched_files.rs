@@ -2,6 +2,9 @@ use super::{
     indexing::{change_workspace_folders, path_output, resolved_paths},
     *,
 };
+use crate::{
+    FoundryWorkspaceConfig, LaunchConfig, config::negotiate_capabilities_with_pull_diagnostic_data,
+};
 use lsp_types::{RegistrationParams, UnregistrationParams};
 
 #[derive(Debug)]
@@ -798,6 +801,214 @@ async fn discovery_refreshes_watched_file_specs_before_analysis() {
     drop(commit);
     state.reregister_watched_files();
     assert!(has_desired_spec(&desired_specs(), &missing_parent, "*.sol"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn dependency_remapping_changes_refresh_import_definitions() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol
+        import "x/X.sol";
+
+        //- /lib/x/src/X.sol open
+        import "pkg/$1Target.sol";
+
+        //- /lib/x/remappings.txt
+        pkg/=lib/old/
+
+        //- /lib/x/lib/old/Target.sol
+        contract OldTarget {}
+
+        //- /lib/x/lib/new/Target.sol
+        contract NewTarget {}
+        "#,
+        "/lib/x/src/X.sol",
+    );
+    let mut state = fixture.state();
+    snapbox::assert_data_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        snapbox::str![[r#"
+/lib/x/lib/old/Target.sol:0:0 contract OldTarget {}
+
+"#]],
+    );
+
+    let remappings = fixture.project_path("/lib/x/remappings.txt");
+    std::fs::write(&remappings, "pkg/=lib/new/\n").unwrap();
+    watch_files(&mut state, [(remappings, FileChangeType::CHANGED)]);
+    settle(&state).await;
+
+    snapbox::assert_data_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        snapbox::str![[r#"
+/lib/x/lib/new/Target.sol:0:0 contract NewTarget {}
+
+"#]],
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn dependency_config_creation_and_deletion_refresh_import_definitions() {
+    for file_name in ["foundry.toml", "remappings.txt"] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            r#"
+            //- /foundry.toml
+
+            //- /src/Main.sol
+            import "owner/X.sol";
+
+            //- /lib/x/lib/owner/src/X.sol open
+            import "pkg/$1Target.sol";
+
+            //- /lib/x/lib/owner/lib/pkg/src/Target.sol
+            contract AutoTarget {}
+
+            //- /lib/x/lib/owner/lib/old/Target.sol
+            contract OldTarget {}
+
+            //- /lib/x/lib/owner/lib/new/Target.sol
+            contract NewTarget {}
+            "#,
+            "/lib/x/lib/owner/src/X.sol",
+        );
+        let mut state = fixture.state();
+        let dependency = fixture.project_path("/lib/x/lib/owner");
+        let config_path = dependency.join(file_name);
+        let config_contents = |target| {
+            let remapping = format!("pkg/=lib/{target}/");
+            if file_name == "foundry.toml" {
+                format!("[profile.default]\nremappings = [\"{remapping}\"]\n")
+            } else {
+                format!("{remapping}\n")
+            }
+        };
+        let query = Query::Definition;
+        let initial = fixture.query_in(&mut state, query, "$1").await;
+        let mut output = format!("initial: {initial}");
+
+        for (target, typ) in [
+            (Some("old"), FileChangeType::CREATED),
+            (Some("new"), FileChangeType::CHANGED),
+            (None, FileChangeType::DELETED),
+        ] {
+            // Register missing config files without making dependency sources eagerly watched.
+            let specs = state.config.watched_file_specs();
+            assert!(specs.iter().any(|spec| {
+                spec.base == dependency
+                    && spec.pattern == file_name
+                    && spec.kind == WatchKind::Create | WatchKind::Change | WatchKind::Delete
+            }));
+            assert!(!specs.iter().any(|spec| {
+                spec.base == dependency && matches!(spec.pattern, "*.sol" | "**/*.sol")
+            }));
+            if let Some(target) = target {
+                std::fs::write(&config_path, config_contents(target)).unwrap();
+            } else {
+                std::fs::remove_file(&config_path).unwrap();
+            }
+            watch_files(&mut state, [(&config_path, typ)]);
+            settle(&state).await;
+            output
+                .push_str(&format!("{typ:?}: {}", fixture.query_in(&mut state, query, "$1").await));
+        }
+        snapbox::assert_data_eq!(
+            output,
+            snapbox::str![[r#"
+initial: /lib/x/lib/owner/lib/pkg/src/Target.sol:0:0 contract AutoTarget {}
+Created: /lib/x/lib/owner/lib/old/Target.sol:0:0 contract OldTarget {}
+Changed: /lib/x/lib/owner/lib/new/Target.sol:0:0 contract NewTarget {}
+Deleted: /lib/x/lib/owner/lib/pkg/src/Target.sol:0:0 contract AutoTarget {}
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn dependency_config_watches_follow_discovery_and_workspace_boundaries() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /workspace/foundry.toml
+        [profile.default]
+        libs = ["lib", "../external"]
+
+        //- /workspace/lib/x/foundry.toml
+        [profile.default]
+        libs = ["vendor"]
+
+        //- /workspace/lib/x/vendor/y/src/Y.sol
+        //- /workspace/lib/x/lib/ignored/src/Ignored.sol
+        //- /workspace/out/ignored/remappings.txt
+        //- /external/pkg/src/External.sol
+        "#,
+    );
+    let mut config = relative_watch_config(&project, &["/workspace"], &[]);
+    config.rediscover_workspaces();
+    let registration = watched_file_registration_params(&config);
+    for root in ["/workspace/lib/x", "/workspace/lib/x/vendor/y"] {
+        let root = project.path(root);
+        for name in ["foundry.toml", "remappings.txt"] {
+            assert_eq!(spec_kind(&registration, &root, name), Some(7));
+            assert!(config.workspace_config_event_is_relevant(&root.join(name)));
+        }
+        assert!(!has_recursive_spec_covering(&registration, &root));
+        assert!(!config.workspace_config_event_is_relevant(&root.join("other.toml")));
+    }
+    for root in ["/workspace/lib/x/lib/ignored", "/workspace/out/ignored", "/external/pkg"] {
+        let root = project.path(root);
+        for name in ["foundry.toml", "remappings.txt"] {
+            assert!(!has_spec(&registration, &root, name));
+            assert!(!config.workspace_config_event_is_relevant(&root.join(name)));
+        }
+    }
+
+    project.write_file(
+        "/workspace/foundry.toml",
+        "[profile.default]\nauto_detect_remappings = false\n",
+    );
+    config.rediscover_workspaces();
+    let registration = watched_file_registration_params(&config);
+    for root in ["/workspace/lib/x", "/workspace/lib/x/vendor/y"] {
+        let root = project.path(root);
+        for name in ["foundry.toml", "remappings.txt"] {
+            assert!(!has_spec(&registration, &root, name));
+            assert!(!config.workspace_config_event_is_relevant(&root.join(name)));
+        }
+    }
+}
+
+#[test]
+fn host_configuration_does_not_add_dependency_config_watches() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+
+        //- /lib/x/foundry.toml
+        //- /lib/x/remappings.txt
+        pkg/=lib/pkg/src/
+
+        //- /lib/x/src/X.sol
+        "#,
+    );
+    let launch = LaunchConfig::default().with_foundry_workspace_config(
+        FoundryWorkspaceConfig::new(project.root())
+            .with_source_roots([project.path("/src")])
+            .with_include_paths([project.path("/lib")]),
+    );
+    let (_, mut config) = negotiate_capabilities_with_pull_diagnostic_data(
+        with_relative_watchers(project.initialize_params()),
+        false,
+        &launch,
+    );
+    config.rediscover_workspaces();
+    let registration = watched_file_registration_params(&config);
+    let dependency = project.path("/lib/x");
+    for name in ["foundry.toml", "remappings.txt"] {
+        assert!(!has_spec(&registration, &dependency, name));
+        assert!(!config.workspace_config_event_is_relevant(&dependency.join(name)));
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
