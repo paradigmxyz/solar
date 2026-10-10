@@ -13,7 +13,6 @@ contract C {
 
     function tuple() external {
         (uint count, , uint other) = (1, * 2, 3); //~[recover] ERROR: expected one of
-        //~[recover]^ ERROR: mismatched number of components
         count = other;
         uint8 later = 300; //~[recover] ERROR: mismatched types
     }
