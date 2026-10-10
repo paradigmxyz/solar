@@ -1,4 +1,13 @@
-//@ filecheck:
+//@ revisions: default yul sonatina sir llvm
+//@[yul] compile-flags: --codegen-backend yul
+//@[sonatina] compile-flags: --codegen-backend sonatina
+//@[sir] compile-flags: --codegen-backend sir
+//@[llvm] compile-flags: --codegen-backend llvm
+//@[default] filecheck: --check-prefixes=CHECK,EVM
+//@[yul] filecheck: --check-prefixes=CHECK,NATIVE
+//@[sonatina] filecheck: --check-prefixes=CHECK,NATIVE
+//@[sir] filecheck: --check-prefixes=CHECK,NATIVE
+//@[llvm] filecheck: --check-prefixes=CHECK,NATIVE
 // A library's own deployment address, which guards its non-view functions against direct
 // calls, is reported like solc's IR pipeline does under `library_deploy_address` rather than
 // an AST ID. A library without non-view functions has no placeholder.
@@ -6,8 +15,9 @@
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "immutableReferences": {
 // CHECK-NEXT: "library_deploy_address": [
-// CHECK: "start": 20,
-// CHECK-NEXT: "length": 20
+// CHECK: "start": {{[0-9]+}},
+// EVM-NEXT: "length": 20
+// NATIVE-NEXT: "length": 32
 // CHECK-LABEL: "ViewOnly": {
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "immutableReferences": {}

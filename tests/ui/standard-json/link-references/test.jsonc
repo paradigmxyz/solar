@@ -1,4 +1,16 @@
-//@ filecheck:
+//@ revisions: default yul sonatina sir llvm
+//@[yul] compile-flags: --codegen-backend yul
+//@[sonatina] compile-flags: --codegen-backend sonatina
+//@[sir] compile-flags: --codegen-backend sir
+//@[llvm] compile-flags: --codegen-backend llvm
+//@[default] filecheck:
+//@[yul] filecheck: --check-prefix=UNLINKED
+//@[sonatina] filecheck: --check-prefix=UNLINKED
+//@[sir] filecheck: --check-prefix=UNLINKED
+//@[llvm] filecheck: --check-prefix=UNLINKED
+// UNLINKED-NOT: "contracts":
+// UNLINKED: backend requires library addresses to be supplied before code generation
+// UNLINKED-NOT: "contracts":
 // CHECK-LABEL: "Links": {
 // CHECK-LABEL: "bytecode": {
 // CHECK-NEXT: "linkReferences": {

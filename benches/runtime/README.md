@@ -36,6 +36,24 @@ drops compile times from any run.
 below 200 runs and for gas from 200, so `--optimizer-runs 1` makes a size benchmark (`--gas` then
 runs on the size-optimized code).
 
+Select a compiler backend with `--codegen-backend evm|yul|sonatina|sir|llvm`.
+The selection applies to timed compilation and artifact capture, and results record
+its name. Sonatina, SIR, and LLVM currently require `--evm-version osaka`.
+Alternative backends save `backend.ir` from `-Zdump=backend-ir` in place of the
+built-in backend's EVM IR artifacts. Compare these with `--artifact backend-ir`.
+
+Run `scripts/bench_codegen_backends.sh target/codegen-bench/backends --solc /path/to/solc`
+to compare all backends against the built-in backend using fresh output directories.
+Set `SOLAR_SOLC` to the same solc executable when testing Yul.
+The script keeps failures in each result and exits unsuccessfully if a backend run
+fails. Pass benchmark filters such as `--tests counter` after the output directory.
+Builds with the LLVM feature require the EVM-enabled LLVM toolchain described in
+[`crates/codegen/README.md`](../../crates/codegen/README.md).
+
+The Benchmark workflow also accepts a `codegen_backend` input for the candidate.
+LSP benchmark builds disable the optional backends because they only exercise
+the frontend.
+
 `--artifacts PATH` writes a file tree per runtime case and compiler from an extra, untimed compile.
 Each compiler directory has a `sources/` tree of every embedded Standard JSON source, keeping paths,
 contents, line endings, and extensionless names; source URLs are not fetched. Paths must be

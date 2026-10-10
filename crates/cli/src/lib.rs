@@ -46,6 +46,11 @@ use alloy_primitives as _;
 use tracing as _;
 
 pub fn main() -> ExitCode {
+    #[cfg(feature = "codegen-llvm")]
+    if let Some(exit) = solar_codegen::backend::llvm::initialize_cli_worker() {
+        return exit;
+    }
+
     signal_handler::install();
     solar_interface::panic_hook::install();
     let _guard = utils::init_logger(utils::LogDestination::Stderr);

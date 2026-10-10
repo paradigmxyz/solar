@@ -76,7 +76,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: test ${{ matrix.os }} ${{ matrix.rust }}${{ matrix.features && format(' ({0})', matrix.features) || '' }}
     runs-on: depot-${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       id-token: write
       contents: read
@@ -99,6 +99,8 @@ jobs:
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
           - os: "windows-latest"
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
+    env:
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -148,6 +150,21 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
+      - name: Install solc for Yul backend tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-ARM64) asset=solc-static-linux-arm ;;
+            Linux-*) asset=solc-static-linux ;;
+            macOS-*) asset=solc-macos ;;
+            Windows-*) asset=solc-windows.exe ;;
+          esac
+          gh release download "v$SOLC_VERSION" -R argotorg/solidity -p "$asset" -D "$RUNNER_TEMP/solc"
+          chmod +x "$RUNNER_TEMP/solc/$asset"
+          echo "SOLAR_SOLC=$RUNNER_TEMP/solc/$asset" >> "$GITHUB_ENV"
       - name: build
         run: cargo build --features "${{ matrix.features || '' }}"
       - name: test
@@ -193,12 +210,13 @@ jobs:
     if: github.event_name != 'schedule'
     name: fandango
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     continue-on-error: true
     permissions:
       id-token: write
       contents: read
     env:
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
       UV_HTTP_TIMEOUT: "120"
       FANDANGO_ABI_SEED_COUNT: ${{ github.event_name == 'schedule' && '8' || '3' }}
       FANDANGO_ABI_VALUES_PER_SEED: ${{ github.event_name == 'schedule' && '64' || '32' }}
@@ -232,6 +250,7 @@ jobs:
           version: stable
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: ./.github/actions/setup-evm-llvm
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
@@ -249,10 +268,12 @@ jobs:
     if: github.event_name != 'schedule'
     name: features
     runs-on: depot-ubuntu-latest-4
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       id-token: write
       contents: read
+    env:
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -273,6 +294,7 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
       - name: cargo hack
         run: cargo hack check --feature-powerset --depth 1
 
@@ -321,10 +343,12 @@ jobs:
   clippy:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       id-token: write
       contents: read
+    env:
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -340,6 +364,7 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
       - run: cargo clippy --workspace --all-targets
         env:
           RUSTFLAGS: -Dwarnings
@@ -347,10 +372,12 @@ jobs:
   docs:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       id-token: write
       contents: read
+    env:
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -365,6 +392,7 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
       - name: Build documentation
         run: cargo doc --workspace --all-features --no-deps --document-private-items
         env:

@@ -1,0 +1,72 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "bytecode": {
+            "object": "60c060405234601857601c60405160b89091823960b890f35b5f5ffd60c0604052600956fe5b3436602490101760b4575f3560e01c6004356310c888cd821460475763b3de648b8214605a5763cb97492a8214606d5763e420264a8214608d5760b4565b90506001901b6001900360805260206080f35b9050600101801560a25760805260206080f35b905060038101818110600483019283101760a25760805260a05260406080f35b90506002810190811060a25760805260206080f35b6011602052634e487b715f526024601cfd5b5f5ffd",
+            "sourceMap": ""
+          },
+          "deployedBytecode": {
+            "object": "60c0604052600956fe5b3436602490101760b4575f3560e01c6004356310c888cd821460475763b3de648b8214605a5763cb97492a8214606d5763e420264a8214608d5760b4565b90506001901b6001900360805260206080f35b9050600101801560a25760805260206080f35b905060038101818110600483019283101760a25760805260a05260406080f35b90506002810190811060a25760805260206080f35b6011602052634e487b715f526024601cfd5b5f5ffd",
+            "sourceMap": ""
+          }
+        }
+      },
+      "B": {
+        "evm": {
+          "bytecode": {
+            "object": "60c060405234601857601c60405160b89091823960b890f35b5f5ffd60c0604052600956fe5b3436602490101760b4575f3560e01c6004356310c888cd821460475763b3de648b8214605a5763cb97492a8214606d5763e420264a8214608d5760b4565b90506001901b6001900360805260206080f35b9050600101801560a25760805260206080f35b905060038101818110600483019283101760a25760805260a05260406080f35b90506002810190811060a25760805260206080f35b6011602052634e487b715f526024601cfd5b5f5ffd"
+          },
+          "deployedBytecode": {
+            "object": "60c0604052600956fe5b3436602490101760b4575f3560e01c6004356310c888cd821460475763b3de648b8214605a5763cb97492a8214606d5763e420264a8214608d5760b4565b90506001901b6001900360805260206080f35b9050600101801560a25760805260206080f35b905060038101818110600483019283101760a25760805260a05260406080f35b90506002810190811060a25760805260206080f35b6011602052634e487b715f526024601cfd5b5f5ffd"
+          }
+        }
+      },
+      "C": {
+        "evm": {
+          "bytecode": {
+            "object": "60c060405234601857601c60405160b89091823960b890f35b5f5ffd60c0604052600956fe5b3436602490101760b4575f3560e01c6004356310c888cd821460475763b3de648b8214605a5763cb97492a8214606d5763e420264a8214608d5760b4565b90506001901b6001900360805260206080f35b9050600101801560a25760805260206080f35b905060038101818110600483019283101760a25760805260a05260406080f35b90506002810190811060a25760805260206080f35b6011602052634e487b715f526024601cfd5b5f5ffd"
+          },
+          "deployedBytecode": {
+            "object": "60c0604052600956fe5b3436602490101760b4575f3560e01c6004356310c888cd821460475763b3de648b8214605a5763cb97492a8214606d5763e420264a8214608d5760b4565b90506001901b6001900360805260206080f35b9050600101801560a25760805260206080f35b905060038101818110600483019283101760a25760805260a05260406080f35b90506002810190811060a25760805260206080f35b6011602052634e487b715f526024601cfd5b5f5ffd"
+          }
+        }
+      }
+    }
+  },
+  "ethdebug": {
+    "compilation": {
+      "id": "solar-COMPILATION_ID",
+      "compiler": {
+        "name": "solar",
+        "version": "VERSION"
+      },
+      "sources": [
+        {
+          "id": 0,
+          "path": "A.sol",
+          "contents": "contract A { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } function low(uint256 n) external pure returns (uint256 z) { assembly { z := sub(shl(n, 1), 1) } } function h(uint256 x) external pure returns (uint256, uint256) { return pair(x); } function pair(uint256 x) internal pure returns (uint256, uint256) { return (x + 3, x + 4); } } contract B { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } function low(uint256 n) external pure returns (uint256 z) { assembly { z := sub(shl(n, 1), 1) } } function h(uint256 x) external pure returns (uint256, uint256) { return pair(x); } function pair(uint256 x) internal pure returns (uint256, uint256) { return (x + 3, x + 4); } } contract C { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } function low(uint256 n) external pure returns (uint256 z) { assembly { z := sub(shl(n, 1), 1) } } function h(uint256 x) external pure returns (uint256, uint256) { return pair(x); } function pair(uint256 x) internal pure returns (uint256, uint256) { return (x + 3, x + 4); } }",
+          "language": "Solidity"
+        }
+      ]
+    }
+  }
+}

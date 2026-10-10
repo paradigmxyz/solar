@@ -1,9 +1,9 @@
 //! Solar CLI arguments.
 
 use crate::{
-    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads,
+    CodegenBackend, ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion,
+    HumanEmitterKind, ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings,
+    SwitchLowering, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -93,6 +93,9 @@ pub struct CompileOpts {
     /// EVM version.
     #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
     pub evm_version: EvmVersion,
+    /// Code generation backend.
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    pub codegen_backend: CodegenBackend,
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
