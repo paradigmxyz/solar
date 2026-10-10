@@ -42,6 +42,7 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
     check_storage_size_upper_bound(gcx, id);
     check_payable_fallback_without_receive(gcx, id);
+    check_storage_layout_inheritance(gcx, id);
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
     check_library_functions(gcx, id);
@@ -274,6 +275,24 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
                     "receive",
                     solar_interface::diagnostics::Applicability::MachineApplicable,
                 )
+                .emit();
+        }
+    }
+}
+
+/// Checks that the contract does not inherit from a contract with a custom storage layout.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ContractLevelChecker.cpp#L121-L138>
+fn check_storage_layout_inheritance(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    for base in gcx.hir.contract(contract_id).bases_args {
+        if let Some(base_id) = base.id.as_contract()
+            && let Some(layout) = gcx.hir.contract(base_id).layout
+        {
+            gcx.dcx()
+                .err("cannot inherit from a contract with a custom storage layout")
+                .code(error_code!(8894))
+                .span(base.span)
+                .span_note(layout.span, "custom storage layout defined here")
                 .emit();
         }
     }

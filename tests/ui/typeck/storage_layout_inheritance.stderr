@@ -1,0 +1,110 @@
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ abstract contract AbstractC is AbstractA { }
+   │                                ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract AbstractA layout at 0x1234 {}
+   ╰╴                             ━━━━━━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract AncestorB is AncestorA {}
+   │                       ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract AncestorA layout at 0x1234 {}
+   ╰╴                             ━━━━━━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleB is MultipleA layout at 2 {}
+   │                       ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleA layout at 1 {}
+   ╰╴                             ━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleC1 is MultipleB {}
+   │                        ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleB is MultipleA layout at 2 {}
+   ╰╴                                          ━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleC2 is MultipleA, MultipleB {}
+   │                        ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleA layout at 1 {}
+   ╰╴                             ━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleC2 is MultipleA, MultipleB {}
+   │                                   ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleB is MultipleA layout at 2 {}
+   ╰╴                                          ━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleC3 is MultipleB {}
+   │                        ━━━━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract MultipleB is MultipleA layout at 2 {}
+   ╰╴                                          ━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract FirstB is FirstA {}
+   │                    ━━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract FirstA layout at 42 {}
+   ╰╴                          ━━
+
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract LastD is LastC {}
+   │                   ━━━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance.sol:LL:CC
+   │
+LL │ contract LastC is LastB layout at 42 {}
+   ╰╴                                  ━━
+
+error: aborting due to 9 previous errors
+

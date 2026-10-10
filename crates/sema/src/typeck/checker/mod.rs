@@ -1,6 +1,5 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -14,7 +13,7 @@ use solar_ast::{
 use solar_data_structures::{
     Never,
     bit_set::{DenseBitSet, GrowableBitSet},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
     pluralize,
     smallvec::SmallVec,
 };
@@ -208,39 +207,53 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Checks the base slot expression of a storage layout specifier.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        match self.gcx.try_eval_const_value(slot) {
-            Ok(ConstValue::Integer(value)) => {
-                if let Some(base_slot) = value.as_u256() {
-                    let Some(contract_id) = self.contract else {
-                        unreachable!("storage layout specifier outside a contract")
-                    };
-                    if let Ok(Some(size)) = super::storage_size_upper_bound(
-                        self.gcx,
-                        contract_id,
-                        DataLocation::Storage,
-                    ) && base_slot.checked_add(size).is_none()
-                    {
-                        self.dcx().emit_err(
-                            slot.span,
-                            "contract extends past the end of storage when this base slot value is specified",
-                        );
-                    }
-                } else {
-                    self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
-                }
-            }
-            Ok(ConstValue::Bool(_)) => {
-                self.dcx()
-                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
-            }
-            Ok(ConstValue::String(_)) => {
-                let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
-                self.gcx.emit_const_eval_error(slot, err);
-            }
-            Err(err) => {
-                self.gcx.emit_const_eval_error(slot, err);
-            }
+        let ty = self.check_expr(slot);
+        if ty.references_error() {
+            return;
+        }
+        if !ty.is_integer() {
+            self.dcx()
+                .err("base slot of storage layout must evaluate to an integer")
+                .code(error_code!(1763))
+                .span(slot.span)
+                .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit();
+            return;
+        }
+        // solc's constant evaluator does not support conditionals, while ours folds them.
+        let mut finder = ConditionalFinder { hir: &self.gcx.hir, constants: Default::default() };
+        if let ControlFlow::Break(conditional) = finder.visit_expr(slot) {
+            self.dcx()
+                .err("base slot of storage layout cannot be evaluated at compile time")
+                .code(error_code!(1505))
+                .span(slot.span)
+                .span_label(conditional, "the constant evaluator does not support conditionals")
+                .emit();
+            return;
+        }
+        let Ok(value) = self.gcx.eval_const(slot) else { return };
+        let Some(base_slot) = value.as_u256() else {
+            self.dcx()
+                .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
+                .code(error_code!(6753))
+                .span(slot.span)
+                .emit();
+            return;
+        };
+        let contract_id = self.contract.expect("storage layout specifier outside a contract");
+        if let Ok(Some(size)) =
+            super::storage_size_upper_bound(self.gcx, contract_id, DataLocation::Storage)
+            && base_slot.checked_add(size).is_none()
+        {
+            self.dcx()
+                .err("contract extends past the end of storage when this base slot value is specified")
+                .code(error_code!(5015))
+                .span(slot.span)
+                .emit();
         }
     }
 
@@ -4070,4 +4083,37 @@ fn valid_meta_type(ty: Ty<'_>) -> bool {
             | TyKind::Contract(_)
             | TyKind::Enum(_)
     )
+}
+
+/// Finds a conditional in a constant expression, including in the initializers of the constants
+/// it reads.
+struct ConditionalFinder<'gcx> {
+    hir: &'gcx hir::Hir<'gcx>,
+    constants: FxHashSet<hir::VariableId>,
+}
+
+impl<'gcx> Visit<'gcx> for ConditionalFinder<'gcx> {
+    type BreakValue = Span;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        self.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match expr.kind {
+            hir::ExprKind::Ternary(..) => return ControlFlow::Break(expr.span),
+            hir::ExprKind::Ident(res) => {
+                if let Some(id) = res.iter().find_map(hir::Res::as_variable)
+                    && let var = self.hir.variable(id)
+                    && var.is_constant()
+                    && let Some(init) = var.initializer
+                    && self.constants.insert(id)
+                {
+                    self.visit_expr(init)?;
+                }
+            }
+            _ => {}
+        }
+        self.walk_expr(expr)
+    }
 }

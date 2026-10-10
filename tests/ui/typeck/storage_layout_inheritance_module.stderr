@@ -1,0 +1,14 @@
+error[8894]: cannot inherit from a contract with a custom storage layout
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_inheritance_module.sol:LL:CC
+   │
+LL │ contract C is M.A, N.A layout at 0xABCD {}
+   │               ━━━
+   ╰╴
+note: custom storage layout defined here
+   ╭▸ ROOT/tests/ui/typeck/auxiliary/storage_layout_inheritance_m.sol:LL:CC
+   │
+LL │ contract A layout at 0x1234 {}
+   ╰╴                     ━━━━━━
+
+error: aborting due to 1 previous error
+

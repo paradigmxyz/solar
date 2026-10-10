@@ -1,14 +1,14 @@
-error: base slot of storage layout must evaluate to an integer
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_bool.sol:LL:CC
    │
 LL │ contract BoolLiteral layout at true {}
-   ╰╴                               ━━━━
+   ╰╴                               ━━━━ found `bool`
 
-error: base slot of storage layout must evaluate to an integer
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_bool.sol:LL:CC
    │
 LL │ contract BoolConstant layout at B {}
-   ╰╴                                ━
+   ╰╴                                ━ found `bool`
 
 error: aborting due to 2 previous errors
 
