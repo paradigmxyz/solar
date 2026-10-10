@@ -1,7 +1,89 @@
 use super::*;
+use lsp_types::{CodeLens, DiagnosticSeverity, InlayHint};
 use serde::de::DeserializeOwned;
 
 const POSITION: Position = Position { line: 0, character: 9 };
+
+async fn annotations(state: &mut GlobalState, uri: &Url) -> (Vec<CodeLens>, Vec<InlayHint>) {
+    let lenses = crate::handlers::code_lens(state, document_params(uri));
+    let hints = crate::handlers::inlay_hints(state, document_params(uri));
+    within("annotations", async { (lenses.await.unwrap().unwrap(), hints.await.unwrap().unwrap()) })
+        .await
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn annotations_survive_errors_and_follow_edits() {
+    let (_project, mut state, uri) = fixture();
+    let source = "contract C {\n\
+        function target(uint amount) public pure returns (uint) { return amount; }\n\
+        function caller() public pure {\n\
+        // editing\n\
+        target(1);\n\
+        }\n\
+        function afterError() external {}\n\
+        }\n";
+    change(&mut state, &uri, 1, source);
+    let (mut expected_lenses, mut expected_hints) = annotations(&mut state, &uri).await;
+    assert!(!expected_lenses.is_empty());
+    assert_eq!(expected_hints.len(), 2);
+
+    let broken = source.replace("// editing", "uint x = 1 + * 2;");
+    change(&mut state, &uri, 2, &broken);
+    assert_eq!(
+        json!(annotations(&mut state, &uri).await),
+        json!((&expected_lenses, &expected_hints))
+    );
+    let diagnostics = state.diagnostics.read().code_action_diagnostics(
+        &uri,
+        Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.severity == Some(DiagnosticSeverity::ERROR))
+    );
+
+    let shifted = format!("// 🦀\n\n{broken}");
+    let prefix = TextDocumentContentChangeEvent {
+        range: Some(Range::new(Position::new(0, 0), Position::new(0, 0))),
+        range_length: None,
+        text: "// 🦀\n\n".into(),
+    };
+    edit(&mut state, &uri, 3, vec![prefix]);
+    for lens in &mut expected_lenses {
+        lens.range.start.line += 2;
+        lens.range.end.line += 2;
+    }
+    for hint in &mut expected_hints {
+        hint.position.line += 2;
+    }
+    assert_eq!(
+        json!(annotations(&mut state, &uri).await),
+        json!((&expected_lenses, &expected_hints))
+    );
+
+    let deleted = shifted.replace("function afterError() external {}", "");
+    change(&mut state, &uri, 4, &deleted);
+    expected_lenses.retain(|lens| lens.range.start.line != 8);
+    assert_eq!(
+        json!(annotations(&mut state, &uri).await),
+        json!((&expected_lenses, &expected_hints))
+    );
+
+    let fixed = deleted.replace("uint x = 1 + * 2;", "// fixed");
+    change(&mut state, &uri, 5, &fixed);
+    assert_eq!(
+        json!(annotations(&mut state, &uri).await),
+        json!((&expected_lenses, &expected_hints))
+    );
+    let diagnostics = state.diagnostics.read().code_action_diagnostics(
+        &uri,
+        Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+    );
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == Some(DiagnosticSeverity::ERROR))
+    );
+}
 
 fn fixture() -> (TestProject, GlobalState, Url) {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Before {}\n");

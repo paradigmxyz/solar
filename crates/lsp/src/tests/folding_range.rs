@@ -306,7 +306,7 @@ fn recovers_folding_ranges_after_parse_errors() {
 
 "#]],
         ),
-        // Lexical fallback does not treat function types as declarations.
+        // Folds recovered function-typed variables.
         (
             concat!(
                 "@ invalid\n",
@@ -318,6 +318,7 @@ fn recovers_folding_ranges_after_parse_errors() {
             ),
             str![[r#"
 1:0-5:1 code
+2:4-4:6 code
 
 "#]],
         ),
