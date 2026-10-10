@@ -1,0 +1,26 @@
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_kinds.sol:LL:CC
+   │
+LL │         abi.encode(new D);
+   ╰╴                   ━━━━━ found `function () returns (contract D)`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_kinds.sol:LL:CC
+   │
+LL │         abi.encode(new D{salt: 0});
+   ╰╴                   ━━━━━━━━━━━━━━ found `function () returns (contract D) with call options`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_kinds.sol:LL:CC
+   │
+LL │         abi.encode(L.pub);
+   ╰╴                   ━━━━━ found `function (uint256) pure`
+
+error[2056]: `encodeWithSelector` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeWithSelector(bytes4(0), this.f{gas: 1});
+   ╰╴                                          ━━━━━━━━━━━━━━ found `function () external with call options`
+
+error: aborting due to 4 previous errors
+

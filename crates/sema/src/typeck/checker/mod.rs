@@ -21,7 +21,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -2009,12 +2009,13 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             result = result.and(self.check_array_copy_size(ty, expr.span));
             if !valid_abi_encodable_arg(ty, self.gcx) {
-                result = result.and(Err(self.dcx().emit_err_label(
-                    expr.span,
-                    format!("`{}` argument cannot be ABI-encoded", builtin.name()),
-                    expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                )));
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!("`{}` argument cannot be ABI-encoded", builtin.name()))
+                    .code(error_code!(2056))
+                    .span(expr.span)
+                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit()));
             }
         }
         result
@@ -2311,12 +2312,17 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty = self.gcx.types.address_payable;
             }
             if !valid_abi_decodable_type(ty, self.gcx) {
-                let guar = self.dcx().emit_err_label(
-                    type_expr.span,
-                    "decoding type not supported",
-                    type_expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                );
+                let guar = self
+                    .dcx()
+                    .err("decoding type not supported")
+                    .code(error_code!(9611))
+                    .span(type_expr.span)
+                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            if let Err(guar) = self.check_ty_size(ty, type_expr.span, error_code!(6118)) {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -2885,7 +2891,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
-        self.check_var_type_size(var, ty);
+        let _ = self.check_ty_size(ty, var.ty.span, error_code!(1534));
 
         if var.data_location == Some(DataLocation::Transient)
             && self.gcx.sess.opts.evm_version < EvmVersion::Cancun
@@ -2963,13 +2969,20 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
-    fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
+    /// Checks that a memory or calldata type's static size stays below the 32-bit limit.
+    fn check_ty_size(&self, ty: Ty<'gcx>, span: Span, code: DiagId) -> Result<(), ErrorGuaranteed> {
         if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
             && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
             && size >= u32::MAX
         {
-            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+            return Err(self
+                .dcx()
+                .err(format!("type too large for {loc}"))
+                .code(code)
+                .span(span)
+                .emit());
         }
+        Ok(())
     }
 
     fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
@@ -2980,7 +2993,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.ty_memory_static_size(elem)?
                 };
-                len.checked_mul(elem_size)
+                Some(len.saturating_mul(elem_size))
             }
             TyKind::Struct(id) => {
                 if self.gcx.struct_recursiveness(id).is_recursive() {
@@ -2993,7 +3006,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     } else {
                         self.ty_memory_static_size(field_ty)?
                     };
-                    size = size.checked_add(field_size)?;
+                    size = size.saturating_add(field_size);
                 }
                 Some(size)
             }
@@ -3863,16 +3876,12 @@ fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
     if ty.references_error() {
         return true;
     }
+    let Some(ty) = ty.mobile(gcx) else { return false };
     match ty.kind {
         TyKind::Tuple([ty]) => valid_abi_encodable_arg(*ty, gcx),
-        TyKind::Tuple(_) => false,
-        TyKind::Error(..)
-        | TyKind::Event(..)
-        | TyKind::Module(..)
-        | TyKind::BuiltinModule(..)
-        | TyKind::Type(_)
-        | TyKind::Meta(_)
-        | TyKind::Variadic => false,
+        TyKind::Tuple(_) | TyKind::Variadic => false,
+        // Only external function values have an ABI encoding.
+        TyKind::Fn(f) => f.is_external(),
         _ => ty.can_be_exported(gcx),
     }
 }

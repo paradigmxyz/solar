@@ -1,0 +1,32 @@
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_special_types.sol:LL:CC
+   │
+LL │         (bool a,) = address(this).call(abi.encode(address(this).delegatecall, super));
+   ╰╴                                                  ━━━━━━━━━━━━━━━━━━━━━━━━━━ found `function (bytes memory) returns (bool,bytes memory)`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_special_types.sol:LL:CC
+   │
+LL │         (bool a,) = address(this).call(abi.encode(address(this).delegatecall, super));
+   ╰╴                                                                              ━━━━━ found `type(contract super C)`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_special_types.sol:LL:CC
+   │
+LL │         (a,) = address(this).delegatecall(abi.encode(block, tx, mulmod));
+   ╰╴                                                     ━━━━━ found `block`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_special_types.sol:LL:CC
+   │
+LL │         (a,) = address(this).delegatecall(abi.encode(block, tx, mulmod));
+   ╰╴                                                            ━━ found `tx`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_special_types.sol:LL:CC
+   │
+LL │         (a,) = address(this).delegatecall(abi.encode(block, tx, mulmod));
+   ╰╴                                                                ━━━━━━ found `function (uint256,uint256,uint256) pure returns (uint256)`
+
+error: aborting due to 5 previous errors
+

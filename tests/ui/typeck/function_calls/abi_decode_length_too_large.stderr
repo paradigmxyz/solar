@@ -1,0 +1,8 @@
+error[6118]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode_length_too_large.sol:LL:CC
+   │
+LL │         abi.decode("", (bytes1[999999999]));
+   ╰╴                        ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

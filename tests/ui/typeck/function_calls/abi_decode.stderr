@@ -52,7 +52,7 @@ error: `abi.decode` type tuple components must be types
 LL │         abi.decode(data, ((uint256, int256)));
    ╰╴                          ━━━━━━━━━━━━━━━━━
 
-error: decoding type not supported
+error[9611]: decoding type not supported
    ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
    │
 LL │         abi.decode(data, (Unsupported));
