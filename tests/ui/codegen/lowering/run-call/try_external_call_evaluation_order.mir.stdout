@@ -89,7 +89,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v6 = slice_ptr v5
     v7 = slice_len v5
     v8 = zext i160 v0 to i256
-    v9 = call v2, v8, v3, v6, v7, 0, 0
+    v9 = call v2, v8, v3, v6, v7, 0, 32
     jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -97,13 +97,16 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     icall revert_if<empty>, true
     invalid
   bb4:
-    v13 = sload 0 !metadata(storage=slot(0))
-    ret v13
+    v15 = sload 0 !metadata(storage=slot(0))
+    ret v15
   bb1:
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [u256], v10
-    v12 = sload 0 !metadata(storage=slot(0))
-    ret v12
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = add 0, 0
+    v13 = mload v12
+    v14 = sload 0 !metadata(storage=slot(0))
+    ret v14
   bb3:
     ret 0
 }

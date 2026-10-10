@@ -16,7 +16,7 @@ contract StorageReturnPointerMixed {
         return (5, 6);
     }
 
-    function f() public returns (uint256) {
+    function f() public returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         data.push(3);
         uint256 a;
         uint256 b;

@@ -822,6 +822,7 @@ impl Instruction {
             | InstKind::InternalFrameAddr(..)
             | InstKind::ConstructorArgsBase
             | InstKind::ConstructorArgsEnd
+            | InstKind::HeapFloor
             | InstKind::DataCopy(..)
             | InstKind::CodeSize
             | InstKind::CodeCopy(..)
@@ -1032,9 +1033,9 @@ impl InstKind {
                     && ty(a) == result
                     && ty(b) == result
             }
+            Self::AbiDecode { ref layout, .. } => result.is_some() != layout.types.is_empty(),
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
-            | Self::AbiDecode { .. }
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
             | Self::AbiEncodePacked { .. }

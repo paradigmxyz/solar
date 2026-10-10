@@ -1096,6 +1096,20 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Memory);
             }
         };
+        // A memory slice built in this function reads exactly `[ptr, ptr + len)`; other
+        // locations read no memory.
+        let read_memory_slice = |effects: &mut ModRef, slice| {
+            if func.value_slice_location(slice) != Some(SliceLocation::Memory) {
+                return;
+            }
+            if let Value::Inst(inst) = func.value(resolve(slice))
+                && let InstKind::MakeSlice { ptr, len, .. } = func.inst(*inst).kind
+            {
+                read_memory(effects, ptr, SizeOperand::Value(len));
+            } else {
+                effects.read_any(AddressSpace::Memory);
+            }
+        };
         let write_memory = |effects: &mut ModRef, address, size| {
             if let Some(location) = self.memory_location(
                 func,
@@ -1231,12 +1245,7 @@ impl AliasAnalysis {
             // runtime offset into it, and never rewrite the length word.
             InstKind::MemoryObjectCopyFromSlice { object, kind, source }
             | InstKind::MemoryObjectCopyFromSliceAt { object, kind, source, .. } => {
-                if matches!(
-                    func.value_ty(source),
-                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
-                ) {
-                    effects.read_any(AddressSpace::Memory);
-                }
+                read_memory_slice(&mut effects, source);
                 if let Some(location) =
                     self.memory_object_data_location(func, inst_id, object, kind)
                 {
@@ -1316,7 +1325,11 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::AbiDecode { data, .. } => {
-                read_memory(&mut effects, data, SizeOperand::Unknown);
+                if func.value_slice_location(data).is_some() {
+                    read_memory_slice(&mut effects, data);
+                } else {
+                    read_memory(&mut effects, data, SizeOperand::Unknown);
+                }
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::StorageToMemory { .. } => {
@@ -1937,8 +1950,10 @@ impl AliasAnalysis {
                     self.pointer_region(func, second, depth + 1)
                 }
             }
-            InstKind::Sub(base, _)
-            | InstKind::IntToPtr(base)
+            InstKind::Sub(base, offset) if Self::sub_keeps_pointer_region(func, offset) => {
+                self.pointer_region(func, base, depth + 1)
+            }
+            InstKind::IntToPtr(base)
             | InstKind::PtrToInt(base, 256)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
@@ -1963,6 +1978,15 @@ impl AliasAnalysis {
             }
             _ => MemoryRegion::Unknown,
         }
+    }
+
+    /// Whether `sub(pointer, offset)` stays in the pointer's region: a constant
+    /// step back of at most one word, such as from a dynamic object's data to
+    /// its length word. Any other subtrahend can move the result anywhere, as
+    /// in `sub(p, sub(p, x)) == x`.
+    #[must_use]
+    pub(crate) fn sub_keeps_pointer_region(func: &Function, offset: ValueId) -> bool {
+        func.value_u64(offset).is_some_and(|offset| offset <= EvmMemoryLayout::WORD_SIZE)
     }
 
     fn join_pointer_regions(

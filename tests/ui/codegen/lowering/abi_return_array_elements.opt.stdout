@@ -149,8 +149,8 @@ fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -209,8 +209,8 @@ fn @decode_calldata_type.8() -> memptr [may_return_memory] {
     v44 = add v43, 32
     jump bb6
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -271,8 +271,8 @@ fn @decode_calldata_type.9() -> memptr [may_return_memory] {
     v44 = add v43, 32
     jump bb6
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -316,8 +316,8 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     v31 = add v30, 32
     jump bb4
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

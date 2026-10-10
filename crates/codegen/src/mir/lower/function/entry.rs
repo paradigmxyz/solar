@@ -152,17 +152,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Later bases may name an earlier base's parameters in their own
             // argument list, and each body is lowered from these bindings, so
             // they stay live for the rest of the constructor.
-            self.bind_constructor_parameters(constructor.parameters, &values);
+            self.bind_inlined_parameters(constructor.parameters, &values);
             self.prepared_constructors.insert(constructor_id);
         }
         Some(())
     }
 
-    /// Binds an inlined constructor's parameters to already lowered arguments.
+    /// Binds an inlined constructor's or function's parameters to already lowered arguments.
     ///
     /// A storage-reference parameter is a slot number, so it binds as a
     /// storage reference like a lowered function's own parameter does.
-    pub(super) fn bind_constructor_parameters(
+    pub(super) fn bind_inlined_parameters(
         &mut self,
         parameters: &[VariableId],
         values: &[ValueId],

@@ -1,18 +1,17 @@
 //@ codegen-matrix: standard
 //@[size] compile-flags: -Zdump=evm-ir-runtime
-//@[size] filecheck:
+//@[size] filecheck: --check-prefix=STACK
 //@ run-call: run 2 => 63
 //@ run-call: run 0 => 27
 
 contract RepeatedStackArgs {
     uint256 private state;
 
-    // CHECK-LABEL: @module RepeatedStackArgs_runtime
-    // CHECK: add
-    // CHECK-NEXT: dup 1
-    // CHECK-NEXT: push [[RETURN:bb[0-9]+]]
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: jump
+    // STACK-LABEL: @module RepeatedStackArgs_runtime
+    // STACK: add
+    // STACK-NEXT: dup 1
+    // STACK-NEXT: push [[RETURN:bb[0-9]+]]
+    // STACK-NEXT: jump
     function run(uint256 x) external returns (uint256 result) {
         unchecked {
             uint256 a = x + 1;

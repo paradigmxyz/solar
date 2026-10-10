@@ -17,8 +17,8 @@
 -     icall panic_if_zero<0x1>, v0
 +     jumpi v0, bb5, bb4
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 1 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb5:
       v1 = add arg1, 1
@@ -80,8 +80,8 @@
     bb0:
       memory_zero 128, 32
 -     icall panic_if_zero<0x32>, false
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 50 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
       v0 = add 1, 2
@@ -95,8 +95,8 @@
 +   bb2:
       ret
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 50 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 + }
 + 

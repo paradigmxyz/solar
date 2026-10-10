@@ -22,8 +22,8 @@ impl super::LoweringContext<'_> {
         assert!(self.resolver.source_scopes.is_empty(), "exports already collected");
         self.resolver.source_scopes = self
             .hir
-            .sources()
-            .map(|source| {
+            .sources_enumerated()
+            .map(|(source_id, source)| {
                 let mut scope = Declarations::with_capacity(source.items.len());
                 for &item_id in source.items {
                     if let hir::ItemId::Function(id) = item_id
@@ -35,6 +35,17 @@ impl super::LoweringContext<'_> {
                     if let Some(name) = item.name() {
                         let decl = Declaration { res: Res::Item(item_id), span: name.span };
                         let _ = self.declare_in(&mut scope, name.name, decl);
+                    }
+                }
+                // Declare module aliases before performing any imports, like solc, so that
+                // cyclic importers can import them regardless of source order.
+                for &(item_id, import_id) in source.imports {
+                    let ast = self.sources[source_id].ast.as_ref().unwrap();
+                    let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
+                        unreachable!()
+                    };
+                    if let Some(alias) = import.source_alias() {
+                        let _ = self.declare_kind_in(&mut scope, alias, Res::Namespace(import_id));
                     }
                 }
                 scope
@@ -59,15 +70,10 @@ impl super::LoweringContext<'_> {
                     (&mut self.resolver.source_scopes[source_id], None)
                 };
                 match import.items {
-                    ast::ImportItems::Plain(_) | ast::ImportItems::Glob(_) => {
-                        if let Some(alias) = import.items.source_alias() {
-                            let _ = source_scope.declare_res(
-                                self.sess,
-                                &self.hir,
-                                alias,
-                                Res::Namespace(import_id),
-                            );
-                        } else if let Some(import_scope) = import_scope {
+                    // Module aliases are declared in `collect_exports`.
+                    ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => {}
+                    ast::ImportItems::Plain(None) => {
+                        if let Some(import_scope) = import_scope {
                             // Import all declarations.
                             for (&name, decls) in &import_scope.declarations {
                                 for decl in &decls.all {
@@ -1984,31 +1990,41 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::ElementaryType::UInt(size) if size == ast::TypeSize::ZERO => {
                     ast::ElementaryType::UInt(ast::TypeSize::new_int_bits(256))
                 }
+                ast::ElementaryType::Fixed(size, _) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::Fixed(
+                        ast::TypeSize::new_int_bits(128),
+                        ast::TypeFixedSize::new(18).unwrap(),
+                    )
+                }
+                ast::ElementaryType::UFixed(size, _) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::UFixed(
+                        ast::TypeSize::new_int_bits(128),
+                        ast::TypeFixedSize::new(18).unwrap(),
+                    )
+                }
                 ty => ty,
             }),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => hir::TypeKind::Function(
-                self.arena.alloc(hir::TypeFunction {
+            ast::TypeKind::Function(f) => {
+                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
+                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
                         self.function_id.map(hir::ItemId::Function),
-                        hir::VarKind::FunctionTyParam,
+                        hir::VarKind::FunctionTyParam(visibility),
                     ),
-                    visibility: f.visibility.map(|v| *v).unwrap_or(ast::Visibility::Public),
-                    state_mutability: f
-                        .state_mutability
-                        .map(|s| s.data)
-                        .unwrap_or(ast::StateMutability::NonPayable),
+                    visibility,
+                    state_mutability: f.state_mutability(),
                     returns: self.lower_variables_hidden(
                         f.returns(),
                         self.function_id.map(hir::ItemId::Function),
-                        hir::VarKind::FunctionTyReturn,
+                        hir::VarKind::FunctionTyReturn(visibility),
                     ),
-                }),
-            ),
+                }))
+            }
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
@@ -2463,8 +2479,14 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
-        self.try_declare(hir, name, decl)
-            .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
+        self.try_declare(hir, name, decl).map_err(|conflict| {
+            // Like solc, report the declaration that comes later in the source.
+            if conflict.span.lo() > decl.span.lo() {
+                report_conflict(hir, sess, name, conflict, decl)
+            } else {
+                report_conflict(hir, sess, name, decl, conflict)
+            }
+        })
     }
 
     pub(crate) fn try_declare(

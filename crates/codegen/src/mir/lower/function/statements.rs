@@ -18,9 +18,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
-                    let Some(initializer) = initializer else { return Some(()) };
-                    let Some(access) = self.storage_access(initializer) else {
-                        return self.cx.report_unsupported(initializer.span, "storage access");
+                    let access = if let Some(initializer) = initializer {
+                        let Some(access) = self.storage_access(initializer) else {
+                            return self.cx.report_unsupported(initializer.span, "storage access");
+                        };
+                        access
+                    } else {
+                        // An unassigned storage reference points at slot zero, like in solc.
+                        // storage_ref = slot 0
+                        StorageAccess {
+                            slot: self.builder.imm(U256::ZERO),
+                            location: StorageLocation::word(U256::ZERO),
+                            offset: None,
+                        }
                     };
                     self.storage_refs.insert(*id, access);
                     return Some(());
@@ -41,9 +51,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
                     && let Some(value) = value.as_u256()
                 {
-                    // value = constant
-                    let value = self.builder.imm(value);
-                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                    let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                    let value = self.lower_const_integer(expr_ty, value);
+                    self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
                         self.lower_yul_word_expr(expr)?
@@ -67,7 +77,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // storage slot as if it were a memory pointer.
                     let ty = self.cx.gcx.type_of_item(id.into());
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
-                }) && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
+                }) && let Some(values) = self.lower_storage_reference_values(expr.peel_parens())
                 {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
@@ -307,6 +317,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        // Like solc, a constant evaluates its initializer at every use, which can revert.
+        let gcx = self.cx.gcx;
+        if let Some(id) = gcx.resolved_variable(expr)
+            && let variable = gcx.hir.variable(id)
+            && variable.is_constant()
+            && let Some(initializer) = variable.initializer
+        {
+            if gcx.try_eval_const_value(initializer).is_ok() {
+                return Some(());
+            }
+            return self.lower_discarded_expr(initializer);
+        }
         match &expr.kind {
             // Names and `new T` have no effects to evaluate.
             ExprKind::Ident(_) | ExprKind::New(_) => Some(()),

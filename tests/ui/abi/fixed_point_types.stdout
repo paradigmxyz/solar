@@ -1,0 +1,70 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/fixed_point_types.sol:L": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "f",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "fixed128x18",
+              "internalType": "fixed128x18"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "f",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "fixed256x0",
+              "internalType": "fixed256x0"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "g",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "ufixed128x18",
+              "internalType": "ufixed128x18"
+            },
+            {
+              "name": "y",
+              "type": "ufixed8x80",
+              "internalType": "ufixed8x80"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "pure"
+        }
+      ],
+      "hashes": {
+        "f(fixed128x18)": "f469a719",
+        "f(fixed256x0)": "1f413579",
+        "g(ufixed128x18,ufixed8x80)": "0577bb6c"
+      }
+    }
+  },
+  "version": "VERSION"
+}

@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:LL:CC
+   │
+LL │             x += x;
+   ╰╴            ━━━━━━
+

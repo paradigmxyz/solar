@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/callee_low_memory_write.sol:C ===
+@module C
+fn @g(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = eq arg0, 0x3039
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = mload 64 !metadata(memory=scratch)
+    codecopy 0, 0, arg0 !metadata(memory=scratch)
+    mstore 64, v3 !metadata(memory=scratch)
+    mstore 96, 0 !metadata(memory=scratch)
+    ret arg0
+  bb1:
+    v1 = checked_add u256, arg0, 1
+    v2 = icall @g, v1
+    ret v2
+}
+
+fn @f(arg0: i256, arg1: i256) -> i256 [selector=0x13d1aa2e, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = mul arg0, 5
+    v2 = mul arg0, 7
+    v3 = mul arg0, 11
+    v4 = mul arg0, 13
+    v5 = mul arg0, 17
+    v6 = mul arg0, 19
+    v7 = mul arg0, 23
+    v8 = mul arg0, 29
+    v9 = mul arg0, 31
+    v10 = mul arg0, 37
+    v11 = mul arg0, 41
+    v12 = mul arg0, 43
+    v13 = mul arg0, 47
+    v14 = mul arg0, 53
+    v15 = mul arg0, 59
+    v16 = mul arg0, 61
+    v17 = mul arg0, 67
+    v18 = icall @g, arg1
+    v19 = add v18, v0
+    v20 = shl 1, v1
+    v21 = add v19, v20
+    v22 = shl 2, v2
+    v23 = add v21, v22
+    v24 = shl 3, v3
+    v25 = add v23, v24
+    v26 = shl 4, v4
+    v27 = add v25, v26
+    v28 = shl 5, v5
+    v29 = add v27, v28
+    v30 = shl 6, v6
+    v31 = add v29, v30
+    v32 = shl 7, v7
+    v33 = add v31, v32
+    v34 = shl 8, v8
+    v35 = add v33, v34
+    v36 = shl 9, v9
+    v37 = add v35, v36
+    v38 = shl 10, v10
+    v39 = add v37, v38
+    v40 = shl 11, v11
+    v41 = add v39, v40
+    v42 = shl 12, v12
+    v43 = add v41, v42
+    v44 = shl 13, v13
+    v45 = add v43, v44
+    v46 = shl 14, v14
+    v47 = add v45, v46
+    v48 = shl 15, v15
+    v49 = add v47, v48
+    v50 = shl 16, v16
+    v51 = add v49, v50
+    v52 = shl 17, v17
+    v53 = add v51, v52
+    ret v53
+}

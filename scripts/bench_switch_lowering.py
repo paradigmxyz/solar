@@ -2213,7 +2213,7 @@ def main() -> int:
             f"{GROWTH_SWEEP_POLICY_BUDGET}"
         ),
     )
-    parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("-j", "--jobs", type=int, default=1)
     parser.add_argument("--aggregate-only", action="store_true")
     parser.add_argument("--compile-only", action="store_true")
     analysis = parser.add_mutually_exclusive_group()

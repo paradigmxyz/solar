@@ -18,8 +18,8 @@ fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, pure, abi_params=
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -39,8 +39,8 @@ fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, pure, abi_params=
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -64,8 +64,8 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, pure, abi_params=
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -74,8 +74,8 @@ fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, pure, abi_params=
     v1 = ne arg1, 0
     jumpi v1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     v2 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
@@ -87,8 +87,8 @@ fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, pure, abi_params=
     v6 = sdiv arg0, arg1
     ret v6
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -97,8 +97,8 @@ fn @smod(arg0: i256, arg1: i256) -> i256 [selector=0x75df4bb9, pure, abi_params=
     v1 = ne arg1, 0
     jumpi v1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     v2 = smod arg0, arg1
@@ -113,8 +113,8 @@ fn @neg(arg0: i256) -> i256 [selector=0x54a53dc1, pure, abi_params=[i256], abi_r
     v2 = sub 0, arg0
     ret v2
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -126,8 +126,8 @@ fn @inc(arg0: i256) -> i256 [selector=0x812600df, pure, abi_params=[u256], abi_r
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -139,8 +139,8 @@ fn @dec(arg0: i256) -> i256 [selector=0xc20efb90, pure, abi_params=[u256], abi_r
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -155,8 +155,8 @@ fn @uadd128(arg0: i128, arg1: i128) -> i128 [selector=0xb6edec74, pure, abi_para
     v5 = trunc i256 v3 to i128
     ret v5
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -179,8 +179,8 @@ fn @umul128(arg0: i128, arg1: i128) -> i128 [selector=0x664cefee, pure, abi_para
     v13 = trunc i256 v3 to i128
     ret v13
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -212,8 +212,8 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_para
     v22 = trunc i256 v3 to i128
     ret v22
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -236,8 +236,8 @@ fn @umul192(arg0: i192, arg1: i192) -> i192 [selector=0xcf392d15, pure, abi_para
     v13 = trunc i256 v3 to i192
     ret v13
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

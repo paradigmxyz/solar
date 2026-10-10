@@ -2994,8 +2994,8 @@ fn variable_symbol_kind(variable: &hir::Variable<'_>) -> SymbolKind {
         | VarKind::Error
         | VarKind::FunctionParam
         | VarKind::FunctionReturn
-        | VarKind::FunctionTyParam
-        | VarKind::FunctionTyReturn
+        | VarKind::FunctionTyParam(_)
+        | VarKind::FunctionTyReturn(_)
         | VarKind::Statement
         | VarKind::TryCatch => SymbolKind::VARIABLE,
     }

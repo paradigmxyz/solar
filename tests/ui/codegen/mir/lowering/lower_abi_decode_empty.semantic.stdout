@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_empty.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_empty.mir (after none) ===
+  @module LowerAbiDecodeEmpty
+  fn @empty(arg0: memptr) {
+    bb0:
+      abi_decode [], arg0
+      stop
+  }
+  
+  fn @word(arg0: memptr) -> i256 {
+    bb0:
+      v0 = abi_decode [u256], arg0
+      ret v0
+  }
+  

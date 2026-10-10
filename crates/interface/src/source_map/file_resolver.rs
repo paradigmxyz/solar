@@ -79,17 +79,15 @@ impl<'a> FileResolver<'a> {
     pub fn configure_from_opts(&mut self, opts: &CompileOpts) {
         self.add_include_paths(opts.include_paths.iter().cloned());
         self.add_import_remappings(opts.import_remappings.iter().cloned());
-        if let Ok(current_dir) = std::env::current_dir() {
-            self.set_current_dir(&current_dir);
-        }
         if let Some(base_path) = &opts.base_path {
             let base_path = if base_path.is_absolute() {
                 Cow::Borrowed(base_path.as_path())
             } else {
                 let Ok(path) = self.canonicalize_unchecked(base_path) else { return };
+                let Some(current_dir) = self.env_current_dir() else { return };
                 // Loaders without a real file system, as in Standard JSON mode, may keep the path
                 // relative; resolve it lexically against the current directory, like solc.
-                Cow::Owned(self.normalize(&self.make_absolute(&path)).into_owned())
+                Cow::Owned(self.normalize(&current_dir.join(path)).into_owned())
             };
             if base_path.is_absolute() {
                 self.set_base_path(&base_path);
@@ -442,12 +440,15 @@ impl<'a> FileResolver<'a> {
         }
 
         // Canonicalize, checking symlinks and if it exists.
-        if load && let Ok(path) = self.canonicalize_unchecked(rpath) {
+        if load
+            && let rpath = generic_path(rpath.to_path_buf())
+            && let Ok(path) = self.canonicalize_unchecked(&rpath)
+        {
             return self
                 .source_map()
                 // Store the file with `rpath` as the name instead of `path`.
                 // In case of symlinks we want to reference the symlink path, not the target path.
-                .load_file_with_name(rpath.to_path_buf().into(), &path)
+                .load_file_with_name(rpath.into(), &path)
                 .map(Some)
                 .map_err(|e| ResolveError::ReadFile(path, e));
         }
@@ -504,6 +505,19 @@ pub fn apply_import_remappings<'a>(
     }
 }
 
+/// Joins the components of `path` with `/`, like boost's `generic_string`.
+fn generic_path(path: PathBuf) -> PathBuf {
+    // `/` is not a separator after a verbatim `\\?\` prefix.
+    #[cfg(windows)]
+    if !matches!(path.components().next(), Some(Component::Prefix(p)) if p.kind().is_verbatim())
+        && let Some(s) = path.to_str()
+        && let Cow::Owned(s) = sanitize_path(s)
+    {
+        return s.into();
+    }
+    path
+}
+
 fn sanitize_path(s: &str) -> Cow<'_, str> {
     #[cfg(windows)]
     {
@@ -529,6 +543,28 @@ mod tests {
         );
 
         assert_eq!(remapped, Path::new("lib/source/Target.sol"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolved_names_use_generic_windows_separators() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        std::fs::create_dir_all(base_path.join("src")).unwrap();
+        for path in ["src/A.sol", "src/B.sol"] {
+            std::fs::write(base_path.join(path), "").unwrap();
+        }
+
+        let sm = SourceMap::empty();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_current_dir(&base_path);
+        let a = resolver.resolve_file(Path::new(r"src\A.sol"), None).unwrap();
+        let b = resolver.resolve_file(Path::new("./B.sol"), a.name.as_real()).unwrap();
+
+        for (file, name) in [(a, "src/A.sol"), (b, "src/B.sol")] {
+            let path = file.name.as_real().unwrap().strip_prefix(&base_path).unwrap();
+            assert_eq!(path.to_str(), Some(name));
+        }
     }
 
     struct TestCase<'a> {

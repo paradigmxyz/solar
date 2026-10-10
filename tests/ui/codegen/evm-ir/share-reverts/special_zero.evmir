@@ -1,6 +1,8 @@
 //@compile-flags: -Zevm-ir-pipeline=share-reverts
 //@filecheck:
 @module module
+@libraries
+  L_0: "a.sol:L"
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push bb1
@@ -13,10 +15,10 @@ bb0:
   jump bb1
 
 // CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
-// CHECK: {{^[ +].*}}push_deferred 0
+// CHECK: {{^[ +].*}}push_library L_0
 // CHECK: {{^[ +].*}}revert
 bb1 [cold]:
-  push_deferred 0
+  push_library L_0
   dup 1
   revert
 
