@@ -13,9 +13,9 @@ contract AttachedFunction layout at 2.f() { //~ ERROR: failed to evaluate consta
     using L for *;
 }
 
-contract StringLiteral layout at "MyLayoutBase" {} //~ ERROR: failed to evaluate constant: unsupported literal
-contract HexStringLiteral layout at hex"616263" {} //~ ERROR: failed to evaluate constant: unsupported literal
-contract FractionalNumber layout at 4.2 {} //~ ERROR: failed to evaluate constant: unsupported literal
-contract LeadingFractionalNumber layout at .1 {} //~ ERROR: failed to evaluate constant: unsupported literal
-contract NegativeExponent layout at 42e-10 {} //~ ERROR: failed to evaluate constant: unsupported literal
-contract UnderscoredNegativeExponent layout at 1_7e-10 {} //~ ERROR: failed to evaluate constant: unsupported literal
+contract StringLiteral layout at "MyLayoutBase" {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract HexStringLiteral layout at hex"616263" {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract FractionalNumber layout at 4.2 {} //~ ERROR: rational literals are not supported
+contract LeadingFractionalNumber layout at .1 {} //~ ERROR: rational literals are not supported
+contract NegativeExponent layout at 42e-10 {} //~ ERROR: rational literals are not supported
+contract UnderscoredNegativeExponent layout at 1_7e-10 {} //~ ERROR: rational literals are not supported

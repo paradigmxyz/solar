@@ -1,0 +1,25 @@
+error[1505]: base slot of storage layout cannot be evaluated at compile time
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_ternary.sol:LL:CC
+   │
+LL │ contract Ternary layout at true ? 42 : 94 {}
+   ╰╴                           ━━━━━━━━━━━━━━ the constant evaluator does not support conditionals
+
+error[1505]: base slot of storage layout cannot be evaluated at compile time
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_ternary.sol:LL:CC
+   │
+LL │ contract TernaryOperand layout at 255 + (true ? 1 : 0) {}
+   │                                   ━━━━━━━┬───────────━
+   │                                          │
+   ╰╴                                         the constant evaluator does not support conditionals
+
+error[1505]: base slot of storage layout cannot be evaluated at compile time
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_ternary.sol:LL:CC
+   │
+LL │ uint constant T = true ? 42 : 94;
+   │                   ────────────── the constant evaluator does not support conditionals
+   ‡
+LL │ contract TernaryConstant layout at T {}
+   ╰╴                                   ━
+
+error: aborting due to 3 previous errors
+

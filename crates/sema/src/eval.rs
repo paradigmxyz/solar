@@ -7,9 +7,12 @@ use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
-// Literal arithmetic can temporarily need one bit beyond the EVM word even
-// when its final value fits, most notably `2**256 - 1`.
-const MAX_INTERMEDIATE_BITS: u64 = solar_ast::TypeSize::MAX as u64 + 1;
+// Literal arithmetic is exact like solc's rational numbers, which limit the
+// precision of every intermediate value to 4096 bits.
+const MAX_INTERMEDIATE_BITS: u64 = 4096;
+// Final values may use one bit beyond the EVM word so that `2**256` reaches the
+// callers' range checks; wider values report an overflow.
+const MAX_RESULT_BITS: u64 = TypeSize::MAX as u64 + 1;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -92,7 +95,13 @@ impl<'gcx> Gcx<'gcx> {
 }
 
 pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
-    ConstantEvaluator::new(gcx).try_eval_value(expr)
+    let value = ConstantEvaluator::new(gcx).try_eval_value(expr)?;
+    if let ConstValue::Integer(int) = &value
+        && int.bit_len() > MAX_RESULT_BITS
+    {
+        return Err(EE::ArithmeticOverflow.spanned(expr.span));
+    }
+    Ok(value)
 }
 
 /// Evaluates Solidity constant expressions.
@@ -563,8 +572,8 @@ impl IntScalar {
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
     /// in the common type of both operands. Two literals stay untyped and keep their exact value up
-    /// to `MAX_INTERMEDIATE_BITS`, a narrower bound than solc's rational arithmetic, and operands
-    /// without a common type stay untyped because the type checker already rejects them.
+    /// to `MAX_INTERMEDIATE_BITS`, like solc's rational arithmetic, and operands without a common
+    /// type stay untyped because the type checker already rejects them.
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -679,10 +688,11 @@ impl IntScalar {
             return Self::checked(if is_odd { self.data } else { BigInt::one() });
         }
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
-        if exp > U256::from(MAX_INTERMEDIATE_BITS) {
+        let exp = u32::try_from(exp).map_err(|_| EE::ArithmeticOverflow)?;
+        // Like solc, bound the result size before computing the power.
+        if self.data.magnitude().bits().saturating_mul(exp.into()) > MAX_INTERMEDIATE_BITS {
             return Err(EE::ArithmeticOverflow);
         }
-        let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Self::checked(self.data.pow(exp))
     }
 }
