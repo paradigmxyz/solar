@@ -109,12 +109,16 @@ pub(crate) const HOST_OPCODES: [u8; 21] = [
 ];
 
 /// Where a transaction places the multi-return buffer the backend keeps in memory of its own:
-/// three quarters of [`MEMORY_LIMIT`], which no execution within a block's gas reaches.
+/// three quarters of [`MEMORY_LIMIT`], which no execution within a block's gas reaches, plus the
+/// transaction's region offset.
 const MULTI_RETURN_BUFFER: u64 = MEMORY_LIMIT / 4 * 3;
 
 /// Where a transaction starts placing the allocations the backend places itself, below the
-/// multi-return buffer.
+/// multi-return buffer, plus the transaction's region offset.
 const ALLOCATION_REGION: u64 = MEMORY_LIMIT / 2;
+
+/// The largest region offset a transaction takes, which keeps both regions apart and in memory.
+pub(crate) const MAX_REGION_OFFSET: u64 = MEMORY_LIMIT / 8;
 
 /// How an execution ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -386,19 +390,28 @@ impl<'a> Machine<'a> {
         };
         let ControlFlow::Break(outcome) = run.execute(function, args, meter);
         let effects = run.world.map(|world| world.effects).unwrap_or_default();
+        let effects = kept_effects(&outcome, effects);
         Execution { outcome, effects }
     }
 
     /// Runs the module's dispatch entry as a transaction with `calldata` on `evm_version`, asking
-    /// `host` for its context, within `limits`, reporting each operation to `meter`.
+    /// `host` for its context, within `limits`, reporting each operation to `meter`. The memory
+    /// regions the interpreter places itself, for allocations and the multi-return buffer, start
+    /// `region_offset` bytes higher, up to [`MAX_REGION_OFFSET`], so a caller can tell whether a
+    /// result depends on where they are.
     pub(crate) fn transact(
         &self,
         calldata: &[u8],
         host: &mut dyn Host,
         evm_version: EvmVersion,
+        region_offset: u64,
         limits: Limits,
         meter: &mut dyn Meter,
     ) -> TransactionExecution {
+        assert!(
+            region_offset <= MAX_REGION_OFFSET && region_offset.is_multiple_of(WORD_BYTES),
+            "region offset {region_offset:#x} out of range"
+        );
         let Some(entry) = self.module.dispatch_entry() else {
             return TransactionExecution {
                 outcome: Outcome::Unsupported("module without a dispatch entry"),
@@ -418,7 +431,8 @@ impl<'a> Machine<'a> {
             transaction: Some(Transaction {
                 calldata,
                 evm_version,
-                allocations: ALLOCATION_REGION,
+                allocations: ALLOCATION_REGION + region_offset,
+                multi_return_buffer: MULTI_RETURN_BUFFER + region_offset,
             }),
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[], meter);
@@ -429,7 +443,8 @@ impl<'a> Machine<'a> {
             outcome => outcome,
         };
         let world = run.world.expect("a transaction keeps its world");
-        TransactionExecution { outcome, effects: world.effects }
+        let effects = kept_effects(&outcome, world.effects);
+        TransactionExecution { outcome, effects }
     }
 
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
@@ -496,6 +511,8 @@ struct Transaction<'t> {
     evm_version: EvmVersion,
     /// The next free byte of the region holding the allocations the backend places itself.
     allocations: u64,
+    /// Where the multi-return buffer starts.
+    multi_return_buffer: u64,
 }
 
 /// One execution in progress.
@@ -790,9 +807,10 @@ impl<'a> Run<'_, 'a, '_> {
     }
 
     /// Places an allocation whose placement the backend decides in the region the transaction
-    /// owns. Such an allocation runs at most once per call and its address never escapes, so
-    /// any fresh region serves. A fresh region is zero, as a zeroed allocation needs, and its
-    /// alignment and failure rules cannot matter for a size that fits.
+    /// owns. Such an allocation runs at most once per call, so any fresh region serves while its
+    /// address does not escape, which the transaction's region offset lets a caller check. A fresh
+    /// region is zero, as a zeroed allocation needs, and its alignment and failure rules cannot
+    /// matter for a size that fits.
     fn allocate(&mut self, size: U256, kind: &AllocationKind) -> ControlFlow<Outcome, U256> {
         let Some(transaction) = &mut self.transaction else {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
@@ -803,7 +821,7 @@ impl<'a> Run<'_, 'a, '_> {
         // address = next free byte, rounded up to a word after the region
         let address = transaction.allocations;
         let end = address + size.to::<u64>().next_multiple_of(WORD_BYTES);
-        if end > MULTI_RETURN_BUFFER {
+        if end > transaction.multi_return_buffer {
             return ControlFlow::Break(Outcome::Limit(Limit::Memory));
         }
         transaction.allocations = end;
@@ -813,18 +831,19 @@ impl<'a> Run<'_, 'a, '_> {
     /// Publishes the results after the first of a call returning several values the way the
     /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
     fn publish_multi_return(&mut self, values: &[U256]) -> ControlFlow<Outcome> {
-        if self.transaction.is_none() {
+        let Some(transaction) = &self.transaction else {
             // Further results pass through a memory buffer the backend owns.
             return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
-        }
+        };
+        let buffer = transaction.multi_return_buffer;
         // mstore buffer + 32 * k, result k
         // mstore 0x20, buffer
         for (index, &value) in values.iter().enumerate().skip(1) {
-            let offset = U256::from(MULTI_RETURN_BUFFER + index as u64 * WORD_BYTES);
+            let offset = U256::from(buffer + index as u64 * WORD_BYTES);
             limit(self.memory.store(offset, value))?;
         }
         let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        limit(self.memory.store(slot, U256::from(MULTI_RETURN_BUFFER)))
+        limit(self.memory.store(slot, U256::from(buffer)))
     }
 
     fn terminator(
@@ -939,6 +958,15 @@ impl<'a> Run<'_, 'a, '_> {
         }
         frame.block = target;
         ControlFlow::Continue(())
+    }
+}
+
+/// Returns what an execution that ended with `outcome` did outside memory: nothing unless it
+/// returned or stopped, since a revert or exceptional halt discards its writes and logs.
+fn kept_effects(outcome: &Outcome, effects: Effects) -> Effects {
+    match outcome {
+        Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop => effects,
+        _ => Effects::default(),
     }
 }
 
@@ -1173,7 +1201,7 @@ fn @storage(arg0: i256) -> i256 {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(|| {
             let module = parse_module(&sess, source).unwrap();
-            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS, &mut ())
+            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, 0, LIMITS, &mut ())
         })
     }
 

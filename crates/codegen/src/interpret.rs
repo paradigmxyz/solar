@@ -36,6 +36,10 @@ use std::fmt::Write as _;
 
 pub use crate::mir::utils::interp::{Host, Log};
 
+/// How far [`transact`] moves the regions the interpreter places itself on its second run: an odd
+/// number of words, so that no alignment hides a moved address.
+const MOVED_REGIONS: u64 = 0x2a0;
+
 /// The opcodes whose values a run asks its [`Host`] for, such as `CALLER` and `TIMESTAMP`.
 pub const HOST_READS: &[u8] = &HOST_OPCODES;
 
@@ -98,6 +102,11 @@ pub struct DumpedModule {
 
 /// Runs a transaction with `calldata` on the contract whose lowered MIR module `mir` holds, asking
 /// `host` for its context. Fails when `mir` is not a valid lowered module.
+///
+/// The backend decides where some memory goes, such as the allocations it places itself and the
+/// buffer of a call's further results, so the interpreter picks its own addresses. The
+/// transaction runs again with those regions moved, and a result that changes with them is
+/// unsupported, since the compiled code would see other addresses.
 pub fn transact(
     mir: &str,
     calldata: &[u8],
@@ -111,10 +120,16 @@ pub fn transact(
             Some(tracer) => tracer,
             None => &mut (),
         };
-        let execution =
-            Machine::new(module).transact(calldata, host, options.evm_version, limits, meter);
+        let machine = Machine::new(module);
+        let execution = machine.transact(calldata, host, options.evm_version, 0, limits, meter);
         if let Some(tracer) = &mut tracer {
             tracer.flush();
+        }
+        let moved =
+            machine.transact(calldata, host, options.evm_version, MOVED_REGIONS, limits, &mut ());
+        if (&moved.outcome, &moved.effects) != (&execution.outcome, &execution.effects) {
+            let outcome = RunOutcome::Unsupported("a result that depends on the memory layout");
+            return Ok(execution_from(outcome, Effects::default()));
         }
         Ok(execution_from(execution.outcome, execution.effects))
     })
@@ -135,7 +150,7 @@ pub fn call(
     let name = function.strip_prefix('@').unwrap_or(function);
     with_module(mir, |module| {
         let Some((id, body)) =
-            module.iter_functions().find(|(_, function)| function.name.symbol.as_str() == name)
+            module.iter_functions().find(|(_, function)| function.name.to_string() == name)
         else {
             return Err(format!("the module has no function `@{name}`"));
         };
@@ -437,6 +452,68 @@ fn @twice(arg0: i256) -> i256 {
         assert_eq!(error, "the module has no function `@missing`");
         let error = call(MODULE, "double", &[], &mut Zero, Options::default()).unwrap_err();
         assert_eq!(error, "`@double` takes 1 word, not 0 words");
+    }
+
+    #[test]
+    fn disambiguated_functions() {
+        let module = "@module Names
+@phase lowered
+fn @f.0(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @f.1(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+";
+        let run = |name| call(module, name, &[U256::from(5)], &mut Zero, Options::default());
+        assert_eq!(run("f.0").unwrap().outcome, Outcome::Return(vec![U256::from(5)]));
+        assert_eq!(run("@f.1").unwrap().outcome, Outcome::Return(vec![U256::from(6)]));
+        assert_eq!(run("f").unwrap_err(), "the module has no function `@f`");
+    }
+
+    #[test]
+    fn transactions() {
+        let transact = |body: &str| {
+            let module = format!("@module Tx\n@phase lowered\nfn @entry() [entry] {{\n{body}}}\n");
+            transact(&module, &[], &mut Zero, Options::default()).unwrap()
+        };
+        // A revert discards the transaction's writes and logs.
+        let execution = transact(
+            "  bb0:
+    sstore 1, 2
+    tstore 3, 4
+    log0 0, 0
+    revert 0, 0
+",
+        );
+        assert_eq!(execution.outcome, Outcome::Revert(Vec::new()));
+        assert_eq!((execution.storage, execution.transient, execution.logs), Default::default());
+
+        // The backend places a deferred allocation, so its address must not reach the result.
+        let alloc = "  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 7
+";
+        let execution = transact(&format!(
+            "{alloc}    v2 = mload v1
+    mstore 0, v2
+    returndata 0, 32
+"
+        ));
+        let seven = U256::from(7).to_be_bytes::<32>().to_vec();
+        assert_eq!(execution.outcome, Outcome::Success(seven));
+        let execution = transact(&format!(
+            "{alloc}    mstore 0, v1
+    returndata 0, 32
+"
+        ));
+        let unsupported = "reaches `a result that depends on the memory layout`".to_owned();
+        assert_eq!(execution.outcome, Outcome::Unsupported(unsupported));
     }
 
     #[test]
