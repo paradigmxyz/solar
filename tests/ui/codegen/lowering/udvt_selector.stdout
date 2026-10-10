@@ -28,13 +28,13 @@ bb0:
   lt
   push bb3
   jumpi
+  push 4
+  calldataload
   push 36
   calldataload
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb7
@@ -49,11 +49,11 @@ bb3 [cold]:
   push 0
   revert
 bb7 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28

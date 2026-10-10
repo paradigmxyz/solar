@@ -63,13 +63,13 @@ bb11:
   jumpi
   stop
 
-// Symbolic and deferred values are not literal words.
+// Symbolic and immutable values are not literal words.
 bb14:
   push bb100
   iszero
   stop
 bb15:
-  push_deferred 0
+  push_immutable 0, 32
   iszero
   stop
 

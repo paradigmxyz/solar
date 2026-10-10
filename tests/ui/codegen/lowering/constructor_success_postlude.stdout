@@ -1,14 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
 @module ConstructorSuccessPostlude_deployment
+@data
+  ConstructorSuccessPostlude_runtime_code_0: hex"5f5ffd"
+
 bb0:
-  push 72
+  push_data ConstructorSuccessPostlude_runtime_code_0+3
   codesize
   sub
   dup 1
-  push 72
-  push 224
+  push_data ConstructorSuccessPostlude_runtime_code_0+3
+  push 192
   codecopy
-  push 224
+  push 192
   add
   push 31
   add
@@ -20,9 +23,9 @@ bb0:
   callvalue
   push bb5
   jumpi
-  push 224
+  push 192
   dup 1
-  push 72
+  push_data ConstructorSuccessPostlude_runtime_code_0+3
   codesize
   sub
   add
@@ -37,13 +40,13 @@ bb0:
   lt
   push bb5
   jumpi
-  push 224
+  push 192
   mload
   push bb5
   jumpi
   push 3
   dup 1
-  push 69
+  push_data ConstructorSuccessPostlude_runtime_code_0
   push 0
   codecopy
   push 0

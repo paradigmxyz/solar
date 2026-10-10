@@ -2,8 +2,8 @@ contract C {
     function f() public returns (uint256 x) {
         assembly {
             stop()
-            invalid()
-            pop(sdiv(6, 2))
+            invalid() //~ WARN: unreachable code
+            pop(sdiv(6, 2)) //~ WARN: unreachable code
             pop(smod(7, 3))
             pop(lt(1, 2))
             pop(gt(2, 1))
@@ -53,9 +53,9 @@ contract C {
             pop(delegatecall(gas(), 0, 0, 0, 0, 0))
             pop(staticcall(gas(), 0, 0, 0, 0, 0))
             return(0, 0)
-            revert(0, 0)
-            selfdestruct(0)
-            pop(chainid())
+            revert(0, 0) //~ WARN: unreachable code
+            selfdestruct(0) //~ WARN: unreachable code
+            pop(chainid()) //~ WARN: unreachable code
             pop(basefee())
             pop(blobbasefee())
             pop(blobhash(0))

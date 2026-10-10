@@ -363,7 +363,6 @@ pub(super) fn declaration(
         is_constructor: function.kind == hir::FunctionKind::Constructor,
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,
-        is_yul: function.is_yul,
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
         no_inline: false,

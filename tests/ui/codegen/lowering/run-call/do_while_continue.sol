@@ -87,7 +87,7 @@ contract DoWhileContinue {
         do {
             ++i;
             continue;
-            x += x;
+            x += x; //~ WARN: unreachable code
         } while (i < 4);
         x += i;
     }

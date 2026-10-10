@@ -3,8 +3,8 @@
 //@[size] compile-flags: -Osize
 //@ run-call: run 1 => 190
 
-// Recursive internal functions use dynamic frames. The anonymous frame base adds a physical stack
-// word before arguments are stored, so the deepest argument needs a spill route before that push.
+// A call into a recursive internal function passes more arguments than `DUP` reaches, so the
+// caller must move words to memory to bring each argument within reach.
 contract DynamicCallArgs {
     function run(uint256 x) external pure returns (uint256) {
         return recurse(

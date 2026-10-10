@@ -199,7 +199,33 @@ storage.
 Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
 `tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
 
-### TYPECK-007: Comparisons of fractional literals
+### TYPECK-007: Uninitialized storage pointers are reported once per location
+
+Status: intentional.
+
+Difference: `solc` analyzes each function once per contract that inherits it
+and reports error 3464 for every analysis, so a base function with one
+uninitialized access gets one error per derived contract. `solar` runs the same
+analyses but reports each location once.
+
+Rationale: the copies point at the same code and give no extra information.
+
+Coverage: `tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol`.
+
+### TYPECK-008: Unreachable code across sources
+
+Status: intentional.
+
+Difference: when unreachable code spans a function and a modifier declared in
+another source, `solc` merges the ranges into one with mixed sources and
+reports only the part in the function's source. `solar` reports the part in
+each source.
+
+Rationale: the merged `solc` range is invalid and hides unreachable code.
+
+Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
+
+### TYPECK-009: Comparisons of fractional literals
 
 Status: intentional.
 
@@ -218,7 +244,7 @@ Coverage: `tests/ui/typeck/rational_literal_operators.sol`,
 `tests/ui/codegen/lowering/run-call/rational_literal_arithmetic.sol`, and
 `tests/ui/codegen/lowering/run-call/constant_integer_value.sol`.
 
-### TYPECK-008: Constant initializers that are not compile-time constants
+### TYPECK-010: Constant initializers that are not compile-time constants
 
 Status: parity debt.
 

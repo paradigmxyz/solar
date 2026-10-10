@@ -157,8 +157,8 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore 64, v136 !metadata(memory=scratch)
     returndata v135, v88
   bb7:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -302,8 +302,8 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v46 = add v40, 1
     jump bb9
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -344,8 +344,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -444,8 +444,8 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> memptr [may_return
     mstore v70, v80
     ret v6
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

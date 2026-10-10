@@ -1296,6 +1296,9 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if from.references_error() {
+            return from;
+        }
         if let TyKind::Enum(enum_id) = to.kind
             && matches!(from.kind, TyKind::IntLiteral(..))
             && invalid_enum_literal(self.gcx, from_expr, self.gcx.hir.enumm(enum_id).variants.len())

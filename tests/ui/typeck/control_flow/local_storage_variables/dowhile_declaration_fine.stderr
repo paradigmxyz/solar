@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_fine.sol:LL:CC
+   │
+LL │         } while(false);
+   ╰╴                ━━━━━
+

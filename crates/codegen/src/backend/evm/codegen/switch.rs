@@ -1502,19 +1502,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mid = entries.len() / 2;
         let left_label = self.asm.new_label();
-        let entry_stack = self.scheduler.stack.clone();
 
         // With the pivot on top, GT computes `pivot > selector`.
-        self.emit_stack_op(StackOp::Dup(1));
-        self.emit_operand(func, entries[mid].value_id);
+        self.asm.emit_stack_op(StackOp::Dup(1));
+        self.emit_case_value(func, entries[mid].value_id);
         self.asm.emit_op(op::GT);
-        self.scheduler.instruction_executed_untracked(2);
         self.emit_conditional_jump(left_label, false);
 
         self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
 
         self.asm.define_label(left_label);
-        self.scheduler.stack = entry_stack;
         self.emit_binary_mir_switch(func, &entries[..mid], default, can_fallthrough, leaf_size);
     }
 
@@ -1544,19 +1541,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect();
 
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         self.asm.emit_push(U256::from(bucket_count));
-        self.scheduler.stack.push_unknown();
-        self.emit_stack_op(StackOp::Swap(1));
+        self.asm.emit_stack_op(StackOp::Swap(1));
         self.asm.emit_op(op::MOD);
-        self.scheduler.instruction_executed_untracked(2);
         self.asm.emit_indexed_jump(bucket_labels.clone());
-        self.scheduler.stack.pop();
 
-        let entry_stack = self.scheduler.stack.clone();
         if let Some(empty_label) = empty_label {
             self.asm.define_label(empty_label);
-            self.scheduler.stack = entry_stack.clone();
             self.emit_mir_switch_default(default, false);
         }
         let last_bucket = buckets.iter().rposition(|bucket| !bucket.is_empty()).unwrap();
@@ -1565,7 +1557,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             self.asm.define_label(label);
-            self.scheduler.stack = entry_stack.clone();
             for entry in bucket {
                 self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
             }
@@ -1589,10 +1580,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if !low.is_zero() {
             self.asm.emit_push(low);
-            self.scheduler.stack.push_unknown();
-            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_op(op::SUB);
-            self.scheduler.instruction_executed_untracked(2);
         }
         self.emit_bounded_indexed_jump(default, range, targets);
     }
@@ -1642,26 +1631,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect::<Vec<_>>();
 
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         if shift != 0 {
             self.asm.emit_push(U256::from(shift));
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::SHR);
-            self.scheduler.instruction_executed_untracked(2);
         }
         self.asm.emit_push(U256::from(mask));
-        self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::AND);
-        self.scheduler.instruction_executed_untracked(2);
         self.asm.emit_indexed_jump(slot_labels.clone());
-        self.scheduler.stack.pop();
 
-        let entry_stack = self.scheduler.stack.clone();
         let last_slot = slots.iter().rposition(Option::is_some).unwrap();
         for (index, (label, entry)) in slot_labels.into_iter().zip(slots).enumerate() {
             let Some(entry) = entry else { continue };
             self.asm.define_label(label);
-            self.scheduler.stack = entry_stack.clone();
             self.emit_mir_switch_eq_jump_with_miss(
                 func,
                 entry.value_id,
@@ -1684,7 +1666,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if let Some(miss_label) = miss_label {
             self.asm.define_label(miss_label);
-            self.scheduler.stack = entry_stack;
             self.emit_mir_switch_default(default, can_fallthrough);
         }
     }
@@ -1706,52 +1687,38 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if !low.is_zero() {
             self.asm.emit_push(low);
-            self.scheduler.stack.push_unknown();
-            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_op(op::SUB);
-            self.scheduler.instruction_executed_untracked(2);
         }
         if multiplier != U256::ONE {
             self.asm.emit_push(multiplier);
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::MUL);
-            self.scheduler.instruction_executed_untracked(2);
         }
         if rotate != 0 {
-            self.emit_stack_op(StackOp::Dup(1));
+            self.asm.emit_stack_op(StackOp::Dup(1));
             self.asm.emit_push(U256::from(rotate));
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::SHR);
-            self.scheduler.instruction_executed_untracked(2);
-            self.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_stack_op(StackOp::Swap(1));
             self.asm.emit_push(U256::from(256 - rotate));
-            self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::SHL);
-            self.scheduler.instruction_executed_untracked(2);
             self.asm.emit_op(op::OR);
-            self.scheduler.instruction_executed_untracked(2);
         }
         self.emit_bounded_indexed_jump(default, range, targets);
     }
 
     fn emit_bounded_indexed_jump(&mut self, default: BlockId, range: usize, targets: Vec<Label>) {
         let in_range = self.asm.new_label();
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         self.asm.emit_push(U256::from(range));
-        self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
-        self.scheduler.instruction_executed_untracked(2);
         self.emit_conditional_jump(in_range, false);
 
-        let indexed_stack = self.scheduler.stack.clone();
-        self.emit_stack_op(StackOp::Pop);
-        self.emit_push_label(self.block_labels[&default]);
+        self.asm.emit_stack_op(StackOp::Pop);
+        self.asm.emit_push_label(self.block_labels[&default]);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(in_range);
-        self.scheduler.stack = indexed_stack;
         self.asm.emit_indexed_jump(targets);
-        self.scheduler.stack.pop();
     }
 
     fn emit_mir_switch_eq_jump(
@@ -1773,14 +1740,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         miss: Option<Label>,
     ) {
         // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
-        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_stack_op(StackOp::Dup(1));
         let compare_zero = value.is_some_and(|value| value.is_zero())
             && self.gcx.sess.opts.optimization != OptimizationMode::None;
         if !compare_zero {
-            self.emit_operand(func, value_id);
+            self.emit_case_value(func, value_id);
             // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
             self.asm.emit_op(if self.emitting_entry { op::EQ } else { op::SUB });
-            self.scheduler.instruction_executed_untracked(2);
         }
         if self.emitting_entry {
             self.emit_conditional_jump(self.block_labels[&target], compare_zero);
@@ -1788,24 +1754,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             let next = miss.unwrap_or_else(|| self.asm.new_label());
             self.emit_conditional_jump(next, false);
 
-            let next_stack = self.scheduler.stack.clone();
-            self.emit_stack_op(StackOp::Pop);
-            self.emit_push_label(self.block_labels[&target]);
+            self.asm.emit_stack_op(StackOp::Pop);
+            self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
 
             if miss.is_none() {
                 self.asm.define_label(next);
-                self.scheduler.stack = next_stack;
             }
         }
     }
 
     fn emit_mir_switch_default(&mut self, default: BlockId, can_fallthrough: bool) {
         if !self.emitting_entry {
-            self.emit_stack_op(StackOp::Pop);
+            self.asm.emit_stack_op(StackOp::Pop);
         }
         if !can_fallthrough {
-            self.emit_push_label(self.block_labels[&default]);
+            self.asm.emit_push_label(self.block_labels[&default]);
             self.asm.emit_op(op::JUMP);
         }
     }
@@ -1813,11 +1777,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_switch_terminator(
         &mut self,
         func: &Function,
-        value: ValueId,
         default: BlockId,
         cases: &[(ValueId, BlockId)],
         fallthrough: Option<BlockId>,
-        preserve_stack: bool,
     ) {
         let constant_entries = self.constant_switch_entries(func, cases);
         let plan = constant_entries.as_ref().map_or(
@@ -1861,40 +1823,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let plan = plan.plan;
         let constant_entries = constant_entries.map(|(_, entries)| entries);
 
-        if preserve_stack {
-            debug_assert_eq!(self.scheduler.stack.top(), Some(value));
-        } else if self.emitting_entry {
-            // The entry's just-computed selector stays on the stack
-            // through the case chain — no spill, clear, and reload —
-            // and is left inert below the taken arm instead of paying
-            // a POP. Every successor terminates externally and the
-            // entry runs once, so the leftover word cannot accumulate.
-            self.emit_value(func, value);
-            while self.scheduler.depth() > 1 {
-                self.emit_stack_op(StackOp::Swap(1));
-                self.emit_stack_op(StackOp::Pop);
-            }
-        } else {
-            let mut operands = Vec::with_capacity(cases.len() + 1);
-            operands.push(value);
-            operands.extend(cases.iter().map(|(case_val, _)| *case_val));
-            self.spill_values_before_stack_clear(func, &operands);
-
-            if self.scheduler.is_stack_only_value(value) {
-                // A stack-only scrutinee has no memory home to reload after
-                // the drain. Copy it to the top while it is still tracked and
-                // pop the rest from beneath, like the entry dispatch path.
-                self.emit_value(func, value);
-                while self.scheduler.depth() > 1 {
-                    self.emit_stack_op(StackOp::Swap(1));
-                    self.emit_stack_op(StackOp::Pop);
-                }
-            } else {
-                self.pop_all_stack_values();
-                self.emit_value(func, value);
-            }
-        }
-
         match (plan, constant_entries) {
             (SwitchPlan::Binary { leaf_size }, Some(entries)) => {
                 self.emit_binary_mir_switch(
@@ -1931,5 +1859,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_mir_switch_default(default, fallthrough == Some(default));
             }
         }
+    }
+
+    /// Pushes a constant case value.
+    fn emit_case_value(&mut self, func: &Function, value: ValueId) {
+        let value = func.value_u256(value).expect("switch case values are constants");
+        self.asm.emit_push(value);
     }
 }
