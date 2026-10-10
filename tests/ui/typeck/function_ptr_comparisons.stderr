@@ -1,4 +1,4 @@
-error: cannot apply builtin operator `!=` to `function ()` and `function () external`
+error[2271]: cannot apply builtin operator `!=` to `function ()` and `function () external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │         return internalPtr != externalPtr &&
@@ -6,7 +6,7 @@ LL │         return internalPtr != externalPtr &&
    │                │
    ╰╴               function ()
 
-error: cannot apply builtin operator `!=` to `function () pure` and `function () external`
+error[2271]: cannot apply builtin operator `!=` to `function () pure` and `function () external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │             internalTarget != this.f;
@@ -26,7 +26,7 @@ error: mismatched types
 LL │         function () external externalPtr2 = this.externalWithBool;
    ╰╴                                            ━━━━━━━━━━━━━━━━━━━━━ expected `function () external`, found `function (bool) external`
 
-error: cannot apply builtin operator `==` to `function (uint256) external` and `function () external`
+error[2271]: cannot apply builtin operator `==` to `function (uint256) external` and `function () external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │         return this.externalWithUint == externalPtr1 &&
@@ -34,7 +34,7 @@ LL │         return this.externalWithUint == externalPtr1 &&
    │                │
    ╰╴               function (uint256) external
 
-error: cannot apply builtin operator `==` to `function (bool) external` and `function () external`
+error[2271]: cannot apply builtin operator `==` to `function (bool) external` and `function () external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │             this.externalWithBool == externalPtr2 &&
@@ -42,7 +42,7 @@ LL │             this.externalWithBool == externalPtr2 &&
    │             │
    ╰╴            function (bool) external
 
-error: cannot apply builtin operator `!=` to `function (bool) external` and `function (uint256) external`
+error[2271]: cannot apply builtin operator `!=` to `function (bool) external` and `function (uint256) external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │             this.externalWithBool != this.externalWithUint;
@@ -50,7 +50,7 @@ LL │             this.externalWithBool != this.externalWithUint;
    │             │
    ╰╴            function (bool) external
 
-error: cannot apply builtin operator `==` to `function ()` and `function () external`
+error[2271]: cannot apply builtin operator `==` to `function ()` and `function () external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │         return FunctionComparisonLib.f == externalPtr ||
@@ -58,7 +58,7 @@ LL │         return FunctionComparisonLib.f == externalPtr ||
    │                │
    ╰╴               function ()
 
-error: cannot apply builtin operator `==` to `function ()` and `function ()`
+error[2271]: cannot apply builtin operator `==` to `function ()` and `function ()`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
 LL │             FunctionComparisonLib.f == FunctionComparisonLib.g;

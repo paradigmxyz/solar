@@ -1,0 +1,50 @@
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     function h(uint[(1 / 0) + 1] memory) public {}
+   │                     ━┬────━━━━━
+   │                      │
+   ╰╴                     evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     function i(uint[X / Z] memory) public {}
+   ╰╴                    ━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │         uint[(1 / 0) + 1] memory b;
+   │              ━┬────━━━━━
+   │               │
+   ╰╴              evaluation of constant value failed here
+
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     function f(uint[true ? 1 : 1 / 0] memory) public {}
+   │                                ┬ ━ ─ int_literal[1]
+   │                                │
+   │                                int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error[1211]: division by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     function g(uint[true ? 1 : X / Z] memory) public {}
+   ╰╴                               ━━━━━
+
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │         uint[true ? 1 : 1 / 0] memory a;
+   │                         ┬ ━ ─ int_literal[1]
+   │                         │
+   │                         int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error: aborting due to 6 previous errors
+

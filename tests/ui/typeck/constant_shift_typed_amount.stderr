@@ -8,9 +8,9 @@ error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
    │
 LL │         uint256[(1 << S256) >> S256] memory b;
-   │                 ┬──────────━━━━━━━━
-   │                 │
-   ╰╴                evaluation of constant value failed here
+   │                 ━┬────────━━━━━━━━━
+   │                  │
+   ╰╴                 evaluation of constant value failed here
 
 error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC

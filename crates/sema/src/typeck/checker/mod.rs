@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalErrorKind},
+    eval::{ConstValue, EvalErrorKind, IntScalar},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -74,6 +74,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
+    /// The length of the fixed-size array type being checked, whose constant evaluation reports
+    /// the first operation that fails in it.
+    array_len: Option<&'gcx hir::Expr<'gcx>>,
     /// The value components the enclosing statement discards, by expression.
     ///
     /// Only populated before Byzantium, where a dynamically encoded external return value is
@@ -156,6 +159,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
+            array_len: None,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
         }
@@ -264,11 +268,20 @@ impl<'gcx> TypeChecker<'gcx> {
     /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let array_len = self.array_len.replace(size);
         let ty = self.check_expr(size);
+        self.array_len = array_len;
         if !ty.is_integer() && !ty.references_error() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
         ty
+    }
+
+    /// Returns whether constant evaluation of the enclosing array length fails at the given
+    /// expression, in which case it reports the error.
+    fn array_len_fails_at(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.array_len
+            .is_some_and(|len| self.gcx.try_eval_const(len).is_err_and(|err| err.span == expr.span))
     }
 
     #[track_caller]
@@ -408,12 +421,35 @@ impl<'gcx> TypeChecker<'gcx> {
                 // literal type through binary operations (needed for -(1 + 2) to work).
                 if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
                     && !op.kind.is_cmp()
-                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                 {
-                    return lit_ty;
+                    match self.gcx.try_eval_const(expr) {
+                        Ok(value) => {
+                            if let Some(lit_ty) = self.int_literal_ty(value) {
+                                return lit_ty;
+                            }
+                        }
+                        // Like solc, the operator does not apply to literals it gives no value.
+                        Err(err)
+                            if !self.array_len_fails_at(expr)
+                                && matches!(
+                                    err.kind,
+                                    EvalErrorKind::DivisionByZero
+                                        | EvalErrorKind::ShiftTooLarge
+                                        | EvalErrorKind::ExponentTooLarge
+                                ) =>
+                        {
+                            let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op, false);
+                            return self.gcx.mk_ty_err(diag.note(err.kind.msg()).emit());
+                        }
+                        Err(_) => {}
+                    }
                 }
 
-                self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
+                let ty = self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false);
+                if !ty.references_error() {
+                    self.check_division_by_zero(expr, lhs_e, rhs_e, op.kind);
+                }
+                ty
             }
             hir::ExprKind::Call(wrapped_callee, ref args) => {
                 let (callee, opts) = wrapped_callee.split_call_options();
@@ -1083,11 +1119,15 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
     /// This is used to preserve literal type through literal expressions.
     fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        let result = self.gcx.try_eval_const(expr).ok()?;
-        let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
+        self.int_literal_ty(self.gcx.try_eval_const(expr).ok()?)
+    }
+
+    /// Returns the IntLiteral type of the given literal value, if it fits in one.
+    fn int_literal_ty(&self, value: &IntScalar) -> Option<Ty<'gcx>> {
+        let compatible_fixed_bytes = value.is_zero().then_some(TypeSize::ZERO);
         self.gcx.mk_ty_int_literal_with_fixed_bytes(
-            result.is_negative(),
-            result.bit_len(),
+            value.is_negative(),
+            value.bit_len(),
             compatible_fixed_bytes,
         )
     }
@@ -1116,15 +1156,59 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
+        self.gcx.mk_ty_err(self.binop_err(lhs_e, lhs, rhs_e, rhs, op, assign).emit())
+    }
+
+    /// Builds the error for a builtin binary operator that does not apply to its operands.
+    fn binop_err(
+        &self,
+        lhs_e: &'gcx hir::Expr<'gcx>,
+        lhs: Ty<'gcx>,
+        rhs_e: &'gcx hir::Expr<'gcx>,
+        rhs: Ty<'gcx>,
+        op: hir::BinOp,
+        assign: bool,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
-        let mut err = self.dcx().err(msg).span(op.span);
-        err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
-        err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
-        self.gcx.mk_ty_err(err.emit())
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        self.dcx()
+            .err(msg)
+            .code(code)
+            .span(op.span)
+            .span_label(lhs_e.span, lhs.display(self.gcx).to_string())
+            .span_label(rhs_e.span, rhs.display(self.gcx).to_string())
+    }
+
+    /// Reports a constant division or modulo by zero, like solc's static analyzer.
+    ///
+    /// The left operand must be constant too, as solc only reports it for constant operands.
+    fn check_division_by_zero(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        lhs: &'gcx hir::Expr<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
+        op: hir::BinOpKind,
+    ) {
+        let msg = match op {
+            hir::BinOpKind::Div => "division by zero",
+            hir::BinOpKind::Rem => "modulo zero",
+            _ => return,
+        };
+        if self.gcx.try_eval_const(lhs).is_ok()
+            && self.is_const_zero(rhs)
+            && !self.array_len_fails_at(expr)
+        {
+            self.dcx().err(msg).code(error_code!(1211)).span(expr.span).emit();
+        }
+    }
+
+    /// Returns whether the given expression is a constant zero.
+    fn is_const_zero(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.gcx.try_eval_const(expr).is_ok_and(|value| value.is_zero())
     }
 
     fn check_user_unop(
@@ -1863,6 +1947,14 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             Builtin::AbiEncodeCall => self.check_abi_encode_call_args(call_span, args.span, exprs),
             Builtin::AbiDecode => Ok(()),
+            // Like solc's static analyzer, reject a constant zero modulus.
+            Builtin::AddMod | Builtin::MulMod => match exprs {
+                [_, _, modulus] if self.is_const_zero(modulus) => {
+                    let msg = "arithmetic modulo zero";
+                    Err(self.dcx().err(msg).code(error_code!(4195)).span(call_span).emit())
+                }
+                _ => Ok(()),
+            },
             _ => Ok(()),
         }
     }
@@ -3984,7 +4076,6 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
-        | TyKind::Struct(_)
         | TyKind::Enum(_)
         | TyKind::Error(..)
         | TyKind::Event(..) => {
@@ -4016,6 +4107,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
+        | TyKind::Struct(_)
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)
