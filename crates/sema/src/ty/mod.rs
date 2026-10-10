@@ -947,12 +947,28 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
+        self.type_of_hir_ty_with(ty, crate::eval::eval_array_len)
+    }
+
+    /// Computes the [`Ty`] of the given [`hir::Type`] in expression position, such as `uint[0]` in
+    /// `abi.decode(data, (uint[0]))`. Not cached.
+    ///
+    /// Unlike array type names, array type expressions may have zero length.
+    pub fn type_of_hir_ty_expr(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
+        self.type_of_hir_ty_with(ty, crate::eval::eval_array_expr_len)
+    }
+
+    fn type_of_hir_ty_with(
+        self,
+        ty: &hir::Type<'_>,
+        eval_array_len: fn(Self, &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed>,
+    ) -> Ty<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
-                let elem = self.type_of_hir_ty(&array.element);
+                let elem = self.type_of_hir_ty_with(&array.element, eval_array_len);
                 match array.size {
-                    Some(size) => match crate::eval::eval_array_len(self, size) {
+                    Some(size) => match eval_array_len(self, size) {
                         Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
@@ -975,8 +991,8 @@ impl<'gcx> Gcx<'gcx> {
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
-                let key = self.type_of_hir_ty(&mapping.key);
-                let value = self.type_of_hir_ty(&mapping.value);
+                let key = self.type_of_hir_ty_with(&mapping.key, eval_array_len);
+                let value = self.type_of_hir_ty_with(&mapping.value, eval_array_len);
                 TyKind::Mapping(key, value)
             }
             hir::TypeKind::Custom(item) => return self.type_of_item_simple(item, ty.span),
@@ -1959,29 +1975,14 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         }
 
         for &field_id in s.fields {
-            let field = gcx.hir.variable(field_id);
-            let mut check = |ty: &hir::Type<'_>, dynamic: bool| {
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
-                    match cd.run(other) {
-                        CycleDetectorResult::Continue => {}
-                        CycleDetectorResult::Cycle(_) if dynamic => {
-                            return CycleDetectorResult::Break(Either::Right(()));
-                        }
-                        r => return r,
-                    }
+            let ty = &gcx.hir.variable(field_id).ty;
+            let r = visit_stored_structs(ty, false, &mut |other, dynamic| match cd.run(other) {
+                CycleDetectorResult::Cycle(_) if dynamic => {
+                    ControlFlow::Break(CycleDetectorResult::Break(Either::Right(())))
                 }
-                CycleDetectorResult::Continue
-            };
-            let mut dynamic = false;
-            let mut ty = &field.ty;
-            while let hir::TypeKind::Array(array) = ty.kind {
-                if array.size.is_none() {
-                    dynamic = true;
-                }
-                ty = &array.element;
-            }
-            cdr_try!(check(ty, dynamic));
-            if let ControlFlow::Break(r) = field.ty.visit(&gcx.hir, &mut |ty| check(ty, true).to_controlflow()) {
+                r => r.to_controlflow(),
+            });
+            if let ControlFlow::Break(r) = r {
                 return r;
             }
         }
@@ -2174,6 +2175,29 @@ fn is_value_ns(id: hir::ItemId) -> bool {
             | hir::ItemId::Error(_)
             | hir::ItemId::Event(_)
     )
+}
+
+/// Calls `f` on each struct stored in a value of type `ty`, with whether a dynamic array or a
+/// mapping sits between the value and the struct.
+///
+/// Function types do not store their parameter types, so a struct reached only through one is not
+/// recursive, as in solc's `DeclarationTypeChecker`.
+fn visit_stored_structs<T>(
+    ty: &hir::Type<'_>,
+    dynamic: bool,
+    f: &mut impl FnMut(hir::StructId, bool) -> ControlFlow<T>,
+) -> ControlFlow<T> {
+    match ty.kind {
+        hir::TypeKind::Custom(hir::ItemId::Struct(id)) => f(id, dynamic),
+        hir::TypeKind::Array(array) => {
+            visit_stored_structs(&array.element, dynamic || array.size.is_none(), f)
+        }
+        hir::TypeKind::Mapping(mapping) => {
+            visit_stored_structs(&mapping.key, true, f)?;
+            visit_stored_structs(&mapping.value, true, f)
+        }
+        _ => ControlFlow::Continue(()),
+    }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.

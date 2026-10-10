@@ -261,7 +261,8 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks the length expression of a fixed-size array type.
     ///
     /// Any integer expression is accepted, whatever its declared signedness and width. Only the
-    /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
+    /// evaluated value matters, and [`crate::eval::eval_array_len`] or
+    /// [`crate::eval::eval_array_expr_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let ty = self.check_expr(size);
@@ -588,13 +589,21 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
                     result_ty
-                } else if let TyKind::Type(elem_ty) = ty.kind {
+                } else if let TyKind::Type(mut elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
+                    if let TyKind::Contract(id) = elem_ty.kind
+                        && self.gcx.hir.contract(id).kind.is_library()
+                    {
+                        let msg = "index access for library types is not possible";
+                        let guar =
+                            self.dcx().err(msg).code(error_code!(2876)).span(expr.span).emit();
+                        elem_ty = self.gcx.mk_ty_err(guar);
+                    }
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
+                            .and_then(|()| crate::eval::eval_array_expr_len(self.gcx, index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -871,7 +880,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
-                self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
+                self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty_expr(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
                 // For integer literal negation and bitwise negation, don't propagate the expected

@@ -1,0 +1,8 @@
+error: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/zero_length_type_expr.sol:LL:CC
+   │
+LL │         uint[0] memory a;
+   ╰╴             ━
+
+error: aborting due to 1 previous error
+
