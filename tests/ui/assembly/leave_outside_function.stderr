@@ -1,0 +1,20 @@
+error[8149]: keyword `leave` can only be used inside a function
+   ╭▸ ROOT/tests/ui/assembly/leave_outside_function.sol:LL:CC
+   │
+LL │             leave
+   ╰╴            ━━━━━
+
+error[8149]: keyword `leave` can only be used inside a function
+   ╭▸ ROOT/tests/ui/assembly/leave_outside_function.sol:LL:CC
+   │
+LL │                 leave
+   ╰╴                ━━━━━
+
+error[8149]: keyword `leave` can only be used inside a function
+   ╭▸ ROOT/tests/ui/assembly/leave_outside_function.sol:LL:CC
+   │
+LL │                 leave
+   ╰╴                ━━━━━
+
+error: aborting due to 3 previous errors
+

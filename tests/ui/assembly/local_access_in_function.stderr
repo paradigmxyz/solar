@@ -1,0 +1,20 @@
+error[6578]: cannot access local Solidity variables from inside an inline assembly function
+   ╭▸ ROOT/tests/ui/assembly/local_access_in_function.sol:LL:CC
+   │
+LL │                 x := 42
+   ╰╴                ━
+
+error[6578]: cannot access local Solidity variables from inside an inline assembly function
+   ╭▸ ROOT/tests/ui/assembly/local_access_in_function.sol:LL:CC
+   │
+LL │                     q := p
+   ╰╴                         ━
+
+error[6578]: cannot access local Solidity variables from inside an inline assembly function
+   ╭▸ ROOT/tests/ui/assembly/local_access_in_function.sol:LL:CC
+   │
+LL │                 r := ptr.slot
+   ╰╴                     ━━━
+
+error: aborting due to 3 previous errors
+

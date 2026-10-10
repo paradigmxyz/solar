@@ -48,8 +48,8 @@ contract C {
     function y() public pure returns (uint r) {
         // Yul does not reserve these names.
         assembly {
-            let fixed8x8 := 1
-            r := fixed8x8
+            let ufixed16x4 := 1
+            r := ufixed16x4
         }
     }
 }

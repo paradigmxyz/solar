@@ -4,7 +4,8 @@ use crate::{
     ty::{Ty, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
+use solar_data_structures::smallvec::SmallVec;
+use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, error_code, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
     pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
@@ -62,10 +63,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit_err(span, "assembly access to immutable variables is not supported"));
         }
 
-        if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
+        if var.is_constant() && !self.in_lvalue() && !self.is_yul_number_constant(var_id) {
             return Err(self
                 .dcx()
-                .emit_err(span, "only direct number constants are supported in inline assembly"));
+                .err("only direct number constants are supported in inline assembly")
+                .code(error_code!(7615))
+                .span(span)
+                .emit());
         }
 
         if var.is_state_variable() && !var.is_constant() {
@@ -104,11 +108,42 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(true)
     }
 
+    /// Returns whether inline assembly can read the constant `id`: a value type constant whose
+    /// value is a literal or a number expression, or a constant that only names such a constant.
+    ///
+    /// Constants without a value and circular constants are reported elsewhere.
+    fn is_yul_number_constant(&self, mut id: hir::VariableId) -> bool {
+        let mut seen = SmallVec::<[_; 4]>::new();
+        loop {
+            let Some(value) = self.gcx.hir.variable(id).initializer else { return true };
+            let next = match value.kind {
+                hir::ExprKind::Ident(&[hir::Res::Item(hir::ItemId::Variable(next))])
+                    if self.gcx.hir.variable(next).is_constant() =>
+                {
+                    next
+                }
+                _ => {
+                    return self.gcx.type_of_item(id.into()).is_value_type()
+                        && (matches!(value.kind, hir::ExprKind::Lit(_)) || value.is_int_literal());
+                }
+            };
+            seen.push(id);
+            if seen.contains(&next) {
+                return true;
+            }
+            id = next;
+        }
+    }
+
     pub(super) fn check_yul_member(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         member: Ident,
     ) -> Ty<'gcx> {
+        if let hir::ExprKind::Err(guar) = expr.kind {
+            return self.gcx.mk_ty_err(guar);
+        }
+
         enum ErrorKind {
             NonVariable,
             Immutable,

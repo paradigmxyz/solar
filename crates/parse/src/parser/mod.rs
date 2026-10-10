@@ -10,6 +10,7 @@ use solar_interface::{
     diagnostics::DiagCtxt,
     error_code,
     source_map::{FileName, SourceFile},
+    sym,
 };
 use std::{fmt, path::Path};
 
@@ -1104,9 +1105,24 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             } else {
                 return Err(err);
             }
+        } else if self.in_yul {
+            self.check_yul_ident(ident);
         }
         self.bump();
         Ok(ident)
+    }
+
+    /// Reports a Yul identifier that the parser accepts but solc reserves.
+    fn check_yul_ident(&self, ident: Ident) {
+        let (code, msg) =
+            if !self.pure_yul && matches!(ident.name, sym::this | sym::super_ | sym::underscore) {
+                (error_code!(4113), format!("identifier name `{ident}` is reserved"))
+            } else if ident.name.is_reserved_yul_identifier() {
+                (error_code!(5017), format!("identifier `{ident}` is reserved and cannot be used"))
+            } else {
+                return;
+            };
+        self.dcx().err(msg).code(code).span(ident.span).emit();
     }
 
     #[inline]

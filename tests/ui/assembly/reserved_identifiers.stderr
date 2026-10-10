@@ -1,0 +1,122 @@
+error[5017]: identifier `dup1` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function dup1(dup2) -> dup3 {}
+   ╰╴                     ━━━━
+
+error[5017]: identifier `dup2` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function dup1(dup2) -> dup3 {}
+   ╰╴                          ━━━━
+
+error[5017]: identifier `dup3` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function dup1(dup2) -> dup3 {}
+   ╰╴                                   ━━━━
+
+error[5017]: identifier `dup4` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let dup4
+   ╰╴                ━━━━
+
+error[5017]: identifier `loadimmutable` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function loadimmutable(setimmutable) -> datasize {}
+   ╰╴                     ━━━━━━━━━━━━━
+
+error[5017]: identifier `setimmutable` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function loadimmutable(setimmutable) -> datasize {}
+   ╰╴                                   ━━━━━━━━━━━━
+
+error[5017]: identifier `datasize` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function loadimmutable(setimmutable) -> datasize {}
+   ╰╴                                                    ━━━━━━━━
+
+error[5017]: identifier `dataoffset` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let dataoffset
+   ╰╴                ━━━━━━━━━━
+
+error[5017]: identifier `linkersymbol` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             function linkersymbol(a) {}
+   ╰╴                     ━━━━━━━━━━━━
+
+error[5017]: identifier `linkersymbol` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let linkersymbol := 1
+   ╰╴                ━━━━━━━━━━━━
+
+error[5017]: identifier `datacopy` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let datacopy := 1
+   ╰╴                ━━━━━━━━
+
+error[5017]: identifier `swap16` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let swap16 := 1
+   ╰╴                ━━━━━━
+
+error[5017]: identifier `jump` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let jump := 1
+   ╰╴                ━━━━
+
+error[5017]: identifier `jumpi` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let jumpi := 1
+   ╰╴                ━━━━━
+
+error[5017]: identifier `jumpdest` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let jumpdest := 1
+   ╰╴                ━━━━━━━━
+
+error[5017]: identifier `pc` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let pc := 1
+   ╰╴                ━━
+
+error[5017]: identifier `push0` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let push0 := 1
+   ╰╴                ━━━━━
+
+error[5017]: identifier `push32` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let push32 := 1
+   ╰╴                ━━━━━━
+
+error[5017]: identifier `dup16` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let dup16 := 1
+   ╰╴                ━━━━━
+
+error[5017]: identifier `swap1` is reserved and cannot be used
+   ╭▸ ROOT/tests/ui/assembly/reserved_identifiers.sol:LL:CC
+   │
+LL │             let swap1 := 1
+   ╰╴                ━━━━━
+
+error: aborting due to 20 previous errors
+
