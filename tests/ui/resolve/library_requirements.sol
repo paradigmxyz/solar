@@ -1,6 +1,7 @@
 library A{}
 
 library B is A {} //~ERROR: library is not allowed to inherit
+//~^ ERROR: libraries cannot be inherited from
 
 library C {
     uint256 constant x = 1;

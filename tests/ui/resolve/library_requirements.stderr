@@ -10,5 +10,11 @@ error: library cannot have non-constant state variable
 LL │     uint256 y;
    ╰╴    ━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error[2571]: libraries cannot be inherited from
+   ╭▸ ROOT/tests/ui/resolve/library_requirements.sol:LL:CC
+   │
+LL │ library B is A {}
+   ╰╴             ━
+
+error: aborting due to 3 previous errors
 
