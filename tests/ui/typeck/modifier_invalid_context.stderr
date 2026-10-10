@@ -1,0 +1,32 @@
+error[3112]: modifier can only be referenced in function headers
+   ╭▸ ROOT/tests/ui/typeck/modifier_invalid_context.sol:LL:CC
+   │
+LL │         mod  ;
+   ╰╴        ━━━
+
+error[3112]: modifier can only be referenced in function headers
+   ╭▸ ROOT/tests/ui/typeck/modifier_invalid_context.sol:LL:CC
+   │
+LL │     uint a = m(1000);
+   ╰╴             ━
+
+error[3112]: modifier can only be referenced in function headers
+   ╭▸ ROOT/tests/ui/typeck/modifier_invalid_context.sol:LL:CC
+   │
+LL │         m(1);
+   ╰╴        ━
+
+error[3112]: modifier can only be referenced in function headers
+   ╭▸ ROOT/tests/ui/typeck/modifier_invalid_context.sol:LL:CC
+   │
+LL │         function (uint) internal x = m;
+   ╰╴                                     ━
+
+error[3112]: modifier can only be referenced in function headers
+   ╭▸ ROOT/tests/ui/typeck/modifier_invalid_context.sol:LL:CC
+   │
+LL │         m(1);
+   ╰╴        ━
+
+error: aborting due to 5 previous errors
+

@@ -1,0 +1,14 @@
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/bare_require.sol:LL:CC
+   │
+LL │     function f() pure public { require; }
+   ╰╴                               ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/bare_require.sol:LL:CC
+   │
+LL │         function(bool) pure x = require;
+   ╰╴                                ━━━━━━━
+
+error: aborting due to 2 previous errors
+

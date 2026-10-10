@@ -1,0 +1,10 @@
+error[1400]: `msg.gas` has been removed
+   ╭▸ ROOT/tests/ui/typeck/msg_gas.sol:LL:CC
+   │
+LL │     function f() public view returns (uint256 val) { return msg.gas; }
+   │                                                             ━━━━━━━
+   │
+   ╰ help: use `gasleft()` instead
+
+error: aborting due to 1 previous error
+
