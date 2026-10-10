@@ -1,0 +1,8 @@
+error[9259]: only constants of value type and byte array type are implemented
+   ╭▸ ROOT/tests/ui/typeck/constants/assignment_to_const_array_vars.sol:LL:CC
+   │
+LL │     uint[3] constant x = [uint(1), 2, 3];
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

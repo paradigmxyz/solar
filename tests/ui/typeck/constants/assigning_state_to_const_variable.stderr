@@ -1,0 +1,8 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/assigning_state_to_const_variable.sol:LL:CC
+   │
+LL │     address constant x = msg.sender;
+   ╰╴                         ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

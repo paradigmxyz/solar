@@ -1,0 +1,14 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/cyclic_via_user_operators.sol:LL:CC
+   │
+LL │ Type constant u = v + t;
+   ╰╴                  ━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/cyclic_via_user_operators.sol:LL:CC
+   │
+LL │ Type constant v = u + t;
+   ╰╴                  ━━━━━
+
+error: aborting due to 2 previous errors
+

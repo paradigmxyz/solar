@@ -26,6 +26,7 @@ use solar_interface::{
 };
 use std::ops::ControlFlow;
 
+mod pure;
 mod yul;
 
 #[derive(Clone, Copy)]
@@ -2912,6 +2913,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.expect_ty(init, ty)
                 };
+                if var.is_constant() && !ty.references_error() && !self.is_pure(init) {
+                    self.dcx()
+                        .err("initial value for constant variable has to be compile-time constant")
+                        .code(error_code!(8349))
+                        .span(init.span)
+                        .emit();
+                }
             }
         }
 
