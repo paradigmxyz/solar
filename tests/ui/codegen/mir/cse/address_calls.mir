@@ -32,8 +32,10 @@ fn @capture(arg0: i256, arg1: memptr) -> i256 {
     v1 = icall returndata_bytes<>
     v2 = address_call v7, arg1
     v3 = icall returndata_bytes<>
-    v4 = memory_object_len memorybytes, v1
-    v5 = memory_object_len memorybytes, v3
+    v8 = memory_slice v1
+    v4 = slice_len v8
+    v9 = memory_slice v3
+    v5 = slice_len v9
     v6 = add v4, v5
     ret v6
 }

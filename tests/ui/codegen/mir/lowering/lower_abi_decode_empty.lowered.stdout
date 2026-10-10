@@ -4,12 +4,13 @@
   fn @empty(arg0: memptr) {
     bb0:
 -     abi_decode [], arg0
-+     v0 = memory_object_data memorybytes, arg0
-+     v1 = memory_object_len memorybytes, arg0
-+     v2 = ptrtoint memptr v0 to i256
-+     v3 = add v2, v1
-+     v4 = slt v1, 0
-+     jumpi v4, bb1, bb2
++     v0 = memory_slice arg0
++     v1 = slice_ptr v0
++     v2 = inttoptr i256 v1 to memptr
++     v3 = slice_len v0
++     v4 = add v1, v3
++     v5 = slt v3, 0
++     jumpi v5, bb1, bb2
 +   bb2:
       stop
 +   bb1:
@@ -20,15 +21,15 @@
     bb0:
 -     v0 = abi_decode [u256], arg0
 -     ret v0
-+     v1 = memory_object_data memorybytes, arg0
-+     v2 = memory_object_len memorybytes, arg0
-+     v3 = ptrtoint memptr v1 to i256
-+     v4 = add v3, v2
-+     v5 = slt v2, 32
-+     jumpi v5, bb1, bb2
++     v1 = memory_slice arg0
++     v2 = slice_ptr v1
++     v3 = inttoptr i256 v2 to memptr
++     v4 = slice_len v1
++     v5 = add v2, v4
++     v6 = slt v4, 32
++     jumpi v6, bb1, bb2
 +   bb2:
-+     v6 = ptrtoint memptr v1 to i256
-+     v7 = mload v6
++     v7 = mload v2
 +     ret v7
 +   bb1:
 +     revert 0, 0

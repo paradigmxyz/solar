@@ -368,7 +368,7 @@ class Context:
         if name.startswith("Op."):
             return self.operation(name, [self.constructor(a) for a in args])
         values = [self.constructor(a) for a in args]
-        if name in ("object_data_offset", "field_offset", "layout_kind"):
+        if name == "field_offset":
             return self.memory.constructor(name, tuple(values))
         if name == "integer_imm" and len(values) == 2:
             if self.integer_width is None or values[0] != self.integer_width:

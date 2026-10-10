@@ -12,20 +12,22 @@ fn @constructor() [constructor] {
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, 41
-    v5 = icall @readWord, v2
-    v6 = checked_add u256, v5, 1
-    storeimmutable answer, v6
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v7, 1
-    v8 = memory_object_data memorybytes, v7
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 41
+    v6 = icall @readWord, v2
+    v7 = checked_add u256, v6, 1
+    storeimmutable answer, v7
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v9 = ptrtoint memptr v8 to i256
-    mstore v9, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v10 = icall @toShort, v7
-    storeimmutable shortWord, v10
+    mstore v9, 1
+    v10 = ptrtoint memptr v8 to i256
+    v11 = add v10, 32
+    mstore v11, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v12 = icall @toShort, v8
+    storeimmutable shortWord, v12
     ret
 }
 
@@ -43,12 +45,13 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, arg0
-    v5 = icall @readWord, v2
-    ret v5
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, arg0
+    v6 = icall @readWord, v2
+    ret v6
 }
 
 fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -56,15 +59,16 @@ fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], ab
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
-    v5 = icall @choose, v2, arg0
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = insert_value struct0, undef struct0, 0, v5
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 42
+    v6 = icall @choose, v2, arg0
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = insert_value struct0, undef struct0, 0, v6
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }
 
 fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -72,56 +76,61 @@ fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[u256], 
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 42
     icall @overwrite, v2, arg0
-    v5 = icall @readWord, v2
-    ret v5
+    v6 = icall @readWord, v2
+    ret v6
 }
 
 fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 0
-    v1 = memory_object_data memorybytes, v0
-    v2 = icall @readWord, v0
-    ret v2
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 0
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    v4 = icall @readWord, v0
+    ret v4
 }
 
 fn @readWord(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = eq v0, 32
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = ptrtoint memptr arg0 to i256
-    v4 = add v3, 32
-    v5 = mload v4
-    ret v5
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = eq v1, 32
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    v4 = ptrtoint memptr arg0 to i256
+    v5 = add v4, 32
+    v6 = mload v5
+    ret v6
 }
 
 fn @toShort(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = lt v0, 32
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = not 0
-    v4 = ptrtoint memptr arg0 to i256
-    v5 = mload v4
-    v6 = sub 32, v5
-    v7 = mul v6, 8
-    v8 = shl v7, v3
-    v9 = ptrtoint memptr arg0 to i256
-    v10 = mload v9
-    v11 = ptrtoint memptr arg0 to i256
-    v12 = add v11, 32
-    v13 = mload v12
-    v14 = and v13, v8
-    v15 = or v14, v10
-    ret v15
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt v1, 32
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    v4 = not 0
+    v5 = ptrtoint memptr arg0 to i256
+    v6 = mload v5
+    v7 = sub 32, v6
+    v8 = mul v7, 8
+    v9 = shl v8, v4
+    v10 = ptrtoint memptr arg0 to i256
+    v11 = mload v10
+    v12 = ptrtoint memptr arg0 to i256
+    v13 = add v12, 32
+    v14 = mload v13
+    v15 = and v14, v9
+    v16 = or v15, v11
+    ret v16
 }
 
 fn @choose(arg0: memptr, arg1: i1) -> i256 {

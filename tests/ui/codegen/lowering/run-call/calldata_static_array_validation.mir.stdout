@@ -101,13 +101,16 @@ fn @copyToMemory(arg0: calldataslice) -> i8 [selector=0x13aac4cb, pure, abi_para
     jumpi v6, bb2, bb3
   bb3:
     v14 = make_calldata_slice v0, 64
-    memory_object_copy_from_slice memoryfixedarray, v4, v14
-    v15 = lt 1, 2
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = memory_object_load_element memoryfixedarray<2, 1>, v4, 1
-    v18 = trunc i256 v17 to i8
-    ret v18
+    v15 = ptrtoint memptr v4 to i256
+    v16 = slice_len v14
+    v17 = make_memory_slice v15, v16
+    slice_copy v17, 0, v14
+    v18 = lt 1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = memory_object_load_element memoryfixedarray<2, 1>, v4, 1
+    v21 = trunc i256 v20 to i8
+    ret v21
   bb2:
     v7 = mul v5, 32
     v8 = add v0, v7

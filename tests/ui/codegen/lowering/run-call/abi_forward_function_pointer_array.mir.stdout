@@ -30,44 +30,46 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
-    set_memory_object_len memoryarray, v23, v2
+    v24 = ptrtoint memptr v23 to i256
+    mstore v24, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v34]
-    v25 = lt v24, v2
-    jumpi v25, bb2, bb3
+    v25 = phi [bb0: 0], [bb2: v36]
+    v26 = lt v25, v2
+    jumpi v26, bb2, bb3
   bb3:
-    v35 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
-    v36 = slice_ptr v35
-    v37 = slice_len v35
-    v38 = zext i160 v0 to i256
-    v39 = staticcall v1, v38, v36, v37, 0, 32
-    jumpi v39, bb5, bb4
+    v37 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = zext i160 v0 to i256
+    v41 = staticcall v1, v40, v38, v39, 0, 32
+    jumpi v41, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v40 = returndatasize
-    v41 = lt v40, 32
-    icall revert_if<tuple_data_too_short>, v41
-    v42 = add 0, 0
-    v43 = mload v42
-    v44 = lt v43, 2
-    v45 = eq v44, false
-    icall revert_if<empty>, v45
-    v46 = ne v43, 0
-    ret v46
+    v42 = returndatasize
+    v43 = lt v42, 32
+    icall revert_if<tuple_data_too_short>, v43
+    v44 = add 0, 0
+    v45 = mload v44
+    v46 = lt v45, 2
+    v47 = eq v46, false
+    icall revert_if<empty>, v47
+    v48 = ne v45, 0
+    ret v48
   bb2:
-    v26 = mul v24, 32
-    v27 = add v3, v26
-    v28 = calldataload v27
-    v29 = shl 192, v28
-    v30 = eq v29, 0
-    v31 = eq v30, false
-    icall revert_if<empty>, v31
-    v32 = shr 64, v28
-    v33 = shl 64, v32
-    memory_object_store_element memoryarray<1>, v23, v24, v33
-    v34 = add v24, 1
+    v27 = mul v25, 32
+    v28 = add v3, v27
+    v29 = calldataload v28
+    v30 = shl 192, v29
+    v31 = eq v30, 0
+    v32 = eq v31, false
+    icall revert_if<empty>, v32
+    v33 = shr 64, v29
+    v34 = shl 64, v33
+    v35 = memory_slice v23
+    slice_store_element v35, v25, v34
+    v36 = add v25, 1
     jump bb1
 }
 

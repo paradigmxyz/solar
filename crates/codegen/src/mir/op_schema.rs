@@ -1592,42 +1592,20 @@ define_mir_ops! {
         /// Alignment, initialization, and failure behavior.
         semantics: AllocationSemantics,
     },
-    /// Read the logical length of a dynamic memory object.
+    /// Read a dynamic memory object's header into a view of its payload.
+    ///
+    /// The view starts after the length word and carries the length stored there.
     #[mir_op(
-        mnemonic = "memory_object_len",
-        result = I256,
+        mnemonic = "memory_slice",
+        result = Custom,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object)]))]
-    MemoryObjectLen(object: ValueId, kind: MemoryObjectKind),
-    /// Set the logical length of a dynamic memory object.
-    #[mir_op(
-        mnemonic = "set_memory_object_len",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = true,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
-    SetMemoryObjectLen(object: ValueId, len: ValueId, kind: MemoryObjectKind),
-    /// Project the address of the first payload byte from an object.
-    #[mir_op(
-        mnemonic = "memory_object_data",
-        result = MemPtr,
-        phases = PhaseSet::SEMANTIC,
-        effect = Pure,
-        traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object)]))]
-    MemoryObjectData(object: ValueId, kind: MemoryObjectKind),
+    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
+    MemorySlice(object: ValueId),
     /// Address a direct field of a struct object.
     #[mir_op(
         mnemonic = "memory_object_field_addr",
@@ -1725,23 +1703,6 @@ define_mir_ops! {
         /// Runtime element index.
         index: ValueId,
     },
-    /// Load one byte from a bytes object without exposing its physical address.
-    #[mir_op(
-        mnemonic = "memory_object_load_byte",
-        result = I256,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryRead,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object), MirType::I256]))]
-    MemoryObjectLoadByte {
-        /// Bytes object reference.
-        object: ValueId,
-        /// Runtime byte index.
-        index: ValueId,
-    },
     /// Store one array element without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_store_element",
@@ -1763,9 +1724,26 @@ define_mir_ops! {
         /// Value to store.
         value: ValueId,
     },
-    /// Store one byte in a bytes object without exposing its physical address.
+    /// Load one word-sized element from a slice.
     #[mir_op(
-        mnemonic = "memory_object_store_byte",
+        mnemonic = "slice_load_element",
+        result = Word,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryRead,
+        traits = OpTraits::MEMORY_OBJECT,
+        side_effects = false,
+        category = Some("memory-object")
+    )]
+    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice), MirType::I256]))]
+    SliceLoadElement {
+        /// Memory or calldata slice.
+        slice: ValueId,
+        /// Runtime element index.
+        index: ValueId,
+    },
+    /// Store one word-sized element in a memory slice.
+    #[mir_op(
+        mnemonic = "slice_store_element",
         result = None,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
@@ -1773,19 +1751,54 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, MirType::I256]))]
-    MemoryObjectStoreByte {
-        /// Bytes object reference.
-        object: ValueId,
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, MirType::I256]))]
+    SliceStoreElement {
+        /// Memory slice.
+        slice: ValueId,
+        /// Runtime element index.
+        index: ValueId,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Load one byte from a slice.
+    #[mir_op(
+        mnemonic = "slice_load_byte",
+        result = I256,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryRead,
+        traits = OpTraits::MEMORY_OBJECT,
+        side_effects = false,
+        category = Some("memory-object")
+    )]
+    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice), MirType::I256]))]
+    SliceLoadByte {
+        /// Memory or calldata slice.
+        slice: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+    },
+    /// Store one byte in a memory slice.
+    #[mir_op(
+        mnemonic = "slice_store_byte",
+        result = None,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryWrite,
+        traits = OpTraits::MEMORY_OBJECT,
+        side_effects = true,
+        category = Some("memory-object")
+    )]
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, MirType::I256]))]
+    SliceStoreByte {
+        /// Memory slice.
+        slice: ValueId,
         /// Runtime byte index.
         index: ValueId,
         /// Low byte to store.
         value: ValueId,
     },
-    /// Store one word at a byte offset in a bytes object without exposing its
-    /// physical address.
+    /// Store one word at a byte offset in a memory slice.
     #[mir_op(
-        mnemonic = "memory_object_store_word",
+        mnemonic = "slice_store_word",
         result = None,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
@@ -1793,17 +1806,16 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, MirType::I256]))]
-    MemoryObjectStoreWord {
-        /// Bytes object reference.
-        object: ValueId,
-        /// Runtime byte offset from the payload start.
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, MirType::I256]))]
+    SliceStoreWord {
+        /// Memory slice.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
         offset: ValueId,
         /// Word to store.
         value: ValueId,
     },
-    /// Load one word from a memory slice at a byte offset without exposing its
-    /// physical address.
+    /// Load one word at a byte offset from a memory slice.
     #[mir_op(
         mnemonic = "memory_slice_load_word",
         result = I256,
@@ -1815,13 +1827,13 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256]))]
     MemorySliceLoadWord {
-        /// Memory slice reference.
+        /// Memory slice.
         slice: ValueId,
         /// Runtime byte offset from the slice start.
         offset: ValueId,
     },
-    /// Load one word from a calldata slice at a byte offset without exposing
-    /// the physical calldata address.
+    /// Load one word at a byte offset from a calldata slice. Calldata cannot change, so unlike
+    /// a memory read this load can move freely.
     #[mir_op(
         mnemonic = "calldata_slice_load_word",
         result = I256,
@@ -1833,14 +1845,14 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Calldata), MirType::I256]))]
     CalldataSliceLoadWord {
-        /// Calldata slice reference.
+        /// Calldata slice.
         slice: ValueId,
         /// Runtime byte offset from the slice start.
         offset: ValueId,
     },
-    /// Copy a typed slice into the payload of a dynamic memory object.
+    /// Copy a slice's bytes into a memory slice at a byte offset.
     #[mir_op(
-        mnemonic = "memory_object_copy_from_slice",
+        mnemonic = "slice_copy",
         result = None,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
@@ -1848,58 +1860,14 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, typing::slice_type(func, *source)]))]
-    MemoryObjectCopyFromSlice {
-        /// Destination memory object reference.
-        object: ValueId,
-        /// Dynamic memory object kind.
-        kind: MemoryObjectKind,
-        /// Source logical slice.
-        source: ValueId,
-    },
-    /// Copy a typed slice into a byte offset in a dynamic memory object.
-    #[mir_op(
-        mnemonic = "memory_object_copy_from_slice_at",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = true,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, typing::slice_type(func, *source)]))]
-    MemoryObjectCopyFromSliceAt {
-        /// Destination memory object reference.
-        object: ValueId,
-        /// Dynamic memory object kind.
-        kind: MemoryObjectKind,
-        /// Byte offset from the destination payload start.
-        offset: ValueId,
-        /// Source logical slice.
-        source: ValueId,
-    },
-    /// Copy a byte range between two dynamic memory objects.
-    #[mir_op(
-        mnemonic = "memory_object_copy",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = true,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::MemPtr, MirType::I256]))]
-    MemoryObjectCopy {
-        /// Destination memory object reference.
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, typing::slice_type(func, *source)]))]
+    SliceCopy {
+        /// Destination memory slice.
         destination: ValueId,
-        /// Destination memory object kind.
-        destination_kind: MemoryObjectKind,
-        /// Source memory object reference.
+        /// Byte offset from the destination start.
+        offset: ValueId,
+        /// Source slice; its length is the byte count.
         source: ValueId,
-        /// Source memory object kind.
-        source_kind: MemoryObjectKind,
-        /// Number of bytes to copy.
-        length: ValueId,
     },
     /// ABI-encode values into memory.
     #[mir_op(

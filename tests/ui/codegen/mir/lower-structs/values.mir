@@ -120,6 +120,7 @@ fn @raw_word_carrier(arg0: memptr) -> i256 {
     v0 = insert_value struct0, undef struct0, 0, v3
     v1 = extract_value struct0, v0, 0
     v4 = inttoptr i256 v1 to memptr
-    v2 = memory_object_len memorybytes, v4
+    v5 = memory_slice v4
+    v2 = slice_len v5
     ret v2
 }

@@ -54,6 +54,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
+                // One view serves both the bounds check and the access.
+                let object = match layout {
+                    MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes => {
+                        self.builder.memory_view(object)
+                    }
+                    _ => object,
+                };
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. }
                     | MemoryObjectLayout::FixedArray { .. } => {
@@ -66,7 +73,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::Bytes => {
-                        let length = self.builder.memory_object_len(object, layout.kind());
+                        let length = self.builder.memory_len(object);
                         self.builder.bounds_check(index, length);
                         let ty = self.type_of_expr_or_variable(expr)?;
                         Some(LValuePlace::MemoryByte { object, index, ty })
@@ -105,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
-                let value = self.builder.memory_object_load_byte(object, index);
+                let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
         }
@@ -153,7 +160,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
         let zero = self.builder.imm(U256::ZERO);
         let value = self.builder.byte(zero, value);
-        self.builder.memory_object_store_byte(object, index, value);
+        self.builder.memory_store_byte(object, index, value);
     }
 
     pub(super) fn resolve_storage_byte_place(

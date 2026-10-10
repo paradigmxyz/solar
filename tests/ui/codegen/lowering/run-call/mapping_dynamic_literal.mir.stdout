@@ -7,11 +7,11 @@ fn @constructor() [constructor] {
     v1 = mapping_slot_memory v0, 1
     sstore v1, 7 !metadata(storage=symbolic(v1))
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 58
-    v3 = memory_object_data memorybytes, v2
-    v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v5 = ptrtoint memptr v3 to i256
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 58
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
     v6 = add v5, 32
     mstore v6, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v7 = mapping_slot_memory v2, 1
@@ -74,11 +74,11 @@ fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns
 fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 58
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v3 = ptrtoint memptr v1 to i256
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 58
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
     v4 = add v3, 32
     mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v5 = mapping_slot_memory v0, 1
@@ -119,7 +119,9 @@ fn @overwriteShort() -> i256 [selector=0xa33ac7ad, abi_params=[], abi_returns=[w
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, arg1
-    memory_object_store_word memorybytes, v0, 0, arg0
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, arg1
+    v2 = memory_slice v0
+    slice_store_word v2, 0, arg0
     ret v0
 }

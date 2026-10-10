@@ -226,11 +226,12 @@ bb26:
   dup 4
   add
   mstore
+  push 32
   dup 3
-  dup 3
-  push 64
-  dup 7
   add
+  dup 3
+  dup 5
+  swap 2
   mcopy
   push 32
   dup 5
@@ -555,9 +556,9 @@ bb63:
   swap 1
   push bb69
   jumpi
-  dup 3
+  dup 1
   not
-  dup 4
+  dup 2
   sub
   push 0
   sstore
@@ -567,7 +568,7 @@ bb63:
   push 32
   push 0
   keccak256
-  dup 4
+  dup 2
   push 5
   shr
   push 0
@@ -579,21 +580,23 @@ bb65 [loop]:
   push bb68
   jumpi
   pop
-  swap 4
+  swap 2
   push 31
   and
   dup 1
   iszero
   push bb74
   jumpi
-  dup 5
+  dup 3
   push 5
   shl
   swap 1
-  swap 3
+  swap 5
+  push 32
+  add
   add
   mload
-  swap 2
+  swap 4
   push 32
   sub
   push 3
@@ -603,7 +606,7 @@ bb65 [loop]:
   swap 1
   shl
   swap 1
-  swap 2
+  swap 4
   and
   swap 3
   add
@@ -616,7 +619,9 @@ bb68 [loop]:
   dup 1
   push 5
   shl
-  dup 5
+  push 32
+  dup 8
+  add
   add
   mload
   dup 2
@@ -627,6 +632,9 @@ bb68 [loop]:
   add
   jump bb65
 bb69:
+  swap 2
+  push 32
+  add
   mload
   push 0
   not
@@ -785,18 +793,15 @@ bb94 [continuation]:
   jumpi
   dup 4
   mload
-  swap 4
-  push 32
-  add
   push 31
   dup 3
   add
   push 5
   shr
   push 31
-  dup 7
+  dup 3
   add
-  dup 7
+  dup 3
   dup 2
   lt
   push bb29
@@ -804,14 +809,14 @@ bb94 [continuation]:
   push 5
   shr
   push 32
-  dup 8
+  dup 4
   lt
   swap 1
   dup 2
   iszero
   mul
   swap 4
-  dup 8
+  dup 4
   lt
   swap 1
   swap 5

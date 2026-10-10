@@ -123,19 +123,21 @@ fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_return
 fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 6
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
-    v3 = memory_object_load_element memorybytes, v0, 0
-    v4 = memory_object_len memorybytes, v0
-    v5 = lt v4, 4
-    v6 = sub 4, v4
-    v7 = mul 8, v6
-    v8 = shl v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v10 = and v3, v9
-    ret v10
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 6
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
+    v4 = memory_slice v0
+    v5 = memory_slice_load_word v4, 0
+    v6 = slice_len v4
+    v7 = lt v6, 4
+    v8 = sub 4, v6
+    v9 = mul 8, v8
+    v10 = shl v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = select v7, v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v12 = and v5, v11
+    ret v12
 }
 
 fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -143,28 +145,30 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = memory_object_load_element memorybytes, v2, 0
-    v4 = memory_object_len memorybytes, v2
-    v5 = lt v4, 32
-    v6 = sub 32, v4
-    v7 = mul 8, v6
-    v8 = shl v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = select v5, v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v10 = and v3, v9
-    v11 = shr 248, v10
-    ret v11
+    v3 = memory_slice v2
+    v4 = memory_slice_load_word v3, 0
+    v5 = slice_len v3
+    v6 = lt v5, 32
+    v7 = sub 32, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = select v6, v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = and v4, v10
+    v12 = shr 248, v11
+    ret v12
 }
 
 fn @returnBytes() -> struct0 [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0xe00000000000000000000000000000000000000000000000000000000000000
-    v3 = insert_value struct0, undef struct0, 0, true
-    v4 = insert_value struct0, v3, 1, v0
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0xe00000000000000000000000000000000000000000000000000000000000000
+    v4 = insert_value struct0, undef struct0, 0, true
+    v5 = insert_value struct0, v4, 1, v0
+    ret v5
 }
 
 fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -179,7 +183,7 @@ fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_param
     v6 = sub 5, 0
     v7 = add v0, 0
     v8 = make_calldata_slice v7, v6
-    v9 = calldata_slice_load_word calldata, v8, 0
+    v9 = calldata_slice_load_word v8, 0
     v10 = slice_len v8
     v11 = lt v10, 32
     v12 = sub 32, v10
@@ -195,25 +199,26 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v0 = address
     v1 = gas
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 9
-    v3 = memory_object_data memorybytes, v2
-    v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x1122334455667788990000000000000000000000000000000000000000000000
-    v5 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = zext i160 v0 to i256
-    v9 = staticcall v1, v8, v6, v7, 0, 32
-    jumpi v9, bb2, bb1
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 9
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 0x1122334455667788990000000000000000000000000000000000000000000000
+    v6 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = zext i160 v0 to i256
+    v10 = staticcall v1, v9, v7, v8, 0, 32
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = returndatasize
-    v11 = lt v10, 32
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = add 0, 0
-    v13 = mload v12
-    ret v13
+    v11 = returndatasize
+    v12 = lt v11, 32
+    icall revert_if<tuple_data_too_short>, v12
+    v13 = add 0, 0
+    v14 = mload v13
+    ret v14
 }
 
 fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {

@@ -8,7 +8,9 @@ contract ChainedCalldataSlice {
     // CHECK-LABEL: fn @bytesChain{{[( ]}}
     // CHECK: make_calldata_slice
     // CHECK: make_calldata_slice
-    // CHECK: set_memory_object_len memorybytes
+    // CHECK: [[OUT:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[OUT_HEAD:v[0-9]+]] = ptrtoint memptr [[OUT]] to i256
+    // CHECK: mstore [[OUT_HEAD]], {{v[0-9]+}}
     function bytesChain(bytes calldata x) external pure returns (bytes memory) {
         return x[1:][1:];
     }

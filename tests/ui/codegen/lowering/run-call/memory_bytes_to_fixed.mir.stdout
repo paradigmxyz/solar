@@ -4,13 +4,14 @@ fn @shorten(arg0: memptr, arg1: i256) -> i256 [selector=0xe05b43e0, pure, abi_pa
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     mstore v0, arg1
-    v1 = memory_object_load_element memorybytes, arg0, 0
-    v2 = memory_object_len memorybytes, arg0
-    v3 = lt v2, 16
-    v4 = sub 16, v2
-    v5 = mul 8, v4
-    v6 = shl v5, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v7 = select v3, v6, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v8 = and v1, v7
-    ret v8
+    v1 = memory_slice arg0
+    v2 = memory_slice_load_word v1, 0
+    v3 = slice_len v1
+    v4 = lt v3, 16
+    v5 = sub 16, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v8 = select v4, v7, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v9 = and v2, v8
+    ret v9
 }

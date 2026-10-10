@@ -13,7 +13,10 @@ fn @arrayCopy() -> memptr [selector=0xb192499e, pure, abi_params=[], abi_returns
     icall revert_if<calldata_tail_too_short>, v6
     v7 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v8 = make_calldata_slice v3, 64
-    memory_object_copy_from_slice memoryfixedarray, v7, v8
+    v9 = ptrtoint memptr v7 to i256
+    v10 = slice_len v8
+    v11 = make_memory_slice v9, v10
+    slice_copy v11, 0, v8
     ret v7
 }
 
@@ -33,16 +36,21 @@ fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = slice_ptr v6
-    v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v13, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    memory_object_copy_from_slice memorybytes, v12, v6
+    v13 = ptrtoint memptr v12 to i256
+    mstore v13, v7
+    v14 = slice_ptr v6
+    v15 = slice_len v6
+    v16 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v16
+    v17 = calldatasize
+    v18 = sub v17, v15
+    v19 = sgt v14, v18
+    icall revert_if<calldata_tail_too_short>, v19
+    v20 = ptrtoint memptr v12 to i256
+    v21 = add v20, 32
+    v22 = slice_len v6
+    v23 = make_memory_slice v21, v22
+    slice_copy v23, 0, v6
     ret v12
 }
 
@@ -62,18 +70,23 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = slice_ptr v6
-    v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v13, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    memory_object_copy_from_slice memorybytes, v12, v6
-    v19 = keccak256_bytes v12
-    ret v19
+    v13 = ptrtoint memptr v12 to i256
+    mstore v13, v7
+    v14 = slice_ptr v6
+    v15 = slice_len v6
+    v16 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v16
+    v17 = calldatasize
+    v18 = sub v17, v15
+    v19 = sgt v14, v18
+    icall revert_if<calldata_tail_too_short>, v19
+    v20 = ptrtoint memptr v12 to i256
+    v21 = add v20, 32
+    v22 = slice_len v6
+    v23 = make_memory_slice v21, v22
+    slice_copy v23, 0, v6
+    v24 = keccak256_bytes v12
+    ret v24
 }
 
 fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

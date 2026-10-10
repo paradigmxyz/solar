@@ -3,33 +3,40 @@
 fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 7
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    slice_store_element v2, 0, 7
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v4, 0
+    v6 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0
     jump bb3
   bb3:
-    v5 = phi [bb1: v4], [bb2: v0]
-    v6 = memory_object_len memoryarray, v5
-    ret v6
+    v8 = phi [bb1: v6], [bb2: v0]
+    v9 = memory_slice v8
+    v10 = slice_len v9
+    ret v10
 }
 
 fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = not 0
-    mstore 0, v1 !metadata(memory=scratch)
-    v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v2, 0
-    v3 = memory_object_len memoryarray, v2
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = not 0
+    mstore 0, v2 !metadata(memory=scratch)
+    v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0
+    v5 = memory_slice v3
+    v6 = slice_len v5
+    ret v6
 }

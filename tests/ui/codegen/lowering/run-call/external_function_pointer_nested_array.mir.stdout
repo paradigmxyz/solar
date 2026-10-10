@@ -2,85 +2,88 @@
 @module ExternalFunctionPointerNestedArrayTarget
 fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt 0, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = shr 64, v3
-    v5 = and v4, 0xffffffff
-    v6 = shl 224, v5
-    v7 = shr 32, v4
-    v8 = gas
-    v9 = abi_encode [], selector v6
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = call v8, v7, 0, v10, v11, 0, 0
-    jumpi v12, bb2, bb1
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = slice_load_element v0, 0
+    v5 = shr 64, v4
+    v6 = and v5, 0xffffffff
+    v7 = shl 224, v6
+    v8 = shr 32, v5
+    v9 = gas
+    v10 = abi_encode [], selector v7
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = call v9, v8, 0, v11, v12, 0, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = icall returndata_bytes<>
-    v14 = abi_decode [function], v13
-    v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v16 = ptrtoint memptr v15 to i256
-    memory_zero v16, 96
-    v17 = lt 0, 3
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = shl 64, v14
-    memory_object_store_element memoryfixedarray<3, 1>, v15, 0, v19
-    v20 = memory_object_len memoryarray, arg0
-    v21 = lt 1, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_object_load_element memoryarray<1>, arg0, 1
-    v24 = shr 64, v23
-    v25 = and v24, 0xffffffff
-    v26 = shl 224, v25
-    v27 = shr 32, v24
-    v28 = gas
-    v29 = abi_encode [], selector v26
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = call v28, v27, 0, v30, v31, 0, 0
-    jumpi v32, bb4, bb3
+    v14 = icall returndata_bytes<>
+    v15 = abi_decode [function], v14
+    v16 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v17 = ptrtoint memptr v16 to i256
+    memory_zero v17, 96
+    v18 = lt 0, 3
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = shl 64, v15
+    memory_object_store_element memoryfixedarray<3, 1>, v16, 0, v20
+    v21 = memory_slice arg0
+    v22 = slice_len v21
+    v23 = lt 1, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = slice_load_element v21, 1
+    v26 = shr 64, v25
+    v27 = and v26, 0xffffffff
+    v28 = shl 224, v27
+    v29 = shr 32, v26
+    v30 = gas
+    v31 = abi_encode [], selector v28
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = call v30, v29, 0, v32, v33, 0, 0
+    jumpi v34, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v33 = icall returndata_bytes<>
-    v34 = abi_decode [function], v33
-    v35 = lt 1, 3
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = shl 64, v34
-    memory_object_store_element memoryfixedarray<3, 1>, v15, 1, v37
-    v38 = memory_object_len memoryarray, arg0
-    v39 = lt 2, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = memory_object_load_element memoryarray<1>, arg0, 2
-    v42 = shr 64, v41
-    v43 = and v42, 0xffffffff
-    v44 = shl 224, v43
-    v45 = shr 32, v42
-    v46 = gas
-    v47 = abi_encode [], selector v44
-    v48 = slice_ptr v47
-    v49 = slice_len v47
-    v50 = call v46, v45, 0, v48, v49, 0, 0
-    jumpi v50, bb6, bb5
+    v35 = icall returndata_bytes<>
+    v36 = abi_decode [function], v35
+    v37 = lt 1, 3
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = shl 64, v36
+    memory_object_store_element memoryfixedarray<3, 1>, v16, 1, v39
+    v40 = memory_slice arg0
+    v41 = slice_len v40
+    v42 = lt 2, v41
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    v44 = slice_load_element v40, 2
+    v45 = shr 64, v44
+    v46 = and v45, 0xffffffff
+    v47 = shl 224, v46
+    v48 = shr 32, v45
+    v49 = gas
+    v50 = abi_encode [], selector v47
+    v51 = slice_ptr v50
+    v52 = slice_len v50
+    v53 = call v49, v48, 0, v51, v52, 0, 0
+    jumpi v53, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v51 = icall returndata_bytes<>
-    v52 = abi_decode [function], v51
-    v53 = lt 2, 3
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = shl 64, v52
-    memory_object_store_element memoryfixedarray<3, 1>, v15, 2, v55
-    ret v15
+    v54 = icall returndata_bytes<>
+    v55 = abi_decode [function], v54
+    v56 = lt 2, 3
+    v57 = eq v56, false
+    icall panic_if<0x32>, v57
+    v58 = shl 64, v55
+    memory_object_store_element memoryfixedarray<3, 1>, v16, 2, v58
+    ret v16
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
@@ -94,151 +97,155 @@ fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, functio
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v0, 3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v16]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
+    v2 = phi [bb0: 0], [bb3: v19]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v5]
-    v6 = memory_object_len memoryarray, v3
-    v7 = lt v1, v6
-    jumpi v7, bb4, bb5
+    v6 = phi [bb0: 0], [bb3: v6]
+    v7 = memory_slice v4
+    v8 = slice_len v7
+    v9 = lt v2, v8
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v17 = address
-    v18 = zext i160 v17 to i256
-    v19 = shl 32, v18
-    v20 = or v19, 0x573a6b2f
-    v21 = memory_object_len memoryarray, v3
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = shl 64, v20
-    memory_object_store_element memoryarray<1>, v3, 0, v24
-    v25 = abi_encode []
-    v26 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
-    v27 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
-    v28 = alloc raw, exact, uninitialized, infallible, v27
-    v29 = ptrtoint memptr v28 to i256
-    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v29, v26
-    v30 = slice_ptr v25
-    v31 = ptrtoint memptr v28 to i256
-    v32 = add v31, v26
-    mcopy v32, v30, 0 !metadata(memory=heap)
-    v33 = ptrtoint memptr v28 to i256
-    v34 = create 0, v33, v26
-    v35 = ne v34, i160 0
-    jumpi v35, bb8, bb7
+    v20 = address
+    v21 = zext i160 v20 to i256
+    v22 = shl 32, v21
+    v23 = or v22, 0x573a6b2f
+    v24 = memory_slice v4
+    v25 = slice_len v24
+    v26 = lt 0, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = shl 64, v23
+    slice_store_element v24, 0, v28
+    v29 = abi_encode []
+    v30 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
+    v31 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
+    v32 = alloc raw, exact, uninitialized, infallible, v31
+    v33 = ptrtoint memptr v32 to i256
+    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v33, v30
+    v34 = slice_ptr v29
+    v35 = ptrtoint memptr v32 to i256
+    v36 = add v35, v30
+    mcopy v36, v34, 0 !metadata(memory=heap)
+    v37 = ptrtoint memptr v32 to i256
+    v38 = create 0, v37, v30
+    v39 = ne v38, i160 0
+    jumpi v39, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v36 = gas
-    v37 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = alloc raw, exact, uninitialized, infallible, 96
-    v41 = zext i160 v34 to i256
-    v42 = ptrtoint memptr v40 to i256
-    v43 = call v36, v41, 0, v38, v39, v42, 96
-    jumpi v43, bb10, bb9
+    v40 = gas
+    v41 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v4
+    v42 = slice_ptr v41
+    v43 = slice_len v41
+    v44 = alloc raw, exact, uninitialized, infallible, 96
+    v45 = zext i160 v38 to i256
+    v46 = ptrtoint memptr v44 to i256
+    v47 = call v40, v45, 0, v42, v43, v46, 96
+    jumpi v47, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v44 = returndatasize
-    v45 = lt v44, 96
-    icall revert_if<tuple_data_too_short>, v45
-    v46 = ptrtoint memptr v40 to i256
-    v47 = make_memory_slice v46, 96
-    v48 = abi_decode [array<3, function>], v47
-    v49 = lt 0, 3
-    v50 = eq v49, false
-    icall panic_if<0x32>, v50
-    v51 = memory_object_load_element memoryfixedarray<3, 1>, v48, 0
-    v52 = shr 64, v51
-    v53 = and v52, 0xffffffff
-    v54 = shl 224, v53
-    v55 = shr 32, v52
-    v56 = gas
-    v57 = abi_encode [], selector v54
-    v58 = slice_ptr v57
-    v59 = slice_len v57
-    v60 = call v56, v55, 0, v58, v59, 0, 32
-    jumpi v60, bb12, bb11
+    v48 = returndatasize
+    v49 = lt v48, 96
+    icall revert_if<tuple_data_too_short>, v49
+    v50 = ptrtoint memptr v44 to i256
+    v51 = make_memory_slice v50, 96
+    v52 = abi_decode [array<3, function>], v51
+    v53 = lt 0, 3
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = memory_object_load_element memoryfixedarray<3, 1>, v52, 0
+    v56 = shr 64, v55
+    v57 = and v56, 0xffffffff
+    v58 = shl 224, v57
+    v59 = shr 32, v56
+    v60 = gas
+    v61 = abi_encode [], selector v58
+    v62 = slice_ptr v61
+    v63 = slice_len v61
+    v64 = call v60, v59, 0, v62, v63, 0, 32
+    jumpi v64, bb12, bb11
   bb11:
     revert_returndata
   bb12:
-    v61 = returndatasize
-    v62 = lt v61, 32
-    icall revert_if<tuple_data_too_short>, v62
-    v63 = add 0, 0
-    v64 = mload v63
-    v65 = lt 1, 3
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = memory_object_load_element memoryfixedarray<3, 1>, v48, 1
-    v68 = shr 64, v67
-    v69 = and v68, 0xffffffff
-    v70 = shl 224, v69
-    v71 = shr 32, v68
-    v72 = gas
-    v73 = abi_encode [], selector v70
-    v74 = slice_ptr v73
-    v75 = slice_len v73
-    v76 = call v72, v71, 0, v74, v75, 0, 32
-    jumpi v76, bb14, bb13
+    v65 = returndatasize
+    v66 = lt v65, 32
+    icall revert_if<tuple_data_too_short>, v66
+    v67 = add 0, 0
+    v68 = mload v67
+    v69 = lt 1, 3
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    v71 = memory_object_load_element memoryfixedarray<3, 1>, v52, 1
+    v72 = shr 64, v71
+    v73 = and v72, 0xffffffff
+    v74 = shl 224, v73
+    v75 = shr 32, v72
+    v76 = gas
+    v77 = abi_encode [], selector v74
+    v78 = slice_ptr v77
+    v79 = slice_len v77
+    v80 = call v76, v75, 0, v78, v79, 0, 32
+    jumpi v80, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v77 = returndatasize
-    v78 = lt v77, 32
-    icall revert_if<tuple_data_too_short>, v78
-    v79 = add 0, 0
-    v80 = mload v79
-    v81 = lt 2, 3
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = memory_object_load_element memoryfixedarray<3, 1>, v48, 2
-    v84 = shr 64, v83
-    v85 = and v84, 0xffffffff
-    v86 = shl 224, v85
-    v87 = shr 32, v84
-    v88 = gas
-    v89 = abi_encode [], selector v86
-    v90 = slice_ptr v89
-    v91 = slice_len v89
-    v92 = call v88, v87, 0, v90, v91, 0, 32
-    jumpi v92, bb16, bb15
+    v81 = returndatasize
+    v82 = lt v81, 32
+    icall revert_if<tuple_data_too_short>, v82
+    v83 = add 0, 0
+    v84 = mload v83
+    v85 = lt 2, 3
+    v86 = eq v85, false
+    icall panic_if<0x32>, v86
+    v87 = memory_object_load_element memoryfixedarray<3, 1>, v52, 2
+    v88 = shr 64, v87
+    v89 = and v88, 0xffffffff
+    v90 = shl 224, v89
+    v91 = shr 32, v88
+    v92 = gas
+    v93 = abi_encode [], selector v90
+    v94 = slice_ptr v93
+    v95 = slice_len v93
+    v96 = call v92, v91, 0, v94, v95, 0, 32
+    jumpi v96, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v93 = returndatasize
-    v94 = lt v93, 32
-    icall revert_if<tuple_data_too_short>, v94
-    v95 = add 0, 0
-    v96 = mload v95
-    v97 = insert_value struct0, undef struct0, 0, v64
-    v98 = insert_value struct0, v97, 1, v80
-    v99 = insert_value struct0, v98, 2, v96
-    ret v99
+    v97 = returndatasize
+    v98 = lt v97, 32
+    icall revert_if<tuple_data_too_short>, v98
+    v99 = add 0, 0
+    v100 = mload v99
+    v101 = insert_value struct0, undef struct0, 0, v68
+    v102 = insert_value struct0, v101, 1, v84
+    v103 = insert_value struct0, v102, 2, v100
+    ret v103
   bb4:
-    v8 = address
-    v9 = zext i160 v8 to i256
-    v10 = shl 32, v9
-    v11 = or v10, 0xb8c9d365
-    v12 = memory_object_len memoryarray, v3
-    v13 = lt v1, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = shl 64, v11
-    memory_object_store_element memoryarray<1>, v3, v1, v15
+    v10 = address
+    v11 = zext i160 v10 to i256
+    v12 = shl 32, v11
+    v13 = or v12, 0xb8c9d365
+    v14 = memory_slice v4
+    v15 = slice_len v14
+    v16 = lt v2, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl 64, v13
+    slice_store_element v14, v2, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v1, 1
+    v19 = checked_add u256, v2, 1
     jump bb1
 }
 

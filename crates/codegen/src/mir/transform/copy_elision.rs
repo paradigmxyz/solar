@@ -142,9 +142,19 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        if let InstKind::MemoryObjectStoreElement { layout, object: target, index, .. } =
-            func.inst(inst).kind
-            && target == object
+        let (target, index, data_offset, stride) = match func.inst(inst).kind {
+            InstKind::MemoryObjectStoreElement { layout, object, index, .. } => {
+                (object, index, 0, EvmMemoryLayout::element_stride(layout)?)
+            }
+            InstKind::SliceStoreElement { slice, index, .. } => (
+                func.memory_slice_object(slice)?,
+                index,
+                EvmMemoryLayout::DYNAMIC_HEADER_SIZE,
+                EvmMemoryLayout::WORD_SIZE,
+            ),
+            _ => return None,
+        };
+        if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
             && let Some(Terminator::Branch { condition, then_block, else_block }) =
                 func.blocks[*pred].terminator
@@ -155,8 +165,7 @@ impl CopyElisionCx {
             && value == index
         {
             let last = func.value_u64(bound)?.checked_sub(1)?;
-            let stride = EvmMemoryLayout::element_stride(layout)?;
-            EvmMemoryLayout::object_data_offset(layout.kind())
+            data_offset
                 .checked_add(last.checked_mul(stride)?)?
                 .checked_add(EvmMemoryLayout::WORD_SIZE)
         } else {
@@ -197,7 +206,10 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if matches!(inst.kind, InstKind::MemoryObjectStoreElement { .. }) {
+                if matches!(
+                    inst.kind,
+                    InstKind::MemoryObjectStoreElement { .. } | InstKind::SliceStoreElement { .. }
+                ) {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
                 inst.visit_operands(|operand| {
@@ -232,7 +244,11 @@ impl CopyElisionCx {
                     InstKind::Add(first, second) | InstKind::Sub(first, second) => {
                         derived.contains(first) || derived.contains(second)
                     }
-                    InstKind::MemoryObjectData(value, _)
+                    InstKind::PtrToInt(value, 256)
+                    | InstKind::IntToPtr(value)
+                    | InstKind::MemorySlice(value)
+                    | InstKind::SlicePtr(value)
+                    | InstKind::MakeSlice { ptr: value, .. }
                     | InstKind::MemoryObjectFieldAddr { object: value, .. }
                     | InstKind::MemoryObjectElementAddr { object: value, .. } => {
                         derived.contains(value)
@@ -279,14 +295,6 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::SetMemoryObjectLen(addr, len, _) => {
-                        if derived.contains(len) {
-                            return None;
-                        }
-                        if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
                     InstKind::MemoryObjectStoreField { object, value, .. } => {
                         if derived.contains(value) {
                             return None;
@@ -303,7 +311,9 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MemoryObjectStoreByte { object, index, value } => {
+                    InstKind::SliceStoreElement { slice: object, index, value }
+                    | InstKind::SliceStoreByte { slice: object, index, value }
+                    | InstKind::SliceStoreWord { slice: object, offset: index, value } => {
                         if derived.contains(index) || derived.contains(value) {
                             return None;
                         }
@@ -311,16 +321,8 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
-                        if derived.contains(offset) || derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectCopy { destination, source, length, .. } => {
-                        if derived.contains(source) || derived.contains(length) {
+                    InstKind::SliceCopy { destination, offset, source } => {
+                        if derived.contains(offset) || derived.contains(source) {
                             return None;
                         }
                         if derived.contains(destination) {
@@ -349,7 +351,7 @@ impl CopyElisionCx {
                         }
                     }
                     // Reads of the allocation keep every write.
-                    InstKind::MLoad(addr) | InstKind::MemoryObjectLen(addr, _) => {
+                    InstKind::MLoad(addr) | InstKind::SliceLen(addr) => {
                         if derived.contains(addr) {
                             return None;
                         }
@@ -362,7 +364,11 @@ impl CopyElisionCx {
                     // Address-derivation instructions are the closure itself.
                     InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::MemoryObjectData(..)
+                    | InstKind::PtrToInt(_, 256)
+                    | InstKind::IntToPtr(_)
+                    | InstKind::MemorySlice(_)
+                    | InstKind::SlicePtr(_)
+                    | InstKind::MakeSlice { .. }
                     | InstKind::MemoryObjectFieldAddr { .. }
                     | InstKind::MemoryObjectElementAddr { .. }
                     | InstKind::Alloc { .. } => {}

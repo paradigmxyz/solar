@@ -2,26 +2,30 @@
 @module AbiDecodeMemoryOversizedLength
 fn @decodeWordArray(arg0: memptr) -> i256 [selector=0x5592ecdf, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    ret v0
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @decodeNarrowArray(arg0: memptr) -> i256 [selector=0x42670e32, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    ret v0
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @decodeBytes(arg0: memptr) -> i256 [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    ret v0
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @decodeNestedArray(arg0: memptr) -> i256 [selector=0xad885292, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    ret v0
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @wordArray() -> i1 [selector=0xdbd2add2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

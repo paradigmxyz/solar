@@ -47,29 +47,30 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     jump bb3
   bb1:
     v18 = icall @_copy, 0x400
-    v19 = memory_object_len memorybytes, v18
-    v20 = shl 0, v19
+    v19 = memory_slice v18
+    v20 = slice_len v19
+    v21 = shl 0, v20
     jump bb3
   bb3:
-    v21 = phi [bb1: v20], [bb2: 0]
-    v22 = xor v0, v1
-    v23 = xor v22, v2
-    v24 = xor v23, v3
-    v25 = xor v24, v4
-    v26 = xor v25, v5
-    v27 = xor v26, v6
-    v28 = xor v27, v7
-    v29 = xor v28, v8
-    v30 = xor v29, v9
-    v31 = xor v30, v10
-    v32 = xor v31, v11
-    v33 = xor v32, v12
-    v34 = xor v33, v13
-    v35 = xor v34, v14
-    v36 = xor v35, v15
-    v37 = xor v36, v16
-    v38 = xor v21, v37
-    ret v38
+    v22 = phi [bb1: v21], [bb2: 0]
+    v23 = xor v0, v1
+    v24 = xor v23, v2
+    v25 = xor v24, v3
+    v26 = xor v25, v4
+    v27 = xor v26, v5
+    v28 = xor v27, v6
+    v29 = xor v28, v7
+    v30 = xor v29, v8
+    v31 = xor v30, v9
+    v32 = xor v31, v10
+    v33 = xor v32, v11
+    v34 = xor v33, v12
+    v35 = xor v34, v13
+    v36 = xor v35, v14
+    v37 = xor v36, v15
+    v38 = xor v37, v16
+    v39 = xor v22, v38
+    ret v39
 }
 
 fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -184,12 +185,13 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     v2 = not 31
     v3 = and 0x43f, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 0x400
     v5 = ptrtoint memptr v4 to i256
-    v6 = mload v5
-    v7 = mload 0x2400
-    v8 = add v7, v6
-    ret v8
+    mstore v5, 0x400
+    v6 = ptrtoint memptr v4 to i256
+    v7 = mload v6
+    v8 = mload 0x2400
+    v9 = add v8, v7
+    ret v9
 }
 
 fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -313,11 +315,13 @@ fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a
     v3 = not 31
     v4 = and 68, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
-    set_memory_object_len memorybytes, v5, 5
-    v6 = memory_object_len memorybytes, v5
-    v7 = insert_value struct0, undef struct0, 0, v2
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 5
+    v7 = memory_slice v5
+    v8 = slice_len v7
+    v9 = insert_value struct0, undef struct0, 0, v2
+    v10 = insert_value struct0, v9, 1, v8
+    ret v10
 }
 
 fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f5115, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -632,11 +636,13 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     v2 = not 31
     v3 = and 64, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 1
-    v5 = memory_object_len memorybytes, v4
-    v6 = insert_value struct0, undef struct0, 0, v1
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, 1
+    v6 = memory_slice v4
+    v7 = slice_len v6
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }
 
 fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u256], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
@@ -644,59 +650,67 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v0 = not 31
     v1 = and 64, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 1
-    v3 = not 0
-    v4 = ptrtoint memptr v2 to i256
-    mstore v4, v3
-    v5 = calldataload 4
-    mstore 64, v5 !metadata(memory=scratch)
-    v6 = ptrtoint memptr v2 to i256
-    v7 = add v6, 32
-    v8 = sub 95, v7
-    v9 = memory_object_len memorybytes, v2
-    v10 = lt v8, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_byte memorybytes, v2, v8
-    v13 = shl 248, v12
-    v14 = shr 248, v13
-    v15 = trunc i256 v14 to i8
-    v16 = not 31
-    v17 = and 64, v16
-    v18 = alloc memorybytes, exact, zeroed, panic, v17
-    set_memory_object_len memorybytes, v18, 1
-    v19 = memory_object_len memorybytes, v18
-    v20 = insert_value struct1, undef struct1, 0, v15
-    v21 = insert_value struct1, v20, 1, v19
-    ret v21
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 1
+    v4 = not 0
+    v5 = ptrtoint memptr v2 to i256
+    mstore v5, v4
+    v6 = calldataload 4
+    mstore 64, v6 !metadata(memory=scratch)
+    v7 = ptrtoint memptr v2 to i256
+    v8 = add v7, 32
+    v9 = sub 95, v8
+    v10 = memory_slice v2
+    v11 = slice_len v10
+    v12 = lt v9, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = slice_load_byte v10, v9
+    v15 = shl 248, v14
+    v16 = shr 248, v15
+    v17 = trunc i256 v16 to i8
+    v18 = not 31
+    v19 = and 64, v18
+    v20 = alloc memorybytes, exact, zeroed, panic, v19
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, 1
+    v22 = memory_slice v20
+    v23 = slice_len v22
+    v24 = insert_value struct1, undef struct1, 0, v17
+    v25 = insert_value struct1, v24, 1, v23
+    ret v25
 }
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = not 0
-    v2 = ptrtoint memptr v0 to i256
-    mstore v2, v1
-    v3 = calldataload 4
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = ptrtoint memptr v0 to i256
-    v5 = add v4, 32
-    v6 = sub 64, v5
-    v7 = shr 5, v6
-    v8 = memory_object_len memoryarray, v0
-    v9 = lt v7, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryarray<1>, v0, v7
-    v12 = not 31
-    v13 = and 64, v12
-    v14 = alloc memorybytes, exact, zeroed, panic, v13
-    set_memory_object_len memorybytes, v14, 1
-    v15 = memory_object_len memorybytes, v14
-    v16 = insert_value struct0, undef struct0, 0, v11
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = not 0
+    v3 = ptrtoint memptr v0 to i256
+    mstore v3, v2
+    v4 = calldataload 4
+    mstore 64, v4 !metadata(memory=scratch)
+    v5 = ptrtoint memptr v0 to i256
+    v6 = add v5, 32
+    v7 = sub 64, v6
+    v8 = shr 5, v7
+    v9 = memory_slice v0
+    v10 = slice_len v9
+    v11 = lt v8, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = slice_load_element v9, v8
+    v14 = not 31
+    v15 = and 64, v14
+    v16 = alloc memorybytes, exact, zeroed, panic, v15
+    v17 = ptrtoint memptr v16 to i256
+    mstore v17, 1
+    v18 = memory_slice v16
+    v19 = slice_len v18
+    v20 = insert_value struct0, undef struct0, 0, v13
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -719,19 +733,22 @@ fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[u256
 fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = icall @_scratchWord
-    v2 = memory_object_len memoryarray, v0
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    memory_object_store_element memoryarray<1>, v0, 0, v1
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = memory_object_load_element memoryarray<1>, v0, 0
-    ret v8
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = icall @_scratchWord
+    v3 = memory_slice v0
+    v4 = slice_len v3
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    slice_store_element v3, 0, v2
+    v7 = memory_slice v0
+    v8 = slice_len v7
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = slice_load_element v7, 0
+    ret v11
 }
 
 fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -779,9 +796,11 @@ fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x
     v2 = not 31
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, arg2
-    v5 = memory_object_len memorybytes, v4
-    ret v5
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, arg2
+    v6 = memory_slice v4
+    v7 = slice_len v6
+    ret v7
 }
 
 fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe3ce866b, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {

@@ -39,12 +39,14 @@ fn @fail() -> i256 [pure] {
 fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 1, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = memory_object_load_element memoryarray<1>, v0, 1
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 1, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = slice_load_element v2, 1
     ret
 }
 
@@ -105,12 +107,14 @@ fn @nestedReceiverEffect(arg0: i1) -> i256 [selector=0xa644188c, abi_params=[boo
 fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 1, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = memory_object_load_element memoryarray<1>, v0, 1
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 1, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = slice_load_element v2, 1
     ret
 }
 

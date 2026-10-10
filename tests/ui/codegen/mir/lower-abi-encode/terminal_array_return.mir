@@ -8,24 +8,24 @@
 fn @fresh_array() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
-    set_memory_object_len memoryarray, v0, 2
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @terminal{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
-// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memoryarray, [[OBJECT:v[0-9]+]]
+// CHECK: + [[LENGTH_VIEW:v[0-9]+]] = memory_slice [[OBJECT:v[0-9]+]]
+// CHECK: + [[LENGTH:v[0-9]+]] = slice_len [[LENGTH_VIEW]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
-// CHECK: + [[SOURCE_PTR:v[0-9]+]] = memory_object_data memoryarray, [[OBJECT]]
+// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
-// CHECK: + [[SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
 // CHECK: + [[DESTINATION:v[0-9]+]] = add [[SOURCE]], 32
-// CHECK: + [[COPY_SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + mcopy [[DESTINATION]], [[COPY_SOURCE]], [[BYTES]]
+// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
 // CHECK: + [[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OBJECT]]
 // CHECK: + mstore [[POINTER]], 32
-// CHECK: + [[LENGTH_POINTER:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + mstore [[LENGTH_POINTER]], [[ENCODE_LENGTH]]
+// CHECK: + mstore [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
 // CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[SLICE_POINTER]], [[TOTAL]]
@@ -54,7 +54,8 @@ fn @borrowed(arg0: memptr) {
 fn @fresh_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v0, arg0
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, arg0
     ret v0
 }
 
@@ -68,16 +69,15 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
 // clears the padding before moving the payload over its old length word.
 // CHECK-LABEL: {{^[ +].*}}fn @terminal_bytes{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
-// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// CHECK: + [[LENGTH_VIEW:v[0-9]+]] = memory_slice [[OBJECT:v[0-9]+]]
+// CHECK: + [[LENGTH:v[0-9]+]] = slice_len [[LENGTH_VIEW]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
-// CHECK: + [[SOURCE_PTR:v[0-9]+]] = memory_object_data memorybytes, [[OBJECT]]
-// CHECK: [[SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
+// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[LAST:v[0-9]+]] = add [[SOURCE]],
 // CHECK: + mstore [[LAST]], 0
-// CHECK: + [[MOVE_SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + [[DESTINATION:v[0-9]+]] = add [[MOVE_SOURCE]], 32
-// CHECK: + [[COPY_SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + mcopy [[DESTINATION]], [[COPY_SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + [[DESTINATION:v[0-9]+]] = add [[SOURCE]], 32
+// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + [[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OBJECT]]
 // CHECK: + mstore [[POINTER]], 32
 fn @terminal_bytes(arg0: i256) {

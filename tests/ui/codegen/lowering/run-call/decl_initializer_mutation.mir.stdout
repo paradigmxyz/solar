@@ -80,52 +80,59 @@ fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
 fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 160
-    set_memory_object_len memoryarray, v0, 4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 4
     jump bb1
   bb1:
-    v1 = phi [bb0: v0], [bb5: v1]
-    v2 = phi [bb0: 0], [bb5: v7]
-    v3 = phi [bb0: 0], [bb5: v3]
-    v4 = memory_object_len memoryarray, v1
-    v5 = lt v2, v4
-    jumpi v5, bb3, bb4
+    v2 = phi [bb0: v0], [bb5: v2]
+    v3 = phi [bb0: 0], [bb5: v9]
+    v4 = phi [bb0: 0], [bb5: v4]
+    v5 = memory_slice v2
+    v6 = slice_len v5
+    v7 = lt v3, v6
+    jumpi v7, bb3, bb4
   bb4:
     jump bb2
   bb2:
-    v11 = checked_mul u256, v2, 100
-    v12 = memory_object_len memoryarray, v1
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = memory_object_load_element memoryarray<1>, v1, 0
-    v16 = checked_add u256, v11, v15
-    v17 = memory_object_len memoryarray, v1
-    v18 = lt 1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = memory_object_load_element memoryarray<1>, v1, 1
-    v21 = checked_add u256, v16, v20
-    v22 = memory_object_len memoryarray, v1
-    v23 = lt 2, v22
+    v14 = checked_mul u256, v3, 100
+    v15 = memory_slice v2
+    v16 = slice_len v15
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = slice_load_element v15, 0
+    v20 = checked_add u256, v14, v19
+    v21 = memory_slice v2
+    v22 = slice_len v21
+    v23 = lt 1, v22
     v24 = eq v23, false
     icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryarray<1>, v1, 2
-    v26 = checked_add u256, v21, v25
-    v27 = memory_object_len memoryarray, v1
-    v28 = lt 3, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = memory_object_load_element memoryarray<1>, v1, 3
-    v31 = checked_add u256, v26, v30
-    ret v31
+    v25 = slice_load_element v21, 1
+    v26 = checked_add u256, v20, v25
+    v27 = memory_slice v2
+    v28 = slice_len v27
+    v29 = lt 2, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = slice_load_element v27, 2
+    v32 = checked_add u256, v26, v31
+    v33 = memory_slice v2
+    v34 = slice_len v33
+    v35 = lt 3, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = slice_load_element v33, 3
+    v38 = checked_add u256, v32, v37
+    ret v38
   bb3:
-    v6 = checked_add u256, v2, 1
-    v7 = checked_add u256, v2, 1
-    v8 = memory_object_len memoryarray, v1
-    v9 = lt v2, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    memory_object_store_element memoryarray<1>, v1, v2, v6
+    v8 = checked_add u256, v3, 1
+    v9 = checked_add u256, v3, 1
+    v10 = memory_slice v2
+    v11 = slice_len v10
+    v12 = lt v3, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    slice_store_element v10, v3, v8
     jump bb5
   bb5:
     jump bb1

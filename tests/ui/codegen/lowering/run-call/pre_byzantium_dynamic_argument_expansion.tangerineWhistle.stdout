@@ -5,28 +5,30 @@
 
 fn @six(arg0: memptr) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = checked_add u256, v0, 4
-    v2 = insert_value struct0, undef struct0, 0, v1
-    v3 = insert_value struct0, v2, 1, 1
-    v4 = insert_value struct0, v3, 2, 2
-    v5 = insert_value struct0, v4, 3, 3
-    v6 = insert_value struct0, v5, 4, 4
-    v7 = insert_value struct0, v6, 5, 5
-    ret v7
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = checked_add u256, v1, 4
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 1
+    v5 = insert_value struct0, v4, 2, 2
+    v6 = insert_value struct0, v5, 3, 3
+    v7 = insert_value struct0, v6, 4, 4
+    v8 = insert_value struct0, v7, 5, 5
+    ret v8
 }
 
 fn @sixString(arg0: memptr) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = checked_add u256, v0, 4
-    v2 = insert_value struct0, undef struct0, 0, v1
-    v3 = insert_value struct0, v2, 1, 1
-    v4 = insert_value struct0, v3, 2, 2
-    v5 = insert_value struct0, v4, 3, 3
-    v6 = insert_value struct0, v5, 4, 4
-    v7 = insert_value struct0, v6, 5, 5
-    ret v7
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = checked_add u256, v1, 4
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 1
+    v5 = insert_value struct0, v4, 2, 2
+    v6 = insert_value struct0, v5, 3, 3
+    v7 = insert_value struct0, v6, 4, 4
+    v8 = insert_value struct0, v7, 5, 5
+    ret v8
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCalls ===
@@ -58,47 +60,49 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
   bb2:
     v11 = gas
     v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v12, 0
-    v13 = memory_object_data memorybytes, v12
-    v14 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v12
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v9 to i256
-    v18 = extcodesize v17
-    v19 = eq v18, 0
-    icall revert_if<target_contract_has_no_code>, v19
-    v20 = zext i160 v9 to i256
-    v21 = call v11, v20, 0, v15, v16, v15, 192
-    jumpi v21, bb4, bb3
+    v13 = ptrtoint memptr v12 to i256
+    mstore v13, 0
+    v14 = ptrtoint memptr v12 to i256
+    v15 = add v14, 32
+    v16 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v12
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v9 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = zext i160 v9 to i256
+    v23 = call v11, v22, 0, v17, v18, v17, 192
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v22 = add v15, 0
-    v23 = mload v22
-    v24 = add v15, 32
+    v24 = add v17, 0
     v25 = mload v24
-    v26 = add v15, 64
+    v26 = add v17, 32
     v27 = mload v26
-    v28 = add v15, 96
+    v28 = add v17, 64
     v29 = mload v28
-    v30 = add v15, 128
+    v30 = add v17, 96
     v31 = mload v30
-    v32 = add v15, 160
+    v32 = add v17, 128
     v33 = mload v32
-    v34 = insert_value struct0, undef struct0, 0, v23
-    v35 = insert_value struct0, v34, 1, v25
-    v36 = insert_value struct0, v35, 2, v27
-    v37 = insert_value struct0, v36, 3, v29
-    v38 = insert_value struct0, v37, 4, v31
-    v39 = insert_value struct0, v38, 5, v33
-    v40 = extract_value struct0, v39, 0
-    v41 = extract_value struct0, v39, 1
-    v42 = extract_value struct0, v39, 2
-    v43 = extract_value struct0, v39, 3
-    v44 = extract_value struct0, v39, 4
-    v45 = extract_value struct0, v39, 5
-    v46 = checked_add u256, v40, v45
-    ret v46
+    v34 = add v17, 160
+    v35 = mload v34
+    v36 = insert_value struct0, undef struct0, 0, v25
+    v37 = insert_value struct0, v36, 1, v27
+    v38 = insert_value struct0, v37, 2, v29
+    v39 = insert_value struct0, v38, 3, v31
+    v40 = insert_value struct0, v39, 4, v33
+    v41 = insert_value struct0, v40, 5, v35
+    v42 = extract_value struct0, v41, 0
+    v43 = extract_value struct0, v41, 1
+    v44 = extract_value struct0, v41, 2
+    v45 = extract_value struct0, v41, 3
+    v46 = extract_value struct0, v41, 4
+    v47 = extract_value struct0, v41, 5
+    v48 = checked_add u256, v42, v47
+    ret v48
 }
 
 fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -122,18 +126,20 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb2:
     v11 = gas
     v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v12, 0
-    v13 = memory_object_data memorybytes, v12
-    v14 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v12
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v9 to i256
-    v18 = extcodesize v17
-    v19 = eq v18, 0
-    icall revert_if<target_contract_has_no_code>, v19
-    v20 = zext i160 v9 to i256
-    v21 = call v11, v20, 0, v15, v16, v15, 192
-    jumpi v21, bb3, bb4
+    v13 = ptrtoint memptr v12 to i256
+    mstore v13, 0
+    v14 = ptrtoint memptr v12 to i256
+    v15 = add v14, 32
+    v16 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v12
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v9 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = zext i160 v9 to i256
+    v23 = call v11, v22, 0, v17, v18, v17, 192
+    jumpi v23, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -142,23 +148,23 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v22 = add v15, 0
-    v23 = mload v22
-    v24 = add v15, 32
+    v24 = add v17, 0
     v25 = mload v24
-    v26 = add v15, 64
+    v26 = add v17, 32
     v27 = mload v26
-    v28 = add v15, 96
+    v28 = add v17, 64
     v29 = mload v28
-    v30 = add v15, 128
+    v30 = add v17, 96
     v31 = mload v30
-    v32 = add v15, 160
+    v32 = add v17, 128
     v33 = mload v32
-    v34 = checked_add u256, v23, v33
+    v34 = add v17, 160
+    v35 = mload v34
+    v36 = checked_add u256, v25, v35
     jump bb5
   bb5:
-    v35 = phi [bb3: v34], [bb6: 7]
-    ret v35
+    v37 = phi [bb3: v36], [bb6: 7]
+    ret v37
 }
 
 fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -182,45 +188,47 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
   bb2:
     v11 = gas
     v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v12, 0
-    v13 = memory_object_data memorybytes, v12
-    v14 = abi_encode [memory_bytes], selector 0xa52f51f100000000000000000000000000000000000000000000000000000000, args v12
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v9 to i256
-    v18 = extcodesize v17
-    v19 = eq v18, 0
-    icall revert_if<target_contract_has_no_code>, v19
-    v20 = zext i160 v9 to i256
-    v21 = call v11, v20, 0, v15, v16, v15, 192
-    jumpi v21, bb4, bb3
+    v13 = ptrtoint memptr v12 to i256
+    mstore v13, 0
+    v14 = ptrtoint memptr v12 to i256
+    v15 = add v14, 32
+    v16 = abi_encode [memory_bytes], selector 0xa52f51f100000000000000000000000000000000000000000000000000000000, args v12
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v9 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = zext i160 v9 to i256
+    v23 = call v11, v22, 0, v17, v18, v17, 192
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v22 = add v15, 0
-    v23 = mload v22
-    v24 = add v15, 32
+    v24 = add v17, 0
     v25 = mload v24
-    v26 = add v15, 64
+    v26 = add v17, 32
     v27 = mload v26
-    v28 = add v15, 96
+    v28 = add v17, 64
     v29 = mload v28
-    v30 = add v15, 128
+    v30 = add v17, 96
     v31 = mload v30
-    v32 = add v15, 160
+    v32 = add v17, 128
     v33 = mload v32
-    v34 = insert_value struct0, undef struct0, 0, v23
-    v35 = insert_value struct0, v34, 1, v25
-    v36 = insert_value struct0, v35, 2, v27
-    v37 = insert_value struct0, v36, 3, v29
-    v38 = insert_value struct0, v37, 4, v31
-    v39 = insert_value struct0, v38, 5, v33
-    v40 = extract_value struct0, v39, 0
-    v41 = extract_value struct0, v39, 1
-    v42 = extract_value struct0, v39, 2
-    v43 = extract_value struct0, v39, 3
-    v44 = extract_value struct0, v39, 4
-    v45 = extract_value struct0, v39, 5
-    v46 = checked_add u256, v40, v45
-    ret v46
+    v34 = add v17, 160
+    v35 = mload v34
+    v36 = insert_value struct0, undef struct0, 0, v25
+    v37 = insert_value struct0, v36, 1, v27
+    v38 = insert_value struct0, v37, 2, v29
+    v39 = insert_value struct0, v38, 3, v31
+    v40 = insert_value struct0, v39, 4, v33
+    v41 = insert_value struct0, v40, 5, v35
+    v42 = extract_value struct0, v41, 0
+    v43 = extract_value struct0, v41, 1
+    v44 = extract_value struct0, v41, 2
+    v45 = extract_value struct0, v41, 3
+    v46 = extract_value struct0, v41, 4
+    v47 = extract_value struct0, v41, 5
+    v48 = checked_add u256, v42, v47
+    ret v48
 }

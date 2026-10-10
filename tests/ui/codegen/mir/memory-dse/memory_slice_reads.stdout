@@ -5,7 +5,10 @@
     bb0:
       v0 = make_memory_slice 128, 32
 -     mstore 0, 7
-      memory_object_copy_from_slice memorybytes, arg0, v0
+      v1 = ptrtoint memptr arg0 to i256
+      v2 = add v1, 32
+      v3 = make_memory_slice v2, 32
+      slice_copy v3, 0, v0
       mstore 0, 8
       stop
   }
@@ -14,7 +17,10 @@
     bb0:
       v0 = make_memory_slice 128, 32
 -     mstore 0, 7
-      memory_object_copy_from_slice_at memorybytes, arg0, arg1, v0
+      v1 = ptrtoint memptr arg0 to i256
+      v2 = add v1, 32
+      v3 = make_memory_slice v2, 32
+      slice_copy v3, arg1, v0
       mstore 0, 8
       stop
   }
@@ -23,7 +29,10 @@
     bb0:
       v0 = make_memory_slice 0, 32
       mstore 0, 7
-      memory_object_copy_from_slice memorybytes, arg0, v0
+      v1 = ptrtoint memptr arg0 to i256
+      v2 = add v1, 32
+      v3 = make_memory_slice v2, 32
+      slice_copy v3, 0, v0
       mstore 0, 8
       stop
   }
@@ -31,7 +40,11 @@
   fn @copy_unknown_slice(arg0: memptr, arg1: memoryslice) {
     bb0:
       mstore 0, 7
-      memory_object_copy_from_slice memorybytes, arg0, arg1
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = add v0, 32
+      v2 = slice_len arg1
+      v3 = make_memory_slice v1, v2
+      slice_copy v3, 0, arg1
       mstore 0, 8
       stop
   }

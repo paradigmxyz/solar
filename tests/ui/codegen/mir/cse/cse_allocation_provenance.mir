@@ -103,17 +103,23 @@ fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
 
 // A nominal caller object may overlap the fresh allocation.
 // CHECK-LABEL: @argument_header
-// CHECK: {{^ +}}[[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
-// CHECK: {{^ +}}memory_object_store_byte
-// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = memory_object_len memorybytes, arg0
+// CHECK: {{^ +}}[[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = slice_len [[VIEW]]
+// CHECK: {{^ +}}slice_store_byte
+// CHECK: {{^ +}}[[AFTER_VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = slice_len [[AFTER_VIEW]]
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[LEN]], [[AFTER]]
 fn @argument_header(arg0: memptr) -> i256 {
   bb0:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v0 = memory_object_len memorybytes, arg0
-    set_memory_object_len memorybytes, v1, 32
-    memory_object_store_byte memorybytes, v1, 0, 7
-    v2 = memory_object_len memorybytes, arg0
+    v4 = memory_slice arg0
+    v0 = slice_len v4
+    v5 = ptrtoint memptr v1 to i256
+    mstore v5, 32
+    v6 = memory_slice v1
+    slice_store_byte v6, 0, 7
+    v7 = memory_slice arg0
+    v2 = slice_len v7
     v3 = add v0, v2
     ret v3
 }

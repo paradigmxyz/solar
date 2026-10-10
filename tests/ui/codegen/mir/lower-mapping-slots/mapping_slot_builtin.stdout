@@ -95,33 +95,33 @@
     bb0:
       v0 = inttoptr i256 arg0 to memptr
 -     v1 = mapping_slot_memory v0, 9
-+     v4 = memory_object_len memorybytes, v0
-+     v5 = add v4, 32
-+     v6 = fmp
-+     v7 = memory_object_data memorybytes, v0
-+     v8 = ptrtoint memptr v6 to i256
++     v4 = memory_slice v0
++     v5 = slice_len v4
++     v6 = add v5, 32
++     v7 = fmp
++     v8 = add arg0, 32
 +     v9 = ptrtoint memptr v7 to i256
-+     mcopy v8, v9, v4 !metadata(memory=heap)
-+     v10 = ptrtoint memptr v6 to i256
-+     v11 = add v10, v4
++     mcopy v9, v8, v5 !metadata(memory=heap)
++     v10 = ptrtoint memptr v7 to i256
++     v11 = add v10, v5
 +     mstore v11, 9
-+     v12 = ptrtoint memptr v6 to i256
-+     v13 = keccak256 v12, v5
++     v12 = ptrtoint memptr v7 to i256
++     v13 = keccak256 v12, v6
       mstore arg0, 1
 -     v2 = mapping_slot_memory v0, 9
 -     v3 = add v1, v2
-+     v14 = memory_object_len memorybytes, v0
-+     v15 = add v14, 32
-+     v16 = fmp
-+     v17 = memory_object_data memorybytes, v0
-+     v18 = ptrtoint memptr v16 to i256
++     v14 = memory_slice v0
++     v15 = slice_len v14
++     v16 = add v15, 32
++     v17 = fmp
++     v18 = add arg0, 32
 +     v19 = ptrtoint memptr v17 to i256
-+     mcopy v18, v19, v14 !metadata(memory=heap)
-+     v20 = ptrtoint memptr v16 to i256
-+     v21 = add v20, v14
++     mcopy v19, v18, v15 !metadata(memory=heap)
++     v20 = ptrtoint memptr v17 to i256
++     v21 = add v20, v15
 +     mstore v21, 9
-+     v22 = ptrtoint memptr v16 to i256
-+     v23 = keccak256 v22, v15
++     v22 = ptrtoint memptr v17 to i256
++     v23 = keccak256 v22, v16
 +     v3 = add v13, v23
       ret v3
   }
@@ -213,31 +213,31 @@
   fn @memory(arg0: i256) -> i256 {
     bb0:
       v0 = inttoptr i256 arg0 to memptr
-      v4 = memory_object_len memorybytes, v0
-      v5 = add v4, 32
-      v6 = fmp
-      v7 = memory_object_data memorybytes, v0
-      v8 = ptrtoint memptr v6 to i256
+      v4 = memory_slice v0
+      v5 = slice_len v4
+      v6 = add v5, 32
+      v7 = fmp
+      v8 = add arg0, 32
       v9 = ptrtoint memptr v7 to i256
-      mcopy v8, v9, v4 !metadata(memory=heap)
-      v10 = ptrtoint memptr v6 to i256
-      v11 = add v10, v4
+      mcopy v9, v8, v5 !metadata(memory=heap)
+      v10 = ptrtoint memptr v7 to i256
+      v11 = add v10, v5
       mstore v11, 9
-      v12 = ptrtoint memptr v6 to i256
-      v13 = keccak256 v12, v5
+      v12 = ptrtoint memptr v7 to i256
+      v13 = keccak256 v12, v6
       mstore arg0, 1
-      v14 = memory_object_len memorybytes, v0
-      v15 = add v14, 32
-      v16 = fmp
-      v17 = memory_object_data memorybytes, v0
-      v18 = ptrtoint memptr v16 to i256
+      v14 = memory_slice v0
+      v15 = slice_len v14
+      v16 = add v15, 32
+      v17 = fmp
+      v18 = add arg0, 32
       v19 = ptrtoint memptr v17 to i256
-      mcopy v18, v19, v14 !metadata(memory=heap)
-      v20 = ptrtoint memptr v16 to i256
-      v21 = add v20, v14
+      mcopy v19, v18, v15 !metadata(memory=heap)
+      v20 = ptrtoint memptr v17 to i256
+      v21 = add v20, v15
       mstore v21, 9
-      v22 = ptrtoint memptr v16 to i256
-      v23 = keccak256 v22, v15
+      v22 = ptrtoint memptr v17 to i256
+      v23 = keccak256 v22, v16
       v3 = add v13, v23
       ret v3
   }

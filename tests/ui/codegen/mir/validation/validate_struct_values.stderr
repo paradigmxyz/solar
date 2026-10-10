@@ -32,9 +32,9 @@ error: [fn16] [bb0, inst0] `zext` has incompatible scalar types; use an explicit
 
 error: [fn17] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an explicit cast
 
-error: [fn18] [bb0, inst0] `memory_object_load_element` has incompatible scalar types; use an explicit cast
+error: [fn18] [bb0, inst1] `slice_load_element` has incompatible scalar types; use an explicit cast
 
-error: [fn19] [bb0, inst0] `memory_object_store_word` has incompatible scalar types; use an explicit cast
+error: [fn19] [bb0, inst1] `slice_store_word` has incompatible scalar types; use an explicit cast
 
 error: [fn20] [bb0, inst0] `set_fmp` has incompatible scalar types; use an explicit cast
 
@@ -48,7 +48,7 @@ error: [fn24] [bb0, inst0] ABI input location does not support its layout
 
 error: [fn25] [bb0, inst0] ABI input location does not support its layout
 
-error: [fn26] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
+error: [fn26] [bb0, inst0] `memory_slice` has incompatible scalar types; use an explicit cast
 
 error: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 

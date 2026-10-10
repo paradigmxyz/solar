@@ -621,7 +621,7 @@ fn @hash_low_object() -> i256 [selector=0x1234568a] {
 // So may a copy out of such an object, which reads no pointer itself.
 // CHECK-LABEL: {{^[ +].*}}fn @copy_low_object{{[( ]}}
 // CHECK: mstore 64, {{v[0-9]+}}
-// CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, memptr 32, 32
+// CHECK: slice_copy {{v[0-9]+}}, 0, {{v[0-9]+}}
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK: alloc memorybytes
@@ -631,7 +631,9 @@ fn @copy_low_object() -> memptr [selector=0x1234568b] {
     v1 = calldataload 4
     mstore 64, v1
     mstore 32, 32
-    memory_object_copy memorybytes, v0, memorybytes, memptr 32, 32
+    v3 = memory_slice memptr 32
+    v4 = memory_slice v0
+    slice_copy v4, 0, v3
     v2 = alloc memorybytes, exact, zeroed, panic, 64
     ret v0
 }
@@ -647,8 +649,8 @@ fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
   bb0:
     v0 = calldataload 4
     mstore 64, v0
-    v1 = memory_object_data memorybytes, memptr 32
-    v2 = ptrtoint memptr v1 to i256
+    v1 = memory_slice memptr 32
+    v2 = slice_ptr v1
     v3 = keccak256 v2, 32
     v4 = alloc memorybytes, exact, zeroed, panic, 64
     ret v3
@@ -658,7 +660,7 @@ fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
 // when assembly forges the object's length, so the scratch word stays in the slot for it.
 // CHECK-LABEL: {{^[ +].*}}fn @byte_at_computed_index{{[( ]}}
 // CHECK: mstore 64, {{v[0-9]+}}
-// CHECK: memory_object_load_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: slice_load_byte {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK: alloc memorybytes
@@ -668,7 +670,8 @@ fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
     v1 = calldataload 4
     v2 = calldataload 36
     mstore 64, v2
-    v3 = memory_object_load_byte memorybytes, v0, v1
+    v5 = memory_slice v0
+    v3 = slice_load_byte v5, v1
     v4 = alloc memorybytes, exact, zeroed, panic, 64
     ret v3
 }
@@ -676,7 +679,7 @@ fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
 // So can an element at a computed index.
 // CHECK-LABEL: {{^[ +].*}}fn @element_at_computed_index{{[( ]}}
 // CHECK: mstore 64, {{v[0-9]+}}
-// CHECK: memory_object_load_element memoryarray<1>, {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: slice_load_element {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK: alloc memorybytes
@@ -686,7 +689,8 @@ fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
     v1 = calldataload 4
     v2 = calldataload 36
     mstore 64, v2
-    v3 = memory_object_load_element memoryarray<1>, v0, v1
+    v5 = memory_slice v0
+    v3 = slice_load_element v5, v1
     v4 = alloc memorybytes, exact, zeroed, panic, 64
     ret v3
 }
@@ -705,7 +709,8 @@ fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
     v0 = alloc memorybytes, exact, zeroed, panic, 64
     v1 = calldataload 36
     mstore 64, v1
-    v2 = memory_object_load_byte memorybytes, v0, 7
+    v4 = memory_slice v0
+    v2 = slice_load_byte v4, 7
     v3 = alloc memorybytes, exact, zeroed, panic, 64
     ret v2
 }
@@ -735,8 +740,9 @@ fn @store_scratch_element() -> i256 [selector=0x12345691] {
     mstore 64, v2
     v3 = mload 64
     mstore 64, v1
-    memory_object_store_element memoryarray<1>, v0, 0, v3
-    v4 = memory_object_load_element memoryarray<1>, v0, 0
+    v5 = memory_slice v0
+    slice_store_element v5, 0, v3
+    v4 = slice_load_element v5, 0
     ret v4
 }
 
@@ -754,6 +760,7 @@ fn @object_from_scratch() -> i256 [selector=0x12345692] {
     mstore 64, v0
     v1 = mload 64
     v2 = inttoptr i256 v1 to memptr
-    v3 = memory_object_len memorybytes, v2
+    v4 = memory_slice v2
+    v3 = slice_len v4
     ret v3
 }

@@ -20,21 +20,22 @@ fn @assignmentValue() -> struct0 [selector=0x454887fb, abi_params=[], abi_return
 fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 4
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6162636400000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 4
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6162636400000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint memptr v0 to i256
     icall @store_storage_bytes, 0, v0
-    v4 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v4
-    v5 = and v4, 1
-    v6 = eq v5, 1
-    v7 = sub 0, v5
-    v8 = or 127, v7
-    v9 = shr 1, v4
-    v10 = and v9, v8
-    ret v10
+    v5 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v5
+    v6 = and v5, 1
+    v7 = eq v6, 1
+    v8 = sub 0, v6
+    v9 = or 127, v8
+    v10 = shr 1, v5
+    v11 = and v10, v9
+    ret v11
 }
 
 fn @assignmentStruct() -> memptr [selector=0x2e58a5e6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -67,11 +68,16 @@ fn @assignmentCalldata(arg0: calldataslice) -> memptr [selector=0x47c196ab, abi_
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    memory_object_copy_from_slice memorybytes, v11, arg0
+    v12 = ptrtoint memptr v11 to i256
+    mstore v12, v6
+    v13 = ptrtoint memptr v11 to i256
+    v14 = add v13, 32
+    v15 = slice_len arg0
+    v16 = make_memory_slice v14, v15
+    slice_copy v16, 0, arg0
     icall @store_storage_bytes, 0, v11
-    v12 = load_storage_bytes 0
-    ret v12
+    v17 = load_storage_bytes 0
+    ret v17
 }
 
 fn @assignmentStorage() -> memptr [selector=0x8d892c90, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -115,8 +121,10 @@ fn @accessState() -> i256 {
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, arg1
-    memory_object_store_word memorybytes, v0, 0, arg0
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, arg1
+    v2 = memory_slice v0
+    slice_store_word v2, 0, arg0
     ret v0
 }
 

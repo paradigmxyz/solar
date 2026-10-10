@@ -168,23 +168,21 @@ impl InstKind {
             | Self::MSize
             | Self::Fmp
             | Self::SetFmp(..)
-            | Self::MemoryObjectLen(..)
-            | Self::SetMemoryObjectLen(..)
-            | Self::MemoryObjectData(..)
+            | Self::MemorySlice(..)
             | Self::MemoryObjectFieldAddr { .. }
             | Self::MemoryObjectElementAddr { .. }
             | Self::MemoryObjectLoadField { .. }
             | Self::MemoryObjectStoreField { .. }
             | Self::MemoryObjectLoadElement { .. }
-            | Self::MemoryObjectLoadByte { .. }
+            | Self::SliceLoadElement { .. }
+            | Self::SliceLoadByte { .. }
             | Self::MemoryObjectStoreElement { .. }
-            | Self::MemoryObjectStoreByte { .. }
-            | Self::MemoryObjectStoreWord { .. }
+            | Self::SliceStoreElement { .. }
+            | Self::SliceStoreByte { .. }
+            | Self::SliceStoreWord { .. }
             | Self::MemorySliceLoadWord { .. }
             | Self::CalldataSliceLoadWord { .. }
-            | Self::MemoryObjectCopyFromSlice { .. }
-            | Self::MemoryObjectCopyFromSliceAt { .. }
-            | Self::MemoryObjectCopy { .. }
+            | Self::SliceCopy { .. }
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }

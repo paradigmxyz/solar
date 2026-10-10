@@ -312,7 +312,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // return object
         let length = self.builder.slice_len(slice);
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
+        self.builder.memory_copy_from_slice(object, slice);
         object
     }
 
@@ -333,8 +333,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {
         // payload = data[4:]
         // message = abi_decode(bytes, payload)
-        let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let data_ptr = self.builder.memory_data(data);
+        let data_len = self.builder.memory_len(data);
         let four = self.builder.imm(4);
         let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
         let payload_len = self.builder.sub(data_len, four);
@@ -429,12 +429,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        let data_ptr = self.builder.memory_data(data);
         let zero = self.builder.imm(U256::ZERO);
         let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
         let word_size = self.builder.imm(32);
         let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
-        self.builder.memory_slice_load_word(payload, zero)
+        self.builder.slice_load_word(payload, zero)
     }
 
     pub(super) fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -611,7 +611,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             MemoryObjectLayout::Bytes,
             AllocationSemantics::INTERNAL,
         );
-        self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
+        self.builder.set_memory_len(output, length);
         let zero = self.builder.imm(0);
         self.copy_inplace_dynamic_value(ty, value, output, zero, nullable_memory)?;
         Some(output)
@@ -648,13 +648,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.eq_zero(is_null))
     }
 
-    fn inplace_memory_object_len(
-        &mut self,
-        value: ValueId,
-        kind: MemoryObjectKind,
-        nullable_memory: bool,
-    ) -> ValueId {
-        let length = self.builder.memory_object_len(value, kind);
+    fn inplace_memory_object_len(&mut self, value: ValueId, nullable_memory: bool) -> ValueId {
+        let length = self.builder.memory_len(value);
         if let Some(non_null) = self.memory_non_null_mask(value, nullable_memory) {
             self.builder.mul(length, non_null)
         } else {
@@ -745,8 +740,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn count_inplace_bytes(&mut self, value: ValueId, nullable_memory: bool) -> ValueId {
         // words = ceil(bytes.length / 32)
-        let length =
-            self.inplace_memory_object_len(value, MemoryObjectKind::Bytes, nullable_memory);
+        let length = self.inplace_memory_object_len(value, nullable_memory);
         let word = self.builder.imm(32);
         let thirty_one = self.builder.imm(31);
         let rounded = self.builder.checked_add(length, thirty_one);
@@ -815,7 +809,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 )
             }
         };
-        self.builder.memory_object_store_word(output, offset, value);
+        self.builder.memory_store_word(output, offset, value);
         let word = self.builder.imm(32);
         Some(self.builder.checked_add(offset, word))
     }
@@ -831,7 +825,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let non_null = self.memory_non_null_mask(value, nullable_memory);
         let (element, length) = match ty.kind {
             TyKind::DynArray(element) => {
-                let mut length = self.builder.memory_object_len(value, layout.kind());
+                let mut length = self.builder.memory_len(value);
                 if let Some(non_null) = non_null {
                     length = self.builder.mul(length, non_null);
                 }
@@ -895,8 +889,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         offset: ValueId,
         nullable_memory: bool,
     ) -> ValueId {
-        let length =
-            self.inplace_memory_object_len(value, MemoryObjectKind::Bytes, nullable_memory);
+        let length = self.inplace_memory_object_len(value, nullable_memory);
         let word = self.builder.imm(32);
         let thirty_one = self.builder.imm(31);
         let rounded = self.builder.checked_add(length, thirty_one);
@@ -912,20 +905,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let last_offset = self.builder.sub(padded, word);
         let last = self.builder.add(offset, last_offset);
         let zero = self.builder.imm(0);
-        self.builder.memory_object_store_word(output, last, zero);
+        self.builder.memory_store_word(output, last, zero);
         self.builder.jump(copy_block);
 
         self.builder.switch_to_block(copy_block);
         // copy(value, output + offset)
         // return_offset = offset + padded_length
-        let data = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_data(value);
         let source = self.builder.make_slice(data, length, SliceLocation::Memory);
-        self.builder.memory_object_copy_from_slice_at(
-            output,
-            MemoryObjectKind::Bytes,
-            offset,
-            source,
-        );
+        self.builder.memory_copy_from_slice_at(output, offset, source);
         self.builder.add(offset, padded)
     }
 

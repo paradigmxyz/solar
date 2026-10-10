@@ -33,39 +33,46 @@ fn @arrayE(arg0: i256) -> i256 [selector=0x866ce1e6, pure, abi_params=[u256], ab
 fn @callArray(arg0: i256, arg1: i256) -> i256 [selector=0xefc06ab0, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
-    set_memory_object_len memoryarray, v0, 10
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 1
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 2
-    v7 = memory_object_len memoryarray, v0
-    v8 = lt 2, v7
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 10
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    slice_store_element v2, 0, 1
+    v6 = memory_slice v0
+    v7 = slice_len v6
+    v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    memory_object_store_element memoryarray<1>, v0, 2, 3
-    v10 = memory_object_len memoryarray, v0
-    v11 = lt 3, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    memory_object_store_element memoryarray<1>, v0, 3, 4
-    v13 = memory_object_len memoryarray, v0
-    v14 = lt 4, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    memory_object_store_element memoryarray<1>, v0, 4, 5
-    v16 = memory_object_len memoryarray, v0
-    v17 = lt arg1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_object_load_element memoryarray<1>, v0, arg1
-    v20 = icall @internal_dispatcher_p_u256_r_u256, v19, arg0
-    ret v20
+    slice_store_element v6, 1, 2
+    v10 = memory_slice v0
+    v11 = slice_len v10
+    v12 = lt 2, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    slice_store_element v10, 2, 3
+    v14 = memory_slice v0
+    v15 = slice_len v14
+    v16 = lt 3, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    slice_store_element v14, 3, 4
+    v18 = memory_slice v0
+    v19 = slice_len v18
+    v20 = lt 4, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    slice_store_element v18, 4, 5
+    v22 = memory_slice v0
+    v23 = slice_len v22
+    v24 = lt arg1, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = slice_load_element v22, arg1
+    v27 = icall @internal_dispatcher_p_u256_r_u256, v26, arg0
+    ret v27
 }
 
 fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

@@ -1,12 +1,16 @@
+error: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
+
 error: [fn0] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst1] memory-object instruction `memory_slice` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst2] slice instruction `slice_len` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst3] memory-object instruction `slice_store_byte` survives the `lowered` phase boundary
+
+error: [fn0] [bb0, inst4] memory-object instruction `slice_load_byte` survives the `lowered` phase boundary
 
 error: [fn1] non-word type `i8` survives the `lowered` phase boundary
 
-error: aborting due to 5 previous errors
+error: aborting due to 7 previous errors
 

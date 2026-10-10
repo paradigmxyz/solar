@@ -86,9 +86,14 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v65 = not 31
     v66 = and v63, v65
     v67 = alloc memorybytes, exact, uninitialized, infallible, v66
-    set_memory_object_len memorybytes, v67, v62
-    memory_object_copy_from_slice memorybytes, v67, v55
-    v68 = insert_value struct0, undef struct0, 0, v18
-    v69 = insert_value struct0, v68, 1, v67
-    ret v69
+    v68 = ptrtoint memptr v67 to i256
+    mstore v68, v62
+    v69 = ptrtoint memptr v67 to i256
+    v70 = add v69, 32
+    v71 = slice_len v55
+    v72 = make_memory_slice v70, v71
+    slice_copy v72, 0, v55
+    v73 = insert_value struct0, undef struct0, 0, v18
+    v74 = insert_value struct0, v73, 1, v67
+    ret v74
 }

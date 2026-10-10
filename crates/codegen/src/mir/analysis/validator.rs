@@ -1129,9 +1129,14 @@ impl<'a> Validator<'a> {
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
-                    InstKind::MemoryObjectCopyFromSlice { source, .. }
-                    | InstKind::MemoryObjectCopyFromSliceAt { source, .. } => {
+                    InstKind::SliceCopy { source, .. } => {
                         matches!(func.value_ty(*source), Some(MirType::Slice(_)))
+                    }
+                    // Dynamic objects have no element layout; views address their elements.
+                    InstKind::MemoryObjectElementAddr { layout, .. }
+                    | InstKind::MemoryObjectLoadElement { layout, .. }
+                    | InstKind::MemoryObjectStoreElement { layout, .. } => {
+                        matches!(layout, MemoryObjectLayout::FixedArray { .. })
                     }
                     _ => true,
                 };

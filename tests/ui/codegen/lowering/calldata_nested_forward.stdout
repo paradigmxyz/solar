@@ -48,86 +48,93 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v20
-    set_memory_object_len memoryarray, v22, v1
+    v23 = ptrtoint memptr v22 to i256
+    mstore v23, v1
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v70]
-    v24 = lt v23, v1
-    jumpi v24, bb2, bb3
+    v24 = phi [bb0: 0], [bb2: v77]
+    v25 = lt v24, v1
+    jumpi v25, bb2, bb3
   bb3:
-    v71 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
-    v72 = slice_ptr v71
-    v73 = slice_len v71
-    v74 = zext i160 arg1 to i256
-    v75 = extcodesize v74
-    v76 = eq v75, 0
-    icall revert_if<target_contract_has_no_code>, v76
-    v77 = zext i160 arg1 to i256
-    v78 = call v0, v77, 0, v72, v73, 0, 0
-    jumpi v78, bb5, bb4
+    v78 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
+    v79 = slice_ptr v78
+    v80 = slice_len v78
+    v81 = zext i160 arg1 to i256
+    v82 = extcodesize v81
+    v83 = eq v82, 0
+    icall revert_if<target_contract_has_no_code>, v83
+    v84 = zext i160 arg1 to i256
+    v85 = call v0, v84, 0, v79, v80, 0, 0
+    jumpi v85, bb5, bb4
   bb4:
     revert_returndata
   bb5:
     ret
   bb2:
-    v25 = mul v23, 32
-    v26 = add v2, v25
-    v27 = calldatasize
-    v28 = sub v27, v26
-    v29 = slt v28, 32
-    icall revert_if<calldata_tail_too_short>, v29
-    v30 = calldataload v26
-    v31 = add v2, v30
-    v32 = calldatasize
-    v33 = sub v32, v2
-    v34 = sub v33, 63
-    v35 = slt v30, v34
-    v36 = eq v35, false
-    icall revert_if<invalid_calldata_tail_offset>, v36
-    v37 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v38 = calldatasize
-    v39 = sub v38, v31
-    v40 = slt v39, 32
-    icall revert_if<calldata_tail_too_short>, v40
-    v41 = calldataload v31
-    memory_object_store_field memorystruct<2>, v37, 0, v41
-    v42 = add v31, 32
-    v43 = calldatasize
-    v44 = sub v43, v42
-    v45 = slt v44, 32
-    icall revert_if<calldata_tail_too_short>, v45
-    v46 = calldataload v42
-    v47 = add v31, v46
-    v48 = calldatasize
-    v49 = sub v48, v31
-    v50 = sub v49, 31
-    v51 = slt v46, v50
-    v52 = eq v51, false
-    icall revert_if<invalid_calldata_tail_offset>, v52
-    v53 = calldataload v47
-    v54 = gt v53, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v54
-    v55 = mul v53, 1
-    v56 = add v47, 32
-    v57 = calldatasize
-    v58 = sub v57, v55
-    v59 = sgt v56, v58
-    icall revert_if<calldata_tail_too_short>, v59
-    v60 = add v47, 32
-    v61 = make_calldata_slice v60, v53
-    v62 = slice_len v61
-    v63 = add v62, 63
-    v64 = lt v63, v62
-    icall panic_if<0x41>, v64
-    v65 = not 31
-    v66 = and v63, v65
-    v67 = alloc memorybytes, exact, uninitialized, infallible, v66
-    set_memory_object_len memorybytes, v67, v62
-    memory_object_copy_from_slice memorybytes, v67, v61
-    v68 = ptrtoint memptr v67 to i256
-    memory_object_store_field memorystruct<2>, v37, 1, v68
-    v69 = ptrtoint memptr v37 to i256
-    memory_object_store_element memoryarray<1>, v22, v23, v69
-    v70 = add v23, 1
+    v26 = mul v24, 32
+    v27 = add v2, v26
+    v28 = calldatasize
+    v29 = sub v28, v27
+    v30 = slt v29, 32
+    icall revert_if<calldata_tail_too_short>, v30
+    v31 = calldataload v27
+    v32 = add v2, v31
+    v33 = calldatasize
+    v34 = sub v33, v2
+    v35 = sub v34, 63
+    v36 = slt v31, v35
+    v37 = eq v36, false
+    icall revert_if<invalid_calldata_tail_offset>, v37
+    v38 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v39 = calldatasize
+    v40 = sub v39, v32
+    v41 = slt v40, 32
+    icall revert_if<calldata_tail_too_short>, v41
+    v42 = calldataload v32
+    memory_object_store_field memorystruct<2>, v38, 0, v42
+    v43 = add v32, 32
+    v44 = calldatasize
+    v45 = sub v44, v43
+    v46 = slt v45, 32
+    icall revert_if<calldata_tail_too_short>, v46
+    v47 = calldataload v43
+    v48 = add v32, v47
+    v49 = calldatasize
+    v50 = sub v49, v32
+    v51 = sub v50, 31
+    v52 = slt v47, v51
+    v53 = eq v52, false
+    icall revert_if<invalid_calldata_tail_offset>, v53
+    v54 = calldataload v48
+    v55 = gt v54, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v55
+    v56 = mul v54, 1
+    v57 = add v48, 32
+    v58 = calldatasize
+    v59 = sub v58, v56
+    v60 = sgt v57, v59
+    icall revert_if<calldata_tail_too_short>, v60
+    v61 = add v48, 32
+    v62 = make_calldata_slice v61, v54
+    v63 = slice_len v62
+    v64 = add v63, 63
+    v65 = lt v64, v63
+    icall panic_if<0x41>, v65
+    v66 = not 31
+    v67 = and v64, v66
+    v68 = alloc memorybytes, exact, uninitialized, infallible, v67
+    v69 = ptrtoint memptr v68 to i256
+    mstore v69, v63
+    v70 = ptrtoint memptr v68 to i256
+    v71 = add v70, 32
+    v72 = slice_len v62
+    v73 = make_memory_slice v71, v72
+    slice_copy v73, 0, v62
+    v74 = ptrtoint memptr v68 to i256
+    memory_object_store_field memorystruct<2>, v38, 1, v74
+    v75 = ptrtoint memptr v38 to i256
+    v76 = memory_slice v22
+    slice_store_element v76, v24, v75
+    v77 = add v24, 1
     jump bb1
 }

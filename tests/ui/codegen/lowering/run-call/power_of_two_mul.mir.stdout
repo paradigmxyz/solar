@@ -32,10 +32,11 @@ fn @mulHigh(arg0: i256) -> i256 [selector=0x25ee2d76, pure, abi_params=[u256], a
 
 fn @at(arg0: memptr, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt arg1, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, arg1
-    ret v3
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt arg1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = slice_load_element v0, arg1
+    ret v4
 }

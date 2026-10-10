@@ -24,11 +24,12 @@ fn @code(arg0: i160) -> memptr [selector=0x5b90b752, view, abi_params=[address],
     v4 = not 31
     v5 = and v2, v4
     v6 = alloc memorybytes, exact, zeroed, panic, v5
-    set_memory_object_len memorybytes, v6, v1
-    v7 = memory_object_data memorybytes, v6
-    v8 = zext i160 arg0 to i256
-    v9 = ptrtoint memptr v7 to i256
-    extcodecopy v8, v9, 0, v1 !metadata(memory=heap)
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, v1
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    v10 = zext i160 arg0 to i256
+    extcodecopy v10, v9, 0, v1 !metadata(memory=heap)
     ret v6
 }
 

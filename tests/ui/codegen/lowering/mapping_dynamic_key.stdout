@@ -65,23 +65,24 @@ fn @skey() -> memptr [selector=0x8cd2a1c2, view, abi_params=[], abi_returns=[mem
 fn @setLit(arg0: i256) [selector=0x3fffd95e, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v3 = mapping_slot_memory v0, 0
-    sstore v3, arg0 !metadata(storage=symbolic(v3))
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 5
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v4 = mapping_slot_memory v0, 0
+    sstore v4, arg0 !metadata(storage=symbolic(v4))
     ret
 }
 
 fn @setLitLong(arg0: i256) [selector=0x7490efc0, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 58
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v3 = ptrtoint memptr v1 to i256
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 58
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
     v4 = add v3, 32
     mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v5 = mapping_slot_memory v0, 0
@@ -137,9 +138,11 @@ fn @setThenAlloc(arg0: calldataslice, arg1: i256) -> i256 [selector=0x8fc72899, 
     v1 = not 31
     v2 = and 95, v1
     v3 = alloc memorybytes, exact, zeroed, panic, v2
-    set_memory_object_len memorybytes, v3, 32
-    v4 = memory_object_len memorybytes, v3
-    ret v4
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 32
+    v5 = memory_slice v3
+    v6 = slice_len v5
+    ret v6
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memptr) {

@@ -14,35 +14,37 @@ fn @_fill(arg0: i256) {
     v2 = not 31
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, arg0
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, arg0
     jump bb1
   bb1:
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v17]
-    v8 = lt v7, v5
-    jumpi v8, bb4, bb5
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: v4], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v19]
+    v9 = lt v8, v6
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    icall @store_storage_bytes, 0, v6
+    icall @store_storage_bytes, 0, v7
     ret
   bb4:
-    v9 = checked_add u256, v7, 1
-    v10 = trunc i256 v9 to i8
-    v11 = zext i8 v10 to i256
-    v12 = shl 248, v11
-    v13 = memory_object_len memorybytes, v6
-    v14 = lt v7, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = byte 0, v12
-    memory_object_store_byte memorybytes, v6, v7, v16
+    v10 = checked_add u256, v8, 1
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    v13 = shl 248, v12
+    v14 = memory_slice v7
+    v15 = slice_len v14
+    v16 = lt v8, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = byte 0, v13
+    slice_store_byte v14, v8, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v7, 1
+    v19 = checked_add u256, v8, 1
     jump bb1
 }
 

@@ -1150,6 +1150,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a memory-object layout whose kind identifier `name` has already
     /// been consumed, with optional `<...>` layout arguments.
+    /// Dynamic objects have no element layout: their elements are accessed through a
+    /// `memory_slice` view.
+    fn check_static_element_layout(layout: MemoryObjectLayout) -> Result<(), &'static str> {
+        match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => Err(
+                "dynamic memory objects are accessed through `memory_slice` views; use `slice_*` operations",
+            ),
+            MemoryObjectLayout::FixedArray { .. } | MemoryObjectLayout::Struct { .. } => Ok(()),
+        }
+    }
+
     fn parse_memory_object_layout(&mut self, name: Symbol) -> PResult<'sess, MemoryObjectLayout> {
         let layout = match name {
             sym::memorybytes => MemoryObjectLayout::Bytes,
@@ -1705,28 +1716,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
 
             // Semantic memory-object accessors.
-            sym::memory_object_len => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                (InstKind::MemoryObjectLen(object, kind), Some(MirType::I256))
-            }
-            sym::set_memory_object_len => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let len = self.parse_value(builder)?;
-                (InstKind::SetMemoryObjectLen(object, len, kind), None)
-            }
-            sym::memory_object_data => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                (InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
+            sym::memory_slice => {
+                inst!(MemorySlice(object) => MirType::Slice(SliceLocation::Memory))
             }
             sym::memory_object_field_addr => {
                 let name = self.parser.parse_ident()?;
@@ -1743,6 +1734,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_object_element_addr => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
+                Self::check_static_element_layout(layout).map_err(|msg| self.parser.error(msg))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1789,6 +1781,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_object_load_element => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
+                Self::check_static_element_layout(layout).map_err(|msg| self.parser.error(msg))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1804,21 +1797,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 (InstKind::MemoryObjectLoadElement { object, layout, index }, Some(ty))
             }
-            sym::memory_object_load_byte => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                if layout != crate::mir::MemoryObjectLayout::Bytes {
-                    return Err(self.parser.error("memory byte load requires a bytes object"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                (InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::I256))
+            sym::slice_load_element => {
+                operands!(slice, index);
+                let ty = if self.parser.eat(TokenKind::Comma) {
+                    let ty = self.parse_type()?;
+                    if ty != MirType::MemPtr {
+                        return Err(self.parser.error("slice load annotation must be `memptr`"));
+                    }
+                    ty
+                } else {
+                    MirType::I256
+                };
+                (InstKind::SliceLoadElement { slice, index }, Some(ty))
+            }
+            sym::slice_load_byte => {
+                operands!(slice, index);
+                (InstKind::SliceLoadByte { slice, index }, Some(MirType::I256))
             }
             sym::memory_object_store_element => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
+                Self::check_static_element_layout(layout).map_err(|msg| self.parser.error(msg))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1827,98 +1826,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let value = self.parse_value(builder)?;
                 (InstKind::MemoryObjectStoreElement { object, layout, index, value }, None)
             }
-            sym::memory_object_store_byte => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                if layout != crate::mir::MemoryObjectLayout::Bytes {
-                    return Err(self.parser.error("memory byte store requires a bytes object"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let index = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let value = self.parse_value(builder)?;
-                (InstKind::MemoryObjectStoreByte { object, index, value }, None)
+            sym::slice_store_element => {
+                operands!(slice, index, value);
+                (InstKind::SliceStoreElement { slice, index, value }, None)
             }
-            sym::memory_object_store_word => {
-                let name = self.parser.parse_ident()?;
-                let layout = self.parse_memory_object_layout(name)?;
-                if layout != crate::mir::MemoryObjectLayout::Bytes {
-                    return Err(self.parser.error("memory word store requires a bytes object"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let value = self.parse_value(builder)?;
-                (InstKind::MemoryObjectStoreWord { object, offset, value }, None)
+            sym::slice_store_byte => {
+                operands!(slice, index, value);
+                (InstKind::SliceStoreByte { slice, index, value }, None)
+            }
+            sym::slice_store_word => {
+                operands!(slice, offset, value);
+                (InstKind::SliceStoreWord { slice, offset, value }, None)
             }
             sym::memory_slice_load_word => {
-                self.parser.expect(TokenKind::Ident(kw::Memory))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let slice = self.parse_value(builder)?;
-                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Memory)) {
-                    return Err(self.parser.error("memory slice load requires a memory slice"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
+                operands!(slice, offset);
                 (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::I256))
             }
             sym::calldata_slice_load_word => {
-                self.parser.expect(TokenKind::Ident(kw::Calldata))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let slice = self.parse_value(builder)?;
-                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Calldata)) {
-                    return Err(self.parser.error("calldata slice load requires a calldata slice"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
+                operands!(slice, offset);
                 (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::I256))
             }
-            sym::memory_object_copy_from_slice => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let source = self.parse_value(builder)?;
-                (InstKind::MemoryObjectCopyFromSlice { object, kind, source }, None)
-            }
-            sym::memory_object_copy_from_slice_at => {
-                let name = self.parser.parse_ident()?;
-                let kind = self.parse_memory_object_layout(name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let object = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let source = self.parse_value(builder)?;
-                (InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source }, None)
-            }
-            sym::memory_object_copy => {
-                let destination_name = self.parser.parse_ident()?;
-                let destination_kind = self.parse_memory_object_layout(destination_name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let destination = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let source_name = self.parser.parse_ident()?;
-                let source_kind = self.parse_memory_object_layout(source_name)?.kind();
-                self.parser.expect(TokenKind::Comma)?;
-                let source = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let length = self.parse_value(builder)?;
-                (
-                    InstKind::MemoryObjectCopy {
-                        destination,
-                        destination_kind,
-                        source,
-                        source_kind,
-                        length,
-                    },
-                    None,
-                )
+            sym::slice_copy => {
+                operands!(destination, offset, source);
+                (InstKind::SliceCopy { destination, offset, source }, None)
             }
 
             // Semantic ABI encoding.

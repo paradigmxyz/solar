@@ -7,10 +7,12 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @literal
-    v1 = memory_object_len memorybytes, v0
+    v10 = memory_slice v0
+    v1 = slice_len v10
     sstore 0, v1
     v2 = icall @indirect
-    v3 = memory_object_len memorybytes, v2
+    v11 = memory_slice v2
+    v3 = slice_len v11
     sstore 3, v3
     stop
 }
@@ -24,9 +26,10 @@ fn @entry() -> memptr [selector=0x01020304] {
 fn @literal() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    v4 = memory_object_data memorybytes, v0
-    v1 = ptrtoint memptr v4 to i256
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, 1
+    v4 = memory_slice v0
+    v1 = slice_ptr v4
     mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
@@ -36,15 +39,18 @@ fn @shared() -> memptr [selector=0x01020305] {
   bb0:
     v0 = icall @shared_literal
     v1 = icall @shared_literal
-    memory_object_store_byte memorybytes, v0, 0, 65
+    v10 = memory_slice v0
+    slice_store_byte v10, 0, 65
     ret v1
 }
 
 fn @shared_literal() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, 1
+    v11 = memory_slice v0
+    slice_store_word v11, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -63,8 +69,10 @@ fn @call_entry() -> memptr [selector=0x01020307] {
 fn @tail_literal() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, 1
+    v11 = memory_slice v0
+    slice_store_word v11, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -78,8 +86,10 @@ fn @effect_entry() -> memptr [selector=0x01020308] {
 fn @effect_literal() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, 1
+    v11 = memory_slice v0
+    slice_store_word v11, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
     sstore 1, 1
     ret v0
 }
@@ -107,8 +117,10 @@ fn @unknown_entry() -> memptr [selector=0x01020309] {
 fn @unknown_literal() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, 1
+    v11 = memory_slice v0
+    slice_store_word v11, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -122,7 +134,9 @@ fn @preserved_entry() -> memptr [selector=0x0102030a] {
 fn @preserved_literal() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, 1
+    v11 = memory_slice v0
+    slice_store_word v11, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

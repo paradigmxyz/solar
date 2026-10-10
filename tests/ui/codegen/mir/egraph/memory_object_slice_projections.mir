@@ -10,7 +10,7 @@
 // CHECK: ret arg0
 fn @fixed_payload(arg0: memoryslice) -> i256 {
   bb0:
-    v3 = memory_object_data memorystruct, arg0
+    v3 = memory_object_field_addr memorystruct<2>, arg0, 0
     v1 = ptrtoint memptr v3 to i256
     ret v1
 }
@@ -19,7 +19,8 @@ fn @fixed_payload(arg0: memoryslice) -> i256 {
 // CHECK: ret arg0
 fn @dynamic_payload(arg0: memoryslice) -> i256 {
   bb0:
-    v4 = memory_object_data memorybytes, arg0
+    v2 = slice_ptr arg0
+    v4 = inttoptr i256 v2 to memptr
     v1 = ptrtoint memptr v4 to i256
     ret v1
 }
@@ -40,6 +41,6 @@ fn @memory_field(arg0: memoryslice) -> i256 {
 // CHECK: ret [[CALLDATA]]
 fn @calldata_field(arg0: calldataslice) -> i256 {
   bb0:
-    v2 = calldata_slice_load_word calldata, arg0, 0
+    v2 = calldata_slice_load_word arg0, 0
     ret v2
 }

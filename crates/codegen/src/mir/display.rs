@@ -537,12 +537,6 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::MemoryObjectLoadByte { object, index } => write!(
-            f,
-            "memory_object_load_byte memorybytes, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func)
-        ),
         InstKind::MemoryObjectStoreElement { object, layout, index, value } => write!(
             f,
             "memory_object_store_element {layout}, {}, {}, {}",
@@ -550,58 +544,18 @@ fn display_inst_kind<'a>(
             display_val(*index, func),
             display_val(*value, func)
         ),
-        InstKind::MemoryObjectStoreByte { object, index, value } => write!(
-            f,
-            "memory_object_store_byte memorybytes, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func),
-            display_val(*value, func)
-        ),
-        InstKind::MemoryObjectStoreWord { object, offset, value } => write!(
-            f,
-            "memory_object_store_word memorybytes, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*offset, func),
-            display_val(*value, func)
-        ),
-        InstKind::MemorySliceLoadWord { slice, offset } => write!(
-            f,
-            "memory_slice_load_word memory, {}, {}",
-            display_val(*slice, func),
-            display_val(*offset, func)
-        ),
-        InstKind::CalldataSliceLoadWord { slice, offset } => write!(
-            f,
-            "calldata_slice_load_word calldata, {}, {}",
-            display_val(*slice, func),
-            display_val(*offset, func)
-        ),
-        InstKind::MemoryObjectCopyFromSlice { object, kind, source } => write!(
-            f,
-            "memory_object_copy_from_slice {kind}, {}, {}",
-            display_val(*object, func),
-            display_val(*source, func)
-        ),
-        InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => write!(
-            f,
-            "memory_object_copy_from_slice_at {kind}, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*offset, func),
-            display_val(*source, func)
-        ),
-        InstKind::MemoryObjectCopy {
-            destination,
-            destination_kind,
-            source,
-            source_kind,
-            length,
-        } => write!(
-            f,
-            "memory_object_copy {destination_kind}, {}, {source_kind}, {}, {}",
-            display_val(*destination, func),
-            display_val(*source, func),
-            display_val(*length, func)
-        ),
+        InstKind::SliceLoadElement { slice, index } => {
+            write!(
+                f,
+                "slice_load_element {}, {}",
+                display_val(*slice, func),
+                display_val(*index, func)
+            )?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
+            }
+            Ok(())
+        }
         InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
             f,
             "store_storage_bytes_literal {}, hex\"{}\"",
@@ -623,18 +577,6 @@ fn display_inst_kind<'a>(
             display_val(*slot, func),
             display_val(*index, func)
         ),
-        InstKind::MemoryObjectLen(object, kind) => {
-            write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
-        }
-        InstKind::SetMemoryObjectLen(object, len, kind) => write!(
-            f,
-            "set_memory_object_len {kind}, {}, {}",
-            display_val(*object, func),
-            display_val(*len, func)
-        ),
-        InstKind::MemoryObjectData(object, kind) => {
-            write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
-        }
         InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
             f,
             "{} {}, {}, {}",

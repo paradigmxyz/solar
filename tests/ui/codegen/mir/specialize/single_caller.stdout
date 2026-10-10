@@ -10,14 +10,16 @@
   fn @fill(arg0: i256, arg1: i256) -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, arg0
--     v1 = ne arg1, 0
--     jumpi v1, bb1, bb2
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, arg0
+      v2 = memory_slice v0
+-     v3 = ne arg1, 0
+-     jumpi v3, bb1, bb2
 -   bb2:
-      memory_object_store_byte memorybytes, v0, 0, 45
+      slice_store_byte v2, 0, 45
 -     ret v0
 -   bb1:
--     memory_object_store_byte memorybytes, v0, 0, 95
+-     slice_store_byte v2, 0, 95
       ret v0
   }
   
@@ -35,8 +37,10 @@
 + fn @fill(arg0: i256) -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, arg0
-      memory_object_store_byte memorybytes, v0, 0, 45
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, arg0
+      v2 = memory_slice v0
+      slice_store_byte v2, 0, 45
       ret v0
   }
   

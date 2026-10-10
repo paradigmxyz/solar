@@ -230,68 +230,75 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selec
     v36 = lt v35, 32
     icall panic_if<0x41>, v36
     v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
-    set_memory_object_len memoryarray, v37, v16
+    v38 = ptrtoint memptr v37 to i256
+    mstore v38, v16
     jump bb1
   bb1:
-    v38 = phi [bb0: 0], [bb2: v46]
-    v39 = lt v38, v16
-    jumpi v39, bb2, bb3
+    v39 = phi [bb0: 0], [bb2: v48]
+    v40 = lt v39, v16
+    jumpi v40, bb2, bb3
   bb3:
-    v47 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
-    ret v47
+    v49 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
+    ret v49
   bb2:
-    v40 = mul v38, 32
-    v41 = add v17, v40
-    v42 = calldataload v41
-    v43 = shr 8, v42
-    v44 = eq v43, 0
-    v45 = eq v44, false
-    icall revert_if<empty>, v45
-    memory_object_store_element memoryarray<1>, v37, v38, v42
-    v46 = add v38, 1
+    v41 = mul v39, 32
+    v42 = add v17, v41
+    v43 = calldataload v42
+    v44 = shr 8, v43
+    v45 = eq v44, 0
+    v46 = eq v45, false
+    icall revert_if<empty>, v46
+    v47 = memory_slice v37
+    slice_store_element v47, v39, v43
+    v48 = add v39, 1
     jump bb1
 }
 
 fn @compare(arg0: memptr, arg1: memptr) [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = memory_object_len memorybytes, arg1
-    v2 = eq v0, v1
-    v3 = eq v2, false
-    icall panic_if<0x1>, v3
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = memory_slice arg1
+    v3 = slice_len v2
+    v4 = eq v1, v3
+    v5 = eq v4, false
+    icall panic_if<0x1>, v5
     jump bb1
   bb1:
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v21]
-    v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = memory_object_len memorybytes, v6
-    v8 = lt v5, v7
-    jumpi v8, bb4, bb5
+    v6 = phi [bb0: arg1], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v26]
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = memory_slice v8
+    v10 = slice_len v9
+    v11 = lt v7, v10
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret
   bb4:
-    v9 = memory_object_len memorybytes, v6
-    v10 = lt v5, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_byte memorybytes, v6, v5
-    v13 = shl 248, v12
-    v14 = memory_object_len memorybytes, v4
-    v15 = lt v5, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = memory_object_load_byte memorybytes, v4, v5
-    v18 = shl 248, v17
-    v19 = eq v13, v18
-    v20 = eq v19, false
-    icall panic_if<0x1>, v20
+    v12 = memory_slice v8
+    v13 = slice_len v12
+    v14 = lt v7, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = slice_load_byte v12, v7
+    v17 = shl 248, v16
+    v18 = memory_slice v6
+    v19 = slice_len v18
+    v20 = lt v7, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = slice_load_byte v18, v7
+    v23 = shl 248, v22
+    v24 = eq v17, v23
+    v25 = eq v24, false
+    icall panic_if<0x1>, v25
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v5, 1
+    v26 = checked_add u256, v7, 1
     jump bb1
 }
 
@@ -300,31 +307,154 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v0 = not 31
     v1 = and 66, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 3
-    v3 = memory_object_len memorybytes, v2
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 3
+    v4 = memory_slice v2
+    v5 = slice_len v4
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v4, 0, v8
+    v9 = memory_slice v2
+    v10 = slice_len v9
+    v11 = lt 1, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v9, 1, v13
+    v14 = memory_slice v2
+    v15 = slice_len v14
+    v16 = lt 2, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v14, 2, v18
+    jump bb1
+  bb1:
+    v19 = phi [bb0: v2], [bb3: v24]
+    v20 = phi [bb0: 0], [bb3: v68]
+    v21 = memory_slice v19
+    v22 = slice_len v21
+    v23 = lt v20, v22
+    jumpi v23, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    jump bb7
+  bb7:
+    v24 = phi [bb4: v19], [bb9: v24]
+    v25 = phi [bb4: v20], [bb9: v25]
+    v26 = phi [bb4: v20], [bb9: v67]
+    v27 = memory_slice v24
+    v28 = slice_len v27
+    v29 = gt v26, v28
+    v30 = eq v29, false
+    jumpi v30, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v68 = checked_add u256, v25, 1
+    jump bb1
+  bb10:
+    v31 = address
+    v32 = gas
+    v33 = abi_encode [memory_bytes, word, word], selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v24, v25, v26
+    v34 = slice_ptr v33
+    v35 = slice_len v33
+    v36 = zext i160 v31 to i256
+    v37 = staticcall v32, v36, v34, v35, 0, 0
+    jumpi v37, bb14, bb13
+  bb13:
+    revert_returndata
+  bb14:
+    v38 = icall returndata_bytes<>
+    v39 = abi_decode [bytes], v38
+    v40 = address
+    v41 = gas
+    v42 = abi_encode [memory_bytes, word, word], selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v24, v25, v26
+    v43 = slice_ptr v42
+    v44 = slice_len v42
+    v45 = zext i160 v40 to i256
+    v46 = staticcall v41, v45, v43, v44, 0, 0
+    jumpi v46, bb16, bb15
+  bb15:
+    revert_returndata
+  bb16:
+    v47 = icall returndata_bytes<>
+    v48 = abi_decode [bytes], v47
+    icall @compare, v39, v48
+    v49 = address
+    v50 = gas
+    v51 = abi_encode [memory_bytes, word, word], selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v24, v25, v26
+    v52 = slice_ptr v51
+    v53 = slice_len v51
+    v54 = zext i160 v49 to i256
+    v55 = staticcall v50, v54, v52, v53, 0, 0
+    jumpi v55, bb18, bb17
+  bb17:
+    revert_returndata
+  bb18:
+    v56 = icall returndata_bytes<>
+    v57 = abi_decode [bytes], v56
+    v58 = address
+    v59 = gas
+    v60 = abi_encode [memory_bytes, word, word], selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v24, v25, v26
+    v61 = slice_ptr v60
+    v62 = slice_len v60
+    v63 = zext i160 v58 to i256
+    v64 = staticcall v59, v63, v61, v62, 0, 0
+    jumpi v64, bb20, bb19
+  bb19:
+    revert_returndata
+  bb20:
+    v65 = icall returndata_bytes<>
+    v66 = abi_decode [bytes], v65
+    icall @compare, v57, v66
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v67 = checked_add u256, v26, 1
+    jump bb7
+}
+
+fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 3
+    v2 = memory_slice v0
+    v3 = slice_len v2
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v2, 0, v6
-    v7 = memory_object_len memorybytes, v2
+    slice_store_element v2, 0, 65
+    v6 = memory_slice v0
+    v7 = slice_len v6
     v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v2, 1, v10
-    v11 = memory_object_len memorybytes, v2
+    slice_store_element v6, 1, 66
+    v10 = memory_slice v0
+    v11 = slice_len v10
     v12 = lt 2, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v2, 2, v14
+    slice_store_element v10, 2, 66
     jump bb1
   bb1:
-    v15 = phi [bb0: v2], [bb3: v19]
-    v16 = phi [bb0: 0], [bb3: v62]
-    v17 = memory_object_len memorybytes, v15
-    v18 = lt v16, v17
+    v14 = phi [bb0: v0], [bb3: v19]
+    v15 = phi [bb0: 0], [bb3: v63]
+    v16 = memory_slice v14
+    v17 = slice_len v16
+    v18 = lt v15, v17
     jumpi v18, bb4, bb5
   bb5:
     jump bb2
@@ -333,13 +463,14 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
   bb4:
     jump bb7
   bb7:
-    v19 = phi [bb4: v15], [bb9: v19]
-    v20 = phi [bb4: v16], [bb9: v20]
-    v21 = phi [bb4: v16], [bb9: v61]
-    v22 = memory_object_len memorybytes, v19
-    v23 = gt v21, v22
-    v24 = eq v23, false
-    jumpi v24, bb10, bb11
+    v19 = phi [bb4: v14], [bb9: v19]
+    v20 = phi [bb4: v15], [bb9: v20]
+    v21 = phi [bb4: v15], [bb9: v62]
+    v22 = memory_slice v19
+    v23 = slice_len v22
+    v24 = gt v21, v23
+    v25 = eq v24, false
+    jumpi v25, bb10, bb11
   bb11:
     jump bb8
   bb8:
@@ -347,179 +478,67 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
   bb6:
     jump bb3
   bb3:
-    v62 = checked_add u256, v20, 1
+    v63 = checked_add u256, v20, 1
     jump bb1
   bb10:
-    v25 = address
-    v26 = gas
-    v27 = abi_encode [memory_bytes, word, word], selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = zext i160 v25 to i256
-    v31 = staticcall v26, v30, v28, v29, 0, 0
-    jumpi v31, bb14, bb13
+    v26 = address
+    v27 = gas
+    v28 = abi_encode [memory_array<word>, word, word], selector 0xd7d5d6100000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = zext i160 v26 to i256
+    v32 = staticcall v27, v31, v29, v30, 0, 0
+    jumpi v32, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v32 = icall returndata_bytes<>
-    v33 = abi_decode [bytes], v32
-    v34 = address
-    v35 = gas
-    v36 = abi_encode [memory_bytes, word, word], selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = zext i160 v34 to i256
-    v40 = staticcall v35, v39, v37, v38, 0, 0
-    jumpi v40, bb16, bb15
+    v33 = icall returndata_bytes<>
+    v34 = abi_decode [bytes], v33
+    v35 = address
+    v36 = gas
+    v37 = abi_encode [memory_array<word>, word, word], selector 0xf98ab31400000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = zext i160 v35 to i256
+    v41 = staticcall v36, v40, v38, v39, 0, 0
+    jumpi v41, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v41 = icall returndata_bytes<>
-    v42 = abi_decode [bytes], v41
-    icall @compare, v33, v42
-    v43 = address
-    v44 = gas
-    v45 = abi_encode [memory_bytes, word, word], selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v19, v20, v21
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = zext i160 v43 to i256
-    v49 = staticcall v44, v48, v46, v47, 0, 0
-    jumpi v49, bb18, bb17
+    v42 = icall returndata_bytes<>
+    v43 = abi_decode [bytes], v42
+    icall @compare, v34, v43
+    v44 = address
+    v45 = gas
+    v46 = abi_encode [memory_array<word>, word, word], selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v47 = slice_ptr v46
+    v48 = slice_len v46
+    v49 = zext i160 v44 to i256
+    v50 = staticcall v45, v49, v47, v48, 0, 0
+    jumpi v50, bb18, bb17
   bb17:
     revert_returndata
   bb18:
-    v50 = icall returndata_bytes<>
-    v51 = abi_decode [bytes], v50
-    v52 = address
-    v53 = gas
-    v54 = abi_encode [memory_bytes, word, word], selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v19, v20, v21
-    v55 = slice_ptr v54
-    v56 = slice_len v54
-    v57 = zext i160 v52 to i256
-    v58 = staticcall v53, v57, v55, v56, 0, 0
-    jumpi v58, bb20, bb19
+    v51 = icall returndata_bytes<>
+    v52 = abi_decode [bytes], v51
+    v53 = address
+    v54 = gas
+    v55 = abi_encode [memory_array<word>, word, word], selector 0xea73d5ef00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v56 = slice_ptr v55
+    v57 = slice_len v55
+    v58 = zext i160 v53 to i256
+    v59 = staticcall v54, v58, v56, v57, 0, 0
+    jumpi v59, bb20, bb19
   bb19:
     revert_returndata
   bb20:
-    v59 = icall returndata_bytes<>
-    v60 = abi_decode [bytes], v59
-    icall @compare, v51, v60
+    v60 = icall returndata_bytes<>
+    v61 = abi_decode [bytes], v60
+    icall @compare, v52, v61
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v61 = checked_add u256, v21, 1
-    jump bb7
-}
-
-fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v0, 3
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 65
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 66
-    v7 = memory_object_len memoryarray, v0
-    v8 = lt 2, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    memory_object_store_element memoryarray<1>, v0, 2, 66
-    jump bb1
-  bb1:
-    v10 = phi [bb0: v0], [bb3: v14]
-    v11 = phi [bb0: 0], [bb3: v57]
-    v12 = memory_object_len memoryarray, v10
-    v13 = lt v11, v12
-    jumpi v13, bb4, bb5
-  bb5:
-    jump bb2
-  bb2:
-    ret
-  bb4:
-    jump bb7
-  bb7:
-    v14 = phi [bb4: v10], [bb9: v14]
-    v15 = phi [bb4: v11], [bb9: v15]
-    v16 = phi [bb4: v11], [bb9: v56]
-    v17 = memory_object_len memoryarray, v14
-    v18 = gt v16, v17
-    v19 = eq v18, false
-    jumpi v19, bb10, bb11
-  bb11:
-    jump bb8
-  bb8:
-    jump bb6
-  bb6:
-    jump bb3
-  bb3:
-    v57 = checked_add u256, v15, 1
-    jump bb1
-  bb10:
-    v20 = address
-    v21 = gas
-    v22 = abi_encode [memory_array<word>, word, word], selector 0xd7d5d6100000000000000000000000000000000000000000000000000000000, args v14, v15, v16
-    v23 = slice_ptr v22
-    v24 = slice_len v22
-    v25 = zext i160 v20 to i256
-    v26 = staticcall v21, v25, v23, v24, 0, 0
-    jumpi v26, bb14, bb13
-  bb13:
-    revert_returndata
-  bb14:
-    v27 = icall returndata_bytes<>
-    v28 = abi_decode [bytes], v27
-    v29 = address
-    v30 = gas
-    v31 = abi_encode [memory_array<word>, word, word], selector 0xf98ab31400000000000000000000000000000000000000000000000000000000, args v14, v15, v16
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = zext i160 v29 to i256
-    v35 = staticcall v30, v34, v32, v33, 0, 0
-    jumpi v35, bb16, bb15
-  bb15:
-    revert_returndata
-  bb16:
-    v36 = icall returndata_bytes<>
-    v37 = abi_decode [bytes], v36
-    icall @compare, v28, v37
-    v38 = address
-    v39 = gas
-    v40 = abi_encode [memory_array<word>, word, word], selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v14, v15, v16
-    v41 = slice_ptr v40
-    v42 = slice_len v40
-    v43 = zext i160 v38 to i256
-    v44 = staticcall v39, v43, v41, v42, 0, 0
-    jumpi v44, bb18, bb17
-  bb17:
-    revert_returndata
-  bb18:
-    v45 = icall returndata_bytes<>
-    v46 = abi_decode [bytes], v45
-    v47 = address
-    v48 = gas
-    v49 = abi_encode [memory_array<word>, word, word], selector 0xea73d5ef00000000000000000000000000000000000000000000000000000000, args v14, v15, v16
-    v50 = slice_ptr v49
-    v51 = slice_len v49
-    v52 = zext i160 v47 to i256
-    v53 = staticcall v48, v52, v50, v51, 0, 0
-    jumpi v53, bb20, bb19
-  bb19:
-    revert_returndata
-  bb20:
-    v54 = icall returndata_bytes<>
-    v55 = abi_decode [bytes], v54
-    icall @compare, v46, v55
-    jump bb12
-  bb12:
-    jump bb9
-  bb9:
-    v56 = checked_add u256, v16, 1
+    v62 = checked_add u256, v21, 1
     jump bb7
 }

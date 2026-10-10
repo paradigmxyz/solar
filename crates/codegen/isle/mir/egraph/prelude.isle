@@ -161,14 +161,8 @@
 (decl pure has_known_sign_bit (Value) bool)
 (extern constructor has_known_sign_bit has_known_sign_bit)
 
-(decl pure object_data_offset (MemoryObjectKind) u64)
-(extern constructor object_data_offset object_data_offset)
-
 (decl pure partial field_offset (MemoryObjectLayout u64) u64)
 (extern constructor field_offset field_offset)
-
-(decl pure layout_kind (MemoryObjectLayout) MemoryObjectKind)
-(extern constructor layout_kind layout_kind)
 
 ;; The replacement push must cost no more gas or bytes than the original.
 (decl pure push_not_larger (U256 U256) bool)

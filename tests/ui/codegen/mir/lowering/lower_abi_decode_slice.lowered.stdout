@@ -77,13 +77,18 @@
 +     v17 = not 31
 +     v18 = and v15, v17
 +     v19 = alloc memorybytes, exact, uninitialized, panic, v18
-+     set_memory_object_len memorybytes, v19, v13
-+     v20 = sub v4, v14
-+     v21 = gt v13, v20
-+     jumpi v21, bb1, bb6
++     v20 = ptrtoint memptr v19 to i256
++     mstore v20, v13
++     v21 = sub v4, v14
++     v22 = gt v13, v21
++     jumpi v22, bb1, bb6
 +   bb6:
-+     v22 = make_memory_slice v14, v13
-+     memory_object_copy_from_slice memorybytes, v19, v22
++     v23 = make_memory_slice v14, v13
++     v24 = ptrtoint memptr v19 to i256
++     v25 = add v24, 32
++     v26 = slice_len v23
++     v27 = make_memory_slice v25, v26
++     slice_copy v27, 0, v23
 +     ret v19
 +   bb4:
 +     mstore 32, 65 !metadata(memory=scratch)

@@ -9,62 +9,69 @@
 fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v3 = insert_value struct0, undef struct0, 0, v0
-    v4 = insert_value struct0, v3, 1, 42
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 5
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, 42
+    ret v5
 }
 
 fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    v3 = insert_value struct1, undef struct1, 0, 42
-    v4 = insert_value struct1, v3, 1, v0
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 5
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    v4 = insert_value struct1, undef struct1, 0, 42
+    v5 = insert_value struct1, v4, 1, v0
+    ret v5
 }
 
 fn @twoStrings() -> struct2 [selector=0x477be19f, pure, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 2
-    v4 = memory_object_data memorybytes, v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 5
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0xaabb000000000000000000000000000000000000000000000000000000000000
-    v6 = insert_value struct2, undef struct2, 0, v0
-    v7 = insert_value struct2, v6, 1, v3
-    ret v7
+    mstore v5, 2
+    v6 = ptrtoint memptr v4 to i256
+    v7 = add v6, 32
+    mstore v7, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    v8 = insert_value struct2, undef struct2, 0, v0
+    v9 = insert_value struct2, v8, 1, v4
+    ret v9
 }
 
 fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v0, 3
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 1
-    v5 = memory_object_data memorybytes, v4
-    v6 = ptrtoint memptr v5 to i256
-    mstore v6, 0xcc00000000000000000000000000000000000000000000000000000000000000
-    v7 = insert_value struct3, undef struct3, 0, v0
-    v8 = insert_value struct3, v7, 1, 7
-    v9 = insert_value struct3, v8, 2, v4
-    ret v9
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 3
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    slice_store_element v2, 0, 7
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 1
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    mstore v9, 0xcc00000000000000000000000000000000000000000000000000000000000000
+    v10 = insert_value struct3, undef struct3, 0, v0
+    v11 = insert_value struct3, v10, 1, 7
+    v12 = insert_value struct3, v11, 2, v6
+    ret v12
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Caller ===
@@ -117,10 +124,11 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v22 = insert_value struct1, v21, 1, v20
     v23 = extract_value struct1, v22, 0
     v24 = extract_value struct1, v22, 1
-    v25 = memory_object_len memorybytes, v23
-    v26 = insert_value struct0, undef struct0, 0, v25
-    v27 = insert_value struct0, v26, 1, v24
-    ret v27
+    v25 = memory_slice v23
+    v26 = slice_len v25
+    v27 = insert_value struct0, undef struct0, 0, v26
+    v28 = insert_value struct0, v27, 1, v24
+    ret v28
 }
 
 fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -160,10 +168,11 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v22 = insert_value struct2, v21, 1, v20
     v23 = extract_value struct2, v22, 0
     v24 = extract_value struct2, v22, 1
-    v25 = memory_object_len memorybytes, v24
-    v26 = insert_value struct0, undef struct0, 0, v23
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v25 = memory_slice v24
+    v26 = slice_len v25
+    v27 = insert_value struct0, undef struct0, 0, v23
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
 fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -203,11 +212,13 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v22 = insert_value struct3, v21, 1, v20
     v23 = extract_value struct3, v22, 0
     v24 = extract_value struct3, v22, 1
-    v25 = memory_object_len memorybytes, v23
-    v26 = memory_object_len memorybytes, v24
-    v27 = insert_value struct0, undef struct0, 0, v25
-    v28 = insert_value struct0, v27, 1, v26
-    ret v28
+    v25 = memory_slice v23
+    v26 = slice_len v25
+    v27 = memory_slice v24
+    v28 = slice_len v27
+    v29 = insert_value struct0, undef struct0, 0, v26
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }
 
 fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -250,17 +261,20 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v25 = extract_value struct5, v24, 0
     v26 = extract_value struct5, v24, 1
     v27 = extract_value struct5, v24, 2
-    v28 = memory_object_len memoryarray, v25
-    v29 = memory_object_len memoryarray, v25
-    v30 = lt 0, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = memory_object_load_element memoryarray<1>, v25, 0
-    v33 = checked_sub u256, v26, 7
-    v34 = checked_add u256, v32, v33
-    v35 = memory_object_len memorybytes, v27
-    v36 = insert_value struct4, undef struct4, 0, v28
-    v37 = insert_value struct4, v36, 1, v34
-    v38 = insert_value struct4, v37, 2, v35
-    ret v38
+    v28 = memory_slice v25
+    v29 = slice_len v28
+    v30 = memory_slice v25
+    v31 = slice_len v30
+    v32 = lt 0, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = slice_load_element v30, 0
+    v35 = checked_sub u256, v26, 7
+    v36 = checked_add u256, v34, v35
+    v37 = memory_slice v27
+    v38 = slice_len v37
+    v39 = insert_value struct4, undef struct4, 0, v29
+    v40 = insert_value struct4, v39, 1, v36
+    v41 = insert_value struct4, v40, 2, v38
+    ret v41
 }

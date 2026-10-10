@@ -31,7 +31,8 @@ contract C {
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
     // CHECK: alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, arg0
+    // CHECK: [[ARRAY_PTR:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+    // CHECK-NEXT: mstore [[ARRAY_PTR]], arg0
     // CHECK: ret
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
         uint256[] memory r = new uint256[](n);
@@ -41,7 +42,10 @@ contract C {
 
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
-    // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
+    // CHECK: checked_mul
+    // CHECK-NEXT: [[VIEW:v[0-9]+]] = memory_slice arg0
+    // CHECK: icall panic_if<0x32>
+    // CHECK-NEXT: slice_store_element [[VIEW]], arg1
     // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]

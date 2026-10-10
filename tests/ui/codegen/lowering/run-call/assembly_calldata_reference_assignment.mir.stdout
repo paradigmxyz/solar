@@ -136,9 +136,14 @@ fn @dynamicWords(arg0: calldataslice) -> memptr [selector=0x148d46ad, pure, abi_
     v26 = lt v25, 32
     icall panic_if<0x41>, v26
     v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-    set_memory_object_len memoryarray, v27, v6
-    v28 = make_calldata_slice v7, v18
-    memory_object_copy_from_slice memoryarray, v27, v28
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, v6
+    v29 = make_calldata_slice v7, v18
+    v30 = ptrtoint memptr v27 to i256
+    v31 = add v30, 32
+    v32 = slice_len v29
+    v33 = make_memory_slice v31, v32
+    slice_copy v33, 0, v29
     ret v27
 }
 
@@ -176,30 +181,35 @@ fn @dynamicFixed(arg0: calldataslice) -> memptr [selector=0x71cafd78, pure, abi_
     v26 = lt v25, 32
     icall panic_if<0x41>, v26
     v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-    set_memory_object_len memoryarray, v27, v6
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v41]
-    v29 = lt v28, v6
-    jumpi v29, bb2, bb3
+    v29 = phi [bb0: 0], [bb2: v46]
+    v30 = lt v29, v6
+    jumpi v30, bb2, bb3
   bb3:
     ret v27
   bb2:
-    v30 = mul v28, 64
-    v31 = eq 64, 0
-    v32 = div v30, 64
-    v33 = eq v32, v28
-    v34 = or v31, v33
-    v35 = zext i1 v34 to i256
-    v36 = eq v35, 0
-    icall panic_if<0x41>, v36
-    v37 = add v7, v30
-    v38 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v39 = make_calldata_slice v37, 64
-    memory_object_copy_from_slice memoryfixedarray, v38, v39
-    v40 = ptrtoint memptr v38 to i256
-    memory_object_store_element memoryarray<1>, v27, v28, v40
-    v41 = add v28, 1
+    v31 = mul v29, 64
+    v32 = eq 64, 0
+    v33 = div v31, 64
+    v34 = eq v33, v29
+    v35 = or v32, v34
+    v36 = zext i1 v35 to i256
+    v37 = eq v36, 0
+    icall panic_if<0x41>, v37
+    v38 = add v7, v31
+    v39 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v40 = make_calldata_slice v38, 64
+    v41 = ptrtoint memptr v39 to i256
+    v42 = slice_len v40
+    v43 = make_memory_slice v41, v42
+    slice_copy v43, 0, v40
+    v44 = ptrtoint memptr v39 to i256
+    v45 = memory_slice v27
+    slice_store_element v45, v29, v44
+    v46 = add v29, 1
     jump bb1
 }
 
@@ -237,24 +247,26 @@ fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, pure, abi
     v26 = lt v25, 32
     icall panic_if<0x41>, v26
     v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-    set_memory_object_len memoryarray, v27, v6
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v36]
-    v29 = lt v28, v6
-    jumpi v29, bb2, bb3
+    v29 = phi [bb0: 0], [bb2: v38]
+    v30 = lt v29, v6
+    jumpi v30, bb2, bb3
   bb3:
     ret v27
   bb2:
-    v30 = mul v28, 32
-    v31 = add v7, v30
-    v32 = calldataload v31
-    v33 = shr 8, v32
-    v34 = eq v33, 0
-    v35 = eq v34, false
-    icall revert_if<empty>, v35
-    memory_object_store_element memoryarray<1>, v27, v28, v32
-    v36 = add v28, 1
+    v31 = mul v29, 32
+    v32 = add v7, v31
+    v33 = calldataload v32
+    v34 = shr 8, v33
+    v35 = eq v34, 0
+    v36 = eq v35, false
+    icall revert_if<empty>, v36
+    v37 = memory_slice v27
+    slice_store_element v37, v29, v33
+    v38 = add v29, 1
     jump bb1
 }
 
@@ -292,57 +304,64 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     v26 = lt v25, 32
     icall panic_if<0x41>, v26
     v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-    set_memory_object_len memoryarray, v27, v6
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v62]
-    v29 = lt v28, v6
-    jumpi v29, bb2, bb3
+    v29 = phi [bb0: 0], [bb2: v69]
+    v30 = lt v29, v6
+    jumpi v30, bb2, bb3
   bb3:
     ret v27
   bb2:
-    v30 = mul v28, 32
-    v31 = add v7, v30
-    v32 = calldatasize
-    v33 = sub v32, v31
-    v34 = slt v33, 32
-    icall revert_if<calldata_tail_too_short>, v34
-    v35 = calldataload v31
-    v36 = add v7, v35
-    v37 = calldatasize
-    v38 = sub v37, v7
-    v39 = sub v38, 31
-    v40 = slt v35, v39
-    v41 = eq v40, false
-    icall revert_if<invalid_calldata_tail_offset>, v41
-    v42 = calldataload v36
-    v43 = gt v42, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v43
-    v44 = mul v42, 32
-    v45 = add v36, 32
-    v46 = calldatasize
-    v47 = sub v46, v44
-    v48 = sgt v45, v47
-    icall revert_if<calldata_tail_too_short>, v48
-    v49 = add v36, 32
-    v50 = mul v42, 32
-    v51 = eq 32, 0
-    v52 = div v50, 32
-    v53 = eq v52, v42
-    v54 = or v51, v53
-    v55 = zext i1 v54 to i256
-    v56 = eq v55, 0
-    icall panic_if<0x41>, v56
-    v57 = add 32, v50
-    v58 = lt v57, 32
-    icall panic_if<0x41>, v58
-    v59 = alloc memoryarray<1>, exact, uninitialized, infallible, v57
-    set_memory_object_len memoryarray, v59, v42
-    v60 = make_calldata_slice v49, v50
-    memory_object_copy_from_slice memoryarray, v59, v60
-    v61 = ptrtoint memptr v59 to i256
-    memory_object_store_element memoryarray<1>, v27, v28, v61
-    v62 = add v28, 1
+    v31 = mul v29, 32
+    v32 = add v7, v31
+    v33 = calldatasize
+    v34 = sub v33, v32
+    v35 = slt v34, 32
+    icall revert_if<calldata_tail_too_short>, v35
+    v36 = calldataload v32
+    v37 = add v7, v36
+    v38 = calldatasize
+    v39 = sub v38, v7
+    v40 = sub v39, 31
+    v41 = slt v36, v40
+    v42 = eq v41, false
+    icall revert_if<invalid_calldata_tail_offset>, v42
+    v43 = calldataload v37
+    v44 = gt v43, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v44
+    v45 = mul v43, 32
+    v46 = add v37, 32
+    v47 = calldatasize
+    v48 = sub v47, v45
+    v49 = sgt v46, v48
+    icall revert_if<calldata_tail_too_short>, v49
+    v50 = add v37, 32
+    v51 = mul v43, 32
+    v52 = eq 32, 0
+    v53 = div v51, 32
+    v54 = eq v53, v43
+    v55 = or v52, v54
+    v56 = zext i1 v55 to i256
+    v57 = eq v56, 0
+    icall panic_if<0x41>, v57
+    v58 = add 32, v51
+    v59 = lt v58, 32
+    icall panic_if<0x41>, v59
+    v60 = alloc memoryarray<1>, exact, uninitialized, infallible, v58
+    v61 = ptrtoint memptr v60 to i256
+    mstore v61, v43
+    v62 = make_calldata_slice v50, v51
+    v63 = ptrtoint memptr v60 to i256
+    v64 = add v63, 32
+    v65 = slice_len v62
+    v66 = make_memory_slice v64, v65
+    slice_copy v66, 0, v62
+    v67 = ptrtoint memptr v60 to i256
+    v68 = memory_slice v27
+    slice_store_element v68, v29, v67
+    v69 = add v29, 1
     jump bb1
 }
 
@@ -381,9 +400,14 @@ fn @dynamicOverflow(arg0: calldataslice) -> memptr [selector=0x51072adf, pure, a
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
-    set_memory_object_len memoryarray, v28, v7
-    v29 = make_calldata_slice v8, v19
-    memory_object_copy_from_slice memoryarray, v28, v29
+    v29 = ptrtoint memptr v28 to i256
+    mstore v29, v7
+    v30 = make_calldata_slice v8, v19
+    v31 = ptrtoint memptr v28 to i256
+    v32 = add v31, 32
+    v33 = slice_len v30
+    v34 = make_memory_slice v32, v33
+    slice_copy v34, 0, v30
     ret v28
 }
 
@@ -422,9 +446,14 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memptr [selector=0x93d2ba08, pure,
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
-    set_memory_object_len memoryarray, v28, v7
-    v29 = make_calldata_slice v8, v19
-    memory_object_copy_from_slice memoryarray, v28, v29
+    v29 = ptrtoint memptr v28 to i256
+    mstore v29, v7
+    v30 = make_calldata_slice v8, v19
+    v31 = ptrtoint memptr v28 to i256
+    v32 = add v31, 32
+    v33 = slice_len v30
+    v34 = make_memory_slice v32, v33
+    slice_copy v34, 0, v30
     ret v28
 }
 
@@ -464,9 +493,14 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memptr [selector=0x77beb5ce, pur
     v28 = lt v27, 32
     icall panic_if<0x41>, v28
     v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v27
-    set_memory_object_len memoryarray, v29, v8
-    v30 = make_calldata_slice v9, v20
-    memory_object_copy_from_slice memoryarray, v29, v30
+    v30 = ptrtoint memptr v29 to i256
+    mstore v30, v8
+    v31 = make_calldata_slice v9, v20
+    v32 = ptrtoint memptr v29 to i256
+    v33 = add v32, 32
+    v34 = slice_len v31
+    v35 = make_memory_slice v33, v34
+    slice_copy v35, 0, v31
     ret v29
 }
 
@@ -505,9 +539,14 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memptr [selector=0x4c797599, pure
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
-    set_memory_object_len memoryarray, v28, v7
-    v29 = make_calldata_slice v8, v19
-    memory_object_copy_from_slice memoryarray, v28, v29
+    v29 = ptrtoint memptr v28 to i256
+    mstore v29, v7
+    v30 = make_calldata_slice v8, v19
+    v31 = ptrtoint memptr v28 to i256
+    v32 = add v31, 32
+    v33 = slice_len v30
+    v34 = make_memory_slice v32, v33
+    slice_copy v34, 0, v30
     ret v28
 }
 

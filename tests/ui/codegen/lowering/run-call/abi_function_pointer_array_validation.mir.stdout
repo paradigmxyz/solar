@@ -53,37 +53,39 @@ fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_
 fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = address
-    v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
-    v4 = or v3, 0xd4b83992
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = shl 64, v4
-    memory_object_store_element memoryarray<1>, v0, 0, v8
-    v9 = abi_encode [memory_array<function>], object, selector arg0, args v0
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl 32, v3
+    v5 = or v4, 0xd4b83992
+    v6 = memory_slice v0
+    v7 = slice_len v6
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl 64, v5
+    slice_store_element v6, 0, v10
+    v11 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v10 = ptrtoint memptr v9 to i256
-    v11 = add v10, 32
-    v12 = add v11, 92
-    mstore8 v12, 88
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    v14 = add v13, 92
+    mstore8 v14, 88
     jump bb3
   bb3:
-    v13 = address
-    v14 = gas
-    v15 = address_staticcall v13, v9, gas v14
-    v16 = icall returndata_bytes<>
-    v17 = eq v15, false
-    icall revert_if<empty>, v17
-    v18 = abi_decode [u256], v16
-    v19 = eq v18, arg2
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    ret v18
+    v15 = address
+    v16 = gas
+    v17 = address_staticcall v15, v11, gas v16
+    v18 = icall returndata_bytes<>
+    v19 = eq v17, false
+    icall revert_if<empty>, v19
+    v20 = abi_decode [u256], v18
+    v21 = eq v20, arg2
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
+    ret v20
 }

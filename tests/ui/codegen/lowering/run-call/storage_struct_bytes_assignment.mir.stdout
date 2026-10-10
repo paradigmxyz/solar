@@ -12,10 +12,11 @@ fn @roundTrip() -> struct0 [selector=0x6643a628, abi_params=[], abi_returns=[wor
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
     v4 = mload v3
-    v5 = memory_object_len memorybytes, v1
-    v6 = insert_value struct0, undef struct0, 0, v4
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
+    v5 = memory_slice v1
+    v6 = slice_len v5
+    v7 = insert_value struct0, undef struct0, 0, v4
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
 }
 
 fn @cleanupEmpty() -> struct1 [selector=0x1312e7ef, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

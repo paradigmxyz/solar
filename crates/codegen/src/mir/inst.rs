@@ -755,23 +755,21 @@ impl Instruction {
             | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
-            InstKind::MemoryObjectLen(..)
-            | InstKind::SetMemoryObjectLen(..)
-            | InstKind::MemoryObjectData(..)
+            InstKind::MemorySlice(..)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
             | InstKind::MemoryObjectLoadField { .. }
             | InstKind::MemoryObjectStoreField { .. }
             | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::SliceLoadElement { .. }
+            | InstKind::SliceLoadByte { .. }
             | InstKind::MemoryObjectStoreElement { .. }
-            | InstKind::MemoryObjectStoreByte { .. }
-            | InstKind::MemoryObjectStoreWord { .. }
+            | InstKind::SliceStoreElement { .. }
+            | InstKind::SliceStoreByte { .. }
+            | InstKind::SliceStoreWord { .. }
             | InstKind::MemorySliceLoadWord { .. }
             | InstKind::CalldataSliceLoadWord { .. }
-            | InstKind::MemoryObjectCopyFromSlice { .. }
-            | InstKind::MemoryObjectCopyFromSliceAt { .. }
-            | InstKind::MemoryObjectCopy { .. }
+            | InstKind::SliceCopy { .. }
             | InstKind::Keccak256Bytes(..) => Some("memory-object"),
             InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
                 || !matches!(kind, AllocationKind::Raw)
@@ -1021,6 +1019,7 @@ impl InstKind {
             Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
+            Self::MemorySlice(_) => result == Some(MirType::Slice(SliceLocation::Memory)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
             Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
             Self::Phi(_) => {
@@ -1152,23 +1151,21 @@ impl InstKind {
         matches!(
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
-                | Self::MemoryObjectLen(_, _)
-                | Self::SetMemoryObjectLen(_, _, _)
-                | Self::MemoryObjectData(_, _)
+                | Self::MemorySlice(..)
                 | Self::MemoryObjectFieldAddr { .. }
                 | Self::MemoryObjectElementAddr { .. }
                 | Self::MemoryObjectLoadField { .. }
                 | Self::MemoryObjectStoreField { .. }
                 | Self::MemoryObjectLoadElement { .. }
-                | Self::MemoryObjectLoadByte { .. }
+                | Self::SliceLoadElement { .. }
+                | Self::SliceLoadByte { .. }
                 | Self::MemoryObjectStoreElement { .. }
-                | Self::MemoryObjectStoreByte { .. }
-                | Self::MemoryObjectStoreWord { .. }
+                | Self::SliceStoreElement { .. }
+                | Self::SliceStoreByte { .. }
+                | Self::SliceStoreWord { .. }
                 | Self::MemorySliceLoadWord { .. }
                 | Self::CalldataSliceLoadWord { .. }
-                | Self::MemoryObjectCopyFromSlice { .. }
-                | Self::MemoryObjectCopyFromSliceAt { .. }
-                | Self::MemoryObjectCopy { .. }
+                | Self::SliceCopy { .. }
                 | Self::Keccak256Bytes(_)
         )
     }

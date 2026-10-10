@@ -14,7 +14,7 @@ contract ElementCleanup {
     // A fresh array is zeroed and only ever stores canonical words.
     // CHECK-LABEL: {{^[ +-].*}}fn @fresh
     // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
-    // CHECK: + memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 0, {{v[0-9]+}}
+    // CHECK: + slice_store_element {{v[0-9]+}}, 0, {{v[0-9]+}}
     // CHECK: {{^ +}}[[NARROW:v[0-9]+]] = trunc i256 {{v[0-9]+}} to i160
     function fresh(uint256 n) external pure returns (address) {
         address[] memory a = new address[](n);
@@ -49,7 +49,7 @@ contract ElementCleanup {
     // A nominal parameter is cleaned before it is stored, so the helper's
     // caller still reads without a mask after the call.
     // CHECK-LABEL: {{^[ +-].*}}fn @fill
-    // CHECK: {{^ +}}memory_object_store_element
+    // CHECK: {{^ +}}slice_store_element
     function fill(address[] memory a, address x) internal pure {
         a[0] = x;
     }
@@ -71,7 +71,7 @@ contract ElementCleanup {
 
     // CHECK-LABEL: {{^[ +-].*}}fn @fresh8
     // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i8
-    // CHECK: + memory_object_store_element
+    // CHECK: + slice_store_element
     function fresh8(uint256 n) external pure returns (uint8) {
         uint8[] memory a = new uint8[](n);
         a[0] = a[1];
@@ -80,7 +80,7 @@ contract ElementCleanup {
 
     // CHECK-LABEL: {{^[ +-].*}}fn @fresh128
     // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i128
-    // CHECK: + memory_object_store_element
+    // CHECK: + slice_store_element
     function fresh128(uint256 n) external pure returns (uint128) {
         uint128[] memory a = new uint128[](n);
         a[0] = a[1];
@@ -89,7 +89,7 @@ contract ElementCleanup {
 
     // CHECK-LABEL: {{^[ +-].*}}fn @fresh248
     // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i248
-    // CHECK: + memory_object_store_element
+    // CHECK: + slice_store_element
     function fresh248(uint256 n) external pure returns (uint248) {
         uint248[] memory a = new uint248[](n);
         a[0] = a[1];

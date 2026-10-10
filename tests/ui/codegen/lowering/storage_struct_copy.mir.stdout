@@ -49,15 +49,16 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     v7 = memory_object_load_field memorystruct<2>, v0, 0
     v8 = trunc i256 v7 to i160
     v9 = memory_object_load_field memorystruct<2>, v0, 1, memptr
-    v10 = memory_object_len memoryarray, v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryarray<1>, v9, 0
-    v14 = and v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = insert_value struct0, undef struct0, 0, v8
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v10 = memory_slice v9
+    v11 = slice_len v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = slice_load_element v10, 0
+    v15 = and v14, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v16 = insert_value struct0, undef struct0, 0, v8
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
@@ -74,15 +75,16 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     v7 = memory_object_load_field memorystruct<2>, v0, 0
     v8 = trunc i256 v7 to i160
     v9 = memory_object_load_field memorystruct<2>, v0, 1, memptr
-    v10 = memory_object_len memoryarray, v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryarray<1>, v9, 0
-    v14 = and v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = insert_value struct0, undef struct0, 0, v8
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v10 = memory_slice v9
+    v11 = slice_len v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = slice_load_element v10, 0
+    v15 = and v14, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v16 = insert_value struct0, undef struct0, 0, v8
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @load_storage_packed_array_4_2(arg0: i256) -> memptr {

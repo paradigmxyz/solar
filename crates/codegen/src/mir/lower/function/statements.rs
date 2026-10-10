@@ -776,7 +776,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
             let zero = self.builder.imm(0);
-            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+            let view = self.builder.memory_slice(value);
+            return self.builder.slice_load_word(view, zero);
         }
         value
     }

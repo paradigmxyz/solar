@@ -1,17 +1,20 @@
 //@compile-flags: -Zmir-pipeline=dce
 //~? ERROR: [fn0] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_slice` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst2] slice instruction `slice_len` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst3] memory-object instruction `slice_store_byte` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst4] memory-object instruction `slice_load_byte` survives the `lowered` phase boundary
+//~? ERROR: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
 @module ValidateMemoryObjectBoundary
 @phase lowered
 
 fn @object(arg0: memptr) -> memptr {
   bb0:
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v2 = memory_object_len memorybytes, arg0
-    set_memory_object_len memorybytes, arg0, v2
-    v3 = memory_object_load_byte memorybytes, arg0, 0
+    v2 = memory_slice arg0
+    v3 = slice_len v2
+    slice_store_byte v2, 0, v3
+    v4 = slice_load_byte v2, 0
     ret v1
 }
 

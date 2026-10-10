@@ -11,7 +11,8 @@ fn @canonicalAddresses() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
     v1 = add 2, 0
-    set_memory_object_len memoryarray, v0, v1
+    v6 = ptrtoint memptr v0 to i256
+    mstore v6, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -19,7 +20,8 @@ fn @canonicalAddresses() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_element memoryarray<1>, v0, v2, v4
+    v7 = memory_slice v0
+    slice_store_element v7, v2, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -42,7 +44,8 @@ fn @canonicalAddressArrays() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
     v1 = add 1, 0
-    set_memory_object_len memoryarray, v0, v1
+    v10 = ptrtoint memptr v0 to i256
+    mstore v10, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -53,7 +56,8 @@ fn @canonicalAddressArrays() -> memptr {
     v8 = ptrtoint memptr v4 to i256
     v9 = inttoptr i256 v8 to memptr
     v6 = ptrtoint memptr v9 to i256
-    memory_object_store_element memoryarray<1>, v0, v2, v6
+    v11 = memory_slice v0
+    slice_store_element v11, v2, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -76,7 +80,8 @@ fn @dirtyAddressArrays() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
     v1 = add 1, 0
-    set_memory_object_len memoryarray, v0, v1
+    v7 = ptrtoint memptr v0 to i256
+    mstore v7, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -84,9 +89,11 @@ fn @dirtyAddressArrays() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = memory_slice v4
+    slice_store_element v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = ptrtoint memptr v4 to i256
-    memory_object_store_element memoryarray<1>, v0, v2, v6
+    v9 = memory_slice v0
+    slice_store_element v9, v2, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -117,7 +124,8 @@ fn @dirtyAddressAliases() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
     v1 = add 1, 0
-    set_memory_object_len memoryarray, v0, v1
+    v8 = ptrtoint memptr v0 to i256
+    mstore v8, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -127,8 +135,10 @@ fn @dirtyAddressAliases() -> memptr {
     v4 = icall @canonicalAddresses
     v6 = ptrtoint memptr v4 to i256
     v7 = inttoptr i256 v6 to memptr
-    memory_object_store_element memoryarray<1>, v7, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_element memoryarray<1>, v0, v2, v6
+    v9 = memory_slice v7
+    slice_store_element v9, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = memory_slice v0
+    slice_store_element v10, v2, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -139,7 +149,8 @@ fn @dirtyAddressReloads() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
     v1 = add 1, 0
-    set_memory_object_len memoryarray, v0, v1
+    v9 = ptrtoint memptr v0 to i256
+    mstore v9, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -148,10 +159,13 @@ fn @dirtyAddressReloads() -> memptr {
   bb2:
     v4 = icall @canonicalAddresses
     v6 = ptrtoint memptr v4 to i256
-    memory_object_store_element memoryarray<1>, v0, v2, v6
-    v7 = memory_object_load_element memoryarray<1>, v0, v2
+    v10 = memory_slice v0
+    slice_store_element v10, v2, v6
+    v11 = memory_slice v0
+    v7 = slice_load_element v11, v2
     v8 = inttoptr i256 v7 to memptr
-    memory_object_store_element memoryarray<1>, v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = memory_slice v8
+    slice_store_element v12, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -162,7 +176,8 @@ fn @escapingAddressArrays() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
     v1 = add 1, 0
-    set_memory_object_len memoryarray, v0, v1
+    v7 = ptrtoint memptr v0 to i256
+    mstore v7, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -171,7 +186,8 @@ fn @escapingAddressArrays() -> memptr {
   bb2:
     v4 = icall @canonicalAddresses
     v6 = ptrtoint memptr v4 to i256
-    memory_object_store_element memoryarray<1>, v0, v2, v6
+    v8 = memory_slice v0
+    slice_store_element v8, v2, v6
     icall @dirtyNestedArray, v0
     v5 = add v2, 1
     jump bb1
@@ -181,9 +197,11 @@ fn @escapingAddressArrays() -> memptr {
 
 fn @dirtyNestedArray(arg0: memptr) {
   bb0:
-    v0 = memory_object_load_element memoryarray<1>, arg0, 0
+    v2 = memory_slice arg0
+    v0 = slice_load_element v2, 0
     v1 = inttoptr i256 v0 to memptr
-    memory_object_store_element memoryarray<1>, v1, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = memory_slice v1
+    slice_store_element v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret
 }
 
@@ -252,7 +270,8 @@ fn @aliasedAddressContainer(arg0: memptr, arg1: memptr) -> memptr {
     memory_object_store_field memorystruct<1>, arg0, 0, v1
     v2 = memory_object_load_field memorystruct<1>, arg1, 0
     v3 = inttoptr i256 v2 to memptr
-    memory_object_store_element memoryarray<1>, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = memory_slice v3
+    slice_store_element v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
@@ -291,7 +310,8 @@ fn @bypassedArrayLoop(arg0: i1) -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
     v1 = add 2, 0
-    set_memory_object_len memoryarray, v0, v1
+    v6 = ptrtoint memptr v0 to i256
+    mstore v6, v1
     jumpi arg0, bb1, bb3
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -299,7 +319,8 @@ fn @bypassedArrayLoop(arg0: i1) -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_element memoryarray<1>, v0, v2, v4
+    v7 = memory_slice v0
+    slice_store_element v7, v2, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -316,9 +337,11 @@ fn @lateArrayLength() -> memptr {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb2:
-    set_memory_object_len memoryarray, v0, v1
+    v6 = ptrtoint memptr v0 to i256
+    mstore v6, v1
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_element memoryarray<1>, v0, v2, v4
+    v7 = memory_slice v0
+    slice_store_element v7, v2, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -369,8 +392,8 @@ fn @givesStorageAddresses() -> memptr [selector=0x0dead018, abi_returns=[memory_
 fn @dirtyStorageAddresses(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u160, arg0
-    v1 = memory_object_data memoryarray, v0
-    v2 = ptrtoint memptr v1 to i256
+    v3 = memory_slice v0
+    v2 = slice_ptr v3
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }

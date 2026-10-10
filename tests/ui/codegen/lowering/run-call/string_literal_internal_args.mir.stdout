@@ -11,34 +11,37 @@
 fn @libLiteral() -> i256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 2
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v3 = icall @lenPlus, v0, 1
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6869000000000000000000000000000000000000000000000000000000000000
+    v4 = icall @lenPlus, v0, 1
+    ret v4
 }
 
 fn @libConstant() -> i256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 20
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
-    v3 = icall @lenPlus, v0, 0
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 20
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6d61782075696e74313238206578636565646564000000000000000000000000
+    v4 = icall @lenPlus, v0, 0
+    ret v4
 }
 
 fn @libHex() -> i256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 2
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0xaabb000000000000000000000000000000000000000000000000000000000000
-    v3 = icall @lenBytes, v0
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    v4 = icall @lenBytes, v0
+    ret v4
 }
 
 fn @libLong() -> i256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -67,49 +70,56 @@ fn @sharedLong() -> i256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=
 fn @literalContent() -> i256 [selector=0x4ab72711, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 2
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v3 = icall @firstWord, v0
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6869000000000000000000000000000000000000000000000000000000000000
+    v4 = icall @firstWord, v0
+    ret v4
 }
 
 fn @encodeConstant() -> i256 [selector=0xbffc53ff, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 20
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
-    v3 = abi_encode [memory_bytes, word], object, selector 0xb60e72cc00000000000000000000000000000000000000000000000000000000, args v0, 1
-    v4 = memory_object_len memorybytes, v3
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 20
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6d61782075696e74313238206578636565646564000000000000000000000000
+    v4 = abi_encode [memory_bytes, word], object, selector 0xb60e72cc00000000000000000000000000000000000000000000000000000000, args v0, 1
+    v5 = memory_slice v4
+    v6 = slice_len v5
+    ret v6
 }
 
 fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 20
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
-    v3 = abi_encode [memory_bytes], object, selector 0xd45754f800000000000000000000000000000000000000000000000000000000, args v0
-    v4 = memory_object_len memorybytes, v3
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 20
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6d61782075696e74313238206578636565646564000000000000000000000000
+    v4 = abi_encode [memory_bytes], object, selector 0xd45754f800000000000000000000000000000000000000000000000000000000, args v0
+    v5 = memory_slice v4
+    v6 = slice_len v5
+    ret v6
 }
 
 fn @lenPlus(arg0: memptr, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = checked_add u256, v0, arg1
-    ret v1
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = checked_add u256, v1, arg1
+    ret v2
 }
 
 fn @lenBytes(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    ret v0
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @firstWord(arg0: memptr) -> i256 [pure] {
@@ -123,11 +133,11 @@ fn @firstWord(arg0: memptr) -> i256 [pure] {
 fn @literal_bytes_0() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 40
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x3031323334353637383930313233343536373839303132333435363738393031
-    v3 = ptrtoint memptr v1 to i256
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 40
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x3031323334353637383930313233343536373839303132333435363738393031
     v4 = add v3, 32
     mstore v4, 0x3233343536373839000000000000000000000000000000000000000000000000
     ret v0

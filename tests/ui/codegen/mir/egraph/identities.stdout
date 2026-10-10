@@ -149,9 +149,10 @@
       v1 = insert_value struct0, undef struct0, 0, v0
 -     v2 = extract_value struct0, v1, 0
 -     v3 = inttoptr i256 v2 to memptr
--     v4 = memory_object_len memorybytes, v3
-+     v4 = memory_object_len memorybytes, arg0
-      ret v4
+-     v4 = memory_slice v3
++     v4 = memory_slice arg0
+      v5 = slice_len v4
+      ret v5
   }
   
   fn @unreachable_insertion_cycle(arg0: i256) -> i256 {

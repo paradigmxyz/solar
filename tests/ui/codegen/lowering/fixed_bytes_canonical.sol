@@ -17,7 +17,9 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @compareElement{{[( ]}}
-    // CHECK: memory_object_load_byte memorybytes, arg0, 0
+    // CHECK: [[VIEW:v[0-9]+]] = memory_slice arg0
+    // CHECK: icall panic_if<0x32>
+    // CHECK-NEXT: slice_load_byte [[VIEW]], 0
     // CHECK: shl 248,
     // CHECK: eq
     function compareElement(bytes memory data) external pure returns (bool) {

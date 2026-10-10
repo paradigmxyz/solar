@@ -2,22 +2,26 @@
 @module NestedCalldataBounds
 fn @nested(arg0: memptr) -> i256 [selector=0x798068af, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt 0, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = inttoptr i256 v3 to memptr
-    v5 = eq v3, 0
-    jumpi v5, bb1, bb2
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = slice_load_element v0, 0
+    v5 = inttoptr i256 v4 to memptr
+    v6 = eq v4, 0
+    jumpi v6, bb1, bb2
   bb1:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v6, 0
-    v7 = ptrtoint memptr v6 to i256
-    memory_object_store_element memoryarray<1>, arg0, 0, v7
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v8 = ptrtoint memptr v7 to i256
+    mstore v8, 0
+    v9 = memory_slice arg0
+    v10 = ptrtoint memptr v7 to i256
+    slice_store_element v9, 0, v10
     jump bb2
   bb2:
-    v8 = phi [bb0: v4], [bb1: v6]
-    v9 = memory_object_len memorybytes, v8
-    ret v9
+    v11 = phi [bb0: v5], [bb1: v7]
+    v12 = memory_slice v11
+    v13 = slice_len v12
+    ret v13
 }

@@ -17,8 +17,8 @@
 //! avoid the extra stack traffic. Both forms count words independently of address wraparound.
 
 use crate::mir::{
-    AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MemoryObjectKind,
-    MirType, Module, PanicCode, SliceLocation, ValueId,
+    AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
+    PanicCode, ValueId,
 };
 use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
@@ -62,7 +62,7 @@ pub(super) fn load(
     let zero = builder.imm(0);
     let short_mask = builder.imm(U256::MAX << 8);
     let short_data = builder.and(header, short_mask);
-    builder.memory_object_store_word(object, zero, short_data);
+    builder.memory_store_word(object, zero, short_data);
     builder.jump(merge_block);
 
     // long: data_slot = storage_array_data_slot(slot)
@@ -83,7 +83,7 @@ pub(super) fn load(
         builder.switch_to_block(body);
         let value = builder.sload(element_slot);
         let byte_offset = builder.mul(index, thirty_two);
-        builder.memory_object_store_word(object, byte_offset, value);
+        builder.memory_store_word(object, byte_offset, value);
         let next = builder.add_u64_offset(index, 1);
         let next_slot = builder.add_u64_offset(element_slot, 1);
         let backedge = builder.current_block();
@@ -97,7 +97,7 @@ pub(super) fn load(
             let element_slot = builder.add(data_slot, index);
             let value = builder.sload(element_slot);
             let byte_offset = builder.mul(index, thirty_two);
-            builder.memory_object_store_word(object, byte_offset, value);
+            builder.memory_store_word(object, byte_offset, value);
         });
         builder.jump(merge_block);
     }
@@ -188,9 +188,8 @@ pub(super) fn store(
     // length, data = bytes(object)
     let header = builder.sload(slot);
     let (old_is_long, old_length) = validate(builder, header);
-    let length = builder.memory_object_len(object, MemoryObjectKind::Bytes);
-    let data_ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-    let data = builder.make_slice(data_ptr, length, SliceLocation::Memory);
+    let data = builder.memory_slice(object);
+    let length = builder.slice_len(data);
     let word_size = builder.imm(32);
     let thirty_one = builder.imm(31);
     let old_rounded = builder.add(old_length, thirty_one);
@@ -222,7 +221,7 @@ pub(super) fn store(
     // header = mask(mload(data), length) | length * 2
     // sstore(slot, header)
     builder.switch_to_block(short_block);
-    let data_word = builder.memory_slice_load_word(data, zero);
+    let data_word = builder.slice_load_word(data, zero);
     let header = builder.short_storage_bytes_header(data_word, length);
     builder.sstore(slot, header);
     builder.jump(merge_block);
@@ -240,7 +239,7 @@ pub(super) fn store(
     let full_words = builder.div(length, word_size);
     builder.counted_loop(full_words, |builder, index| {
         let byte_offset = builder.mul(index, word_size);
-        let value = builder.memory_slice_load_word(data, byte_offset);
+        let value = builder.slice_load_word(data, byte_offset);
         let element_slot = builder.add(data_slot, index);
         builder.sstore(element_slot, value);
     });
@@ -256,7 +255,7 @@ pub(super) fn store(
     // }
     builder.switch_to_block(partial_block);
     let partial_offset = builder.mul(full_words, word_size);
-    let partial_word = builder.memory_slice_load_word(data, partial_offset);
+    let partial_word = builder.slice_load_word(data, partial_offset);
     let partial_word = builder.mask_storage_bytes_data(partial_word, remainder);
     let partial_slot = builder.add(data_slot, full_words);
     builder.sstore(partial_slot, partial_word);

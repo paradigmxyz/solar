@@ -10,7 +10,8 @@
 // CHECK: + jump bb3
 fn @constant_start_and_step(arg0: memptr) -> i256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v10 = memory_slice arg0
+    v0 = slice_len v10
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v6]
@@ -35,7 +36,8 @@ fn @constant_start_and_step(arg0: memptr) -> i256 {
 // CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb3
 fn @unknown_start(arg0: memptr, arg1: i256) -> i256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v10 = memory_slice arg0
+    v0 = slice_len v10
     jump bb1
   bb1:
     v1 = phi [bb0: arg1], [bb3: v6]

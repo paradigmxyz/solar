@@ -712,16 +712,14 @@ fn local_summary(
                 | InstKind::SetFmp(value)
                 | InstKind::MemoryObjectStoreField { value, .. }
                 | InstKind::MemoryObjectStoreElement { value, .. }
-                | InstKind::MemoryObjectStoreByte { value, .. }
-                | InstKind::MemoryObjectStoreWord { value, .. }
+                | InstKind::SliceStoreElement { value, .. }
+                | InstKind::SliceStoreByte { value, .. }
+                | InstKind::SliceStoreWord { value, .. }
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
-                InstKind::MemorySliceLoadWord { slice, offset } => {
-                    capture_sources(&mut summary, func, sources, *slice);
-                    capture_sources(&mut summary, func, sources, *offset);
-                }
-                InstKind::CalldataSliceLoadWord { slice, offset } => {
+                InstKind::MemorySliceLoadWord { slice, offset }
+                | InstKind::CalldataSliceLoadWord { slice, offset } => {
                     capture_sources(&mut summary, func, sources, *slice);
                     capture_sources(&mut summary, func, sources, *offset);
                 }
@@ -1100,8 +1098,9 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::Keccak256(_, _)
             | InstKind::MemoryObjectLoadField { .. }
             | InstKind::MemoryObjectLoadElement { .. }
-            | InstKind::MemoryObjectLoadByte { .. }
-            | InstKind::MemoryObjectLen(_, _)
+            | InstKind::SliceLoadElement { .. }
+            | InstKind::SliceLoadByte { .. }
+            | InstKind::MemorySlice(_)
             | InstKind::MemorySliceLoadWord { .. }
             | InstKind::CalldataSliceLoadWord { .. }
             | InstKind::SliceLen(_)

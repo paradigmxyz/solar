@@ -9,7 +9,7 @@ contract MultiReturnNamedInit {
     // CHECK-LABEL: fn @readU64{{[( ]}}
     // CHECK: phi [
     // CHECK: ret
-    // CHECK: calldata_slice_load_word calldata
+    // CHECK: slice_load_word
     function readU64(bytes calldata data, uint256 start)
         internal
         pure

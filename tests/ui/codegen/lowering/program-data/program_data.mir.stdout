@@ -8,20 +8,22 @@
 fn @data() -> memptr [selector=0x73d4a13a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 320 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 257
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    datacopy literal_0, v2, 288
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 257
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    datacopy literal_0, v3, 288
     ret v0
 }
 
 fn @subslice() -> memptr [selector=0xb9ad073e, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 224 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 161
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    datacopy literal_1, v2, 192
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 161
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    datacopy literal_1, v3, 192
     ret v0
 }
 
@@ -38,30 +40,33 @@ fn @subsliceHash() -> i256 [selector=0xe5a3e763, pure, abi_params=[], abi_return
 fn @zeroData() -> memptr [selector=0x6ec059cd, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 160
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    memory_zero v2, 160
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 160
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    memory_zero v3, 160
     ret v0
 }
 
 fn @zeroWord() -> memptr [selector=0x4c092794, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 32
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 32
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0
     ret v0
 }
 
 fn @splatData() -> memptr [selector=0xe1910fda, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 160
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    datacopy literal_2, v2, 160
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 160
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    datacopy literal_2, v3, 160
     ret v0
 }
 

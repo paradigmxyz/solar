@@ -160,8 +160,8 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v16 = calldatasize
     v17 = sub v16, v12
     v18 = sgt v15, v17
-    v78 = or v13, v18
-    jumpi v78, bb3, bb6
+    v80 = or v13, v18
+    jumpi v80, bb3, bb6
   bb6:
     v22 = lt v12, 20
     jumpi v22, bb2, bb1
@@ -185,22 +185,22 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v56 = calldatasize
     v57 = sub v56, v50
     v58 = sgt v51, v57
-    v79 = or v41, v58
-    jumpi v79, bb3, bb9
+    v81 = or v41, v58
+    jumpi v81, bb3, bb9
   bb9:
     v60 = add v50, 63
     v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = mload 64 !metadata(memory=scratch)
-    v77 = add v76, v63
-    mstore 64, v77 !metadata(memory=scratch)
-    mstore v76, v50
-    v68 = add v76, 32
-    calldatacopy v68, v51, v50
-    v65 = keccak256 v68, v50
+    v78 = mload 64 !metadata(memory=scratch)
+    v79 = add v78, v63
+    mstore 64, v79 !metadata(memory=scratch)
+    mstore v78, v50
+    v67 = add v78, 32
+    calldatacopy v67, v51, v50
+    v70 = keccak256 v67, v50
     jump bb2
   bb2:
-    v66 = phi [bb6: 0], [bb9: v65]
-    ret v66
+    v71 = phi [bb6: 0], [bb9: v70]
+    ret v71
   bb3:
     revert 0, 0
 }

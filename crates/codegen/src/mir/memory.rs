@@ -4,7 +4,7 @@
 //! embedding these addresses. Inline assembly can still access the conventional
 //! words directly, so alias analysis and backend lowering share this policy.
 
-use crate::mir::{MemoryObjectKind, MemoryObjectLayout};
+use crate::mir::MemoryObjectLayout;
 
 /// Policy interface between semantic memory-object MIR and a physical target
 /// memory representation.
@@ -12,16 +12,14 @@ pub(crate) trait MemoryLayoutPolicy {
     /// Target word size in bytes.
     const WORD_SIZE: u64;
 
-    /// Returns the byte offset of an object's logical length word.
-    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64>;
-
-    /// Returns the byte offset of the first payload byte.
-    fn object_data_offset(kind: MemoryObjectKind) -> u64;
+    /// Size of the length header in front of a dynamic object's payload.
+    const DYNAMIC_HEADER_SIZE: u64;
 
     /// Returns the byte offset of a direct struct field.
     fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64>;
 
-    /// Returns the byte stride of an array element.
+    /// Returns the byte stride of a fixed array's element. Fixed arrays and structs start at
+    /// their object; dynamic objects are accessed through `memory_slice` views.
     fn element_stride(layout: MemoryObjectLayout) -> Option<u64>;
 }
 
@@ -65,20 +63,7 @@ impl EvmMemoryLayout {
 
 impl MemoryLayoutPolicy for EvmMemoryLayout {
     const WORD_SIZE: u64 = Self::WORD_SIZE;
-
-    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64> {
-        match kind {
-            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Some(0),
-            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => None,
-        }
-    }
-
-    fn object_data_offset(kind: MemoryObjectKind) -> u64 {
-        match kind {
-            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Self::DYNAMIC_HEADER_SIZE,
-            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => 0,
-        }
-    }
+    const DYNAMIC_HEADER_SIZE: u64 = Self::DYNAMIC_HEADER_SIZE;
 
     fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64> {
         let MemoryObjectLayout::Struct { fields } = layout else { return None };
@@ -86,14 +71,7 @@ impl MemoryLayoutPolicy for EvmMemoryLayout {
     }
 
     fn element_stride(layout: MemoryObjectLayout) -> Option<u64> {
-        let words = match layout {
-            MemoryObjectLayout::DynamicArray { element_words }
-            | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
-            // Byte objects are addressed in word chunks for bulk materialization
-            // and zeroing. Byte-indexed access uses the dedicated byte helpers.
-            MemoryObjectLayout::Bytes => 1,
-            MemoryObjectLayout::Struct { .. } => return None,
-        };
-        u64::from(words).checked_mul(Self::WORD_SIZE)
+        let MemoryObjectLayout::FixedArray { element_words, .. } = layout else { return None };
+        u64::from(element_words).checked_mul(Self::WORD_SIZE)
     }
 }

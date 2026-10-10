@@ -73,8 +73,8 @@
 
 use crate::mir::{
     AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-    SliceLocation, StorageAlias, Value, ValueId,
+    InstId, InstKind, Instruction, MemoryObjectLayout, MirType, Module, SliceLocation,
+    StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -127,12 +127,9 @@ impl MirPass for Cse {
                 .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
                 .nth(1)
                 .is_none()
-                && !func.instructions().any(|inst| {
-                    matches!(
-                        func.inst(inst).kind,
-                        InstKind::MStore(..) | InstKind::SetMemoryObjectLen(..)
-                    )
-                })
+                && !func
+                    .instructions()
+                    .any(|inst| matches!(func.inst(inst).kind, InstKind::MStore(..)))
             {
                 return false;
             }
@@ -264,6 +261,8 @@ enum ExprKey {
     SignExtend(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
+    /// A `memory_slice` view, keyed by the length word it reads.
+    MemorySlice(MemRangeKey),
     RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
@@ -272,7 +271,6 @@ enum ExprKey {
     MakeSlice(OperandKey, OperandKey, SliceLocation),
     SlicePtr(OperandKey),
     SliceLen(OperandKey),
-    MemoryObjectData(OperandKey, MemoryObjectKind),
     MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
     MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
     SLoad(StorageAlias),
@@ -927,7 +925,7 @@ impl CommonSubexprEliminator {
             kind,
             InstKind::MLoad(_)
                 | InstKind::Fmp
-                | InstKind::MemoryObjectLen(_, _)
+                | InstKind::MemorySlice(_)
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlot(..)
@@ -1017,15 +1015,6 @@ impl CommonSubexprEliminator {
             InstKind::MStore(addr, stored) => {
                 let key =
                     self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
-                Some((ExprKey::MLoad(key), value(stored)))
-            }
-            InstKind::SetMemoryObjectLen(object, stored, object_kind) => {
-                let key = self.alias().memory_object_length_location(
-                    func,
-                    inst_id,
-                    value(object),
-                    object_kind,
-                )?;
                 Some((ExprKey::MLoad(key), value(stored)))
             }
             _ => None,
@@ -1179,17 +1168,10 @@ impl CommonSubexprEliminator {
             }
             InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
             InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
-            InstKind::MemoryObjectLen(object, kind) => {
-                let key = self.alias().memory_object_length_location(
-                    func,
-                    inst_id,
-                    value(*object),
-                    *kind,
-                )?;
-                Some(ExprKey::MLoad(key))
-            }
-            InstKind::MemoryObjectData(object, kind) => {
-                Some(ExprKey::MemoryObjectData(operand(*object), *kind))
+            InstKind::MemorySlice(object) => {
+                let key =
+                    self.alias().memory_object_length_location(func, inst_id, value(*object))?;
+                Some(ExprKey::MemorySlice(key))
             }
             InstKind::MemoryObjectFieldAddr { object, layout, field } => {
                 Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
@@ -1338,7 +1320,7 @@ impl CommonSubexprEliminator {
 
     fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
         expr_cache.retain_stateful(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
+            ExprKey::MLoad(read) | ExprKey::MemorySlice(read) | ExprKey::Keccak256(read) => write
                 .preserves(*read, |read, write| {
                     AliasAnalysis::memory_alias_locations(read, write).may_alias()
                 }),
@@ -1363,6 +1345,7 @@ impl CommonSubexprEliminator {
         matches!(
             key,
             ExprKey::MLoad(_)
+                | ExprKey::MemorySlice(_)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
@@ -1406,6 +1389,7 @@ impl CommonSubexprEliminator {
         !matches!(
             key,
             ExprKey::MLoad(_)
+                | ExprKey::MemorySlice(_)
                 | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)

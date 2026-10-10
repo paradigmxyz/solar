@@ -457,11 +457,12 @@ bb37:
   dup 4
   add
   mstore
+  push 32
   dup 3
-  dup 3
-  push 64
-  dup 7
   add
+  dup 3
+  dup 5
+  swap 2
   mcopy
   push 32
   dup 5

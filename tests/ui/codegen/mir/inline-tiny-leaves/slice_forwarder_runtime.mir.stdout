@@ -10,18 +10,24 @@ fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns
     v4 = not 31
     v5 = and v2, v4
     v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, v1
-    v7 = slice_ptr v0
-    v8 = slice_len v0
-    v9 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v9
-    v10 = calldatasize
-    v11 = sub v10, v8
-    v12 = sgt v7, v11
-    icall revert_if<calldata_tail_too_short>, v12
-    memory_object_copy_from_slice memorybytes, v6, v0
-    v13 = memory_object_len memorybytes, v6
-    ret v13
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, v1
+    v8 = slice_ptr v0
+    v9 = slice_len v0
+    v10 = gt v9, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v10
+    v11 = calldatasize
+    v12 = sub v11, v9
+    v13 = sgt v8, v12
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = ptrtoint memptr v6 to i256
+    v15 = add v14, 32
+    v16 = slice_len v0
+    v17 = make_memory_slice v15, v16
+    slice_copy v17, 0, v0
+    v18 = memory_slice v6
+    v19 = slice_len v18
+    ret v19
 }
 
 fn @prefix(arg0: calldataslice, arg1: i256) -> memptr [selector=0x15de319c, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -35,16 +41,21 @@ fn @prefix(arg0: calldataslice, arg1: i256) -> memptr [selector=0x15de319c, pure
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, uninitialized, infallible, v6
-    set_memory_object_len memorybytes, v7, v2
-    v8 = slice_ptr v1
-    v9 = slice_len v1
-    v10 = gt v9, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = calldatasize
-    v12 = sub v11, v9
-    v13 = sgt v8, v12
-    icall revert_if<calldata_tail_too_short>, v13
-    memory_object_copy_from_slice memorybytes, v7, v1
+    v8 = ptrtoint memptr v7 to i256
+    mstore v8, v2
+    v9 = slice_ptr v1
+    v10 = slice_len v1
+    v11 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = calldatasize
+    v13 = sub v12, v10
+    v14 = sgt v9, v13
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = ptrtoint memptr v7 to i256
+    v16 = add v15, 32
+    v17 = slice_len v1
+    v18 = make_memory_slice v16, v17
+    slice_copy v18, 0, v1
     ret v7
 }
 
@@ -58,16 +69,21 @@ fn @redirected(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0x3
     v4 = not 31
     v5 = and v2, v4
     v6 = alloc memorybytes, exact, uninitialized, infallible, v5
-    set_memory_object_len memorybytes, v6, v1
-    v7 = slice_ptr v0
-    v8 = slice_len v0
-    v9 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v9
-    v10 = calldatasize
-    v11 = sub v10, v8
-    v12 = sgt v7, v11
-    icall revert_if<calldata_tail_too_short>, v12
-    memory_object_copy_from_slice memorybytes, v6, v0
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, v1
+    v8 = slice_ptr v0
+    v9 = slice_len v0
+    v10 = gt v9, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v10
+    v11 = calldatasize
+    v12 = sub v11, v9
+    v13 = sgt v8, v12
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = ptrtoint memptr v6 to i256
+    v15 = add v14, 32
+    v16 = slice_len v0
+    v17 = make_memory_slice v15, v16
+    slice_copy v17, 0, v0
     ret v6
 }
 

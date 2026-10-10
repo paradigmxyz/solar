@@ -74,13 +74,14 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 12
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v3 = icall @erc7201Reference, v0
-    v4 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v3
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 12
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v4 = icall @erc7201Reference, v0
+    v5 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v4
+    ret v5
 }
 
 fn @erc7201Reference(arg0: memptr) -> i256 [pure] {

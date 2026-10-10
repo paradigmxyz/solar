@@ -9,9 +9,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: MemoryObjectLayout,
     ) -> ValueId {
         match layout {
-            MemoryObjectLayout::DynamicArray { .. } => {
-                self.builder.memory_object_len(object, layout.kind())
-            }
+            MemoryObjectLayout::DynamicArray { .. } => self.builder.memory_len(object),
             MemoryObjectLayout::FixedArray { len, .. } => self.builder.imm(len),
             _ => unreachable!("array layout expected"),
         }
@@ -77,13 +75,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let base = self.builder.slice_ptr(object);
             return if self.is_dynamic_bytes_type(receiver_ty) {
                 // value = byte(0, load_word(slice, index))
-                let word = match location {
-                    SliceLocation::Calldata => self.builder.calldata_slice_load_word(object, index),
-                    SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
-                    SliceLocation::Returndata => {
-                        return self.cx.report_unsupported(expr.span, "returndata index");
-                    }
-                };
+                if location == SliceLocation::Returndata {
+                    return self.cx.report_unsupported(expr.span, "returndata index");
+                }
+                let word = self.builder.slice_load_word(object, index);
                 let zero = self.builder.imm(0);
                 let byte = self.builder.byte(zero, word);
                 Some(self.normalize_byte_value(expr, byte))
@@ -123,17 +118,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
+        // One view serves both the bounds check and the access.
+        let target = match layout {
+            MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes => {
+                self.builder.memory_view(object)
+            }
+            _ => object,
+        };
         match layout {
             MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
                 // bounds_check(index, object.length)
                 // value = load_element(object, index)
                 let Some((element, length)) =
-                    self.array_element_and_length(receiver_ty, object, layout)
+                    self.array_element_and_length(receiver_ty, target, layout)
                 else {
                     return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_element(object, layout, index);
+                let value = self.builder.memory_object_load_element(target, layout, index);
                 if self.types.memory_layout(element).is_some() {
                     return self.materialize_array_element(object, layout, index, element, value);
                 }
@@ -142,9 +144,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             MemoryObjectLayout::Bytes => {
                 // bounds_check(index, object.length)
                 // value = load_byte(object, index)
-                let length = self.builder.memory_object_len(object, layout.kind());
+                let length = self.builder.memory_len(target);
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_byte(object, index);
+                let value = self.builder.memory_load_byte(target, index);
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
@@ -169,12 +171,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if layout != MemoryObjectLayout::Bytes {
                     return self.cx.report_unsupported(expr.span, "slice");
                 }
-                let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                (
-                    self.builder.make_slice(pointer, length, SliceLocation::Memory),
-                    SliceLocation::Memory,
-                )
+                (self.builder.memory_slice(value), SliceLocation::Memory)
             }
         };
         let is_bytes = self.is_dynamic_bytes_type(receiver_ty);

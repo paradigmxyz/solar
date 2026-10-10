@@ -476,13 +476,15 @@
       v1 = calldataload 4
       mstore 64, v1
       mstore 32, 32
-      memory_object_copy memorybytes, v0, memorybytes, memptr 32, 32
-+     v3 = mload 64 !metadata(memory=scratch)
-+     v4 = heap_floor
-+     v5 = lt v3, v4
-+     v6 = select v5, v4, v3
-+     mstore 64, v6 !metadata(memory=scratch)
-      v2 = alloc memorybytes, exact, zeroed, panic, 64
+      v2 = memory_slice memptr 32
+      v3 = memory_slice v0
+      slice_copy v3, 0, v2
++     v5 = mload 64 !metadata(memory=scratch)
++     v6 = heap_floor
++     v7 = lt v5, v6
++     v8 = select v7, v6, v5
++     mstore 64, v8 !metadata(memory=scratch)
+      v4 = alloc memorybytes, exact, zeroed, panic, 64
       ret v0
   }
   
@@ -490,8 +492,8 @@
     bb0:
       v0 = calldataload 4
       mstore 64, v0
-      v1 = memory_object_data memorybytes, memptr 32
-      v2 = ptrtoint memptr v1 to i256
+      v1 = memory_slice memptr 32
+      v2 = slice_ptr v1
       v3 = keccak256 v2, 32
 +     v5 = mload 64 !metadata(memory=scratch)
 +     v6 = heap_floor
@@ -508,14 +510,15 @@
       v1 = calldataload 4
       v2 = calldataload 36
       mstore 64, v2
-      v3 = memory_object_load_byte memorybytes, v0, v1
-+     v5 = mload 64 !metadata(memory=scratch)
-+     v6 = heap_floor
-+     v7 = lt v5, v6
-+     v8 = select v7, v6, v5
-+     mstore 64, v8 !metadata(memory=scratch)
-      v4 = alloc memorybytes, exact, zeroed, panic, 64
-      ret v3
+      v3 = memory_slice v0
+      v4 = slice_load_byte v3, v1
++     v6 = mload 64 !metadata(memory=scratch)
++     v7 = heap_floor
++     v8 = lt v6, v7
++     v9 = select v8, v7, v6
++     mstore 64, v9 !metadata(memory=scratch)
+      v5 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v4
   }
   
   fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
@@ -524,14 +527,15 @@
       v1 = calldataload 4
       v2 = calldataload 36
       mstore 64, v2
-      v3 = memory_object_load_element memoryarray<1>, v0, v1
-+     v5 = mload 64 !metadata(memory=scratch)
-+     v6 = heap_floor
-+     v7 = lt v5, v6
-+     v8 = select v7, v6, v5
-+     mstore 64, v8 !metadata(memory=scratch)
-      v4 = alloc memorybytes, exact, zeroed, panic, 64
-      ret v3
+      v3 = memory_slice v0
+      v4 = slice_load_element v3, v1
++     v6 = mload 64 !metadata(memory=scratch)
++     v7 = heap_floor
++     v8 = lt v6, v7
++     v9 = select v8, v7, v6
++     mstore 64, v9 !metadata(memory=scratch)
+      v5 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v4
   }
   
   fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
@@ -539,13 +543,14 @@
       v0 = alloc memorybytes, exact, zeroed, panic, 64
       v1 = calldataload 36
 -     mstore 64, v1
-+     v4 = heap_floor
-+     v5 = lt v1, v4
-+     v6 = select v5, v4, v1
-+     mstore 64, v6
-      v2 = memory_object_load_byte memorybytes, v0, 7
-      v3 = alloc memorybytes, exact, zeroed, panic, 64
-      ret v2
++     v5 = heap_floor
++     v6 = lt v1, v5
++     v7 = select v6, v5, v1
++     mstore 64, v7
+      v2 = memory_slice v0
+      v3 = slice_load_byte v2, 7
+      v4 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v3
   }
   
   fn @hash_packed_scratch() -> i256 [selector=0x12345690] {
@@ -567,22 +572,24 @@
       mstore 64, v2
       v3 = mload 64
       mstore 64, v1
-      memory_object_store_element memoryarray<1>, v0, 0, v3
-      v4 = memory_object_load_element memoryarray<1>, v0, 0
-      ret v4
+      v4 = memory_slice v0
+      slice_store_element v4, 0, v3
+      v5 = slice_load_element v4, 0
+      ret v5
   }
   
   fn @object_from_scratch() -> i256 [selector=0x12345692] {
     bb0:
       v0 = calldataload 4
 -     mstore 64, v0
-+     v4 = heap_floor
-+     v5 = lt v0, v4
-+     v6 = select v5, v4, v0
-+     mstore 64, v6
++     v5 = heap_floor
++     v6 = lt v0, v5
++     v7 = select v6, v5, v0
++     mstore 64, v7
       v1 = mload 64
       v2 = inttoptr i256 v1 to memptr
-      v3 = memory_object_len memorybytes, v2
-      ret v3
+      v3 = memory_slice v2
+      v4 = slice_len v3
+      ret v4
   }
   

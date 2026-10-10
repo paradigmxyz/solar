@@ -383,8 +383,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::And(first, second) if aligned_mask(*first) => {
                         derive(*second, visiting, memo)
                     }
-                    InstKind::MemoryObjectData(object, _)
-                    | InstKind::MemoryObjectFieldAddr { object, .. }
+                    InstKind::MemoryObjectFieldAddr { object, .. }
                     | InstKind::MemoryObjectElementAddr { object, .. } => {
                         derive(*object, visiting, memo)
                     }
@@ -454,9 +453,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
-            InstKind::MemoryObjectLen(_, _)
-            | InstKind::SetMemoryObjectLen(_, _, _)
-            | InstKind::MemoryObjectData(_, _)
+            InstKind::MemorySlice(_)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
             | InstKind::AbiEncode { .. }

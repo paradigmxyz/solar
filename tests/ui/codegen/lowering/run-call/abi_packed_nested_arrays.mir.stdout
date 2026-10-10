@@ -53,26 +53,28 @@ fn @encodeFixedIndex(arg0: memptr) -> i256 [selector=0x4e9c2229, pure, abi_param
 
 fn @encodeDynamicIndex(arg0: memptr) -> i256 [selector=0x7d5331fb, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt 0, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = inttoptr i256 v3 to memptr
-    v5 = eq v3, 0
-    jumpi v5, bb1, bb2
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = slice_load_element v0, 0
+    v5 = inttoptr i256 v4 to memptr
+    v6 = eq v4, 0
+    jumpi v6, bb1, bb2
   bb1:
-    v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v7 = ptrtoint memptr v6 to i256
-    memory_zero v7, 64
-    v8 = ptrtoint memptr v6 to i256
-    memory_object_store_element memoryarray<1>, arg0, 0, v8
+    v7 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v8 = ptrtoint memptr v7 to i256
+    memory_zero v8, 64
+    v9 = memory_slice arg0
+    v10 = ptrtoint memptr v7 to i256
+    slice_store_element v9, 0, v10
     jump bb2
   bb2:
-    v9 = phi [bb0: v4], [bb1: v6]
-    v10 = abi_encode_packed (array<word> memoryfixedarray<2, 1> v9)
-    v11 = keccak256_bytes v10
-    ret v11
+    v11 = phi [bb0: v5], [bb1: v7]
+    v12 = abi_encode_packed (array<word> memoryfixedarray<2, 1> v11)
+    v13 = keccak256_bytes v12
+    ret v13
 }
 
 fn @encodeStructField(arg0: memptr) -> i256 [selector=0xa7ad7e04, pure, abi_params=[tuple<array<2, u256>>], abi_returns=[word], abi_return_params=[bytes32]] {
