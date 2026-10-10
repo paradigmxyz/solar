@@ -1,0 +1,14 @@
+error[3417]: types containing internal function pointers cannot be error parameter types
+   ╭▸ ROOT/tests/ui/typeck/errors/internal_type.sol:LL:CC
+   │
+LL │ error E1(function() internal);
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
+
+error[3417]: recursive types cannot be error parameter types
+   ╭▸ ROOT/tests/ui/typeck/errors/internal_type.sol:LL:CC
+   │
+LL │ error E2(S);
+   ╰╴         ━
+
+error: aborting due to 2 previous errors
+

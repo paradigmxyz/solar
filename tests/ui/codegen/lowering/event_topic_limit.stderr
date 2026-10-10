@@ -1,4 +1,4 @@
-error: event cannot have more than 3 indexed parameters
+error[7249]: more than 3 indexed arguments for event
    ╭▸ ROOT/tests/ui/codegen/lowering/event_topic_limit.sol:LL:CC
    │
 LL │ ┏     event Named(
@@ -9,7 +9,7 @@ LL │ ┃         uint256 indexed d
 LL │ ┃     );
    ╰╴┗━━━━━━┛
 
-error: event cannot have more than 4 indexed parameters
+error[8598]: more than 4 indexed arguments for anonymous event
    ╭▸ ROOT/tests/ui/codegen/lowering/event_topic_limit.sol:LL:CC
    │
 LL │ ┏     event Anonymous(

@@ -3,11 +3,16 @@ use crate::{
     hir::{self, Item, ItemId, Res, Visit},
     ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
 };
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, bit_set::GrowableBitSet, map::FxIndexMap, parallel};
-use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
+use solar_data_structures::{
+    Never,
+    bit_set::GrowableBitSet,
+    map::{FxHashMap, FxIndexMap},
+    parallel,
+};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code, sym};
 use std::ops::ControlFlow;
 
 mod checker;
@@ -19,21 +24,30 @@ mod view_pure_checker;
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
     let mut typeck_results = TypeckResults::default();
-    parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
-        typeck_results = gcx
-            .hir
-            .par_source_ids()
-            .map(|id| {
-                check_source(gcx, id);
-                // TODO: Parallelize more.
-                checker::check(gcx, id)
-            })
-            .reduce(TypeckResults::default, |mut a, b| {
-                merge_typeck_results(gcx, &mut a, b);
-                a
-            });
-    },);
+    parallel!(
+        gcx.sess,
+        gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)),
+        {
+            gcx.hir.par_event_ids().for_each(|id| check_event(gcx, id));
+            gcx.hir.par_error_ids().for_each(|id| check_error(gcx, id));
+        },
+        {
+            typeck_results = gcx
+                .hir
+                .par_source_ids()
+                .map(|id| {
+                    check_source(gcx, id);
+                    // TODO: Parallelize more.
+                    checker::check(gcx, id)
+                })
+                .reduce(TypeckResults::default, |mut a, b| {
+                    merge_typeck_results(gcx, &mut a, b);
+                    a
+                });
+        },
+    );
     gcx.set_typeck_results(typeck_results);
+    check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     view_pure_checker::check(gcx);
 }
@@ -826,6 +840,127 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
     #[inline]
     fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
+    }
+}
+
+/// Checks the parameters of an event and the number of its indexed parameters.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L689-L710>
+fn check_event(gcx: Gcx<'_>, id: hir::EventId) {
+    let event = gcx.hir.event(id);
+    let _ = check_event_or_error_parameters(gcx, "event", event.parameters);
+    let indexed = event.parameters.iter().filter(|&&p| gcx.hir.variable(p).indexed).count();
+    let (max, msg, code) = if event.anonymous {
+        (4, "more than 4 indexed arguments for anonymous event", error_code!(8598))
+    } else {
+        (3, "more than 3 indexed arguments for event", error_code!(7249))
+    };
+    if indexed > max {
+        gcx.dcx().err(msg).code(code).span(event.span).emit();
+    }
+}
+
+/// Checks the parameters of an error, and that it does not redefine a built-in error or use a
+/// reserved selector.
+///
+/// References:
+/// - parameters: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L689-L710>
+/// - reserved errors: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeChecker.cpp#L435-L458>
+fn check_error(gcx: Gcx<'_>, id: hir::ErrorId) {
+    let error = gcx.hir.error(id);
+    let params = check_event_or_error_parameters(gcx, "error", error.parameters);
+    if matches!(error.name.name, sym::Error | sym::Panic) {
+        gcx.dcx()
+            .err("the built-in errors `Error` and `Panic` cannot be re-defined")
+            .code(error_code!(1855))
+            .span(error.name.span)
+            .emit();
+    } else if params.is_ok() {
+        let selector = gcx.function_selector(id);
+        if selector == Selector::ZERO || selector == Selector::repeat_byte(0xff) {
+            gcx.dcx()
+                .err(format!("the selector `{selector}` is reserved"))
+                .code(error_code!(2855))
+                .span(error.span)
+                .help("rename the error to avoid the collision")
+                .emit();
+        }
+    }
+}
+
+/// Checks that event or error parameters have interface types.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L4263-L4276>
+fn check_event_or_error_parameters(
+    gcx: Gcx<'_>,
+    kind: &str,
+    parameters: &[hir::VariableId],
+) -> Result<(), ErrorGuaranteed> {
+    let mut result = Ok(());
+    for &param in parameters {
+        let ty = gcx.type_of_item(param.into());
+        if let Err(guar) = ty.error_reported() {
+            result = Err(guar);
+            continue;
+        }
+        if ty.can_be_exported(gcx) {
+            continue;
+        }
+        // Recursiveness comes before internal functions, as in solc's `StructType::interfaceType`.
+        let (what, code) = if ty.has_mapping(gcx) {
+            ("types containing mappings", error_code!(3448))
+        } else if ty.is_recursive(gcx) {
+            ("recursive types", error_code!(3417))
+        } else {
+            ("types containing internal function pointers", error_code!(3417))
+        };
+        let msg = format!("{what} cannot be {kind} parameter types");
+        result = Err(gcx.dcx().err(msg).code(code).span(gcx.hir.variable(param).span).emit());
+    }
+    result
+}
+
+/// Checks that the errors in the interface of each contract have distinct selectors.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L59-L77>
+fn check_error_selector_collisions(gcx: Gcx<'_>) {
+    if gcx.dcx().has_errors().is_err() {
+        return;
+    }
+
+    // Returns the first error seen with the same selector as `id` but a different signature.
+    let find_collision = |selectors: &mut FxHashMap<Selector, hir::ErrorId>, id: hir::ErrorId| {
+        let hash = gcx.item_selector(id.into());
+        let prev = *selectors.entry(Selector::from_slice(&hash[..4])).or_insert(id);
+        (gcx.item_selector(prev.into()) != hash).then_some(prev)
+    };
+
+    // Collisions are rare, so only build the call graphs that find the errors used by each
+    // contract when two error signatures anywhere share a selector.
+    let mut selectors = FxHashMap::default();
+    let any_collision = gcx.hir.error_ids().any(|id| find_collision(&mut selectors, id).is_some());
+    if !any_collision {
+        return;
+    }
+
+    for contract_id in gcx.hir.contract_ids() {
+        selectors.clear();
+        for id in gcx.interface_errors(contract_id).iter() {
+            if let Some(prev) = find_collision(&mut selectors, id) {
+                let signature = gcx.item_signature(id.into());
+                let prev_signature = gcx.item_signature(prev.into());
+                let selector = gcx.function_selector(id);
+                gcx.dcx()
+                    .err("error signature hash collision")
+                    .code(error_code!(4883))
+                    .span(gcx.hir.error(id).name.span)
+                    .span_note(gcx.hir.error(prev).span, "other error is here")
+                    .note(format!(
+                        "the error signatures `{signature}` and `{prev_signature}` produce the same 4-byte selector `{selector}`"
+                    ))
+                    .emit();
+            }
+        }
     }
 }
 
