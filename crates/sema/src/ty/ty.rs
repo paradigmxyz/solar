@@ -1198,7 +1198,6 @@ impl<'gcx> Ty<'gcx> {
             }
             TyKind::Error(..)
             | TyKind::Event(..)
-            | TyKind::Module(..)
             | TyKind::BuiltinModule(..)
             | TyKind::Type(_)
             | TyKind::Meta(_) => return None,

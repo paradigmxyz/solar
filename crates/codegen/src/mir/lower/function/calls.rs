@@ -110,6 +110,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
         capture_value: bool,
     ) -> Option<CallResult> {
+        self.lower_item_path_effects(callee)?;
         if let Some(struct_id) = self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,

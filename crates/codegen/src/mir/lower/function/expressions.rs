@@ -50,6 +50,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         name: Ident,
     ) -> Option<ValueId> {
+        self.lower_item_path_effects(expr)?;
         if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
             // value = lower_builtin(member)
             return self.lower_builtin_value(expr, builtin);
