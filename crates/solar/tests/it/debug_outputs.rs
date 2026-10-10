@@ -21,6 +21,8 @@ fn compile(args: &[&str]) -> Output {
     let output = Command::new(SOLAR)
         .current_dir(FIXTURES)
         .args(["--allow", "2264", "--threads", "1", "--evm-version", "cancun"])
+        // Some sources import files outside of their directory.
+        .args(["--allow-paths", "../../.."])
         .args(args)
         .output()
         .expect("run compiler");

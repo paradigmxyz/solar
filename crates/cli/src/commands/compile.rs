@@ -49,6 +49,16 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
                 paths.push(arg);
             }
 
+            // Like solc, imports can also load files next to the inputs, after following symbolic
+            // links. Resolve the normalized path, which is the one that is loaded.
+            let resolver = &pcx.file_resolver;
+            let input_dirs = paths.iter().filter_map(|input| {
+                let input = resolver.normalize(Path::new(input));
+                Some(resolver.canonicalize(&input).ok()?.parent()?.to_path_buf())
+            });
+            let allowed =
+                pcx.sess.opts.allow_paths.iter().cloned().chain(input_dirs).collect::<Vec<_>>();
+            pcx.file_resolver.set_allowed_paths(allowed);
             pcx.par_load_files(paths)
         },
         |_| {},

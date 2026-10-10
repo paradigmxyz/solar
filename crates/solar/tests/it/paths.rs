@@ -150,3 +150,57 @@ fn input_files_keep_leading_parent_segments() {
     assert_eq!(names.len(), 3, "{names:?}");
     assert!(names.iter().any(|name| name.ends_with("/shared/X.sol:Outer")), "{names:?}");
 }
+
+/// Like solc, imports only load files from the allowed directories: those of the input files and
+/// remapping targets, the base path, the include paths, and `--allow-paths`.
+#[test]
+fn allowed_paths() {
+    let dir = project(&[
+        ("proj/src/A.sol", "import \"o/O.sol\"; contract A {}"),
+        ("outside/O.sol", "contract O {}"),
+    ]);
+    let outside = dir.path().join("outside/O.sol");
+    let outside = outside.display().to_string().replace('\\', "/");
+    let source = format!("import \"{outside}\"; contract B {{}}");
+    std::fs::write(dir.path().join("proj/src/B.sol"), source).unwrap();
+    let proj = dir.path().join("proj");
+    let compiles = |args: &[&str]| compile(&proj, args).status.success();
+    assert!(compiles(&["src/A.sol", "o/=../outside/"]));
+    assert!(compiles(&["src/B.sol", "--allow-paths", "../outside"]));
+
+    let output = compile(&proj, &["src/B.sol"]);
+    snapbox::assert_data_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        snapbox::str![[r#"
+error: [..]/outside/O.sol is outside of the allowed directories
+...
+"#]]
+    );
+}
+
+/// The directory of an input file is allowed by the path that is loaded, which applies `..` before
+/// following symbolic links.
+#[cfg(unix)]
+#[test]
+fn allowed_paths_use_loaded_input_paths() {
+    let dir = project(&[
+        ("elsewhere/dep/.keep", ""),
+        ("elsewhere/B.sol", "contract Other {}"),
+        ("elsewhere/Secret.sol", "contract Secret {}"),
+    ]);
+    let secret = dir.path().join("elsewhere/Secret.sol");
+    let source = format!("import \"{}\"; contract B {{}}", secret.display());
+    std::fs::create_dir(dir.path().join("proj")).unwrap();
+    std::fs::write(dir.path().join("proj/B.sol"), source).unwrap();
+    std::os::unix::fs::symlink("../elsewhere/dep", dir.path().join("proj/dep")).unwrap();
+
+    let output = compile(&dir.path().join("proj"), &["dep/../B.sol"]);
+    assert!(!output.status.success());
+    snapbox::assert_data_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        snapbox::str![[r#"
+error: [..]/elsewhere/Secret.sol is outside of the allowed directories
+...
+"#]]
+    );
+}
