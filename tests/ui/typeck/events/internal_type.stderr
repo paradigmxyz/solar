@@ -1,0 +1,14 @@
+error[3417]: types containing internal function pointers cannot be event parameter types
+   ╭▸ ROOT/tests/ui/typeck/events/internal_type.sol:LL:CC
+   │
+LL │     event E1(function() internal);
+   ╰╴             ━━━━━━━━━━━━━━━━━━━
+
+error[3417]: recursive types cannot be event parameter types
+   ╭▸ ROOT/tests/ui/typeck/events/internal_type.sol:LL:CC
+   │
+LL │     event E2(S);
+   ╰╴             ━
+
+error: aborting due to 2 previous errors
+

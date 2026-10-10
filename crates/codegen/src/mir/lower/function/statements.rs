@@ -540,20 +540,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         let event = self.cx.gcx.hir.event(event_id);
-        let max_indexed = if event.anonymous { 4 } else { 3 };
         let indexed_count =
             event.parameters.iter().filter(|&&id| self.cx.gcx.hir.variable(id).indexed).count();
-        if indexed_count > max_indexed {
-            if self.cx.state.invalid_event_topics.insert(event_id) {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
-                    .span(event.span)
-                    .emit();
-            }
-            return Some(());
-        }
         if args.len() != event.parameters.len() {
             return self.cx.report_unsupported(args.span, "event argument list");
         }

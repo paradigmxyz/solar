@@ -1,0 +1,14 @@
+error[3448]: types containing mappings cannot be error parameter types
+   ╭▸ ROOT/tests/ui/typeck/errors/no_mappings.sol:LL:CC
+   │
+LL │ error MyError(mapping(uint => uint));
+   ╰╴              ━━━━━━━━━━━━━━━━━━━━━
+
+error[3448]: types containing mappings cannot be error parameter types
+   ╭▸ ROOT/tests/ui/typeck/errors/no_mappings.sol:LL:CC
+   │
+LL │     error MyError2(mapping(uint => uint));
+   ╰╴                   ━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
