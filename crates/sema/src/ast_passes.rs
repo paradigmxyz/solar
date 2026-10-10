@@ -25,6 +25,8 @@ struct AstValidator<'sess, 'ast> {
     in_unchecked_block: bool,
     placeholder_count: u32,
     yul_for_part: YulForPart,
+    /// Whether the first ABI coder pragma selected v2, and its span.
+    abi_coder: Option<(bool, Span)>,
 }
 
 impl<'sess, 'ast> AstValidator<'sess, 'ast> {
@@ -37,6 +39,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             in_unchecked_block: false,
             placeholder_count: 0,
             yul_for_part: YulForPart::None,
+            abi_coder: None,
         }
     }
 
@@ -129,6 +132,31 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         self.dcx().err(format!("keyword `{kw}` {msg}")).code(code).span(span).emit();
     }
 
+    /// Records the ABI coder a pragma selects. Only the first selection counts;
+    /// `pragma experimental ABIEncoderV2;` may only repeat a v2 selection.
+    fn select_abi_coder(&mut self, experimental: bool, v2: bool) {
+        let Some((prev_v2, prev_span)) = self.abi_coder else {
+            self.abi_coder = Some((v2, self.item_span));
+            return;
+        };
+        let (code, msg) = match (experimental, prev_v2) {
+            (false, _) => {
+                (error_code!(3845), "ABI coder has already been selected for this source unit")
+            }
+            (true, false) => (
+                error_code!(8273),
+                "ABI coder v1 has already been selected through `pragma abicoder v1`",
+            ),
+            (true, true) => return,
+        };
+        self.dcx()
+            .err(msg)
+            .code(code)
+            .span(self.item_span)
+            .span_note(prev_span, "previously selected here")
+            .emit();
+    }
+
     fn visit_yul_block_in(
         &mut self,
         part: YulForPart,
@@ -186,11 +214,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 }
             }
             ast::PragmaTokens::Custom(name, value) => {
+                if let Some(v2) = pragma.tokens.abi_coder_v2() {
+                    self.select_abi_coder(name.value() == sym::experimental, v2);
+                    return ControlFlow::Continue(());
+                }
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    ("abicoder", Some("v1" | "v2")) => {}
-                    ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
                         let msg = "experimental solidity features are not supported";

@@ -516,6 +516,11 @@ pub struct Source<'hir> {
     pub usings: &'hir [UsingDirective<'hir>],
     /// The source docs.
     pub docs: &'hir [DocId],
+    /// Whether the source uses ABI coder v2, the default unless `pragma abicoder v1;` selects v1.
+    ///
+    /// Code generation always uses v2; this only selects which types the type checker accepts at
+    /// ABI boundaries.
+    pub abi_coder_v2: bool,
 }
 
 impl fmt::Debug for Source<'_> {

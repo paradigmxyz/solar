@@ -15,15 +15,19 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 items: &[],
                 usings: &[],
                 docs: &[],
+                abi_coder_v2: true,
             };
             if let Some(ast) = &source.ast {
                 let mut items = SmallVec::<[_; 16]>::new();
+                let mut abi_coder_v2 = None;
                 self.current_source_id = id;
                 for item in ast.items.iter() {
                     match &item.kind {
-                        ast::ItemKind::Pragma(_)
-                        | ast::ItemKind::Import(_)
-                        | ast::ItemKind::Using(_) => {}
+                        // AST validation rejects conflicting selections, so the first one wins.
+                        ast::ItemKind::Pragma(pragma) => {
+                            abi_coder_v2 = abi_coder_v2.or_else(|| pragma.tokens.abi_coder_v2());
+                        }
+                        ast::ItemKind::Import(_) | ast::ItemKind::Using(_) => {}
                         ast::ItemKind::Contract(_)
                         | ast::ItemKind::Function(_)
                         | ast::ItemKind::Variable(_)
@@ -41,6 +45,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     }
                 }
                 hir_source.items = self.arena.alloc_slice_copy(&items);
+                hir_source.abi_coder_v2 = abi_coder_v2.unwrap_or(true);
             };
             hir_source
         });

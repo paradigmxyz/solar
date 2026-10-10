@@ -1,0 +1,10 @@
+error[4957]: this type is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/returning_arrays_in_structs_arrays.sol:LL:CC
+   │
+LL │     function f() public pure returns (S memory x) {}
+   │                                       ━━━━━━━━━━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error: aborting due to 1 previous error
+

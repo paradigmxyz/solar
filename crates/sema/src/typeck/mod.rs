@@ -46,6 +46,7 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_receive_function(gcx, id);
     check_library_functions(gcx, id);
     check_interface_members(gcx, id);
+    check_base_abi_compatibility(gcx, id);
     for f_id in gcx.hir.contract(id).functions() {
         check_payable_function(gcx, gcx.hir.function(f_id));
     }
@@ -602,6 +603,41 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
             _ => {}
         }
     }
+}
+
+/// Checks that a contract in an ABI coder v1 source does not export, through inheritance, functions
+/// of ABI coder v2 sources that use types only v2 supports.
+fn check_base_abi_compatibility(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    if gcx.hir.source(contract.source).abi_coder_v2 || contract.kind.is_library() {
+        return;
+    }
+
+    let spans = gcx
+        .interface_functions(contract_id)
+        .into_iter()
+        .filter_map(|f| {
+            let func = gcx.hir.function(f.id);
+            let TyKind::Fn(ty) = f.ty.kind else { unreachable!() };
+            let unsupported = gcx.hir.source(func.source).abi_coder_v2
+                && ty.tys().any(|ty| !ty.supported_by_abi_coder_v1(false));
+            unsupported.then_some(func.span)
+        })
+        .collect::<Vec<_>>();
+    if spans.is_empty() {
+        return;
+    }
+    let msg = format!(
+        "contract `{}` does not use ABI coder v2 but wants to inherit from a contract which uses types that require it",
+        contract.name
+    );
+    let mut err = gcx.dcx().err(msg).code(error_code!(6594)).span(contract.span).help(
+        "use `pragma abicoder v2;` for the inheriting contract as well to enable the feature",
+    );
+    for span in spans {
+        err = err.span_note(span, "this function uses types that require ABI coder v2");
+    }
+    err.emit();
 }
 
 /// Checks restrictions that only apply to free functions.

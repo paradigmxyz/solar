@@ -1,0 +1,10 @@
+error[2763]: the following types are only supported for getters in ABI coder v2: `struct C.Y memory`
+   ╭▸ ROOT/tests/ui/typeck/abicoder/getter_nested_structs.sol:LL:CC
+   │
+LL │     mapping(uint256 => X) public m;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: either remove `public` or use `pragma abicoder v2;` to enable the feature
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,18 @@
+error[4957]: this type is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/calldata_multi_dynamic_v1.sol:LL:CC
+   │
+LL │     function f(uint[][] calldata) external { }
+   │                ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error[4957]: this type is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/calldata_multi_dynamic_v1.sol:LL:CC
+   │
+LL │     function g(uint[][1] calldata) external { }
+   │                ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error: aborting due to 2 previous errors
+

@@ -1,0 +1,8 @@
+error: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/abicoder/abi_encode_nested_dynamic_array.sol:LL:CC
+   │
+LL │         abi.encode([new uint[](5), new uint[](7)]);
+   ╰╴                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ found `uint256[][2] memory`
+
+error: aborting due to 1 previous error
+
