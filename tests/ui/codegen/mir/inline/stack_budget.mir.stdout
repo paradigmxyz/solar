@@ -1,23 +1,22 @@
 // === ROOT/tests/ui/codegen/mir/inline/stack_budget.sol:StackBudget ===
 @module StackBudget
-fn @choose(arg0: i256, arg1: i256) -> i256 [selector=0xced8609d, pure, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: i1, arg1: i256) -> i256 [selector=0xced8609d, pure, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @branch, arg0, arg1
     v1 = add v0, arg1
     ret v1
 }
 
-fn @branch(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @branch(arg0: i1, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v2 = xor arg1, 23
+    v1 = xor arg1, 23
     jump bb3
   bb1:
-    v1 = add arg1, 7
+    v0 = add arg1, 7
     jump bb3
   bb3:
-    v3 = phi [bb1: v1], [bb2: v2]
-    ret v3
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
 }

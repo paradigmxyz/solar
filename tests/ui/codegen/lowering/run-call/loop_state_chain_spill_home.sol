@@ -59,17 +59,16 @@ contract LoopStateChainSpillHome {
     // CHECK: push 2{{$}}
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq
+    // CHECK-NOT: {{mload|mstore}}
     // CHECK: push 13{{$}}
-    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: iszero
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: mul
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: push 3{{$}}
-    // CHECK-NEXT: dup 3
+    // CHECK-NOT: {{mload|mstore}}
+    // CHECK: mul
+    // CHECK-NOT: {{mload|mstore}}
+    // CHECK: sub
+    // CHECK-NOT: {{mload|mstore}}
+    // CHECK: push 3{{$}}
     // CHECK-NEXT: eq
     // CHECK-NEXT: mul
     // CHECK-NEXT: add

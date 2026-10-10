@@ -45,16 +45,14 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator,
         Value, ValueId,
+        analysis::CfgInfo,
         pass::{MirPass, run_function_pass},
+        utils::invalidate_unreachable_blocks,
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
-    map::FxHashMap,
-};
+use solar_data_structures::map::FxHashMap;
 use std::cmp::Ordering;
 
 /// Function pass that converts small branch diamonds and triangles into selects.
@@ -121,20 +119,13 @@ enum SelectForm {
 }
 
 fn if_convert_function(func: &mut Function, target: Target) -> bool {
-    let mut changed = false;
+    let cfg = CfgInfo::new(func);
+    let mut changed = invalidate_unreachable_blocks(func, cfg.reachable()) != 0;
     loop {
-        let mut preds = predecessors(func);
         let mut converted = false;
         for block in func.blocks.indices() {
-            if let Some(site) = find_site(func, target, &preds, block) {
+            if let Some(site) = find_site(func, target, block) {
                 convert(func, &site);
-                for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
-                    preds[arm].clear();
-                    preds[site.join].retain(|&pred| pred != arm);
-                }
-                if !preds[site.join].contains(&block) {
-                    preds[site.join].push(block);
-                }
                 converted = true;
             }
         }
@@ -147,40 +138,16 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
     changed
 }
 
-/// Predecessor lists over the blocks reachable from the entry.
-fn predecessors(func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
-    let mut preds = index_vec![Vec::new(); func.blocks.len()];
-    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist = Vec::new();
-    worklist.push(BlockId::ENTRY);
-    reachable.insert(BlockId::ENTRY);
-    while let Some(block) = worklist.pop() {
-        let Some(terminator) = &func.blocks[block].terminator else { continue };
-        for successor in terminator.successors() {
-            preds[successor].push(block);
-            if reachable.insert(successor) {
-                worklist.push(successor);
-            }
-        }
-    }
-    preds
-}
-
-fn find_site(
-    func: &Function,
-    target: Target,
-    preds: &IndexVec<BlockId, Vec<BlockId>>,
-    block: BlockId,
-) -> Option<Site> {
+fn find_site(func: &Function, target: Target, block: BlockId) -> Option<Site> {
     let body = &func.blocks[block];
     let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
         return None;
     };
-    if then_block == else_block || (block != BlockId::ENTRY && preds[block].is_empty()) {
+    if then_block == else_block || (block != BlockId::ENTRY && body.predecessors.is_empty()) {
         return None;
     }
-    let then_join = arm_join(func, preds, block, then_block);
-    let else_join = arm_join(func, preds, block, else_block);
+    let then_join = arm_join(func, block, then_block);
+    let else_join = arm_join(func, block, else_block);
     let (then_arm, else_arm, join) = match (then_join, else_join) {
         // then_arm -> join <- else_arm
         (Some(join), Some(other)) if join == other => (Some(then_block), Some(else_block), join),
@@ -204,13 +171,8 @@ fn find_site(
 }
 
 /// The join an arm jumps to, when the arm is speculatable from `block`.
-fn arm_join(
-    func: &Function,
-    preds: &IndexVec<BlockId, Vec<BlockId>>,
-    block: BlockId,
-    arm: BlockId,
-) -> Option<BlockId> {
-    if arm == block || preds[arm].as_slice() != [block] {
+fn arm_join(func: &Function, block: BlockId, arm: BlockId) -> Option<BlockId> {
+    if arm == block || func.blocks[arm].predecessors.as_slice() != [block] {
         return None;
     }
     let body = &func.blocks[arm];
@@ -247,7 +209,9 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
         let incoming_from =
             |pred| incoming.iter().find(|&&(from, _)| from == pred).map(|&(_, v)| v);
         let (then_value, else_value) = (incoming_from(then_pred)?, incoming_from(else_pred)?);
-        if is_pointer(func, then_value) || is_pointer(func, else_value) {
+        if !matches!(func.value_ty(then_value), Some(MirType::Int(_)))
+            || func.value_ty(then_value) != func.value_ty(else_value)
+        {
             return None;
         }
         let form = select_form(func, site.condition, then_value, else_value);
@@ -257,12 +221,6 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
         }
     }
     Some(selects)
-}
-
-/// Whether a value carries memory, storage, or calldata provenance that the
-/// arithmetic forms would erase.
-fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::Slice(_)))
 }
 
 fn select_form(
@@ -640,7 +598,9 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
     let start = func.blocks[block].instructions.len();
     let mut builder = crate::mir::FunctionBuilder::new(func);
     builder.switch_to_block(block);
-    let value = builder.emit_inst(kind, ty);
+    let operation_ty = kind.op_def().result.default_type().or(ty);
+    let value = builder.emit_inst(kind, operation_ty);
+    let value = ty.map_or(value, |ty| builder.cast(value, ty));
     let insts = builder.func().blocks[block].instructions[start..].to_vec();
     for inst in insts {
         builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();

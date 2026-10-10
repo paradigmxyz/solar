@@ -1,0 +1,10 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/mapping_slot_value.sol:MappingSlotValue ===
+@module MappingSlotValue
+fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mapping_slot 1, 0
+    sstore v0, 7 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot 1, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    ret v2
+}

@@ -62,6 +62,12 @@ impl InstructionEffects {
     pub(crate) const fn can_speculate(self) -> bool {
         self.can_common() && !self.observable && !self.expands_memory
     }
+
+    /// Whether the result reads the state of execution, such as remaining gas or memory size,
+    /// so two evaluations with the same operands can differ.
+    pub(crate) const fn observes_execution(self) -> bool {
+        self.observes_execution
+    }
 }
 
 impl InstKind {
@@ -198,6 +204,7 @@ impl InstKind {
             | Self::FrameStore { .. }
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
+            | Self::HeapFloor
             | Self::DataCopy(..)
             | Self::CodeSize
             | Self::CodeCopy(..)

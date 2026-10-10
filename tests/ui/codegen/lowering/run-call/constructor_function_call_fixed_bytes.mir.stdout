@@ -9,9 +9,8 @@ fn @constructor() [constructor] {
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffff
-    v2 = shl 232, v1
-    ret v2
+    v1 = shl 232, v0
+    ret v1
 }
 
 fn @setName(arg0: i256) {

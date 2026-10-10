@@ -5,8 +5,8 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
   bb0:
     v16 = calldatasize
     v17 = lt v16, 36
-    jumpi v17, bb4, bb5
-  bb5:
+    jumpi v17, bb3, bb4
+  bb4:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
     v42 = mload 64 !metadata(memory=scratch)
     v43 = add v42, 128
@@ -27,19 +27,18 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v6 = mload v42
     v12 = add v6, arg0
     v13 = lt v12, v6
-    jumpi v13, bb1, bb2
-  bb2:
     v14 = add v12, 3
     v15 = lt v14, v12
-    jumpi v15, bb1, bb3
-  bb3:
+    v44 = or v13, v15
+    jumpi v44, bb1, bb2
+  bb2:
     mstore 128, v14
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb3:
     revert 0, 0
 }
 

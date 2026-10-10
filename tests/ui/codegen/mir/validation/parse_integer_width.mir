@@ -1,0 +1,9 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// Integer widths other than 1 must be whole bytes.
+@module IntegerWidth
+
+fn @f(arg0: i7) -> i7 { //~ ERROR: integer width must be 1 or a multiple of 8 from 8 through 256
+  bb0:
+    ret arg0
+}

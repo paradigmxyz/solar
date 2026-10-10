@@ -58,6 +58,9 @@ struct ExternalProject {
     solc_version: Option<&'static str>,
     /// Foundry profile used for both compiler legs.
     profile: Option<&'static str>,
+    /// Foundry profiles each leg builds before `forge test`, for suites that deploy the
+    /// artifacts those profiles write.
+    prebuild_profiles: &'static [&'static str],
     skip_tests: &'static [Skip],
     skip_contracts: &'static [Skip],
     notes: &'static str,
@@ -76,6 +79,7 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         solc_version: Some("0.8.19"),
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "lending core: exact 0.8.19 pragma, invariant suite, evm paris",
@@ -89,10 +93,30 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         // The test files pin `pragma solidity 0.8.15` exactly.
         solc_version: Some("0.8.15"),
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "token/utility library: heavy fuzz coverage of arithmetic edge cases",
-        test_fixes: &[],
+        test_fixes: &[
+            TestFix {
+                path: "src/test/ERC6909.t.sol",
+                before: "    function testTransferFromWithApproval(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 mintAmount,\n        uint256 transferAmount\n    ) public {\n        transferAmount = bound(transferAmount, 0, mintAmount);\n",
+                after: "    function testTransferFromWithApproval(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 mintAmount,\n        uint256 transferAmount\n    ) public {\n        hevm.assume(sender != address(this));\n        transferAmount = bound(transferAmount, 0, mintAmount);\n",
+                reason: "allowance tests require a sender distinct from the caller, who bypasses allowance checks",
+            },
+            TestFix {
+                path: "src/test/ERC6909.t.sol",
+                before: "    function testFailTransferFromNotAuthorized(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 amount\n    ) public {\n        amount = bound(amount, 1, type(uint256).max);\n",
+                after: "    function testFailTransferFromNotAuthorized(\n        address sender,\n        address receiver,\n        uint256 id,\n        uint256 amount\n    ) public {\n        hevm.assume(sender != address(this));\n        amount = bound(amount, 1, type(uint256).max);\n",
+                reason: "allowance tests require a sender distinct from the caller, who bypasses allowance checks",
+            },
+            TestFix {
+                path: "src/test/ERC1155.t.sol",
+                before: "    function testSafeBatchTransferFromToEOA(\n        address to,\n        uint256[] memory ids,\n        uint256[] memory mintAmounts,\n        uint256[] memory transferAmounts,\n        bytes memory mintData,\n        bytes memory transferData\n    ) public {\n        if (to == address(0)) to = address(0xBEEF);\n",
+                after: "    function testSafeBatchTransferFromToEOA(\n        address to,\n        uint256[] memory ids,\n        uint256[] memory mintAmounts,\n        uint256[] memory transferAmounts,\n        bytes memory mintData,\n        bytes memory transferData\n    ) public {\n        hevm.assume(to != address(0xABCD));\n        if (to == address(0)) to = address(0xBEEF);\n",
+                reason: "balance-delta assertions require a receiver distinct from the sender",
+            },
+        ],
     },
     ExternalProject {
         name: "solady",
@@ -101,15 +125,24 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         solc_version: None,
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "assembly-heavy library: the widest inline-assembly coverage available",
-        test_fixes: &[TestFix {
-            path: "test/ERC6551.t.sol",
-            before: "assertEq(target.balance, 123);\n\n        vm.prank(_randomNonZeroAddress());",
-            after: "assertEq(target.balance, 123);\n\n        vm.prank(address(uint160(t.owner) ^ 1));",
-            reason: "the unauthorized caller must differ from the owner; random addresses can repeat",
-        }],
+        test_fixes: &[
+            TestFix {
+                path: "test/ERC6551.t.sol",
+                before: "assertEq(target.balance, 123);\n\n        vm.prank(_randomNonZeroAddress());",
+                after: "assertEq(target.balance, 123);\n\n        vm.prank(address(uint160(t.owner) ^ 1));",
+                reason: "the unauthorized caller must differ from the owner; random addresses can repeat",
+            },
+            TestFix {
+                path: "foundry.toml",
+                before: "optimizer_runs = 1_000\ngas_limit = ",
+                after: "optimizer_runs = 1_000\nisolate = false\ngas_limit = ",
+                reason: "the ETH mover test expects SELFDESTRUCT and its next call in one transaction",
+            },
+        ],
     },
     // prb-math was considered but is excluded: its forge-std comes from
     // npm/bun (`devDependencies`), not a git submodule. Run it through
@@ -118,13 +151,16 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         name: "seaport",
         repo: "https://github.com/ProjectOpenSea/seaport",
         rev: "080133906585660f6a76b82984f3fb690ff4b2a9",
-        mode: ExternalMode::Build,
+        mode: ExternalMode::Test,
         // `contracts/Seaport.sol` pins `pragma solidity =0.8.24`.
         solc_version: Some("0.8.24"),
-        profile: Some("optimized"),
+        profile: None,
+        // The tests deploy Seaport from `optimized-out/` and its reference implementation from
+        // `reference-out/`, so each leg builds both with its own compiler first.
+        prebuild_profiles: &["optimized", "reference"],
         skip_tests: &[],
         skip_contracts: &[],
-        notes: "build-only: whole-project codegen and artifact parity",
+        notes: "marketplace core: via-IR build, assembly decoders behind retyped function pointers",
         test_fixes: &[],
     },
     ExternalProject {
@@ -134,15 +170,24 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         mode: ExternalMode::Test,
         solc_version: None,
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: broadest idiomatic Solidity surface; needs a forge that knows evm osaka",
-        test_fixes: &[TestFix {
-            path: "test/utils/Blockhash.t.sol",
-            before: "uint256 currentBlock = block.number - 1;",
-            after: "uint256 currentBlock = vm.getBlockNumber() - 1;",
-            reason: "snapshot block number through the cheatcode getter before vm.roll (CODEGEN-008)",
-        }],
+        test_fixes: &[
+            TestFix {
+                path: "test/utils/Blockhash.t.sol",
+                before: "uint256 currentBlock = block.number - 1;",
+                after: "uint256 currentBlock = vm.getBlockNumber() - 1;",
+                reason: "snapshot block number through the cheatcode getter before vm.roll (CODEGEN-008)",
+            },
+            TestFix {
+                path: "foundry.toml",
+                before: "libs = ['node_modules', 'lib']\ncache_path",
+                after: "libs = ['node_modules', 'lib']\nfs_permissions = [{ access = 'read', path = './node_modules/hardhat-predeploy/bin' }]\ncache_path",
+                reason: "ERC7579UtilsTest reads the locked EntryPoint and SenderCreator predeploy bytecode",
+            },
+        ],
     },
     ExternalProject {
         name: "uniswap-v4-core",
@@ -152,10 +197,16 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         // `src/PoolManager.sol` pins `pragma solidity =0.8.26`.
         solc_version: Some("0.8.26"),
         profile: None,
+        prebuild_profiles: &[],
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: transient storage, via-ir profile, ffi gas snapshots",
-        test_fixes: &[],
+        test_fixes: &[TestFix {
+            path: "test/libraries/TickMath.t.sol",
+            before: "        // check lower price of next tick\n        assertEq(TickMath.getTickAtSqrtPrice(priceAtNextTick), nextTick, \"lower price next tick\");\n",
+            after: "        // check lower price of next tick\n        if (nextTick < TickMath.MAX_TICK) {\n            assertEq(TickMath.getTickAtSqrtPrice(priceAtNextTick), nextTick, \"lower price next tick\");\n        }\n",
+            reason: "the inverse excludes MAX_SQRT_PRICE; keep the last tick interval checks but guard its endpoint",
+        }],
     },
 ];
 
@@ -179,6 +230,7 @@ struct ResolvedProject {
     mode: ExternalMode,
     solc_version: Option<String>,
     profile: Option<String>,
+    prebuild_profiles: Vec<String>,
     skip_tests: Vec<SkipEntry>,
     skip_contracts: Vec<SkipEntry>,
     notes: String,
@@ -206,6 +258,8 @@ struct ManifestProject {
     mode: ExternalMode,
     solc_version: Option<String>,
     profile: Option<String>,
+    #[serde(default)]
+    prebuild_profiles: Vec<String>,
     #[serde(default)]
     skip_tests: Vec<ManifestSkip>,
     #[serde(default)]
@@ -238,6 +292,11 @@ impl ResolvedProject {
             mode: project.mode,
             solc_version: project.solc_version.map(str::to_string),
             profile: project.profile.map(str::to_string),
+            prebuild_profiles: project
+                .prebuild_profiles
+                .iter()
+                .map(|&profile| profile.to_string())
+                .collect(),
             skip_tests: skip_entries(project.skip_tests),
             skip_contracts: skip_entries(project.skip_contracts),
             notes: project.notes.to_string(),
@@ -266,6 +325,7 @@ impl ResolvedProject {
             mode: project.mode,
             solc_version: project.solc_version,
             profile: project.profile,
+            prebuild_profiles: project.prebuild_profiles,
             skip_tests: manifest_skips(project.skip_tests),
             skip_contracts: manifest_skips(project.skip_contracts),
             notes: project.notes,
@@ -287,6 +347,7 @@ impl ResolvedProject {
             fuzz_seed: Some(EXTERNAL_FUZZ_SEED),
             solc_wrapper_version: self.solc_version.clone(),
             foundry_profile: self.profile.clone(),
+            prebuild_profiles: self.prebuild_profiles.clone(),
             traces: false,
             rerun_command: format!("cargo tq foundry-external {}", self.name),
         }
@@ -510,21 +571,28 @@ fn apply_test_fixes(project: &ResolvedProject, dir: &Path) -> Result<(), String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_fixes_are_idempotent() {
         for project in EXTERNAL_PROJECTS {
             let project = ResolvedProject::from_curated(project);
             let dir = tempfile::tempdir().unwrap();
+            let mut files = BTreeMap::<_, (String, String)>::new();
             for fix in project.test_fixes {
-                let path = dir.path().join(fix.path);
+                let (before, after) = files.entry(fix.path).or_default();
+                before.push_str(fix.before);
+                after.push_str(fix.after);
+            }
+            for (file, (before, _)) in &files {
+                let path = dir.path().join(file);
                 fs::create_dir_all(path.parent().unwrap()).unwrap();
-                fs::write(path, fix.before).unwrap();
+                fs::write(path, before).unwrap();
             }
             apply_test_fixes(&project, dir.path()).unwrap();
             apply_test_fixes(&project, dir.path()).unwrap();
-            for fix in project.test_fixes {
-                assert_eq!(fs::read_to_string(dir.path().join(fix.path)).unwrap(), fix.after);
+            for (file, (_, after)) in files {
+                assert_eq!(fs::read_to_string(dir.path().join(file)).unwrap(), after);
             }
         }
     }
@@ -532,11 +600,14 @@ mod tests {
     #[test]
     fn test_fixes_reject_changed_or_repeated_sources() {
         for project in EXTERNAL_PROJECTS {
-            let project = ResolvedProject::from_curated(project);
             let dir = tempfile::tempdir().unwrap();
             for fix in project.test_fixes {
                 let path = dir.path().join(fix.path);
                 fs::create_dir_all(path.parent().unwrap()).unwrap();
+                let project = ResolvedProject {
+                    test_fixes: std::slice::from_ref(fix),
+                    ..ResolvedProject::from_curated(project)
+                };
                 for source in [
                     String::new(),
                     fix.before.repeat(2),

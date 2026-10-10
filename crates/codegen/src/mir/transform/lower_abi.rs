@@ -24,6 +24,12 @@
 //! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
 //! tuple so enclosing decoders can call them for nested values.
 //!
+//! Each `abi_decode` reads a bytes object or a memory slice in place. A slice's pointer is the
+//! base and its length is checked against the head size, so a constant-length slice, such as an
+//! external call's static return buffer, needs no length word. Repeated decodes of a layout from
+//! the same kind of input share a helper; one that static slices share takes only the base, and
+//! each caller checks its own length, which then usually folds away.
+//!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
 //! Argument-free functions that only return a short literal use direct fixed-buffer stores;
@@ -519,7 +525,12 @@ impl LowerAbiCx {
                         return value;
                     };
                     if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
-                        && matches!(ty, AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. })
+                        && match &ty {
+                            AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
+                            AbiParamType::DynamicArray(_) => !layout.types[index]
+                                .accepts_input_type(MirType::Slice(SliceLocation::Calldata)),
+                            _ => false,
+                        }
                     {
                         return materialize_calldata_return(
                             &mut builder,
@@ -592,14 +603,15 @@ impl LowerAbiCx {
         let mut decode_functions = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
-                let InstKind::AbiDecode { data: _, layout } = &func.inst(inst_id).kind else {
+                let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
                 decode_functions.insert(func_id);
-                if layout.types.is_empty() || layout.checked_head_size().is_none() {
+                if layout.checked_head_size().is_none() {
                     return false;
                 }
-                let count = decode_counts.entry(layout.clone()).or_insert(0);
+                let data_ty = crate::mir::typing::memory_object(func, *data);
+                let count = decode_counts.entry((layout.clone(), data_ty)).or_insert(0);
                 if *count == 0 {
                     for ty in &layout.types {
                         count_dynamic_tuple_types(ty, 1, &mut memory_type_counts);
@@ -622,23 +634,25 @@ impl LowerAbiCx {
         }
 
         let mut decode_helpers = FxHashMap::default();
-        for (layout, count) in decode_counts {
+        for ((layout, data_ty), count) in decode_counts {
             if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
                 let helper = self.synthesize_decode_helper(
                     module,
                     layout.clone(),
+                    data_ty,
                     sym::decode_static,
                     &memory_type_helpers,
                 );
-                decode_helpers.insert(layout, helper);
+                decode_helpers.insert((layout, data_ty), helper);
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
                 let helper = self.synthesize_decode_helper(
                     module,
                     layout.clone(),
+                    data_ty,
                     sym::decode_aggregate,
                     &memory_type_helpers,
                 );
-                decode_helpers.insert(layout, helper);
+                decode_helpers.insert((layout, data_ty), helper);
             }
         }
 
@@ -661,27 +675,33 @@ impl LowerAbiCx {
                         continue;
                     };
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
-                    let layout = layout.clone();
+                    let key =
+                        (layout.clone(), crate::mir::typing::memory_object(builder.func(), data));
+                    let (layout, data_ty) = &key;
 
-                    let result = builder
-                        .func()
-                        .inst_result_value(inst)
-                        .expect("ABI decode must produce a value");
-                    let data = if matches!(builder.func().value_ty(data), Some(MirType::I256)) {
-                        Self::materialize_static_decode_bytes(&mut builder, data, &layout)
-                    } else {
-                        data
-                    };
-                    let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
-                    if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
-                        // result = icall decode_helper(data)
-                        let value = builder.icall(helper, vec![data], result_ty);
+                    let result = builder.func().inst_result_value(inst);
+                    if let Some(&helper) = decode_helpers.get(&key) {
+                        let arg = if passes_slice_base(*data_ty, layout) {
+                            // if slt(slice_len(data), head_size) { revert }
+                            // arg = slice_ptr(data)
+                            let (base, length) = decode_input(&mut builder, data);
+                            let head_size = layout.checked_head_size().expect("checked ABI layout");
+                            let head_size = builder.imm(head_size);
+                            let short = builder.slt(length, head_size);
+                            builder.revert_if(short, RevertReason::TupleDataTooShort);
+                            base
+                        } else {
+                            data
+                        };
+                        // result = icall decode_helper(arg)
+                        let result = result.expect("decode helpers have outputs");
+                        let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
+                        let value = builder.icall(helper, vec![arg], result_ty);
                         replacements.insert(result, value);
                         continue;
                     }
 
-                    let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
-                    let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
+                    let (base, length) = decode_input(&mut builder, data);
                     let Some(values) = decode_memory_tuple(
                         &mut builder,
                         base,
@@ -692,6 +712,7 @@ impl LowerAbiCx {
                     ) else {
                         return false;
                     };
+                    let Some(result) = result else { continue };
                     // field = cast decoded word to the declared field type
                     // result = insert_value(undef, field0), ...
                     let values = values
@@ -699,7 +720,7 @@ impl LowerAbiCx {
                         .zip(&layout.types)
                         .map(|(value, ty)| builder.cast(value, ty.mir_type()))
                         .collect::<Vec<_>>();
-                    let value = if let MirType::Struct(id) = result_ty {
+                    let value = if let Some(MirType::Struct(id)) = builder.func().value_ty(result) {
                         builder.make_struct(id, values)
                     } else {
                         values[0]
@@ -878,17 +899,24 @@ impl LowerAbiCx {
         &self,
         module: &mut Module,
         layout: AbiParamLayoutRef,
+        data_ty: MirType,
         name: Symbol,
         memory_type_helpers: &FxHashMap<AbiParamType, FunctionId>,
     ) -> FunctionId {
         let mut function = Function::new(Ident::with_dummy_span(name));
         {
             let mut builder = self.builder(&mut function);
-            let data = builder.add_param(MirType::MemPtr);
+            let (base, length) = if passes_slice_base(data_ty, &layout) {
+                // The callers check the slice length, so the input is the head alone.
+                let base = builder.add_param(MirType::MemPtr);
+                let head_size = layout.checked_head_size().expect("checked ABI layout");
+                (base, builder.imm(head_size))
+            } else {
+                let data = builder.add_param(data_ty);
+                decode_input(&mut builder, data)
+            };
             let fields = layout.types.iter().map(AbiParamType::mir_type).collect();
             builder.set_return_type(module.intern_return_type(fields).expect("decode has outputs"));
-            let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
-            let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let values = decode_memory_tuple(
                 &mut builder,
                 base,
@@ -910,18 +938,6 @@ impl LowerAbiCx {
         module.add_function(function)
     }
 
-    fn materialize_static_decode_bytes(
-        builder: &mut FunctionBuilder<'_>,
-        data: ValueId,
-        layout: &AbiParamLayout,
-    ) -> ValueId {
-        let size = builder.imm(layout.checked_head_size().expect("static ABI layout"));
-        let object = builder.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
-        let source = builder.make_slice(data, size, SliceLocation::Memory);
-        builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-        object
-    }
-
     fn validate_memory_tuple_input(
         builder: &mut FunctionBuilder<'_>,
         base: ValueId,
@@ -929,13 +945,13 @@ impl LowerAbiCx {
         head_size: u64,
         current: &mut BlockId,
     ) -> ValueId {
+        // input_end = base + length
+        // if slt(length, head_size) { revert }
         builder.switch_to_block(*current);
         let input_end = builder.add(base, length);
-        let overflow = builder.lt(input_end, base);
         let head_size = builder.imm(head_size);
-        let short = builder.lt(length, head_size);
-        let invalid = builder.or(overflow, short);
-        *current = builder.revert_if(invalid, RevertReason::TupleDataTooShort);
+        let short = builder.slt(length, head_size);
+        *current = builder.revert_if(short, RevertReason::TupleDataTooShort);
         input_end
     }
 
@@ -1272,15 +1288,24 @@ impl LowerAbiCx {
                 );
                 head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
             }
-            let preserve_word_types = layout.types.len() == arg_types.len()
-                && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
-                    ty.is_scalar_word()
-                        && ty.mir_type() == param
-                        && !matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                });
-            let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
-            for (index, _) in (0..head_offset / 32).enumerate() {
-                params.push(if preserve_word_types { arg_types[index] } else { MirType::I256 });
+            // ABI words can contain sign bits above the native integer width.
+            let mut params =
+                (0..head_offset / 32).map(|_| MirType::I256).collect::<IndexVec<_, _>>();
+            for (logical, physical) in logical_physical.iter().enumerate() {
+                if let Some(physical) = *physical
+                    && let Some(&ty) = arg_types.get(logical)
+                    && layout.types[logical].mir_type() == ty
+                    && matches!(
+                        layout.types[logical],
+                        AbiParamType::Scalar(
+                            crate::mir::ValueLayout::Bool
+                                | crate::mir::ValueLayout::UInt(_)
+                                | crate::mir::ValueLayout::Address
+                        )
+                    )
+                {
+                    params[physical] = ty;
+                }
             }
             func.set_params(params);
             logical_values = logical_physical
@@ -1491,7 +1516,7 @@ impl LowerAbiCx {
             for (logical, value) in logical_values.iter_mut().enumerate() {
                 if let Some(raw) = *value
                     && let Some(&ty) = arg_types.get(logical)
-                    && matches!(ty, MirType::I1 | MirType::I160)
+                    && matches!(ty, MirType::Int(bits) if bits.get() < 256)
                 {
                     // value = cast raw to the declared scalar type
                     let normalized = builder.cast(raw, ty);
@@ -1995,57 +2020,9 @@ impl LowerAbiCx {
                     return ptr;
                 }
 
-                // Dynamic ABI arrays use a head of one word per element. The
-                // element value may itself be dynamic, so nested objects are
-                // decoded recursively and stored as pointers in this array.
-                // Keep the three loop-carried words as MIR phis; materializing
-                // a temporary semantic object would add a heap allocation and
-                // three loads/stores on every iteration.
-                let zero = builder.imm(0);
-                let preheader = builder.current_block();
-                let cond = builder.create_block();
-                let body = builder.create_block();
-                let done = builder.create_block();
-                builder.jump(cond);
-
-                builder.switch_to_block(cond);
-                let remaining = builder.phi(vec![(preheader, len)]);
-                let source = builder.phi(vec![(preheader, data_base)]);
-                let destination_index = builder.phi(vec![(preheader, zero)]);
-                let has_next = builder.gt(remaining, zero);
-                builder.branch(has_next, body, done);
-
-                builder.switch_to_block(body);
-                let mut element_current = builder.current_block();
-                let value = Self::decode_aggregate_argument(
-                    builder,
-                    element,
-                    element.mir_type(),
-                    source,
-                    data_base,
-                    &mut element_current,
-                    options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
+                Self::decode_array_elements(
+                    builder, element, ptr, len, data_base, current, options,
                 );
-                let value = Self::encode_memory_scalar(builder, element, value);
-                builder.memory_object_store_element(ptr, layout, destination_index, value);
-                let one = builder.imm(1);
-                let next_remaining = builder.sub(remaining, one);
-                let element_head_size = builder
-                    .imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let next_source = builder.add(source, element_head_size);
-                let next_destination_index = builder.add(destination_index, one);
-                builder.switch_to_block(element_current);
-                builder.jump(cond);
-                builder.add_phi_incoming(remaining, element_current, next_remaining);
-                builder.add_phi_incoming(source, element_current, next_source);
-                builder.add_phi_incoming(
-                    destination_index,
-                    element_current,
-                    next_destination_index,
-                );
-
-                builder.switch_to_block(done);
-                *current = done;
                 ptr
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
@@ -2194,6 +2171,71 @@ impl LowerAbiCx {
             builder.switch_to_block(element_current);
         });
         *current = builder.current_block();
+    }
+
+    /// Decodes `len` ABI elements whose heads start at `data_base` into the
+    /// memory array `ptr`.
+    fn decode_array_elements(
+        builder: &mut FunctionBuilder<'_>,
+        element: &crate::mir::AbiParamType,
+        ptr: ValueId,
+        len: ValueId,
+        data_base: ValueId,
+        current: &mut BlockId,
+        options: DecodeOptions<'_>,
+    ) {
+        // Dynamic ABI arrays use a head of one word per element. The
+        // element value may itself be dynamic, so nested objects are
+        // decoded recursively and stored as pointers in this array.
+        // Keep the three loop-carried words as MIR phis; materializing
+        // a temporary semantic object would add a heap allocation and
+        // three loads/stores on every iteration.
+        let zero = builder.imm(0);
+        let preheader = builder.current_block();
+        let cond = builder.create_block();
+        let body = builder.create_block();
+        let done = builder.create_block();
+        builder.jump(cond);
+
+        builder.switch_to_block(cond);
+        let remaining = builder.phi(vec![(preheader, len)]);
+        let source = builder.phi(vec![(preheader, data_base)]);
+        let destination_index = builder.phi(vec![(preheader, zero)]);
+        let has_next = builder.gt(remaining, zero);
+        builder.branch(has_next, body, done);
+
+        builder.switch_to_block(body);
+        let mut element_current = builder.current_block();
+        let value = Self::decode_aggregate_argument(
+            builder,
+            element,
+            element.mir_type(),
+            source,
+            data_base,
+            &mut element_current,
+            options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
+        );
+        let value = Self::encode_memory_scalar(builder, element, value);
+        builder.memory_object_store_element(
+            ptr,
+            crate::mir::MemoryObjectLayout::WORD_ARRAY,
+            destination_index,
+            value,
+        );
+        let one = builder.imm(1);
+        let next_remaining = builder.sub(remaining, one);
+        let element_head_size =
+            builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+        let next_source = builder.add(source, element_head_size);
+        let next_destination_index = builder.add(destination_index, one);
+        builder.switch_to_block(element_current);
+        builder.jump(cond);
+        builder.add_phi_incoming(remaining, element_current, next_remaining);
+        builder.add_phi_incoming(source, element_current, next_source);
+        builder.add_phi_incoming(destination_index, element_current, next_destination_index);
+
+        builder.switch_to_block(done);
+        *current = done;
     }
 
     fn decode_static_aggregate(
@@ -3137,6 +3179,29 @@ fn decode_memory_tuple(
     Some(values)
 }
 
+/// Returns whether a shared decoder of a memory slice takes only the slice's base, which holds for
+/// static layouts: they read the head alone, so the caller checks the length, which is usually the
+/// constant head size, and the check folds away.
+fn passes_slice_base(data_ty: MirType, layout: &AbiParamLayout) -> bool {
+    matches!(data_ty, MirType::Slice(_)) && !layout.types.iter().any(AbiParamType::is_dynamic)
+}
+
+/// Returns the base and length of an ABI decode's input, a bytes object or a memory slice.
+fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, ValueId) {
+    if matches!(builder.func().value_ty(data), Some(MirType::Slice(_))) {
+        // base = inttoptr slice_ptr(data)
+        // length = slice_len(data)
+        let ptr = builder.slice_ptr(data);
+        let base = builder.cast(ptr, MirType::MemPtr);
+        (base, builder.slice_len(data))
+    } else {
+        // base = memory_object_data(data)
+        // length = memory_object_len(data)
+        let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        (base, builder.memory_object_len(data, MemoryObjectKind::Bytes))
+    }
+}
+
 /// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes
 /// its decoder take the base of the enclosing tuple.
 fn decodes_nested(ty: &AbiParamType) -> bool {
@@ -3749,6 +3814,10 @@ fn is_canonical_return_scalar(
         }
         return matches!(ty, crate::mir::ValueLayout::Int(size) if size.bits() >= 256);
     };
+    let bits = super::egraph::max_bits_with_args(func, value, 8, &|_| 256);
+    if (U256::MAX >> (256 - bits)) & !expected == U256::ZERO {
+        return true;
+    }
     if ty == crate::mir::ValueLayout::Function
         && source == ReturnValueSource::Memory
         && let Value::Inst(inst) = func.value(value)
@@ -4426,6 +4495,29 @@ fn materialize_calldata_return(
     base: ValueId,
     has_bitwise_shifting: bool,
 ) -> ValueId {
+    if let AbiParamType::DynamicArray(element) = ty {
+        // len = slice_len returned_slice
+        // data = slice_ptr returned_slice
+        // object = alloc word_array(len)
+        // object[0..len] = decode elements from data
+        let len = builder.slice_len(base);
+        let data = builder.slice_ptr(base);
+        let input_end = builder.calldatasize();
+        let (object, _) =
+            builder.alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let mut current = builder.current_block();
+        let options = DecodeOptions::new(false, input_end, has_bitwise_shifting);
+        LowerAbiCx::decode_array_elements(
+            builder,
+            element,
+            object,
+            len,
+            data,
+            &mut current,
+            options,
+        );
+        return object;
+    }
     // base = slice_ptr returned_slice
     let base = builder.slice_ptr(base);
     let input_end = builder.calldatasize();

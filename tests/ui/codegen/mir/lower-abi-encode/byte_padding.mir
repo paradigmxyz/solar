@@ -16,11 +16,12 @@
 // Size mode keeps the guarded store, which can share machine-level encoder tails.
 // SIZE-LABEL: {{^[ +].*}}fn @encode
 // SIZE: + [[LEN:v[0-9]+]] = slice_len arg0
-// SIZE-NEXT: + mstore {{v[0-9]+}}, [[LEN]]
-// SIZE: + {{v[0-9]+}} = and
+// SIZE-NEXT: + mstore [[DEST:v[0-9]+]], [[LEN]]
+// SIZE: + [[PAD:v[0-9]+]] = and
 // SIZE: + {{v[0-9]+}} = eq {{v[0-9]+}}, 0
 // SIZE-NEXT: + jumpi
-// SIZE: + mstore {{v[0-9]+}}, 0
+// SIZE: + [[LAST:v[0-9]+]] = add [[DEST]], [[PAD]]
+// SIZE-NEXT: + mstore [[LAST]], 0
 // SIZE: + calldatacopy
 fn @encode(arg0: calldataslice) -> memoryslice {
   bb0:

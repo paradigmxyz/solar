@@ -5,12 +5,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
 @module CheckpointTarget
 @types
-  struct0: {i256, i256, i256}
+  struct0: {i1, i96, i160}
 
 @immutables
   offset: u96
 
-fn @constructor(arg0: memptr, arg1: i256, arg2: i256) [constructor, abi_params=[array<_, u96>, address, u96]] {
+fn @constructor(arg0: memptr, arg1: i160, arg2: i96) [constructor, abi_params=[array<_, u96>, address, u96]] {
   bb0:
     storeimmutable offset, arg2
     jump bb1
@@ -32,7 +32,7 @@ fn @constructor(arg0: memptr, arg1: i256, arg2: i256) [constructor, abi_params=[
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryarray<1>, v1, v0
-    v10 = and v9, 0xffffffffffffffffffffffff
+    v10 = trunc i256 v9 to i96
     v11 = icall @mint, v3, v10
     jump bb6
   bb6:
@@ -42,7 +42,7 @@ fn @constructor(arg0: memptr, arg1: i256, arg2: i256) [constructor, abi_params=[
     jump bb1
 }
 
-fn @latestKey() -> i256 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
+fn @latestKey() -> i96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
   bb0:
     v0 = icall @latest, 6
     v1 = extract_value struct0, v0, 0
@@ -51,13 +51,13 @@ fn @latestKey() -> i256 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[
     ret v2
 }
 
-fn @next() -> i256 [selector=0x4c8fe526, view, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
+fn @next() -> i96 [selector=0x4c8fe526, view, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
   bb0:
     v0 = icall @nextId
     ret v0
 }
 
-fn @push(arg0: i256, arg1: i256, arg2: i256) {
+fn @push(arg0: i256, arg1: i96, arg2: i160) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = ne v0, 0
@@ -68,42 +68,41 @@ fn @push(arg0: i256, arg1: i256, arg2: i256) {
     v2 = checked_sub u256, v0, 1
     v3 = icall @unsafeAccess, arg0, v2
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = and v4, 0xffffffffffffffffffffffff
-    v6 = and arg1, 0xffffffffffffffffffffffff
-    v7 = gt v5, v6
+    v5 = trunc i256 v4 to i96
+    v6 = gt v5, arg1
+    v7 = eq v6, false
     v8 = eq v7, false
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
+    icall revert_if<empty>, v8
     jump bb3
   bb3:
-    v10 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v11 = and arg1, 0xffffffffffffffffffffffff
-    v12 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v10, 0, v11
-    memory_object_store_field memorystruct<2>, v10, 1, v12
-    v13 = sload arg0 !metadata(storage=symbolic(arg0))
-    v14 = gt v13, 0xffffffffffffffff
-    icall panic_if<0x41>, v14
-    v15 = add v13, 1
-    v16 = storage_array_data_slot arg0
-    v17 = add v16, v13
-    v18 = memory_object_load_field memorystruct<2>, v10, 0
-    v19 = sload v17 !metadata(storage=symbolic(v17))
-    v20 = not 0xffffffffffffffffffffffff
-    v21 = and v19, v20
-    v22 = and v18, 0xffffffffffffffffffffffff
-    v23 = or v21, v22
-    sstore v17, v23 !metadata(storage=symbolic(v17))
-    v24 = memory_object_load_field memorystruct<2>, v10, 1
-    v25 = shl 96, 0xffffffffffffffffffffffffffffffffffffffff
-    v26 = sload v17 !metadata(storage=symbolic(v17))
-    v27 = not v25
-    v28 = and v26, v27
-    v29 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    v30 = shl 96, v29
-    v31 = or v28, v30
-    sstore v17, v31 !metadata(storage=symbolic(v17))
-    sstore arg0, v15 !metadata(storage=symbolic(arg0))
+    v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v10 = zext i96 arg1 to i256
+    v11 = zext i160 arg2 to i256
+    memory_object_store_field memorystruct<2>, v9, 0, v10
+    memory_object_store_field memorystruct<2>, v9, 1, v11
+    v12 = sload arg0 !metadata(storage=symbolic(arg0))
+    v13 = gt v12, 0xffffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = add v12, 1
+    v15 = storage_array_data_slot arg0
+    v16 = add v15, v12
+    v17 = memory_object_load_field memorystruct<2>, v9, 0
+    v18 = sload v16 !metadata(storage=symbolic(v16))
+    v19 = not 0xffffffffffffffffffffffff
+    v20 = and v18, v19
+    v21 = and v17, 0xffffffffffffffffffffffff
+    v22 = or v20, v21
+    sstore v16, v22 !metadata(storage=symbolic(v16))
+    v23 = memory_object_load_field memorystruct<2>, v9, 1
+    v24 = shl 96, 0xffffffffffffffffffffffffffffffffffffffff
+    v25 = sload v16 !metadata(storage=symbolic(v16))
+    v26 = not v24
+    v27 = and v25, v26
+    v28 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
+    v29 = shl 96, v28
+    v30 = or v27, v29
+    sstore v16, v30 !metadata(storage=symbolic(v16))
+    sstore arg0, v14 !metadata(storage=symbolic(arg0))
     ret
 }
 
@@ -115,23 +114,22 @@ fn @latest(arg0: i256) -> struct0 [view] {
   bb2:
     jump bb3
   bb3:
-    v13 = insert_value struct0, undef struct0, 0, 0
-    v14 = insert_value struct0, v13, 1, 0
-    v15 = insert_value struct0, v14, 2, 0
-    ret v15
+    v12 = insert_value struct0, undef struct0, 0, false
+    v13 = insert_value struct0, v12, 1, i96 0
+    v14 = insert_value struct0, v13, 2, i160 0
+    ret v14
   bb1:
     v2 = checked_sub u256, v0, 1
     v3 = icall @unsafeAccess, arg0, v2
     v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = and v4, 0xffffffffffffffffffffffff
+    v5 = trunc i256 v4 to i96
     v6 = sload v3 !metadata(storage=symbolic(v3))
     v7 = shr 96, v6
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = zext i1 1 to i256
-    v10 = insert_value struct0, undef struct0, 0, v9
-    v11 = insert_value struct0, v10, 1, v5
-    v12 = insert_value struct0, v11, 2, v8
-    ret v12
+    v8 = trunc i256 v7 to i160
+    v9 = insert_value struct0, undef struct0, 0, true
+    v10 = insert_value struct0, v9, 1, v5
+    v11 = insert_value struct0, v10, 2, v8
+    ret v11
 }
 
 fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
@@ -142,42 +140,36 @@ fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v1
 }
 
-fn @mint(arg0: i256, arg1: i256) -> i256 {
+fn @mint(arg0: i160, arg1: i96) -> i96 {
   bb0:
     v0 = icall @nextId
-    v1 = and v0, 0xffffffffffffffffffffffff
-    v2 = and arg1, 0xffffffffffffffffffffffff
-    v3 = checked_add u96, v1, v2
-    v4 = checked_sub u96, v3, 1
-    v5 = trunc i256 arg0 to i160
-    v6 = zext i160 v5 to i256
-    icall @push, 6, v4, v6
-    v7 = and v0, 0xffffffffffffffffffffffff
-    v8 = trunc i256 arg0 to i160
+    v1 = checked_add u96, v0, arg1
+    v2 = checked_sub u96, v1, i96 1
+    icall @push, 6, v2, arg0
+    v3 = zext i96 v0 to i256
+    v4 = zext i96 v2 to i256
     mstore 0, v4 !metadata(memory=scratch)
-    v9 = zext i160 v8 to i256
-    log3 0, 32, 0x229942c5a471c3f0451428ffe170bda041510cfed1329d10dc894225df5e352b, v7, v9
+    v5 = zext i160 arg0 to i256
+    log3 0, 32, 0x229942c5a471c3f0451428ffe170bda041510cfed1329d10dc894225df5e352b, v3, v5
     ret v0
 }
 
-fn @nextId() -> i256 [view] {
+fn @nextId() -> i96 [view] {
   bb0:
     v0 = icall @latest, 6
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = extract_value struct0, v0, 2
-    v4 = ne v1, 0
-    jumpi v4, bb1, bb2
+    jumpi v1, bb1, bb2
   bb2:
-    v7 = loadimmutable offset
+    v5 = loadimmutable offset
     jump bb3
   bb1:
-    v5 = and v2, 0xffffffffffffffffffffffff
-    v6 = checked_add u96, v5, 1
+    v4 = checked_add u96, v2, i96 1
     jump bb3
   bb3:
-    v8 = phi [bb1: v6], [bb2: v7]
-    ret v8
+    v6 = phi [bb1: v4], [bb2: v5]
+    ret v6
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointConstructor ===
@@ -186,7 +178,7 @@ fn @nextId() -> i256 [view] {
   CheckpointTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget"
   ConstructorMultiReturn_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn"
 
-fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
+fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -200,60 +192,55 @@ fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v0, 1, 6
-    v7 = trunc i256 0x1234 to i160
-    v8 = and 0x48b, 0xffffffffffffffffffffffff
-    v9 = zext i160 v7 to i256
-    v10 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, v9, v8
-    v11 = slice_len v10
-    v12 = datasize CheckpointTarget_creation_code_0
-    v13 = add v12, v11
-    v14 = lt v13, v12
-    icall panic_if<0x41>, v14
-    v15 = add v13, 31
-    v16 = lt v15, v13
-    icall panic_if<0x41>, v16
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc raw, exact, uninitialized, infallible, v18
-    v20 = ptrtoint memptr v19 to i256
-    datacopy CheckpointTarget_creation_code_0, v20, v12
-    v21 = slice_ptr v10
-    v22 = ptrtoint memptr v19 to i256
-    v23 = add v22, v12
-    mcopy v23, v21, v11 !metadata(memory=heap)
-    v24 = ptrtoint memptr v19 to i256
-    v25 = create 0, v24, v13
-    v26 = zext i160 v25 to i256
-    v27 = ne v26, 0
-    jumpi v27, bb2, bb1
+    v7 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
+    v8 = slice_len v7
+    v9 = datasize CheckpointTarget_creation_code_0
+    v10 = add v9, v8
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = add v10, 31
+    v13 = lt v12, v10
+    icall panic_if<0x41>, v13
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v17 = ptrtoint memptr v16 to i256
+    datacopy CheckpointTarget_creation_code_0, v17, v9
+    v18 = slice_ptr v7
+    v19 = ptrtoint memptr v16 to i256
+    v20 = add v19, v9
+    mcopy v20, v18, v8 !metadata(memory=heap)
+    v21 = ptrtoint memptr v16 to i256
+    v22 = create 0, v21, v10
+    v23 = ne v22, i160 0
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v28 = gas
-    v29 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = zext i160 v25 to i256
-    v33 = staticcall v28, v32, v30, v31, 0, 32
-    jumpi v33, bb4, bb3
+    v24 = gas
+    v25 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = zext i160 v22 to i256
+    v29 = staticcall v24, v28, v26, v27, 0, 32
+    jumpi v29, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = and v37, 0xffffffffffffffffffffffff
-    v39 = eq v37, v38
-    v40 = eq v39, false
-    icall revert_if<empty>, v40
-    v41 = add 0, 0
-    v42 = mload v41
-    ret v42
+    v30 = returndatasize
+    v31 = lt v30, 32
+    icall revert_if<tuple_data_too_short>, v31
+    v32 = add 0, 0
+    v33 = mload v32
+    v34 = shr 96, v33
+    v35 = eq v34, 0
+    v36 = eq v35, false
+    icall revert_if<empty>, v36
+    v37 = trunc i256 v33 to i96
+    ret v37
 }
 
-fn @multiReturn() -> i256 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize ConstructorMultiReturn_creation_code_1
@@ -267,45 +254,43 @@ fn @multiReturn() -> i256 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = staticcall v11, v15, v13, v14, 0, 32
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = and v21, 255
-    v23 = eq v21, v22
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    ret v26
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = shr 8, v20
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    icall revert_if<empty>, v23
+    v24 = trunc i256 v20 to i8
+    ret v24
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===
 @module ConstructorMultiReturn
 @types
-  struct0: {i256, i256}
+  struct0: {i1, i8}
 
 @immutables
   value: u8
 
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @value() -> i8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = loadimmutable value
     ret v0
@@ -322,8 +307,7 @@ fn @constructor() [constructor] {
 
 fn @pair() -> struct0 [pure] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = insert_value struct0, undef struct0, 0, v0
-    v2 = insert_value struct0, v1, 1, 18
-    ret v2
+    v0 = insert_value struct0, undef struct0, 0, true
+    v1 = insert_value struct0, v0, 1, i8 18
+    ret v1
 }

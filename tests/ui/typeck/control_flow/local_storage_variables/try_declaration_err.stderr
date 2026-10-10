@@ -1,0 +1,50 @@
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         r;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         S storage r;
+   ╰╴        ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         r;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         S storage r;
+   ╰╴        ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         r;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         S storage r;
+   ╰╴        ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         catch (bytes memory) { r; }
+   │                                ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/try_declaration_err.sol:LL:CC
+   │
+LL │         S storage r;
+   ╰╴        ━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

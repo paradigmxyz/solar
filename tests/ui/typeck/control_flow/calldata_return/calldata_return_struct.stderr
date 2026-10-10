@@ -1,0 +1,8 @@
+error[3464]: this variable is of calldata pointer type and can be returned without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/calldata_return/calldata_return_struct.sol:LL:CC
+   │
+LL │     function f() internal returns (S calldata) {}
+   ╰╴                                   ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

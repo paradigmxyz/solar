@@ -271,3 +271,100 @@ bb12:
   swap 2
   pop
   stop
+
+// Reach SWAP16 when a duplicate word keeps the run off the permutation solver.
+// CHECK-LABEL: {{^[ +].*}}bb13:
+// CHECK: {{^[ +].*}}push 64
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 16
+// CHECK-NEXT: {{^[ +].*}}stop
+bb13:
+  push 49
+  push 50
+  push 51
+  push 52
+  push 53
+  push 54
+  push 55
+  push 56
+  push 57
+  push 58
+  push 59
+  push 60
+  push 61
+  push 62
+  push 63
+  push 64
+  dup 1
+  swap 1
+  swap 16
+  stop
+
+// Remove a word below a duplicated prefix.
+// CHECK-LABEL: {{^[ +].*}}bb14:
+// CHECK: {{^[ +].*}}push 66
+// CHECK-COUNT-3: -   swap 1
+// CHECK-NEXT: -   pop
+// CHECK-COUNT-4: {{^[ +].*}}dup 1
+// CHECK-NEXT: +   swap 5
+// CHECK-NEXT: +   pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb14:
+  push 65
+  push 66
+  swap 1
+  swap 1
+  swap 1
+  pop
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+
+// A commutative consumer accepts its two operands in either order.
+// CHECK-LABEL: {{^[ +].*}}bb15:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: {{^[ +].*}}mul
+bb15:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 2
+  swap 1
+  mul
+  stop
+
+// A comparison accepts them exchanged by flipping to its mirrored form.
+// CHECK-LABEL: {{^[ +].*}}bb16:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   lt
+// CHECK-NEXT: +   gt
+bb16:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 2
+  swap 1
+  lt
+  stop
+
+// A noncommutative consumer keeps the order.
+// CHECK-LABEL: {{^[ +].*}}bb17:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: {{^    swap 2}}
+// CHECK-NEXT: {{^    swap 1}}
+// CHECK-NEXT: {{^    sub}}
+bb17:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 2
+  swap 1
+  sub
+  stop

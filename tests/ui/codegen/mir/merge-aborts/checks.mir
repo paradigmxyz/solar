@@ -1,0 +1,326 @@
+//@compile-flags: -Zmir-pipeline=merge-aborts
+//@filecheck:
+@module Checks
+
+fn @panic() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
+    revert 0, 36
+}
+
+// Two overflow checks into one panic block branch once, on their `or`.
+// CHECK-LABEL: {{^[ +].*}}fn @sum3{{[( ]}}
+// CHECK: [[FIRST:v[0-9]+]] = lt {{v[0-9]+}}, arg0
+// CHECK-NEXT: - jumpi [[FIRST]], bb3, bb1
+// CHECK-NEXT: + jump bb1
+// CHECK: [[SECOND:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: + [[EITHER:v[0-9]+]] = or [[FIRST]], [[SECOND]]
+// CHECK: + jumpi [[EITHER]], bb3, bb2
+fn @sum3(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = add v0, arg2
+    v3 = lt v2, v0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    revert 0, 0
+}
+
+// Tests that continue on their true edges combine with `and`.
+// CHECK-LABEL: {{^[ +].*}}fn @both_hold{{[( ]}}
+// CHECK: + [[BOTH:v[0-9]+]] = and {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: + jumpi [[BOTH]], bb2, bb3
+fn @both_hold(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = mul arg0, arg1
+    v2 = lt v1, 1000
+    jumpi v2, bb2, bb3
+  bb2:
+    ret v1
+  bb3:
+    revert 0, 0
+}
+
+// In a loop, a test that aborts on its false edge and compares a word with a
+// literal turns into its complement, `x > 99` for `x < 100`, where it was, and
+// merges with a test that aborts on its true edge.
+// CHECK-LABEL: {{^[ +].*}}fn @flipped{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb5
+// CHECK-NEXT: + [[COMPLEMENT:v[0-9]+]] = gt {{v[0-9]+}}, 99
+// CHECK-NEXT: + jump bb3
+// CHECK: + [[EITHER:v[0-9]+]] = or [[COMPLEMENT]], {{v[0-9]+}}
+// CHECK-NEXT: + jumpi [[EITHER]], bb5, bb4
+fn @flipped(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    v6 = lt v1, 100
+    jumpi v6, bb3, bb5
+  bb3:
+    v4 = add v1, arg1
+    v7 = lt v4, v1
+    jumpi v7, bb5, bb4
+  bb4:
+    v5 = add v0, 1
+    jump bb1
+  bb5:
+    revert 0, 0
+  bb6:
+    ret v1
+}
+
+// Outside loops the same pair stays apart: the merge would save one jump per
+// call, and a flipped range check next to a calldata size check moved the stack
+// scheduler to rebuild calldata words.
+// CHECK-LABEL: {{^[ +].*}}fn @flipped_once{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @flipped_once(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = mul arg0, arg1
+    v2 = gt v1, 1000
+    jumpi v2, bb3, bb2
+  bb2:
+    ret v1
+  bb3:
+    revert 0, 0
+}
+
+// Outside loops, tests that abort on different edges and compare two words
+// stay apart: combining them would pay an `iszero` once.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @mixed(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = mul arg0, arg1
+    v2 = gt v1, arg0
+    jumpi v2, bb3, bb2
+  bb2:
+    ret v1
+  bb3:
+    revert 0, 0
+}
+
+// A branch reads a zero test for free, while the combined word would pay its
+// `iszero`.
+// CHECK-LABEL: {{^[ +].*}}fn @zero_test{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @zero_test(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    v1 = eq v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = add v0, arg1
+    v3 = lt v2, v0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    revert 0, 0
+}
+
+// In a loop of a gas build, a test that aborts on its false edge and compares
+// two words turns into its negation, `eq c, false`, and merges.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed_loop{{[( ]}}
+// CHECK: - jumpi [[BELOW:v[0-9]+]], bb3, bb5
+// CHECK-NEXT: + [[NOT_BELOW:v[0-9]+]] = eq [[BELOW]], false
+// CHECK-NEXT: + jump bb3
+// CHECK: + [[EITHER:v[0-9]+]] = or [[NOT_BELOW]], {{v[0-9]+}}
+// CHECK-NEXT: + jumpi [[EITHER]], bb5, bb4
+fn @mixed_loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    v6 = lt v1, arg1
+    jumpi v6, bb3, bb5
+  bb3:
+    v4 = add v1, arg1
+    v7 = lt v4, v1
+    jumpi v7, bb5, bb4
+  bb4:
+    v5 = add v0, 1
+    jump bb1
+  bb5:
+    revert 0, 0
+  bb6:
+    ret v1
+}
+
+// In loops too, an increment's overflow check, a zero test, stays apart: its
+// `iszero` and the shuffles that keep the other condition beside it would cost
+// more than the saved jump.
+// CHECK-LABEL: {{^[ +].*}}fn @zero_test_loop{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @zero_test_loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    v3 = add v1, 1
+    v6 = eq v3, 0
+    jumpi v6, bb5, bb3
+  bb3:
+    v4 = add v3, arg1
+    v7 = lt v4, v3
+    jumpi v7, bb5, bb4
+  bb4:
+    v5 = add v0, 1
+    jump bb1
+  bb5:
+    revert 0, 0
+  bb6:
+    ret v1
+}
+
+// A write between the tests would run before the first test's abort: the
+// tests stay apart.
+// CHECK-LABEL: {{^[ +].*}}fn @write_between{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @write_between(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb3, bb1
+  bb1:
+    mstore 0, v0
+    v2 = add v0, arg1
+    v3 = lt v2, v0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    revert 0, 0
+}
+
+// Each check calls the panic helper from its own block, which continues where
+// the check would have; the calls never return, so the blocks do the same and
+// the run of checks branches once.
+// CHECK-LABEL: {{^[ +].*}}fn @panic_calls{{[( ]}}
+// CHECK: - jumpi [[FIRST:v[0-9]+]], bb1, bb2
+// CHECK: - jumpi [[SECOND:v[0-9]+]], bb3, bb4
+// CHECK: + [[BOTH:v[0-9]+]] = or [[FIRST]], [[SECOND]]
+// CHECK: + [[ANY:v[0-9]+]] = or [[BOTH]], {{v[0-9]+}}
+// CHECK-NEXT: + jumpi [[ANY]], bb5, bb6
+fn @panic_calls(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    icall @panic
+    jump bb2
+  bb2:
+    v2 = add v0, arg1
+    v3 = lt v2, v0
+    jumpi v3, bb3, bb4
+  bb3:
+    icall @panic
+    jump bb4
+  bb4:
+    v4 = add v2, arg1
+    v5 = lt v4, v2
+    jumpi v5, bb5, bb6
+  bb5:
+    icall @panic
+    jump bb6
+  bb6:
+    ret v4
+}
+
+// A block that calls the panic helper also continues into the second check
+// without passing the first, so the first check's condition would not dominate
+// a merged test there: the tests stay apart.
+// CHECK-LABEL: {{^[ +].*}}fn @shared_entry{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @shared_entry(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg1, 7
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = lt arg0, 10
+    jumpi v1, bb4, bb3
+  bb2:
+    icall @panic
+    jump bb3
+  bb3:
+    v2 = gt arg0, 100
+    jumpi v2, bb4, bb5
+  bb4:
+    revert 0, 0
+  bb5:
+    ret arg0
+}
+
+// An aborting block with a phi tells its edges apart: the tests stay apart.
+// CHECK-LABEL: {{^[ +].*}}fn @payload{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @payload(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = add v0, arg1
+    v3 = lt v2, v0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    v4 = phi [bb0: 1], [bb1: 2]
+    mstore 0, v4
+    revert 0, 32
+}
+
+// Additions of words whose total cannot reach `2^256` wrap at most once, so one
+// test that the last sum fell below the first word stands for both tests.
+// CHECK-LABEL: {{^[ +].*}}fn @bounded_sum{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb1
+// CHECK-NEXT: + jump bb1
+// CHECK: + [[WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, arg0
+// CHECK-NEXT: + jumpi [[WRAPPED]], bb3, bb2
+fn @bounded_sum(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg1, 0xff
+    v1 = add arg0, v0
+    v2 = lt v1, arg0
+    jumpi v2, bb3, bb1
+  bb1:
+    v3 = shr 8, arg1
+    v4 = and v3, 0xffff
+    v5 = add v1, v4
+    v6 = lt v5, v1
+    jumpi v6, bb3, bb2
+  bb2:
+    ret v5
+  bb3:
+    revert 0, 0
+}

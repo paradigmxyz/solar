@@ -139,8 +139,10 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v31 = byte 0, v30
     v32 = shl 248, v31
     v33 = shr 248, v32
-    v34 = insert_value struct0, undef struct0, 0, v24
-    v35 = insert_value struct0, v34, 1, v25
-    v36 = insert_value struct0, v35, 2, v33
-    ret v36
+    v34 = trunc i256 v33 to i8
+    v35 = zext i8 v34 to i256
+    v36 = insert_value struct0, undef struct0, 0, v24
+    v37 = insert_value struct0, v36, 1, v25
+    v38 = insert_value struct0, v37, 2, v35
+    ret v38
 }

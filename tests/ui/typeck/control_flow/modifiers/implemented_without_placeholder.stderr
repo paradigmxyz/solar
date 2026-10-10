@@ -1,0 +1,8 @@
+error: modifier must have a `_;` placeholder statement
+   ╭▸ ROOT/tests/ui/typeck/control_flow/modifiers/implemented_without_placeholder.sol:LL:CC
+   │
+LL │     modifier mod() virtual { }
+   ╰╴             ━━━
+
+error: aborting due to 1 previous error
+

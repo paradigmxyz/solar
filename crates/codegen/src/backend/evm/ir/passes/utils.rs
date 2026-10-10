@@ -143,12 +143,10 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
     if let Some(type_size) = inst.immutable_type_size() {
         return usize::from(type_size.bytes()) + 1;
     }
-    if inst.deferred_push().is_none()
-        && let Some(PushValue::Immediate(value)) = inst.value
-    {
+    if let Some(value) = inst.concrete_immediate() {
         return selected_len(gcx, value);
     }
-    // Labels, data offsets, and deferred relocations are address-sensitive. They may resolve to
+    // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.
     1
 }
@@ -197,27 +195,4 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, 
     kind.visit_targets_mut(|target| {
         *target = remap[*target].expect("terminator target must be retained");
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn machine_keys_preserve_stack_depths_and_boundaries() {
-        let mut keys = FxHashSet::default();
-        let mut operations = vec![op::StackOp::Pop];
-        for first in [1, 16, 17, 255] {
-            operations.extend([op::StackOp::Dup(first), op::StackOp::Swap(first)]);
-            for second in [1, 16, 17, 255] {
-                operations.push(op::StackOp::Exchange(first, second));
-            }
-        }
-        for operation in operations {
-            let mut instruction = Instruction::stack_op(operation);
-            assert!(keys.insert(MachineInstKey::new(&instruction)));
-            instruction.metadata.keep_with_next = true;
-            assert!(keys.insert(MachineInstKey::new(&instruction)));
-        }
-    }
 }

@@ -248,7 +248,8 @@ impl SourceMap {
 
     /// Sets the base path for the source map.
     ///
-    /// This is currently only used for trimming diagnostics' paths.
+    /// Source file names are displayed relative to it, and new file resolvers use it as their
+    /// default base path and current directory.
     pub(crate) fn set_base_path(&self, base_path: Option<PathBuf>) {
         self.base_path.store(base_path.map(Arc::new));
     }

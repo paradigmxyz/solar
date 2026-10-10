@@ -112,11 +112,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // selector = keccak256(materialize(signature))[0..4] << 224
-        let signature_ty = self.cx.gcx.type_of_expr(signature.id);
-        let signature = self.lower_expr(signature)?;
-        if let Some(signature_ty) = signature_ty
-            && let Some(abi_type) = self.types.abi_type(signature_ty)
-        {
+        let signature_ty = self.cx.gcx.type_of_expr(signature.id)?;
+        let memory_ty = signature_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let signature = self.lower_typed_expr(signature, memory_ty)?;
+        if let Some(abi_type) = self.types.abi_type(signature_ty) {
             self.validate_calldata_bytes_argument(signature, &abi_type);
         }
         let signature = match self.builder.func().value_ty(signature) {
@@ -202,12 +201,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // per-type encoders; copying them into a canonical object first would duplicate
             // the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
-            _ if external_only && !dirty => value,
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                let value = if external_only && !dirty {
+                    value
+                } else {
+                    self.normalize_abi_scalar(value, ty)
+                };
+                let layout = types::TypeLowerer::value_layout(ty);
+                if matches!(layout, crate::mir::ValueLayout::Int(_)) {
+                    raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+                } else {
+                    value
+                }
+            }
         }
     }
 
-    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<CallResult> {
         // data = materialize_memory_argument(input)
         // layout = intern_abi_layout(target_types)
         // value = abi_decode(layout, data)
@@ -218,9 +228,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(args[1].span, "abi.decode target type");
             }
         };
-        if types.is_empty() {
-            return self.cx.report_unsupported(args[1].span, "abi.decode target type");
-        }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
             let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
@@ -238,8 +245,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
-        let result_ty = self.cx.module.intern_return_type(fields)?;
-        Some(self.builder.abi_decode(layout, data, result_ty))
+        let Some(result_ty) = self.cx.module.intern_return_type(fields) else {
+            self.builder.abi_decode_void(layout, data);
+            return Some(CallResult::Void);
+        };
+        Some(CallResult::Value(self.builder.abi_decode(layout, data, result_ty)))
     }
 
     fn lower_abi_decode_layout(
@@ -248,8 +258,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<(ValueId, AbiParamLayout)> {
+        // `abi_decode` reads a memory slice in place.
         let data = match self.builder.func().value_ty(data) {
-            Some(MirType::Slice(_)) => self.materialize_memory_slice(data),
+            Some(MirType::Slice(SliceLocation::Calldata | SliceLocation::Returndata)) => {
+                self.materialize_memory_slice(data)
+            }
             _ => data,
         };
         let mut abi_types = Vec::with_capacity(types.len());
@@ -318,16 +331,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {
-        // payload = bytes(data[4:])
+        // payload = data[4:]
         // message = abi_decode(bytes, payload)
         let data_ptr = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let data_len = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
         let four = self.builder.imm(4);
         let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
         let payload_len = self.builder.sub(data_len, four);
-        let payload_slice =
-            self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
-        let payload = self.materialize_memory_slice(payload_slice);
+        let payload = self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
         let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
             vec![AbiParamType::Bytes].into_boxed_slice(),
         ));
@@ -794,7 +805,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .expect("function words always require cleanup")
                     .cleanup(&mut self.builder, value)
             }
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                let value = self.normalize_abi_scalar(value, ty);
+                raw_scalars::cast_carrier(
+                    &mut self.builder,
+                    value,
+                    types::TypeLowerer::value_layout(ty),
+                    MirType::I256,
+                )
+            }
         };
         self.builder.memory_object_store_word(output, offset, value);
         let word = self.builder.imm(32);

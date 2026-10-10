@@ -32,12 +32,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         match &expr.kind {
             ExprKind::Member(receiver, name) => {
-                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
-                    || (name.name == sym::offset
-                        && self
-                            .type_of_expr_or_variable(receiver)
-                            .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata)))
-                {
+                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength) {
                     return self.cx.report_unsupported(expr.span, "l-value");
                 }
                 let resolved = self.cx.gcx.resolved_expr(expr)?;
@@ -210,6 +205,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
+            let value = self.materialize_raw_scalar(id, value);
             self.values.insert(id, value);
             return Some(value);
         }
@@ -238,7 +234,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(location) = self.cx.storage.get(id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
-                return self.cx.report_unsupported(span, "mapping value");
+                return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
             return self.load_storage_value(
@@ -256,6 +252,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if !self.in_inline_assembly {
+            value = self.materialize_raw_scalar(id, value);
+        }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
             if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
@@ -338,11 +337,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let expr = expr.peel_parens();
         match &expr.kind {
             ExprKind::Member(receiver, name)
-                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
-                    || (name.name == sym::offset
-                        && self
-                            .type_of_expr_or_variable(receiver)
-                            .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))) =>
+                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength) =>
             {
                 return self.store_yul_member(receiver, *name, value, expr.span);
             }
@@ -418,12 +413,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.cx.gcx.hir.variable(id).is_state_variable() {
             return self.cx.report_unsupported(span, "Yul state-variable slot assignment");
         }
-        let Some(access) = self.storage_refs.get(&id).copied() else {
-            return self.cx.report_unsupported(span, "Yul storage assignment target");
-        };
-
         // storage_ref.slot = value
-        self.storage_refs.insert(id, StorageAccess { slot: value, ..access });
+        self.storage_refs
+            .entry(id)
+            .or_insert(StorageAccess {
+                slot: value,
+                location: StorageLocation::word(U256::ZERO),
+                offset: None,
+            })
+            .slot = value;
         Some(())
     }
 

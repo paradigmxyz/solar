@@ -1,0 +1,103 @@
+// === ROOT/tests/ui/codegen/mir/merge-aborts/account_reads.sol:AccountReads ===
+@module AccountReads
+@phase lowered
+fn @balance() [selector=0x2139cfcb, abi_wrapper, view] {
+  bb0:
+    v10 = calldataload 68
+    v11 = shr 160, v10
+    v12 = eq v11, 0
+    jumpi v12, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v4 = add arg0, arg1
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
+  bb2:
+    v2 = balance arg2
+    v6 = add v4, v2
+    v7 = lt v6, v4
+    jumpi v7, bb1, bb3
+  bb3:
+    mstore 128, v6
+    returndata 128, 32
+  bb1:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @codeSize() [selector=0x3ae86375, abi_wrapper, view] {
+  bb0:
+    v10 = calldataload 68
+    v11 = shr 160, v10
+    v12 = eq v11, 0
+    jumpi v12, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v4 = add arg0, arg1
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
+  bb2:
+    v2 = extcodesize arg2
+    v6 = add v4, v2
+    v7 = lt v6, v4
+    jumpi v7, bb1, bb3
+  bb3:
+    mstore 128, v6
+    returndata 128, 32
+  bb1:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @codeHash() [selector=0x76806d71, abi_wrapper, view] {
+  bb0:
+    v10 = calldataload 68
+    v11 = shr 160, v10
+    v12 = eq v11, 0
+    jumpi v12, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v4 = add arg0, arg1
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
+  bb2:
+    v2 = extcodehash arg2
+    v6 = add v4, v2
+    v7 = lt v6, v4
+    jumpi v7, bb1, bb3
+  bb3:
+    mstore 128, v6
+    returndata 128, 32
+  bb1:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x2139cfcb => bb3, 0x3ae86375 => bb4, 0x76806d71 => bb5]
+  bb5:
+    tail_call @codeHash
+  bb4:
+    tail_call @codeSize
+  bb3:
+    tail_call @balance
+  bb1:
+    revert 0, 0
+}

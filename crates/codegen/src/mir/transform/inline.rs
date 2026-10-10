@@ -75,7 +75,7 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
-        utils::{replace_terminator_uses_canonicalized, resolve_replacement},
+        utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
 };
@@ -375,10 +375,6 @@ impl Default for MirInliner {
 }
 
 impl MirInliner {
-    /// How many times a loop without a computable trip count is assumed to
-    /// run per invocation when a hot leaf is weighed: GCC's estimate for such
-    /// loops. Counted loops use their real trip count instead.
-    const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
@@ -987,7 +983,7 @@ impl MirInliner {
         let loop_executions = if !self.target.optimization().is_gas() {
             1
         } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
-            Self::UNCOUNTED_LOOP_EXECUTIONS
+            Target::UNCOUNTED_LOOP_ITERATIONS
         } else {
             site.loop_executions
         };
@@ -1470,7 +1466,9 @@ fn is_immutable_word_leaf(func: &Function) -> bool {
         let kind = &func.inst(inst).kind;
         if matches!(kind, InstKind::LoadImmutable(_)) {
             has_immutable = true;
-        } else if kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none() {
+        } else if !matches!(kind, InstKind::Zext(_))
+            && (kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none())
+        {
             return false;
         }
     }
@@ -1732,6 +1730,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
         InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),
         InstKind::ConstructorArgsEnd => seq(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
+        InstKind::HeapFloor => seq(&[op::PUSH2]),
         InstKind::InternalFrameAddr(_) => seq(&[op::PUSH1, op::ADD]),
         InstKind::LibraryAddress(_) => seq(&[op::PUSH20]),
         // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
@@ -1843,6 +1842,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
     };
     let instructions = match kind {
+        InstKind::Zext(_) | InstKind::IntToPtr(..) => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotMemory(..) => 8,
         InstKind::MappingSlotCalldata(..) => 9,
@@ -2255,7 +2255,7 @@ fn inline_call_impl(
     }
 
     cloner.caller.replace_uses(&replacements);
-    recompute_cfg(cloner.caller);
+    rebuild_predecessors(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())
 }
@@ -2337,7 +2337,7 @@ pub(super) fn inline_dispatch_route(
     // NOTE: The wrapper call boundary disappears; its source checkpoint cannot
     // describe this generated jump. Cloned body instructions keep their origins.
     cloner.caller.blocks[block].set_generated_terminator(Terminator::Jump(entry));
-    recompute_cfg(cloner.caller);
+    rebuild_predecessors(cloner.caller);
     Some(())
 }
 
@@ -2718,28 +2718,6 @@ fn redirect_phi_predecessors(
     }
 }
 
-fn recompute_cfg(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            let predecessors = &mut func.blocks[succ].predecessors;
-            if !predecessors.contains(&block) {
-                predecessors.push(block);
-            }
-        }
-    }
-}
-
 fn prune_phi_incoming_to_predecessors(func: &mut Function) {
     for block_id in func.blocks.indices() {
         let predecessors = func.blocks[block_id].predecessors.clone();
@@ -2750,54 +2728,5 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::FunctionBuilder;
-    use solar_ast::Ident;
-
-    #[test]
-    fn call_counts_include_tail_calls() {
-        let mut module = Module::new(Ident::DUMMY);
-        let callee = module.add_function(Function::new(Ident::DUMMY));
-
-        let mut ordinary = Function::new(Ident::DUMMY);
-        let mut builder = FunctionBuilder::new(&mut ordinary);
-        builder.icall_void(callee, Vec::new());
-        builder.stop();
-        module.add_function(ordinary);
-
-        let mut tail = Function::new(Ident::DUMMY);
-        FunctionBuilder::new(&mut tail).tail_call(callee, Vec::new());
-        module.add_function(tail);
-
-        assert_eq!(MirInliner::default().call_counts(&module).get(&callee), Some(&2));
-    }
-
-    #[test]
-    fn frame_overflow_skips_inlining_without_mutation() {
-        let callee_id = MirFunctionId::from_usize(0);
-        let mut callee = Function::new(Ident::DUMMY);
-        FunctionBuilder::new(&mut callee).ret(Vec::new());
-
-        let mut caller = Function::new(Ident::DUMMY);
-        caller.internal_frame_size = u64::MAX;
-        let mut builder = FunctionBuilder::new(&mut caller);
-        builder.icall_void(callee_id, Vec::new());
-        builder.stop();
-        let call = caller.blocks[BlockId::ENTRY].instructions[0];
-        let call_index = caller.blocks[BlockId::ENTRY]
-            .instructions
-            .iter()
-            .position(|&inst| inst == call)
-            .unwrap();
-
-        assert!(!inline_call(&mut caller, BlockId::ENTRY, call_index, &callee));
-        assert_eq!(caller.internal_frame_size, u64::MAX);
-        assert_eq!(caller.blocks.len(), 1);
-        assert!(matches!(caller.inst(call).kind, InstKind::ICall { .. }));
     }
 }

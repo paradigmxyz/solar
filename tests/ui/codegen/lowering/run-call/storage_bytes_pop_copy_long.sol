@@ -1,7 +1,8 @@
 //@[mir] filecheck:
 // CHECK: @module
-//@[gas] compile-flags: -Zdump=evm-ir-runtime
-//@[gas] filecheck: --check-prefix=SHORT
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck: --check-prefix=SHORT
+//@[ir] normalize-stdout-test: "(?s).+" -> ""
 // SHORT-LABEL: @module StorageBytesPopCopyLong
 // SHORT: push 31{{[[:space:]]+}}dup 2{{[[:space:]]+}}gt
 // SHORT-NEXT: push bb{{[0-9]+}}
@@ -11,10 +12,9 @@
 // SHORT-NEXT: eq
 // SHORT-NEXT: push bb{{[0-9]+}}
 // SHORT-NEXT: jumpi
-// SHORT-NEXT: swap 1
-// SHORT-NEXT: push 2
+// SHORT: push 2{{$}}
 // SHORT-NEXT: add
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard ir
 //@ run-call: test => 0x0303030303030303030303030303030303030303030303030303030303
 //@ run-call: testNoPop => 0x030303030303030303030303030303030303030303030303030303030303030303
 //@ run-call: testOnePop => 3

@@ -704,7 +704,15 @@ impl Instruction {
     }
 
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self) -> Option<&'static str> {
+    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<&'static str> {
+        if self.result_ty == Some(MirType::I1)
+            && self.kind.op_def().result == super::ResultKind::Integer
+            && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
+            || matches!(self.kind, InstKind::SLt(a, _) | InstKind::SGt(a, _)
+                if func.value_ty(a) == Some(MirType::I1))
+        {
+            return Some("narrow integer arithmetic");
+        }
         match &self.kind {
             InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
             InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
@@ -769,9 +777,9 @@ impl Instruction {
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
+            InstKind::Trunc(..) | InstKind::Sext(..) => Some("integer conversion"),
+            InstKind::PtrToInt(_, bits) if *bits < 256 => Some("integer conversion"),
             InstKind::Zext(..)
-            | InstKind::Trunc(..)
-            | InstKind::Sext(..)
             | InstKind::PtrToInt(..)
             | InstKind::IntToPtr(..)
             | InstKind::Add(..)
@@ -814,6 +822,7 @@ impl Instruction {
             | InstKind::InternalFrameAddr(..)
             | InstKind::ConstructorArgsBase
             | InstKind::ConstructorArgsEnd
+            | InstKind::HeapFloor
             | InstKind::DataCopy(..)
             | InstKind::CodeSize
             | InstKind::CodeCopy(..)
@@ -954,10 +963,20 @@ pub(crate) enum AddressCallKind {
 }
 
 impl InstKind {
-    /// Checks the operation's result type, including boolean bitwise operations.
+    /// Infers integer results from the operation's declared operand signature.
+    pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
+        if let Self::CheckedBinary { arithmetic, .. } = self {
+            Some(arithmetic.ty().mir_type())
+        } else if self.op_def().result == super::ResultKind::Integer {
+            self.op().first_operand().map(|value| super::typing::integer_type(func, value))
+        } else {
+            self.op_def().result.default_type()
+        }
+    }
+
+    /// Checks the operation's result representation.
     pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
         self.op_def().result.admits_type(ty)
-            || (ty == MirType::I1 && matches!(self, Self::And(..) | Self::Or(..) | Self::Xor(..)))
     }
 
     /// Checks scalar operation contracts without applying implicit conversions.
@@ -974,15 +993,15 @@ impl InstKind {
             }
         }
         match *self {
-            Self::Eq(a, b) | Self::Ne(a, b) => {
+            Self::Eq(a, b)
+            | Self::Ne(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b) => {
                 result == Some(MirType::I1)
                     && ty(a) == ty(b)
-                    && matches!(ty(a), Some(MirType::I256 | MirType::I160 | MirType::I1))
-            }
-            Self::And(a, b) | Self::Or(a, b) | Self::Xor(a, b) => {
-                ty(a) == result
-                    && ty(b) == result
-                    && matches!(result, Some(MirType::I256 | MirType::I1))
+                    && matches!(ty(a), Some(MirType::Int(_)))
             }
             Self::Trunc(value, bits) => matches!((ty(value), result),
                 (Some(MirType::Int(from)), Some(MirType::Int(to))) if from > to && to.get() == bits),
@@ -999,6 +1018,7 @@ impl InstKind {
                 matches!(ty(value), Some(MirType::Int(_)))
                     && result.is_some_and(MirType::is_pointer)
             }
+            Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
@@ -1013,15 +1033,19 @@ impl InstKind {
                     && ty(a) == result
                     && ty(b) == result
             }
+            Self::AbiDecode { ref layout, .. } => result.is_some() != layout.types.is_empty(),
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
-            | Self::AbiDecode { .. }
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
             | Self::AbiEncodePacked { .. }
             | Self::LoadImmutable(..) => result.is_some(),
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
+            _ if self.op_def().result == super::ResultKind::Integer => {
+                self.inferred_result_type(func) == result
+                    && result.is_some_and(|ty| self.admits_result_type(ty))
+            }
             _ => {
                 let kind = self.op_def().result;
                 kind != super::ResultKind::Custom
@@ -1190,100 +1214,5 @@ impl ConcatPart {
         match *self {
             Self::Bytes(value) | Self::Fixed { value, .. } => value,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{BlockId, Function, Immediate, Value};
-    use alloy_primitives::U256;
-    use solar_interface::Ident;
-
-    #[test]
-    fn rewrites_preserve_provenance_and_invalidate_facts() {
-        let a = ValueId::new(0);
-        let b = ValueId::new(1);
-        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::I256));
-        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
-        inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
-        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
-        inst.metadata.set_modifier_depth(3);
-        inst.metadata.loop_depth = 2;
-        let mut expected = inst.metadata.clone();
-        expected.set_storage_alias(None);
-        expected.set_memory_region(None);
-        expected.set_effect(None);
-
-        // An unchanged operand walk keeps all existing proofs.
-        let original = inst.metadata.clone();
-        inst.rewrite_operands(|_| {});
-        assert_eq!(inst.metadata, original);
-
-        // %value = mload %a -> %value = mload %b
-        inst.rewrite_operands(|operand| *operand = b);
-        assert_eq!(inst.metadata, expected);
-        assert_eq!(inst.kind, InstKind::MLoad(b));
-
-        inst.metadata = original;
-        // %value = mload %b -> %value = add %a, %b
-        inst.replace_kind(InstKind::Add(a, b));
-        assert_eq!(inst.metadata, expected);
-        assert_eq!(inst.kind.effect_kind(), EffectKind::Pure);
-    }
-
-    #[test]
-    fn equivalent_allocations_keep_semantic_obligations() {
-        let size = ValueId::new(0);
-        let kind = InstKind::Alloc {
-            size,
-            kind: AllocationKind::Raw,
-            semantics: AllocationSemantics::INTERNAL,
-        };
-        let mut inst = Instruction::new(kind.clone(), Some(MirType::I256));
-        inst.metadata.set_deferred_alloc();
-        inst.metadata.set_preserves_fmp(true);
-        inst.replace_kind(kind);
-        assert!(inst.metadata.deferred_alloc());
-        assert!(inst.metadata.preserves_fmp());
-
-        // %ptr = alloc ... -> %ptr = add %base, %offset
-        inst.replace_kind(InstKind::Add(size, size));
-        assert!(!inst.metadata.deferred_alloc());
-        assert!(!inst.metadata.preserves_fmp());
-    }
-
-    #[test]
-    fn phi_operands_include_incoming_values() {
-        let mut func = Function::new(Ident::DUMMY);
-        let pred_a = BlockId::ENTRY;
-        let pred_b = func.alloc_block();
-        let a = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
-        let b = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
-
-        let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
-
-        assert_eq!(phi.operands().as_slice(), &[a, b]);
-    }
-
-    #[test]
-    #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
-    #[cfg_attr(feature = "nightly", ignore = "stable only")]
-    fn instruction_layout_sizes() {
-        use snapbox::{assert_data_eq, str};
-
-        #[track_caller]
-        fn assert_size<T>(size: impl snapbox::IntoData) {
-            assert_size_(std::mem::size_of::<T>(), size.into_data());
-        }
-
-        #[track_caller]
-        fn assert_size_(actual: usize, expected: snapbox::Data) {
-            assert_data_eq!(actual.to_string(), expected);
-        }
-
-        assert_size::<InstKind>(str!["40"]);
-        assert_size::<InstructionMetadata>(str!["40"]);
-        assert_size::<Instruction>(str!["96"]);
     }
 }

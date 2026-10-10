@@ -12,6 +12,8 @@ contract C {
 
     // https://github.com/paradigmxyz/solar/issues/217
     function h() public returns (uint, uint) {
+    //~^ WARN: unnamed return variable can remain unassigned
+    //~| WARN: unnamed return variable can remain unassigned
         try this.h() {
         } catch Error(string memory x) {
             x;

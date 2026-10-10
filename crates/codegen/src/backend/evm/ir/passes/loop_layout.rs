@@ -3,13 +3,24 @@
 //! Ordinary block layout establishes traces, then gas mode moves a latch before its header when
 //! doing so transfers a jump from an acyclic preheader into a fallthrough on every iteration.
 //! Zero iterations can pay one extra jump, one breaks even, and further iterations save one.
+//! A latch whose last test guards a cold block, such as a merged overflow check, jumps back on
+//! the test's `iszero` instead, `iszero c; push header; jumpi; jump panic`. It moves the same
+//! way, and its test turns around to `push panic; jumpi; jump header`: the jump to the header
+//! becomes the fallthrough, and every iteration also saves the `iszero`. Only a latch that moves
+//! turns around, since a turned test that keeps its jump to the header would pay that jump on
+//! every iteration.
 //!
 //! When the current fallthrough also comes from the loop, a bounded flow estimate distinguishes
-//! the common iteration from rarer paths. Branches split integer probability mass equally;
-//! returns to the header stop propagation and inner loops are limited to 32 rounds and 256
-//! visited blocks. The replacement edge must receive more than twice the old edge's estimated
-//! mass. This is a static frequency heuristic, not a guarantee for every input. Other existing
-//! fallthroughs remain intact, and no instruction or condition is duplicated.
+//! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
+//! is never taken. When the header dominates the latch, a branch in the natural loop of their
+//! back edge that leaves the loop is taken once per `UNCOUNTED_LOOP_ITERATIONS` traversals, the
+//! target's estimate for a loop without a computable trip count, and other branches split integer
+//! probability mass equally. Returns to the header stop propagation and inner loops are limited to
+//! 32 rounds and 256 visited blocks. The replacement edge must receive more than twice the old
+//! edge's estimated mass. Without the loop odds, the inner loop of a nested pair looked no hotter
+//! than its entry from the outer loop, which kept a jump on every iteration. This is a static
+//! frequency heuristic, not a guarantee for every input. Other existing fallthroughs remain
+//! intact, and no instruction or condition is duplicated.
 //!
 //! All rewrites preserve explicit block identities, instructions, and stack effects. Changing
 //! physical order never splits a block or alters its debug metadata. This pass runs last so
@@ -22,7 +33,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
+        ir::{BlockId, Instruction, Module, TerminatorKind},
         op,
     },
     target::Target,
@@ -67,12 +78,14 @@ impl BranchTargets {
     }
 }
 
-/// Estimates one loop traversal with equiprobable branches. Header returns stop propagation;
-/// bounded inner-loop rounds approximate their exit probability without an unbounded fixed point.
+/// Estimates one loop traversal, splitting each branch's mass with [`taken_share`]. Header returns
+/// stop propagation; bounded inner-loop rounds approximate their exit probability without an
+/// unbounded fixed point.
 fn backedge_weights(
     module: &Module,
     branches: &mut BranchTargets,
     header: BlockId,
+    body: &DenseBitSet<BlockId>,
 ) -> FxHashMap<BlockId, u64> {
     let mut frontier = FxHashMap::from_iter([(header, 1u64 << 32)]);
     let mut result = FxHashMap::default();
@@ -96,19 +109,31 @@ fn backedge_weights(
                     *frontier.entry(to).or_default() += weight;
                 }
             };
-            for &to in branches.get(module, id) {
-                weight /= 2;
-                send(to, weight);
+            let terminator = module.blocks[id].terminator.as_ref().map(|term| &term.kind);
+            let targets = branches.get(module, id);
+            // Each branch otherwise continues to every later branch and the terminator.
+            let mut rests = SmallVec::<[Continuation; 4]>::with_capacity(targets.len());
+            let mut rest = terminator.map_or(Continuation::Outside, |kind| {
+                Continuation::of_terminator(module, body, kind)
+            });
+            for &to in targets.iter().rev() {
+                rests.push(rest);
+                rest = rest.join(Continuation::of_target(module, body, to));
             }
-            if let Some(term) = &module.blocks[id].terminator {
-                match term.kind {
-                    TerminatorKind::Jump(to) => send(to, weight),
-                    TerminatorKind::JumpI { then_block, else_block } => {
-                        send(then_block, weight / 2);
-                        send(else_block, weight / 2);
-                    }
-                    _ => {}
+            for (&to, rest) in targets.iter().zip(rests.into_iter().rev()) {
+                let taken = taken_share(module, body, id, to, rest, weight);
+                send(to, taken);
+                weight -= taken;
+            }
+            match terminator {
+                Some(&TerminatorKind::Jump(to)) => send(to, weight),
+                Some(&TerminatorKind::JumpI { then_block, else_block }) => {
+                    let rest = Continuation::of_target(module, body, else_block);
+                    let taken = taken_share(module, body, id, then_block, rest, weight);
+                    send(then_block, taken);
+                    send(else_block, weight - taken);
                 }
+                _ => {}
             }
         }
         if frontier.is_empty() {
@@ -129,19 +154,19 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut reachable = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = Vec::new();
     let mut branches = BranchTargets::new(module);
+    let mut predecessors = None;
     for latch in module.blocks.indices() {
-        if let Some(TerminatorKind::Jump(header)) =
-            module.blocks[latch].terminator.as_ref().map(|term| &term.kind)
-            && *header != BlockId::ENTRY
-            && !moved.contains(*header)
+        if let Some((header, inverted)) = latch_header(module, latch)
+            && header != BlockId::ENTRY
+            && !moved.contains(header)
             && !module.blocks[latch].metadata.hotness.is_cold()
         {
-            let (h, l) = (positions[*header], positions[latch]);
+            let (h, l) = (positions[header], positions[latch]);
             if h == 0 || l <= h {
                 continue;
             }
             let preheader = order[h - 1];
-            if layout_successor(module, preheader) != Some(*header)
+            if layout_successor(module, preheader) != Some(header)
                 || !matches!(
                     module.blocks[preheader].terminator.as_ref().map(|term| &term.kind),
                     Some(TerminatorKind::Jump(_))
@@ -152,7 +177,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             }
             reachable.clear();
             pending.clear();
-            pending.push(*header);
+            pending.push(header);
             let mut visited = 0;
             while let Some(block) = pending.pop() {
                 if !reachable.insert(block) {
@@ -168,7 +193,25 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 pending.extend_from_slice(branches.get(module, block));
             }
             let hotter = if reachable.contains(preheader) {
-                let weights = backedge_weights(module, &mut branches, *header);
+                let predecessors = predecessors.get_or_insert_with(|| {
+                    let mut lists = IndexVec::<BlockId, SmallVec<[BlockId; 2]>>::from_vec(vec![
+                        SmallVec::new();
+                        module.blocks.len()
+                    ]);
+                    for block in module.blocks.indices() {
+                        if let Some(term) = &module.blocks[block].terminator {
+                            term.kind.visit_targets(|target| lists[target].push(block));
+                        }
+                        for &target in branches.get(module, block) {
+                            lists[target].push(block);
+                        }
+                    }
+                    lists
+                });
+                // Without a natural loop, no branch counts as an exit.
+                let body = natural_loop(predecessors, header, latch)
+                    .unwrap_or_else(|| DenseBitSet::new_empty(module.blocks.len()));
+                let weights = backedge_weights(module, &mut branches, header, &body);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
                 let price = u128::from(Target::new(gcx).opcode(op::JUMP).gas);
@@ -177,13 +220,17 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 true
             };
             if visited <= 256 && reachable.contains(latch) && hotter {
+                if inverted {
+                    invert_latch(module, latch, header);
+                    branches.0[latch] = None;
+                }
                 // preheader; header ... latch; jump header
                 // -> preheader; jump header; latch; header ...
                 order[h..=l].rotate_right(1);
                 for (offset, &block) in order[h..=l].iter().enumerate() {
                     positions[block] = h + offset;
                 }
-                moved.insert(*header);
+                moved.insert(header);
             }
         }
     }
@@ -192,4 +239,129 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
     remap_block_order(module, &order);
     true
+}
+
+/// The header a block jumps back to, and whether that jump is a conditional one to turn around:
+/// the target of its terminator's jump, or, when that jump enters a cold block, the target of the
+/// `iszero c; push header; jumpi` it ends with, as a loop body whose last test guards a panic
+/// does.
+fn latch_header(module: &Module, block: BlockId) -> Option<(BlockId, bool)> {
+    let TerminatorKind::Jump(target) = module.blocks[block].terminator.as_ref()?.kind else {
+        return None;
+    };
+    if module.blocks[target].metadata.hotness.is_cold()
+        && let [.., test, push, jump] = module.blocks[block].instructions.as_slice()
+        && test.as_evm_opcode() == Some(op::ISZERO)
+        && jump.as_evm_opcode() == Some(op::JUMPI)
+        && let Some(header) = push.pushed_block()
+        && !module.blocks[header].metadata.hotness.is_cold()
+    {
+        return Some((header, true));
+    }
+    Some((target, false))
+}
+
+/// Turns a latch's conditional jump back to its header around, so the header can follow it.
+fn invert_latch(module: &mut Module, latch: BlockId, header: BlockId) {
+    let block = &mut module.blocks[latch];
+    let terminator = block.terminator.as_mut().expect("latch has a terminator");
+    let TerminatorKind::Jump(cold) = terminator.kind else { unreachable!("latch jumps") };
+    // iszero c; push header; jumpi; jump cold
+    // -> push cold; jumpi; jump header
+    terminator.kind = TerminatorKind::Jump(header);
+    let len = block.instructions.len();
+    let test = block.instructions.remove(len - 3);
+    let mut push = Instruction::push_block(cold);
+    push.metadata = std::mem::take(&mut block.instructions[len - 3].metadata);
+    block.instructions[len - 3] = push;
+    block.instructions[len - 2].metadata.absorb_debug_info(&test.metadata);
+}
+
+/// The natural loop of the back edge `latch -> header`: the header and every block that reaches
+/// the latch without passing through the header. `None` when the edge is not a back edge, as some
+/// path from the entry or from a block entered only through a computed jump, such as a call's
+/// continuation, reaches the latch around the header.
+fn natural_loop(
+    predecessors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
+    header: BlockId,
+    latch: BlockId,
+) -> Option<DenseBitSet<BlockId>> {
+    let mut body = DenseBitSet::new_empty(predecessors.len());
+    body.insert(header);
+    let mut pending = vec![latch];
+    while let Some(block) = pending.pop() {
+        if body.insert(block) {
+            if block == BlockId::ENTRY || predecessors[block].is_empty() {
+                return None;
+            }
+            pending.extend_from_slice(&predecessors[block]);
+        }
+    }
+    Some(body)
+}
+
+/// Where a block goes when it does not take a branch, relative to a loop.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Continuation {
+    /// Into a cold block or an aborting terminator.
+    Cold,
+    /// Into the loop.
+    Inside,
+    /// Out of the loop, or out of the function.
+    Outside,
+    /// Into blocks on both sides.
+    Mixed,
+}
+
+impl Continuation {
+    fn of_target(module: &Module, body: &DenseBitSet<BlockId>, target: BlockId) -> Self {
+        if module.blocks[target].metadata.hotness.is_cold() {
+            Self::Cold
+        } else if body.contains(target) {
+            Self::Inside
+        } else {
+            Self::Outside
+        }
+    }
+
+    fn join(self, other: Self) -> Self {
+        if self == other { self } else { Self::Mixed }
+    }
+
+    fn of_terminator(module: &Module, body: &DenseBitSet<BlockId>, kind: &TerminatorKind) -> Self {
+        match *kind {
+            TerminatorKind::Op(op::REVERT | op::INVALID) => Self::Cold,
+            TerminatorKind::Op(_) => Self::Outside,
+            _ => {
+                let mut joined = None;
+                kind.visit_targets(|target| {
+                    let next = Self::of_target(module, body, target);
+                    joined = Some(joined.map_or(next, |previous: Self| previous.join(next)));
+                });
+                joined.unwrap_or(Self::Outside)
+            }
+        }
+    }
+}
+
+/// The share of `weight` that a branch in `from` sends to `to` when the block otherwise continues
+/// to `rest`: none into a cold block and all of it when `rest` is cold; inside the loop's body,
+/// all but one part in `UNCOUNTED_LOOP_ITERATIONS` when only `to` stays in the loop and one part
+/// when only `rest` does; half otherwise.
+fn taken_share(
+    module: &Module,
+    body: &DenseBitSet<BlockId>,
+    from: BlockId,
+    to: BlockId,
+    rest: Continuation,
+    weight: u64,
+) -> u64 {
+    let exit = weight / Target::UNCOUNTED_LOOP_ITERATIONS;
+    match (Continuation::of_target(module, body, to), rest) {
+        (Continuation::Cold, _) => 0,
+        (_, Continuation::Cold) => weight,
+        (Continuation::Inside, Continuation::Outside) if body.contains(from) => weight - exit,
+        (Continuation::Outside, Continuation::Inside) if body.contains(from) => exit,
+        _ => weight / 2,
+    }
 }

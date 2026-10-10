@@ -341,7 +341,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.materialize_memory_argument(ty, value, span)?;
             if self.builder.func().value_slice_location(value).is_none() {
                 // argument = cast value to the declared parameter type
-                Some(self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty)))
+                Some(self.builder.cast(value, types::TypeLowerer::mir_type(ty)))
             } else {
                 Some(value)
             }
@@ -781,7 +781,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         // if !valid(value) { revert(0, 0) }
-        let valid = validator.condition(&mut self.builder, value, false);
+        let shifts = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
+        let valid = validator.condition(&mut self.builder, value, shifts);
         let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {

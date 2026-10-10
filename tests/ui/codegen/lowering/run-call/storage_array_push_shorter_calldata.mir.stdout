@@ -173,8 +173,8 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> struct0 [selector=0x3c12c61b, abi
     v7 = mul v5, 32
     v8 = add v0, v7
     v9 = calldataload v8
-    v10 = and v9, 255
-    v11 = eq v9, v10
+    v10 = shr 8, v9
+    v11 = eq v10, 0
     v12 = eq v11, false
     icall revert_if<empty>, v12
     v13 = add v5, 1

@@ -3,6 +3,7 @@ import io
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -92,7 +93,7 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 33)
+        self.assertEqual(len(benchmark.TEST_CASES), 35)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
@@ -1243,6 +1244,85 @@ class RpcTransportTests(unittest.TestCase):
             "eth_getTransactionReceipt",
             ("0xtx",),
             "http://127.0.0.1:8545",
+        )
+
+
+class ParallelRunTests(unittest.TestCase):
+    def test_jobs_argument_errors(self) -> None:
+        for flags, message in (
+            (["--jobs", "0"], "--jobs must be positive"),
+            (["--jobs", "2", "--gas"], "--jobs cannot be combined with --gas"),
+            (
+                ["--jobs", "2", "--mode", "compile-time"],
+                "--jobs skews compile-time mode; pass --ignore-compile-time",
+            ),
+        ):
+            with (
+                self.subTest(flags=flags),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
+                benchmark.main(flags)
+            self.assertEqual(error.exception.code, 2)
+            self.assertTrue(stderr.getvalue().endswith(f"error: {message}\n"))
+
+    def test_jobs_run_cases_concurrently_in_input_order(self) -> None:
+        test_ids = ["counter", "factorial", "seaport-1.6-project"]
+        barrier = threading.Barrier(len(test_ids), timeout=10)
+
+        def run_case(test, *_args):
+            barrier.wait()
+            return {
+                "test_id": test.test_id,
+                "suite": test.suite,
+                "compilers": {
+                    "solar": {
+                        "status": "ok",
+                        "compile_time_seconds": 1.0,
+                        "compile_time_samples": [1.0],
+                        "output_fingerprint": test.test_id,
+                    }
+                },
+            }
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+            mock.patch.object(benchmark, "binary_version", return_value=("test", "")),
+            mock.patch.object(benchmark, "run_test_case", side_effect=run_case),
+        ):
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--mode",
+                    "runtime",
+                    "compile-time",
+                    "--jobs",
+                    str(len(test_ids)),
+                    "--ignore-compile-time",
+                    "--tests",
+                    *test_ids,
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+
+        self.assertEqual(return_code, 0)
+        self.assertEqual(
+            [result["test_id"] for result in document["results"]], test_ids
+        )
+        self.assertEqual(document["timings"], {})
+        self.assertEqual(
+            [result["compilers"]["solar"] for result in document["results"]],
+            [
+                {
+                    "status": "ok",
+                    "compile_time_seconds": None,
+                    "output_fingerprint": test_id,
+                }
+                for test_id in test_ids
+            ],
         )
 
 

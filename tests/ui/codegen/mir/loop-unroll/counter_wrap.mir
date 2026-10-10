@@ -1,0 +1,40 @@
+//@compile-flags: -Zmir-pipeline=loop-unroll --optimize-runs 10000
+@module CounterWrap
+
+fn @below() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe], [bb3: v3]
+    v1 = lt v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = eq v0, 0
+    jumpi v2, bb4, bb3
+  bb3:
+    v3 = add v0, 2
+    jump bb1
+  bb4:
+    ret 7
+  bb5:
+    ret 9
+}
+
+fn @inclusive() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe], [bb3: v3]
+    v1 = gt v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v1, bb5, bb2
+  bb2:
+    v2 = eq v0, 0
+    jumpi v2, bb4, bb3
+  bb3:
+    v3 = add v0, 2
+    jump bb1
+  bb4:
+    ret 7
+  bb5:
+    ret 9
+}

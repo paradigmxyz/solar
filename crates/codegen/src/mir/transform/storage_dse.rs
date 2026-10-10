@@ -155,10 +155,7 @@ impl StorageStoreEliminator {
         incoming: &IndexVec<BlockId, FxHashSet<StorageAlias>>,
         block: BlockId,
     ) -> FxHashSet<StorageAlias> {
-        if !matches!(
-            func.blocks[block].terminator,
-            Some(Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. })
-        ) {
+        if !func.blocks[block].terminator.as_ref().is_some_and(Terminator::has_successors) {
             return FxHashSet::default();
         }
         let mut successors = cfg.successors(block).iter();

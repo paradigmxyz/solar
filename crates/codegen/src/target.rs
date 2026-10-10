@@ -15,7 +15,7 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{Function, Op, Value, ValueId},
+    mir::{BlockId, Function, Op, Value, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -277,9 +277,17 @@ impl Cost {
     /// Nothing emitted.
     pub(crate) const ZERO: Self = Self::new(0, 0);
 
+    /// More than any real code costs.
+    pub(crate) const MAX: Self = Self::new(u32::MAX, u32::MAX);
+
     /// Creates a cost.
     pub(crate) const fn new(gas: u32, bytes: u32) -> Self {
         Self { gas, bytes }
+    }
+
+    /// Whether this costs no more gas and bytes than `other` and less of one.
+    pub(crate) fn dominates(self, other: Self) -> bool {
+        self.gas <= other.gas && self.bytes <= other.bytes && self != other
     }
 
     /// Cost of an opcode whose static gas is identical on every EVM version.
@@ -340,6 +348,19 @@ impl Target {
     /// or its back-edge jump), so a counter stepping by a small constant never
     /// travels further than `step << 64` from where it started.
     pub(crate) const MAX_TRIP_COUNT_BITS: usize = 64;
+    /// How many times a loop without a computable trip count is assumed to
+    /// run per invocation when weighing code growth inside it: GCC's estimate
+    /// for such loops.
+    pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+    /// How many times more often the stack planner counts a block for each loop around it.
+    pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
+    /// The most the stack planner counts any block, however deeply nested.
+    pub(crate) const MAX_BLOCK_WEIGHT: u32 = 512;
+    /// The optimizer runs from which loop transformations that copy a loop's
+    /// body, unrolling and peeling, may run: below them, as at the default 200,
+    /// a build still values its code size, and the copies grow a contract built
+    /// around one loop by half or more.
+    pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -380,6 +401,17 @@ impl Target {
         self.expected_executions
     }
 
+    /// The weight of a block inside one more loop than a block of weight `weight`.
+    pub(crate) const fn nested_block_weight(weight: u32) -> u32 {
+        let weight = weight.saturating_mul(Self::LOOP_BLOCK_WEIGHT);
+        if weight < Self::MAX_BLOCK_WEIGHT { weight } else { Self::MAX_BLOCK_WEIGHT }
+    }
+
+    /// Whether the build expects enough executions to copy loop bodies for runtime gas.
+    pub(crate) fn copies_loops(self) -> bool {
+        self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
+    }
+
     /// Static gas of one opcode; unknown opcodes are free.
     pub(crate) fn opcode_gas(self, opcode: u8) -> u32 {
         self.opcode_gas_at(opcode, Warmth::Cold)
@@ -415,6 +447,19 @@ impl Target {
     /// Cost of one `DUP`.
     pub(crate) fn dup(self) -> Cost {
         self.opcode(op::DUP1)
+    }
+
+    /// Cost of one logical stack operation after target lowering, or `None` when the target
+    /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
+    pub(crate) fn stack_op(self, stack_op: op::StackOp) -> Option<Cost> {
+        let metrics = stack_op.metrics(self.evm_version)?;
+        Some(Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32))
+    }
+
+    /// Cost of pushing a block label, which resolves to a two-byte push in all but the largest
+    /// contracts.
+    pub(crate) fn label_push(self) -> Cost {
+        self.opcode(op::PUSH2)
     }
 
     /// Cost of pushing `value` through its cheapest materialization.
@@ -501,6 +546,18 @@ impl Target {
         Cost::new(static_gas.saturating_add(dynamic), 1)
     }
 
+    /// Whether an opcode-lowered MIR operation's gas depends on operands or access warmth.
+    pub(crate) fn op_has_variable_gas(self, op: &Op) -> bool {
+        select::opcode_lowering(op)
+            .and_then(|lowering| op::definition(lowering.opcode()))
+            .is_some_and(|definition| {
+                let tier = definition.gas;
+                tier.dynamic_gas(self.evm_version) != 0
+                    || tier.gas_at(self.evm_version, Warmth::Cold)
+                        != tier.gas_at(self.evm_version, Warmth::Warm)
+            })
+    }
+
     /// Returns the sole materialized operand of an equality or inequality with zero.
     pub(crate) fn zero_test_input(
         op: &Op,
@@ -561,28 +618,31 @@ impl Target {
     /// of its immediates, and a pushed label with a jump and a landing per
     /// edge. Sizes the shape of a helper before deciding to share it.
     pub(crate) fn code_estimate(self, func: &Function) -> Cost {
+        func.blocks.indices().map(|block| self.block_code_estimate(func, block)).sum()
+    }
+
+    /// Estimated code of one block, priced as in [`Self::code_estimate`].
+    pub(crate) fn block_code_estimate(self, func: &Function, block: BlockId) -> Cost {
+        let block = &func.blocks[block];
         let mut cost = Cost::ZERO;
-        for block in &func.blocks {
-            for &inst in &block.instructions {
-                let kind = &func.inst(inst).kind;
-                let immediate = |value| match func.value(value) {
-                    Value::Immediate(immediate) => immediate.as_u256(),
-                    _ => None,
-                };
-                cost += self.op(&kind.op(), immediate);
-                kind.visit_operands(|operand| {
-                    if let Some(value) = immediate(operand) {
-                        cost += self.push(value);
-                    }
-                });
-            }
-            let edges =
-                block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
-            for _ in 0..edges {
-                cost += self.opcode(op::PUSH2);
-                cost += self.opcode(op::JUMPI);
-                cost += self.opcode(op::JUMPDEST);
-            }
+        for &inst in &block.instructions {
+            let kind = &func.inst(inst).kind;
+            let immediate = |value| match func.value(value) {
+                Value::Immediate(immediate) => immediate.as_u256(),
+                _ => None,
+            };
+            cost += self.op(&kind.op(), immediate);
+            kind.visit_operands(|operand| {
+                if let Some(value) = immediate(operand) {
+                    cost += self.push(value);
+                }
+            });
+        }
+        let edges = block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
+        for _ in 0..edges {
+            cost += self.label_push();
+            cost += self.opcode(op::JUMPI);
+            cost += self.opcode(op::JUMPDEST);
         }
         cost
     }
@@ -632,7 +692,7 @@ impl Target {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, InstKind, Value};
+    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, Terminator, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -742,6 +802,14 @@ mod tests {
         let load = InstKind::SLoad(slot).op();
         assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
         assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
+        for version in [EvmVersion::Istanbul, EvmVersion::Berlin, EvmVersion::Osaka] {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            for kind in
+                [InstKind::Balance(slot), InstKind::ExtCodeSize(slot), InstKind::ExtCodeHash(slot)]
+            {
+                assert_eq!(target.op_has_variable_gas(&kind.op()), version >= EvmVersion::Berlin);
+            }
+        }
     }
 
     #[test]
@@ -804,6 +872,31 @@ mod tests {
         assert_eq!(GasTier::Copy.dynamic_units(&[None, None, Some(U256::from(33))]), 2);
         assert_eq!(GasTier::Log(1).dynamic_units(&[None, Some(U256::from(5)), None]), 5);
         assert_eq!(GasTier::VeryLow.dynamic_units(&[None, None]), 0);
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        for version in [EvmVersion::Homestead, EvmVersion::Osaka] {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            assert!(target.op_has_variable_gas(&Op::Exp { a, b }));
+            assert!(!target.op_has_variable_gas(&Op::Add { a, b }));
+        }
+    }
+
+    #[test]
+    fn block_estimates_add_up_to_the_function() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let mut function = Function::new(Ident::DUMMY);
+        let exit = function.alloc_block();
+        let one = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let (add, sum) = function
+            .alloc_value_inst(Instruction::new(InstKind::Add(one, one), Some(MirType::I256)));
+        function.blocks[BlockId::ENTRY].instructions.push(add);
+        function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(exit));
+        function.blocks[exit]
+            .set_generated_terminator(Terminator::Return { values: smallvec::smallvec![sum] });
+        // `add` with both pushes of its immediate, then a pushed label, a jump and a landing.
+        assert_eq!(target.block_code_estimate(&function, BlockId::ENTRY), Cost::new(23, 10));
+        assert_eq!(target.block_code_estimate(&function, exit), Cost::ZERO);
+        assert_eq!(target.code_estimate(&function), Cost::new(23, 10));
     }
 
     #[test]
@@ -812,10 +905,38 @@ mod tests {
         assert_eq!(target.dup(), Cost::new(3, 1));
         assert_eq!(target.opcode(op::POP), Cost::new(2, 1));
         assert_eq!(target.opcode(op::PUSH2), Cost::new(3, 3));
+        assert_eq!(target.label_push(), Cost::new(3, 3));
         assert_eq!(target.push(U256::ZERO), Cost::new(2, 1));
         assert_eq!(target.push(U256::from(0x1234)), Cost::new(3, 3));
         assert_eq!(target.data_copy_gas(64), 18);
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
+        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(Cost::new(3, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Pop), Some(Cost::new(2, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(9, 3)));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 17)), None);
+        let amsterdam = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
+        assert_eq!(amsterdam.stack_op(op::StackOp::Dup(17)), Some(Cost::new(3, 2)));
+        assert_eq!(amsterdam.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(3, 2)));
+        assert!(Cost::new(3, 2).dominates(Cost::new(9, 3)));
+        assert!(Cost::new(9, 2).dominates(Cost::new(9, 3)));
+        assert!(!Cost::new(9, 3).dominates(Cost::new(9, 3)));
+        assert!(!Cost::new(3, 4).dominates(Cost::new(9, 3)));
+    }
+
+    #[test]
+    fn nested_block_weights() {
+        assert_eq!(Target::nested_block_weight(1), 8);
+        assert_eq!(Target::nested_block_weight(64), 512);
+        assert_eq!(Target::nested_block_weight(512), 512);
+    }
+
+    #[test]
+    fn loop_copies_need_many_runs() {
+        let target = |runs| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs);
+        assert!(!target(Target::DEFAULT_EXPECTED_EXECUTIONS).copies_loops());
+        assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
+        assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
+        assert!(target(u64::from(u32::MAX)).copies_loops());
     }
 }

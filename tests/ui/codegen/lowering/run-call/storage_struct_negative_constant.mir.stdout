@@ -2,8 +2,7 @@
 @module StorageStructNegativeConstant
 fn @assign() -> i256 [selector=0x12ae6397, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 1
-    sstore 0, v0 !metadata(storage=slot(0))
-    v1 = sload 0 !metadata(storage=slot(0))
-    ret v1
+    sstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

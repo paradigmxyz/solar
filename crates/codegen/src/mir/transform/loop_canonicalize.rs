@@ -139,10 +139,7 @@ impl LoopCanonicalizer {
     }
 
     fn terminator_targets(&self, func: &Function, block: BlockId, target: BlockId) -> bool {
-        func.blocks[block]
-            .terminator
-            .as_ref()
-            .is_some_and(|term| term.successors().contains(&target))
+        func.blocks[block].terminator.as_ref().is_some_and(|term| term.has_successor(target))
     }
 
     fn insert_preheader(

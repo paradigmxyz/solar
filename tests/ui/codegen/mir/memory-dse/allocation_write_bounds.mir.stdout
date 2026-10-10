@@ -1,0 +1,25 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/allocation_write_bounds.sol:AllocationWriteBounds ===
+@module AllocationWriteBounds
+fn @overwrite(arg0: i256) -> i256 [selector=0x9dc8c3ab, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr v0 to i256
+    memory_zero v1, 32
+    v2 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v3 = ptrtoint memptr v2 to i256
+    memory_zero v3, 32
+    v4 = lt 0, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    memory_object_store_element memoryfixedarray<1, 1>, v2, 0, 7
+    v6 = ptrtoint memptr v0 to i256
+    v7 = add v6, 32
+    v8 = sub v7, arg0
+    v9 = add arg0, v8
+    mstore v9, 9
+    v10 = lt 0, 1
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_element memoryfixedarray<1, 1>, v2, 0
+    ret v12
+}

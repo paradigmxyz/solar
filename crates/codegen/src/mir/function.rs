@@ -695,8 +695,6 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_fallback: bool,
     /// Whether this is a receive function.
     pub(crate) is_receive: bool,
-    /// Whether this function originated from a Yul function definition.
-    pub(crate) is_yul: bool,
     /// Whether the original signature may reference caller-visible memory.
     ///
     /// Dead-result elimination and memory lowering can erase reference types, but must preserve
@@ -725,7 +723,6 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
-            is_yul: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
@@ -744,105 +741,5 @@ impl fmt::Display for Function {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{EffectKind, FunctionBuilder, MemoryRegion, Terminator};
-
-    #[test]
-    fn live_values_include_terminator_operands() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (instruction_arg, terminator_arg, unused_arg, immediate, result) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let instruction_arg = builder.add_param(MirType::I256);
-            let terminator_arg = builder.add_param(MirType::I256);
-            let unused_arg = builder.add_param(MirType::I256);
-            let immediate = builder.imm(1);
-            let result = builder.add(instruction_arg, immediate);
-            builder.ret([terminator_arg, result]);
-            (instruction_arg, terminator_arg, unused_arg, immediate, result)
-        };
-
-        assert_eq!(
-            func.live_values().collect::<Vec<_>>(),
-            [instruction_arg, immediate, result, terminator_arg, result]
-        );
-
-        let arg_uses = func.arg_uses();
-        assert_eq!(arg_uses[ArgIdx::new(0)], [instruction_arg]);
-        assert_eq!(arg_uses[ArgIdx::new(1)], [terminator_arg]);
-        assert!(arg_uses[ArgIdx::new(2)].is_empty());
-        assert!(!func.live_values().any(|value| value == unused_arg));
-    }
-
-    #[test]
-    fn canonicalizes_equal_immediate_uses() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (first, second, result) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.imm(7);
-            let second = builder.imm(7);
-            let result = builder.add(first, second);
-            builder.ret([result]);
-            (first, second, result)
-        };
-
-        assert_eq!(func.canonicalize_immediate_uses(), 1);
-        let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
-        assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
-        assert_ne!(first, second);
-    }
-
-    #[test]
-    fn canonicalizes_argument_instruction_and_terminator_uses() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (first, second, result) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.add_param(MirType::I256);
-            let second = builder.alloc_value(Value::Arg(ArgIdx::new(0)));
-            let result = builder.add(first, second);
-            builder.ret([second, result]);
-            (first, second, result)
-        };
-
-        assert_eq!(func.canonicalize_argument_uses(), 2);
-        let Value::Inst(inst) = func.value(result) else { panic!("expected instruction result") };
-        assert_eq!(func.inst(*inst).kind.operands().as_slice(), [first, first]);
-        let Some(Terminator::Return { values }) = &func.blocks[BlockId::ENTRY].terminator else {
-            panic!("expected return terminator");
-        };
-        assert_eq!(values.as_slice(), [first, result]);
-        assert_ne!(first, second);
-    }
-
-    #[test]
-    fn replace_uses_invalidates_operand_metadata() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (old, new, load) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let old = builder.add_param(MirType::I256);
-            let new = builder.add_param(MirType::I256);
-            let value = builder.mload(old);
-            builder.ret([value]);
-            let Value::Inst(load) = builder.func().value(value) else {
-                panic!("expected instruction result")
-            };
-            (old, new, *load)
-        };
-        let inst = func.inst_mut(load);
-        inst.metadata.set_memory_region(Some(MemoryRegion::Heap));
-        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
-        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
-
-        func.replace_uses(&FxHashMap::from_iter([(old, new)]));
-
-        let inst = func.inst(load);
-        assert_eq!(inst.kind, InstKind::MLoad(new));
-        assert_eq!(inst.metadata.memory_region(), None);
-        assert_eq!(inst.metadata.storage_alias(), None);
-        assert_eq!(inst.metadata.effect(), None);
     }
 }

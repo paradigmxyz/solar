@@ -1,0 +1,50 @@
+//@ ignore-host: windows
+// The tester rewrites backslashes in the output to slashes, so the outputs selected by the exact
+// keys check the names, and the metadata, escaped twice, shows each `\` as `//`. The `С` in
+// `USDС.sol` is Cyrillic, as in the Sourcify contract this reduces.
+// CHECK: "contracts": {
+// CHECK: "C:/Users/dev/ECoin.sol": {
+// CHECK: "ECoin": {
+// CHECK: "contracts/A.sol": {
+// CHECK: "A": {
+// CHECK: "a()": "0dbe671f"
+// CHECK: "contracts/USDС.sol": {
+// CHECK: "USDC": {
+// CHECK: \"compilationTarget\":{\"contracts//USDС.sol\":\"USDC\"}
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts\\A.sol": {
+      "content": "import \"./B.sol\"; contract A is B { function a() public pure returns (uint256) { return b(); } }"
+    },
+    "B.sol": {
+      "content": "contract B { function b() public pure returns (uint256) { return 1; } }"
+    },
+    "contracts\\USDС.sol": {
+      "content": "contract USDC {}"
+    },
+    "C:\\Users\\dev\\ECoin.sol": {
+      "content": "contract ECoin {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "contracts\\A.sol": {
+        "A": [
+          "evm.methodIdentifiers"
+        ]
+      },
+      "contracts\\USDС.sol": {
+        "USDC": [
+          "abi",
+          "metadata"
+        ]
+      },
+      "C:\\Users\\dev\\ECoin.sol": {
+        "ECoin": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

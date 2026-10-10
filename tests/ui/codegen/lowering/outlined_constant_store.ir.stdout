@@ -6,8 +6,6 @@ bb0:
   lt
   callvalue
   or
-  iszero
-  iszero
   push bb4
   jumpi
   jump bb1
@@ -50,12 +48,11 @@ bb7:
   mstore
   jump
 bb8 [continuation]:
+  push 7
   push 128
   push 4
   calldataload
   and
-  push 7
-  swap 1
   mstore
   push 128
   mload
@@ -65,12 +62,11 @@ bb8 [continuation]:
   push 128
   return
 bb9 [continuation]:
+  push 9
   push 160
   push 4
   calldataload
   and
-  push 9
-  swap 1
   mstore
   push 128
   mload
@@ -79,3 +75,249 @@ bb9 [continuation]:
   push 32
   push 128
   return
+// === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedNarrowing (runtime) ===
+@module OutlinedNarrowing_runtime
+bb0:
+  push 36
+  calldatasize
+  lt
+  callvalue
+  or
+  push bb5
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x2da3006c
+  eq
+  push bb4
+  jumpi
+  dup 1
+  push 0x9646654f
+  eq
+  push bb3
+  jumpi
+  dup 1
+  push 0xb5be099a
+  eq
+  push bb2
+  jumpi
+  jump bb5
+bb2:
+  jump bb10
+bb3:
+  jump bb14
+bb4:
+  jump bb6
+bb5 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 160
+  push 64
+  mstore
+  push 4
+  calldataload
+  push bb23
+  push 0x2062697473000000000000000000000000000000000000000000000000000000
+  push 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
+  push 37
+  jump bb22
+bb7:
+  pop
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb8 [cold]:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  swap 1
+  push bb9
+  jump bb18
+bb9 [continuation]:
+  revert
+bb10:
+  push 160
+  push 64
+  mstore
+  push 4
+  calldataload
+  push bb24
+  push 0x3220626974730000000000000000000000000000000000000000000000000000
+  push 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
+  push 38
+  jump bb22
+bb11:
+  pop
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb12 [cold]:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  swap 1
+  push bb13
+  jump bb18
+bb13 [continuation]:
+  revert
+bb14:
+  push 160
+  push 64
+  mstore
+  push 4
+  calldataload
+  dup 1
+  push 128
+  shr
+  push bb25
+  push 0x3238206269747300000000000000000000000000000000000000000000000000
+  push 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
+  push 39
+  jump bb22
+bb15:
+  pop
+  push 0xffffffffffffffffffffffffffffffff
+  and
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb16 [cold]:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  swap 1
+  push bb17
+  jump bb18
+bb17 [continuation]:
+  revert
+bb18:
+  push 64
+  mload
+  swap 3
+  dup 4
+  mstore
+  swap 2
+  push 4
+  add
+  push 32
+  dup 2
+  add
+  push 32
+  dup 3
+  mstore
+  dup 3
+  iszero
+  iszero
+  dup 4
+  mload
+  mul
+  dup 1
+  dup 3
+  mstore
+  push 31
+  dup 2
+  add
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  and
+  push 32
+  dup 4
+  add
+  dup 2
+  iszero
+  push bb21
+  jumpi
+  jump bb19
+bb19:
+  swap 3
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb20
+bb20:
+  dup 3
+  add
+  swap 4
+  push 32
+  add
+  swap 1
+  swap 2
+  mcopy
+  swap 1
+  sub
+  push 4
+  add
+  push 31
+  dup 2
+  add
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  swap 1
+  swap 2
+  jump
+bb21:
+  swap 3
+  pop
+  jump bb20
+bb22:
+  push 64
+  mload
+  dup 1
+  push 96
+  dup 3
+  add
+  push 64
+  mstore
+  swap 1
+  swap 2
+  dup 3
+  mstore
+  swap 1
+  swap 2
+  push 32
+  dup 4
+  add
+  mstore
+  swap 1
+  push 64
+  add
+  swap 1
+  swap 2
+  swap 1
+  mstore
+  swap 1
+  jump
+bb23 [continuation]:
+  push 255
+  dup 3
+  gt
+  push bb8
+  jumpi
+  jump bb7
+bb24 [continuation]:
+  push 0xffffffff
+  dup 3
+  gt
+  push bb12
+  jumpi
+  jump bb11
+bb25 [continuation]:
+  swap 1
+  push bb16
+  jumpi
+  jump bb15
