@@ -672,6 +672,19 @@ impl<'gcx> TypeChecker<'gcx> {
                                     .emit(),
                             );
                         }
+                        // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/StaticAnalyzer.cpp#L240-L251>
+                        if matches!(member.res, Some(hir::Res::Builtin(Builtin::MsgData)))
+                            && self
+                                .function
+                                .is_some_and(|f| self.gcx.hir.function(f).kind.is_receive())
+                        {
+                            self.dcx()
+                                .err("`msg.data` cannot be used inside of a `receive` function")
+                                .code(error_code!(7139))
+                                .span(expr.span)
+                                .note("`receive` is only called with empty calldata")
+                                .emit();
+                        }
                         self.register_resolved_member(expr, member);
                         member.ty
                     }

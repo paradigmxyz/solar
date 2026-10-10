@@ -119,6 +119,44 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         }
     }
 
+    /// Checks an explicit constructor visibility, which only `abstract` decides now.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L2068-L2091>
+    fn check_constructor_visibility(
+        &self,
+        visibility: ast::Spanned<ast::Visibility>,
+        is_abstract: bool,
+    ) {
+        match *visibility {
+            ast::Visibility::Public if is_abstract => {
+                self.dcx()
+                    .err("abstract contracts cannot have public constructors")
+                    .code(error_code!(8295))
+                    .span(visibility.span)
+                    .help("remove the `public` keyword")
+                    .emit();
+            }
+            ast::Visibility::Internal if !is_abstract => {
+                self.dcx()
+                    .err("non-abstract contracts cannot have internal constructors")
+                    .code(error_code!(1845))
+                    .span(visibility.span)
+                    .help("remove the `internal` keyword and make the contract `abstract`")
+                    .emit();
+            }
+            _ => {
+                self.dcx()
+                    .warn("visibility for constructor is ignored")
+                    .code(error_code!(2462))
+                    .span(visibility.span)
+                    .note(
+                        "to make the contract non-deployable, marking it `abstract` is sufficient",
+                    )
+                    .emit();
+            }
+        }
+    }
+
     fn check_yul_break_continue(&self, span: Span, kw: &str) {
         let (code, msg) = match self.yul_for_part {
             YulForPart::None => (error_code!(2592), "needs to be inside a for-loop body"),
@@ -335,6 +373,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.item_span,
                     "functions without implementation cannot have modifiers",
                 );
+            }
+            if func.kind.is_constructor()
+                && let Some(visibility) = func.header.visibility
+            {
+                self.check_constructor_visibility(visibility, contract.kind.is_abstract_contract());
             }
         }
 

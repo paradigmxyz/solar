@@ -1,0 +1,96 @@
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(Missing) external {}
+   ╰╴             ━━━━━━━
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(uint256) external {}
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(bytes memory) external returns (bytes memory) {}
+   │                                              ━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(bytes memory) external returns (bytes calldata) {}
+   │                                              ━━━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external returns (bytes calldata) {}
+   │                                                ━━━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback() external returns (bytes memory _output) {}
+   │                                  ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(bytes calldata _input) external {}
+   │              ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback() external returns (bytes memory, bytes memory) {}
+   │                                  ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback() external returns (uint256) {}
+   │                                  ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback() external returns (bytes memory) {}
+   │                                  ━━━━━━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback(uint a) external { x = 2; }
+   │              ━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
+   │
+LL │     fallback() external returns (uint) { }
+   │                                  ━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error: aborting due to 12 previous errors
+
