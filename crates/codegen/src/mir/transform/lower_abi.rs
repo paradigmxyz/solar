@@ -2850,7 +2850,7 @@ impl LowerAbiCx {
                 | InstKind::Sub(..)
                 | InstKind::MLoad(_)
                 | InstKind::Keccak256(..)
-                | InstKind::SliceLoadWord { .. } => (true, false),
+                | InstKind::MemorySliceLoadWord { .. } => (true, false),
                 InstKind::Phi(incoming) if Self::is_scalar_array(ty) => {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         return false;
@@ -3025,7 +3025,8 @@ impl LowerAbiCx {
                 }
                 InstKind::SliceLen(_)
                 | InstKind::SlicePtr(_)
-                | InstKind::SliceLoadWord { .. }
+                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::CalldataSliceLoadWord { .. }
                 | InstKind::SliceLoadByte { .. } => false,
                 InstKind::MemoryObjectLoadField { .. }
                 | InstKind::MemoryObjectLoadElement { .. }

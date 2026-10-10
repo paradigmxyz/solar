@@ -342,15 +342,10 @@ impl PackedEncoder<'_, '_> {
                     PackedArraySource::Memory { layout } => {
                         self.builder.memory_object_load_element(value, layout, index)
                     }
-                    PackedArraySource::Slice(location) => match location {
-                        SliceLocation::Memory => self
-                            .builder
-                            .slice_load_word(memory_source.expect("memory slice"), element_offset),
-                        SliceLocation::Calldata => {
-                            self.builder.slice_load_word(value, element_offset)
-                        }
-                        SliceLocation::Returndata => unreachable!("returndata packed array"),
-                    },
+                    PackedArraySource::Slice(location) => {
+                        debug_assert_ne!(location, SliceLocation::Returndata);
+                        self.builder.slice_load_word(memory_source.unwrap_or(value), element_offset)
+                    }
                 };
                 let element_value = match element {
                     AbiType::Word(Some(validator)) => {

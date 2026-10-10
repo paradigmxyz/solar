@@ -180,7 +180,8 @@ impl InstKind {
             | Self::SliceStoreElement { .. }
             | Self::SliceStoreByte { .. }
             | Self::SliceStoreWord { .. }
-            | Self::SliceLoadWord { .. }
+            | Self::MemorySliceLoadWord { .. }
+            | Self::CalldataSliceLoadWord { .. }
             | Self::SliceCopy { .. }
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }

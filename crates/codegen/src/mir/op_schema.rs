@@ -1815,9 +1815,9 @@ define_mir_ops! {
         /// Word to store.
         value: ValueId,
     },
-    /// Load one word at a byte offset from a slice.
+    /// Load one word at a byte offset from a memory slice.
     #[mir_op(
-        mnemonic = "slice_load_word",
+        mnemonic = "memory_slice_load_word",
         result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
@@ -1825,9 +1825,27 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice), MirType::I256]))]
-    SliceLoadWord {
-        /// Memory or calldata slice.
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256]))]
+    MemorySliceLoadWord {
+        /// Memory slice.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
+    /// Load one word at a byte offset from a calldata slice. Calldata cannot change, so unlike
+    /// a memory read this load can move freely.
+    #[mir_op(
+        mnemonic = "calldata_slice_load_word",
+        result = I256,
+        phases = PhaseSet::SEMANTIC,
+        effect = EnvironmentRead,
+        traits = OpTraits::MEMORY_OBJECT,
+        side_effects = false,
+        category = Some("memory-object")
+    )]
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Calldata), MirType::I256]))]
+    CalldataSliceLoadWord {
+        /// Calldata slice.
         slice: ValueId,
         /// Runtime byte offset from the slice start.
         offset: ValueId,

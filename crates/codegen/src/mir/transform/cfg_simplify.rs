@@ -377,7 +377,8 @@ impl CfgSimplifier {
                 | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }
-                | InstKind::SliceLoadWord { .. }
+                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::CalldataSliceLoadWord { .. }
                 | InstKind::SliceCopy { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. }

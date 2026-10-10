@@ -75,13 +75,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let base = self.builder.slice_ptr(object);
             return if self.is_dynamic_bytes_type(receiver_ty) {
                 // value = byte(0, load_word(slice, index))
-                let word = match location {
-                    SliceLocation::Calldata => self.builder.slice_load_word(object, index),
-                    SliceLocation::Memory => self.builder.slice_load_word(object, index),
-                    SliceLocation::Returndata => {
-                        return self.cx.report_unsupported(expr.span, "returndata index");
-                    }
-                };
+                if location == SliceLocation::Returndata {
+                    return self.cx.report_unsupported(expr.span, "returndata index");
+                }
+                let word = self.builder.slice_load_word(object, index);
                 let zero = self.builder.imm(0);
                 let byte = self.builder.byte(zero, word);
                 Some(self.normalize_byte_value(expr, byte))

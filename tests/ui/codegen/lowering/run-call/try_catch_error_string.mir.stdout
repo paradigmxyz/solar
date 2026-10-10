@@ -60,7 +60,7 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v12 = memory_slice v11
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = slice_load_word v12, 0
+    v15 = memory_slice_load_word v12, 0
     v16 = shr 224, v15
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5

@@ -251,13 +251,12 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                     InstKind::MemoryObjectElementAddr { object, layout, index } => {
                         // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
                         // Solidity bounds-checks the index before forming the address.
-                        let Some((base, offset)) =
-                            memory_element_address_parts::<P>(&mut builder, object, index, layout)
+                        let Some(offset) = memory_element_offset::<P>(&mut builder, index, layout)
                         else {
                             return true;
                         };
                         let offset = offset.unwrap_or_else(|| builder.imm(0));
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     InstKind::MemoryObjectLoadField { object, layout, field } => {
                         let Some(offset) = P::field_offset(layout, field) else {
@@ -302,12 +301,8 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
                     InstKind::SliceLoadByte { slice, index } => {
-                        let Some(location) = slice_location(builder.func(), &views, slice) else {
-                            return true;
-                        };
-                        let source = slice_data::<P>(&mut builder, &views, slice);
-                        let address = dynamic_offset_address(&mut builder, source, index);
-                        let Some(load) = slice_load_kind(location, address) else {
+                        let Some(load) = slice_word_load::<P>(&mut builder, &views, slice, index)
+                        else {
                             return true;
                         };
                         let word = builder.emit_inst(load, Some(MirType::I256));
@@ -341,13 +336,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let address = dynamic_offset_address(&mut builder, base, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
-                    InstKind::SliceLoadWord { slice, offset } => {
-                        let Some(location) = slice_location(builder.func(), &views, slice) else {
-                            return true;
-                        };
-                        let source = slice_data::<P>(&mut builder, &views, slice);
-                        let address = dynamic_offset_address(&mut builder, source, offset);
-                        let Some(kind) = slice_load_kind(location, address) else {
+                    InstKind::MemorySliceLoadWord { slice, offset }
+                    | InstKind::CalldataSliceLoadWord { slice, offset } => {
+                        let Some(kind) = slice_word_load::<P>(&mut builder, &views, slice, offset)
+                        else {
                             return true;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
@@ -577,7 +569,7 @@ fn local_views(func: &Function) -> FxHashMap<crate::mir::ValueId, crate::mir::Va
                 | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }
-                | InstKind::SliceLoadWord { .. }
+                | InstKind::MemorySliceLoadWord { .. }
                 | InstKind::SliceCopy { .. }
         );
         if !local {
@@ -619,6 +611,19 @@ fn slice_data<P: MemoryLayoutPolicy>(
     builder.add_u64_offset(header, P::DYNAMIC_HEADER_SIZE)
 }
 
+/// Returns the load of the word at a byte offset into a memory or calldata slice.
+fn slice_word_load<P: MemoryLayoutPolicy>(
+    builder: &mut FunctionBuilder<'_>,
+    views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
+    slice: crate::mir::ValueId,
+    offset: crate::mir::ValueId,
+) -> Option<InstKind> {
+    let location = slice_location(builder.func(), views, slice)?;
+    let source = slice_data::<P>(builder, views, slice);
+    let address = dynamic_offset_address(builder, source, offset);
+    slice_load_kind(location, address)
+}
+
 fn slice_element_address<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
     views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
@@ -653,26 +658,25 @@ fn memory_element_address<P: MemoryLayoutPolicy>(
     index: crate::mir::ValueId,
     layout: MemoryObjectLayout,
 ) -> Option<crate::mir::ValueId> {
-    let (base, offset) = memory_element_address_parts::<P>(builder, object, index, layout)?;
-    Some(offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset)))
+    let offset = memory_element_offset::<P>(builder, index, layout)?;
+    Some(offset.map_or(object, |offset| dynamic_offset_address(builder, object, offset)))
 }
 
-fn memory_element_address_parts<P: MemoryLayoutPolicy>(
+/// Returns a fixed-array element's byte offset from its object, or `None` inside for offset zero.
+fn memory_element_offset<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
     index: crate::mir::ValueId,
     layout: MemoryObjectLayout,
-) -> Option<(crate::mir::ValueId, Option<crate::mir::ValueId>)> {
+) -> Option<Option<crate::mir::ValueId>> {
     let stride = P::element_stride(layout)?;
     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
     if let Some(index) = builder.func().value_u64(index)
         && let Some(offset) = index.checked_mul(stride)
     {
-        Some((object, (offset != 0).then(|| builder.imm(offset))))
+        Some((offset != 0).then(|| builder.imm(offset)))
     } else {
         let stride = builder.imm(stride);
-        let offset = builder.mul(index, stride);
-        Some((object, Some(offset)))
+        Some(Some(builder.mul(index, stride)))
     }
 }
 

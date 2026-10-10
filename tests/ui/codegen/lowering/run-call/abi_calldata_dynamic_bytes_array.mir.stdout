@@ -79,7 +79,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = slice_ptr v49
-    v54 = slice_load_word v49, 0
+    v54 = calldata_slice_load_word v49, 0
     v55 = byte 0, v54
     v56 = shl 248, v55
     v57 = shr 248, v56
@@ -119,7 +119,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v86 = eq v85, false
     icall panic_if<0x32>, v86
     v87 = slice_ptr v83
-    v88 = slice_load_word v83, 1
+    v88 = calldata_slice_load_word v83, 1
     v89 = byte 0, v88
     v90 = shl 248, v89
     v91 = shr 248, v90
@@ -189,7 +189,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v145 = eq v144, false
     icall panic_if<0x32>, v145
     v146 = slice_ptr v142
-    v147 = slice_load_word v142, 0
+    v147 = calldata_slice_load_word v142, 0
     v148 = byte 0, v147
     v149 = shl 248, v148
     v150 = shr 248, v149
@@ -229,7 +229,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v179 = eq v178, false
     icall panic_if<0x32>, v179
     v180 = slice_ptr v176
-    v181 = slice_load_word v176, 1
+    v181 = calldata_slice_load_word v176, 1
     v182 = byte 0, v181
     v183 = shl 248, v182
     v184 = shr 248, v183
@@ -269,7 +269,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v213 = eq v212, false
     icall panic_if<0x32>, v213
     v214 = slice_ptr v210
-    v215 = slice_load_word v210, 2
+    v215 = calldata_slice_load_word v210, 2
     v216 = byte 0, v215
     v217 = shl 248, v216
     v218 = shr 248, v217

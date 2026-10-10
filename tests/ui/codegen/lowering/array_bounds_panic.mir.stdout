@@ -158,7 +158,7 @@ fn @cdBytes(arg0: calldataslice, arg1: i256) -> i256 [selector=0x335b74df, pure,
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
-    v4 = slice_load_word arg0, arg1
+    v4 = calldata_slice_load_word arg0, arg1
     v5 = byte 0, v4
     v6 = shl 248, v5
     ret v6

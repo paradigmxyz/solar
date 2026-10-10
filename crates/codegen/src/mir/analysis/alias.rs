@@ -679,16 +679,21 @@ impl AliasAnalysis {
         )
     }
 
-    /// Returns the range of a fixed array or struct: its first byte with an unknown extent.
-    ///
-    /// Element accesses with runtime indices resolve here.
-    #[must_use]
-    pub(crate) fn memory_object_data_location(
+    /// Returns the memory a fixed-array element access touches: the element at a constant
+    /// index, or the whole array with an unknown extent.
+    fn memory_object_element_access(
         &self,
         func: &Function,
         inst_id: InstId,
         object: ValueId,
+        layout: MemoryObjectLayout,
+        index: ValueId,
     ) -> Option<MemoryLocation> {
+        if let Some(location) =
+            self.memory_object_element_location(func, inst_id, object, layout, index)
+        {
+            return Some(location);
+        }
         let mut address = self.memory_address(func, object)?;
         if let Some(region) = func.inst(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
@@ -959,7 +964,7 @@ impl AliasAnalysis {
             | InstKind::SliceStoreWord { slice, offset: index, value } => {
                 operand != *slice && operand != *index && operand != *value
             }
-            InstKind::SliceLoadWord { slice, offset } => {
+            InstKind::MemorySliceLoadWord { slice, offset } | InstKind::CalldataSliceLoadWord { slice, offset } => {
                 operand != *slice && operand != *offset
             }
             InstKind::SliceCopy { destination, offset, source } => {
@@ -1184,12 +1189,10 @@ impl AliasAnalysis {
                 }
             }
             // A runtime index selects an unknown element, but every element
-            // lies in the object's payload, so the access stays inside the
-            // payload range and cannot touch the length word.
+            // lies in the fixed array, so the access stays inside its range.
             InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                if let Some(location) = self
-                    .memory_object_element_location(func, inst_id, object, layout, index)
-                    .or_else(|| self.memory_object_data_location(func, inst_id, object))
+                if let Some(location) =
+                    self.memory_object_element_access(func, inst_id, object, layout, index)
                 {
                     effects.read(Access::Location(Location::Memory(location)));
                 } else {
@@ -1199,13 +1202,14 @@ impl AliasAnalysis {
             // Calldata slices read no memory.
             InstKind::SliceLoadElement { slice, index }
             | InstKind::SliceLoadByte { slice, index }
-                if func.value_ty(slice)
-                    == Some(crate::mir::MirType::Slice(SliceLocation::Memory)) =>
+            | InstKind::MemorySliceLoadWord { slice, offset: index }
+                if func.value_slice_location(slice) == Some(SliceLocation::Memory) =>
             {
                 let offset = match kind {
                     InstKind::SliceLoadElement { .. } => func
                         .value_u64(index)
                         .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE)),
+                    InstKind::MemorySliceLoadWord { .. } => func.value_u64(index),
                     _ => None,
                 };
                 if let Some(location) = self.slice_data_location(func, inst_id, slice, offset) {
@@ -1232,25 +1236,12 @@ impl AliasAnalysis {
                 }
             }
             InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
-                if let Some(location) = self
-                    .memory_object_element_location(func, inst_id, object, layout, index)
-                    .or_else(|| self.memory_object_data_location(func, inst_id, object))
+                if let Some(location) =
+                    self.memory_object_element_access(func, inst_id, object, layout, index)
                 {
                     effects.write(Access::Location(Location::Memory(location)));
                 } else {
                     effects.write_any(AddressSpace::Memory);
-                }
-            }
-            // Calldata slices read no memory.
-            InstKind::SliceLoadWord { slice, offset }
-                if func.value_ty(slice)
-                    == Some(crate::mir::MirType::Slice(SliceLocation::Memory)) =>
-            {
-                let offset = func.value_u64(offset);
-                if let Some(location) = self.slice_data_location(func, inst_id, slice, offset) {
-                    effects.read(Access::Location(Location::Memory(location)));
-                } else {
-                    effects.read_any(AddressSpace::Memory);
                 }
             }
             InstKind::FrameLoad { offset, mode, kind } => {

@@ -714,7 +714,7 @@ class MemoryAddressTests(unittest.TestCase):
             lhs, rhs = cx.obligation(rule)
             result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
-            if len(rule.form) == 3:
+            if not any(part[0] == "if-let" for part in rule.form[2:-1]):
                 continue
             # Removing the actual source guard must expose a nonzero field
             # offset, rather than implicitly assuming the rewrite.

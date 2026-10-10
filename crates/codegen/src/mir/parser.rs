@@ -1838,9 +1838,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 operands!(slice, offset, value);
                 (InstKind::SliceStoreWord { slice, offset, value }, None)
             }
-            sym::slice_load_word => {
+            sym::memory_slice_load_word => {
                 operands!(slice, offset);
-                (InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
+                (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::I256))
+            }
+            sym::calldata_slice_load_word => {
+                operands!(slice, offset);
+                (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::I256))
             }
             sym::slice_copy => {
                 operands!(destination, offset, source);

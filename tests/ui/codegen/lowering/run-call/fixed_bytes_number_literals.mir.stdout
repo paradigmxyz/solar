@@ -129,16 +129,15 @@ fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_ret
     v3 = add v2, 32
     mstore v3, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
     v4 = memory_slice v0
-    v5 = slice_load_element v4, 0
-    v6 = memory_slice v0
-    v7 = slice_len v6
-    v8 = lt v7, 4
-    v9 = sub 4, v7
-    v10 = mul 8, v9
-    v11 = shl v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v12 = select v8, v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v13 = and v5, v12
-    ret v13
+    v5 = memory_slice_load_word v4, 0
+    v6 = slice_len v4
+    v7 = lt v6, 4
+    v8 = sub 4, v6
+    v9 = mul 8, v8
+    v10 = shl v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = select v7, v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v12 = and v5, v11
+    ret v12
 }
 
 fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -147,17 +146,16 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = memory_slice v2
-    v4 = slice_load_element v3, 0
-    v5 = memory_slice v2
-    v6 = slice_len v5
-    v7 = lt v6, 32
-    v8 = sub 32, v6
-    v9 = mul 8, v8
-    v10 = shl v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = select v7, v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v12 = and v4, v11
-    v13 = shr 248, v12
-    ret v13
+    v4 = memory_slice_load_word v3, 0
+    v5 = slice_len v3
+    v6 = lt v5, 32
+    v7 = sub 32, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = select v6, v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = and v4, v10
+    v12 = shr 248, v11
+    ret v12
 }
 
 fn @returnBytes() -> struct0 [pure] {
@@ -185,7 +183,7 @@ fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_param
     v6 = sub 5, 0
     v7 = add v0, 0
     v8 = make_calldata_slice v7, v6
-    v9 = slice_load_word v8, 0
+    v9 = calldata_slice_load_word v8, 0
     v10 = slice_len v8
     v11 = lt v10, 32
     v12 = sub 32, v10

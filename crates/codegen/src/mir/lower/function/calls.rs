@@ -621,23 +621,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let zero = self.builder.imm(0);
             let word_and_length = match self.builder.func().value_ty(value) {
-                Some(MirType::MemPtr) => {
-                    let word = self.builder.memory_object_load_element(
-                        value,
-                        MemoryObjectLayout::Bytes,
-                        zero,
-                    );
-                    let length = self.builder.memory_len(value);
-                    Some((word, length))
-                }
-                Some(MirType::Slice(SliceLocation::Calldata)) => {
-                    let word = self.builder.slice_load_word(value, zero);
-                    let length = self.builder.slice_len(value);
-                    Some((word, length))
-                }
-                Some(MirType::Slice(SliceLocation::Memory)) => {
-                    let word = self.builder.slice_load_word(value, zero);
-                    let length = self.builder.slice_len(value);
+                Some(
+                    MirType::MemPtr
+                    | MirType::Slice(SliceLocation::Calldata | SliceLocation::Memory),
+                ) => {
+                    let view = self.builder.memory_view(value);
+                    let word = self.builder.slice_load_word(view, zero);
+                    let length = self.builder.slice_len(view);
                     Some((word, length))
                 }
                 _ => None,
@@ -697,7 +687,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = byte_value {
             // value = mload(bytes.data)
             let zero = self.builder.imm(U256::ZERO);
-            return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
+            let view = self.builder.memory_view(value);
+            return self.builder.slice_load_word(view, zero);
         }
         if let Some(source_size) = source_size {
             if source_size.bytes() > size.bytes() {

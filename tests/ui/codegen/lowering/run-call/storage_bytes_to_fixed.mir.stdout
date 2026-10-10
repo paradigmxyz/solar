@@ -5,16 +5,15 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     store_storage_bytes_literal 0, hex"112233"
     v0 = load_storage_bytes 0
     v1 = memory_slice v0
-    v2 = slice_load_element v1, 0
-    v3 = memory_slice v0
-    v4 = slice_len v3
-    v5 = lt v4, 4
-    v6 = sub 4, v4
-    v7 = mul 8, v6
-    v8 = shl v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v10 = and v2, v9
-    ret v10
+    v2 = memory_slice_load_word v1, 0
+    v3 = slice_len v1
+    v4 = lt v3, 4
+    v5 = sub 4, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = select v4, v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = and v2, v8
+    ret v9
 }
 
 fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -22,14 +21,13 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     store_storage_bytes_literal 0, hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
     v0 = load_storage_bytes 0
     v1 = memory_slice v0
-    v2 = slice_load_element v1, 0
-    v3 = memory_slice v0
-    v4 = slice_len v3
-    v5 = lt v4, 32
-    v6 = sub 32, v4
-    v7 = mul 8, v6
-    v8 = shl v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = select v5, v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v10 = and v2, v9
-    ret v10
+    v2 = memory_slice_load_word v1, 0
+    v3 = slice_len v1
+    v4 = lt v3, 32
+    v5 = sub 32, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = select v4, v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = and v2, v8
+    ret v9
 }

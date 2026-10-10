@@ -503,7 +503,7 @@ impl LoopOptimizer {
             | InstKind::MemoryObjectLoadElement { .. }
             | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
-            | InstKind::SliceLoadWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
             | InstKind::Keccak256Bytes(_)
             | InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {

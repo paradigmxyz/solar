@@ -135,7 +135,7 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = slice_ptr v23
-    v30 = slice_load_word v23, 1
+    v30 = calldata_slice_load_word v23, 1
     v31 = byte 0, v30
     v32 = shl 248, v31
     v33 = shr 248, v32

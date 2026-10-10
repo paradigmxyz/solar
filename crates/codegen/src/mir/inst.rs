@@ -767,7 +767,8 @@ impl Instruction {
             | InstKind::SliceStoreElement { .. }
             | InstKind::SliceStoreByte { .. }
             | InstKind::SliceStoreWord { .. }
-            | InstKind::SliceLoadWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
             | InstKind::SliceCopy { .. }
             | InstKind::Keccak256Bytes(..) => Some("memory-object"),
             InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
@@ -1162,7 +1163,8 @@ impl InstKind {
                 | Self::SliceStoreElement { .. }
                 | Self::SliceStoreByte { .. }
                 | Self::SliceStoreWord { .. }
-                | Self::SliceLoadWord { .. }
+                | Self::MemorySliceLoadWord { .. }
+                | Self::CalldataSliceLoadWord { .. }
                 | Self::SliceCopy { .. }
                 | Self::Keccak256Bytes(_)
         )

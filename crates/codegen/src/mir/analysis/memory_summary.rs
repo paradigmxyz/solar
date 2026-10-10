@@ -718,7 +718,8 @@ fn local_summary(
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
-                InstKind::SliceLoadWord { slice, offset } => {
+                InstKind::MemorySliceLoadWord { slice, offset }
+                | InstKind::CalldataSliceLoadWord { slice, offset } => {
                     capture_sources(&mut summary, func, sources, *slice);
                     capture_sources(&mut summary, func, sources, *offset);
                 }
@@ -1100,7 +1101,8 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
             | InstKind::MemorySlice(_)
-            | InstKind::SliceLoadWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
             | InstKind::SliceLen(_)
     )
 }
