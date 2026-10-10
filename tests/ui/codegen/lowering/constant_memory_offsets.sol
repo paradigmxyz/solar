@@ -4,15 +4,15 @@
 // CHECK-LABEL: @module ConstantMemoryOffsets_runtime
 // CHECK-LABEL: bb0:
 // CHECK: calldatacopy
+// CHECK-NEXT: push 7
 // CHECK-NEXT: push 64
-// CHECK-NEXT: dup 2
+// CHECK-NEXT: dup 3
 // CHECK-NEXT: add
-// CHECK-NEXT: push 7
 // CHECK-LABEL: bb6:
-// CHECK: push 96
-// CHECK-NEXT: dup 2
+// CHECK: push 7
+// CHECK-NEXT: push 96
+// CHECK-NEXT: dup 3
 // CHECK-NEXT: add
-// CHECK-NEXT: push 7
 // CHECK: push 32
 // CHECK-NEXT: add
 // CHECK-NEXT: push 96

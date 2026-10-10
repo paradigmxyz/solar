@@ -127,8 +127,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb2:
     tail_call @revert_stub.6
   bb17:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb15:
     revert 0, 0
@@ -180,8 +180,8 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
   bb7:
     tail_call @revert_stub.7
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 49 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -195,8 +195,8 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v1 = lt arg0, v0
     jumpi v1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
@@ -290,8 +290,8 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v24 = add v19, 1
     jump bb6
   bb9:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub.7
@@ -319,15 +319,15 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
 
 fn @revert_stub.6() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @revert_stub.7() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

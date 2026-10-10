@@ -2,12 +2,10 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// After `returndatacopy`, a dead word sits below twenty live values, out of
-// `SWAP16` reach. Amsterdam drops it at once with `SWAPN` and `POP` instead of
-// leaving it in place.
+// After `returndatacopy`, twenty live values sit on the stack with no dead word
+// below them out of `SWAP16` reach, so the reduction starts at once.
 // CHECK: returndatacopy
-// CHECK-NEXT: swap 20
-// CHECK-NEXT: pop
+// CHECK-NEXT: and
 contract ExtendedStackDeadValues {
     function run() external view returns (uint256 result) {
         assembly {

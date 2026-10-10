@@ -18,9 +18,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
-                    let Some(initializer) = initializer else { return Some(()) };
-                    let Some(access) = self.storage_access(initializer) else {
-                        return self.cx.report_unsupported(initializer.span, "storage access");
+                    let access = if let Some(initializer) = initializer {
+                        let Some(access) = self.storage_access(initializer) else {
+                            return self.cx.report_unsupported(initializer.span, "storage access");
+                        };
+                        access
+                    } else {
+                        // An unassigned storage reference points at slot zero, like in solc.
+                        // storage_ref = slot 0
+                        StorageAccess {
+                            slot: self.builder.imm(U256::ZERO),
+                            location: StorageLocation::word(U256::ZERO),
+                            offset: None,
+                        }
                     };
                     self.storage_refs.insert(*id, access);
                     return Some(());
@@ -41,9 +51,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
                     && let Some(value) = value.as_u256()
                 {
-                    // value = constant
-                    let value = self.builder.imm(value);
-                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                    let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                    let value = self.lower_const_integer(expr_ty, value);
+                    self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
                         self.lower_yul_word_expr(expr)?
@@ -67,7 +77,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // storage slot as if it were a memory pointer.
                     let ty = self.cx.gcx.type_of_item(id.into());
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
-                }) && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
+                }) && let Some(values) = self.lower_storage_reference_values(expr.peel_parens())
                 {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
@@ -167,27 +177,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Expr(expr) => {
                 let expr = expr.peel_parens();
-                let is_item_reference = matches!(
-                    self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                    Some(TyKind::Type(_))
-                ) || matches!(
-                    expr.kind,
-                    ExprKind::Member(receiver, _)
-                        if matches!(
-                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                            Some(TyKind::Type(_))
-                        )
-                );
-                if is_item_reference
-                    || (matches!(expr.kind, ExprKind::Ident(_))
-                        && self.cx.gcx.resolved_builtin(expr).is_some()
-                        && matches!(
-                            self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                            Some(TyKind::Fn(_))
-                        ))
-                {
-                    return Some(());
-                }
                 if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
                     && self.is_constant_storage_assignment(lhs, rhs)
                 {
@@ -328,7 +317,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        // Like solc, a constant evaluates its initializer at every use, which can revert.
+        let gcx = self.cx.gcx;
+        if let Some(id) = gcx.resolved_variable(expr)
+            && let variable = gcx.hir.variable(id)
+            && variable.is_constant()
+            && let Some(initializer) = variable.initializer
+        {
+            if gcx.try_eval_const_value(initializer).is_ok() {
+                return Some(());
+            }
+            return self.lower_discarded_expr(initializer);
+        }
         match &expr.kind {
+            // Names and `new T` have no effects to evaluate.
+            ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)
@@ -354,9 +357,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
                 let condition = self.lower_expr(condition)?;
-                let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
-                let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
-                let ty = then_ty.common_type(else_ty, self.cx.gcx)?;
+                let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {
                         this.lower_ternary_value(branch, ty).map(drop)
@@ -373,26 +374,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::CallOptions(callee, options) => {
-                match callee.peel_parens().kind {
-                    ExprKind::Member(receiver, _) => {
-                        self.lower_discarded_expr(receiver)?;
-                    }
-                    ExprKind::New(_) => {}
-                    _ => {
-                        self.lower_discarded_expr(callee)?;
-                    }
-                }
+                self.lower_discarded_expr(callee)?;
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
-                }
-                Some(())
-            }
-            ExprKind::Member(receiver, _) if self.cx.gcx.resolved_function(expr).is_some() => {
-                if !matches!(
-                    self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                    Some(TyKind::Type(_))
-                ) {
-                    self.lower_discarded_expr(receiver)?;
                 }
                 Some(())
             }
@@ -404,8 +388,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             }
+            // A member function, such as `to.transfer`, or a member of an item only evaluates its
+            // receiver. Function-typed fields are still read: calldata reads validate them.
+            ExprKind::Member(receiver, _)
+                if self.is_member_function(expr) || self.is_item_reference(receiver) =>
+            {
+                self.lower_discarded_expr(receiver)
+            }
+            // Types, modules, events, and errors have no effects to evaluate.
+            _ if self.is_item_reference(expr) => Some(()),
             _ => self.lower_expr(expr).map(drop),
         }
+    }
+
+    /// Returns whether `expr` names a function or a builtin function, such as `this.f` or
+    /// `to.transfer`, rather than a function-typed value.
+    fn is_member_function(&self, expr: &hir::Expr<'_>) -> bool {
+        let gcx = self.cx.gcx;
+        matches!(
+            gcx.resolved_expr(expr),
+            Some(hir::Res::Item(hir::ItemId::Function(_)) | hir::Res::Builtin(_))
+        ) && gcx.type_of_expr(expr.id).is_some_and(|ty| matches!(ty.kind, TyKind::Fn(_)))
+    }
+
+    /// Returns whether `expr` names a type, module, event, or error rather than a runtime value.
+    fn is_item_reference(&self, expr: &hir::Expr<'_>) -> bool {
+        self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+            matches!(
+                ty.kind,
+                TyKind::Type(_)
+                    | TyKind::Meta(_)
+                    | TyKind::Module(_)
+                    | TyKind::BuiltinModule(_)
+                    | TyKind::Event(..)
+                    | TyKind::Error(..)
+            )
+        })
     }
 
     pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {

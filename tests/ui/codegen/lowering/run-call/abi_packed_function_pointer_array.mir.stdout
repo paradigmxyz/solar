@@ -62,8 +62,8 @@ fn @encode(arg0: calldataslice) -> memptr [selector=0xea460cbb, pure, abi_params
     v24 = mul v22, 32
     v25 = add v1, v24
     v26 = calldataload v25
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v28 = eq v26, v27
+    v27 = shl 192, v26
+    v28 = eq v27, 0
     v29 = eq v28, false
     icall revert_if<empty>, v29
     v30 = shr 64, v26

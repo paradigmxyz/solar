@@ -1,0 +1,38 @@
+error: unresolved symbol `F`
+   ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
+   │
+LL │         emit I.F(1);
+   ╰╴               ━
+
+error: unresolved symbol `F`
+   ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
+   │
+LL │         emit self.I.F(1);
+   ╰╴                    ━
+
+error: unresolved symbol `Er`
+   ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
+   │
+LL │         revert I.Er();
+   ╰╴                 ━━
+
+error: unresolved symbol `E`
+   ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
+   │
+LL │         emit C.E(x, b);
+   ╰╴               ━
+
+error: unresolved symbol `Er`
+   ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
+   │
+LL │         revert C.Er();
+   ╰╴                 ━━
+
+error: no unique declarations found
+   ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
+   │
+LL │         emit E(x, b);
+   ╰╴             ━
+
+error: aborting due to 6 previous errors
+

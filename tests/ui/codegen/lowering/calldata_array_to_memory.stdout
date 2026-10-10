@@ -34,11 +34,11 @@ bb6 [cold]:
   push 0
   revert
 bb27 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -81,26 +81,24 @@ bb8:
   or
   swap 2
   calldataload
+  swap 2
   dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 2
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   dup 3
   push 5
   shl
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   sgt
-  swap 1
-  swap 2
   or
   push bb6
   jumpi
@@ -119,48 +117,41 @@ bb8:
   mstore
   push 32
   add
-  dup 2
-  dup 4
+  swap 2
   dup 3
   calldatacopy
-  swap 2
-  pop
-  pop
   swap 1
   push 5
   shl
   dup 2
   add
   push 0
-  exchange 1, 2
+  swap 2
   jump bb10
 bb12 [loop]:
-  dup 2
+  dup 1
   mload
-  dup 2
+  dup 4
   add
-  swap 1
-  dup 2
+  swap 3
+  dup 4
   lt
   push bb27
   jumpi
-  swap 1
   push 32
   add
-  swap 1
   jump bb10
 bb10 [loop]:
-  dup 3
-  dup 3
+  dup 2
+  dup 2
   lt
   push bb12
   jumpi
+  pop
+  pop
   dup 1
   push 0
   sstore
-  swap 2
-  pop
-  pop
   push 128
   mstore
   push 32
@@ -196,26 +187,24 @@ bb16:
   or
   swap 2
   calldataload
+  swap 2
   dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 2
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   dup 3
   push 5
   shl
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   sgt
-  swap 1
-  swap 2
   or
   push bb6
   jumpi
@@ -234,13 +223,10 @@ bb16:
   mstore
   push 32
   add
-  dup 2
-  dup 4
-  dup 3
+  swap 1
+  swap 2
+  swap 1
   calldatacopy
-  pop
-  pop
-  pop
   push 128
   mstore
   push 32
@@ -276,15 +262,14 @@ bb19:
   or
   swap 2
   calldataload
+  swap 2
   dup 2
   calldatasize
   sub
   push 5
   shr
-  dup 2
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   push 68
   calldataload
@@ -306,13 +291,12 @@ bb19:
   or
   swap 1
   calldataload
+  swap 1
   dup 3
   calldatasize
   sub
-  dup 2
+  dup 3
   gt
-  swap 1
-  swap 2
   or
   swap 1
   swap 3
@@ -346,14 +330,11 @@ bb19:
   push 32
   dup 7
   add
-  dup 2
-  dup 7
-  dup 3
+  swap 1
+  swap 2
+  swap 5
+  swap 1
   calldatacopy
-  pop
-  pop
-  swap 3
-  pop
   push 0
   not
   push 192
@@ -368,8 +349,10 @@ bb19:
   or
   push bb6
   jumpi
+  push 4
+  calldataload
   push 63
-  dup 3
+  dup 4
   add
   push 31
   not
@@ -381,37 +364,33 @@ bb19:
   add
   push 64
   mstore
-  dup 3
+  dup 4
   dup 2
   mstore
   push 32
   dup 2
   add
-  dup 4
-  dup 4
-  dup 3
-  calldatacopy
-  pop
+  swap 4
   swap 2
-  pop
-  pop
+  swap 3
   swap 1
-  push 4
-  calldataload
-  dup 2
-  mstore
-  push 32
-  dup 2
-  add
+  swap 4
+  calldatacopy
+  dup 1
   dup 4
-  swap 1
   mstore
+  dup 4
+  push 32
+  dup 5
+  add
+  mstore
+  swap 2
   push 64
   add
   dup 2
   swap 1
   mstore
-  swap 1
+  swap 2
   mload
   push 10
   dup 2
@@ -421,25 +400,22 @@ bb19:
   lt
   push bb27
   jumpi
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb27
   jumpi
   swap 1
   mload
-  push 100
-  dup 2
-  mul
-  swap 1
+  dup 1
   push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
   lt
   push bb27
   jumpi
+  push 100
+  mul
   dup 2
   add
   swap 1

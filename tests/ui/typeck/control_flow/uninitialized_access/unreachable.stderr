@@ -1,0 +1,7 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/unreachable.sol:LL:CC
+   │
+LL │ ┏         a[0] = 0;
+LL │ ┃         a = s;
+   ╰╴┗━━━━━━━━━━━━━┛
+

@@ -2,7 +2,7 @@ use crate::{PResult, Parser, Recovered, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 
-use solar_interface::{Ident, Symbol, kw};
+use solar_interface::{Ident, SpannedOption, Symbol, kw};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an expression.
@@ -11,7 +11,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.with_recursion_limit("expression", |this| this.parse_expr_with(None))
     }
 
-    #[instrument(name = "parse_expr", level = "trace", skip_all)]
     pub(super) fn parse_expr_with(
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
@@ -69,14 +68,20 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 } else if token.kind == TokenKind::Eq {
                     ExprKind::Assign(expr, None, rhs)
                 } else {
-                    let msg = format!("unknown binop token: {token:?}");
-                    self.dcx().bug(msg).span(span).emit();
+                    self.unknown_binop(token, span);
                 };
                 expr = self.alloc(Expr { span, kind });
             }
             precedence -= 1;
         }
         Ok(expr)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn unknown_binop(&self, token: Token, span: Span) -> ! {
+        let msg = format!("unknown binop token: {token:?}");
+        self.dcx().bug(msg).span(span).emit()
     }
 
     /// Parses a unary expression.
@@ -103,19 +108,24 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if let Some(with) = with {
             parse_lhs(self, Some(with))
         } else if self.eat_keyword(kw::Delete) {
-            self.parse_unary_expr(None).map(|expr| {
+            self.parse_prefix_operand().map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Delete(expr) })
             })
         } else if let Some(unop) = self.token.as_unop(false) {
             self.bump(); // unop
-            self.parse_unary_expr(None).map(|expr| {
+            self.parse_prefix_operand().map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
             })
         } else {
             parse_lhs(self, None)
         }
+    }
+
+    /// Parses the operand of a prefix operator, which counts toward the recursion limit like solc.
+    fn parse_prefix_operand(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        self.with_recursion_limit("expression", |this| this.parse_unary_expr(None))
     }
 
     /// Parses a primary left-hand-side expression.
@@ -185,8 +195,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_primary_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
         let kind = if self.check_lit() {
-            let (lit, sub) = self.parse_lit(true)?;
-            ExprKind::Lit(self.alloc(lit), sub)
+            self.parse_lit_expr()?
         } else if self.eat_keyword(kw::Type) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let ty = self.parse_type()?;
@@ -208,33 +217,71 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis))
             || self.check(TokenKind::OpenDelim(Delimiter::Bracket))
         {
-            // Array or tuple expression.
-            let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
-            let is_array = close_delim == Delimiter::Bracket;
-            let list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
-            if is_array {
-                let list = list
-                    .into_iter()
-                    .map(|item| match item.into() {
-                        Some(expr) => Ok(Some(expr)),
-                        None => {
-                            let msg = "array expression components cannot be empty";
-                            let span = lo.to(self.prev_token.span);
-                            Err(self.dcx().err(msg).span(span))
-                        }
-                    })
-                    .collect::<Result<SmallVec<[Option<_>; 8]>, _>>()?;
-
-                // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(self.alloc_smallvec(list)) })
-            } else {
-                ExprKind::Tuple(self.alloc_smallvec(list))
-            }
+            self.parse_tuple_or_array_expr(lo)?
         } else {
             return self.unexpected();
         };
         let span = lo.to(self.prev_token.span);
         Ok(self.alloc(Expr { span, kind }))
+    }
+
+    /// Parses a literal expression.
+    ///
+    /// Kept out of line so that the literal takes no space in other expressions.
+    #[inline(never)]
+    fn parse_lit_expr(&mut self) -> PResult<'sess, ExprKind<'ast>> {
+        let (lit, sub) = self.parse_lit(true)?;
+        Ok(ExprKind::Lit(self.alloc(lit), sub))
+    }
+
+    /// Parses an array or tuple expression.
+    fn parse_tuple_or_array_expr(&mut self, lo: Span) -> PResult<'sess, ExprKind<'ast>> {
+        let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
+        let close = TokenKind::CloseDelim(close_delim);
+        let next = self.look_ahead(1).kind;
+        if next == TokenKind::Comma || next == close {
+            return self.parse_tuple_or_array_expr_list(lo, close_delim, None);
+        }
+
+        // Parse the first component before the list exists, so that nested single components
+        // take less stack.
+        self.bump();
+        let first = self.parse_expr()?;
+        if !self.eat(close) {
+            return self.parse_tuple_or_array_expr_list(lo, close_delim, Some(first));
+        }
+        Ok(if close_delim == Delimiter::Parenthesis {
+            ExprKind::Tuple(self.alloc_from_iter(std::iter::once(SpannedOption::Some(first))))
+        } else {
+            ExprKind::Array(self.alloc_from_iter(std::iter::once(first)))
+        })
+    }
+
+    /// Parses the components of an array or tuple expression, starting after `first` if given.
+    ///
+    /// Kept out of line so that its buffer takes no space in other expressions.
+    #[inline(never)]
+    fn parse_tuple_or_array_expr_list(
+        &mut self,
+        lo: Span,
+        close_delim: Delimiter,
+        first: Option<Box<'ast, Expr<'ast>>>,
+    ) -> PResult<'sess, ExprKind<'ast>> {
+        let mut list = SmallVec::new();
+        if let Some(first) = first {
+            list.push(SpannedOption::Some(first));
+            self.parse_optional_items_seq_required(close_delim, &mut list, Self::parse_expr)?;
+        } else {
+            self.parse_optional_items_seq(close_delim, &mut list, Self::parse_expr)?;
+        }
+        if close_delim == Delimiter::Parenthesis {
+            return Ok(ExprKind::Tuple(self.alloc_drain(&mut list)));
+        }
+        if list.iter().any(SpannedOption::is_none) {
+            let msg = "array expression components cannot be empty";
+            return Err(self.dcx().err(msg).span(lo.to(self.prev_token.span)));
+        }
+        Ok(ExprKind::Array(self.alloc_from_iter(list.drain(..).map(|item| item.unspan().unwrap()))))
     }
 
     /// Parses a list of function call arguments.
@@ -309,7 +356,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_unnamed_args(&mut self) -> PResult<'sess, BoxSlice<'ast, Box<'ast, Expr<'ast>>>> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let close = TokenKind::CloseDelim(Delimiter::Parenthesis);
-        let (args, recovered) = self.parse_seq_to_before_tokens(
+        let (args, recovered) = self.parse_seq_to_before_tokens::<_, 8>(
             close,
             SeqSep::trailing_disallowed(TokenKind::Comma),
             true,
@@ -355,21 +402,4 @@ fn token_precedence(t: Token) -> usize {
         Walrus => 2,
         _ => 0,
     }
-}
-
-/// Converts a list of `SpannedOption<Box<'ast, T>>` into a list of `Box<'ast, T>`.
-///
-/// This only works because `Option<Box<'ast, T>>` is guaranteed to be a valid `Box<'ast, T>` when
-/// `Some` when `T: Sized`.
-///
-/// # Safety
-///
-/// All elements of the list must be `Some`.
-#[inline]
-unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
-    list: BoxSlice<'a, Option<Box<'b, T>>>,
-) -> BoxSlice<'a, Box<'b, T>> {
-    debug_assert!(list.iter().all(Option::is_some));
-    // SAFETY: Caller must ensure that all elements are `Some`.
-    unsafe { std::mem::transmute(list) }
 }

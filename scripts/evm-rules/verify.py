@@ -25,7 +25,7 @@ def main():
         "verify", help="fail unless Lean proves every selected source rule"
     )
     verify.add_argument("files", nargs="*", type=Path, default=DEFAULT_FILES)
-    verify.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
+    verify.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 4)
     verify.add_argument(
         "--isolated",
         action="store_true",
@@ -226,7 +226,6 @@ def main():
             "crates/codegen/src/mir/transform/word_sequence.rs",
             "crates/codegen/src/mir/transform/word_sequence/isle.rs",
             "crates/codegen/src/backend/evm/codegen/select.rs",
-            "crates/codegen/src/backend/evm/codegen/planning/isle.rs",
             "crates/codegen/src/backend/evm/ir/passes/peephole.rs",
             "crates/codegen/src/backend/evm/ir/passes/peephole/isle.rs",
             "crates/codegen/src/backend/evm/op.rs",

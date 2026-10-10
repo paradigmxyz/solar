@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{
-    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{
     Never,
@@ -316,6 +316,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
                     let expr_ty = self.check_expr_with_noexpect(expr, element_expected);
+                    if let Err(g) = expr_ty.error_reported() {
+                        guar.get_or_insert(g);
+                        continue;
+                    }
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
@@ -606,6 +610,12 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Slice(lhs, start, end) => {
                 let ty = self.check_expr(lhs);
+                for expr in [start, end].into_iter().flatten() {
+                    let _ = self.expect_ty(expr, self.gcx.types.uint(256));
+                }
+                if ty.references_error() {
+                    return ty;
+                }
                 if !ty.is_sliceable() {
                     self.dcx().emit_err(expr.span, "can only slice arrays");
                 } else if !is_calldata_sliceable(ty) {
@@ -619,12 +629,6 @@ impl<'gcx> TypeChecker<'gcx> {
                     );
                 }
                 if self.index_types(ty).is_some() || is_string_or_string_slice(ty) {
-                    if let Some(start) = start {
-                        let _ = self.expect_ty(start, self.gcx.types.uint(256));
-                    }
-                    if let Some(end) = end {
-                        let _ = self.expect_ty(end, self.gcx.types.uint(256));
-                    }
                     if let TyKind::Slice(_) = ty.kind {
                         ty
                     } else {
@@ -870,11 +874,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
-                // For integer literal negation, don't propagate the expected type to the inner
-                // expression because we'll modify its type by flipping the sign.
-                let propagate_expected = op.kind != hir::UnOpKind::Neg
-                    || (!is_int_literal_expr(inner)
-                        && !matches!(expected, Some(ty) if ty.is_signed()));
+                // For integer literal negation and bitwise negation, don't propagate the expected
+                // type to the inner expression because the result's type comes from its value,
+                // which has the opposite sign.
+                let propagate_expected = match op.kind {
+                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if inner.is_int_literal() => false,
+                    hir::UnOpKind::Neg => !matches!(expected, Some(ty) if ty.is_signed()),
+                    _ => true,
+                };
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(inner)
                 } else if propagate_expected {
@@ -883,8 +890,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.check_expr(inner)
                 };
                 if valid_unop(ty, op.kind) {
-                    if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(..) = ty.kind
+                    if let TyKind::IntLiteral(..) = ty.kind
                         && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                     {
                         return lit_ty;
@@ -1234,6 +1240,9 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if from.references_error() {
+            return from;
+        }
         if let TyKind::Enum(enum_id) = to.kind
             && matches!(from.kind, TyKind::IntLiteral(..))
             && invalid_enum_literal(self.gcx, from_expr, self.gcx.hir.enumm(enum_id).variants.len())
@@ -2083,6 +2092,7 @@ impl<'gcx> TypeChecker<'gcx> {
         function: &'gcx hir::Expr<'gcx>,
     ) -> Result<&'gcx TyFn<'gcx>, ErrorGuaranteed> {
         let ty = self.check_expr_once(function);
+        ty.error_reported()?;
         let externally_callable_ty = ty.as_externally_callable_function(false, self.gcx);
         match externally_callable_ty.kind {
             TyKind::Fn(function_ty)
@@ -2285,6 +2295,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 continue;
             };
             let ty = self.check_expr_once(type_expr);
+            if let Err(guar) = ty.error_reported() {
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
             let TyKind::Type(ty) = ty.kind else {
                 let guar = self
                     .dcx()
@@ -3072,6 +3086,14 @@ impl<'gcx> TypeChecker<'gcx> {
         let prev = std::mem::replace(&mut self.value_position, ValuePosition::VariableDeclaration);
         let ty = self.check_expr_with_noexpect(init, expected);
         self.value_position = prev;
+        // A tuple with an erroneous component still has a known length, so only skip the
+        // component checks when the whole initializer failed.
+        if let TyKind::Err(_) = ty.kind {
+            for &var in decls.iter().flatten() {
+                let _ = self.check_var_(var, VarSource::DeclStatement);
+            }
+            return;
+        }
         let value_types =
             if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
 
@@ -3113,10 +3135,12 @@ impl<'gcx> TypeChecker<'gcx> {
     #[must_use]
     fn check_mapping_key_type(&mut self, key: &'gcx hir::Type<'gcx>) -> Ty<'gcx> {
         let ty = self.gcx.type_of_hir_ty(key);
-        if !matches!(
-            ty.kind,
-            TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
-        ) {
+        if !ty.references_error()
+            && !matches!(
+                ty.kind,
+                TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
+            )
+        {
             self.dcx().emit_err(key.span, "only elementary types, user defined value types, contract types or enums are allowed as mapping keys.");
         }
         ty
@@ -3665,25 +3689,6 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
     }
 }
 
-fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
-    match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
-        hir::ExprKind::Unary(op, inner)
-            if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
-        {
-            is_int_literal_expr(inner)
-        }
-        hir::ExprKind::Binary(lhs, op, rhs)
-            if !op.kind.is_cmp()
-                && !matches!(op.kind, hir::BinOpKind::Or | hir::BinOpKind::And) =>
-        {
-            is_int_literal_expr(lhs) && is_int_literal_expr(rhs)
-        }
-        hir::ExprKind::Tuple([Some(inner)]) => is_int_literal_expr(inner),
-        _ => false,
-    }
-}
-
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
     gcx.try_eval_const(expr)
         .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
@@ -3781,7 +3786,9 @@ fn slice_element_type(ty: Ty<'_>) -> Option<Ty<'_>> {
 }
 
 fn valid_string_concat_arg(ty: Ty<'_>) -> bool {
-    matches!(ty.kind, TyKind::StringLiteral(true, _)) || is_string_or_string_slice(ty)
+    ty.references_error()
+        || matches!(ty.kind, TyKind::StringLiteral(true, _))
+        || is_string_or_string_slice(ty)
 }
 
 fn is_string_or_string_slice(ty: Ty<'_>) -> bool {
@@ -3791,7 +3798,8 @@ fn is_string_or_string_slice(ty: Ty<'_>) -> bool {
 }
 
 fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
-    matches!(ty.kind, TyKind::StringLiteral(..))
+    ty.references_error()
+        || matches!(ty.kind, TyKind::StringLiteral(..))
         || matches!(
             ty.peel_refs().kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::FixedBytes(_))
@@ -3901,7 +3909,7 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
                 | hir::UnOpKind::PostDec => true,
             }
         }
-        // IntLiteral can always be negated (it becomes a negative literal).
+        // IntLiteral can always be negated or bitwise negated; the result is a new literal.
         TyKind::IntLiteral(..) => match op {
             hir::UnOpKind::Neg | hir::UnOpKind::BitNot => true,
             hir::UnOpKind::Not

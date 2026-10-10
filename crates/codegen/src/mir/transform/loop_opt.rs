@@ -202,7 +202,11 @@ impl LoopOptimizer {
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
         if self.hoist_cheap {
             for loop_data in &loops {
-                self.stats.instructions_hoisted += reduce_product_checks(func, loop_data);
+                // The product's limit runs before the loop, so whatever in the loop checks the gas
+                // left would see what the limit cost before the first check paid for it.
+                if !self.loop_checks_gas_left(func, loop_data) {
+                    self.stats.instructions_hoisted += reduce_product_checks(func, loop_data);
+                }
             }
         }
         let inst_blocks = func.inst_block_table();
@@ -724,6 +728,20 @@ impl LoopOptimizer {
             }
         }
         false
+    }
+
+    /// Whether the loop checks the gas left: a `gas` reading or a call that observes it, or a
+    /// persistent storage write, which fails when its sentry finds 2300 gas or less.
+    fn loop_checks_gas_left(&self, func: &Function, loop_data: &Loop) -> bool {
+        let aa = self.alias();
+        loop_data.blocks.iter().any(|block_id| {
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                let mod_ref = aa.instruction_mod_ref(func, inst_id);
+                func.inst(inst_id).kind.observes_gas()
+                    || mod_ref.observes_gas()
+                    || mod_ref.writes_space(AddressSpace::Storage)
+            })
+        })
     }
 
     fn inst_dominates_loop_backedges(
