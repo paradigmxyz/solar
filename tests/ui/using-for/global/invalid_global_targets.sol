@@ -20,6 +20,8 @@ function idC(C x) pure returns (C) {
 }
 
 function idL(L x) pure returns (L) {
+//~^ ERROR: invalid use of a library name
+//~| ERROR: invalid use of a library name
     return x;
 }
 
@@ -42,7 +44,7 @@ using L for uint256 global; //~ ERROR: can only use `global` with user-defined t
 using L for uint256[] global; //~ ERROR: can only use `global` with user-defined types
 using L for function() internal returns (uint256) global; //~ ERROR: can only use `global` with user-defined types
 using {idC} for C global; //~ ERROR: can only use `global` with user-defined types
-using {idL} for L global; //~ ERROR: can only use `global` with user-defined types
+using {idL} for L global; //~ ERROR: invalid use of a library name
 using {idI} for I global; //~ ERROR: can only use `global` with user-defined types
 using {addC as +} for C global;
 //~^ ERROR: can only use `global` with user-defined types

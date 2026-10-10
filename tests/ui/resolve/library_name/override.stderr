@@ -1,0 +1,14 @@
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/override.sol:LL:CC
+   │
+LL │     function f() public override (L) {}
+   ╰╴                                  ━
+
+error[7792]: Function has override specified but does not override anything
+   ╭▸ ROOT/tests/ui/resolve/library_name/override.sol:LL:CC
+   │
+LL │     function f() public override (L) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

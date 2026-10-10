@@ -1,4 +1,4 @@
-error: cannot instantiate librarys
+error[1130]: invalid use of a library name
    ╭▸ ROOT/tests/ui/typeck/function_calls/new/library.sol:LL:CC
    │
 LL │         new L();

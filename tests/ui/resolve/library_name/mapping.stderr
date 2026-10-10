@@ -1,0 +1,14 @@
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/mapping.sol:LL:CC
+   │
+LL │   mapping(bool => L) j;
+   ╰╴                  ━
+
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/mapping.sol:LL:CC
+   │
+LL │   mapping(L => bool) i;
+   ╰╴          ━
+
+error: aborting due to 2 previous errors
+

@@ -1,0 +1,8 @@
+error[6536]: interfaces can only inherit from other interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_contract_base.sol:LL:CC
+   │
+LL │ interface I is C {}
+   ╰╴               ━
+
+error: aborting due to 1 previous error
+
