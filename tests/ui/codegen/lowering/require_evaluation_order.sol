@@ -28,7 +28,7 @@ contract RequireEvaluationOrder {
 
     function earlyReturn() external pure returns (uint256) {
         require(true, E(returnSeven()));
-        return 42;
+        return 42; //~ WARN: unreachable code
     }
 
     function customFailure() external {
