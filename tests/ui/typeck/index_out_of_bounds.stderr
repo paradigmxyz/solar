@@ -1,0 +1,106 @@
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │     a[64];
+   │     ━━┬─━
+   │       │
+   ╰╴      the length is 32 but the index is 64
+
+error[1859]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │     b[64];
+   │     ━━┬─━
+   │       │
+   ╰╴      the length is 32 but the index is 64
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         dataArray[5] = 2;
+   │         ━━━━━━━━━━┬━
+   │                   │
+   ╰╴                  the length is 2 but the index is 5
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         s[2];
+   │         ━━┬━
+   │           │
+   ╰╴          the length is 2 but the index is 2
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         s2[3][0];
+   │         ━━━┬━
+   │            │
+   ╰╴           the length is 3 but the index is 3
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         s2[1][2];
+   │         ━━━━━━┬━
+   │               │
+   ╰╴              the length is 2 but the index is 2
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         cd[3];
+   │         ━━━┬━
+   │            │
+   ╰╴           the length is 3 but the index is 3
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         m[1 + 3];
+   │         ━━┬────━
+   │           │
+   ╰╴          the length is 4 but the index is 4
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         m[0x4];
+   │         ━━┬──━
+   │           │
+   ╰╴          the length is 4 but the index is 4
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         m[4e0];
+   │         ━━┬──━
+   │           │
+   ╰╴          the length is 4 but the index is 4
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         [1, 2][2];
+   │         ━━━━━━━┬━
+   │                │
+   ╰╴               the length is 2 but the index is 2
+
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         delete s[2];
+   │                ━━┬━
+   │                  │
+   ╰╴                 the length is 2 but the index is 2
+
+error[1859]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds.sol:LL:CC
+   │
+LL │         b[4];
+   │         ━━┬━
+   │           │
+   ╰╴          the length is 4 but the index is 4
+
+error: aborting due to 13 previous errors
+

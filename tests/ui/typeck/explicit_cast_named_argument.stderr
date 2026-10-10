@@ -1,0 +1,10 @@
+error[5153]: type conversions cannot take named arguments
+   ╭▸ ROOT/tests/ui/typeck/explicit_cast_named_argument.sol:LL:CC
+   │
+LL │         return uint256({value: x});
+   │                ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: pass the value without a name
+
+error: aborting due to 1 previous error
+

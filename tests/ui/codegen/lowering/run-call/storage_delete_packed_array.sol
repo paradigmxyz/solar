@@ -29,7 +29,9 @@ contract StorageDeletePackedArray {
         fixedValues[1] = 2;
         fixedValues[2] = 3;
         uint8[3] storage valuesRef = fixedValues;
-        delete valuesRef;
+        delete valuesRef[0];
+        delete valuesRef[1];
+        delete valuesRef[2];
         return (fixedValues[0], fixedValues[1], fixedValues[2]);
     }
 
