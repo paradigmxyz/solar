@@ -53,7 +53,7 @@ contract ArrayBoundsPanic {
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 5
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
-        return x[5];
+        return x[uint256(5)];
     }
 
     // CHECK-LABEL: fn @memDyn{{[( ]}}

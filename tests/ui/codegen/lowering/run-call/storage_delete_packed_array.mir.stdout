@@ -177,23 +177,22 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v40 = shl v34, v39
     v41 = or v38, v40
     sstore v31, v41 !metadata(storage=offset(v30, 1))
-    jump bb1
-  bb1:
-    v42 = phi [bb0: 0], [bb2: v45]
-    v43 = lt v42, 1
-    jumpi v43, bb2, bb3
-  bb3:
-    v46 = lt 0, 3
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = div 0, 32
-    v49 = add 1, v48
-    v50 = mod 0, 32
-    v51 = mul v50, 1
-    v52 = sload v49 !metadata(storage=offset(v48, 1))
-    v53 = mul v51, 8
-    v54 = shr v53, v52
-    v55 = trunc i256 v54 to i8
+    v42 = lt 0, 3
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    v44 = div 0, 32
+    v45 = add 1, v44
+    v46 = mod 0, 32
+    v47 = mul v46, 1
+    v48 = mul v47, 8
+    v49 = shl v48, 255
+    v50 = sload v45 !metadata(storage=offset(v44, 1))
+    v51 = not v49
+    v52 = and v50, v51
+    v53 = and 0, 255
+    v54 = shl v48, v53
+    v55 = or v52, v54
+    sstore v45, v55 !metadata(storage=offset(v44, 1))
     v56 = lt 1, 3
     v57 = eq v56, false
     icall panic_if<0x32>, v57
@@ -201,30 +200,68 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v59 = add 1, v58
     v60 = mod 1, 32
     v61 = mul v60, 1
-    v62 = sload v59 !metadata(storage=offset(v58, 1))
-    v63 = mul v61, 8
-    v64 = shr v63, v62
-    v65 = trunc i256 v64 to i8
-    v66 = lt 2, 3
-    v67 = eq v66, false
-    icall panic_if<0x32>, v67
-    v68 = div 2, 32
-    v69 = add 1, v68
-    v70 = mod 2, 32
-    v71 = mul v70, 1
-    v72 = sload v69 !metadata(storage=offset(v68, 1))
-    v73 = mul v71, 8
-    v74 = shr v73, v72
-    v75 = trunc i256 v74 to i8
-    v76 = insert_value struct0, undef struct0, 0, v55
-    v77 = insert_value struct0, v76, 1, v65
-    v78 = insert_value struct0, v77, 2, v75
-    ret v78
-  bb2:
-    v44 = add 1, v42
-    sstore v44, 0 !metadata(storage=offset(v42, 1))
-    v45 = add v42, 1
-    jump bb1
+    v62 = mul v61, 8
+    v63 = shl v62, 255
+    v64 = sload v59 !metadata(storage=offset(v58, 1))
+    v65 = not v63
+    v66 = and v64, v65
+    v67 = and 0, 255
+    v68 = shl v62, v67
+    v69 = or v66, v68
+    sstore v59, v69 !metadata(storage=offset(v58, 1))
+    v70 = lt 2, 3
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = div 2, 32
+    v73 = add 1, v72
+    v74 = mod 2, 32
+    v75 = mul v74, 1
+    v76 = mul v75, 8
+    v77 = shl v76, 255
+    v78 = sload v73 !metadata(storage=offset(v72, 1))
+    v79 = not v77
+    v80 = and v78, v79
+    v81 = and 0, 255
+    v82 = shl v76, v81
+    v83 = or v80, v82
+    sstore v73, v83 !metadata(storage=offset(v72, 1))
+    v84 = lt 0, 3
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = div 0, 32
+    v87 = add 1, v86
+    v88 = mod 0, 32
+    v89 = mul v88, 1
+    v90 = sload v87 !metadata(storage=offset(v86, 1))
+    v91 = mul v89, 8
+    v92 = shr v91, v90
+    v93 = trunc i256 v92 to i8
+    v94 = lt 1, 3
+    v95 = eq v94, false
+    icall panic_if<0x32>, v95
+    v96 = div 1, 32
+    v97 = add 1, v96
+    v98 = mod 1, 32
+    v99 = mul v98, 1
+    v100 = sload v97 !metadata(storage=offset(v96, 1))
+    v101 = mul v99, 8
+    v102 = shr v101, v100
+    v103 = trunc i256 v102 to i8
+    v104 = lt 2, 3
+    v105 = eq v104, false
+    icall panic_if<0x32>, v105
+    v106 = div 2, 32
+    v107 = add 1, v106
+    v108 = mod 2, 32
+    v109 = mul v108, 1
+    v110 = sload v107 !metadata(storage=offset(v106, 1))
+    v111 = mul v109, 8
+    v112 = shr v111, v110
+    v113 = trunc i256 v112 to i8
+    v114 = insert_value struct0, undef struct0, 0, v93
+    v115 = insert_value struct0, v114, 1, v103
+    v116 = insert_value struct0, v115, 2, v113
+    ret v116
 }
 
 fn @deleteThenPush() -> struct1 [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<u8>, word], abi_return_params=[u256, u8, u256]] {

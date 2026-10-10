@@ -1,0 +1,68 @@
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function(bytes memory) public a;
+   ╰╴                           ━━━━━━
+
+error[7415]: only external function types can be payable
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function (uint) internal payable returns (uint) x;
+   ╰╴                             ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │         function(uint) private returns (uint) x;
+   ╰╴                       ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │         function(uint) public returns (uint) x;
+   ╰╴                       ━━━━━━
+
+error[7415]: only external function types can be payable
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function() payable e;
+   ╰╴               ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function() private payable h;
+   ╰╴               ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function(function() public) internal i;
+   ╰╴                        ━━━━━━
+
+error[7415]: only external function types can be payable
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function() returns (function() payable) j;
+   ╰╴                                   ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     mapping(uint => function() private) k;
+   ╰╴                               ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │         function() public f;
+   ╰╴                   ━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function l(function() public x) internal {}
+   ╰╴                          ━━━━━━
+
+error: aborting due to 11 previous errors
+

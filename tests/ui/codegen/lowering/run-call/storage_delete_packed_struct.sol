@@ -42,7 +42,9 @@ contract StorageDeletePackedStruct {
         pairs.push();
         pairs[1] = Pair(4, 5, 6);
         Pair storage pair = pairs[1];
-        delete pair;
+        delete pair.first;
+        delete pair.middle;
+        delete pair.last;
         return (pairs[0].first, pairs[0].middle, pairs[0].last, pairs[1].first, pairs[1].middle, pairs[1].last);
     }
 

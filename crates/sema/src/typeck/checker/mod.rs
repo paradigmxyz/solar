@@ -544,11 +544,19 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
-                if valid_delete(ty) {
+                let deletable = valid_delete(ty);
+                // Deleting a storage pointer could mean resetting the pointer or clearing the
+                // storage it points to.
+                let storage_pointer =
+                    ty.is_ref_at(DataLocation::Storage) && self.is_storage_pointer_variable(expr);
+                if deletable && !storage_pointer {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let err = self.dcx().err(msg).span(expr.span);
+                    let mut err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    if deletable {
+                        err = err.note("storage pointers cannot be deleted");
+                    }
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
@@ -583,7 +591,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        let actual = self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        self.check_index_bounds(expr.span, ty, index, actual);
                     } else {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
@@ -1222,6 +1231,38 @@ impl<'gcx> TypeChecker<'gcx> {
         })
     }
 
+    /// Reports a literal index past the end of a fixed-size array or of fixed bytes.
+    ///
+    /// As in solc, only a literal index is checked. A negative or oversized literal has already
+    /// failed its conversion to `uint256`.
+    fn check_index_bounds(
+        &self,
+        span: Span,
+        base_ty: Ty<'gcx>,
+        index: &'gcx hir::Expr<'gcx>,
+        actual: Ty<'gcx>,
+    ) {
+        let (len, code) = match base_ty.peel_refs().kind {
+            TyKind::Array(_, len) => (len, error_code!(3383)),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
+                (U256::from(size.bytes()), error_code!(1859))
+            }
+            _ => return,
+        };
+        if let TyKind::IntLiteral(..) = actual.kind
+            && let Ok(value) = self.gcx.try_eval_const(index)
+            && let Some(value) = value.as_u256()
+            && value >= len
+        {
+            self.dcx()
+                .err("out of bounds array access")
+                .code(code)
+                .span(span)
+                .span_label(index.span, format!("the length is {len} but the index is {value}"))
+                .emit();
+        }
+    }
+
     #[must_use]
     fn check_explicit_cast(
         &mut self,
@@ -1240,6 +1281,16 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if let hir::CallArgsKind::Named(_) = args.kind {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("type conversions cannot take named arguments")
+                    .code(error_code!(5153))
+                    .span(span)
+                    .help("pass the value without a name")
+                    .emit(),
+            );
+        }
         if from.references_error() {
             return from;
         }
@@ -3758,7 +3809,8 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
     match ty.kind {
         TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
-        TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
+        TyKind::Ref(_, DataLocation::Calldata) => false,
+        TyKind::Ref(inner, _) => !matches!(inner.kind, TyKind::Mapping(..)),
 
         TyKind::Err(_) => true,
 

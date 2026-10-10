@@ -1,0 +1,64 @@
+error[9767]: cannot delete `uint256[] storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete x;
+   │                ━
+   │
+   ╰ note: storage pointers cannot be deleted
+
+error[9767]: cannot delete `uint256[] storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete p;
+   │                ━
+   │
+   ╰ note: storage pointers cannot be deleted
+
+error[9767]: cannot delete `struct D.S storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete r;
+   │                ━
+   │
+   ╰ note: storage pointers cannot be deleted
+
+error[9767]: cannot delete `uint256[] storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete (x);
+   │                ━━━
+   │
+   ╰ note: storage pointers cannot be deleted
+
+error[9767]: cannot delete `mapping(uint256 => uint256) storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete m;
+   ╰╴               ━
+
+error[9767]: cannot delete `mapping(uint256 => uint256) storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete ms[0];
+   ╰╴               ━━━━━
+
+error[9767]: cannot delete `mapping(uint256 => uint256) storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete s.m;
+   ╰╴               ━━━
+
+error[9767]: cannot delete `mapping(uint256 => uint256) storage`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete mp;
+   ╰╴               ━━
+
+error[9767]: cannot delete `bytes calldata`
+   ╭▸ ROOT/tests/ui/typeck/delete_storage_pointer.sol:LL:CC
+   │
+LL │         delete c;
+   ╰╴               ━
+
+error: aborting due to 9 previous errors
+
