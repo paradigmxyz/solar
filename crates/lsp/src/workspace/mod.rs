@@ -566,6 +566,7 @@ impl Workspace {
             base_path: Some(root),
             include_paths,
             import_remappings,
+            resolve_library_imports: true,
             ..Default::default()
         };
         if let Some(evm_version) = evm_version {

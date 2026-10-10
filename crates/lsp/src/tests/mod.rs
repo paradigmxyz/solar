@@ -1519,6 +1519,112 @@ fn analysis_resolves_overlay_remapped_and_auto_remapped_imports() {
 }
 
 #[test]
+fn analysis_resolves_foundry_remapping_targets_without_trailing_slashes() {
+    for configuration in [
+        r#"
+            //- /foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["dep/=lib/dep/src"]
+        "#,
+        r#"
+            //- /foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+
+            //- /remappings.txt
+            dep/=lib/dep/src
+        "#,
+    ] {
+        let project = TestProject::from_fixture(&format!(
+            r#"
+            {configuration}
+
+            //- /src/Main.sol
+            import "dep/Base.sol";
+            contract Main is Base {{}}
+
+            //- /lib/dep/src/Base.sol
+            contract Base {{}}
+            "#
+        ));
+        assert_foundry_import_analysis(&project, "/lib/dep/src/Base.sol");
+    }
+}
+
+#[test]
+fn analysis_resolves_dependency_source_root_imports() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol
+        import "dep/Base.sol";
+        contract Main is Base {}
+
+        //- /lib/dep/src/Base.sol
+        import "src/Nested.sol";
+        contract Base is Nested {}
+
+        //- /lib/dep/src/Nested.sol
+        contract Nested {}
+        "#,
+    );
+    let result = assert_foundry_import_analysis(&project, "/lib/dep/src/Base.sol");
+    let definition = result
+        .symbol_tables
+        .goto_definition(&project.uri("/lib/dep/src/Base.sol"), Position::new(1, 17));
+    let Some(lsp_types::GotoDefinitionResponse::Array(locations)) = definition else {
+        panic!("expected the dependency's imported base contract definition");
+    };
+    assert_eq!(locations.len(), 1);
+    assert_eq!(locations[0].uri, project.uri("/lib/dep/src/Nested.sol"));
+}
+
+#[test]
+fn analysis_resolves_node_modules_when_the_default_lib_directory_is_missing() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol
+        import "dep/Base.sol";
+        contract Main is Base {}
+
+        //- /node_modules/dep/Base.sol
+        contract Base {}
+        "#,
+    );
+    assert_foundry_import_analysis(&project, "/node_modules/dep/Base.sol");
+}
+
+fn assert_foundry_import_analysis(project: &TestProject, expected: &str) -> AnalysisResult {
+    let result = analyze_single_batch(&snapshot(project));
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+    let [link] =
+        result.symbol_tables.document_links(&project.path("/src/Main.sol")).try_into().unwrap();
+    assert_eq!(link.target, Some(project.uri(expected)));
+    let source = project.read_file("/src/Main.sol");
+    let (line, character) = source
+        .lines()
+        .enumerate()
+        .find_map(|(line, text)| {
+            text.find(" is Base").map(|character| (line as u32, character as u32 + 4))
+        })
+        .unwrap();
+    let definition = result
+        .symbol_tables
+        .goto_definition(&project.uri("/src/Main.sol"), Position::new(line, character));
+    let Some(lsp_types::GotoDefinitionResponse::Array(locations)) = definition else {
+        panic!("expected the imported base contract's definition");
+    };
+    assert_eq!(locations.len(), 1);
+    assert_eq!(locations[0].uri, project.uri(expected));
+    result
+}
+
+#[test]
 fn analysis_batches_use_cached_workspace_source_files() {
     let project = TestProject::from_fixture(
         r#"

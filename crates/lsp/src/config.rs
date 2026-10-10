@@ -1636,7 +1636,7 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /project/contracts **/*.sol Create | Change | Delete
 /project/contracts **/.git Create | Delete
 /project/contracts **/foundry.toml Create | Change | Delete
-/project/lib * Create | Delete
+/project/node_modules * Create | Delete
 /project/packages * Create | Delete
 /project/packages **/.git Create | Delete
 /project/packages **/foundry.toml Create | Change | Delete

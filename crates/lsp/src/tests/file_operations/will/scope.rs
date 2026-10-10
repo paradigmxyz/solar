@@ -22,7 +22,7 @@ fn will_operations_reject_indexed_dependency_edits() {
     for (directory, settings, default_excludes) in [
         ("vendor/dep/src", r#"remappings = ["dep/=vendor/dep/src/"]"#, true),
         ("dependencies/dep-1.0/src", "", true),
-        ("node_modules/dep", "", false),
+        ("node_modules/dep", "libs = []", false),
         ("lib/dep/src", "libs = []", false),
     ] {
         for open in [false, true] {

@@ -89,7 +89,15 @@ impl FoundryProfile {
     pub(crate) fn include_paths(&self, root: &Path) -> Vec<PathBuf> {
         match &self.libs {
             Some(libs) => libs.iter().map(|path| root.join(path)).collect(),
-            None => vec![root.join("lib")],
+            None => {
+                let mut libs = vec![root.join("lib")];
+                let node_modules = root.join("node_modules");
+                if node_modules.is_dir() {
+                    libs.retain(|path| path.is_dir());
+                    libs.push(node_modules);
+                }
+                libs
+            }
         }
     }
 
@@ -105,6 +113,17 @@ impl FoundryProfile {
         remappings.extend(read_remappings_txt(root));
         if let Some(configured) = &self.remappings {
             remappings.extend_from_slice(configured);
+        }
+        // Foundry treats directory targets as paths to join, while compiler remappings replace
+        // string prefixes. Preserve the boundary without changing single-file aliases.
+        for remapping in &mut remappings {
+            if !remapping.path.is_empty()
+                && !remapping.path.ends_with('/')
+                && !remapping.path.ends_with(".sol")
+                && !root.join(&remapping.path).is_file()
+            {
+                remapping.path.push('/');
+            }
         }
         remappings
     }
@@ -157,6 +176,7 @@ fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TestProject;
 
     fn document(toml: &str) -> FoundryDocument {
         toml_edit::de::from_str(toml).unwrap()
@@ -232,6 +252,76 @@ mod tests {
                     "{profile:?} in {toml}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn default_library_paths_detect_node_modules_and_preserve_explicit_libraries() {
+        for (directories, configured, expected) in [
+            (&[][..], "", &["lib"][..]),
+            (&["lib"][..], "", &["lib"][..]),
+            (&["node_modules"][..], "", &["node_modules"][..]),
+            (&["lib", "node_modules"][..], "", &["lib", "node_modules"][..]),
+            (&["node_modules"][..], "libs = [\"lib\"]", &["lib"][..]),
+            (&["lib", "node_modules"][..], "libs = []", &[][..]),
+            (&["lib", "node_modules"][..], "libs = [\"vendor\"]", &["vendor"][..]),
+        ] {
+            let project = TestProject::new();
+            for directory in directories {
+                project.write_file(&format!("/{directory}/.keep"), "");
+            }
+            let profile = document(&format!("[profile.default]\n{configured}\n")).profile_for(None);
+            assert_eq!(
+                profile.include_paths(project.root()),
+                expected.iter().map(|path| project.root().join(path)).collect::<Vec<_>>(),
+                "directories: {directories:?}, config: {configured:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foundry_remapping_targets_keep_directory_boundaries_and_file_aliases() {
+        for from_file in [false, true] {
+            let project = TestProject::new();
+            project.write_file("/lib/Extensionless", "contract Extensionless {}");
+            let absolute = project.path("/external/src").to_string_lossy().replace('\\', "/");
+            let mappings = [
+                "pkg/=lib/pkg/src",
+                "src:pkg/=lib/scoped/src",
+                "trailing/=lib/pkg/src/",
+                "Alias=lib/Target.sol",
+                "Extensionless=lib/Extensionless",
+                "empty/=",
+                &format!("absolute/={absolute}"),
+            ];
+            let settings = if from_file {
+                project.write_file("/remappings.txt", &mappings.join("\n"));
+                String::new()
+            } else {
+                format!("remappings = {}", serde_json::to_string(&mappings).unwrap())
+            };
+            let profile = document(&format!(
+                "[profile.default]\nauto_detect_remappings = false\n{settings}\n"
+            ))
+            .profile_for(None);
+
+            assert_eq!(
+                profile
+                    .remappings_with_include_paths(project.root(), &[])
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+                [
+                    "pkg/=lib/pkg/src/",
+                    "src:pkg/=lib/scoped/src/",
+                    "trailing/=lib/pkg/src/",
+                    "Alias=lib/Target.sol",
+                    "Extensionless=lib/Extensionless",
+                    "empty/=",
+                    &format!("absolute/={absolute}/"),
+                ],
+                "remappings.txt: {from_file}",
+            );
         }
     }
 }
