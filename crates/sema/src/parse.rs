@@ -377,11 +377,7 @@ impl<'gcx> ParsingContext<'gcx> {
             .filter_map(move |(id, item)| self.resolve_import(item, parent).map(|file| (id, file)))
     }
 
-    fn resolve_import(
-        &self,
-        item: &ast::Item<'_>,
-        parent: Option<&Path>,
-    ) -> Option<Arc<SourceFile>> {
+    fn resolve_import(&self, item: &ast::Item<'_>, parent: &Path) -> Option<Arc<SourceFile>> {
         let ast::ItemKind::Import(import) = &item.kind else { return None };
         self.resolve_import_directive(import, parent)
     }
@@ -389,7 +385,7 @@ impl<'gcx> ParsingContext<'gcx> {
     fn resolve_import_directive(
         &self,
         import: &ast::ImportDirective<'_>,
-        parent: Option<&Path>,
+        parent: &Path,
     ) -> Option<Arc<SourceFile>> {
         self.resolve_import_path(&import.path, parent)
     }
@@ -397,7 +393,7 @@ impl<'gcx> ParsingContext<'gcx> {
     fn resolve_import_path(
         &self,
         import_path: &ast::StrLit,
-        parent: Option<&Path>,
+        parent: &Path,
     ) -> Option<Arc<SourceFile>> {
         let span = import_path.span;
         let path_str = import_path.value.as_str();
@@ -411,7 +407,7 @@ impl<'gcx> ParsingContext<'gcx> {
             return None;
         };
         self.file_resolver
-            .resolve_file(path, parent)
+            .resolve_file(path, Some(parent))
             .map_err(self.map_resolve_error_with(Some(span)))
             .ok()
     }
@@ -445,10 +441,11 @@ impl Drop for ParsingContext<'_> {
     }
 }
 
-fn parent_path(file: &SourceFile) -> Option<&Path> {
+/// Returns the path that imports in `file` are relative to.
+fn parent_path(file: &SourceFile) -> &Path {
     match &file.name {
-        FileName::Real(path) => Some(path.as_path()),
-        FileName::Stdin | FileName::Custom(_) => None,
+        FileName::Real(path) => path,
+        FileName::Stdin | FileName::Custom(_) => Path::new(""),
     }
 }
 

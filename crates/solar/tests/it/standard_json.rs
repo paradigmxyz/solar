@@ -5,7 +5,10 @@ use solar::{
     cli::standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json},
     config::CompileOpts,
 };
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 /// Source keys are opaque source unit names: `--base-path` must not shorten them, or the output
 /// selection for the exact key matches nothing.
@@ -109,5 +112,202 @@ fn windows_backslash_keys_and_callback_imports() {
             "sources": {"contracts\\A.sol": {"id": 1}, "contracts/B.sol": {"id": 0}},
             "contracts": {"contracts\\A.sol": {"A": {"abi": []}}}
         })
+    );
+}
+
+/// A leading `..` is part of a source unit name, so `../shared/X.sol` is not the source
+/// `shared/X.sol`.
+#[test]
+fn leading_parent_segments_keep_source_unit_names() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "src/A.sol": {"content": "import \"shared/X.sol\"; contract A {}"},
+            "shared/X.sol": {"content": "contract X {}"}
+        },
+        "settings": {"remappings": ["shared/=../shared/"], "outputSelection": {}}
+    });
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), CompileOpts::default(), None, &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output["errors"][0]["message"],
+        "couldn't read ../shared/X.sol: File import callback not supported"
+    );
+}
+
+/// The read callback receives a path in the base path, and the file keeps its source unit name, as
+/// with solc's file reader.
+#[test]
+fn callback_imports_with_base_path() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            assert_eq!((kind, data), ("source", "lib/X.sol"));
+            ReadCallbackResult::Success("contract X {}".to_string())
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"A.sol": {"content": "import \"X.sol\"; contract A {}"}},
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts { base_path: Some("lib".into()), ..Default::default() };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
+}
+
+/// The read callback is asked for every root: a file that only an include path serves resolves,
+/// and one that several roots serve is ambiguous.
+#[test]
+fn callback_imports_search_include_paths() {
+    struct Callback(&'static [&'static str]);
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, data: &str) -> ReadCallbackResult {
+            if self.0.contains(&data) {
+                ReadCallbackResult::Success("contract X {}".to_string())
+            } else {
+                ReadCallbackResult::Error(format!("`{data}` not found"))
+            }
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"A.sol": {"content": "import \"X.sol\"; contract A {}"}},
+        "settings": {"outputSelection": {}}
+    })
+    .to_string();
+    let compile = |served| {
+        let opts = CompileOpts {
+            base_path: Some("lib".into()),
+            include_paths: vec!["inc".into()],
+            ..Default::default()
+        };
+        let mut output = Vec::new();
+        compile_standard_json(&input, opts, Some(Arc::new(Callback(served))), &mut output).unwrap();
+        serde_json::from_slice::<Value>(&output).unwrap()
+    };
+    assert_eq!(
+        compile(&["inc/X.sol"]),
+        json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}})
+    );
+    let output = compile(&["lib/X.sol", "inc/X.sol"]);
+    let message = output["errors"][0]["message"].as_str().unwrap();
+    assert!(message.starts_with("multiple files match X.sol: "), "{message}");
+}
+
+/// Files read through the callback keep their exact source unit names, a repeated include path is
+/// not ambiguous, and sources named like a root-relative path are not mistaken for matches.
+#[test]
+fn callback_imports_keep_exact_names() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, data: &str) -> ReadCallbackResult {
+            match data {
+                "https://example.com/B.sol" => ReadCallbackResult::Success("contract B {}".into()),
+                "inc/X.sol" => ReadCallbackResult::Success("contract X {}".into()),
+                _ => ReadCallbackResult::Error(format!("`{data}` not found")),
+            }
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "A.sol": {"content": "import \"https://example.com/B.sol\"; import \"X.sol\"; contract A {}"},
+            "sub/X.sol": {"content": "contract Y {}"}
+        },
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts {
+        include_paths: vec!["inc".into(), "inc".into(), "sub".into()],
+        ..Default::default()
+    };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    let mut names = output["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, ["A.sol", "X.sol", "https://example.com/B.sol", "sub/X.sol"], "{output}");
+}
+
+/// Spellings of a callback source unit name that differ only in `.` and `..` segments or repeated
+/// separators name one source with a normalized name, and the callback reads it once.
+#[test]
+fn callback_imports_merge_spellings() {
+    #[derive(Default)]
+    struct Callback(AtomicUsize);
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, data: &str) -> ReadCallbackResult {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            ReadCallbackResult::Success(format!("// {data}\ncontract X {{}}"))
+        }
+    }
+
+    let sources = [
+        "lib//X.sol",
+        "lib/X.sol",
+        "lib/./X.sol",
+        "lib/sub/../X.sol",
+        "/abs/./x//X.sol",
+        "/abs/y/../x/X.sol",
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, import)| {
+        (
+            format!("S{i}.sol"),
+            json!({"content": format!("import \"{import}\"; contract S{i} {{}}")}),
+        )
+    })
+    .collect::<serde_json::Map<_, _>>();
+    let input =
+        json!({"language": "Solidity", "sources": sources, "settings": {"outputSelection": {}}});
+    let callback = Arc::new(Callback::default());
+    let mut output = Vec::new();
+    compile_standard_json(
+        &input.to_string(),
+        CompileOpts::default(),
+        Some(callback.clone()),
+        &mut output,
+    )
+    .unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    let mut names = output["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(
+        names,
+        ["/abs/x/X.sol", "S0.sol", "S1.sol", "S2.sol", "S3.sol", "S4.sol", "S5.sol", "lib/X.sol"],
+        "{output}"
+    );
+    assert_eq!(callback.0.load(Ordering::Relaxed), 2);
+}
+
+/// Relative imports join the importing source unit name, which the base path does not shorten.
+#[test]
+fn relative_imports_with_base_path() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "/project/A.sol": {"content": "import \"./B.sol\"; contract A is B {}"},
+            "/project/B.sol": {"content": "contract B {}"}
+        },
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts { base_path: Some("/project".into()), ..Default::default() };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, None, &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output,
+        json!({"sources": {"/project/A.sol": {"id": 1}, "/project/B.sol": {"id": 0}}})
     );
 }

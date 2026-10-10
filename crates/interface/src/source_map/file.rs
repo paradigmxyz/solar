@@ -107,9 +107,9 @@ impl FileName {
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
-        let base_path = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.base_path()))
+        let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
             .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
-        FileNameDisplay { inner: self, base_path }
+        FileNameDisplay { inner: self, roots }
     }
 
     /// Returns the path if the file name is a real file.
@@ -127,19 +127,16 @@ impl FileName {
 /// Created by [`FileName::display`].
 pub struct FileNameDisplay<'a> {
     pub(crate) inner: &'a FileName,
-    pub(crate) base_path: arc_swap::Guard<Option<Arc<PathBuf>>>,
+    pub(crate) roots: arc_swap::Guard<Option<Arc<super::SourceRoots>>>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             FileName::Real(path) => {
-                let path = if let Some(base_path) = &*self.base_path
-                    && let Ok(rpath) = path.strip_prefix(base_path.as_path())
-                {
-                    rpath
-                } else {
-                    path.as_path()
+                let path = match &*self.roots {
+                    Some(roots) => roots.source_unit_name(path),
+                    None => path,
                 };
                 path.display().fmt(f)
             }

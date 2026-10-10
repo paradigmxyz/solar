@@ -2927,8 +2927,7 @@ fn analyze_cancellable_with_source_map(
         // Include compiler-internal diagnostic origins only when explicitly requested in opts.
         .dcx(DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.track_diagnostics = false))
         .build();
-    // Session construction canonicalizes the base path through the same loader. Only subsequent
-    // resolver probes are import candidates.
+    // Only resolver probes made while parsing are import candidates.
     import_paths.take_probes();
 
     let mut compiler = Compiler::new(sess);

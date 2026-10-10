@@ -1,6 +1,7 @@
 use crate::{
     ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
+    source_map::absolute_path,
 };
 use solar_config::{
     CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
@@ -224,6 +225,7 @@ impl Session {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result = result.and(self.validate_language());
+        result = result.and(self.validate_base_path());
         result
     }
 
@@ -245,28 +247,41 @@ impl Session {
         Ok(())
     }
 
+    fn validate_base_path(&self) -> crate::Result<()> {
+        // Standard JSON mode does not access the file system.
+        let Some(base_path) = self.opts.base_path.as_deref().filter(|_| !self.opts.standard_json)
+        else {
+            return Ok(());
+        };
+        let msg = if self.source_map().file_loader().canonicalize_path(base_path).is_err() {
+            "does not exist"
+        } else if std::fs::metadata(base_path).is_ok_and(|metadata| !metadata.is_dir()) {
+            "is not a directory"
+        } else {
+            return Ok(());
+        };
+        Err(self.dcx.err(format!("base path `{}` {msg}", base_path.display())).emit())
+    }
+
     /// Reconfigures inner state to match any new options.
     ///
     /// Call this after updating options.
     pub fn reconfigure(&self) {
-        'bp: {
-            let new_base_path = if self.opts.unstable.ui_testing {
-                // `ui_test` relies on absolute paths.
-                None
-            } else if self.opts.standard_json {
-                // Standard JSON keys are source unit names, so display them verbatim. An empty
-                // base path also makes imports resolve by source unit name without `--base-path`.
-                Some(PathBuf::new())
-            } else if let Some(base_path) =
-                self.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
-                && let Ok(base_path) = self.source_map().file_loader().canonicalize_path(&base_path)
-            {
-                Some(base_path)
-            } else {
-                break 'bp;
-            };
-            self.source_map().set_base_path(new_base_path);
-        }
+        let (base_path, include_paths, current_dir) = if self.opts.unstable.ui_testing {
+            // `ui_test` relies on absolute paths.
+            (None, Vec::new(), None)
+        } else if self.opts.standard_json {
+            // Standard JSON keys are source unit names, so display them verbatim. An empty
+            // base path also makes imports resolve by source unit name without `--base-path`.
+            (Some(PathBuf::new()), Vec::new(), None)
+        } else {
+            let current_dir = std::env::current_dir().ok();
+            let absolute = |path: &Path| absolute_path(current_dir.as_deref(), path);
+            let include_paths = self.opts.include_paths.iter().map(|path| absolute(path)).collect();
+            let base_path = self.opts.base_path.as_deref().map(absolute).or(current_dir.clone());
+            (base_path, include_paths, current_dir)
+        };
+        self.source_map().set_roots(base_path, include_paths, current_dir);
     }
 
     fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(
