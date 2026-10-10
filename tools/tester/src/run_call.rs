@@ -409,18 +409,17 @@ fn compiler_json(output: &[u8]) -> Result<Value, String> {
         Ok(output) => return Ok(output),
         Err(err) => err,
     };
-    let marker = br#""contracts""#;
-    let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker) else {
-        return Err(format!("failed to parse compiler output: {err}"));
-    };
-    let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
-        return Err(format!("failed to parse compiler output: {err}"));
-    };
-    serde_json::Deserializer::from_slice(&output[start..])
-        .into_iter()
-        .next()
-        .transpose()
-        .map_err(|_| format!("failed to parse compiler output: {err}"))?
+    // Dumps print before the JSON, which starts a line with its top-level object.
+    (0..output.len())
+        .rev()
+        .filter(|&start| output[start] == b'{' && (start == 0 || output[start - 1] == b'\n'))
+        .find_map(|start| {
+            let json = serde_json::Deserializer::from_slice(&output[start..])
+                .into_iter::<Value>()
+                .next()?
+                .ok()?;
+            json.get("contracts").is_some().then_some(json)
+        })
         .ok_or_else(|| format!("failed to parse compiler output: {err}"))
 }
 
@@ -953,6 +952,16 @@ mod tests {
 }
 
 @module runtime"#;
+        let artifacts = parse_artifacts(output).unwrap();
+        assert_eq!(artifacts[0].name, "source.sol:Test");
+        assert_eq!(artifacts[0].bytecode, [0]);
+    }
+
+    #[test]
+    fn parses_artifacts_with_a_function_named_contracts() {
+        let output = br#"@module Test
+
+{"contracts":{"source.sol:Test":{"abi":[{"type":"function","name":"contracts","inputs":[],"outputs":[],"stateMutability":"view"}],"bin":"00"}}}"#;
         let artifacts = parse_artifacts(output).unwrap();
         assert_eq!(artifacts[0].name, "source.sol:Test");
         assert_eq!(artifacts[0].bytecode, [0]);
