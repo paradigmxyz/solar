@@ -669,7 +669,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
-        let (val, recovered) = self.parse_seq_to_before_tokens::<_, N>(ket, sep, allow_empty, f)?;
+        let (val, recovered) =
+            self.parse_seq_to_before_tokens::<_, N>(ket, sep, allow_empty, false, f)?;
         if recovered == Recovered::No {
             self.expect(ket)?;
         }
@@ -688,7 +689,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
-        self.parse_seq_to_before_tokens::<_, 8>(ket, sep, allow_empty, f)
+        self.parse_seq_to_before_tokens::<_, 8>(ket, sep, allow_empty, false, f)
     }
 
     /// Parses a sequence until the specified delimiters. The function
@@ -700,10 +701,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
+        recover_statement: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
         let mut v = SmallVec::<[T; N]>::new();
-        let recovered = self.parse_seq_into(ket, sep, allow_empty, f, |_, value| v.push(value))?;
+        let recovered =
+            self.parse_seq_into(ket, sep, allow_empty, recover_statement, f, |_, value| {
+                v.push(value)
+            })?;
         Ok((self.alloc_drain(&mut v), recovered))
     }
 
@@ -717,8 +722,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
         let start = buf(self).len();
         let ket = TokenKind::CloseDelim(Delimiter::Brace);
-        let res =
-            self.parse_seq_into(ket, SeqSep::none(), true, f, |this, value| buf(this).push(value));
+        let res = self.parse_seq_into(ket, SeqSep::none(), true, false, f, |this, value| {
+            buf(this).push(value)
+        });
         let arena = self.arena;
         let items = buf(self);
         // SAFETY: The moved elements are removed from `items` without being dropped.
@@ -740,6 +746,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
+        recover_statement: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
         mut push: impl FnMut(&mut Self, T),
     ) -> PResult<'sess, Recovered> {
@@ -753,6 +760,16 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 break;
             }
             if !required_first && self.token.kind == TokenKind::Eof {
+                recovered = Recovered::Yes;
+                break;
+            }
+
+            // Only call arguments may end before a following statement. Keep the partial call
+            // and leave the boundary untouched, including when a comma is missing after an
+            // argument. Do not mark the token as unexpected: an enclosing call or declaration
+            // still needs to handle it, and may itself be incomplete.
+            if recover_statement && self.can_recover_statement_boundary() {
+                self.dcx().err(format!("expected `{ket}`")).span(self.token.span).emit();
                 recovered = Recovered::Yes;
                 break;
             }
@@ -776,8 +793,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
             match f(self) {
                 Ok(value) => push(self, value),
-                Err(err) if self.can_recover_sequence(ket) => {
+                Err(err)
+                    if self.can_recover_sequence(ket)
+                        || (recover_statement && self.can_recover_statement_boundary()) =>
+                {
                     err.emit();
+                    if recover_statement
+                        && self.can_recover_statement_boundary()
+                        && self.last_unexpected_token_span == Some(self.token.span)
+                    {
+                        // This argument error is handled. The enclosing expression may still
+                        // need to reject the untouched boundary when expecting its own delimiter.
+                        self.last_unexpected_token_span = None;
+                    }
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
                         && sep.sep.is_none()
                         && self.token.kind == TokenKind::Semi

@@ -1,4 +1,5 @@
 use super::{support::signature_help_at, *};
+use lsp_types::SignatureHelp;
 use snapbox::str;
 
 /// Parses `source` as the open `/Signature.sol`.
@@ -15,6 +16,26 @@ fn incomplete_signature_fixture(source: &str) -> RequestFixture {
 
 fn set_source(state: &GlobalState, fixture: &RequestFixture, contents: &str) {
     set_overlay(state, &fixture.project_path("/Signature.sol"), contents, None);
+}
+
+/// Queries the stored analysis directly, exercising lexical fallback independently of the
+/// handler's current-analysis requirement.
+fn signature_help_from_snapshot(
+    state: &GlobalState,
+    uri: Url,
+    position: Position,
+) -> Option<SignatureHelp> {
+    let path = crate::proto::vfs_path(&uri)?;
+    let source = state.vfs.read().get_file_source(&path)?;
+    let cursor = source.positions().text_range(lsp_types::Range::new(position, position))?.start;
+    state.symbol_tables.load().signature_help(
+        &uri,
+        cursor,
+        source.positions(),
+        &source.source(),
+        Some(source.statement_boundary(cursor)),
+        state.config.signature_help,
+    )
 }
 
 #[test]
@@ -678,10 +699,13 @@ fn clamps_positions_and_rejects_surrogate_pairs() {
 
     // This newly typed callee has no indexed callsite, so signature help resolves its declaration
     // from the cursor's scope in the previous analysis.
-    let expected = signature_help_at(&mut state, uri.clone(), position).unwrap();
+    let expected = signature_help_from_snapshot(&state, uri.clone(), position).unwrap();
     assert_eq!(expected.active_parameter, Some(1));
     for position in [Position::new(position.line, u32::MAX), Position::new(u32::MAX, 0)] {
-        assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(expected.clone()));
+        assert_eq!(
+            signature_help_from_snapshot(&state, uri.clone(), position),
+            Some(expected.clone())
+        );
     }
 }
 
@@ -722,7 +746,7 @@ function target(uint256 amount, address account) internal view returns (uint256)
 }
 
 #[test]
-fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
+fn warmed_snapshot_rejects_a_changed_receiver_before_reanalysis() {
     let fixture = signature_fixture(
         r#"
         contract A {
@@ -740,30 +764,30 @@ fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
         }
         "#,
     );
-    let mut state = fixture.state();
+    let state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let original = signature_help_at(&mut state, uri.clone(), position).unwrap();
-    assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(original.clone()));
+    let original = signature_help_from_snapshot(&state, uri.clone(), position).unwrap();
+    assert_eq!(signature_help_from_snapshot(&state, uri.clone(), position), Some(original.clone()));
 
     // Keep the original analysis while an edit changes only the receiver, leaving the terminal
     // name and opening-parenthesis position unchanged.
     let contents = fixture.project_contents("/Signature.sol");
     set_source(&state, &fixture, &contents.replace("a.f(", "b.f("));
-    assert_eq!(signature_help_at(&mut state, uri.clone(), position), None);
+    assert_eq!(signature_help_from_snapshot(&state, uri.clone(), position), None);
 
     // The original callee is still valid at its cached position, but a new call on the
     // same line has a different receiver and must not inherit its signature.
     set_source(&state, &fixture, &contents.replace("a.f(", "a.f(1); b.f("));
     let delta = "a.f(1); ".len() as u32;
     let changed_position = Position::new(position.line, position.character + delta);
-    assert_eq!(signature_help_at(&mut state, uri.clone(), changed_position), None);
+    assert_eq!(signature_help_from_snapshot(&state, uri.clone(), changed_position), None);
 
     set_source(&state, &fixture, &contents);
-    assert_eq!(signature_help_at(&mut state, uri, position), Some(original));
+    assert_eq!(signature_help_from_snapshot(&state, uri, position), Some(original));
 }
 
 #[test]
-fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis() {
+fn warmed_snapshot_uses_current_string_and_comment_boundaries_before_reanalysis() {
     let fixture = signature_fixture(
         r#"
         contract Target {
@@ -778,11 +802,11 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
         }
         "#,
     );
-    let mut state = fixture.state();
+    let state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let original = signature_help_at(&mut state, uri.clone(), position).unwrap();
+    let original = signature_help_from_snapshot(&state, uri.clone(), position).unwrap();
     assert_eq!(original.active_parameter, Some(1));
-    assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(original.clone()));
+    assert_eq!(signature_help_from_snapshot(&state, uri.clone(), position), Some(original.clone()));
 
     let contents = fixture.project_contents("/Signature.sol");
     let start = contents.rfind("hex\"3b3b\",").unwrap();
@@ -799,17 +823,17 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
         let mut expected = original.clone();
         expected.active_parameter = Some(active_parameter);
         for _ in 0..2 {
-            let help = signature_help_at(&mut state, uri.clone(), position);
+            let help = signature_help_from_snapshot(&state, uri.clone(), position);
             assert_eq!(help, Some(expected.clone()));
         }
     }
 
     set_source(&state, &fixture, &contents);
-    assert_eq!(signature_help_at(&mut state, uri, position), Some(original));
+    assert_eq!(signature_help_from_snapshot(&state, uri, position), Some(original));
 }
 
 #[test]
-fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
+fn warmed_snapshot_uses_changed_lines_and_utf16_columns_before_reanalysis() {
     let fixture = signature_fixture(
         r#"
         contract C {
@@ -822,11 +846,11 @@ fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
         }
         "#,
     );
-    let mut state = fixture.state();
+    let state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let original = signature_help_at(&mut state, uri.clone(), position).unwrap();
+    let original = signature_help_from_snapshot(&state, uri.clone(), position).unwrap();
     assert_eq!(original.active_parameter, Some(1));
-    assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(original.clone()));
+    assert_eq!(signature_help_from_snapshot(&state, uri.clone(), position), Some(original.clone()));
 
     // Move the call onto a new line with changed UTF-16 columns and CRLF endings while keeping
     // the previous analysis. The lexical fallback must use the current document.
@@ -841,12 +865,15 @@ fn warmed_requests_use_changed_lines_and_utf16_columns_before_reanalysis() {
     );
     set_source(&state, &fixture, &changed);
     for _ in 0..2 {
-        assert_eq!(signature_help_at(&mut state, uri.clone(), position), Some(original.clone()));
+        assert_eq!(
+            signature_help_from_snapshot(&state, uri.clone(), position),
+            Some(original.clone())
+        );
     }
 }
 
 #[test]
-fn warmed_member_signature_help_survives_an_earlier_line_edit() {
+fn warmed_snapshot_member_signature_help_survives_an_earlier_line_edit() {
     let fixture = signature_fixture(
         r#"
         contract Target {
@@ -860,9 +887,9 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
         }
         "#,
     );
-    let mut state = fixture.state();
+    let state = fixture.state();
     let (uri, position) = fixture.marker_location("$1");
-    let expected = signature_help_at(&mut state, uri.clone(), position).unwrap();
+    let expected = signature_help_from_snapshot(&state, uri.clone(), position).unwrap();
 
     let original = fixture.project_contents("/Signature.sol");
     // Preserve the analysis while changing byte offsets before the call. Its opening
@@ -875,7 +902,7 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
     ] {
         set_source(&state, &fixture, &changed);
         for _ in 0..2 {
-            let help = signature_help_at(&mut state, uri.clone(), position);
+            let help = signature_help_from_snapshot(&state, uri.clone(), position);
             assert_eq!(help, Some(expected.clone()));
         }
     }

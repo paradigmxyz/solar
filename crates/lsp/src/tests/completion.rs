@@ -1,5 +1,9 @@
-use super::support::RequestFixture;
-use crate::symbols::CompletionContext;
+use super::support::{RequestFixture, reanalyze};
+use crate::{
+    symbols::CompletionContext,
+    test_support::{assert_polls, request_params},
+};
+use serde_json::json;
 use snapbox::{IntoData, str};
 
 #[test]
@@ -807,7 +811,7 @@ fn member_completion_cache_preserves_source_and_contract_context() {
         library Second {
             function second(uint256 value) internal pure returns (uint256) { return value; }
         }
-        //- /Other.sol
+        //- /Other.sol open
         import {First} from "./Libraries.sol";
         using First for uint256;
         function readOther(uint256 value) pure { value.$1; }
@@ -971,7 +975,7 @@ fn getter_member_completion_does_not_extend_past_declaration() {
 }
 
 #[test]
-fn completes_all_declaration_receivers_before_analysis() {
+fn completes_all_declaration_receivers_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -1038,7 +1042,7 @@ selector Method
 }
 
 #[test]
-fn completes_namespace_and_library_receivers_before_analysis() {
+fn completes_namespace_and_library_receivers_after_edits() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Definitions.sol
@@ -1099,7 +1103,7 @@ twice Method detail="Math"
 }
 
 #[test]
-fn pending_receivers_use_the_callers_scope() {
+fn edited_receivers_use_the_callers_scope() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Base.sol
@@ -1170,8 +1174,29 @@ fn check_member_access_edits(
 ) {
     let changed =
         names.iter().fold(fixture.project_contents("/Completion.sol"), |contents, name| {
-            contents.replace(&format!("{name};"), &format!("{name}."))
+            // Keep each edited receiver a separate statement so reanalysis cannot join it with
+            // the next line, and leave declarations such as `Data memory msg;` intact.
+            let statement = format!("{name};");
+            let mut changed = String::with_capacity(contents.len());
+            let mut rest = contents.as_str();
+            while let Some(start) = rest.find(&statement) {
+                let (before, after) = rest.split_at(start);
+                changed.push_str(before);
+                let leading = changed.trim_end().ends_with(['\n', '{', ';']);
+                changed.push_str(name);
+                changed.push_str(if leading { ".;" } else { ";" });
+                rest = &after[statement.len()..];
+            }
+            changed.push_str(rest);
+            changed
         });
     let mut state = fixture.completion_state_after_changes(&[("/Completion.sol", &changed)]);
+    // Member completion waits for the edited source's analysis instead of reusing the old one.
+    for marker in markers {
+        let (uri, position) = fixture.marker_location(marker);
+        let params = request_params(&uri, position, json!({}));
+        assert_polls(true, crate::handlers::completion(&mut state, params));
+    }
+    reanalyze(&state);
     fixture.check_completions_in(&mut state, markers, expected);
 }

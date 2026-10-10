@@ -139,8 +139,8 @@ impl RequestFixture {
         let state = self.completion_state();
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
-            state.mark_source_analysis_pending_for_test(path.clone());
             set_overlay(&state, &path, contents, None);
+            state.mark_source_analysis_pending_for_test(path);
         }
         state
     }
@@ -483,6 +483,7 @@ impl RequestFixture {
         let state = self.state();
         set_overlay(&state, &path, changed_contents, None);
         state.symbol_tables.store(Arc::new(result.symbol_tables));
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }
 
@@ -1052,4 +1053,15 @@ fn full_range() -> Range {
 
 fn selection_range_params(uri: &Url, positions: Vec<Position>) -> SelectionRangeParams {
     request_params(uri, Position::default(), json!({ "positions": positions }))
+}
+
+/// Analyzes and publishes the current inputs, as the scheduler does after an edit.
+pub(super) fn reanalyze(state: &GlobalState) {
+    let mut snapshot = state.snapshot();
+    let mut results = AnalysisResultAccumulator::default();
+    for batch in snapshot.analysis_batches(Vec::new()) {
+        results.push(analyze(batch));
+    }
+    let version = state.analysis_version.load(Ordering::Acquire);
+    assert!(snapshot.publish_analysis(version, results.finish()));
 }

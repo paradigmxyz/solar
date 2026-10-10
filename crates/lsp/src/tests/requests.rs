@@ -112,7 +112,7 @@ fn semantic_requests_wait_for_analysis_only_for_file_uris() {
 }
 
 #[test]
-fn latency_sensitive_requests_do_not_wait_for_analysis() {
+fn latency_sensitive_requests_without_source_do_not_wait_for_analysis() {
     let uri = file_uri("Test.sol");
     let mut state = pending_analysis_state();
 

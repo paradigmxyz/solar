@@ -22,6 +22,7 @@ use crate::{
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use crop::Rope;
+use either::Either;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
@@ -927,21 +928,29 @@ pub(crate) fn signature_help(
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
     let (uri, position) = position_params(params.text_document_position_params);
-    let response = state.cached_vfs_path(&uri).and_then(|path| {
-        let source = state.vfs.read().get_file_source(&path)?;
-        let cursor =
-            source.positions().text_range(lsp_types::Range::new(position, position))?.start;
-        let statement_boundary = Some(source.statement_boundary(cursor));
-        state.symbol_tables.load().signature_help(
+    let source = state.cached_vfs_path(&uri).and_then(|path| {
+        let vfs = state.vfs.read();
+        Some((vfs.get_file_source(&path)?, vfs.content_revision()))
+    });
+    let Some((source, revision)) = source else { return Either::Left(ready(Ok(None))) };
+    let Some(range) = source.positions().text_range(lsp_types::Range::new(position, position))
+    else {
+        return Either::Left(ready(Ok(None)));
+    };
+    let options = state.config.signature_help;
+    let analysis = state.interactive_analysis(revision);
+    Either::Right(async move {
+        let symbol_tables = analysis.await?;
+        let statement_boundary = Some(source.statement_boundary(range.start));
+        Ok(symbol_tables.signature_help(
             &uri,
-            cursor,
+            range.start,
             source.positions(),
             &source.source(),
             statement_boundary,
-            state.config.signature_help,
-        )
-    });
-    ready(Ok(response))
+            options,
+        ))
+    })
 }
 
 pub(crate) fn completion(
@@ -951,9 +960,11 @@ pub(crate) fn completion(
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let (uri, position) = position_params(params.text_document_position);
-    let source =
-        state.cached_vfs_path(&uri).and_then(|path| state.vfs.read().get_file_source(&path));
-    if let Some(source) = source {
+    let source = state.cached_vfs_path(&uri).and_then(|path| {
+        let vfs = state.vfs.read();
+        Some((vfs.get_file_source(&path)?, vfs.content_revision()))
+    });
+    if let Some((source, _)) = &source {
         let contents = source.contents();
         let cursor = source
             .positions()
@@ -974,32 +985,38 @@ pub(crate) fn completion(
                     .flatten();
                 target.completion_items(state.config.completion, semantics.as_ref())
             });
-            return ready(Ok(Some(CompletionResponse::Array(items))));
+            return Either::Left(ready(Ok(Some(CompletionResponse::Array(items)))));
         }
         if let Some(cursor) = cursor
             && let Some(response) =
                 import_completion(state, &uri, cursor, contents, &source.source())
         {
-            return ready(Ok(Some(response)));
+            return Either::Left(ready(Ok(Some(response))));
         }
         if let Some(cursor) = cursor
             && completion_is_in_comment_or_string(&source.source(), cursor)
         {
-            return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
+            return Either::Left(ready(Ok(Some(CompletionResponse::Array(Vec::new())))));
         }
     }
     if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
-        return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
+        return Either::Left(ready(Ok(Some(CompletionResponse::Array(Vec::new())))));
     }
-    let input = completion_input(state, &uri, position);
-    let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+    let Some((source, revision)) = source else {
+        return Either::Left(ready(Ok(Some(CompletionResponse::Array(Vec::new())))));
+    };
     let options = state.config.completion;
-    let symbol_tables = state.symbol_tables.load();
-    let mut items = symbol_tables.completion_items(&uri, position, context);
-    if !options.resolve_documentation {
-        symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
-    }
-    ready(Ok(Some(CompletionResponse::Array(items))))
+    let analysis = state.interactive_analysis(revision);
+    Either::Right(async move {
+        let symbol_tables = analysis.await?;
+        let input = completion_input(source.contents(), position);
+        let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+        let mut items = symbol_tables.completion_items(&uri, position, context);
+        if !options.resolve_documentation {
+            symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
+        }
+        Ok(Some(CompletionResponse::Array(items)))
+    })
 }
 
 fn import_completion(
@@ -1145,10 +1162,7 @@ impl CompletionInput {
     }
 }
 
-fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
-    let path = crate::proto::vfs_path(uri)?;
-    let vfs = state.vfs.read();
-    let contents = vfs.get_file_contents(&path)?;
+fn completion_input(contents: &Rope, position: Position) -> Option<CompletionInput> {
     let line = position.line as usize;
     let line = (line < contents.line_len()).then(|| contents.line(line).to_string())?;
     Some(completion_input_from_line_prefix(line_prefix_at(&line, position)))
