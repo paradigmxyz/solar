@@ -1109,6 +1109,7 @@ symbols! {
         immutable_read,
         immutable_write,
         immutables,
+        implicit_args,
         indexed_jump,
         infallible,
         insert_value,

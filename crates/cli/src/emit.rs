@@ -10,7 +10,7 @@ use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
     ContractArtifact, ContractSelection, RuntimeDataFn,
     backend::evm::{self, ir},
-    generate_contract_bytecodes,
+    generate_contract_bytecodes, generate_mir_input_bytecode,
     mir::{Module, pass, validate},
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
@@ -19,6 +19,7 @@ use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
     collections::BTreeMap,
+    fmt,
     io::{self, Write},
     path::Path,
     sync::Arc,
@@ -160,6 +161,7 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
                     module.to_text(),
                 )?;
             }
+            emit_mir_input_artifacts(gcx, &name, module)?;
         }
     } else {
         debug_assert!(gcx.sess.opts.language.is_evm_ir());
@@ -194,6 +196,95 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         }
     }
     Ok(())
+}
+
+/// Compiles a MIR input module when `--emit` asks for contract outputs or `-Zdump` for code
+/// generation dumps, and emits them as for a contract named after the file and the module. MIR
+/// declares no parameter types, so the module's ABI is empty.
+fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Result {
+    let sess = gcx.sess;
+    let [mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime] = [false; 4];
+    for &output in &sess.opts.emit {
+        match output {
+            CompilerOutput::Abi => emit_abi = true,
+            CompilerOutput::Hashes => emit_hashes = true,
+            CompilerOutput::Bin => emit_bin = true,
+            CompilerOutput::BinRuntime => emit_bin_runtime = true,
+            output if output.is_codegen() => {
+                let message = format!("`--emit={output}` is not supported for MIR input");
+                return Err(sess.dcx.err(message).emit());
+            }
+            _ => {}
+        }
+    }
+    let dump = sess.opts.unstable.dump.as_ref().filter(|dump| {
+        dump.kinds.iter().any(|kind| {
+            matches!(
+                kind,
+                DumpKind::MirFinal
+                    | DumpKind::EvmIr
+                    | DumpKind::EvmIrRuntime
+                    | DumpKind::DisasmDeploy
+                    | DumpKind::DisasmRuntime
+            )
+        })
+    });
+    let emit_contract = emit_abi || emit_hashes || emit_bin || emit_bin_runtime;
+    if !emit_contract && dump.is_none() {
+        return Ok(());
+    }
+    let name = format!("{}:{}", file.replace('\\', "/"), module.name());
+    let artifact = if emit_bin || emit_bin_runtime || dump.is_some() {
+        let artifact = generate_mir_input_bytecode(gcx, &mut module)?;
+        if !artifact.deployment_library_relocations.is_empty()
+            || !artifact.runtime_library_relocations.is_empty()
+        {
+            let message = "MIR input that links libraries has no bytecode to emit";
+            return Err(sess.dcx.err(message).emit());
+        }
+        Some(artifact)
+    } else {
+        None
+    };
+    if let Some(dump) = dump
+        && let Some(artifact) = &artifact
+    {
+        let mut writer = console_writer(sess.opts.color);
+        if dump.kinds.contains(&DumpKind::MirFinal) {
+            writeln!(writer, "// === {name} ===")
+                .and_then(|()| write_highlighted(&mut writer, module.to_string(), Syntax::Ir))
+                .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
+        let (deployment_ir, runtime_ir) =
+            (artifact.deployment_evm_ir.as_ref(), artifact.runtime_evm_ir.as_ref());
+        write_evm_ir(&mut writer, gcx, dump, &name, deployment_ir, runtime_ir)?;
+        write_disassembly(&mut writer, gcx, dump, &name, &artifact.deployment, &artifact.runtime)?;
+        writer
+            .flush()
+            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    }
+    if !emit_contract {
+        return Ok(());
+    }
+    let mut output =
+        CombinedJson { version: solar_config::version::SEMVER_VERSION, ..Default::default() };
+    let contract = output.contracts.entry(name).or_default();
+    if emit_abi {
+        contract.abi = Some(&[]);
+    }
+    if emit_hashes {
+        contract.hashes = Some(Hashes::new());
+    }
+    if let Some(artifact) = &artifact {
+        if emit_bin {
+            contract.bin = Some(MaybeHexBytecode::new(artifact.deployment.clone().into(), &[]));
+        }
+        if emit_bin_runtime {
+            contract.bin_runtime =
+                Some(MaybeHexBytecode::new(artifact.runtime.clone().into(), &[]));
+        }
+    }
+    write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
 }
 
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
@@ -410,7 +501,9 @@ fn write_output_json<T: serde::Serialize>(
 
 fn has_mir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
-        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::Mir | DumpKind::MirCfg))
+        dump.kinds
+            .iter()
+            .any(|kind| matches!(kind, DumpKind::Mir | DumpKind::MirCfg | DumpKind::MirFinal))
     })
 }
 
@@ -469,6 +562,9 @@ fn dump_mir_contract(
     }
     if dump.kinds.contains(&DumpKind::MirCfg) {
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg, first)?;
+    }
+    if dump.kinds.contains(&DumpKind::MirFinal) {
+        write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirFinal, first)?;
     }
     Ok(())
 }
@@ -529,7 +625,9 @@ fn write_mir_dump_contract(
     writeln!(writer, "// === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     match kind {
-        DumpKind::Mir => write_highlighted(writer, module.to_string(), Syntax::Ir),
+        DumpKind::Mir | DumpKind::MirFinal => {
+            write_highlighted(writer, module.to_string(), Syntax::Ir)
+        }
         DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
         _ => unreachable!("checked by caller"),
     }
@@ -580,19 +678,32 @@ fn write_evm_ir_dump_contract(
 ) -> Result {
     let Some(artifact) = artifacts.get(&id) else { return Ok(()) };
     let name = gcx.contract_fully_qualified_name(id);
+    let (deployment, runtime) = (&artifact.deployment_evm_ir, &artifact.runtime_evm_ir);
+    write_evm_ir(writer, gcx, dump, name, deployment.as_ref(), runtime.as_ref())
+}
+
+/// Writes the EVM IR of contract `name` that `dump` asks for.
+fn write_evm_ir(
+    writer: &mut ConsoleWriter,
+    gcx: Gcx<'_>,
+    dump: &Dump,
+    name: impl fmt::Display,
+    deployment: Option<&ir::Module>,
+    runtime: Option<&ir::Module>,
+) -> Result {
     if dump.kinds.contains(&DumpKind::EvmIr) {
         writeln!(writer, "// === {name} (creation) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        if let Some(deployment_evm_ir) = &artifact.deployment_evm_ir {
-            write_highlighted(writer, deployment_evm_ir.to_text().to_string(), Syntax::Ir)
+        if let Some(deployment) = deployment {
+            write_highlighted(writer, deployment.to_text().to_string(), Syntax::Ir)
                 .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntime) {
         writeln!(writer, "// === {name} (runtime) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        if let Some(runtime_evm_ir) = &artifact.runtime_evm_ir {
-            write_highlighted(writer, runtime_evm_ir.to_text().to_string(), Syntax::Ir)
+        if let Some(runtime) = runtime {
+            write_highlighted(writer, runtime.to_text().to_string(), Syntax::Ir)
                 .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
     }
@@ -633,12 +744,24 @@ fn write_disassembly_dump_contract(
 ) -> Result {
     let Some(artifact) = artifacts.get(&id) else { return Ok(()) };
     let name = gcx.contract_fully_qualified_name(id);
+    write_disassembly(writer, gcx, dump, name, &artifact.deployment, &artifact.runtime)
+}
+
+/// Writes the disassembly of contract `name` that `dump` asks for. The deployment bytecode ends
+/// with the runtime bytecode, which only the runtime disassembly shows.
+fn write_disassembly(
+    writer: &mut ConsoleWriter,
+    gcx: Gcx<'_>,
+    dump: &Dump,
+    name: impl fmt::Display,
+    deployment: &[u8],
+    runtime: &[u8],
+) -> Result {
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        let deployment_prefix = artifact
-            .deployment
-            .strip_suffix(artifact.runtime.as_ref())
+        let deployment_prefix = deployment
+            .strip_suffix(runtime)
             .expect("deployment bytecode should end with runtime bytecode");
         write_highlighted(
             writer,
@@ -652,7 +775,7 @@ fn write_disassembly_dump_contract(
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         write_highlighted(
             writer,
-            evm::disassemble(&artifact.runtime, gcx.sess.opts.evm_version),
+            evm::disassemble(runtime, gcx.sess.opts.evm_version),
             Syntax::Disasm,
         )
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;

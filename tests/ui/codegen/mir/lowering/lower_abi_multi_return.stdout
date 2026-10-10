@@ -65,7 +65,7 @@
   }
   
 - fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<u160>], abi_return_params=[address]] {
-+ fn @typed_address() [selector=0x01020305, abi_wrapper] {
++ fn @typed_address() [selector=0x01020305, abi_wrapper, implicit_args=[i160, i256]] {
     bb0:
 -     ret arg0
 +     v0 = calldatasize

@@ -90,7 +90,10 @@ or types a module may contain.
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
-until the scheduler. Label addresses, immutable references, and proven static
+until the scheduler. A tail call is a jump the backend never expects back, so its
+target in lowered MIR never returns, or is an external entry, whose return ends
+the transaction; a function that returns what it calls calls and returns
+instead. Label addresses, immutable references, and proven static
 allocation addresses may remain as a small, explicitly verified set of backend
 placeholders. A remaining allocation must not hide an unlowered runtime check,
 initialization, or free-memory-pointer update.

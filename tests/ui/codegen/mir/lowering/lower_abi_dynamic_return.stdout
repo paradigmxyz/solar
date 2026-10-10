@@ -861,7 +861,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
 - fn @givesBytes(arg0: memptr) -> memptr [selector=0x0dead001, abi_returns=[memory_bytes]] {
-+ fn @givesBytes() [selector=0x0dead001, abi_wrapper] {
++ fn @givesBytes() [selector=0x0dead001, abi_wrapper, implicit_args=[memptr]] {
     bb0:
 -     ret arg0
 +     v0 = calldatasize
@@ -1183,7 +1183,7 @@
   }
   
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> memptr [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
-+ fn @givesConditionallyZeroedTuple() [selector=0x0dead00e, abi_wrapper] {
++ fn @givesConditionallyZeroedTuple() [selector=0x0dead00e, abi_wrapper, implicit_args=[i1]] {
     bb0:
 -     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
 -     jumpi arg0, bb1, bb2
@@ -1219,7 +1219,7 @@
   }
   
 - fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
-+ fn @givesConditionallyStoredTuple() [selector=0x0dead00f, abi_wrapper] {
++ fn @givesConditionallyStoredTuple() [selector=0x0dead00f, abi_wrapper, implicit_args=[i1]] {
     bb0:
 -     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
 -     jumpi arg0, bb1, bb2
@@ -1302,7 +1302,7 @@
   }
   
 - fn @givesConditionalFixedArray(arg0: i1) -> memptr [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, u8>]] {
-+ fn @givesConditionalFixedArray() [selector=0x0dead012, abi_wrapper] {
++ fn @givesConditionalFixedArray() [selector=0x0dead012, abi_wrapper, implicit_args=[i1]] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -1388,7 +1388,7 @@
   }
   
 - fn @givesBypassedArrayLoop(arg0: i1) -> memptr [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
-+ fn @givesBypassedArrayLoop() [selector=0x0dead013, abi_wrapper] {
++ fn @givesBypassedArrayLoop() [selector=0x0dead013, abi_wrapper, implicit_args=[i1]] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -1591,7 +1591,7 @@
   }
   
 - fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
-+ fn @nativeCleanTuple() [selector=0x0dead020, abi_wrapper] {
++ fn @nativeCleanTuple() [selector=0x0dead020, abi_wrapper, implicit_args=[i128]] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36

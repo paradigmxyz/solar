@@ -1,0 +1,25 @@
+// === src/Probe.sol:Probe ===
+@module Probe
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = icall @probe
+    v1 = mload 64
+    mstore 0, v0
+    mstore 32, v1
+    returndata 0, 64
+}
+
+fn @probe() -> i256 {
+  bb0:
+    v0 = mload 64
+    ret v0
+}
+// === src/Other.sol:Other ===
+@module Other
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    stop
+}
+{"contracts":{}}

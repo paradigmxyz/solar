@@ -54,6 +54,9 @@ pub(crate) use effects::ControlEffects;
 mod op_schema;
 pub(crate) use op_schema::{InstKind, Op, OpTraits, RawMemoryAccess, RawMemorySize, ResultKind};
 
+mod semantics;
+pub(crate) use semantics::Semantics;
+
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
 
@@ -73,7 +76,7 @@ pub(crate) use builtin::{Builtin, Callee, RequireKind};
 mod builder;
 pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder};
 
-mod display;
+pub(crate) mod display;
 
 mod parser;
 

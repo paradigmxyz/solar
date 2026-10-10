@@ -355,12 +355,25 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         let line = line.trim_start();
         line.starts_with("//@") && line.contains("-Zdump=mir")
     }) || has_codegen_matrix;
-    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
-        if has_mir_dump {
-            configure_run_call_stdout(config, src);
-        } else {
-            config.program.args.push("--emit=abi,bin".into());
-            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+    if src.lines().any(run_call::is_directive) {
+        match cfg.mode {
+            Mode::Ui if has_mir_dump => configure_run_call_stdout(config, src),
+            Mode::Ui => {
+                config.program.args.push("--emit=abi,bin".into());
+                config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+            }
+            // A MIR test that runs a pipeline keeps its output and drops only the compiler's
+            // JSON; one that runs none would only print itself back.
+            Mode::Mir => {
+                config.program.args.push("--emit=abi,bin".into());
+                let pattern = if src.contains("-Zmir-pipeline") {
+                    RUN_CALL_DUMP_STDOUT_FILTER_PATTERN
+                } else {
+                    RUN_CALL_STDOUT_FILTER_PATTERN
+                };
+                config.stdout_filter(pattern, "");
+            }
+            _ => {}
         }
     }
     if src.lines().any(|line| {

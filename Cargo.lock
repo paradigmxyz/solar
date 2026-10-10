@@ -4739,6 +4739,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-mir-interp"
+version = "0.2.0"
+dependencies = [
+ "alloy-dyn-abi",
+ "alloy-json-abi",
+ "alloy-primitives",
+ "clap",
+ "serde_json",
+ "snapbox",
+ "solar-codegen",
+ "solar-config",
+]
+
+[[package]]
 name = "solar-parse"
 version = "0.2.0"
 dependencies = [
@@ -4801,6 +4815,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "solar-codegen",
  "solar-config",
  "strum 0.28.0",
  "tempfile",

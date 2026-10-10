@@ -152,6 +152,10 @@ jobs:
         run: cargo build --features "${{ matrix.features || '' }}"
       - name: test
         run: cargo nextest run --profile ci --workspace --features "${{ matrix.features || '' }}"
+        env:
+          # Also runs every `run-call` on the final MIR through the MIR interpreter, which must
+          # agree with the EVM. The check does not depend on the host, so one job runs it.
+          SOLAR_RUN_CALL_MIR: ${{ matrix.os == 'ubuntu-latest' && matrix.rust == 'stable' && '1' || '' }}
       - name: test C API
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         run: ./crates/capi/test

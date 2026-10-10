@@ -1,18 +1,18 @@
 //! Contract bytecode generation and dependency orchestration.
 
 use crate::{
-    EvmCodegen,
+    Backend, EvmCodegen,
     backend::evm::{DebugInfo, EvmArtifact, ir},
     link::{
-        ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
-        RelocatableBytecode,
+        ContractBytecodes, DataBytes, EmbeddedBytecodes, LibraryRelocation, LibraryTable,
+        QualifiedName, RelocatableBytecode,
     },
     mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::{DumpKind, EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -47,7 +47,7 @@ pub struct ContractArtifact {
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
-    /// post-pipeline otherwise.
+    /// `-Zdump=mir-final` is absent, and post-pipeline otherwise.
     pub mir: Option<Module>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
@@ -157,7 +157,7 @@ impl ContractSelection {
 ///
 /// Contracts in `contracts` retain bytecode in the returned artifact.
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
-/// configured and final MIR otherwise.
+/// configured and `-Zdump=mir-final` is absent, and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
 /// Contracts in `capture_debug_info` retain final instruction locations.
@@ -242,6 +242,30 @@ pub fn generate_contract_bytecodes(
         }
     }
     Ok(generated)
+}
+
+/// Generates the bytecode of a lowered MIR module given as input. Its pipeline already ran, so
+/// the backend runs no passes of its own, and `module` ends as the final MIR the backend compiled.
+/// The artifact keeps the final EVM IR of both programs, which dumps of MIR input print.
+///
+/// A module given as input comes with no other contract, so data holding another contract's
+/// bytecode has nothing to link it to, and is an error.
+pub fn generate_mir_input_bytecode(gcx: Gcx<'_>, module: &mut Module) -> Result<EvmArtifact> {
+    if let Some(code) = module.data.iter().find_map(|data| match data.bytes {
+        DataBytes::Deferred(code) => Some(code),
+        DataBytes::Known(_) => None,
+    }) {
+        let message = "MIR input that embeds another contract's code has no bytecode to emit";
+        let note = format!("its data holds `{code}`, which only compiling that contract generates");
+        return Err(gcx.dcx().err(message).note(note).emit());
+    }
+    let mut codegen = EvmCodegen::new(gcx);
+    codegen.set_run_pipeline(false);
+    codegen.set_capture_mir(true);
+    codegen.set_capture_evm_ir(true);
+    let artifact = codegen.lower_module(module, &EmbeddedBytecodes::default());
+    gcx.dcx().has_errors()?;
+    Ok(artifact)
 }
 
 #[derive(Clone, Copy)]
@@ -477,9 +501,17 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let runtime_data =
             captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
         append_runtime_data(&mut module, runtime_data.as_ref());
+        let final_mir = gcx
+            .sess
+            .opts
+            .unstable
+            .dump
+            .as_ref()
+            .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal));
         let capture_built = capture_mir
             && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && gcx.sess.opts.unstable.mir_pipeline.is_none();
+            && gcx.sess.opts.unstable.mir_pipeline.is_none()
+            && !final_mir;
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
