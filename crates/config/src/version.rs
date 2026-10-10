@@ -1,5 +1,10 @@
 //! Solar version information.
 
+use std::sync::LazyLock;
+
+#[cfg(feature = "version")]
+use std::sync::OnceLock;
+
 /// The short version information.
 #[cfg(feature = "version")]
 pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
@@ -26,6 +31,9 @@ pub const SOLC_VERSION: &str =
 /// The semver version information.
 pub const SEMVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The solc version number that Solar emulates.
+pub const SOLC_SEMVER_VERSION: &str = env!("SOLC_SEMVER_VERSION");
+
 /// Returns the short version selected for the current environment.
 #[cfg(feature = "version")]
 pub fn short_version() -> &'static str {
@@ -44,22 +52,38 @@ pub fn version() -> &'static str {
     if solc_wrapper() { solc_version_override().unwrap_or(SOLC_VERSION) } else { VERSION }
 }
 
-#[cfg(feature = "version")]
 fn solc_wrapper() -> bool {
     std::env::var_os("SOLC_WRAPPER").is_some_and(|x| x == "1")
 }
 
-/// Rewrites the version number in [`SOLC_VERSION`] to `SOLC_WRAPPER_VERSION`
-/// when set, keeping the `+commit....` suffix.
+/// Rewrites the version number in [`SOLC_VERSION`] to [`solc_semver_version`],
+/// keeping the `+commit....` suffix.
 #[cfg(feature = "version")]
 fn solc_version_override() -> Option<&'static str> {
-    static OVERRIDE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    static OVERRIDE: OnceLock<Option<String>> = OnceLock::new();
     OVERRIDE
         .get_or_init(|| {
-            let version = std::env::var("SOLC_WRAPPER_VERSION").ok()?;
+            let version = solc_semver_version();
             let (prefix, rest) = SOLC_VERSION.split_once("Version: ")?;
             let suffix = rest.find('+').map(|i| &rest[i..]).unwrap_or_default();
             Some(format!("{prefix}Version: {version}{suffix}"))
         })
         .as_deref()
+}
+
+/// Returns the solc version selected for the current environment.
+///
+/// With `SOLC_WRAPPER=1`, `SOLC_WRAPPER_VERSION` overrides [`SOLC_SEMVER_VERSION`].
+pub fn solc_semver_version() -> &'static semver::Version {
+    static VERSION: LazyLock<semver::Version> = LazyLock::new(|| {
+        if solc_wrapper()
+            && let Ok(version) = std::env::var("SOLC_WRAPPER_VERSION")
+            && let Ok(version) = semver::Version::parse(&version)
+        {
+            version
+        } else {
+            semver::Version::parse(SOLC_SEMVER_VERSION).unwrap()
+        }
+    });
+    &VERSION
 }

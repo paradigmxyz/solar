@@ -2,7 +2,9 @@
 
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Session, Span, diagnostics::DiagCtxt, error_code, sym};
+use solar_interface::{
+    Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code, sym,
+};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -179,10 +181,18 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         pragma: &'ast ast::PragmaDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         match &pragma.tokens {
-            ast::PragmaTokens::Version(name, _version) => {
+            ast::PragmaTokens::Version(name, req) => {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().emit_err(name.span, msg);
+                } else if let version = solc_semver_version()
+                    && !req.matches(&version.into())
+                {
+                    let msg = format!(
+                        "source file requires different compiler version \
+                         (current compiler is {version})"
+                    );
+                    self.dcx().warn(msg).code(error_code!(5333)).span(self.item_span).emit();
                 }
             }
             ast::PragmaTokens::Custom(name, value) => {

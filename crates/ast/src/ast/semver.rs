@@ -100,7 +100,10 @@ pub struct SemverVersion {
     pub minor: Option<SemverVersionNumber>,
     /// Patch version. Optional.
     pub patch: Option<SemverVersionNumber>,
-    // Pre-release and build metadata are not supported.
+    /// Whether this is a pre-release version, such as `0.8.38-rc.1`.
+    ///
+    /// Version pragmas cannot specify pre-releases. Build metadata is not supported.
+    pub prerelease: bool,
 }
 
 impl PartialEq for SemverVersion {
@@ -139,7 +142,7 @@ impl Ord for SemverVersion {
 
 impl fmt::Display for SemverVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { span: _, major, minor, patch } = *self;
+        let Self { span: _, major, minor, patch, prerelease: _ } = *self;
         write!(f, "{major}")?;
         if let Some(minor) = minor {
             write!(f, ".{minor}")?;
@@ -166,11 +169,19 @@ impl fmt::Debug for SemverVersion {
 impl From<semver::Version> for SemverVersion {
     #[inline]
     fn from(version: semver::Version) -> Self {
+        Self::from(&version)
+    }
+}
+
+impl From<&semver::Version> for SemverVersion {
+    #[inline]
+    fn from(version: &semver::Version) -> Self {
         Self {
             span: Span::DUMMY,
             major: version.major.into(),
             minor: Some(version.minor.into()),
             patch: Some(version.patch.into()),
+            prerelease: !version.pre.is_empty(),
         }
     }
 }
@@ -368,17 +379,30 @@ impl SemverReqComponentKind {
 }
 
 fn matches_op(op: Op, a: &SemverVersion, b: &SemverVersion) -> bool {
+    // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L121
+    // A pre-release is less than its release, unless only wildcards were compared.
+    let cmp = match a.cmp(b) {
+        Ordering::Equal if a.prerelease && compares_number(a, b) => Ordering::Less,
+        cmp => cmp,
+    };
     match op {
-        Op::Exact => a == b,
-        Op::Greater => a > b,
-        Op::GreaterEq => a >= b,
-        Op::Less => a < b,
-        Op::LessEq => a <= b,
+        Op::Exact => cmp.is_eq(),
+        Op::Greater => cmp.is_gt(),
+        Op::GreaterEq => cmp.is_ge(),
+        Op::Less => cmp.is_lt(),
+        Op::LessEq => cmp.is_le(),
         Op::Tilde => matches_tilde(a, b),
         Op::Caret => matches_caret(a, b),
         Op::Wildcard => true,
         _ => false,
     }
+}
+
+/// Returns `true` if comparing `a` with `b` compares at least one non-wildcard number of `b`.
+fn compares_number(a: &SemverVersion, b: &SemverVersion) -> bool {
+    [(Some(a.major), Some(b.major)), (a.minor, b.minor), (a.patch, b.patch)]
+        .into_iter()
+        .any(|(a, b)| a.is_some() && matches!(b, Some(SemverVersionNumber::Number(_))))
 }
 
 fn matches_tilde(a: &SemverVersion, b: &SemverVersion) -> bool {

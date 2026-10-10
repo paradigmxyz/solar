@@ -1077,7 +1077,7 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
             self.emit_err("unexpected trailing characters");
             self.bump_token();
         }
-        SemverVersion { span: lo.to(self.current_span()), major, minor, patch }
+        SemverVersion { span: lo.to(self.current_span()), major, minor, patch, prerelease: false }
     }
 
     fn eat_dot(&mut self) -> bool {
@@ -1450,6 +1450,10 @@ mod tests {
     }
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
+        assert_version_matches_with(tests, false);
+    }
+
+    fn assert_version_matches_with(tests: &[(&str, &str, bool)], prerelease: bool) {
         let sess = session();
         sess.enter(|| -> Result {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
@@ -1459,7 +1463,8 @@ mod tests {
                 let mut parser =
                     Parser::from_source_code(&sess, &arena, FileName::Custom(name), src)?;
 
-                let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
+                let mut version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
+                version.prerelease = prerelease;
                 assert_eq!(version.to_string(), v);
                 let req: SemverReq<'_> = parser.parse_semver_req().map_err(|e| e.emit()).unwrap();
                 sess.dcx.has_errors().unwrap();
@@ -1643,6 +1648,28 @@ mod tests {
             ("0.8.1", "0.8 || 0.8.2", true),
             ("0.8.1", "0.8 || 0.9", true),
         ]);
+    }
+
+    #[test]
+    fn semver_matches_prerelease() {
+        // Versions are pre-releases, e.g. `0.8.38-rc.1`.
+        assert_version_matches_with(
+            &[
+                ("0.8.38", "0.8.38", false),
+                ("0.8.38", "0.8", false),
+                ("0.8.38", ">=0.8.38", false),
+                ("0.8.38", ">0.8.37", true),
+                ("0.8.38", "<0.8.38", true),
+                ("0.8.38", "<=0.8.38", true),
+                ("0.8.38", "^0.8.38", false),
+                ("0.8.38", "^0.8.37", true),
+                ("0.8.38", "~0.8.38", false),
+                ("0.8.38", "0.8.37 - 0.8.38", true),
+                ("0.8.38", "*", true),
+                ("0.8.38", "*.*.*", true),
+            ],
+            true,
+        );
     }
 
     #[test]

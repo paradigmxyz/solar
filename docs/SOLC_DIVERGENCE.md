@@ -71,7 +71,22 @@ testing.
 
 ## AST Validation
 
-No intentional divergences documented yet.
+### AST-001: Version pragma mismatches are warnings
+
+Status: intentional.
+
+Difference: `solar` checks `pragma solidity` requirements against the emulated
+`solc` version like `solc`, with the same error code 5333, but reports a
+mismatch as a warning instead of a fatal parser error. With `SOLC_WRAPPER=1`,
+`SOLC_WRAPPER_VERSION` replaces the emulated version.
+
+Rationale: a hard error would reject sources pinned to a different `solc`
+release even when `solar` can compile them. The warning still flags sources
+that ask for different language semantics.
+
+Coverage: `tests/ui/parser/pragma_version_mismatch.sol` and
+`tests/ui/parser/pragma_valid.sol`; the upstream `wrong_compiler_*` and
+`broken_version_1` fixtures remain excluded from solc parity testing.
 
 ## Name Resolution
 
