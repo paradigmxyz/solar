@@ -1,0 +1,18 @@
+error[2443]: the type of this parameter, `struct Item memory`, is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/v1_call_to_v2_error_accepting_struct.sol:LL:CC
+   │
+LL │         require(c, E(Item(1)));
+   │                      ━━━━━━━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error[2443]: the type of this parameter, `struct Item memory`, is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/v1_call_to_v2_error_accepting_struct.sol:LL:CC
+   │
+LL │         revert E(Item(1));
+   │                  ━━━━━━━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error: aborting due to 2 previous errors
+

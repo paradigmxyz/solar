@@ -1,0 +1,10 @@
+error[3061]: this type is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/event_nested_array.sol:LL:CC
+   │
+LL │     event E(uint[][]);
+   │             ━━━━━━━━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error: aborting due to 1 previous error
+

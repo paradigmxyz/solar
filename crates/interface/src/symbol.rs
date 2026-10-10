@@ -990,6 +990,7 @@ symbols! {
     // There is currently no checking that all symbols are used; that would be
     // nice to have.
     Symbols {
+        ABIEncoderV2,
         Error,
         Loop: "loop",
         Panic,
@@ -1294,6 +1295,8 @@ symbols! {
         unknown,
         unknown_selector,
         unwrap,
+        v1,
+        v2,
         validate_abi,
         validate_storage_bytes,
         value,

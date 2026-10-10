@@ -28,6 +28,8 @@ use std::ops::ControlFlow;
 
 mod yul;
 
+const ABI_CODER_V2_HELP: &str = "use `pragma abicoder v2;` to enable the feature";
+
 #[derive(Clone, Copy)]
 enum AbiDecodeArg {
     Data,
@@ -464,9 +466,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
                         let builtin = self.results.builtin_callee(callee.id);
                         if builtin != Some(Builtin::Require) {
-                            let _ = self.check_call_args(
+                            let _ = self.check_encoded_call_args(
                                 expr.span,
                                 args,
+                                callee_ty,
                                 f.parameters,
                                 callee_param_source,
                             );
@@ -502,8 +505,13 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let _ =
-                            self.check_call_args(expr.span, args, param_tys, callee_param_source);
+                        let _ = self.check_encoded_call_args(
+                            expr.span,
+                            args,
+                            callee_ty,
+                            param_tys,
+                            callee_param_source,
+                        );
                         self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, _) => {
@@ -516,8 +524,13 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let _ =
-                            self.check_call_args(expr.span, args, param_tys, callee_param_source);
+                        let _ = self.check_encoded_call_args(
+                            expr.span,
+                            args,
+                            callee_ty,
+                            param_tys,
+                            callee_param_source,
+                        );
                         self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
@@ -1975,7 +1988,8 @@ impl<'gcx> TypeChecker<'gcx> {
         if !self.results.expr_types.contains_key(&callee.id) {
             self.register_ty(callee, callee_ty);
         }
-        let result = self.check_call_args(expr.span, args, param_tys, param_source);
+        let result =
+            self.check_encoded_call_args(expr.span, args, callee_ty, param_tys, param_source);
         self.register_ty(expr, self.gcx.types.unit);
         result
     }
@@ -1998,7 +2012,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .emit()));
                 continue;
             }
-            if is_packed && !type_supported_by_old_abi_encoder(ty) {
+            if is_packed && !ty.supported_by_abi_coder_v1(false) {
                 result = result.and(Err(self.dcx().emit_err_label(
                     expr.span,
                     "type not supported in packed mode",
@@ -2886,6 +2900,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
         self.check_var_type_size(var, ty);
+        self.check_abi_coder_v1_var(var, ty);
 
         if var.data_location == Some(DataLocation::Transient)
             && self.gcx.sess.opts.evm_version < EvmVersion::Cancun
@@ -3380,6 +3395,158 @@ impl<'gcx> TypeChecker<'gcx> {
     fn ty_is_udvt(ty: Ty<'gcx>) -> bool {
         matches!(ty.peel_refs().kind, TyKind::Udvt(..))
     }
+
+    /// Returns whether the checked source uses ABI coder v2.
+    fn abi_coder_v2(&self) -> bool {
+        self.gcx.hir.source(self.source).abi_coder_v2
+    }
+
+    /// Checks that a variable on an ABI boundary of an ABI coder v1 source has a type v1 can
+    /// encode: a parameter of an externally visible function, event, or error, or a public state
+    /// variable, whose getter is checked as a whole.
+    fn check_abi_coder_v1_var(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
+        if self.abi_coder_v2() {
+            return;
+        }
+        let (code, library, constructor) = match var.kind {
+            hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn => {
+                let Some(hir::ItemId::Function(f_id)) = var.parent else { return };
+                let f = self.gcx.hir.function(f_id);
+                let contract = f.contract.map(|id| self.gcx.hir.contract(id));
+                let externally_visible = if f.is_constructor() {
+                    contract.is_some_and(|c| !c.is_abstract())
+                } else {
+                    f.is_part_of_external_interface() && !f.is_getter()
+                };
+                // Types that cannot be exported at all are reported elsewhere.
+                if !externally_visible || !ty.can_be_exported(self.gcx) {
+                    return;
+                }
+                let library = contract.is_some_and(|c| c.kind.is_library());
+                (error_code!(4957), library, f.is_constructor())
+            }
+            hir::VarKind::Event | hir::VarKind::Error => (error_code!(3061), false, false),
+            hir::VarKind::State => return self.check_abi_coder_v1_getter(var),
+            _ => return,
+        };
+        if ty.supported_by_abi_coder_v1(library) {
+            return;
+        }
+        let mut err = self
+            .dcx()
+            .err("this type is only supported in ABI coder v2")
+            .code(code)
+            .span(var.span)
+            .help(ABI_CODER_V2_HELP);
+        if constructor {
+            err = err.help(
+                "alternatively, make the contract abstract and supply the constructor arguments from a derived contract",
+            );
+        }
+        err.emit();
+    }
+
+    /// Checks that ABI coder v1 can encode the parameters and returns of a state variable's getter.
+    fn check_abi_coder_v1_getter(&self, var: &hir::Variable<'gcx>) {
+        let Some(getter) = var.getter else { return };
+        let TyKind::Fn(f) = self.gcx.type_of_item(getter.into()).kind else { return };
+        let unsupported = f
+            .tys()
+            .filter(|ty| !ty.supported_by_abi_coder_v1(false))
+            .map(|ty| format!("`{}`", ty.display(self.gcx)))
+            .collect::<Vec<_>>();
+        if unsupported.is_empty() {
+            return;
+        }
+        let msg = format!(
+            "the following types are only supported for getters in ABI coder v2: {}",
+            unsupported.join(", ")
+        );
+        self.dcx()
+            .err(msg)
+            .code(error_code!(2763))
+            .span(var.span)
+            .help("either remove `public` or use `pragma abicoder v2;` to enable the feature")
+            .emit();
+    }
+
+    /// Checks call arguments, then the ABI coder v1 restrictions on calls that encode them.
+    fn check_encoded_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        callee_ty: Ty<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_source: Option<CallableParamSource>,
+    ) -> Result<(), ErrorGuaranteed> {
+        let result = self.check_call_args(call_span, args, param_tys, param_source);
+        if result.is_ok() {
+            self.check_abi_coder_v1_call(call_span, args, callee_ty, param_source);
+        }
+        result
+    }
+
+    /// Checks that a call that ABI-encodes its arguments, made from an ABI coder v1 source, only
+    /// passes and returns types v1 can encode.
+    fn check_abi_coder_v1_call(
+        &self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        callee_ty: Ty<'gcx>,
+        param_source: Option<CallableParamSource>,
+    ) {
+        if self.abi_coder_v2() {
+            return;
+        }
+        let library_call = match callee_ty.kind {
+            TyKind::Fn(f) => match f.kind {
+                TyFnKind::External | TyFnKind::Creation => false,
+                TyFnKind::DelegateCall => true,
+                _ => return,
+            },
+            TyKind::Event(..) | TyKind::Error(..) => false,
+            _ => return,
+        };
+
+        let names = match args.kind {
+            hir::CallArgsKind::Named(_) => {
+                param_source.map(|source| self.gcx.callable_param_names(source))
+            }
+            hir::CallArgsKind::Unnamed(_) => None,
+        };
+        for (i, ty) in callee_ty.parameters().unwrap_or_default().iter().enumerate() {
+            if !ty.supported_by_abi_coder_v1(library_call)
+                && let Some(arg) = args.argument_for_parameter(i, names.as_deref())
+            {
+                let msg = format!(
+                    "the type of this parameter, `{}`, is only supported in ABI coder v2",
+                    ty.display(self.gcx)
+                );
+                self.dcx()
+                    .err(msg)
+                    .code(error_code!(2443))
+                    .span(arg.span)
+                    .help(ABI_CODER_V2_HELP)
+                    .emit();
+            }
+        }
+
+        for (i, ty) in callee_ty.returns().unwrap_or_default().iter().enumerate() {
+            if !ty.supported_by_abi_coder_v1(library_call) {
+                let msg = format!(
+                    "the type of return parameter {}, `{}`, is only supported in ABI coder v2",
+                    i + 1,
+                    ty.display(self.gcx)
+                );
+                self.dcx()
+                    .err(msg)
+                    .code(error_code!(2428))
+                    .span(call_span)
+                    .help(ABI_CODER_V2_HELP)
+                    .emit();
+            }
+        }
+    }
 }
 
 impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
@@ -3825,20 +3992,6 @@ fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {
             "first argument to `abi.encodeCall` cannot be a special function"
         }
         TyFnKind::External | TyFnKind::Declaration => unreachable!(),
-    }
-}
-
-fn type_supported_by_old_abi_encoder(ty: Ty<'_>) -> bool {
-    let ty = ty.peel_refs();
-    match ty.kind {
-        TyKind::Struct(_) => false,
-        TyKind::Array(base, _) | TyKind::DynArray(base) => {
-            type_supported_by_old_abi_encoder(base) && !base.peel_refs().is_dynamically_sized()
-        }
-        TyKind::Tuple([ty]) => type_supported_by_old_abi_encoder(*ty),
-        TyKind::Tuple(_) => false,
-        TyKind::Slice(array) => type_supported_by_old_abi_encoder(array),
-        _ => true,
     }
 }
 

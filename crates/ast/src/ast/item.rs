@@ -3,7 +3,7 @@ use super::{
 };
 use crate::{BoxSlice, token::Token};
 use either::Either;
-use solar_interface::{Ident, Span, Spanned, Symbol};
+use solar_interface::{Ident, Span, Spanned, Symbol, sym};
 use std::{
     fmt,
     ops::{Deref, DerefMut},
@@ -208,6 +208,25 @@ impl PragmaTokens<'_> {
     pub fn as_name_and_value(&self) -> Option<(&IdentOrStrLit, Option<&IdentOrStrLit>)> {
         match self {
             Self::Custom(name, value) => Some((name, value.as_ref())),
+            _ => None,
+        }
+    }
+
+    /// Returns whether the pragma selects ABI coder v2, or `None` if it selects no ABI coder.
+    ///
+    /// # Examples
+    ///
+    /// ```solidity
+    /// pragma abicoder v1;               // Some(false)
+    /// pragma abicoder v2;               // Some(true)
+    /// pragma experimental ABIEncoderV2; // Some(true)
+    /// pragma solidity ^0.8.0;           // None
+    /// ```
+    pub fn abi_coder_v2(&self) -> Option<bool> {
+        let (name, value) = self.as_name_and_value()?;
+        match (name.value(), value?.value()) {
+            (sym::abicoder, sym::v1) => Some(false),
+            (sym::abicoder, sym::v2) | (sym::experimental, sym::ABIEncoderV2) => Some(true),
             _ => None,
         }
     }

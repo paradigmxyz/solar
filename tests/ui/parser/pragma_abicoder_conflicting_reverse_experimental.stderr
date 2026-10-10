@@ -1,0 +1,14 @@
+error[8273]: ABI coder v1 has already been selected through `pragma abicoder v1`
+   ╭▸ ROOT/tests/ui/parser/pragma_abicoder_conflicting_reverse_experimental.sol:LL:CC
+   │
+LL │ pragma experimental ABIEncoderV2;
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: previously selected here
+   ╭▸ ROOT/tests/ui/parser/pragma_abicoder_conflicting_reverse_experimental.sol:LL:CC
+   │
+LL │ pragma abicoder v1;
+   ╰╴━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

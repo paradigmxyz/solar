@@ -1,0 +1,10 @@
+error[3061]: this type is only supported in ABI coder v2
+   ╭▸ ROOT/tests/ui/typeck/abicoder/event_struct.sol:LL:CC
+   │
+LL │     event E(S);
+   │             ━
+   │
+   ╰ help: use `pragma abicoder v2;` to enable the feature
+
+error: aborting due to 1 previous error
+

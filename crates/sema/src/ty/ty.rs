@@ -355,6 +355,28 @@ impl<'gcx> Ty<'gcx> {
             || self.references_error())
     }
 
+    /// Returns `true` if ABI coder v1 can encode this type, as solc's
+    /// `TypeChecker::typeSupportedByOldABIEncoder`.
+    ///
+    /// v1 cannot encode structs or nested dynamically sized arrays. A library call passes storage
+    /// references as slots, so they are always supported there.
+    pub fn supported_by_abi_coder_v1(self, library_call: bool) -> bool {
+        if library_call && self.data_stored_in(DataLocation::Storage) {
+            return true;
+        }
+        match self.peel_refs().kind {
+            TyKind::Struct(_) => false,
+            TyKind::Array(base, _) | TyKind::DynArray(base) => {
+                base.supported_by_abi_coder_v1(library_call)
+                    && !base.peel_refs().is_dynamically_sized()
+            }
+            TyKind::Tuple([ty]) => ty.supported_by_abi_coder_v1(library_call),
+            TyKind::Tuple(_) => false,
+            TyKind::Slice(array) => array.supported_by_abi_coder_v1(library_call),
+            _ => true,
+        }
+    }
+
     /// Returns the parameter types of the type.
     #[inline]
     pub fn parameters(self) -> Option<&'gcx [Self]> {

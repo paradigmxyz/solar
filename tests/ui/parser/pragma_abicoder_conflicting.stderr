@@ -1,0 +1,14 @@
+error[3845]: ABI coder has already been selected for this source unit
+   ╭▸ ROOT/tests/ui/parser/pragma_abicoder_conflicting.sol:LL:CC
+   │
+LL │ pragma abicoder v1;
+   │ ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: previously selected here
+   ╭▸ ROOT/tests/ui/parser/pragma_abicoder_conflicting.sol:LL:CC
+   │
+LL │ pragma abicoder               v2;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

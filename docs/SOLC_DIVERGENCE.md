@@ -430,3 +430,18 @@ No intentional divergences documented yet.
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
+
+### CODEGEN-011: ABI coder v1 sources use ABI coder v2 code
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `pragma abicoder v1` only limits which types the type checker
+  accepts at ABI boundaries. Code generation still emits ABI coder v2 encoders
+  and decoders, so a v1 contract validates calldata like a v2 contract and
+  reverts on malformed input, such as an out-of-range `bool` argument, that
+  `solc`'s v1 code accepts.
+- Rationale: both coders encode the types v1 accepts the same way, so a
+  second coder for a deprecated mode would only change how malformed input
+  fails.
+- Coverage: `tests/ui/codegen/lowering/run-call/abi_calldata_v1_validation.sol`
+  and the type checks in `tests/ui/typeck/abicoder/`.
