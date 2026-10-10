@@ -1,0 +1,14 @@
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_imports.sol:LL:CC
+   │
+LL │ import "./reserved_name_imports.sol" as _;
+   ╰╴                                        ━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_imports.sol:LL:CC
+   │
+LL │ import {C as this} from "./reserved_name_imports.sol";
+   ╰╴             ━━━━
+
+error: aborting due to 2 previous errors
+

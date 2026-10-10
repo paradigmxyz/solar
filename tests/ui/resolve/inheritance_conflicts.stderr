@@ -1,4 +1,4 @@
-error: identifier `x` already declared
+error[9097]: identifier `x` already declared
    ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
    │
 LL │     uint public x = 1;
@@ -10,7 +10,7 @@ note: previous declaration declared here
 LL │     uint public x = 0;
    ╰╴                ━
 
-error: identifier `y` already declared
+error[9097]: identifier `y` already declared
    ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
    │
 LL │     uint public y = 3;

@@ -9,7 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, sym,
 };
 use std::fmt;
@@ -80,7 +80,8 @@ impl super::LoweringContext<'_> {
                                     // Re-span to the import statement.
                                     let mut decl = *decl;
                                     decl.span = import_item.span;
-                                    let _ = source_scope.declare(self.sess, &self.hir, name, decl);
+                                    let _ = source_scope
+                                        .declare_checked(self.sess, &self.hir, name, decl);
                                 }
                             }
                         } else {
@@ -102,8 +103,8 @@ impl super::LoweringContext<'_> {
                                 for mut decl in resolved.iter().copied() {
                                     // Re-span to the import name.
                                     decl.span = name.span;
-                                    let _ =
-                                        source_scope.declare(self.sess, &self.hir, name.name, decl);
+                                    let _ = source_scope
+                                        .declare_checked(self.sess, &self.hir, name.name, decl);
                                 }
                             } else {
                                 let msg = format!(
@@ -137,17 +138,7 @@ impl super::LoweringContext<'_> {
             .hir
             .contracts()
             .map(|contract| {
-                let mut scope = Declarations::with_capacity(contract.items.len() + 2);
-
-                // Declare `this` and `super`.
-                let span = Span::DUMMY;
-                let this = Declaration { res: Res::Builtin(Builtin::This), span };
-                let _ = self.declare_in(&mut scope, sym::this, this);
-                if !contract.kind.is_library() {
-                    let super_ = Declaration { res: Res::Builtin(Builtin::Super), span };
-                    let _ = self.declare_in(&mut scope, sym::super_, super_);
-                }
-
+                let mut scope = Declarations::with_capacity(contract.items.len());
                 for &item_id in contract.items {
                     if let hir::ItemId::Function(id) = item_id
                         && self.hir.function(id).is_yul
@@ -160,6 +151,17 @@ impl super::LoweringContext<'_> {
                 }
 
                 scope
+            })
+            .collect();
+
+        // Like solc, keep `this` and `super` out of the contract scope so that members can shadow
+        // them.
+        self.resolver.contract_builtin_scopes = self
+            .hir
+            .contracts()
+            .map(|contract| {
+                let super_ = (!contract.kind.is_library()).then_some(Builtin::Super);
+                crate::builtins::declarations(std::iter::once(Builtin::This).chain(super_))
             })
             .collect();
     }
@@ -326,6 +328,14 @@ impl<'gcx> ResolveContext<'gcx> {
                 Some(hir::ItemId::Struct(id)),
                 hir::VarKind::Struct,
             );
+        }
+
+        // Enum variants are resolved as members, so they are declared only to check their names.
+        for id in self.hir.enumm_ids() {
+            let enumm = self.hir.enumm(id);
+            let variants = enumm.variants;
+            init_cx!(enumm);
+            self.declare_variables(variants);
         }
 
         for id in self.hir.error_ids() {
@@ -570,26 +580,14 @@ impl<'gcx> ResolveContext<'gcx> {
         for c_id in self.hir.contract_ids() {
             let contract = self.hir.contract(c_id);
 
-            // Initialize without contract scope, but manually add a local scope with only `this`
-            // and `super` to allow builtins to be accessible in base constructor
-            // arguments while keeping state variables inaccessible.
+            // Initialize without contract scope, but with the contract's `this` and `super`, to
+            // allow builtins to be accessible in base constructor arguments while keeping state
+            // variables inaccessible.
             self.init(contract.source, None, None);
-            self.scopes.enter();
-            let scope = self.scopes.current_scope();
-            scope.declare_unchecked(
-                sym::this,
-                Declaration { res: Res::Builtin(Builtin::This), span: Span::DUMMY },
-            );
-            scope.declare_unchecked(
-                sym::super_,
-                Declaration { res: Res::Builtin(Builtin::Super), span: Span::DUMMY },
-            );
+            self.scopes.builtins = Some(c_id);
 
             // Lower the base modifiers.
             self.resolve_base_args_inner(c_id);
-
-            // Exit the manually created scope that only contains `this` and `super`.
-            self.scopes.exit();
         }
     }
 
@@ -1763,7 +1761,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn declare_variable(&mut self, id: hir::VariableId) -> Result<(), ErrorGuaranteed> {
         let Some(name) = self.hir.variables[id].name else { return Ok(()) };
         let res = Res::Item(hir::ItemId::Variable(id));
-        self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
+        self.lcx.declare_kind_in(self.scopes.current_scope(), name, res)
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.
@@ -2026,6 +2024,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 }))
             }
             ast::TypeKind::Mapping(mapping) => {
+                self.check_mapping_names(ty.span, mapping);
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
                     key_name: mapping.key_name,
@@ -2039,6 +2038,32 @@ impl<'gcx> ResolveContext<'gcx> {
             },
         };
         hir::Type { kind, span: ty.span }
+    }
+
+    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
+    /// innermost mapping reuses as its value name.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
+    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
+        let Some(key_name) = mapping.key_name else { return };
+        let check = |name: Option<Ident>| {
+            if let Some(name) = name
+                && name.name == key_name.name
+            {
+                self.dcx()
+                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
+                    .code(error_code!(1809))
+                    .span(span)
+                    .span_note(name.span, "the name is reused here")
+                    .emit();
+            }
+        };
+        let mut inner = mapping;
+        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
+            check(child.key_name);
+            inner = child;
+        }
+        check(inner.value_name);
     }
 
     #[inline]
@@ -2102,7 +2127,7 @@ impl super::LoweringContext<'_> {
         name: Ident,
         decl: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        scope.declare_res(self.sess, &self.hir, name, decl)
+        self.declare_in(scope, name.name, Declaration { res: decl, span: name.span })
     }
 
     fn declare_in(
@@ -2111,7 +2136,7 @@ impl super::LoweringContext<'_> {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
-        scope.declare(self.sess, &self.hir, name, decl)
+        scope.declare_checked(self.sess, &self.hir, name, decl)
     }
 }
 
@@ -2162,6 +2187,9 @@ pub(crate) struct SymbolResolver<'gcx> {
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    /// `this` and `super` of each contract, looked up after the source scope.
+    #[debug(ignore)]
+    contract_builtin_scopes: IndexVec<hir::ContractId, Declarations>,
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
@@ -2175,6 +2203,7 @@ impl<'gcx> SymbolResolver<'gcx> {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
+            contract_builtin_scopes: IndexVec::new(),
             global_builtin_scope,
             builtin_members_scopes,
         }
@@ -2307,6 +2336,8 @@ impl<'gcx> SymbolResolver<'gcx> {
 pub(super) struct SymbolResolverScopes {
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
+    /// The contract whose `this` and `super` are in scope; usually `contract`.
+    builtins: Option<hir::ContractId>,
     scopes: Vec<Declarations>,
     /// Pool of declarations that can be reused.
     pool: Vec<Declarations>,
@@ -2315,19 +2346,21 @@ pub(super) struct SymbolResolverScopes {
 impl SymbolResolverScopes {
     #[inline]
     fn new() -> Self {
-        Self { source: None, contract: None, scopes: Vec::new(), pool: Vec::new() }
+        Self { source: None, contract: None, builtins: None, scopes: Vec::new(), pool: Vec::new() }
     }
 
     fn init(&mut self, source: hir::SourceId, contract: Option<hir::ContractId>) {
         self.clear();
         self.source = Some(source);
         self.contract = contract;
+        self.builtins = contract;
     }
 
     fn clear(&mut self) {
         self.pool.append(&mut self.scopes);
         self.source = None;
         self.contract = None;
+        self.builtins = None;
     }
 
     #[inline]
@@ -2348,6 +2381,7 @@ impl SymbolResolverScopes {
             .map(|id| &resolver.contract_scopes[id])
             .into_iter()
             .chain(self.source.map(|id| &resolver.source_scopes[id]))
+            .chain(self.builtins.map(|id| &resolver.contract_builtin_scopes[id]))
             .chain(std::iter::once(&resolver.global_builtin_scope))
     }
 
@@ -2481,12 +2515,26 @@ impl Declarations {
     ) -> Result<(), ErrorGuaranteed> {
         self.try_declare(hir, name, decl).map_err(|conflict| {
             // Like solc, report the declaration that comes later in the source.
-            if conflict.span.lo() > decl.span.lo() {
-                report_conflict(hir, sess, name, conflict, decl)
+            let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
+                (conflict, decl)
             } else {
-                report_conflict(hir, sess, name, decl, conflict)
-            }
+                (decl, conflict)
+            };
+            report_conflict(hir, sess, name, later, earlier, error_code!(2333))
         })
+    }
+
+    /// Declares `name => decl` like [`declare`](Self::declare), and also reports a reserved
+    /// name like solc's `registerDeclaration`. Yul declarations skip this check.
+    pub(crate) fn declare_checked(
+        &mut self,
+        sess: &Session,
+        hir: &hir::Hir<'_>,
+        name: Symbol,
+        decl: Declaration,
+    ) -> Result<(), ErrorGuaranteed> {
+        check_reserved_name(sess, hir, name, decl);
+        self.declare(sess, hir, name, decl)
     }
 
     pub(crate) fn try_declare(
@@ -2531,18 +2579,16 @@ impl Declarations {
 
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
         if matches!(decl.res, Item(Function(_) | Event(_))) {
-            let mut getter = None;
-            if let Item(Function(id)) = decl.res {
-                getter = Some(id);
-                let f = hir.function(id);
-                if !f.kind.is_ordinary() {
-                    return Some(declarations[0]);
-                }
+            let function = decl.res.as_function();
+            if function.is_some_and(|id| !hir.function(id).kind.is_ordinary()) {
+                return Some(declarations[0]);
             }
-            let same_kind = |decl2: &Declaration| match decl2.res {
-                Item(Variable(v)) => hir.variable(v).getter == getter,
-                Item(Function(f)) => hir.function(f).kind.is_ordinary(),
-                ref k => k.matches(&decl.res),
+            // A function goes only with functions and with the variable it is the getter of; an
+            // event goes only with events.
+            let same_kind = |decl2: &Declaration| match (function, decl2.res) {
+                (Some(id), Item(Variable(v))) => hir.variable(v).getter == Some(id),
+                (Some(_), Item(Function(f))) => hir.function(f).kind.is_ordinary(),
+                (_, k) => k.matches(&decl.res),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
         } else if declarations == [decl] {
@@ -2583,10 +2629,12 @@ pub(super) fn report_conflict(
     name: Symbol,
     decl: Declaration,
     mut previous: Declaration,
+    code: DiagId,
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
-    let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
+    let mut err =
+        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
@@ -2603,6 +2651,30 @@ pub(super) fn report_conflict(
     }
 
     err.emit()
+}
+
+/// Reports a declaration named `_`, `super`, or `this`.
+///
+/// Like solc, events and public or external contract functions may still use these names.
+fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: Declaration) {
+    if !matches!(name, sym::underscore | sym::super_ | sym::this) {
+        return;
+    }
+    let allowed = match decl.res {
+        Res::Item(hir::ItemId::Event(_)) | Res::Err(_) => true,
+        Res::Item(hir::ItemId::Function(id)) => {
+            let f = hir.function(id);
+            f.is_part_of_external_interface() && !f.is_free()
+        }
+        _ => false,
+    };
+    if !allowed {
+        sess.dcx
+            .err(format!("the name `{name}` is reserved"))
+            .code(error_code!(3726))
+            .span(decl.span)
+            .emit();
+    }
 }
 
 #[cfg(test)]

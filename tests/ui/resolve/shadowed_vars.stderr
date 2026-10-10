@@ -1,4 +1,4 @@
-error: identifier `x` already declared
+error[2333]: identifier `x` already declared
    ╭▸ ROOT/tests/ui/resolve/shadowed_vars.sol:LL:CC
    │
 LL │         returns (int x)
