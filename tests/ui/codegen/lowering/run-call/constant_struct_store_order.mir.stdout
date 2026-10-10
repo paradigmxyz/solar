@@ -1,0 +1,33 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_struct_store_order.sol:ConstantStructStoreOrder ===
+@module ConstantStructStoreOrder
+fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = checked_add u8, i8 255, i8 1
+    v2 = zext i8 v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 0, v2
+    memory_object_store_field memorystruct<2>, v0, 1, 1
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = storage_array_data_slot 0
+    v7 = add v6, 0
+    v8 = memory_object_load_field memorystruct<2>, v0, 0
+    v9 = sload v7 !metadata(storage=symbolic(v6))
+    v10 = not 255
+    v11 = and v9, v10
+    v12 = and v8, 255
+    v13 = or v11, v12
+    sstore v7, v13 !metadata(storage=symbolic(v6))
+    v14 = memory_object_load_field memorystruct<2>, v0, 1
+    v15 = shl 8, 255
+    v16 = sload v7 !metadata(storage=symbolic(v6))
+    v17 = not v15
+    v18 = and v16, v17
+    v19 = and v14, 255
+    v20 = shl 8, v19
+    v21 = or v18, v20
+    sstore v7, v21 !metadata(storage=symbolic(v6))
+    ret
+}

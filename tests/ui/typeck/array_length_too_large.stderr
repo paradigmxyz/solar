@@ -1,0 +1,42 @@
+error[1847]: array length is too large
+   ╭▸ ROOT/tests/ui/typeck/array_length_too_large.sol:LL:CC
+   │
+LL │     uint[8**90] ids;
+   │          ━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
+
+error[1847]: array length is too large
+   ╭▸ ROOT/tests/ui/typeck/array_length_too_large.sol:LL:CC
+   │
+LL │     uint[2**256] tooLarge;
+   │          ━━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
+
+error[1847]: array length is too large
+   ╭▸ ROOT/tests/ui/typeck/array_length_too_large.sol:LL:CC
+   │
+LL │     uint[8**90][500] ids;
+   │          ━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
+
+error[1847]: array length is too large
+   ╭▸ ROOT/tests/ui/typeck/array_length_too_large.sol:LL:CC
+   │
+LL │     bytes32[8**90] ids;
+   │             ━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
+
+error[1847]: array length is too large
+   ╭▸ ROOT/tests/ui/typeck/array_length_too_large.sol:LL:CC
+   │
+LL │     uint[2**256] x;
+   │          ━━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
+
+error: aborting due to 5 previous errors
+

@@ -1,0 +1,33 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_shift.sol:FixedBytesConstantShift ===
+@module FixedBytesConstantShift
+fn @low() -> i256 [selector=0xc40de79a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = shl 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = shr 128, v0
+    ret v1
+}
+
+fn @high() -> i256 [selector=0x713658f3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = shr 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = shl 128, v0
+    ret v1
+}
+
+fn @kept() -> i256 [selector=0xacc3e84f, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = shr 4, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = shl 4, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}
+
+fn @dropped() -> i256 [selector=0x8286e567, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = shl 4, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = shr 4, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}

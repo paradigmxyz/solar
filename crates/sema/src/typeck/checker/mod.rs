@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalErrorKind},
+    eval::{ConstValue, EvalError, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -21,7 +21,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -230,9 +230,12 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Ok(ConstValue::Bool(_)) => {
+            Ok(ConstValue::Rational(_) | ConstValue::Bool(_)) => {
                 self.dcx()
-                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
+                    .err("base slot of storage layout must evaluate to an integer")
+                    .code(error_code!(1763))
+                    .span(slot.span)
+                    .emit();
             }
             Ok(ConstValue::String(_)) => {
                 let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
@@ -265,7 +268,8 @@ impl<'gcx> TypeChecker<'gcx> {
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let ty = self.check_expr(size);
-        if !ty.is_integer() && !ty.references_error() {
+        // `eval_array_len` reports fractional lengths.
+        if !ty.is_integer() && ty.kind != TyKind::RationalLiteral && !ty.references_error() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
         ty
@@ -400,13 +404,25 @@ impl<'gcx> TypeChecker<'gcx> {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
 
-                // When both operands are IntLiteral, evaluate the expression to preserve
-                // literal type through binary operations (needed for -(1 + 2) to work).
-                if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
+                // Literal arithmetic is exact, and its type comes from the resulting value. Only
+                // literal arithmetic has literal types, so checking the operand types is enough.
+                if lhs.is_number_literal()
+                    && rhs.is_number_literal()
                     && !op.kind.is_cmp()
-                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                    && !op.kind.is_logical()
                 {
-                    return lit_ty;
+                    match self.gcx.try_eval_const_value(expr) {
+                        Ok(value) => {
+                            if let Some(ty) = self.literal_value_ty(value) {
+                                return ty;
+                            }
+                        }
+                        // `check_binop` reports operators that do not apply to the operands.
+                        Err(EvalError { kind: EvalErrorKind::UnsupportedBinaryOp, .. }) => {}
+                        Err(err) => {
+                            return self.gcx.mk_ty_err(self.gcx.emit_const_eval_error(expr, err));
+                        }
+                    }
                 }
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
@@ -843,7 +859,15 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
+                        if ty.is_unit() {
+                            empty_err(self, expr.span)
+                        } else if exprs.len() > 1
+                            && let Err(guar) = self.check_literal_fits(expr, ty, error_code!(3390))
+                        {
+                            self.gcx.mk_ty_err(guar)
+                        } else {
+                            ty
+                        }
                     } else if self.in_lvalue() {
                         self.gcx.types.unit
                     } else {
@@ -870,11 +894,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
-                // For integer literal negation and bitwise negation, don't propagate the expected
+                // For number literal negation and bitwise negation, don't propagate the expected
                 // type to the inner expression because the result's type comes from its value,
                 // which has the opposite sign.
                 let propagate_expected = match op.kind {
-                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if inner.is_int_literal() => false,
+                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if inner.is_numeric_literal() => {
+                        false
+                    }
                     hir::UnOpKind::Neg => !matches!(expected, Some(ty) if ty.is_signed()),
                     _ => true,
                 };
@@ -886,8 +912,9 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.check_expr(inner)
                 };
                 if valid_unop(ty, op.kind) {
-                    if let TyKind::IntLiteral(..) = ty.kind
-                        && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                    if ty.is_number_literal()
+                        && let Ok(value) = self.gcx.try_eval_const_value(expr)
+                        && let Some(lit_ty) = self.literal_value_ty(value)
                     {
                         return lit_ty;
                     }
@@ -1074,18 +1101,39 @@ impl<'gcx> TypeChecker<'gcx> {
         from.can_copy_to_storage_value(to, self.gcx)
     }
 
-    /// Tries to evaluate an expression made up of int literals.
+    /// Rejects a literal value too large for any type, where its value is needed.
     ///
-    /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
-    /// This is used to preserve literal type through literal expressions.
-    fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        let result = self.gcx.try_eval_const(expr).ok()?;
-        let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
-        self.gcx.mk_ty_int_literal_with_fixed_bytes(
-            result.is_negative(),
-            result.bit_len(),
-            compatible_fixed_bytes,
-        )
+    /// Such values only exist as operands of literal arithmetic. solc reports them as invalid
+    /// rational numbers.
+    fn check_literal_fits(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        ty: Ty<'gcx>,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        let msg = if is_literal_too_large(ty) {
+            "literal is too large for any integer type"
+        } else if ty.kind == TyKind::RationalLiteral
+            && self.gcx.try_eval_const_value(expr).is_ok_and(|v| v.is_fraction_too_large())
+        {
+            "literal is too large for any fixed-point type"
+        } else {
+            return Ok(());
+        };
+        Err(self.dcx().err(msg).code(code).span(expr.span).emit())
+    }
+
+    /// Returns the type of the value of literal arithmetic, which is a number.
+    fn literal_value_ty(&self, value: &ConstValue) -> Option<Ty<'gcx>> {
+        match value {
+            ConstValue::Integer(value) => Some(self.gcx.mk_ty_int_literal_with_fixed_bytes(
+                value.is_negative(),
+                value.bit_len(),
+                value.is_zero().then_some(TypeSize::ZERO),
+            )),
+            ConstValue::Rational(_) => Some(self.gcx.mk_ty(TyKind::RationalLiteral)),
+            ConstValue::Bool(_) | ConstValue::String(_) => None,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1112,15 +1160,27 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        let msg = format!(
-            "cannot apply builtin operator `{op}` to `{}` and `{}`",
-            lhs.display(self.gcx),
-            rhs.display(self.gcx),
-        );
-        let mut err = self.dcx().err(msg).span(op.span);
-        err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
-        err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
-        self.gcx.mk_ty_err(err.emit())
+        let emit = || {
+            let msg = format!(
+                "cannot apply builtin operator `{op}` to `{}` and `{}`",
+                lhs.display(self.gcx),
+                rhs.display(self.gcx),
+            );
+            let mut err = self.dcx().err(msg).span(op.span);
+            err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
+            err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
+            if is_literal_too_large(lhs) || is_literal_too_large(rhs) {
+                err = err.note("literal is too large for any integer type");
+            }
+            err.emit()
+        };
+        // Constant evaluation can report an error for the same expression, such as an array
+        // length, and solc reports one.
+        let guar = match expr_id {
+            Some(id) => self.gcx.emit_once(id, emit),
+            None => emit(),
+        };
+        self.gcx.mk_ty_err(guar)
     }
 
     fn check_user_unop(
@@ -1985,6 +2045,19 @@ impl<'gcx> TypeChecker<'gcx> {
         let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
+            if ty.kind == TyKind::RationalLiteral {
+                result = result.and(Err(self
+                    .dcx()
+                    .err("fractional numbers cannot be ABI-encoded")
+                    .code(error_code!(6090))
+                    .span(expr.span)
+                    .emit()));
+                continue;
+            }
+            if let Err(guar) = self.check_literal_fits(expr, ty, error_code!(8009)) {
+                result = Err(guar);
+                continue;
+            }
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
@@ -3626,6 +3699,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
+                let ty = self.check_expr(expr);
+                let _ = self.check_literal_fits(expr, ty, error_code!(3757));
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
@@ -3896,6 +3972,7 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => false,
         },
+        TyKind::RationalLiteral => op == hir::UnOpKind::Neg,
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => op == hir::UnOpKind::BitNot,
         TyKind::Elementary(hir::ElementaryType::Bool) => op == hir::UnOpKind::Not,
 
@@ -3913,6 +3990,11 @@ fn binop_common_type<'gcx>(
 ) -> Option<Ty<'gcx>> {
     if let Err(guar) = ty.error_reported().and_then(|()| other.error_reported()) {
         return Some(gcx.mk_ty_err(guar));
+    }
+    // A literal too large for any integer type only combines with other literals, which literal
+    // arithmetic evaluates instead.
+    if is_literal_too_large(ty) || is_literal_too_large(other) {
+        return None;
     }
 
     let ty = ty.peel_refs();
@@ -3959,6 +4041,10 @@ fn binop_common_type<'gcx>(
 
             (other == ty && matches!(op, Eq | Ne | And | Or)).then_some(ty)
         }
+        // Arithmetic on fractions is literal arithmetic. solc compares fractions through their
+        // fixed-point mobile types, which we do not support, so we allow comparing two fractions
+        // and evaluate the result.
+        TyKind::RationalLiteral => (op.is_cmp() && other == ty).then_some(ty),
 
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
@@ -4011,6 +4097,11 @@ fn binop_common_type<'gcx>(
 
         TyKind::Ref(..) => unreachable!(),
     }
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type.
+fn is_literal_too_large(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if bits > TypeSize::MAX)
 }
 
 fn valid_shift<'gcx>(

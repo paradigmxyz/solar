@@ -438,6 +438,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -504,6 +505,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -617,6 +619,11 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
                 | TyKind::IntLiteral(..)
         )
+    }
+
+    /// Returns `true` if the type is an integer or fractional number literal.
+    pub fn is_number_literal(self) -> bool {
+        matches!(self.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
     }
 
     /// Returns `true` if the type is a signed integer, including negative literals.
@@ -811,27 +818,27 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
-            (IntLiteral(neg, size, _), Elementary(UInt(target_size))) => {
+            (IntLiteral(neg, bits, _), Elementary(UInt(target_size))) => {
                 // Unsigned: reject negative, check size fits
                 if neg {
                     Result::Err(TyConvertError::Incompatible)
-                } else if size.bits() <= target_size.bits() {
+                } else if bits <= target_size.bits() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::Incompatible)
                 }
             }
-            (IntLiteral(neg, size, _), Elementary(Int(target_size))) => {
+            (IntLiteral(neg, bits, _), Elementary(Int(target_size))) => {
                 // Signed: non-negative values need strict inequality since they use the
                 // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
                 // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
                 if neg {
-                    if size.bits() <= target_size.bits() {
+                    if bits <= target_size.bits() {
                         Ok(())
                     } else {
                         Result::Err(TyConvertError::Incompatible)
                     }
-                } else if size.bits() < target_size.bits() {
+                } else if bits < target_size.bits() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::Incompatible)
@@ -1018,9 +1025,7 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals -> address.
             (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(Address(_))) => Ok(()),
-            (IntLiteral(false, size, _), Elementary(Address(false))) if size.bits() <= 160 => {
-                Ok(())
-            }
+            (IntLiteral(false, bits, _), Elementary(Address(false))) if bits <= 160 => Ok(()),
 
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
@@ -1155,9 +1160,12 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::CallOptions(_) => return None,
-            TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
-            TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
+            // solc gives fractions a fixed-point mobile type, which we do not support.
+            TyKind::CallOptions(_) | TyKind::RationalLiteral => return None,
+            TyKind::IntLiteral(negative, bits, _) => {
+                let size = TypeSize::try_new_literal_bits(bits)?;
+                if negative { gcx.types.int_(size) } else { gcx.types.uint_(size) }
+            }
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
             TyKind::Slice(ty)
                 if ty.data_stored_in(DataLocation::Calldata)
@@ -1255,9 +1263,17 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, usize),
 
-    /// Any integer or fixed-point number literal.
+    /// Any integer number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
-    IntLiteral(bool, TypeSize, Option<TypeSize>),
+    ///
+    /// Like solc, literal arithmetic can produce integers wider than any integer type. They have
+    /// no mobile type and only combine with other literals.
+    IntLiteral(bool, u16, Option<TypeSize>),
+
+    /// Any fractional number literal, such as `0.5` or `1 / 3`.
+    ///
+    /// Fractional values only exist in literal arithmetic, and do not convert to any integer type.
+    RationalLiteral,
 
     /// An ephemeral function value with call options.
     CallOptions(Ty<'gcx>),
@@ -1472,6 +1488,7 @@ impl TyFlags {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Enum(_)

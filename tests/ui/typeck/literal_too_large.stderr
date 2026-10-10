@@ -1,0 +1,176 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         uint i = 31415999999999999999999999999999999999999999999999999999999999999999933**3;
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `uint256`, found `int_literal[703]`
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │     function f() public returns (uint d) { return 2 ** 10000000000; }
+   ╰╴                                                  ━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error[8009]: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │     function f() pure public { abi.encode(2**500); }
+   ╰╴                                          ━━━━━━
+
+error[3390]: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (2**270, 1);
+   ╰╴         ━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │     a[8**90][8**90][8**90*0.1];
+   ╰╴      ━━━━━ expected `uint256`, found `int_literal[271]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │     a[8**90][8**90][8**90*0.1];
+   ╰╴             ━━━━━ expected `uint256`, found `int_literal[271]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │     a[8**90][8**90][8**90*0.1];
+   ╰╴                    ━━━━━━━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         uint8 a = 2**300;
+   ╰╴                  ━━━━━━ expected `uint8`, found `int_literal[301]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         uint8 c = 3 << 300;
+   ╰╴                  ━━━━━━━━ expected `uint8`, found `int_literal[302]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         int d = -(2**256);
+   ╰╴                ━━━━━━━━━ expected `int256`, found `int_literal[257]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         uint e = 2**255 * 4;
+   ╰╴                 ━━━━━━━━━━ expected `uint256`, found `int_literal[258]`
+
+error: cannot apply builtin operator `==` to `int_literal[257]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         bool g = 2**256 == 0;
+   │                  ┬───── ━━ ─ int_literal[1]
+   │                  │
+   │                  int_literal[257]
+   │
+   ╰ note: literal is too large for any integer type
+
+error: cannot apply builtin operator `+` to `uint256` and `int_literal[301]`
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         x + 2**300;
+   │         ┬ ━ ────── int_literal[301]
+   │         │
+   │         uint256
+   │
+   ╰ note: literal is too large for any integer type
+
+error: cannot apply builtin operator `**` to `uint256` and `int_literal[301]`
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         x ** 2**300;
+   │         ┬ ━━ ────── int_literal[301]
+   │         │
+   │         uint256
+   │
+   ╰ note: literal is too large for any integer type
+
+error: cannot apply builtin operator `<<` to `uint256` and `int_literal[301]`
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         x << 2**300;
+   │         ┬ ━━ ────── int_literal[301]
+   │         │
+   │         uint256
+   │
+   ╰ note: literal is too large for any integer type
+
+error: cannot apply builtin operator `<<` to `int_literal[301]` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (2**300) << x;
+   │         ┬─────── ━━ ─ uint256
+   │         │
+   │         int_literal[301]
+   │
+   ╰ note: literal is too large for any integer type
+
+error: cannot apply builtin operator `<<` to `bytes32` and `int_literal[301]`
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         b << 2**300;
+   │         ┬ ━━ ────── int_literal[301]
+   │         │
+   │         bytes32
+   │
+   ╰ note: literal is too large for any integer type
+
+error[3757]: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         2**300;
+   ╰╴        ━━━━━━
+
+error[3757]: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (2**300);
+   ╰╴        ━━━━━━━━
+
+error[8009]: literal is too large for any integer type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         abi.encodePacked(2**300);
+   ╰╴                         ━━━━━━
+
+error: invalid true type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         uint h = true ? 2**300 : 1;
+   ╰╴                        ━━━━━━
+
+error: invalid mobile type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         uint[2] memory i = [1, 2**300];
+   ╰╴                               ━━━━━━
+
+error[3757]: literal is too large for any fixed-point type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         2**256 + 0.5;
+   ╰╴        ━━━━━━━━━━━━
+
+error[3390]: literal is too large for any fixed-point type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (1, 2**256 - 0.5);
+   ╰╴            ━━━━━━━━━━━━
+
+error[3390]: literal is too large for any fixed-point type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (1, -(2**255) - 0.5);
+   ╰╴            ━━━━━━━━━━━━━━━
+
+error: aborting due to 25 previous errors
+

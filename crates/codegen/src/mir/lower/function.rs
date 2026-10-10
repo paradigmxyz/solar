@@ -674,14 +674,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        // Literal arithmetic is exact, so its intermediate values may not fit any integer type.
+        // Literal arithmetic is exact, so its intermediate values may be fractions or may not fit
+        // any integer type.
         // value = const_eval(expr)
-        if !matches!(expr.kind, ExprKind::Lit(_))
-            && expr.is_int_literal()
-            && let Ok(value) = self.cx.gcx.try_eval_const(expr)
-            && value.bit_len() <= 256
+        if is_literal_operation(self.cx.gcx, expr)
+            && let Ok(value) = self.cx.gcx.try_eval_const_value(expr)
         {
-            return Some(self.builder.imm(value.as_evm_word()));
+            match value {
+                ConstValue::Integer(value) if value.bit_len() <= 256 => {
+                    return Some(self.builder.imm(value.as_evm_word()));
+                }
+                ConstValue::Bool(value) => return Some(self.builder.imm_bool(*value)),
+                ConstValue::Rational(_) => {
+                    return self.cx.report_unsupported(expr.span, "fractional value");
+                }
+                _ => {}
+            }
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
@@ -1180,4 +1188,17 @@ fn reinterpret_word(
             .map_or(word, |validator| validator.cleanup(builder, word))
     };
     builder.cast(word, carrier)
+}
+
+/// Returns `true` if `expr` is an operation on number literals, including a comparison of them.
+///
+/// Only literal arithmetic has literal types, so this needs no walk of the operands.
+fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    let is_literal =
+        |expr: &hir::Expr<'_>| gcx.type_of_expr(expr.id).is_some_and(Ty::is_number_literal);
+    match &expr.kind {
+        ExprKind::Lit(_) => false,
+        ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
+        _ => is_literal(expr),
+    }
 }

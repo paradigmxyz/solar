@@ -50,3 +50,8 @@ fn @storageValue() -> i256 [selector=0xa977a973, view, abi_params=[], abi_return
     v1 = icall erc7201<>, v0
     ret v1
 }
+
+fn @constantDivision() -> i256 [selector=0xf0f7caeb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x81375b7412d6ac0c418d7535b9390e3cacec3cf04d4426959579371004e3c55
+}

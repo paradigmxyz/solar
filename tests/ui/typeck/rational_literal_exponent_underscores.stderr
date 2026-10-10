@@ -1,8 +1,8 @@
-error: rational literals are not supported
+error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/rational_literal_exponent_underscores.sol:LL:CC
    │
 LL │         return 15_E-1;
-   ╰╴               ━━━━━━
+   ╰╴               ━━━━━━ expected `uint256`, found `rational_literal`
 
 error: aborting due to 1 previous error
 

@@ -91,8 +91,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn parse_yul_lit(&mut self) -> PResult<'sess, Lit<'ast>> {
-        let (lit, subdenomination) = self.parse_lit(false)?;
+        // Like solc, Yul numbers are plain decimal or hexadecimal integers, without underscores.
+        let invalid_number = self.token.lit().is_some_and(|lit| match lit.kind {
+            TokenLitKind::Rational => true,
+            TokenLitKind::Integer => lit.symbol.as_str().contains('_'),
+            _ => false,
+        });
+        let (mut lit, subdenomination) = self.parse_lit(false)?;
         assert!(subdenomination.is_none());
+        if invalid_number && !matches!(lit.kind, LitKind::Err(_)) {
+            let msg = "invalid number literal";
+            lit.kind =
+                LitKind::Err(self.dcx().err(msg).code(error_code!(4828)).span(lit.span).emit());
+        }
         Ok(lit)
     }
 

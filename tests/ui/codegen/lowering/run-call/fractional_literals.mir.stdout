@@ -1,0 +1,80 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fractional_literals.sol:FractionalDenominations ===
+@module FractionalDenominations
+fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @e() -> i256 [selector=0xffae15ba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @m() -> i256 [selector=0x5a2ee019, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+fn @h() -> i256 [selector=0xb8c9d365, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    ret v0
+}
+
+fn @d() -> i256 [selector=0x8a054ac2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 4 !metadata(storage=slot(4))
+    ret v0
+}
+
+fn @w() -> i256 [selector=0x205c9cc7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 5 !metadata(storage=slot(5))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 0x59682f00 !metadata(storage=slot(0))
+    sstore 1, 0x14d1120d7b160000 !metadata(storage=slot(1))
+    sstore 2, 90 !metadata(storage=slot(2))
+    sstore 3, 0x1518 !metadata(storage=slot(3))
+    sstore 4, 0x1fa40 !metadata(storage=slot(4))
+    sstore 5, 0xdd7c0 !metadata(storage=slot(5))
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/fractional_literals.sol:ScientificNotation ===
+@module ScientificNotation
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x4a817c800
+}
+
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 2
+}
+
+fn @h() -> i256 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 25
+}
+
+fn @i() -> i256 [selector=0xe5aa3d58, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffb57e83800
+}
+
+fn @j() -> i256 [selector=0xb582ec5f, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+}
+
+fn @k() -> i256 [selector=0xb4f40c61, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe7
+}

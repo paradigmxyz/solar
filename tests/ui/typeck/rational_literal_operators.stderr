@@ -1,0 +1,190 @@
+error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         fixed g = 2 ** -2.2;
+   │                   ┬ ━━ ──── rational_literal
+   │                   │
+   ╰╴                  int_literal[2]
+
+error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         ufixed b = 3 ** 2.5;
+   │                    ┬ ━━ ─── rational_literal
+   │                    │
+   ╰╴                   int_literal[2]
+
+error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         2 ** (1/2);
+   │         ┬ ━━ ───── rational_literal
+   │         │
+   ╰╴        int_literal[2]
+
+error: cannot apply builtin operator `**` to `int_literal[6]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         42 ** (-1/4);
+   │         ┬─ ━━ ────── rational_literal
+   │         │
+   ╰╴        int_literal[6]
+
+error: cannot apply builtin operator `>>` to `int_literal[7]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │     uint public a = 0x42 >> (1 / 2);
+   │                     ┬─── ━━ ─────── rational_literal
+   │                     │
+   ╰╴                    int_literal[7]
+
+error: cannot apply unary operator `~` to `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         ~0.5;
+   ╰╴        ━━━━
+
+error: cannot apply unary operator `!` to `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         !0.5;
+   ╰╴        ━━━━
+
+error: cannot apply builtin operator `|` to `rational_literal` and `int_literal[2]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1.5 | 3;
+   │         ┬── ━ ─ int_literal[2]
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `&` to `rational_literal` and `int_literal[2]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1.5 & 3;
+   │         ┬── ━ ─ int_literal[2]
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `^` to `rational_literal` and `int_literal[2]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1.5 ^ 3;
+   │         ┬── ━ ─ int_literal[2]
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `<<` to `rational_literal` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1.5 << 1;
+   │         ┬── ━━ ─ int_literal[1]
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `>>` to `rational_literal` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1.5 >> 1;
+   │         ┬── ━━ ─ int_literal[1]
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1 << 1.5;
+   │         ┬ ━━ ─── rational_literal
+   │         │
+   ╰╴        int_literal[1]
+
+error: cannot apply builtin operator `**` to `int256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         y ** 0.5;
+   │         ┬ ━━ ─── rational_literal
+   │         │
+   ╰╴        int256
+
+error: cannot apply builtin operator `+` to `uint256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         x + 0.5;
+   │         ┬ ━ ─── rational_literal
+   │         │
+   ╰╴        uint256
+
+error: cannot apply builtin operator `*` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 * x;
+   │         ┬── ━ ─ uint256
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `%` to `uint256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         x % 0.5;
+   │         ┬ ━ ─── rational_literal
+   │         │
+   ╰╴        uint256
+
+error: cannot apply builtin operator `-` to `int256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         y - 0.5;
+   │         ┬ ━ ─── rational_literal
+   │         │
+   ╰╴        int256
+
+error: cannot apply builtin operator `**` to `uint256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         x ** 0.5;
+   │         ┬ ━━ ─── rational_literal
+   │         │
+   ╰╴        uint256
+
+error: cannot apply builtin operator `<<` to `uint256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         x << 0.5;
+   │         ┬ ━━ ─── rational_literal
+   │         │
+   ╰╴        uint256
+
+error: cannot apply builtin operator `&&` to `rational_literal` and `bool`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 && true;
+   │         ┬── ━━ ──── bool
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `<` to `rational_literal` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 < 1;
+   │         ┬── ━ ─ int_literal[1]
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `>=` to `int_literal[1]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         1 >= 0.5;
+   │         ┬ ━━ ─── rational_literal
+   │         │
+   ╰╴        int_literal[1]
+
+error: cannot apply builtin operator `==` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 == x;
+   │         ┬── ━━ ─ uint256
+   │         │
+   ╰╴        rational_literal
+
+error: aborting due to 24 previous errors
+

@@ -4772,6 +4772,7 @@ dependencies = [
  "either",
  "indexmap 2.14.2",
  "num-bigint 0.5.1",
+ "num-rational",
  "num-traits",
  "once_map",
  "paste",

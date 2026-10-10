@@ -1,0 +1,29 @@
+error: failed to evaluate constant: recursion limit reached
+   ╭▸ ROOT/tests/ui/typeck/constant_depth_limit.sol:LL:CC
+   │
+LL │ uint256 constant C1 = C0 + 1;
+   │                       ── evaluation of constant value failed here
+   ‡
+LL │     uint256[C32] tooDeep;
+   ╰╴            ━━━
+
+error: failed to evaluate constant: recursion limit reached
+   ╭▸ ROOT/tests/ui/typeck/constant_depth_limit.sol:LL:CC
+   │
+LL │     uint constant LEN = LEN;
+   │                         ─── evaluation of constant value failed here
+LL │     function f() public {
+LL │         uint[LEN] a;
+   ╰╴             ━━━
+
+error: failed to evaluate constant: recursion limit reached
+   ╭▸ ROOT/tests/ui/typeck/constant_depth_limit.sol:LL:CC
+   │
+LL │     uint constant L1 = L2 / 10;
+   │                        ── evaluation of constant value failed here
+   ‡
+LL │         uint[LEN] a;
+   ╰╴             ━━━
+
+error: aborting due to 3 previous errors
+

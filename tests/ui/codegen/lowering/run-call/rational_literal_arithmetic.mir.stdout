@@ -1,0 +1,83 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/rational_literal_arithmetic.sol:RationalLiteralArithmetic ===
+@module RationalLiteralArithmetic
+@types
+  struct0: {i1, i1, i1}
+  struct1: {i256, i256}
+
+fn @thirds() -> i256 [selector=0x700de8d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 1
+}
+
+fn @halves() -> i256 [selector=0x7e618622, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 5
+}
+
+fn @negativeExponent() -> i256 [selector=0x13a47541, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 2
+}
+
+fn @fractionalBase() -> i256 [selector=0x2a9168b6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 2
+}
+
+fn @negativeBase() -> i256 [selector=0x6cb0814e, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+}
+
+fn @fractionalRemainder() -> i256 [selector=0x5f21d68d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 3
+}
+
+fn @negativeRemainder() -> i256 [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+}
+
+fn @wideIntermediate() -> i256 [selector=0x88f9c96d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x400
+}
+
+fn @maxIntermediate() -> i256 [selector=0x4afd1ba6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @decimals() -> i256 [selector=0x313ce567, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0xde0b6b3a7640000
+}
+
+fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @comparison() -> struct0 [selector=0xaae103ad, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, true
+    v1 = insert_value struct0, v0, 1, false
+    v2 = insert_value struct0, v1, 2, true
+    ret v2
+}
+
+fn @typedDivision() -> struct1 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
+  bb0:
+    v0 = checked_div i256, 7, 3
+    v1 = checked_sub i256, 0, 7
+    v2 = checked_div i256, v1, 3
+    v3 = insert_value struct1, undef struct1, 0, v0
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
+}
+
+fn @discarded() -> i256 [selector=0x96dadfbc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 1
+}

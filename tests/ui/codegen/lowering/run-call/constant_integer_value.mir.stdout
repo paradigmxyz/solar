@@ -32,6 +32,36 @@ fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v3
 }
 
+fn @zeroNegativePower() -> i256 [selector=0x8d04abf9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0
+}
+
+fn @decimal() -> i256 [selector=0x76809ce3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x429d069189e0000
+}
+
+fn @negativeExponent() -> i256 [selector=0x13a47541, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 5
+}
+
+fn @fraction() -> i256 [selector=0xd8894bb5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 1
+}
+
+fn @fractionCompare() -> i1 [selector=0xdf414a28, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}
+
+fn @typedDivision() -> i256 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0
+}
+
 fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = icall @mulDivDown, arg0, arg1, 0xde0b6b3a7640000
