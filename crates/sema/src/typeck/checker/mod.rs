@@ -2022,7 +2022,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 continue;
             }
             result = result.and(self.check_array_copy_size(ty, expr.span));
-            if !valid_abi_encodable_arg(ty, self.gcx) {
+            if !valid_abi_encodable_arg(ty, self.gcx) || !self.abi_coder_supports(ty) {
                 result = result.and(Err(self.dcx().emit_err_label(
                     expr.span,
                     format!("`{}` argument cannot be ABI-encoded", builtin.name()),
@@ -2324,7 +2324,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if matches!(ty.kind, TyKind::Elementary(ElementaryType::Address(false))) {
                 ty = self.gcx.types.address_payable;
             }
-            if !valid_abi_decodable_type(ty, self.gcx) {
+            if !valid_abi_decodable_type(ty, self.gcx) || !self.abi_coder_supports(ty) {
                 let guar = self.dcx().emit_err_label(
                     type_expr.span,
                     "decoding type not supported",
@@ -3399,6 +3399,12 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Returns whether the checked source uses ABI coder v2.
     fn abi_coder_v2(&self) -> bool {
         self.gcx.hir.source(self.source).abi_coder_v2
+    }
+
+    /// Returns whether the checked source's ABI coder can encode `ty` outside library calls, as the
+    /// ABI coder part of solc's `Type::fullEncodingType`.
+    fn abi_coder_supports(&self, ty: Ty<'gcx>) -> bool {
+        self.abi_coder_v2() || ty.supported_by_abi_coder_v1(false)
     }
 
     /// Checks that a variable on an ABI boundary of an ABI coder v1 source has a type v1 can

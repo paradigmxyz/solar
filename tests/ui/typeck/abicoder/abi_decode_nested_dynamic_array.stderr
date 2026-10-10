@@ -1,0 +1,8 @@
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/abicoder/abi_decode_nested_dynamic_array.sol:LL:CC
+   │
+LL │         abi.decode("1234", (uint[][3]));
+   ╰╴                            ━━━━━━━━━ found `uint256[][3] memory`
+
+error: aborting due to 1 previous error
+
