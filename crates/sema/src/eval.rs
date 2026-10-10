@@ -24,19 +24,24 @@ pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
     outer
 }
 
-/// Evaluates the given array size expression, emitting an error diagnostic if it fails.
+/// Evaluates the size expression of an array type name, emitting an error diagnostic if it fails.
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
-    let int = gcx.eval_const(size)?;
-    let Some(int) = int.as_u256() else {
-        let msg = "array length cannot be negative";
-        return Err(gcx.dcx().emit_err(size.span, msg));
-    };
+    let int = eval_array_expr_len(gcx, size)?;
     if int.is_zero() {
         let msg = "array length must be greater than zero";
         Err(gcx.dcx().emit_err(size.span, msg))
     } else {
         Ok(int)
     }
+}
+
+/// Evaluates the index of an array type expression, such as `T[0]` in expression position,
+/// emitting an error diagnostic if it fails.
+///
+/// Unlike array type names, array type expressions may have zero length.
+pub fn eval_array_expr_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
+    let int = gcx.eval_const(size)?;
+    int.as_u256().ok_or_else(|| gcx.dcx().emit_err(size.span, "array length cannot be negative"))
 }
 
 impl<'gcx> Gcx<'gcx> {

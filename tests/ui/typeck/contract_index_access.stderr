@@ -1,0 +1,8 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/contract_index_access.sol:LL:CC
+   │
+LL │ ┏     function f() view public {
+LL │ ┃         C[0];
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
