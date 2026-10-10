@@ -1950,8 +1950,10 @@ impl AliasAnalysis {
                     self.pointer_region(func, second, depth + 1)
                 }
             }
-            InstKind::Sub(base, _)
-            | InstKind::IntToPtr(base)
+            InstKind::Sub(base, offset) if Self::sub_keeps_pointer_region(func, offset) => {
+                self.pointer_region(func, base, depth + 1)
+            }
+            InstKind::IntToPtr(base)
             | InstKind::PtrToInt(base, 256)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
@@ -1976,6 +1978,15 @@ impl AliasAnalysis {
             }
             _ => MemoryRegion::Unknown,
         }
+    }
+
+    /// Whether `sub(pointer, offset)` stays in the pointer's region: a constant
+    /// step back of at most one word, such as from a dynamic object's data to
+    /// its length word. Any other subtrahend can move the result anywhere, as
+    /// in `sub(p, sub(p, x)) == x`.
+    #[must_use]
+    pub(crate) fn sub_keeps_pointer_region(func: &Function, offset: ValueId) -> bool {
+        func.value_u64(offset).is_some_and(|offset| offset <= EvmMemoryLayout::WORD_SIZE)
     }
 
     fn join_pointer_regions(

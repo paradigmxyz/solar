@@ -14,8 +14,6 @@ use crate::backend::evm::op;
 pub(crate) struct StackCosts;
 
 impl StackCosts {
-    /// Copy a resident word before storing it to its frame slot.
-    pub(crate) const DUP: Cost = Cost::fixed_opcode(op::DUP1);
     /// Discard a resident word.
     pub(crate) const POP: Cost = Cost::fixed_opcode(op::POP);
     /// Estimate for a cheap, stable context read.
@@ -23,17 +21,19 @@ impl StackCosts {
     /// Push a representative direct address, then load its word.
     pub(crate) const DIRECT_LOAD: Cost =
         Cost::fixed_opcode(op::PUSH2).plus(Cost::fixed_opcode(op::MLOAD));
-    /// Load the frame pointer, add a representative slot offset, then load its word.
-    pub(crate) const DYNAMIC_FRAME_LOAD: Cost = Cost::fixed_opcode(op::PUSH1)
-        .plus(Cost::fixed_opcode(op::MLOAD))
-        .plus(Cost::fixed_opcode(op::PUSH1))
-        .plus(Cost::fixed_opcode(op::ADD))
-        .plus(Cost::fixed_opcode(op::MLOAD));
+    /// Push a representative direct address, then store the top word there.
+    pub(crate) const DIRECT_STORE: Cost =
+        Cost::fixed_opcode(op::PUSH2).plus(Cost::fixed_opcode(op::MSTORE));
     /// Push a conservative deferred target address and jump to it.
     pub(crate) const CONTROL_FLOW_JUMP: Cost =
         Cost::fixed_opcode(op::PUSH3).plus(Cost::fixed_opcode(op::JUMP));
     /// Introduce a cleanup trampoline's destination.
     pub(crate) const JUMPDEST: Cost = Cost::fixed_opcode(op::JUMPDEST);
+    /// Jump to a block placed elsewhere and land on its destination.
+    pub(crate) const EDGE_JUMP: Cost = Self::CONTROL_FLOW_JUMP.plus(Self::JUMPDEST);
+    /// Push the return address, jump to an internal callee's destination, and jump back.
+    pub(crate) const INTERNAL_CALL: Cost =
+        Self::CONTROL_FLOW_JUMP.plus(Self::CONTROL_FLOW_JUMP).plus(Self::JUMPDEST);
 }
 
 #[cfg(test)]
@@ -53,16 +53,17 @@ mod tests {
         ] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
             for (cost, sequence) in [
-                (StackCosts::DUP, &[op::DUP1][..]),
                 (StackCosts::POP, &[op::POP][..]),
                 (StackCosts::NULLARY_READ, &[op::CALLDATASIZE][..]),
                 (StackCosts::DIRECT_LOAD, &[op::PUSH2, op::MLOAD][..]),
-                (
-                    StackCosts::DYNAMIC_FRAME_LOAD,
-                    &[op::PUSH1, op::MLOAD, op::PUSH1, op::ADD, op::MLOAD][..],
-                ),
+                (StackCosts::DIRECT_STORE, &[op::PUSH2, op::MSTORE][..]),
                 (StackCosts::CONTROL_FLOW_JUMP, &[op::PUSH3, op::JUMP][..]),
                 (StackCosts::JUMPDEST, &[op::JUMPDEST][..]),
+                (StackCosts::EDGE_JUMP, &[op::PUSH3, op::JUMP, op::JUMPDEST][..]),
+                (
+                    StackCosts::INTERNAL_CALL,
+                    &[op::PUSH3, op::PUSH3, op::JUMP, op::JUMPDEST, op::JUMP][..],
+                ),
             ] {
                 assert_eq!(cost, sequence.iter().map(|&opcode| target.opcode(opcode)).sum());
             }

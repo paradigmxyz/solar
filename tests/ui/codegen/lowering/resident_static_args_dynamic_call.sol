@@ -13,9 +13,9 @@ contract ResidentStaticArgsDynamicCall {
         return readAcrossDynamicCall(values);
     }
 
-    // The recursive callee requires a dynamic frame. Keep the static caller's
-    // resident memory pointer below its return address so the second load can
-    // still use the pointer after the call.
+    // The callee is recursive. Keep the caller's memory pointer on the stack
+    // below its return address so the second load can still use the pointer
+    // after the call.
     function readAcrossDynamicCall(uint256[1] memory values) internal pure returns (uint256) {
         uint256 firstValue = values[0];
         recurse(0);

@@ -19,7 +19,7 @@ contract JoinEdgeReload {
     // CHECK: [loop]:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: dup 2
-    // CHECK-NEXT: sub
+    // CHECK-NEXT: eq
     // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jumpi
     function find(uint256[] calldata values, uint256 x) external pure returns (uint256 found) {

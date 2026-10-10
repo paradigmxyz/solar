@@ -695,8 +695,6 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_fallback: bool,
     /// Whether this is a receive function.
     pub(crate) is_receive: bool,
-    /// Whether this function originated from a Yul function definition.
-    pub(crate) is_yul: bool,
     /// Whether the original signature may reference caller-visible memory.
     ///
     /// Dead-result elimination and memory lowering can erase reference types, but must preserve
@@ -725,7 +723,6 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
-            is_yul: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,

@@ -361,7 +361,7 @@ impl generated::Context for PeepContext<'_> {
         );
         let before = target.push(U256::ONE) + target.dup() + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.gas <= before.gas && after.bytes <= before.bytes && after != before
+        after.dominates(before)
     }
 
     fn closed_count(&mut self, start: LateWindow) -> bool {
@@ -418,7 +418,7 @@ impl generated::Context for PeepContext<'_> {
             + target.opcode(SWAP1)
             + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.gas <= before.gas && after.bytes <= before.bytes && after != before
+        after.dominates(before)
     }
 
     fn protected_count(&mut self, start: LateWindow) -> bool {
@@ -735,10 +735,6 @@ impl generated::Context for PeepContext<'_> {
 
     fn swap_op(&mut self, depth: u8) -> StackOp {
         StackOp::Swap(depth)
-    }
-
-    fn exchange_of_swaps(&mut self, first: u8, second: u8, third: u8) -> Option<StackOp> {
-        StackOp::from_swaps(first, second, third)
     }
 
     fn u256_is_zero(&mut self, value: U256) -> bool {

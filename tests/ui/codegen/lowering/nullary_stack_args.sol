@@ -3,17 +3,20 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // A cheap environment read passed to an internal call is re-emitted right
-// below the jump as a stack argument. Storing it to the callee's frame first
-// would add a memory write at every call site.
+// below the return address as a stack argument. Storing it to the callee's
+// frame first would add a memory write at every call site.
 contract NullaryStackArgs {
     uint256 internal total;
 
     // CHECK-LABEL: (runtime) ===
     // CHECK: callvalue
+    // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jump bb{{[0-9]+}}
     // CHECK: callvalue
+    // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jump bb{{[0-9]+}}
     // CHECK: callvalue
+    // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jump bb{{[0-9]+}}
     function f(uint256 x) external payable returns (uint256) {
         uint256 a = record(msg.value, x);
