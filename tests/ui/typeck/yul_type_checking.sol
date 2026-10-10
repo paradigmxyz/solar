@@ -70,7 +70,6 @@ contract C {
             pop(boolConstant)
             pop(addressConstant)
             pop(bytes32Constant)
-            pop(convertedConstant)
             pop("abc")
             pop(hex"1234")
             let bitmask := 0xffffffffffffffffffffffffffffffffffffffff
@@ -137,6 +136,8 @@ contract C {
             pop(hex"123456789012345678901234567890123456789012345678901234567890123456") //~ ERROR: string literal too long (33 > 32)
 
             pop(stringConstant) //~ ERROR: only direct number constants are supported in inline assembly
+
+            pop(convertedConstant) //~ ERROR: only direct number constants are supported in inline assembly
 
             pop(immutableValue) //~ ERROR: assembly access to immutable variables is not supported
 

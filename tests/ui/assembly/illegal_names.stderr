@@ -1,0 +1,86 @@
+error[4113]: identifier name `this` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function this() {
+   ╰╴                     ━━━━
+
+error[4113]: identifier name `super` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function super() {
+   ╰╴                     ━━━━━
+
+error[4113]: identifier name `_` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function _() {
+   ╰╴                     ━
+
+error[4113]: identifier name `this` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function a(this) {
+   ╰╴                       ━━━━
+
+error[4113]: identifier name `super` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function b(super) {
+   ╰╴                       ━━━━━
+
+error[4113]: identifier name `_` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function c(_) {
+   ╰╴                       ━
+
+error[4113]: identifier name `this` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function d() -> this {
+   ╰╴                            ━━━━
+
+error[4113]: identifier name `super` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function g() -> super {
+   ╰╴                            ━━━━━
+
+error[4113]: identifier name `_` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             function c() -> _ {
+   ╰╴                            ━
+
+error[4113]: identifier name `this` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             let this := 1
+   ╰╴                ━━━━
+
+error[4113]: identifier name `super` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             let super := 1
+   ╰╴                ━━━━━
+
+error[4113]: identifier name `_` is reserved
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             let _ := 1
+   ╰╴                ━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             let this := 1
+   ╰╴                ━━━━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/illegal_names.sol:LL:CC
+   │
+LL │             let super := 1
+   ╰╴                ━━━━━
+
+error: aborting due to 14 previous errors
+

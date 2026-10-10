@@ -1,0 +1,44 @@
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := y
+   ╰╴                 ━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := converted
+   ╰╴                 ━━━━━━━━━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := conditional
+   ╰╴                 ━━━━━━━━━━━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := text
+   ╰╴                 ━━━━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := parenthesizedStr
+   ╰╴                 ━━━━━━━━━━━━━━━━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := typedArithmetic
+   ╰╴                 ━━━━━━━━━━━━━━━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/assembly/constant_access.sol:LL:CC
+   │
+LL │             t := bitNot
+   ╰╴                 ━━━━━━
+
+error: aborting due to 7 previous errors
+

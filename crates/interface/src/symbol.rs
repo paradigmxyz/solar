@@ -355,6 +355,29 @@ impl Symbol {
         }
     }
 
+    /// Returns `true` if Yul reserves the symbol as an EVM instruction or object builtin name
+    /// that is not a Yul builtin keyword.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libyul/backends/evm/EVMDialect.cpp#L83-L168>
+    pub fn is_reserved_yul_identifier(self) -> bool {
+        fn is_numbered(name: &str, prefix: &str, range: std::ops::RangeInclusive<u8>) -> bool {
+            name.strip_prefix(prefix).is_some_and(|n| {
+                matches!(n.as_bytes(), [b'0'..=b'9'] | [b'1'..=b'9', b'0'..=b'9'])
+                    && range.contains(&n.parse().unwrap())
+            })
+        }
+
+        if matches!(self, sym::jump | sym::jumpi | sym::jumpdest | sym::pc)
+            || (self >= kw::Datacopy && self <= kw::Setimmutable && self != kw::Memoryguard)
+        {
+            return true;
+        }
+        let name = self.as_str();
+        is_numbered(name, "push", 0..=32)
+            || is_numbered(name, "dup", 1..=16)
+            || is_numbered(name, "swap", 1..=16)
+    }
+
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
     /// possible future use.
     #[inline]
@@ -952,7 +975,7 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
-        // Yul object and compiler builtins, which are not reserved names.
+        // Yul object and compiler builtins, which are not reserved keywords.
         Datacopy:       "datacopy",
         Dataoffset:     "dataoffset",
         Datasize:       "datasize",
@@ -1130,6 +1153,7 @@ symbols! {
         invalid_tuple_offset,
         invoke,
         jump,
+        jumpdest,
         jumpi,
         keccak256_bytes,
         keccak256_packed,
@@ -1207,6 +1231,7 @@ symbols! {
         panic,
         panic_if,
         panic_if_zero,
+        pc,
         phase,
         phi,
         preserves_fmp,

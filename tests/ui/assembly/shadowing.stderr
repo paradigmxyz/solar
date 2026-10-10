@@ -1,0 +1,80 @@
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │             let a := 1
+   │                 ━
+   ╰╴
+note: the shadowed declaration is here
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │     function argument(uint a) public pure {
+   ╰╴                           ━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │             let C := 1
+   │                 ━
+   ╰╴
+note: the shadowed declaration is here
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │ contract C {
+   ╰╴         ━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │             let function_ := 1
+   │                 ━━━━━━━━━
+   ╰╴
+note: the shadowed declaration is here
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │     function function_() public pure {
+   ╰╴             ━━━━━━━━━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │             let a := 1
+   │                 ━
+   ╰╴
+note: the shadowed declaration is here
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │         uint a;
+   ╰╴             ━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │                 let r := 1
+   │                     ━
+   ╰╴
+note: the shadowed declaration is here
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │     function others() public pure returns (uint r) {
+   ╰╴                                                ━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │             let s := 1
+   │                 ━
+   ╰╴
+note: the shadowed declaration is here
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │     uint s;
+   ╰╴         ━
+
+error[3859]: this declaration shadows a declaration outside the inline assembly block
+   ╭▸ ROOT/tests/ui/assembly/shadowing.sol:LL:CC
+   │
+LL │             let msg := 1
+   ╰╴                ━━━
+
+error: aborting due to 7 previous errors
+
