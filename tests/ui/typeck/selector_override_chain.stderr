@@ -1,4 +1,4 @@
-error: no matching declarations found
+error[2144]: no matching declarations found
    ╭▸ ROOT/tests/ui/typeck/selector_override_chain.sol:LL:CC
    │
 LL │         return g.selector;

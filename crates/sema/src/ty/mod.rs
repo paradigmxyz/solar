@@ -1371,7 +1371,7 @@ impl<'gcx> Gcx<'gcx> {
         let hir::ItemId::Function(function) = modifier.id else {
             return None;
         };
-        if modifier.span.lo() != modifier.name_span.lo() {
+        if modifier.is_qualified() {
             return Some(function);
         }
         Some(self.resolve_virtual_function(contract, function))

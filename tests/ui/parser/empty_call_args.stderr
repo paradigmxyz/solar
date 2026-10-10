@@ -1,4 +1,4 @@
-error: no matching declarations found
+error[2144]: no matching declarations found
    ╭▸ ROOT/tests/ui/parser/empty_call_args.sol:LL:CC
    │
 LL │     revert;

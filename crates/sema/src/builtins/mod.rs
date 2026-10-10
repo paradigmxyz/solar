@@ -233,6 +233,7 @@ declare_builtins! {
     // `msg`
     MsgSender              => sym::sender
                            => gcx.types.address;
+    // Removed; kept so that typeck can reject `msg.gas` with a hint.
     MsgGas                 => kw::Gas
                            => gcx.types.uint(256);
     MsgValue               => sym::value

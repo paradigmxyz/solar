@@ -553,7 +553,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Ident(resolutions) => {
-                let res = self.resolve_value(expr, resolutions);
+                let mut res = self.resolve_value(expr, resolutions);
+                if !self.in_yul {
+                    res = self.reject_modifier_ref(res, expr.span);
+                }
                 self.check_res_evm_version(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
@@ -656,6 +659,18 @@ impl<'gcx> TypeChecker<'gcx> {
                     .collect::<SmallVec<[_; 4]>>();
 
                 let ty = match self.select_member_access(&possible_members) {
+                    Ok(member)
+                        if matches!(member.res, Some(hir::Res::Builtin(Builtin::MsgGas))) =>
+                    {
+                        return self.gcx.mk_ty_err(
+                            self.dcx()
+                                .err("`msg.gas` has been removed")
+                                .code(error_code!(1400))
+                                .span(expr.span)
+                                .help("use `gasleft()` instead")
+                                .emit(),
+                        );
+                    }
                     Ok(member) => {
                         if matches!(
                             member.res,
@@ -2447,6 +2462,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 hir::Res::Err(self.dcx().emit_err(callee.span, msg))
             }
         };
+        let res = self.reject_modifier_ref(res, callee.span);
         self.check_res_evm_version(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
@@ -3246,11 +3262,14 @@ impl<'gcx> TypeChecker<'gcx> {
         let res = match self.try_resolve_overloads(resolutions) {
             Ok(res) => res,
             Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
+                let (msg, code) = match e {
+                    _ if self.in_yul => ("multiple matching identifiers", error_code!(4718)),
+                    OverloadError::NotFound => {
+                        ("no matching declarations found", error_code!(2144))
+                    }
+                    OverloadError::Ambiguous => ("no unique declarations found", error_code!(7589)),
                 };
-                hir::Res::Err(self.dcx().emit_err(expr.span, msg))
+                hir::Res::Err(self.dcx().err(msg).code(code).span(expr.span).emit())
             }
         };
         if resolutions.len() > 1 {
@@ -3259,9 +3278,23 @@ impl<'gcx> TypeChecker<'gcx> {
         res
     }
 
+    /// Rejects a modifier referenced by an expression, since only modifier invocations in
+    /// function headers can name one.
+    fn reject_modifier_ref(&self, res: hir::Res, span: Span) -> hir::Res {
+        if let Some(id) = res.as_function()
+            && self.gcx.hir.function(id).kind.is_modifier()
+        {
+            let msg = "modifier can only be referenced in function headers";
+            return hir::Res::Err(self.dcx().err(msg).code(error_code!(3112)).span(span).emit());
+        }
+        res
+    }
+
     fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
         match res {
             [] => unreachable!("no candidates for overload resolution"),
+            // One builtin stands for all overloads of `require`, and only a call picks one.
+            [hir::Res::Builtin(Builtin::Require)] => return Err(OverloadError::NotFound),
             &[res] => return Ok(res),
             _ => {}
         }
@@ -3415,6 +3448,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
+        }
+        if modifier.is_qualified()
+            && let Some(id) = modifier.id.as_function()
+            && self.gcx.hir.function(id).body.is_none()
+        {
+            self.dcx()
+                .err("cannot call unimplemented modifier")
+                .code(error_code!(1835))
+                .span(modifier.span)
+                .note("the modifier has no implementation in the referenced contract")
+                .help("refer to it by its unqualified name to call the implementation in the most derived contract")
+                .emit();
         }
         let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
             return self.walk_modifier(modifier);

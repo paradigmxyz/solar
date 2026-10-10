@@ -981,6 +981,13 @@ pub struct Modifier<'hir> {
     pub args: CallArgs<'hir>,
 }
 
+impl Modifier<'_> {
+    /// Returns `true` if the call names its target through a contract, as in `B.m`.
+    pub fn is_qualified(&self) -> bool {
+        self.span.lo() != self.name_span.lo()
+    }
+}
+
 /// A resolved `using for` directive.
 #[derive(Debug)]
 pub struct UsingDirective<'hir> {
