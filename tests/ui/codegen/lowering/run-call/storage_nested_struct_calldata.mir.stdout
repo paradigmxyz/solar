@@ -502,8 +502,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v114 = mul v112, 32
     v115 = add v107, v114
     v116 = calldataload v115
-    v117 = and v116, 255
-    v118 = eq v116, v117
+    v117 = shr 8, v116
+    v118 = eq v117, 0
     v119 = eq v118, false
     icall revert_if<empty>, v119
     v120 = add v112, 1
@@ -512,8 +512,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v99 = mul v97, 32
     v100 = add v86, v99
     v101 = calldataload v100
-    v102 = and v101, 255
-    v103 = eq v101, v102
+    v102 = shr 8, v101
+    v103 = eq v102, 0
     v104 = eq v103, false
     icall revert_if<empty>, v104
     memory_object_store_element memoryarray<1>, v96, v97, v101
@@ -1121,8 +1121,8 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v97 = mul v95, 32
     v98 = add v90, v97
     v99 = calldataload v98
-    v100 = and v99, 255
-    v101 = eq v99, v100
+    v100 = shr 8, v99
+    v101 = eq v100, 0
     v102 = eq v101, false
     icall revert_if<empty>, v102
     v103 = add v95, 1
@@ -1131,8 +1131,8 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v82 = mul v80, 32
     v83 = add v69, v82
     v84 = calldataload v83
-    v85 = and v84, 255
-    v86 = eq v84, v85
+    v85 = shr 8, v84
+    v86 = eq v85, 0
     v87 = eq v86, false
     icall revert_if<empty>, v87
     memory_object_store_element memoryarray<1>, v79, v80, v84
@@ -1722,8 +1722,8 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v100 = mul v98, 32
     v101 = add v93, v100
     v102 = calldataload v101
-    v103 = and v102, 255
-    v104 = eq v102, v103
+    v103 = shr 8, v102
+    v104 = eq v103, 0
     v105 = eq v104, false
     icall revert_if<empty>, v105
     v106 = add v98, 1
@@ -1732,8 +1732,8 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v85 = mul v83, 32
     v86 = add v72, v85
     v87 = calldataload v86
-    v88 = and v87, 255
-    v89 = eq v87, v88
+    v88 = shr 8, v87
+    v89 = eq v88, 0
     v90 = eq v89, false
     icall revert_if<empty>, v90
     memory_object_store_element memoryarray<1>, v82, v83, v87

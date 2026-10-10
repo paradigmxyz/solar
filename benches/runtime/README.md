@@ -27,6 +27,11 @@ scripts directly.
 
 `--evm-version VERSION` overrides every case's EVM target.
 
+`-j N` (`--jobs N`) runs N cases at once when compile time does not matter. It records no compile
+times or suite timings, keeps results in case order, and refuses `--gas`, whose transactions share
+one sender. Compile-time mode also needs `--ignore-compile-time`, which compiles each case once and
+drops compile times from any run.
+
 `--optimizer-runs N` overrides every case's `optimizer.runs` for all compilers. We optimize for size
 below 200 runs and for gas from 200, so `--optimizer-runs 1` makes a size benchmark (`--gas` then
 runs on the size-optimized code).
@@ -150,9 +155,10 @@ baselines use the candidate's exclusions; two old reports without this metadata 
 ## Comparing local builds
 
 Compare our base and candidate builds locally; do not install or run solc/solx unless asked. Record
-the baseline before editing and reuse it while the commit, toolchain, flags, and corpus match. While
-iterating, run affected cases with one compile sample; replace `counter factorial` below with their
-IDs. Execution uses Foundry's `cast` and `anvil`.
+the baseline before editing and reuse it while the commit, toolchain, flags, and corpus match: keep
+its `results.json` and artifacts frozen, pass its directory to `benchmark-compare.py`, and run only
+the candidate. While iterating, run affected cases with one compile sample; replace
+`counter factorial` below with their IDs. Execution uses Foundry's `cast` and `anvil`.
 
 ```bash
 bench_run() {
@@ -184,6 +190,15 @@ MIR (`mir.mir`), EVM IR (`creation.evmir`, `runtime.evmir`), disassembly, and by
 Narrow with `--tests NAME...` or `--artifact mir evm-ir`. Whole-project cases measure compilation
 only; `testdata/projects/README.md` and [Workloads](#workloads) pin their inputs and upstream
 commits.
+
+To check that a change leaves compiler output identical across the whole corpus, make compile-only
+runs of both builds with release binaries and no `--gas`, using
+`--mode runtime compile-time --suite all -j 8 --ignore-compile-time`. The comparison
+lists each case whose Standard JSON output, bytecode included, differs as `compiler output
+fingerprint changed` under "Artifact changes and availability"; no such rows means identical
+output. When a comparison ignores compile time, gas and size runs (`--optimizer-runs 1`) can run at
+the same time, each with `--start-anvil` and its own `--rpc-url` port, such as
+`http://127.0.0.1:8546`.
 
 Keep baseline binaries, results, and artifacts immutable; use fresh candidate directories, debug
 builds, and the existing target directory. Save evidence outside directories due for cleanup, then
@@ -296,6 +311,10 @@ from the pinned project corpus; they show targeted gains, not general superiorit
   for fixed-point scaling, fee routing and deduction, kept shares, lot thresholds and whole lots,
   week, period, and day rounding, and nested unit conversion. Return checks include the scaled
   products' overflow limits and maximal timestamps.
+- `calldata-loops` (`CalldataLoops.sol`): loops over calldata arrays as batch entry points read
+  them: totals, products by a fixed price, maxima, address searches, and dot products. Each call
+  repeats its pass so execution, not the EIP-7623 calldata floor, sets the gas used. Return checks
+  include empty arrays, zero rounds, and the exact product limit.
 
 ## Reproducing oksolc via-IR failures
 

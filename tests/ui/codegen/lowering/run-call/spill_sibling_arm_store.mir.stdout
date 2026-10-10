@@ -187,23 +187,20 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     icall revert_if<tuple_data_too_short>, v20
     v21 = add 0, 0
     v22 = mload v21
-    v23 = eq v22, 0
+    v23 = lt v22, 2
     v24 = eq v23, false
-    v25 = zext i1 v24 to i256
-    v26 = eq v22, v25
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = gas
-    v29 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v30 = slice_ptr v29
-    v31 = slice_len v29
+    icall revert_if<empty>, v24
+    v25 = gas
+    v26 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = zext i160 arg1 to i256
+    v30 = extcodesize v29
+    v31 = eq v30, 0
+    icall revert_if<target_contract_has_no_code>, v31
     v32 = zext i160 arg1 to i256
-    v33 = extcodesize v32
-    v34 = eq v33, 0
-    icall revert_if<target_contract_has_no_code>, v34
-    v35 = zext i160 arg1 to i256
-    v36 = call v28, v35, 0, v30, v31, 0, 0
-    jumpi v36, bb12, bb11
+    v33 = call v25, v32, 0, v27, v28, 0, 0
+    jumpi v33, bb12, bb11
   bb11:
     revert_returndata
   bb12:

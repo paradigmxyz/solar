@@ -1,0 +1,94 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/spilled_phi_input_reloaded_after_store.sol:C ===
+@module C
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 8], [bb3: v14]
+    v1 = phi [bb0: 15], [bb3: v25]
+    v2 = phi [bb0: 43], [bb3: v33]
+    v3 = phi [bb0: 1], [bb3: v15]
+    v4 = phi [bb0: 5], [bb3: v18]
+    v5 = phi [bb0: 22], [bb3: v27]
+    v6 = phi [bb0: 9], [bb3: v19]
+    v7 = phi [bb0: 2], [bb3: v1]
+    v8 = phi [bb0: 50], [bb3: v35]
+    v9 = phi [bb0: 6], [bb3: v2]
+    v10 = phi [bb0: 0], [bb3: v10]
+    v11 = phi [bb0: 29], [bb3: v29]
+    v12 = phi [bb0: 0], [bb3: v40]
+    v13 = phi [bb0: 3], [bb3: v5]
+    v14 = phi [bb0: 57], [bb3: v37]
+    v15 = phi [bb0: 8], [bb3: v23]
+    v16 = phi [bb0: 7], [bb3: v8]
+    v17 = phi [bb0: arg0], [bb3: v17]
+    v18 = phi [bb0: 36], [bb3: v31]
+    v19 = phi [bb0: 64], [bb3: v39]
+    v20 = phi [bb0: 4], [bb3: v11]
+    v21 = lt v12, v17
+    jumpi v21, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v41 = mul v3, 4
+    v42 = mul v15, 14
+    v43 = xor v41, v42
+    v44 = mul v7, 5
+    v45 = xor v43, v44
+    v46 = mul v1, 15
+    v47 = xor v45, v46
+    v48 = mul v13, 6
+    v49 = xor v47, v48
+    v50 = mul v5, 16
+    v51 = xor v49, v50
+    v52 = mul v20, 7
+    v53 = xor v51, v52
+    v54 = mul v11, 17
+    v55 = xor v53, v54
+    v56 = mul v4, 8
+    v57 = xor v55, v56
+    v58 = mul v18, 18
+    v59 = xor v57, v58
+    v60 = mul v9, 9
+    v61 = xor v59, v60
+    v62 = mul v2, 19
+    v63 = xor v61, v62
+    v64 = mul v16, 10
+    v65 = xor v63, v64
+    v66 = mul v8, 20
+    v67 = xor v65, v66
+    v68 = mul v0, 11
+    v69 = xor v67, v68
+    v70 = mul v14, 21
+    v71 = xor v69, v70
+    v72 = mul v6, 12
+    v73 = xor v71, v72
+    v74 = mul v19, 22
+    v75 = xor v73, v74
+    ret v75
+  bb4:
+    v22 = mul v15, 2
+    v23 = add v3, v22
+    v24 = mul v1, 3
+    v25 = add v7, v24
+    v26 = mul v5, 4
+    v27 = add v13, v26
+    v28 = mul v11, 5
+    v29 = add v20, v28
+    v30 = mul v18, 6
+    v31 = add v4, v30
+    v32 = mul v2, 7
+    v33 = add v9, v32
+    v34 = mul v8, 8
+    v35 = add v16, v34
+    v36 = mul v14, 9
+    v37 = add v0, v36
+    v38 = mul v19, 10
+    v39 = add v6, v38
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v40 = add v12, 1
+    jump bb1
+}

@@ -20,6 +20,9 @@ use sir_static_memory_allocator::BumpAllocateAll;
 use solar_config::OptimizationMode;
 use std::fmt::Write;
 
+/// Clears the low five bits of a word to round it down to a multiple of 32.
+const CEIL32_MASK: &str = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0";
+
 pub(super) fn compile(
     module: &Module,
     optimization: OptimizationMode,
@@ -75,7 +78,7 @@ fn compile_with_memory(
     {
         // end = init_end_offset; size = codesize - end; codecopy ARGS_PHYSICAL end size; mstore 64
         // ceil32(ARGS_BASE + size)
-        init.push_str("end = init_end_offset\ntotal = codesize\nsize = sub total end\ncodecopy ARGS_PHYSICAL end size\nrounded = add size ARGS_ROUND\nfree = and rounded 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0\nmstore256 FMP_SLOT free\n");
+        writeln!(init, "end = init_end_offset\ntotal = codesize\nsize = sub total end\ncodecopy ARGS_PHYSICAL end size\nrounded = add size ARGS_ROUND\nfree = and rounded {CEIL32_MASK}\nmstore256 FMP_SLOT free").unwrap();
         for i in 0..module.functions[id].params.len() {
             writeln!(init, "arg{i} = mload256 {}", base + heap + i as u64 * 32).unwrap();
         }
@@ -314,6 +317,13 @@ fn function(
                 writeln!(out, "end{} = init_end_offset\ntotal{} = codesize\nsize{} = sub total{} end{}\nv{} = add ARGS_BASE size{}", iid.index(), iid.index(), iid.index(), iid.index(), iid.index(), f.inst_result_value(iid).ok_or("constructor boundary without result")?.index(), iid.index()).unwrap();
                 continue;
             }
+            if constructor && matches!(inst.kind, InstKind::HeapFloor) {
+                // end = init_end_offset; size = codesize - end; result = ceil32(ARGS_BASE + size)
+                let i = iid.index();
+                let result = f.inst_result_value(iid).ok_or("heap floor without result")?.index();
+                writeln!(out, "end{i} = init_end_offset\ntotal{i} = codesize\nsize{i} = sub total{i} end{i}\nrounded{i} = add size{i} ARGS_ROUND\nv{result} = and rounded{i} {CEIL32_MASK}").unwrap();
+                continue;
+            }
             if let InstKind::DataCopy(data, ..) = &inst.kind {
                 // base = data_offset .dN; offset = add base data.offset; codecopy dest offset size
                 writeln!(
@@ -374,7 +384,7 @@ fn function(
                 }
                 InstKind::PrevRandao => "difficulty".into(),
                 InstKind::Clz(..) => "clz".into(),
-                InstKind::ConstructorArgsBase => {
+                InstKind::ConstructorArgsBase | InstKind::HeapFloor => {
                     args.push("ARGS_BASE".into());
                     "copy".into()
                 }

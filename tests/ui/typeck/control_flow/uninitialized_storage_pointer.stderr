@@ -1,0 +1,38 @@
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol:LL:CC
+   │
+LL │         y.x = x;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol:LL:CC
+   │
+LL │         Item storage y;
+   ╰╴        ━━━━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol:LL:CC
+   │
+LL │         return y.x;
+   │                ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol:LL:CC
+   │
+LL │         Item storage y;
+   ╰╴        ━━━━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol:LL:CC
+   │
+LL │         r.push();
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol:LL:CC
+   │
+LL │     function f() internal returns (uint[] storage r) {
+   ╰╴                                   ━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

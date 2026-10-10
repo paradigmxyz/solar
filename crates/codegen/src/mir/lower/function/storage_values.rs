@@ -199,15 +199,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             _ => {
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let constant = match self.cx.gcx.try_eval_const_value(expr) {
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
                     Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.builder.imm(value))
+                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
                     }
                     _ => None,
                 };
                 let value = if let Some(value) = constant {
-                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                    self.coerce_value(value, expr_ty, ty)
                 } else {
                     self.lower_typed_expr(expr, ty)?
                 };
@@ -327,6 +328,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.sstore(base.slot, new_length);
                 Some(access)
             }
+            // A call that returns a storage reference, directly or through a function pointer,
+            // yields its slot.
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
                 let slot = self.lower_expr(expr)?;
                 Some(StorageAccess {
@@ -340,10 +343,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
-        self.cx.gcx.resolved_function(callee).is_some_and(|function_id| {
-            self.cx.gcx.hir.function(function_id).returns.first().is_some_and(|&ret| {
-                self.cx.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
-            })
+        self.cx.gcx.type_of_expr(callee.id).is_some_and(|ty| {
+            matches!(ty.kind, TyKind::Fn(function)
+                if function.returns.first().is_some_and(|ret| ret.is_ref_at(DataLocation::Storage)))
         })
     }
 

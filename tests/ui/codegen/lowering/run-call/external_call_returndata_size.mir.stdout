@@ -346,14 +346,11 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = eq v20, 0
+    v21 = lt v20, 2
     v22 = eq v21, false
-    v23 = zext i1 v22 to i256
-    v24 = eq v20, v23
-    v25 = eq v24, false
-    icall revert_if<empty>, v25
-    v26 = ne v20, 0
-    ret v26
+    icall revert_if<empty>, v22
+    v23 = ne v20, 0
+    ret v23
 }
 
 fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -395,12 +392,9 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
     v25 = mload v24
-    v26 = eq v25, 0
+    v26 = lt v25, 2
     v27 = eq v26, false
-    v28 = zext i1 v27 to i256
-    v29 = eq v25, v28
-    v30 = eq v29, false
-    icall revert_if<empty>, v30
-    v31 = ne v25, 0
-    ret v31
+    icall revert_if<empty>, v27
+    v28 = ne v25, 0
+    ret v28
 }

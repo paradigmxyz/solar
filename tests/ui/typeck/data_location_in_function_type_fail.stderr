@@ -1,0 +1,24 @@
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/typeck/data_location_in_function_type_fail.sol:LL:CC
+   │
+LL │     function f(function(Nested transient) external returns (uint)[] storage) external pure {}
+   ╰╴                               ━━━━━━━━━
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/data_location_in_function_type_fail.sol:LL:CC
+   │
+LL │     function d(function(Nested storage) external returns (uint)[] storage) external pure {}
+   │                         ━━━━━━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for function parameter, but got `storage`
+
+error: expected data location
+   ╭▸ ROOT/tests/ui/typeck/data_location_in_function_type_fail.sol:LL:CC
+   │
+LL │     function f(function(Nested transient) external returns (uint)[] storage) external pure {}
+   │                         ━━━━━━━━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` or `calldata` for function parameter
+
+error: aborting due to 2 previous errors; 1 warning emitted
+

@@ -1,5 +1,5 @@
 //@ revisions: evm yul sonatina sir llvm evm_none yul_none sonatina_none sir_none llvm_none evm_size yul_size sonatina_size sir_size llvm_size
-//@ compile-flags: --evm-version osaka
+//@ compile-flags: --evm-version osaka --allow=5740
 //@[evm] compile-flags: --codegen-backend evm -Ogas
 //@[yul] compile-flags: --codegen-backend yul -Ogas
 //@[sonatina] compile-flags: --codegen-backend sonatina -Ogas

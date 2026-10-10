@@ -2,7 +2,6 @@
 //!
 //! This module contains dataflow analysis passes for MIR, including:
 //! - Liveness analysis for tracking value lifetimes
-//! - Phi elimination for converting SSA to CSSA
 //! - Loop analysis for detecting and analyzing natural loops
 
 pub(crate) mod integers;
@@ -33,9 +32,6 @@ pub(crate) use cold::{aborts, cold_functions};
 mod liveness;
 pub(crate) use liveness::Liveness;
 
-mod phi_elimination;
-pub(crate) use phi_elimination::{CopyDest, CopySource, ParallelCopy, PhiEliminator};
-
 mod loop_analysis;
 pub(crate) use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
 
@@ -44,3 +40,6 @@ pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
 pub(crate) use validator::{validate, validate_phase};
+
+mod absolute_addresses;
+pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};

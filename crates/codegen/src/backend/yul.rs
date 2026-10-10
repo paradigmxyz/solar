@@ -373,6 +373,13 @@ fn expression(
         InstKind::ConstructorArgsEnd if constructor => {
             return Ok(format!("add({args_base}, sub(codesize(), datasize(\"Contract\")))"));
         }
+        InstKind::HeapFloor if constructor => {
+            return Ok(format!(
+                "and(add(sub(codesize(), datasize(\"Contract\")), {}), not(31))",
+                args_base + 31
+            ));
+        }
+        InstKind::HeapFloor => return Ok(args_base.to_string()),
         InstKind::StoreImmutable(id, _) if constructor => {
             return Ok(format!(
                 "mstore(physical({}), {})",

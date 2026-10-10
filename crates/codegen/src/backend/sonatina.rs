@@ -299,8 +299,7 @@ fn lower(
             let size = word!(b, evm::EvmCodeSize);
             let size = word!(b, arith::Sub, size, end);
             effect!(b, evm::EvmCodeCopy, imm(&mut b, base + heap), end, size);
-            let end = word!(b, arith::Add, size, imm(&mut b, heap + 31));
-            let end = word!(b, logic::And, end, imm(&mut b, U256::MAX - U256::from(31)));
+            let end = constructor_heap_start(&mut b, size, heap);
             effect!(b, evm::EvmMstore, imm(&mut b, fmp), end);
             let args = (0..module.functions[id].params.len())
                 .map(|i| word!(b, evm::EvmMload, imm(&mut b, base + heap + i as u64 * 32)))
@@ -473,11 +472,13 @@ fn lower_function(
                     let delta = word!(b, logic::And, delta, mask);
                     Some(word!(b, logic::Xor, args[2], delta))
                 }
-                InstKind::ConstructorArgsBase => Some(imm(&mut b, heap)),
+                InstKind::HeapFloor if constructor => {
+                    let size = constructor_args_size(&mut b);
+                    Some(constructor_heap_start(&mut b, size, heap))
+                }
+                InstKind::ConstructorArgsBase | InstKind::HeapFloor => Some(imm(&mut b, heap)),
                 InstKind::ConstructorArgsEnd => {
-                    let end = word!(b, SymSize, SymbolRef::CurrentSection);
-                    let size = word!(b, evm::EvmCodeSize);
-                    let size = word!(b, arith::Sub, size, end);
+                    let size = constructor_args_size(&mut b);
                     Some(word!(b, arith::Add, imm(&mut b, heap), size))
                 }
                 InstKind::DataCopy(source, ..) => {
@@ -582,6 +583,23 @@ where
     b.make_imm_value(sonatina_ir::Immediate::I256(sonatina_ir::I256::from_le_bytes(
         &U256::from(value).to_le_bytes::<32>(),
     )))
+}
+
+/// Returns `codesize - init_size`, the byte length of the appended constructor arguments.
+fn constructor_args_size(b: &mut FunctionBuilder<InstInserter>) -> sonatina_ir::ValueId {
+    let end = word!(b, SymSize, SymbolRef::CurrentSection);
+    let size = word!(b, evm::EvmCodeSize);
+    word!(b, arith::Sub, size, end)
+}
+
+/// Returns `ceil32(heap + size)`, the constructor's initial free memory pointer.
+fn constructor_heap_start(
+    b: &mut FunctionBuilder<InstInserter>,
+    size: sonatina_ir::ValueId,
+    heap: u64,
+) -> sonatina_ir::ValueId {
+    let end = word!(b, arith::Add, size, imm(b, heap + 31));
+    word!(b, logic::And, end, imm(b, U256::MAX - U256::from(31)))
 }
 
 fn operation(

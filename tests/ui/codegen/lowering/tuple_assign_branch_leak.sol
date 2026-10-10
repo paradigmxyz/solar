@@ -14,42 +14,16 @@ contract TupleAssignBranchLeak {
     }
 
     // CHECK-LABEL: @module TupleAssignBranchLeak_runtime
-    // CHECK: push 0x2143aa9
-    // CHECK-NEXT: sub
-    // CHECK: push 1{{$}}
-    // CHECK-NEXT: lt
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
+    // CHECK: push 36
+    // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push [[THEN:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // The fallthrough else arm rebuilds `off` from calldata, not the other arm's result.
+    // The fallthrough else arm adds to the pre-branch `off`, not the other arm's result.
     // CHECK-NEXT: push 7
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
-    // CHECK: lt
-    // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
-    // CHECK-NEXT: [[PAIR]]:
-    // CHECK: push 1
-    // CHECK: add
-    // CHECK: push 2
-    // CHECK: add
-    // CHECK: lt
-    // CHECK-NEXT: push [[OVERFLOW]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: jump
-    // CHECK: [[THEN]]:
-    // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: jump [[PAIR]]
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;
         uint256 off = seed;

@@ -185,8 +185,7 @@ fn lower_contract(
     if let Some(id) = constructor {
         let size = init.constructor_args_size()?;
         init.copy_memory(4, false, init.word(base + args_base), size.0, size.1)?;
-        let rounded = init.builder.build_int_add(size.1, init.word(args_base + 31), "rounded")?;
-        let free = init.builder.build_and(rounded, init.word(31).const_not(), "free")?;
+        let free = init.constructor_heap_start(size.1, args_base, "free")?;
         init.store(init.word(fmp), free, 1)?;
         let args = (0..module.functions[id].params.len())
             .map(|i| {
@@ -599,6 +598,17 @@ impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
         Ok((end, self.builder.build_int_sub(total, end, "size")?))
     }
 
+    /// Returns `ceil32(args_base + size)`, the constructor's initial free memory pointer.
+    fn constructor_heap_start(
+        &self,
+        size: IntValue<'ctx>,
+        args_base: u64,
+        name: &str,
+    ) -> LowerResult<IntValue<'ctx>> {
+        let rounded = self.builder.build_int_add(size, self.word(args_base + 31), "rounded")?;
+        Ok(self.builder.build_and(rounded, self.word(31).const_not(), name)?)
+    }
+
     fn function(&mut self, f: &Function, id: usize, constructor: bool) -> LowerResult<()> {
         let function = self.functions[id];
         function.set_linkage(Linkage::Internal);
@@ -686,6 +696,11 @@ impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
                         let (_, size) = self.constructor_args_size()?;
                         Some(self.builder.build_int_add(self.word(args_base), size, &name)?)
                     }
+                    InstKind::HeapFloor if constructor => {
+                        let (_, size) = self.constructor_args_size()?;
+                        Some(self.constructor_heap_start(size, args_base, &name)?)
+                    }
+                    InstKind::HeapFloor => Some(self.word(args_base)),
                     InstKind::LoadImmutable(id) if constructor => Some(self.load(
                         self.word(base + immutable_staging_base(self.mir) + id.index() as u64 * 32),
                         1,

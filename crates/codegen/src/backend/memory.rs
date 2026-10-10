@@ -110,6 +110,7 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
                     | InstKind::Ne(..)
                     | InstKind::MemoryZero(..)
                     | InstKind::Fmp
+                    | InstKind::HeapFloor
                     | InstKind::SetFmp(..)
                     | InstKind::Alloc { .. }
                     | InstKind::MemoryObjectLen(..)

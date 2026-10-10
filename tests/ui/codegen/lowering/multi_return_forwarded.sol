@@ -5,8 +5,8 @@
 
 // Forwarding another six-result internal call as a function's own return
 // leaves adopted copies of every returned word on the stack; the return
-// shuffle cannot always drop the surplus and must fall back to frame-backed
-// returns instead of panicking (Seaport's `getFulfillments` shape).
+// shuffle must drop the surplus instead of panicking (Seaport's
+// `getFulfillments` shape).
 contract MultiReturnForward {
     function inner(uint256 a)
         internal
