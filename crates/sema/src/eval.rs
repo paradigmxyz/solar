@@ -10,6 +10,8 @@ const RECURSION_LIMIT: usize = 64;
 // Literal arithmetic can temporarily need one bit beyond the EVM word even
 // when its final value fits, most notably `2**256 - 1`.
 const MAX_INTERMEDIATE_BITS: u64 = solar_ast::TypeSize::MAX as u64 + 1;
+// The precision of solc's rational numbers, which bounds literal shifts and exponentiations.
+const LITERAL_PRECISION_BITS: u64 = 4096;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -121,7 +123,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         if let Err(e) = &mut res
             && e.span.is_dummy()
         {
-            e.span = expr.span;
+            e.span = expr.peel_parens().span;
         }
         self.depth = self.depth.checked_sub(1).unwrap();
         res
@@ -564,7 +566,8 @@ impl IntScalar {
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
     /// in the common type of both operands. Two literals stay untyped and keep their exact value up
     /// to `MAX_INTERMEDIATE_BITS`, a narrower bound than solc's rational arithmetic, and operands
-    /// without a common type stay untyped because the type checker already rejects them.
+    /// without a common type stay untyped because the type checker already rejects them. A shift or
+    /// exponentiation of two literals must stay within [`Self::check_literal_bounds`].
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -590,7 +593,10 @@ impl IntScalar {
                     l.mobile_ty()?;
                     Some(IntTy::full_width(l.is_negative()))
                 }
-                (None, None) => None,
+                (None, None) => {
+                    l.check_literal_bounds(r, op)?;
+                    None
+                }
             },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
@@ -608,6 +614,37 @@ impl IntScalar {
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         let ty = Self::binop_ty(&self, &r, op)?;
         self.binop_value(r, op)?.retype(ty)
+    }
+
+    /// Rejects a literal shift or exponentiation beyond the bounds of solc's rational numbers,
+    /// which solc's `ConstantEvaluator::evaluateBinaryOperator` gives no value.
+    ///
+    /// The shift amount or exponent must fit in 32 bits, and a left shift or power must fit in
+    /// `LITERAL_PRECISION_BITS`. Values within these bounds but wider than
+    /// `MAX_INTERMEDIATE_BITS` are valid in solc and still fail as an overflow here.
+    fn check_literal_bounds(&self, r: &Self, op: hir::BinOpKind) -> Result<(), EE> {
+        use hir::BinOpKind::*;
+        match op {
+            // The type checker rejects negative shift amounts.
+            Shl | Shr if !r.is_negative() => {
+                let amount = u32::try_from(&r.data).map_err(|_| EE::ShiftTooLarge)?;
+                if op == Shl
+                    && !self.is_zero()
+                    && self.data.bits() + u64::from(amount) > LITERAL_PRECISION_BITS
+                {
+                    return Err(EE::ShiftTooLarge);
+                }
+            }
+            // Powers of `0`, `1` and `-1` are exact for any exponent.
+            Pow if !r.is_zero() && !self.is_zero() && !self.data.magnitude().is_one() => {
+                let exp = u32::try_from(r.data.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
+                if self.data.bits() * u64::from(exp) > LITERAL_PRECISION_BITS {
+                    return Err(EE::ExponentTooLarge);
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     fn binop_value(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
@@ -694,6 +731,8 @@ pub enum EvalErrorKind {
     LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
+    ShiftTooLarge,
+    ExponentTooLarge,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
@@ -715,6 +754,8 @@ impl EvalErrorKind {
             Self::LiteralTooLarge => "literal is too large for the type of the other operand",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
+            Self::ShiftTooLarge => "shift amount is too large",
+            Self::ExponentTooLarge => "exponent is too large",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",

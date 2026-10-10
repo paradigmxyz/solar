@@ -1,0 +1,42 @@
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant a = 1 / 0;
+   │                       ┬ ━ ─ int_literal[1]
+   │                       │
+   │                       int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant a = 1 / ((1+3)-4);
+   │                       ┬ ━ ───────── int_literal[1]
+   │                       │
+   │                       int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error[2271]: cannot apply builtin operator `%` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant b3 = 1 % 0;
+   │                        ┬ ━ ─ int_literal[1]
+   │                        │
+   │                        int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error[2271]: cannot apply builtin operator `%` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant b3 = 1 % (-4+((2)*2));
+   │                        ┬ ━ ──────────── int_literal[1]
+   │                        │
+   │                        int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error: aborting due to 4 previous errors
+

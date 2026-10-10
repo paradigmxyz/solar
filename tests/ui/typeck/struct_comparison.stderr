@@ -1,0 +1,10 @@
+error[2271]: cannot apply builtin operator `==` to `struct test.s storage` and `struct test.s storage`
+   ╭▸ ROOT/tests/ui/typeck/struct_comparison.sol:LL:CC
+   │
+LL │     x == y;
+   │     ┬ ━━ ─ struct test.s storage
+   │     │
+   ╰╴    struct test.s storage
+
+error: aborting due to 1 previous error
+
