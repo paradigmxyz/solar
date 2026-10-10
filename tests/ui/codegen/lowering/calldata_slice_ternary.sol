@@ -22,8 +22,8 @@ contract CalldataSliceTernary {
     // the merge stays a single memory pointer.
     // CHECK-LABEL: fn @adopt{{[( ]}}
     // CHECK: [[COPY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, {{v[0-9]+}}
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[COPY]]
-    // CHECK: slice_copy [[VIEW]], 0, arg1
+    // CHECK: [[VIEW:v[0-9]+]] = make_memory_slice
+    // CHECK-NEXT: slice_copy [[VIEW]], 0, arg1
     function adopt(bool c, bytes calldata a) external pure returns (bytes memory) {
         bytes memory local = hex"aabb";
         return c ? a : local;

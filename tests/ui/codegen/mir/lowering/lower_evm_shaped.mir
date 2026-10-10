@@ -198,13 +198,13 @@ fn @recursive_fail(arg0: i256) -> i256 {
     revert 0, 0 !metadata(span=90..100)
 }
 
-// Constructor calls need dynamic frames even without arguments.
+// Constructor code tail-calls nonreturning helpers like any other code.
 // CHECK-LABEL: {{^[ +].*}}fn @constructor{{[( ]}}
-// CHECK: {{^[ +].*}}= icall @constructor_helper, 23
+// CHECK: - {{.*}}= icall @constructor_helper, 23
 // CHECK: - sstore 0,
-// CHECK: + invalid
-// CHECK: {{^[ +].*}}= icall @constructor_no_args
-// CHECK: + invalid
+// CHECK: + tail_call @constructor_helper, 23
+// CHECK: - {{.*}}= icall @constructor_no_args
+// CHECK: + tail_call @constructor_no_args
 fn @constructor() [abi_wrapper] {
   bb0:
     v0 = callvalue
@@ -225,11 +225,11 @@ fn @constructor_no_args() -> i256 {
     revert 0, 0
 }
 
-// Constructor reachability also applies through newly nonreturning helpers.
+// A helper that only becomes nonreturning through its own call tail-calls too.
 // CHECK-LABEL: {{^[ +].*}}fn @constructor_helper{{[( ]}}
-// CHECK: {{^[ +].*}}= icall @scalar_fail, arg0
+// CHECK: - {{.*}}= icall @scalar_fail, arg0
 // CHECK: - ret
-// CHECK: + invalid
+// CHECK: + tail_call @scalar_fail, arg0
 fn @constructor_helper(arg0: i256) -> i256 {
   bb0:
     v0 = icall @scalar_fail, arg0

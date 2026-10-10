@@ -45,7 +45,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v12 = abi_encode [word], selector v9, args arg0
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = call v11, v10, 0, v13, v14, 0, 0
+    v15 = call v11, v10, 0, v13, v14, 0, 32
     jumpi v15, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -55,9 +55,12 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
   bb4:
     ret 1
   bb1:
-    v16 = icall returndata_bytes<>
-    v17 = abi_decode [u256], v16
-    ret v17
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
   bb3:
     ret 0
 }
@@ -82,29 +85,18 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     icall revert_if<tuple_data_too_short>, v10
     v11 = ptrtoint memptr v5 to i256
     v12 = make_memory_slice v11, 32
-    v13 = slice_len v12
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    v19 = ptrtoint memptr v18 to i256
-    mstore v19, v13
-    v20 = memory_slice v18
-    slice_copy v20, 0, v12
-    v21 = abi_decode [tuple<function>], v18
-    v22 = memory_object_load_field memorystruct<1>, v21, 0
-    v23 = shr 64, v22
-    v24 = and v23, 0xffffffff
-    v25 = shl 224, v24
-    v26 = shr 32, v23
-    v27 = gas
-    v28 = abi_encode [], selector v25
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = staticcall v27, v26, v29, v30, 0, 0
-    jumpi v31, bb3, bb4
+    v13 = abi_decode [tuple<function>], v12
+    v14 = memory_object_load_field memorystruct<1>, v13, 0
+    v15 = shr 64, v14
+    v16 = and v15, 0xffffffff
+    v17 = shl 224, v16
+    v18 = shr 32, v15
+    v19 = gas
+    v20 = abi_encode [], selector v17
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = staticcall v19, v18, v21, v22, 0, 32
+    jumpi v23, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -113,9 +105,12 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
   bb6:
     ret 0
   bb3:
-    v32 = icall returndata_bytes<>
-    v33 = abi_decode [u256], v32
-    ret v33
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    ret v27
   bb5:
     ret 0
 }

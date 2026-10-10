@@ -29,8 +29,11 @@ fn @copy() -> memptr [selector=0x60726abb, pure, abi_params=[], abi_returns=[mem
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     v14 = ptrtoint memptr v13 to i256
     mstore v14, v8
-    v15 = memory_slice v13
-    slice_copy v15, 0, v1
+    v15 = ptrtoint memptr v13 to i256
+    v16 = add v15, 32
+    v17 = slice_len v1
+    v18 = make_memory_slice v16, v17
+    slice_copy v18, 0, v1
     ret v13
 }
 
@@ -100,7 +103,10 @@ fn @tail(arg0: i256, arg1: i256) -> memptr [selector=0xb62868c3, pure, abi_param
     v22 = alloc memorybytes, exact, uninitialized, infallible, v21
     v23 = ptrtoint memptr v22 to i256
     mstore v23, v17
-    v24 = memory_slice v22
-    slice_copy v24, 0, v10
+    v24 = ptrtoint memptr v22 to i256
+    v25 = add v24, 32
+    v26 = slice_len v10
+    v27 = make_memory_slice v25, v26
+    slice_copy v27, 0, v10
     ret v22
 }

@@ -71,13 +71,16 @@
 +     jumpi v41, bb4, bb11
 +   bb11:
 +     v42 = make_calldata_slice v27, v28
-+     v43 = memory_slice v37
-+     slice_copy v43, 0, v42
-+     v44 = ptrtoint memptr v37 to i256
-+     memory_object_store_field memorystruct<3>, v18, 0, v44
-+     v45 = add v13, 32
-+     v46 = calldataload v45
-+     memory_object_store_field memorystruct<3>, v18, 1, v46
++     v43 = ptrtoint memptr v37 to i256
++     v44 = add v43, 32
++     v45 = slice_len v42
++     v46 = make_memory_slice v44, v45
++     slice_copy v46, 0, v42
++     v47 = ptrtoint memptr v37 to i256
++     memory_object_store_field memorystruct<3>, v18, 0, v47
++     v48 = add v13, 32
++     v49 = calldataload v48
++     memory_object_store_field memorystruct<3>, v18, 1, v49
 +     memory_object_store_field memorystruct<3>, v18, 2, v13
 +     jump bb1
 +   bb1:
@@ -94,12 +97,12 @@
       v9 = add v5, v8
 -     ret v9
 +     mstore 128, v9
-+     v47 = add 128, 32
-+     v48 = sub v47, 128
-+     returndata 128, v48
++     v50 = add 128, 32
++     v51 = sub v50, 128
++     returndata 128, v51
 +   bb8:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb4:
 +     revert 0, 0

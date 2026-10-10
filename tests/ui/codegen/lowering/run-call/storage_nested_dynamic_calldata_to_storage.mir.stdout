@@ -337,8 +337,8 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v82 = mul v80, 32
     v83 = add v68, v82
     v84 = calldataload v83
-    v85 = and v84, 255
-    v86 = eq v84, v85
+    v85 = shr 8, v84
+    v86 = eq v85, 0
     v87 = eq v86, false
     icall revert_if<empty>, v87
     v88 = memory_slice v78
@@ -737,8 +737,8 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v178 = mul v176, 32
     v179 = add v164, v178
     v180 = calldataload v179
-    v181 = and v180, 255
-    v182 = eq v180, v181
+    v181 = shr 8, v180
+    v182 = eq v181, 0
     v183 = eq v182, false
     icall revert_if<empty>, v183
     v184 = memory_slice v174

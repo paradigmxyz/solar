@@ -7,8 +7,8 @@ contract CalldataArraySubslice {
     // adjusted position rebuilds the memory array.
     // CHECK-LABEL: fn @word{{[( ]}}
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[OUT]]
-    // CHECK: slice_copy [[VIEW]], 0, {{v[0-9]+}}
+    // CHECK: [[VIEW:v[0-9]+]] = make_memory_slice
+    // CHECK-NEXT: slice_copy [[VIEW]], 0, {{v[0-9]+}}
     function word(uint256[] calldata a) external pure returns (uint256[] memory) {
         return a[1:];
     }

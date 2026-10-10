@@ -309,11 +309,10 @@ bb13:
   push 32
   dup 2
   add
-  push 256
-  dup 2
-  add
   push 0
-  swap 1
+  push 256
+  dup 3
+  add
   mstore
   push 257
   push_data literal_0
@@ -332,20 +331,18 @@ bb32:
   push 31
   not
   and
-  dup 1
-  dup 4
-  add
   push 0
-  swap 1
+  dup 2
+  dup 5
+  add
   mstore
   push 32
   dup 4
   add
-  dup 3
-  dup 5
-  dup 3
+  dup 4
+  dup 4
+  swap 2
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -355,7 +352,7 @@ bb31:
   mstore
   push 64
   add
-  dup 2
+  swap 1
   return
 bb14:
   push 128
@@ -373,11 +370,10 @@ bb14:
   push 32
   dup 2
   add
-  push 160
-  dup 2
-  add
   push 0
-  swap 1
+  push 160
+  dup 3
+  add
   mstore
   push 161
   push_data literal_0+64
@@ -410,22 +406,21 @@ bb28:
   push 64
   mload
   dup 1
+  dup 1
+  dup 1
   push 192
-  dup 3
   add
   push 64
   mstore
-  push 160
-  dup 3
-  mstore
-  swap 1
   push 32
-  add
   push 160
+  dup 1
   calldatasize
-  dup 3
+  swap 4
+  mstore
+  swap 3
+  add
   calldatacopy
-  pop
   swap 1
   jump
 bb18 [continuation]:
@@ -444,20 +439,18 @@ bb18 [continuation]:
   push 31
   not
   and
-  dup 1
-  dup 3
-  add
   push 0
-  swap 1
+  dup 2
+  dup 4
+  add
   mstore
   push 32
   dup 3
   add
-  dup 4
-  dup 4
   dup 3
+  dup 5
+  swap 2
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -466,9 +459,9 @@ bb18 [continuation]:
   jump bb31
 bb19:
   push 32
+  dup 1
   push 128
   mstore
-  push 32
   push 160
   mstore
   push 0
@@ -487,16 +480,15 @@ bb30:
   push 64
   mload
   dup 1
+  dup 1
   push 192
-  dup 3
   add
   push 64
   mstore
+  push 32
   push 160
   dup 3
   mstore
-  swap 1
-  push 32
   add
   push bb36
   jump bb34
@@ -549,32 +541,28 @@ bb26:
   push bb23
   jump bb30
 bb35 [continuation]:
-  swap 1
+  push 32
+  dup 3
+  add
   mstore
   push 64
   dup 2
   add
+  dup 2
   push 64
-  dup 3
-  dup 3
+  swap 2
   mcopy
-  pop
   push 128
   dup 2
   add
   push 32
-  dup 3
-  dup 3
+  swap 2
+  swap 1
   mcopy
-  pop
-  pop
   swap 1
   jump
 bb36 [continuation]:
   dup 2
   mstore
-  push 32
-  dup 2
-  add
   push bb35
   jump bb34

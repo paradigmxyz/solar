@@ -32,7 +32,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     mstore v22, v0
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb6: v96]
+    v23 = phi [bb0: 0], [bb6: v99]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
@@ -78,14 +78,14 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     mstore v55, v37
     jump bb4
   bb4:
-    v56 = phi [bb2: 0], [bb5: v93]
+    v56 = phi [bb2: 0], [bb5: v96]
     v57 = lt v56, v37
     jumpi v57, bb5, bb6
   bb6:
-    v94 = ptrtoint memptr v54 to i256
-    v95 = memory_slice v21
-    slice_store_element v95, v23, v94
-    v96 = add v23, 1
+    v97 = ptrtoint memptr v54 to i256
+    v98 = memory_slice v21
+    slice_store_element v98, v23, v97
+    v99 = add v23, 1
     jump bb1
   bb5:
     v58 = mul v56, 32
@@ -127,12 +127,15 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     v88 = ptrtoint memptr v87 to i256
     mstore v88, v70
     v89 = make_calldata_slice v77, v78
-    v90 = memory_slice v87
-    slice_copy v90, 0, v89
-    v91 = ptrtoint memptr v87 to i256
-    v92 = memory_slice v54
-    slice_store_element v92, v56, v91
-    v93 = add v56, 1
+    v90 = ptrtoint memptr v87 to i256
+    v91 = add v90, 32
+    v92 = slice_len v89
+    v93 = make_memory_slice v91, v92
+    slice_copy v93, 0, v89
+    v94 = ptrtoint memptr v87 to i256
+    v95 = memory_slice v54
+    slice_store_element v95, v56, v94
+    v96 = add v56, 1
     jump bb4
 }
 

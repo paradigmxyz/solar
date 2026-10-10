@@ -1,0 +1,14 @@
+error[3464]: this variable is of calldata pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_calldata_variables/if_declaration_err.sol:LL:CC
+   │
+LL │         c[2];
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_calldata_variables/if_declaration_err.sol:LL:CC
+   │
+LL │         uint[] calldata c;
+   ╰╴        ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

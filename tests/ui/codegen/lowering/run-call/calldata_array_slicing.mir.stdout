@@ -273,8 +273,11 @@ fn @bytesSlice(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
     v21 = ptrtoint memptr v20 to i256
     mstore v21, v15
-    v22 = memory_slice v20
-    slice_copy v22, 0, v8
+    v22 = ptrtoint memptr v20 to i256
+    v23 = add v22, 32
+    v24 = slice_len v8
+    v25 = make_memory_slice v23, v24
+    slice_copy v25, 0, v8
     ret v20
 }
 

@@ -46,8 +46,9 @@ contract PreCancunMemoryCopies {
 
     // SHARED-LABEL: fn @concat(
     // SHARED: [[SOURCE:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // SHARED: [[DEST:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // SHARED: [[REVERSE:v[0-9]+]] = lt [[SOURCE]], [[DEST]]
+    // SHARED: mstore {{v[0-9]+}}, 35
+    // SHARED-NEXT: [[DEST:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // SHARED-NEXT: [[REVERSE:v[0-9]+]] = lt [[SOURCE]], [[DEST]]
     // SHARED-NEXT: jumpi [[REVERSE]],
     function concat() external pure returns (bool) {
         bytes memory first = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021";

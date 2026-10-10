@@ -494,12 +494,6 @@ fn push_simplified_stack_op(ops: &mut Replacement, stack_op: StackOp) {
         return;
     }
     ops.push(stack_op);
-    if let [.., StackOp::Swap(first), StackOp::Swap(second), StackOp::Swap(third)] = ops.as_slice()
-        && let Some(exchange) = StackOp::from_swaps(*first, *second, *third)
-    {
-        ops.truncate(ops.len() - 3);
-        ops.push(exchange);
-    }
 }
 
 fn better_candidate(left: Option<Candidate>, right: Option<Candidate>) -> Option<Candidate> {

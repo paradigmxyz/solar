@@ -811,13 +811,6 @@ class MemoryAddressTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
-    def test_stack_selection_rules(self):
-        report = verify_rules(ISLE / "mir-to-evm/stack_select.isle")
-        self.assertEqual(len(report["rules"]), 15)
-        for result in report["rules"]:
-            with self.subTest(line=result["line"]):
-                self.assertEqual(result["status"], "proved", result)
-
     def test_narrow_integer_rules(self):
         entries = list(obligations(ISLE / "mir/word"))
         native = [entry for entry in entries if "integer_bits" in entry]

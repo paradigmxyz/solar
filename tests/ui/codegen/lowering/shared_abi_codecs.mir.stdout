@@ -45,71 +45,71 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     mstore v23, v1
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v61]
+    v24 = phi [bb0: 0], [bb2: v64]
     v25 = lt v24, v1
     jumpi v25, bb2, bb3
   bb3:
-    v62 = ptrtoint memptr v22 to i256
+    v65 = ptrtoint memptr v22 to i256
     memory_object_store_field memorystruct<2>, v0, 0, arg0
-    memory_object_store_field memorystruct<2>, v0, 1, v62
-    v63 = icall @encodeFirst, v0
-    v64 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v63
-    v65 = memory_object_load_field memorystruct<2>, v64, 0
-    v66 = memory_object_load_field memorystruct<2>, v64, 1, memptr
-    v67 = memory_slice v66
-    v68 = slice_len v67
-    v69 = lt 0, v68
-    v70 = eq v69, false
-    icall panic_if<0x32>, v70
-    v71 = slice_load_element v67, 0
-    v72 = inttoptr i256 v71 to memptr
-    v73 = eq v71, 0
-    jumpi v73, bb4, bb5
+    memory_object_store_field memorystruct<2>, v0, 1, v65
+    v66 = icall @encodeFirst, v0
+    v67 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v66
+    v68 = memory_object_load_field memorystruct<2>, v67, 0
+    v69 = memory_object_load_field memorystruct<2>, v67, 1, memptr
+    v70 = memory_slice v69
+    v71 = slice_len v70
+    v72 = lt 0, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = slice_load_element v70, 0
+    v75 = inttoptr i256 v74 to memptr
+    v76 = eq v74, 0
+    jumpi v76, bb4, bb5
   bb4:
-    v74 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v75 = ptrtoint memptr v74 to i256
-    mstore v75, 0
-    v76 = memory_slice v66
-    v77 = ptrtoint memptr v74 to i256
-    slice_store_element v76, 0, v77
+    v77 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v78 = ptrtoint memptr v77 to i256
+    mstore v78, 0
+    v79 = memory_slice v69
+    v80 = ptrtoint memptr v77 to i256
+    slice_store_element v79, 0, v80
     jump bb5
   bb5:
-    v78 = phi [bb3: v72], [bb4: v74]
-    v79 = memory_slice v78
-    v80 = slice_len v79
-    v81 = lt 0, v80
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = slice_load_element v79, 0
-    v84 = checked_add u256, v65, v83
-    v85 = memory_object_load_field memorystruct<2>, v64, 1, memptr
-    v86 = memory_slice v85
-    v87 = slice_len v86
-    v88 = lt 1, v87
-    v89 = eq v88, false
-    icall panic_if<0x32>, v89
-    v90 = slice_load_element v86, 1
-    v91 = inttoptr i256 v90 to memptr
-    v92 = eq v90, 0
-    jumpi v92, bb6, bb7
+    v81 = phi [bb3: v75], [bb4: v77]
+    v82 = memory_slice v81
+    v83 = slice_len v82
+    v84 = lt 0, v83
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = slice_load_element v82, 0
+    v87 = checked_add u256, v68, v86
+    v88 = memory_object_load_field memorystruct<2>, v67, 1, memptr
+    v89 = memory_slice v88
+    v90 = slice_len v89
+    v91 = lt 1, v90
+    v92 = eq v91, false
+    icall panic_if<0x32>, v92
+    v93 = slice_load_element v89, 1
+    v94 = inttoptr i256 v93 to memptr
+    v95 = eq v93, 0
+    jumpi v95, bb6, bb7
   bb6:
-    v93 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v94 = ptrtoint memptr v93 to i256
-    mstore v94, 0
-    v95 = memory_slice v85
-    v96 = ptrtoint memptr v93 to i256
-    slice_store_element v95, 1, v96
+    v96 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v97 = ptrtoint memptr v96 to i256
+    mstore v97, 0
+    v98 = memory_slice v88
+    v99 = ptrtoint memptr v96 to i256
+    slice_store_element v98, 1, v99
     jump bb7
   bb7:
-    v97 = phi [bb5: v91], [bb6: v93]
-    v98 = memory_slice v97
-    v99 = slice_len v98
-    v100 = lt 0, v99
-    v101 = eq v100, false
-    icall panic_if<0x32>, v101
-    v102 = slice_load_element v98, 0
-    v103 = checked_add u256, v84, v102
-    ret v103
+    v100 = phi [bb5: v94], [bb6: v96]
+    v101 = memory_slice v100
+    v102 = slice_len v101
+    v103 = lt 0, v102
+    v104 = eq v103, false
+    icall panic_if<0x32>, v104
+    v105 = slice_load_element v101, 0
+    v106 = checked_add u256, v87, v105
+    ret v106
   bb2:
     v26 = mul v24, 32
     v27 = add v2, v26
@@ -150,11 +150,14 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v56 = ptrtoint memptr v55 to i256
     mstore v56, v38
     v57 = make_calldata_slice v45, v46
-    v58 = memory_slice v55
-    slice_copy v58, 0, v57
-    v59 = ptrtoint memptr v55 to i256
-    v60 = memory_slice v22
-    slice_store_element v60, v24, v59
-    v61 = add v24, 1
+    v58 = ptrtoint memptr v55 to i256
+    v59 = add v58, 32
+    v60 = slice_len v57
+    v61 = make_memory_slice v59, v60
+    slice_copy v61, 0, v57
+    v62 = ptrtoint memptr v55 to i256
+    v63 = memory_slice v22
+    slice_store_element v63, v24, v62
+    v64 = add v24, 1
     jump bb1
 }

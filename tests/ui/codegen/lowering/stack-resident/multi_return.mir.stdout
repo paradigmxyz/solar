@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/multi_return.sol:MultiReturn ===
+@module MultiReturn
+@types
+  struct0: {i256, i256}
+
+fn @first(arg0: i256, arg1: i256) -> i256 [selector=0x0efae2ad, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @split, arg0, arg1
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = icall @split, arg1, arg0
+    v4 = extract_value struct0, v3, 0
+    v5 = extract_value struct0, v3, 1
+    v6 = checked_add u256, v1, v4
+    ret v6
+}
+
+fn @second(arg0: i256, arg1: i256) -> i256 [selector=0xc7a76601, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @split, arg0, arg1
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = icall @split, arg1, arg0
+    v4 = extract_value struct0, v3, 0
+    v5 = extract_value struct0, v3, 1
+    v6 = checked_add u256, v2, v5
+    ret v6
+}
+
+fn @both(arg0: i256, arg1: i256) -> i256 [selector=0x56d0b49d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @split, arg0, arg1
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = checked_mul u256, v1, v2
+    ret v3
+}
+
+fn @split(arg0: i256, arg1: i256) -> struct0 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, arg0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = mul arg0, arg0
+    v3 = add v2, arg1
+    v4 = mul arg1, 2
+    v5 = add arg0, v4
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = xor v6, v3
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = sub v5, arg0
+    v9 = insert_value struct0, undef struct0, 0, v3
+    v10 = insert_value struct0, v9, 1, v8
+    ret v10
+}

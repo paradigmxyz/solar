@@ -1356,8 +1356,8 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v58 = mul v56, 32
     v59 = add v44, v58
     v60 = calldataload v59
-    v61 = and v60, 255
-    v62 = eq v60, v61
+    v61 = shr 8, v60
+    v62 = eq v61, 0
     v63 = eq v62, false
     icall revert_if<empty>, v63
     v64 = memory_slice v54

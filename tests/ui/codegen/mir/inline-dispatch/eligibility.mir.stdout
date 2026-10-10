@@ -65,8 +65,11 @@ fn @a(arg0: calldataslice) -> memptr [selector=0x1e3badd9, pure, abi_params=[arr
     v22 = ptrtoint memptr v21 to i256
     mstore v22, v0
     v23 = make_calldata_slice v1, v12
-    v24 = memory_slice v21
-    slice_copy v24, 0, v23
+    v24 = ptrtoint memptr v21 to i256
+    v25 = add v24, 32
+    v26 = slice_len v23
+    v27 = make_memory_slice v25, v26
+    slice_copy v27, 0, v23
     ret v21
 }
 

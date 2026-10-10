@@ -777,7 +777,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         // if !valid(value) { revert(0, 0) }
-        let valid = validator.condition(&mut self.builder, value, false);
+        let shifts = self.cx.gcx.sess.opts.evm_version.has_bitwise_shifting();
+        let valid = validator.condition(&mut self.builder, value, shifts);
         let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {

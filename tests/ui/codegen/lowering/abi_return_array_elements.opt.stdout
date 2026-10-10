@@ -149,8 +149,8 @@ fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -171,46 +171,46 @@ fn @decode_calldata_type.8() -> memptr [may_return_memory] {
     v16 = ne v12, v8
     v17 = add v10, 32
     v18 = lt v17, v10
-    v49 = or v16, v18
-    jumpi v49, bb3, bb4
+    v50 = or v16, v18
+    jumpi v50, bb3, bb4
   bb4:
-    v39 = mload 64 !metadata(memory=scratch)
-    v19 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
-    v40 = add v39, v17
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb3, bb10
+    v40 = mload 64 !metadata(memory=scratch)
+    v19 = inttoptr i256 v40 to memptr !metadata(memory=scratch)
+    v41 = add v40, v17
+    v42 = lt v41, v40
+    v43 = gt v41, 0xffffffffffffffff
+    v44 = or v42, v43
+    jumpi v44, bb3, bb10
   bb10:
-    mstore 64, v40 !metadata(memory=scratch)
-    mstore v39, v8
+    mstore 64, v41 !metadata(memory=scratch)
+    mstore v40, v8
     v21 = sub v0, v3
     v22 = shr 5, v21
     v23 = gt v8, v22
     jumpi v23, bb1, bb5
   bb5:
-    v47 = shl 5, v8
-    v48 = add v3, v47
+    v48 = shl 5, v8
+    v49 = add v3, v48
     jump bb6
   bb6:
-    v45 = phi [bb5: v3], [bb9: v46]
-    v25 = ne v45, v48
+    v46 = phi [bb5: v3], [bb9: v47]
+    v25 = ne v46, v49
     jumpi v25, bb7, bb8
   bb8:
-    v36 = add v39, 32
-    calldatacopy v36, v3, v10
+    v34 = add v40, 32
+    calldatacopy v34, v3, v10
     ret v19
   bb7:
-    v28 = calldataload v45
+    v28 = calldataload v46
     v29 = shr 160, v28
     v30 = eq v29, 0
     jumpi v30, bb9, bb1
   bb9:
-    v46 = add v45, 32
+    v47 = add v46, 32
     jump bb6
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -233,46 +233,46 @@ fn @decode_calldata_type.9() -> memptr [may_return_memory] {
     v16 = ne v12, v8
     v17 = add v10, 32
     v18 = lt v17, v10
-    v49 = or v16, v18
-    jumpi v49, bb3, bb4
+    v50 = or v16, v18
+    jumpi v50, bb3, bb4
   bb4:
-    v39 = mload 64 !metadata(memory=scratch)
-    v19 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
-    v40 = add v39, v17
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb3, bb10
+    v40 = mload 64 !metadata(memory=scratch)
+    v19 = inttoptr i256 v40 to memptr !metadata(memory=scratch)
+    v41 = add v40, v17
+    v42 = lt v41, v40
+    v43 = gt v41, 0xffffffffffffffff
+    v44 = or v42, v43
+    jumpi v44, bb3, bb10
   bb10:
-    mstore 64, v40 !metadata(memory=scratch)
-    mstore v39, v8
+    mstore 64, v41 !metadata(memory=scratch)
+    mstore v40, v8
     v21 = sub v0, v3
     v22 = shr 5, v21
     v23 = gt v8, v22
     jumpi v23, bb1, bb5
   bb5:
-    v47 = shl 5, v8
-    v48 = add v3, v47
+    v48 = shl 5, v8
+    v49 = add v3, v48
     jump bb6
   bb6:
-    v45 = phi [bb5: v3], [bb9: v46]
-    v25 = ne v45, v48
+    v46 = phi [bb5: v3], [bb9: v47]
+    v25 = ne v46, v49
     jumpi v25, bb7, bb8
   bb8:
-    v36 = add v39, 32
-    calldatacopy v36, v3, v10
+    v34 = add v40, 32
+    calldatacopy v34, v3, v10
     ret v19
   bb7:
-    v28 = calldataload v45
+    v28 = calldataload v46
     v29 = shr 8, v28
     v30 = eq v29, 0
     jumpi v30, bb9, bb1
   bb9:
-    v46 = add v45, 32
+    v47 = add v46, 32
     jump bb6
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -316,8 +316,8 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     v36 = add v35, 32
     jump bb4
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

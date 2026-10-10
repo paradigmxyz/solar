@@ -171,27 +171,23 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v11 = alloc memorybytes, exact, uninitialized, infallible, 96
-    v12 = ptrtoint memptr v11 to i256
-    mstore v12, 64
-    v13 = ptrtoint memptr v11 to i256
-    v14 = add v13, 32
-    v15 = fmp
-    v16 = ptrtoint memptr v15 to i256
-    v17 = add v16, 64
-    mstore v17, 0
-    v18 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = zext i160 v9 to i256
-    v22 = extcodesize v21
-    v23 = eq v22, 0
-    icall revert_if<target_contract_has_no_code>, v23
-    v24 = gas
-    v25 = sub v24, 50
-    v26 = zext i160 v9 to i256
-    v27 = call v25, v26, 0, v19, v20, v19, 64
-    jumpi v27, bb3, bb4
+    v11 = alloc raw, exact, uninitialized, infallible, 64
+    v12 = fmp
+    v13 = ptrtoint memptr v12 to i256
+    v14 = add v13, 64
+    mstore v14, 0
+    v15 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = zext i160 v9 to i256
+    v19 = extcodesize v18
+    v20 = eq v19, 0
+    icall revert_if<target_contract_has_no_code>, v20
+    v21 = gas
+    v22 = sub v21, 50
+    v23 = zext i160 v9 to i256
+    v24 = call v22, v23, 0, v16, v17, v16, 64
+    jumpi v24, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -200,8 +196,11 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb6:
     jump bb5
   bb3:
-    mcopy v14, v19, 64
-    v28 = abi_decode [array<2, u256>], v11
+    v25 = ptrtoint memptr v11 to i256
+    mcopy v25, v16, 64
+    v26 = ptrtoint memptr v11 to i256
+    v27 = make_memory_slice v26, 64
+    v28 = abi_decode [array<2, u256>], v27
     v29 = lt 0, 2
     v30 = eq v29, false
     icall panic_if<0x32>, v30

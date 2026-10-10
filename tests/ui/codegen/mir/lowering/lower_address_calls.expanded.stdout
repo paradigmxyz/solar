@@ -38,12 +38,15 @@
 +     v14 = ptrtoint memptr v13 to i256 !metadata(span=30..40, modifier_depth=3)
 +     mstore v14, v8 !metadata(span=30..40, modifier_depth=3)
 +     v15 = make_returndata_slice 0, v8 !metadata(span=30..40, modifier_depth=3)
-+     v16 = memory_slice v13 !metadata(span=30..40, modifier_depth=3)
-+     slice_copy v16, 0, v15 !metadata(span=30..40, modifier_depth=3)
++     v16 = ptrtoint memptr v13 to i256 !metadata(span=30..40, modifier_depth=3)
++     v17 = add v16, 32 !metadata(span=30..40, modifier_depth=3)
++     v18 = slice_len v15 !metadata(span=30..40, modifier_depth=3)
++     v19 = make_memory_slice v17, v18 !metadata(span=30..40, modifier_depth=3)
++     slice_copy v19, 0, v15 !metadata(span=30..40, modifier_depth=3)
 +     ret v13
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     revert 28, 36 !metadata(span=30..40, modifier_depth=3)
   }
   

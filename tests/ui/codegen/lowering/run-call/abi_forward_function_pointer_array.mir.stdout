@@ -52,20 +52,17 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
     icall revert_if<tuple_data_too_short>, v43
     v44 = add 0, 0
     v45 = mload v44
-    v46 = eq v45, 0
+    v46 = lt v45, 2
     v47 = eq v46, false
-    v48 = zext i1 v47 to i256
-    v49 = eq v45, v48
-    v50 = eq v49, false
-    icall revert_if<empty>, v50
-    v51 = ne v45, 0
-    ret v51
+    icall revert_if<empty>, v47
+    v48 = ne v45, 0
+    ret v48
   bb2:
     v27 = mul v25, 32
     v28 = add v3, v27
     v29 = calldataload v28
-    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v31 = eq v29, v30
+    v30 = shl 192, v29
+    v31 = eq v30, 0
     v32 = eq v31, false
     icall revert_if<empty>, v32
     v33 = shr 64, v29

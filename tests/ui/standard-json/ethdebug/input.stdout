@@ -550,60 +550,6 @@
                 {
                   "offset": 50,
                   "operation": {
-                    "mnemonic": "PUSH4",
-                    "arguments": [
-                      "0x4e487b71"
-                    ]
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 79,
-                        "length": 5
-                      }
-                    }
-                  }
-                },
-                {
-                  "offset": 55,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 79,
-                        "length": 5
-                      }
-                    }
-                  }
-                },
-                {
-                  "offset": 56,
-                  "operation": {
-                    "mnemonic": "MSTORE"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 79,
-                        "length": 5
-                      }
-                    }
-                  }
-                },
-                {
-                  "offset": 57,
-                  "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
                       "0x11"
@@ -622,12 +568,66 @@
                   }
                 },
                 {
-                  "offset": 59,
+                  "offset": 52,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
                       "0x20"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 79,
+                        "length": 5
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 54,
+                  "operation": {
+                    "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 79,
+                        "length": 5
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 55,
+                  "operation": {
+                    "mnemonic": "PUSH4",
+                    "arguments": [
+                      "0x4e487b71"
+                    ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 79,
+                        "length": 5
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 60,
+                  "operation": {
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {

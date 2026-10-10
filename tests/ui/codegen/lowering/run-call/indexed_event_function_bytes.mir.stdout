@@ -84,10 +84,13 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
   bb2:
     v57 = add v41, 32
     v58 = make_memory_slice v57, v48
-    v59 = memory_slice v36
-    slice_copy v59, 32, v58
-    v60 = add 32, v52
-    v61 = keccak256_bytes v36
-    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v61
+    v59 = ptrtoint memptr v36 to i256
+    v60 = add v59, 32
+    v61 = slice_len v58
+    v62 = make_memory_slice v60, v61
+    slice_copy v62, 32, v58
+    v63 = add 32, v52
+    v64 = keccak256_bytes v36
+    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v64
     ret
 }

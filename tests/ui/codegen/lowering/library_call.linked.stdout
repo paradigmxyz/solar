@@ -16,11 +16,11 @@ bb3 [cold]:
   push 0
   revert
 bb9 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -129,12 +129,11 @@ bb0:
   push 0
   dup 2
   mstore
-  push 32
-  dup 2
-  add
   push 4
   calldataload
-  swap 1
+  push 32
+  dup 3
+  add
   mstore
   push 64
   add
@@ -142,51 +141,22 @@ bb0:
   calldataload
   swap 1
   mstore
-  push 0
+  push 32
   push 0
   push 100
   dup 4
   push 0x1111111111111111111111111111111111111111
   gas
   delegatecall
-  swap 1
-  pop
   iszero
-  push bb10
+  push bb9
   jumpi
   returndatasize
-  push 63
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  push bb11
-  jumpi
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
-  dup 2
-  mstore
   push 32
-  add
-  dup 2
-  push 0
-  dup 3
-  returndatacopy
-  swap 1
-  push 32
-  sgt
+  gt
   push bb3
   jumpi
+  push 0
   mload
   push 128
   mstore
@@ -197,21 +167,11 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb10 [cold]:
+bb9 [cold]:
   returndatasize
   push 0
   push 0
   returndatacopy
   returndatasize
   push 0
-  revert
-bb11 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
-  push 65
-  push 32
-  mstore
-  push 36
-  push 28
   revert

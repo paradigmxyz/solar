@@ -54,11 +54,14 @@ fn @decodeCalldata(arg0: calldataslice) -> i256 [selector=0xea59e64a, abi_params
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     v12 = ptrtoint memptr v11 to i256
     mstore v12, v6
-    v13 = memory_slice v11
-    slice_copy v13, 0, arg0
+    v13 = ptrtoint memptr v11 to i256
+    v14 = add v13, 32
+    v15 = slice_len arg0
+    v16 = make_memory_slice v14, v15
+    slice_copy v16, 0, arg0
     abi_decode [], v11
-    v14 = sload 0 !metadata(storage=slot(0))
-    ret v14
+    v17 = sload 0 !metadata(storage=slot(0))
+    ret v17
 }
 
 fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -95,8 +98,11 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     v25 = sub v24, v22
     v26 = sgt v21, v25
     icall revert_if<calldata_tail_too_short>, v26
-    v27 = memory_slice v19
-    slice_copy v27, 0, v13
+    v27 = ptrtoint memptr v19 to i256
+    v28 = add v27, 32
+    v29 = slice_len v13
+    v30 = make_memory_slice v28, v29
+    slice_copy v30, 0, v13
     abi_decode [], v19
     ret 3
 }

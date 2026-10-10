@@ -52,9 +52,9 @@ contract C {
 
     uint256[] private nums;
 
-    // Before Byzantium a linked-library call takes its return values out of a static output area
-    // overlaying its own input, as solc's `delegatecall(..., in, 32)` does; from Byzantium on they
-    // come out of the return data, and the length check there subsumes the code check.
+    // A linked-library call takes its return values out of a static output area, as solc does.
+    // Before Byzantium the area overlays the call's own input, as in `delegatecall(..., in, 32)`;
+    // from Byzantium on the return data length check subsumes the code check.
     // HOMESTEAD-LABEL: fn @one
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
@@ -73,8 +73,7 @@ contract C {
     // TANGERINE: mload
     // BYZANTIUM-LABEL: fn @one
     // BYZANTIUM-NOT: extcodesize
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 0, 32
     function one(uint256 x) external pure returns (uint256) {
         return Lib.dbl(x);
     }
@@ -98,8 +97,7 @@ contract C {
     // TANGERINE: delegatecall {{.*}}, [[IN]], 64
     // BYZANTIUM-LABEL: fn @two
     // BYZANTIUM-NOT: extcodesize
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 64
     function two(uint256 x) external pure returns (uint256 a, uint256 b) {
         (a, b) = Lib.pair(x);
     }
@@ -107,18 +105,18 @@ contract C {
     // A statically encoded aggregate is copied out of the overlaid output area into a buffer taken
     // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: mstore {{v[0-9]+}}, 64
-    // HOMESTEAD: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // HOMESTEAD-NEXT: [[DATA:v[0-9]+]] = add [[HEAD]], 32
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
-    // HOMESTEAD: abi_decode {{.*}}, [[BUF]]
+    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     // BYZANTIUM-LABEL: fn @aggregate
     // BYZANTIUM-NOT: extcodesize
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 64
+    // BYZANTIUM: abi_decode [array<2, u256>]
     function aggregate(uint256 x) external pure returns (uint256[2] memory) {
         return Lib.arr(x);
     }
@@ -133,8 +131,7 @@ contract C {
     // HOMESTEAD: eq [[CLEAN]], {{(0|false)}}
     // HOMESTEAD: icall revert_if<empty>, {{v[0-9]+}}
     // BYZANTIUM-LABEL: fn @boolean
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 0, 32
     function boolean(uint256 x) external pure returns (bool) {
         return Lib.flag(x);
     }
@@ -142,17 +139,17 @@ contract C {
     // A static struct is decoded out of the output area with its member types, so its `bool` member
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: mstore {{v[0-9]+}}, 64
-    // HOMESTEAD: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // HOMESTEAD-NEXT: [[DATA:v[0-9]+]] = add [[HEAD]], 32
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
-    // HOMESTEAD: abi_decode [tuple<bool, u256>], [[BUF]]
+    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: abi_decode [tuple<bool, u256>], [[SLICE]]
     // BYZANTIUM-LABEL: fn @structBool
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 64
+    // BYZANTIUM: abi_decode [tuple<bool, u256>]
     function structBool(uint256 x) external pure returns (Lib.Flagged memory) {
         return Lib.flagged(x);
     }
@@ -167,8 +164,7 @@ contract C {
     // HOMESTEAD: mload
     // BYZANTIUM-LABEL: fn @attached
     // BYZANTIUM: abi_encode {{.*}}, args 0
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 0, 32
     function attached() external view returns (uint256) {
         return nums.total();
     }
@@ -190,8 +186,7 @@ contract C {
     // TANGERINE-NOT: = fmp
     // TANGERINE: delegatecall {{.*}}, [[IN:v[0-9]+]], {{.*}}, [[IN]], 192
     // BYZANTIUM-LABEL: fn @dynamicArgument
-    // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: icall returndata_bytes<>
+    // BYZANTIUM: delegatecall {{.*}}, 192
     function dynamicArgument(bytes memory b) external pure returns (uint256, uint256) {
         (uint256 a,,,,, uint256 f) = Lib.six(b);
         return (a, f);

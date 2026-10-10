@@ -64,8 +64,8 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = and v20, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v22 = eq v20, v21
+    v21 = shl 8, v20
+    v22 = eq v21, 0
     v23 = eq v22, false
     icall revert_if<empty>, v23
     v24 = shr 248, v20

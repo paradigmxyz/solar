@@ -130,25 +130,24 @@ fn @aggregate(arg0: i256) -> memptr [selector=0x407b7269, pure, abi_params=[u256
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 96
-    v3 = ptrtoint memptr v2 to i256
-    mstore v3, 64
-    v4 = ptrtoint memptr v2 to i256
-    v5 = add v4, 32
-    v6 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = gas
-    v10 = extcodesize 0x1111111111111111111111111111111111111111
-    v11 = eq v10, 0
-    icall revert_if<target_contract_has_no_code>, v11
-    v12 = delegatecall v9, 0x1111111111111111111111111111111111111111, v7, v8, v7, 64
-    jumpi v12, bb2, bb1
+    v2 = alloc raw, exact, uninitialized, infallible, 64
+    v3 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = gas
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = eq v7, 0
+    icall revert_if<target_contract_has_no_code>, v8
+    v9 = delegatecall v6, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    mcopy v5, v7, 64
-    v13 = abi_decode [array<2, u256>], v2
+    v10 = ptrtoint memptr v2 to i256
+    mcopy v10, v4, 64
+    v11 = ptrtoint memptr v2 to i256
+    v12 = make_memory_slice v11, 64
+    v13 = abi_decode [array<2, u256>], v12
     ret v13
 }
 
@@ -183,25 +182,24 @@ fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u25
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 96
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 64
-    v3 = ptrtoint memptr v1 to i256
-    v4 = add v3, 32
-    v5 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = gas
-    v9 = extcodesize 0x1111111111111111111111111111111111111111
-    v10 = eq v9, 0
-    icall revert_if<target_contract_has_no_code>, v10
-    v11 = delegatecall v8, 0x1111111111111111111111111111111111111111, v6, v7, v6, 64
-    jumpi v11, bb2, bb1
+    v1 = alloc raw, exact, uninitialized, infallible, 64
+    v2 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = gas
+    v6 = extcodesize 0x1111111111111111111111111111111111111111
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v3, 64
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    mcopy v4, v6, 64
-    v12 = abi_decode [tuple<bool, u256>], v1
+    v9 = ptrtoint memptr v1 to i256
+    mcopy v9, v3, 64
+    v10 = ptrtoint memptr v1 to i256
+    v11 = make_memory_slice v10, 64
+    v12 = abi_decode [tuple<bool, u256>], v11
     ret v12
 }
 

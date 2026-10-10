@@ -237,8 +237,8 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     icall revert_if<tuple_data_too_short>, v34
     v35 = add 0, 0
     v36 = mload v35
-    v37 = and v36, 0xffffffffffffffffffffffff
-    v38 = eq v36, v37
+    v37 = shr 96, v36
+    v38 = eq v37, 0
     v39 = eq v38, false
     icall revert_if<empty>, v39
     v40 = trunc i256 v36 to i96
@@ -279,8 +279,8 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = and v20, 255
-    v22 = eq v20, v21
+    v21 = shr 8, v20
+    v22 = eq v21, 0
     v23 = eq v22, false
     icall revert_if<empty>, v23
     v24 = trunc i256 v20 to i8

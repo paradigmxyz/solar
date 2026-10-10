@@ -14,8 +14,8 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, pure] {
     mstore 128, v1
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -35,8 +35,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     mstore 128, v1
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -79,8 +79,8 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, view] {
     mstore 128, v2
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -94,8 +94,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     mstore 128, v1
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -125,42 +125,42 @@ fn @entry() [entry] {
 @phase lowered
 fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb0:
-    v25 = calldatasize
-    v27 = calldataload 4
-    v28 = add v27, 4
-    v29 = add v28, 32
-    v30 = gt v27, 0xffffffffffffffff
-    v31 = gt v29, v25
-    v32 = or v30, v31
-    v34 = calldataload v28
-    v36 = sub v25, v29
-    v37 = shr 5, v36
-    v38 = gt v34, v37
-    v66 = or v32, v38
-    v2 = shl 5, v34
+    v28 = calldatasize
+    v30 = calldataload 4
+    v31 = add v30, 4
+    v32 = add v31, 32
+    v33 = gt v30, 0xffffffffffffffff
+    v34 = gt v32, v28
+    v35 = or v33, v34
+    v37 = calldataload v31
+    v39 = sub v28, v32
+    v40 = shr 5, v39
+    v41 = gt v37, v40
+    v67 = or v35, v41
+    v2 = shl 5, v37
     v9 = calldatasize
-    v10 = sub v9, v29
+    v10 = sub v9, v32
     v11 = slt v10, v2
-    v67 = or v66, v11
-    jumpi v67, bb1, bb2
+    v68 = or v67, v11
+    jumpi v68, bb1, bb2
   bb2:
     v19 = add v2, 32
-    v64 = mload 64 !metadata(memory=scratch)
-    v65 = add v64, v19
-    mstore 64, v65 !metadata(memory=scratch)
-    mstore v64, v34
-    v60 = add v64, 32
-    calldatacopy v60, v29, v2
-    v47 = ne v64, 0
-    v48 = zext i1 v47 to i256
-    v49 = mul v34, v48
-    v52 = shl 5, v49
-    v53 = add v60, 32
-    mcopy v53, v60, v52
-    mstore v64, 32
-    mstore v60, v49
-    v55 = add v52, 64
-    returndata v64, v55
+    v65 = mload 64 !metadata(memory=scratch)
+    v66 = add v65, v19
+    mstore 64, v66 !metadata(memory=scratch)
+    mstore v65, v37
+    v25 = add v65, 32
+    calldatacopy v25, v32, v2
+    v50 = ne v65, 0
+    v51 = zext i1 v50 to i256
+    v52 = mul v37, v51
+    v55 = shl 5, v52
+    v56 = add v65, 64
+    mcopy v56, v25, v55
+    mstore v65, 32
+    mstore v25, v52
+    v58 = add v55, 64
+    returndata v65, v58
   bb1:
     revert 0, 0
 }
@@ -175,8 +175,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     mstore 128, v1
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -227,8 +227,8 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     mstore 128, v1
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

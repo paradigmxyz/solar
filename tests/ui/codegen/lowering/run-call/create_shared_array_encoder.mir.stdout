@@ -199,8 +199,8 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v74
     v75 = add 0, 0
     v76 = mload v75
-    v77 = and v76, 0xffffffffffffffffffffffffffffffffffffffff
-    v78 = eq v76, v77
+    v77 = shr 160, v76
+    v78 = eq v77, 0
     v79 = eq v78, false
     icall revert_if<empty>, v79
     v80 = trunc i256 v76 to i160
@@ -315,8 +315,8 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     icall revert_if<tuple_data_too_short>, v65
     v66 = add 0, 0
     v67 = mload v66
-    v68 = and v67, 0xffffffffffffffffffffffffffffffffffffffff
-    v69 = eq v67, v68
+    v68 = shr 160, v67
+    v69 = eq v68, 0
     v70 = eq v69, false
     icall revert_if<empty>, v70
     v71 = trunc i256 v67 to i160

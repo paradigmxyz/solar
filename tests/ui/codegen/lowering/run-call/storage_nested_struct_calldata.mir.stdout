@@ -519,8 +519,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v118 = mul v116, 32
     v119 = add v111, v118
     v120 = calldataload v119
-    v121 = and v120, 255
-    v122 = eq v120, v121
+    v121 = shr 8, v120
+    v122 = eq v121, 0
     v123 = eq v122, false
     icall revert_if<empty>, v123
     v124 = add v116, 1
@@ -529,8 +529,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v102 = mul v100, 32
     v103 = add v88, v102
     v104 = calldataload v103
-    v105 = and v104, 255
-    v106 = eq v104, v105
+    v105 = shr 8, v104
+    v106 = eq v105, 0
     v107 = eq v106, false
     icall revert_if<empty>, v107
     v108 = memory_slice v98
@@ -1156,8 +1156,8 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v100 = mul v98, 32
     v101 = add v93, v100
     v102 = calldataload v101
-    v103 = and v102, 255
-    v104 = eq v102, v103
+    v103 = shr 8, v102
+    v104 = eq v103, 0
     v105 = eq v104, false
     icall revert_if<empty>, v105
     v106 = add v98, 1
@@ -1166,8 +1166,8 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v84 = mul v82, 32
     v85 = add v70, v84
     v86 = calldataload v85
-    v87 = and v86, 255
-    v88 = eq v86, v87
+    v87 = shr 8, v86
+    v88 = eq v87, 0
     v89 = eq v88, false
     icall revert_if<empty>, v89
     v90 = memory_slice v80
@@ -1773,8 +1773,8 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v103 = mul v101, 32
     v104 = add v96, v103
     v105 = calldataload v104
-    v106 = and v105, 255
-    v107 = eq v105, v106
+    v106 = shr 8, v105
+    v107 = eq v106, 0
     v108 = eq v107, false
     icall revert_if<empty>, v108
     v109 = add v101, 1
@@ -1783,8 +1783,8 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v87 = mul v85, 32
     v88 = add v73, v87
     v89 = calldataload v88
-    v90 = and v89, 255
-    v91 = eq v89, v90
+    v90 = shr 8, v89
+    v91 = eq v90, 0
     v92 = eq v91, false
     icall revert_if<empty>, v92
     v93 = memory_slice v83

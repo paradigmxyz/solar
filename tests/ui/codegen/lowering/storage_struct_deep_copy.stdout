@@ -112,8 +112,8 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v70 = lt v39, v21
     jump bb3
   bb15:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb10:
     revert 0, 0
@@ -244,8 +244,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v76 = lt v45, v27
     jump bb3
   bb10:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb12:
     revert 0, 0
@@ -289,8 +289,8 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v20 = add v17, 1
     jump bb3
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 49 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -405,8 +405,8 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v74 = lt v43, v25
     jump bb3
   bb15:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb10:
     revert 0, 0
@@ -414,8 +414,8 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

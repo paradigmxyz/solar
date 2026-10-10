@@ -107,23 +107,12 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     icall revert_if<tuple_data_too_short>, v8
     v9 = ptrtoint memptr v4 to i256
     v10 = make_memory_slice v9, 64
-    v11 = slice_len v10
-    v12 = add v11, 63
-    v13 = lt v12, v11
-    icall panic_if<0x41>, v13
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    v17 = ptrtoint memptr v16 to i256
-    mstore v17, v11
-    v18 = memory_slice v16
-    slice_copy v18, 0, v10
-    v19 = abi_decode [array<2, u256>], v16
-    v20 = lt 0, 2
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
-    ret v22
+    v11 = abi_decode [array<2, u256>], v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, 0
+    ret v14
 }
 
 fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -236,27 +225,16 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     icall revert_if<tuple_data_too_short>, v20
     v21 = ptrtoint memptr v15 to i256
     v22 = make_memory_slice v21, 64
-    v23 = slice_len v22
-    v24 = add v23, 63
-    v25 = lt v24, v23
-    icall panic_if<0x41>, v25
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    v29 = ptrtoint memptr v28 to i256
-    mstore v29, v23
-    v30 = memory_slice v28
-    slice_copy v30, 0, v22
-    v31 = abi_decode [array<2, u256>], v28
-    v32 = lt 0, 2
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryfixedarray<2, 1>, v31, 0
-    v35 = lt 1, 2
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = memory_object_load_element memoryfixedarray<2, 1>, v31, 1
-    v38 = insert_value struct0, undef struct0, 0, v34
-    v39 = insert_value struct0, v38, 1, v37
-    ret v39
+    v23 = abi_decode [array<2, u256>], v22
+    v24 = lt 0, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = memory_object_load_element memoryfixedarray<2, 1>, v23, 0
+    v27 = lt 1, 2
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = memory_object_load_element memoryfixedarray<2, 1>, v23, 1
+    v30 = insert_value struct0, undef struct0, 0, v26
+    v31 = insert_value struct0, v30, 1, v29
+    ret v31
 }

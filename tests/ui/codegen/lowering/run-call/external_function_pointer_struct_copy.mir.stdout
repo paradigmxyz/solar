@@ -47,8 +47,8 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
     v26 = mul v24, 32
     v27 = add v2, v26
     v28 = calldataload v27
-    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v30 = eq v28, v29
+    v29 = shl 192, v28
+    v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
     v32 = shr 64, v28

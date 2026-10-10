@@ -39,8 +39,8 @@
 +     v20 = add v14, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -87,8 +87,8 @@
 +     v25 = add v14, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -135,8 +135,8 @@
 +     v25 = add v14, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -186,12 +186,12 @@
 +     v26 = add v14, 1
 +     jump bb4
 +   bb7:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 33 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -240,8 +240,8 @@
 +     v21 = add v15, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     mstore 32, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
 + }
 + 
@@ -295,12 +295,12 @@
 +     v27 = add v21, 1
 +     jump bb8
 +   bb3:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

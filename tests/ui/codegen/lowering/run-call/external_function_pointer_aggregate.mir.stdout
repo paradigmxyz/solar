@@ -369,11 +369,14 @@ fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_pa
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     v12 = ptrtoint memptr v11 to i256
     mstore v12, v6
-    v13 = memory_slice v11
-    slice_copy v13, 0, arg0
-    v14 = keccak256_bytes v11
-    v15 = eq v14, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    ret v15
+    v13 = ptrtoint memptr v11 to i256
+    v14 = add v13, 32
+    v15 = slice_len arg0
+    v16 = make_memory_slice v14, v15
+    slice_copy v16, 0, arg0
+    v17 = keccak256_bytes v11
+    v18 = eq v17, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
+    ret v18
 }
 
 fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -405,12 +408,9 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
     v19 = mload v18
-    v20 = eq v19, 0
+    v20 = lt v19, 2
     v21 = eq v20, false
-    v22 = zext i1 v21 to i256
-    v23 = eq v19, v22
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = ne v19, 0
-    ret v25
+    icall revert_if<empty>, v21
+    v22 = ne v19, 0
+    ret v22
 }

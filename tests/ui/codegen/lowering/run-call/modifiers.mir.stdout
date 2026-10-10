@@ -70,8 +70,11 @@ fn @calldataBytes(arg0: calldataslice) -> memptr [selector=0x7965815f, pure, abi
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
     v13 = ptrtoint memptr v12 to i256
     mstore v13, v7
-    v14 = memory_slice v12
-    slice_copy v14, 0, arg0
+    v14 = ptrtoint memptr v12 to i256
+    v15 = add v14, 32
+    v16 = slice_len arg0
+    v17 = make_memory_slice v15, v16
+    slice_copy v17, 0, arg0
     jump bb2
   bb2:
     jump bb1

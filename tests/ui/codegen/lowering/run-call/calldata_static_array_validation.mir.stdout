@@ -9,8 +9,8 @@ fn @readSecond(arg0: calldataslice) -> i8 [selector=0xe9d33e2a, pure, abi_params
     v3 = slice_ptr arg0
     v4 = add v3, 32
     v5 = calldataload v4
-    v6 = and v5, 255
-    v7 = eq v5, v6
+    v6 = shr 8, v5
+    v7 = eq v6, 0
     v8 = eq v7, false
     icall revert_if<empty>, v8
     v9 = trunc i256 v5 to i8
@@ -26,8 +26,8 @@ fn @readFirst(arg0: calldataslice) -> i8 [selector=0x77c98de5, pure, abi_params=
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldataload v4
-    v6 = and v5, 255
-    v7 = eq v5, v6
+    v6 = shr 8, v5
+    v7 = eq v6, 0
     v8 = eq v7, false
     icall revert_if<empty>, v8
     v9 = trunc i256 v5 to i8
@@ -55,8 +55,8 @@ fn @nested(arg0: calldataslice) -> i8 [selector=0xf4e4bddf, pure, abi_params=[ar
     v9 = slice_ptr v5
     v10 = add v9, 32
     v11 = calldataload v10
-    v12 = and v11, 255
-    v13 = eq v11, v12
+    v12 = shr 8, v11
+    v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
     v15 = trunc i256 v11 to i8
@@ -78,8 +78,8 @@ fn @second(arg0: calldataslice) -> i8 [pure] {
     v3 = slice_ptr arg0
     v4 = add v3, 32
     v5 = calldataload v4
-    v6 = and v5, 255
-    v7 = eq v5, v6
+    v6 = shr 8, v5
+    v7 = eq v6, 0
     v8 = eq v7, false
     icall revert_if<empty>, v8
     v9 = trunc i256 v5 to i8
@@ -115,8 +115,8 @@ fn @copyToMemory(arg0: calldataslice) -> i8 [selector=0x13aac4cb, pure, abi_para
     v7 = mul v5, 32
     v8 = add v0, v7
     v9 = calldataload v8
-    v10 = and v9, 255
-    v11 = eq v9, v10
+    v10 = shr 8, v9
+    v11 = eq v10, 0
     v12 = eq v11, false
     icall revert_if<empty>, v12
     v13 = add v5, 1

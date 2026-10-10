@@ -1918,14 +1918,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { function: super::Callee::Function(_), .. })
                 );
-                if !matches!(data_ty, Some(MirType::MemPtr))
-                    && !(data_ty == Some(MirType::I256)
-                        && !layout.types.iter().any(AbiParamType::has_dynamic_child))
+                if !matches!(data_ty, Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory)))
                     && !pending_call
                 {
-                    return Err(self
-                        .parser
-                        .error("ABI decode requires bytes or a static memory pointer"));
+                    return Err(self.parser.error("ABI decode requires bytes or a memory slice"));
                 }
                 let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
                 let result_ty = match fields.as_slice() {

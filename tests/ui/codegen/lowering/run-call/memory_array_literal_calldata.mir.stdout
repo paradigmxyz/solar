@@ -27,31 +27,37 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v16 = alloc memorybytes, exact, uninitialized, infallible, v15
     v17 = ptrtoint memptr v16 to i256
     mstore v17, v11
-    v18 = memory_slice v16
-    slice_copy v18, 0, arg0
-    v19 = ptrtoint memptr v16 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v19
-    v20 = slice_ptr arg1
-    v21 = slice_len arg1
-    v22 = gt v21, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v22
-    v23 = calldatasize
-    v24 = sub v23, v21
-    v25 = sgt v20, v24
-    icall revert_if<calldata_tail_too_short>, v25
-    v26 = slice_len arg1
-    v27 = add v26, 63
-    v28 = lt v27, v26
-    icall panic_if<0x41>, v28
-    v29 = not 31
-    v30 = and v27, v29
-    v31 = alloc memorybytes, exact, uninitialized, infallible, v30
-    v32 = ptrtoint memptr v31 to i256
-    mstore v32, v26
-    v33 = memory_slice v31
-    slice_copy v33, 0, arg1
-    v34 = ptrtoint memptr v31 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v34
+    v18 = ptrtoint memptr v16 to i256
+    v19 = add v18, 32
+    v20 = slice_len arg0
+    v21 = make_memory_slice v19, v20
+    slice_copy v21, 0, arg0
+    v22 = ptrtoint memptr v16 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v22
+    v23 = slice_ptr arg1
+    v24 = slice_len arg1
+    v25 = gt v24, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v25
+    v26 = calldatasize
+    v27 = sub v26, v24
+    v28 = sgt v23, v27
+    icall revert_if<calldata_tail_too_short>, v28
+    v29 = slice_len arg1
+    v30 = add v29, 63
+    v31 = lt v30, v29
+    icall panic_if<0x41>, v31
+    v32 = not 31
+    v33 = and v30, v32
+    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
+    v35 = ptrtoint memptr v34 to i256
+    mstore v35, v29
+    v36 = ptrtoint memptr v34 to i256
+    v37 = add v36, 32
+    v38 = slice_len arg1
+    v39 = make_memory_slice v37, v38
+    slice_copy v39, 0, arg1
+    v40 = ptrtoint memptr v34 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v40
     ret v4
   bb2:
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96

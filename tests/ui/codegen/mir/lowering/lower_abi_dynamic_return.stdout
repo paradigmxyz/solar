@@ -831,8 +831,8 @@
 +     v24 = add v14, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -888,8 +888,8 @@
 +     v26 = add v16, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -1591,8 +1591,8 @@
       v24 = add v14, 1
       jump bb4
     bb1:
-      mstore 0, 0x4e487b71 !metadata(memory=scratch)
       mstore 32, 65 !metadata(memory=scratch)
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
   }
   
@@ -1650,8 +1650,8 @@
       v26 = add v16, 1
       jump bb4
     bb1:
-      mstore 0, 0x4e487b71 !metadata(memory=scratch)
       mstore 32, 65 !metadata(memory=scratch)
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
   }
   
@@ -1779,8 +1779,8 @@
 +     v44 = add v35, 1
 +     jump bb9
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 + }
 + 
@@ -1820,8 +1820,8 @@
 +     v19 = add v13, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

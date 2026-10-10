@@ -10,8 +10,8 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
     v0 = slice_ptr arg0
     v1 = add v0, 32
     v2 = calldataload v1
-    v3 = and v2, 255
-    v4 = eq v2, v3
+    v3 = shr 8, v2
+    v4 = eq v3, 0
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = trunc i256 v2 to i8
@@ -75,8 +75,11 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v41 = alloc memorybytes, exact, uninitialized, infallible, v40
     v42 = ptrtoint memptr v41 to i256
     mstore v42, v36
-    v43 = memory_slice v41
-    slice_copy v43, 0, v29
+    v43 = ptrtoint memptr v41 to i256
+    v44 = add v43, 32
+    v45 = slice_len v29
+    v46 = make_memory_slice v44, v45
+    slice_copy v46, 0, v29
     ret v41
 }
 

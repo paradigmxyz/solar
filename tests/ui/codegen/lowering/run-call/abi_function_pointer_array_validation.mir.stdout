@@ -19,8 +19,8 @@ fn @h(arg0: calldataslice) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldataload v4
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v7 = eq v5, v6
+    v6 = shl 192, v5
+    v7 = eq v6, 0
     v8 = eq v7, false
     icall revert_if<empty>, v8
     v9 = shr 64, v5

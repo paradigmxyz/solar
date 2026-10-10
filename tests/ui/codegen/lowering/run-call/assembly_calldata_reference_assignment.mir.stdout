@@ -139,8 +139,11 @@ fn @dynamicWords(arg0: calldataslice) -> memptr [selector=0x148d46ad, pure, abi_
     v28 = ptrtoint memptr v27 to i256
     mstore v28, v6
     v29 = make_calldata_slice v7, v18
-    v30 = memory_slice v27
-    slice_copy v30, 0, v29
+    v30 = ptrtoint memptr v27 to i256
+    v31 = add v30, 32
+    v32 = slice_len v29
+    v33 = make_memory_slice v31, v32
+    slice_copy v33, 0, v29
     ret v27
 }
 
@@ -257,8 +260,8 @@ fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, pure, abi
     v31 = mul v29, 32
     v32 = add v7, v31
     v33 = calldataload v32
-    v34 = and v33, 255
-    v35 = eq v33, v34
+    v34 = shr 8, v33
+    v35 = eq v34, 0
     v36 = eq v35, false
     icall revert_if<empty>, v36
     v37 = memory_slice v27
@@ -305,7 +308,7 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     mstore v28, v6
     jump bb1
   bb1:
-    v29 = phi [bb0: 0], [bb2: v66]
+    v29 = phi [bb0: 0], [bb2: v69]
     v30 = lt v29, v6
     jumpi v30, bb2, bb3
   bb3:
@@ -350,12 +353,15 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     v61 = ptrtoint memptr v60 to i256
     mstore v61, v43
     v62 = make_calldata_slice v50, v51
-    v63 = memory_slice v60
-    slice_copy v63, 0, v62
-    v64 = ptrtoint memptr v60 to i256
-    v65 = memory_slice v27
-    slice_store_element v65, v29, v64
-    v66 = add v29, 1
+    v63 = ptrtoint memptr v60 to i256
+    v64 = add v63, 32
+    v65 = slice_len v62
+    v66 = make_memory_slice v64, v65
+    slice_copy v66, 0, v62
+    v67 = ptrtoint memptr v60 to i256
+    v68 = memory_slice v27
+    slice_store_element v68, v29, v67
+    v69 = add v29, 1
     jump bb1
 }
 
@@ -397,8 +403,11 @@ fn @dynamicOverflow(arg0: calldataslice) -> memptr [selector=0x51072adf, pure, a
     v29 = ptrtoint memptr v28 to i256
     mstore v29, v7
     v30 = make_calldata_slice v8, v19
-    v31 = memory_slice v28
-    slice_copy v31, 0, v30
+    v31 = ptrtoint memptr v28 to i256
+    v32 = add v31, 32
+    v33 = slice_len v30
+    v34 = make_memory_slice v32, v33
+    slice_copy v34, 0, v30
     ret v28
 }
 
@@ -440,8 +449,11 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memptr [selector=0x93d2ba08, pure,
     v29 = ptrtoint memptr v28 to i256
     mstore v29, v7
     v30 = make_calldata_slice v8, v19
-    v31 = memory_slice v28
-    slice_copy v31, 0, v30
+    v31 = ptrtoint memptr v28 to i256
+    v32 = add v31, 32
+    v33 = slice_len v30
+    v34 = make_memory_slice v32, v33
+    slice_copy v34, 0, v30
     ret v28
 }
 
@@ -484,8 +496,11 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memptr [selector=0x77beb5ce, pur
     v30 = ptrtoint memptr v29 to i256
     mstore v30, v8
     v31 = make_calldata_slice v9, v20
-    v32 = memory_slice v29
-    slice_copy v32, 0, v31
+    v32 = ptrtoint memptr v29 to i256
+    v33 = add v32, 32
+    v34 = slice_len v31
+    v35 = make_memory_slice v33, v34
+    slice_copy v35, 0, v31
     ret v29
 }
 
@@ -527,8 +542,11 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memptr [selector=0x4c797599, pure
     v29 = ptrtoint memptr v28 to i256
     mstore v29, v7
     v30 = make_calldata_slice v8, v19
-    v31 = memory_slice v28
-    slice_copy v31, 0, v30
+    v31 = ptrtoint memptr v28 to i256
+    v32 = add v31, 32
+    v33 = slice_len v30
+    v34 = make_memory_slice v32, v33
+    slice_copy v34, 0, v30
     ret v28
 }
 

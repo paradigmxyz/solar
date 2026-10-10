@@ -49,49 +49,52 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v38 = ptrtoint memptr v37 to i256
     mstore v38, v16
     v39 = make_calldata_slice v17, v28
-    v40 = memory_slice v37
-    slice_copy v40, 0, v39
-    v41 = memory_slice v37
-    v42 = slice_len v41
-    v43 = sload 0 !metadata(storage=slot(0))
-    v44 = gt v43, v42
-    jumpi v44, bb1, bb2
+    v40 = ptrtoint memptr v37 to i256
+    v41 = add v40, 32
+    v42 = slice_len v39
+    v43 = make_memory_slice v41, v42
+    slice_copy v43, 0, v39
+    v44 = memory_slice v37
+    v45 = slice_len v44
+    v46 = sload 0 !metadata(storage=slot(0))
+    v47 = gt v46, v45
+    jumpi v47, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v45 = phi [bb1: v42], [bb4: v49]
-    v46 = lt v45, v43
-    jumpi v46, bb4, bb5
+    v48 = phi [bb1: v45], [bb4: v52]
+    v49 = lt v48, v46
+    jumpi v49, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore 0, v42 !metadata(storage=slot(0))
+    sstore 0, v45 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v50 = phi [bb2: 0], [bb7: v56]
-    v51 = lt v50, v42
-    jumpi v51, bb7, bb8
+    v53 = phi [bb2: 0], [bb7: v59]
+    v54 = lt v53, v45
+    jumpi v54, bb7, bb8
   bb8:
-    v57 = sload 0 !metadata(storage=slot(0))
-    v58 = lt 0, v57
-    v59 = eq v58, false
-    icall panic_if<0x32>, v59
-    v60 = storage_array_data_slot 0
-    v61 = add v60, 0
-    v62 = sload v61 !metadata(storage=symbolic(v60))
-    ret v62
+    v60 = sload 0 !metadata(storage=slot(0))
+    v61 = lt 0, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = storage_array_data_slot 0
+    v64 = add v63, 0
+    v65 = sload v64 !metadata(storage=symbolic(v63))
+    ret v65
   bb7:
-    v52 = memory_slice v37
-    v53 = slice_load_element v52, v50
-    v54 = storage_array_data_slot 0
-    v55 = add v54, v50
-    sstore v55, v53 !metadata(storage=symbolic(v55))
-    v56 = add v50, 1
+    v55 = memory_slice v37
+    v56 = slice_load_element v55, v53
+    v57 = storage_array_data_slot 0
+    v58 = add v57, v53
+    sstore v58, v56 !metadata(storage=symbolic(v58))
+    v59 = add v53, 1
     jump bb6
   bb4:
-    v47 = storage_array_data_slot 0
-    v48 = add v47, v45
-    sstore v48, 0 !metadata(storage=symbolic(v48))
-    v49 = add v45, 1
+    v50 = storage_array_data_slot 0
+    v51 = add v50, v48
+    sstore v51, 0 !metadata(storage=symbolic(v51))
+    v52 = add v48, 1
     jump bb3
 }

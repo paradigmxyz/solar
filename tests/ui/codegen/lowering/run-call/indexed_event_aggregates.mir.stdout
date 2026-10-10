@@ -268,20 +268,20 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
     v54 = slice_len v53
     jump bb7
   bb7:
-    v55 = phi [bb6: 0], [bb11: v79]
-    v56 = phi [bb6: 0], [bb11: v78]
+    v55 = phi [bb6: 0], [bb11: v82]
+    v56 = phi [bb6: 0], [bb11: v81]
     v57 = lt v55, v54
     jumpi v57, bb8, bb9
   bb9:
-    v80 = keccak256_bytes v51
-    log3 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v19, v80
-    v81 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v82 = ptrtoint memptr v81 to i256
-    mstore v82, 5
-    v83 = ptrtoint memptr v81 to i256
-    v84 = add v83, 32
-    mstore v84, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    ret v81
+    v83 = keccak256_bytes v51
+    log3 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v19, v83
+    v84 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v85 = ptrtoint memptr v84 to i256
+    mstore v85, 5
+    v86 = ptrtoint memptr v84 to i256
+    v87 = add v86, 32
+    mstore v87, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    ret v84
   bb8:
     v58 = memory_slice v0
     v59 = slice_load_element v58, v55
@@ -308,10 +308,13 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
   bb11:
     v75 = add v59, 32
     v76 = make_memory_slice v75, v66
-    v77 = memory_slice v51
-    slice_copy v77, v56, v76
-    v78 = add v56, v70
-    v79 = add v55, 1
+    v77 = ptrtoint memptr v51 to i256
+    v78 = add v77, 32
+    v79 = slice_len v76
+    v80 = make_memory_slice v78, v79
+    slice_copy v80, v56, v76
+    v81 = add v56, v70
+    v82 = add v55, 1
     jump bb7
   bb5:
     v25 = memory_slice v0

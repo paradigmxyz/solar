@@ -34,12 +34,9 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
     v19 = mload v18
-    v20 = eq v19, 0
+    v20 = lt v19, 2
     v21 = eq v20, false
-    v22 = zext i1 v21 to i256
-    v23 = eq v19, v22
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = ne v19, 0
-    ret v25
+    icall revert_if<empty>, v21
+    v22 = ne v19, 0
+    ret v22
 }

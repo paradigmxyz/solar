@@ -45,8 +45,8 @@ fn @emitValues(arg0: calldataslice) -> i256 [selector=0x797a5ca9, abi_params=[ar
     v25 = mul v23, 32
     v26 = add v1, v25
     v27 = calldataload v26
-    v28 = and v27, 255
-    v29 = eq v27, v28
+    v28 = shr 8, v27
+    v29 = eq v28, 0
     v30 = eq v29, false
     icall revert_if<empty>, v30
     v31 = memory_slice v21

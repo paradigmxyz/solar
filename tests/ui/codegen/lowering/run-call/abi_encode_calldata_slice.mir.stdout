@@ -244,8 +244,8 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selec
     v41 = mul v39, 32
     v42 = add v17, v41
     v43 = calldataload v42
-    v44 = and v43, 255
-    v45 = eq v43, v44
+    v44 = shr 8, v43
+    v45 = eq v44, 0
     v46 = eq v45, false
     icall revert_if<empty>, v46
     v47 = memory_slice v37

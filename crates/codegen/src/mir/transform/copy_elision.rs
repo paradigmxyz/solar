@@ -251,6 +251,7 @@ impl CopyElisionCx {
                     | InstKind::IntToPtr(value)
                     | InstKind::MemorySlice(value)
                     | InstKind::SlicePtr(value)
+                    | InstKind::MakeSlice { ptr: value, .. }
                     | InstKind::MemoryObjectFieldAddr { object: value, .. }
                     | InstKind::MemoryObjectElementAddr { object: value, .. } => {
                         derived.contains(value)
@@ -370,6 +371,7 @@ impl CopyElisionCx {
                     | InstKind::IntToPtr(_)
                     | InstKind::MemorySlice(_)
                     | InstKind::SlicePtr(_)
+                    | InstKind::MakeSlice { .. }
                     | InstKind::MemoryObjectFieldAddr { .. }
                     | InstKind::MemoryObjectElementAddr { .. }
                     | InstKind::Alloc { .. } => {}

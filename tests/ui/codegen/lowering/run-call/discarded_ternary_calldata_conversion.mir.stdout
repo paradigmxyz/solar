@@ -45,7 +45,7 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     mstore v28, v6
     jump bb7
   bb7:
-    v29 = phi [bb4: 0], [bb8: v66]
+    v29 = phi [bb4: 0], [bb8: v69]
     v30 = lt v29, v6
     jumpi v30, bb8, bb9
   bb9:
@@ -92,12 +92,15 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     v61 = ptrtoint memptr v60 to i256
     mstore v61, v43
     v62 = make_calldata_slice v50, v51
-    v63 = memory_slice v60
-    slice_copy v63, 0, v62
-    v64 = ptrtoint memptr v60 to i256
-    v65 = memory_slice v27
-    slice_store_element v65, v29, v64
-    v66 = add v29, 1
+    v63 = ptrtoint memptr v60 to i256
+    v64 = add v63, 32
+    v65 = slice_len v62
+    v66 = make_memory_slice v64, v65
+    slice_copy v66, 0, v62
+    v67 = ptrtoint memptr v60 to i256
+    v68 = memory_slice v27
+    slice_store_element v68, v29, v67
+    v69 = add v29, 1
     jump bb7
   bb2:
     v4 = memory_slice v0

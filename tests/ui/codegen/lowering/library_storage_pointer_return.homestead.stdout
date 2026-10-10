@@ -229,30 +229,29 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 128
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 96
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
-    v6 = add v5, 96
-    mstore v6, 0
-    v7 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize 0x1111111111111111111111111111111111111111
-    v11 = eq v10, 0
-    icall revert_if<target_contract_has_no_code>, v11
-    v12 = gas
-    v13 = sub v12, 50
-    v14 = delegatecall v13, 0x1111111111111111111111111111111111111111, v8, v9, v8, 96
-    jumpi v14, bb2, bb1
+    v0 = alloc raw, exact, uninitialized, infallible, 96
+    v1 = fmp
+    v2 = ptrtoint memptr v1 to i256
+    v3 = add v2, 96
+    mstore v3, 0
+    v4 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = eq v7, 0
+    icall revert_if<target_contract_has_no_code>, v8
+    v9 = gas
+    v10 = sub v9, 50
+    v11 = delegatecall v10, 0x1111111111111111111111111111111111111111, v5, v6, v5, 96
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    mcopy v3, v8, 96
-    v15 = abi_decode [storageptr, array<2, u256>], v0
+    v12 = ptrtoint memptr v0 to i256
+    mcopy v12, v5, 96
+    v13 = ptrtoint memptr v0 to i256
+    v14 = make_memory_slice v13, 96
+    v15 = abi_decode [storageptr, array<2, u256>], v14
     v16 = extract_value struct1, v15, 0
     v17 = extract_value struct1, v15, 1
     v18 = insert_value struct1, undef struct1, 0, v16

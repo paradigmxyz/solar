@@ -21,8 +21,11 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x15cfcc01, pure, abi_params=[arr
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     v14 = ptrtoint memptr v13 to i256
     mstore v14, v8
-    v15 = memory_slice v13
-    slice_copy v15, 0, v1
+    v15 = ptrtoint memptr v13 to i256
+    v16 = add v15, 32
+    v17 = slice_len v1
+    v18 = make_memory_slice v16, v17
+    slice_copy v18, 0, v1
     ret v13
 }
 
@@ -47,8 +50,11 @@ fn @f2(arg0: calldataslice) -> memptr [selector=0xdc0ee233, pure, abi_params=[ar
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     v14 = ptrtoint memptr v13 to i256
     mstore v14, v8
-    v15 = memory_slice v13
-    slice_copy v15, 0, v1
+    v15 = ptrtoint memptr v13 to i256
+    v16 = add v15, 32
+    v17 = slice_len v1
+    v18 = make_memory_slice v16, v17
+    slice_copy v18, 0, v1
     ret v13
 }
 

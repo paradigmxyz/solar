@@ -674,6 +674,7 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::PtrToInt(..)
         | InstKind::MemorySlice(..)
         | InstKind::SlicePtr(..)
+        | InstKind::MakeSlice { location: SliceLocation::Memory, .. }
         | InstKind::MemoryObjectFieldAddr { .. }
         | InstKind::MemoryObjectElementAddr { .. } => true,
         InstKind::MLoad(address) => is_slot(func, address),
@@ -696,6 +697,7 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
         InstKind::MemorySlice(object)
         | InstKind::SlicePtr(object)
+        | InstKind::MakeSlice { ptr: object, location: SliceLocation::Memory, .. }
         | InstKind::MemoryObjectFieldAddr { object, .. } => heap.contains(*object),
         InstKind::MemoryObjectElementAddr { object, index, .. } => {
             heap.contains(*object) && func.value_u64(*index).is_some()

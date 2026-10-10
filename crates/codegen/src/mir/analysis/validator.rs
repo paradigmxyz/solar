@@ -857,13 +857,7 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::AbiDecode { data, layout } => {
-                        self.check_value_type(
-                            func.value_ty(*data),
-                            Some(MirType::MemPtr),
-                            block,
-                            id,
-                        );
+                    InstKind::AbiDecode { layout, .. } => {
                         let valid = match inst.result_ty {
                             Some(MirType::Struct(ty)) => {
                                 module.struct_types.get(ty).is_some_and(|ty| {

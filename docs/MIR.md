@@ -533,9 +533,7 @@ exempt. Call-to-tail-call conversion uses the same returnability facts, so it
 cannot discard a continuation after a returning tail-call chain. Calls to proven
 nonreturning bodies lose their dead continuation even when they produce a result.
 When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
-by `invalid`. Constructor-reachable calls keep their dynamic frame even without
-arguments, since callee locals and spills still need a valid base. The function
-keeps its declared result type: it describes a normal return, not a promise to
+by `invalid`. The function keeps its declared result type: it describes a normal return, not a promise to
 return. Slices as well as structs must be gone at the EVM-shaped boundary.
 
 LLVM calls the matching aggregate operations `insertvalue` and `extractvalue`.
@@ -683,11 +681,10 @@ builtin payloads before arithmetic expansion, preserving local overflow edges
 for stack scheduling. Size mode includes arithmetic payloads in the shared
 helpers to avoid duplicated stack and exit code.
 
-The scheduler emits each private predecessor chain before its continuation,
-including blocks appended during conversion. Gas mode keeps the surrounding
-order because shared call tails in loops depend on fallthrough placement.
-Size mode uses reverse postorder for the remaining chains. Layout and spill
-availability share one CFG snapshot.
+Stack scheduling emits each private predecessor chain before its continuation,
+including blocks appended during conversion, then the other blocks in a reverse
+postorder that enters a loop's own blocks last. The EVM IR layout passes choose
+the final order.
 
 Stack layout planning covers ordinary joins as well as phi edges. Removing a
 function's last phi must not disable carrying live values through its other
@@ -695,10 +692,8 @@ branches. Typed catch clauses test their selector and payload only when reached,
 so an earlier matching clause does not compute later catch conditions.
 
 A bare catch needs no copied return-data object. It leaves the EVM return-data
-buffer available to inline assembly. Gas-mode stack planning keeps constants
-used on only one branch off its sibling edge when the sibling can retain an
-identity layout; the edge that needs them emits their pushes. Size mode keeps
-the shared layout to preserve opportunities for merging tails.
+buffer available to inline assembly. Stack planning pushes constants at their
+uses, so a constant used on only one branch never rides its sibling edge.
 
 Final EVM peepholes move a word store immediately followed by a return of that
 word to scratch memory only when a preceding word store in the same block proves
@@ -712,10 +707,6 @@ Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of
 the remaining stack and does not cross a glued boundary. Debug events move to
 the retained store.
-
-Two-word branch layouts place one reloaded join value above the resident word.
-Preparing the condition then needs one swap. Wider layouts retain their existing
-order because downstream joins can outweigh that local saving.
 
 Gas cleanup can copy an eight-byte word-return body into a stub shared by
 multiple empty stubs. This removes an extra jump while retaining distinct

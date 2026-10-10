@@ -192,13 +192,16 @@ fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, pure, abi_params=[b
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     v12 = ptrtoint memptr v11 to i256
     mstore v12, v6
-    v13 = memory_slice v11
-    slice_copy v13, 0, arg0
-    v14 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], v11
-    v15 = memory_object_load_field memorystruct<4>, v14, 1, memptr
-    v16 = ptrtoint memptr v15 to i256
-    v17 = keccak256 v16, 160
-    ret v17
+    v13 = ptrtoint memptr v11 to i256
+    v14 = add v13, 32
+    v15 = slice_len arg0
+    v16 = make_memory_slice v14, v15
+    slice_copy v16, 0, arg0
+    v17 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], v11
+    v18 = memory_object_load_field memorystruct<4>, v17, 1, memptr
+    v19 = ptrtoint memptr v18 to i256
+    v20 = keccak256 v19, 160
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===

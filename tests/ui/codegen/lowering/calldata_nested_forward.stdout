@@ -52,20 +52,20 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     mstore v23, v1
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v74]
+    v24 = phi [bb0: 0], [bb2: v77]
     v25 = lt v24, v1
     jumpi v25, bb2, bb3
   bb3:
-    v75 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
-    v76 = slice_ptr v75
-    v77 = slice_len v75
-    v78 = zext i160 arg1 to i256
-    v79 = extcodesize v78
-    v80 = eq v79, 0
-    icall revert_if<target_contract_has_no_code>, v80
+    v78 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
+    v79 = slice_ptr v78
+    v80 = slice_len v78
     v81 = zext i160 arg1 to i256
-    v82 = call v0, v81, 0, v76, v77, 0, 0
-    jumpi v82, bb5, bb4
+    v82 = extcodesize v81
+    v83 = eq v82, 0
+    icall revert_if<target_contract_has_no_code>, v83
+    v84 = zext i160 arg1 to i256
+    v85 = call v0, v84, 0, v79, v80, 0, 0
+    jumpi v85, bb5, bb4
   bb4:
     revert_returndata
   bb5:
@@ -125,13 +125,16 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v68 = alloc memorybytes, exact, uninitialized, infallible, v67
     v69 = ptrtoint memptr v68 to i256
     mstore v69, v63
-    v70 = memory_slice v68
-    slice_copy v70, 0, v62
-    v71 = ptrtoint memptr v68 to i256
-    memory_object_store_field memorystruct<2>, v38, 1, v71
-    v72 = ptrtoint memptr v38 to i256
-    v73 = memory_slice v22
-    slice_store_element v73, v24, v72
-    v74 = add v24, 1
+    v70 = ptrtoint memptr v68 to i256
+    v71 = add v70, 32
+    v72 = slice_len v62
+    v73 = make_memory_slice v71, v72
+    slice_copy v73, 0, v62
+    v74 = ptrtoint memptr v68 to i256
+    memory_object_store_field memorystruct<2>, v38, 1, v74
+    v75 = ptrtoint memptr v38 to i256
+    v76 = memory_slice v22
+    slice_store_element v76, v24, v75
+    v77 = add v24, 1
     jump bb1
 }
