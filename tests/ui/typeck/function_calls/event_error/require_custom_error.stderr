@@ -6,6 +6,14 @@ LL │         require(condition, MyError(1));
    │                                   │
    ╰╴                                  expected 2 arguments, found 1
 
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/require_custom_error.sol:LL:CC
+   │
+LL │         require(condition, (MyError(1)));
+   │                             ━━━━━━━┬──
+   │                                    │
+   ╰╴                                   expected 2 arguments, found 1
+
 error: errors can only be used with revert statements
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/require_custom_error.sol:LL:CC
    │
@@ -36,5 +44,5 @@ error: errors can only be used with revert statements
 LL │         EmptyError();
    ╰╴        ━━━━━━━━━━━━
 
-error: aborting due to 6 previous errors
+error: aborting due to 7 previous errors
 

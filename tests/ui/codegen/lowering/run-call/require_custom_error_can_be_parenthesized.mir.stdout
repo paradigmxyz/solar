@@ -1,0 +1,7 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/require_custom_error_can_be_parenthesized.sol:C ===
+@module C
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall require<custom_error [word]>, false, 0x30b1b56500000000000000000000000000000000000000000000000000000000, 1
+    ret 42
+}

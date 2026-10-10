@@ -334,20 +334,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             Builtin::EventSelector => {
-                let event_id = match self.cx.gcx.resolved_expr(expr) {
-                    Some(hir::Res::Item(hir::ItemId::Event(id))) => Some(id),
-                    _ => match &expr.kind {
-                        ExprKind::Member(receiver, _) => {
-                            self.cx.gcx.resolved_expr(receiver).and_then(|res| match res {
-                                hir::Res::Item(hir::ItemId::Event(id)) => Some(id),
-                                _ => None,
-                            })
-                        }
-                        _ => None,
-                    },
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return self.cx.report_unsupported(expr.span, "event selector");
                 };
+                let event_id = [expr, receiver].into_iter().find_map(|expr| {
+                    self.cx.gcx.resolved_expr(expr).and_then(|res| match res {
+                        hir::Res::Item(hir::ItemId::Event(id)) => Some(id),
+                        _ => None,
+                    })
+                });
                 match event_id {
                     Some(event_id) => {
+                        self.lower_discarded_expr(receiver)?;
                         Some(self.builder.imm(U256::from_be_slice(
                             self.cx.gcx.event_selector(event_id).as_slice(),
                         )))

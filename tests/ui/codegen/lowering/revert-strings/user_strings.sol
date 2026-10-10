@@ -52,6 +52,8 @@
 
 //@ run-call-fail: requireCustomError 0 => Custom(uint256)(0)
 
+//@ run-call-fail: requireParenthesizedCustomError 0 => Custom(uint256)(0)
+
 // User-supplied reason strings under each `--revert-strings` mode. `strip` drops the
 // payload of `require` and `revert` reason strings but, like solc, still evaluates the
 // reason, so its side effects and panics are kept. Custom errors are untouched in every
@@ -137,6 +139,11 @@ contract UserStrings {
 
     function requireCustomError(uint256 x) external pure returns (uint256) {
         require(x == 1, Custom(x));
+        return x;
+    }
+
+    function requireParenthesizedCustomError(uint256 x) external pure returns (uint256) {
+        require(x == 1, (Custom(x)));
         return x;
     }
 }

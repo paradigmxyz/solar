@@ -294,9 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
         }
-        if let ExprKind::Call(callee, ..) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
-        {
+        if self.custom_error_call(expr).is_some() {
             return Some(false);
         }
         if self.constant_string_bytes(expr).is_none() {
@@ -324,6 +322,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && variable.is_constant()
             && let Some(initializer) = variable.initializer
         {
+            self.lower_item_path_effects(expr)?;
             if gcx.try_eval_const_value(initializer).is_ok() {
                 return Some(());
             }
@@ -426,6 +425,51 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
+    /// Returns the conditional at the root of a member path through modules and types, such as
+    /// `c ? M : M` in `(c ? M : M).L.f`. It is the only item reference with effects to evaluate.
+    fn item_path_conditional<'e>(&self, expr: &'e hir::Expr<'e>) -> Option<&'e hir::Expr<'e>> {
+        let mut expr = expr.peel_parens();
+        let mut root = expr;
+        while let ExprKind::Member(receiver, _) = root.kind {
+            root = receiver.peel_parens();
+        }
+        if !matches!(root.kind, ExprKind::Ternary(..)) {
+            return None;
+        }
+        while let ExprKind::Member(receiver, _) = expr.kind {
+            expr = receiver.peel_parens();
+            match self.cx.gcx.type_of_expr(expr.id)?.kind {
+                TyKind::Module(_) if matches!(expr.kind, ExprKind::Ternary(..)) => {
+                    return Some(expr);
+                }
+                TyKind::Module(_) | TyKind::Type(_) => {}
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// Evaluates the conditional at the root of a member path, if any; see
+    /// [`Self::item_path_conditional`].
+    pub(super) fn lower_item_path_effects(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        if let Some(conditional) = self.item_path_conditional(expr) {
+            self.lower_discarded_expr(conditional)?;
+        }
+        Some(())
+    }
+
+    /// Returns the error, callee, and arguments of a custom error call such as `E(1)` or `(E(1))`.
+    fn custom_error_call<'e>(
+        &self,
+        expr: &'e hir::Expr<'e>,
+    ) -> Option<(hir::ErrorId, &'e hir::Expr<'e>, hir::CallArgs<'e>)> {
+        let (callee, args, _) = expr.peel_parens().as_call()?;
+        match self.cx.gcx.resolved_expr(callee)? {
+            hir::Res::Item(hir::ItemId::Error(error_id)) => Some((error_id, callee, *args)),
+            _ => None,
+        }
+    }
+
     pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         let payload = self.prepare_revert_payload(expr)?;
         self.emit_revert_payload(payload);
@@ -433,11 +477,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn prepare_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<RevertPayload> {
-        if let Some((callee, args, _)) = expr.peel_parens().as_call()
-            && let Some(hir::Res::Item(hir::ItemId::Error(error_id))) =
-                self.cx.gcx.resolved_expr(callee)
-        {
-            return self.prepare_custom_error_payload(error_id, *args);
+        if let Some((error_id, callee, args)) = self.custom_error_call(expr) {
+            self.lower_item_path_effects(callee)?;
+            return self.prepare_custom_error_payload(error_id, args);
         }
 
         if let Some(bytes) = self.constant_string_bytes(expr)
@@ -482,7 +524,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ExprKind::Ident(_) | ExprKind::Member(..) => {
                     let variable_id = self.cx.gcx.resolved_variable(expr)?;
                     let variable = self.cx.gcx.hir.variable(variable_id);
-                    if !variable.is_constant() {
+                    if !variable.is_constant() || self.item_path_conditional(expr).is_some() {
                         return None;
                     }
                     expr = variable.initializer?.peel_parens();

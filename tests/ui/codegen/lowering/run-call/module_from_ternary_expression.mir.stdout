@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/auxiliary/module_from_ternary_expression.sol:D ===
+@module D
+
+// === ROOT/tests/ui/codegen/lowering/run-call/module_from_ternary_expression.sol:C ===
+@module C
+fn @f() -> i1 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi true, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    ret true
+}
