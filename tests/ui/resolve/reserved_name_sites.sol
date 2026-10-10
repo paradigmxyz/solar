@@ -34,6 +34,14 @@ library L {
     function _() public {}
 }
 
+contract LocalReference {
+    function localReference() public pure returns (uint256) {
+        uint256 _ = 34; //~ ERROR: the name `_` is reserved
+        _;
+        return _;
+    }
+}
+
 function _() {} //~ ERROR: the name `_` is reserved
 contract super {} //~ ERROR: the name `super` is reserved
 struct this { uint a; } //~ ERROR: the name `this` is reserved

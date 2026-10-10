@@ -100,5 +100,11 @@ error[3726]: the name `_` is reserved
 LL │         try C(msg.sender).h() returns (uint super) {} catch Error(string memory _) {}
    ╰╴                                                                                ━
 
-error: aborting due to 16 previous errors; 1 warning emitted
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │         uint256 _ = 34;
+   ╰╴                ━
+
+error: aborting due to 17 previous errors; 1 warning emitted
 
