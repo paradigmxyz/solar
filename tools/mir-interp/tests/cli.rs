@@ -118,17 +118,15 @@ fn json() {
 
 #[test]
 fn dumps() {
-    // Calls take the heap frames the dump reports: `@probe` sees the free memory pointer past its
-    // frame, which it keeps.
-    let run = run("frames.dump", &["--contract", "Frames"]);
+    let run = run("contracts.dump", &["--contract", "Probe"]);
     assert_data_eq!(
         run.stdout,
         str![[r#"
-returned 0x00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000c0
+returned 0x00000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000080
 
 "#]]
     );
-    let run = self::run("frames.dump", &["--contract", "src/Other.sol:Other"]);
+    let run = self::run("contracts.dump", &["--contract", "src/Other.sol:Other"]);
     assert_data_eq!(
         run.stdout,
         str![[r#"
@@ -136,12 +134,12 @@ stopped
 
 "#]]
     );
-    let run = self::run("frames.dump", &[]);
+    let run = self::run("contracts.dump", &[]);
     assert_eq!(run.code, 1);
     assert_data_eq!(
         run.stderr,
         str![[r#"
-error: the input holds several modules, so choose one of src/Frames.sol:Frames, src/Other.sol:Other with `--contract`
+error: the input holds several modules, so choose one of src/Probe.sol:Probe, src/Other.sol:Other with `--contract`
 
 "#]]
     );

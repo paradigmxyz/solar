@@ -75,7 +75,7 @@ contract DiscardedFunctionReferences {
     }
 
     function tupleReceiverRevert() external pure returns (uint256) {
-        (, uint256 x) = (fail().identity, 3);
+        (, uint256 x) = (fail().identity, 3); //~ WARN: unreachable code
         return x;
     }
 

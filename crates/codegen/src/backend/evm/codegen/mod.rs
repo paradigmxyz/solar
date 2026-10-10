@@ -1,28 +1,18 @@
 //! EVM bytecode generation from MIR.
 //!
-//! This module generates EVM bytecode from MIR using:
-//! - Liveness analysis to know when values die
-//! - Phi elimination to convert SSA to parallel copies
-//! - Stack scheduling to generate DUP/SWAP sequences
-//! - EVM IR optimization, relocation, and byte encoding
+//! The runtime, and separately the constructor with the helpers it calls, go
+//! through the stack-resident lowering in `stackify`. It plans every function's
+//! stack layouts ahead of emission, keeps values and return addresses on the
+//! stack, and emits EVM IR, which the assembler then optimizes, relocates, and
+//! encodes.
 //!
-//! Deployment and runtime modules coordinate artifact emission. Function,
-//! instruction, value, and terminator modules emit scheduled EVM IR. Internal
-//! calling conventions live in `calls`; physical memory placement lives in
-//! `frames`. The private `stack` subtree owns operand scheduling, CFG layout
-//! planning, edge transitions, and spilling.
+//! Deployment and runtime modules coordinate artifact emission. `select` picks
+//! single opcodes, `switch` lowers switches, and `function`, `terminator`, and
+//! `values` hold shared emission helpers. Physical memory placement lives in
+//! `frames`; the private `stack` subtree holds the symbolic stack and the
+//! stack-operation run solver that EVM IR passes use.
 
-use self::{
-    stack::{
-        OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot, StackScheduler,
-        TargetSlot, cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
-        layout::{
-            GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
-        },
-        rematerializable_nullary_value,
-    },
-    switch::MAX_GAS_CODE_GROWTH,
-};
+use self::switch::MAX_GAS_CODE_GROWTH;
 use super::{
     DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
@@ -34,12 +24,9 @@ use crate::{
     },
     link::{EmbeddedBytecodes, LibraryRelocation},
     mir::{
-        ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
-        analysis::{
-            AliasAnalysis, CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop,
-            LoopAnalyzer, MemoryBase, ParallelCopy, PhiEliminator,
-        },
+        ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
+        MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
+        analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer, MemoryBase},
         immutable::{
             immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
             immutable_staging_end,
@@ -52,12 +39,11 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
-    bit_set::{DenseBitSet, GrowableBitSet},
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::OnceCell, sync::Arc};
 
 mod stack;
 pub(super) use stack::{
@@ -66,205 +52,28 @@ pub(super) use stack::{
 
 mod switch;
 
-mod calls;
 mod deployment;
 mod frames;
 mod function;
-mod instructions;
-mod planning;
 mod runtime;
 pub(crate) mod select;
+mod stackify;
 mod terminator;
 mod values;
-
-const STACK_PHI_LAYOUT_LIMIT: usize = 8;
-const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
-
-/// A frame the runtime allocates at the free memory pointer on every call to a function.
-///
-/// MIR leaves frame placement to the backend, so a program can observe these frames only through
-/// the addresses its later allocations get. The final MIR dump reports them for interpreters.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DynamicFrame {
-    /// The called function's MIR name.
-    pub function: String,
-    /// Bytes the frame takes above the free memory pointer, including any heap guard.
-    pub size: u64,
-    /// Whether the caller moves the free memory pointer back to the frame's base afterwards.
-    pub restores_free_memory: bool,
-}
-
-/// Describes the stack effect of an EVM instruction.
-/// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
-#[derive(Clone, Copy, Debug)]
-struct StackEffect {
-    /// Number of values popped from the stack.
-    pops: usize,
-    /// Number of values pushed to the stack.
-    pushes: usize,
-}
-
-/// What value to track for a pushed stack entry.
-#[derive(Clone, Copy, Debug)]
-enum StackPush {
-    /// No value is pushed (pushes == 0).
-    #[allow(dead_code)]
-    None,
-    /// Push a tracked ValueId (pushes == 1).
-    Tracked(ValueId),
-    /// Push an unknown/untracked value (pushes == 1).
-    Unknown,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum StaticCallStackWord {
-    ReturnAddress,
-    Argument(usize),
-}
-
-#[derive(Clone, Debug)]
-struct StackArgRetentionPlan {
-    retained: DenseBitSet<usize>,
-    drain_ops: Vec<StackOp>,
-    shuffle_ops: Vec<StackOp>,
-}
-
-/// Stack arguments whose static-frame stores are delayed until their first instruction use.
-///
-/// `args` follows physical stack order, highest argument index first. Values in `frame_values` are
-/// used again and therefore receive a store immediately before that use; the others die on the
-/// stack without ever occupying their declared frame slot.
-#[derive(Clone, Debug)]
-struct LazyStackArgPlan {
-    args: Vec<(ArgIdx, ValueId)>,
-    frame_values: DenseBitSet<ValueId>,
-}
-
-type CanonicalArgValues = IndexVec<ArgIdx, Option<ValueId>>;
-
-struct StackArgUseInfo {
-    use_counts: FxHashMap<ValueId, usize>,
-    non_entry_uses: DenseBitSet<ValueId>,
-    call_uses: DenseBitSet<ValueId>,
-    entry_first_uses: FxHashMap<ValueId, usize>,
-    first_entry_call: Option<usize>,
-}
-
-#[derive(Clone)]
-struct SpillStore {
-    value: ValueId,
-    slot: SpillSlot,
-    block: ir::BlockId,
-    range: std::ops::Range<usize>,
-}
-
-/// A single-use call gas operand rebuilt at the call site.
-struct LateGasOperand {
-    subtracted: Option<U256>,
-}
-
-impl LazyStackArgPlan {
-    fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.args.iter().map(|&(_, value)| value)
-    }
-}
-
-/// A profitable static-call layout whose caller words stay below the
-/// untracked return address until control returns.
-#[derive(Clone, Debug)]
-struct StaticCallStackPlan {
-    prepare_ops: Vec<StackOp>,
-    caller_stack: StackModel,
-}
-
-/// Stack-native exit signature for a non-recursive static callee.
-#[derive(Clone, Copy, Debug)]
-struct StackReturnPlan {
-    /// Number of result words left on the physical stack.
-    arity: usize,
-    /// First local/spill byte in the original MIR frame layout.
-    local_base: u64,
-}
-
-/// Caller-side binding of stack-returned tuple words to their multi-return
-/// protocol loads.
-struct StackResultProjection {
-    /// The buffer-pointer read, its offset additions, and the extra-return
-    /// loads; all skipped during emission.
-    elided: Vec<InstId>,
-    /// The adopted load result for each extra return index `1..arity`.
-    extras: Vec<ValueId>,
-}
-
-/// Subset-invariant analyses shared by one resident-layout subset search.
-struct ResidentSearchContext {
-    /// Planned stack-phi edges, present when the function has phis.
-    phi_plan: Option<Arc<StackPhiPlan>>,
-    /// CFG facts whose memoized dominators persist across candidates.
-    cfg: CfgInfo,
-    /// Operand occurrences per candidate value across the whole function.
-    value_uses: FxHashMap<ValueId, usize>,
-    /// Arguments live where computed values exhaust direct stack access.
-    frame_required: DenseBitSet<ValueId>,
-}
-
-/// Complete stack calling convention selected for one non-recursive static callee.
-#[derive(Clone, Debug)]
-struct StaticCallAbi {
-    /// Argument positions delivered above the return address. Arguments not selected here keep
-    /// their static-frame homes, which is the conservative per-word spill fallback.
-    stack_args: DenseBitSet<usize>,
-    /// How the callee adopts the incoming argument tuple.
-    entry: StaticCallEntry,
-    /// Complete tuple returned above the preserved caller prefix, when profitable.
-    returns: Option<StackReturnPlan>,
-}
-
-impl StaticCallAbi {
-    fn new(arg_count: usize) -> Self {
-        Self {
-            stack_args: DenseBitSet::new_empty(arg_count),
-            entry: StaticCallEntry::Stored,
-            returns: None,
-        }
-    }
-}
-
-/// Callee-side realization of a [`StaticCallAbi`] entry signature.
-#[derive(Clone, Debug, Default)]
-enum StaticCallEntry {
-    /// Store incoming stack arguments into their ordinary static-frame slots.
-    #[default]
-    Stored,
-    /// Consume every incoming stack argument directly in the entry block.
-    Direct(Vec<ValueId>),
-    /// Keep a profitable subset resident through the complete callee CFG.
-    Resident { values: Vec<ValueId>, layout: GlobalStackPlan },
-    /// Consume the first use directly and materialize only values used again.
-    Lazy(LazyStackArgPlan),
-}
-
-#[derive(Clone, Copy, Debug)]
-struct ICallStackEdge {
-    caller: FunctionId,
-    callee: FunctionId,
-    preserved_words: usize,
-    argument_words: usize,
-}
 
 /// EVM code generator.
 pub struct EvmCodegen<'gcx> {
     gcx: Gcx<'gcx>,
     /// The assembler for bytecode generation.
     asm: Assembler<'gcx>,
-    /// Stack scheduler.
-    scheduler: StackScheduler,
+    /// Spill slots of the body being emitted, as word offsets into its spill area.
+    spill_slots: FxHashMap<ValueId, u32>,
+    /// The spill slot of the body's return address, when it leaves the stack.
+    ret_spill_slot: Option<u32>,
     /// Block labels.
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
-    /// Return arities inferred from the final lowered function signatures.
-    function_return_counts: IndexVec<FunctionId, usize>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
@@ -275,66 +84,21 @@ pub struct EvmCodegen<'gcx> {
     cold_blocks: DenseBitSet<BlockId>,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
-    /// Internal-call frame-size constants waiting for exact callee spill sizes.
-    pending_frame_size_consts: Vec<(DeferredConst, FunctionId)>,
-    /// The resolved extent of each dynamic internal-call frame, by callee.
-    dynamic_frame_extents: FxHashMap<FunctionId, u64>,
-    /// Per-function entry/exit stack signatures for non-recursive static calls. An absent plan, or
-    /// an argument not selected by a plan, uses the existing static-memory convention.
-    static_call_abis: FxHashMap<FunctionId, StaticCallAbi>,
-    /// Functions whose stack-only argument convention had to materialize a frame fallback during
-    /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
-    disabled_stack_only_functions: DenseBitSet<FunctionId>,
-    /// An internal function already on the frame-backed convention that lost a stack-only value
-    /// in this emission attempt. Regenerating cannot give the value a reload route, so a kept
-    /// attempt reports an error instead of shipping the placeholder.
-    lost_frame_stack_value: Option<FunctionId>,
-    /// Whether stack-native return tuples may be selected. Cleared when the
-    /// whole-program stack proof fails even without preserved prefixes or
-    /// stack arguments, falling back to the frame-backed return convention.
-    stack_returns_enabled: bool,
-    /// Enables the optional caller-prefix convention for this emission. If
-    /// post-emission stack validation rejects it, runtime codegen reruns once
-    /// with this disabled.
-    preserve_caller_stack: bool,
-    /// Functions reached from a recursive activation. Their incoming physical
-    /// prefix is unbounded, so preserving another caller prefix would change
-    /// the recursion limit.
-    recursive_stack_functions: DenseBitSet<FunctionId>,
     /// Functions that are themselves members of a recursive call cycle. A
     /// nested activation reuses their static scratch frame only after the
     /// suspended activation's live words have moved to the EVM stack.
     recursive_frame_functions: DenseBitSet<FunctionId>,
-    /// Call edges within a recursive static-frame component. The caller state
-    /// must survive the entire callee activation because it can re-enter and
-    /// overwrite the caller's fixed frame.
-    recursive_frame_edges: FxHashSet<(FunctionId, FunctionId)>,
-    /// Functions that are recursive or can reach recursion. A preserved
-    /// prefix must not be carried into an unbounded descendant.
-    recursion_reaching_functions: DenseBitSet<FunctionId>,
-    /// High-water mark of the modeled stack above each function's inherited
-    /// untracked prefix.
-    function_stack_peaks: FxHashMap<FunctionId, usize>,
-    /// Runtime internal-call edges and the caller words retained at each site.
-    icall_stack_edges: Vec<ICallStackEdge>,
-    /// Whether the current assembly is the runtime (stack-passed arguments
-    /// apply). The constructor assembly emits its own copies of internal
-    /// functions with the plain frame-store convention.
-    runtime_stack_args: bool,
     /// Deferred spill-slot address pushes of the external body being emitted,
-    /// keyed by the slot's allocation offset, with their reference counts.
-    /// Ranked hottest-first at body end so the most reloaded slots take the
-    /// shortest addresses; final addresses wait for global layout.
-    spill_addr_consts: FxHashMap<u64, (DeferredConst, usize)>,
+    /// keyed by the slot, with their reference counts. Ranked hottest-first at
+    /// body end so the most reloaded slots take the shortest addresses; final
+    /// addresses wait for global layout.
+    spill_addr_consts: FxHashMap<u32, (DeferredConst, usize)>,
     /// Ranked external spill pushes retained until static-allocation layout is
     /// finalized, keyed by entry function.
     external_spill_addr_consts: FxHashMap<FunctionId, Vec<(DeferredConst, usize)>>,
-    /// Callees whose internal-call frame can be deallocated after return.
-    restorable_internal_frames: DenseBitSet<FunctionId>,
-    /// Functions whose frame lives at a compile-time-fixed address (static
-    /// frames): internal-convention, non-recursive functions in the runtime
-    /// passes. Their arg/local/spill accesses are absolute pushes and their
-    /// call sites skip all frame-pointer and free-pointer bookkeeping.
+    /// Functions whose frame lives at a compile-time-fixed address: every
+    /// internal function and the constructor. Their frame objects and spill
+    /// slots are absolute pushes.
     static_frame_functions: DenseBitSet<FunctionId>,
     /// Interned deferred constants for absolute static-frame addresses, keyed
     /// by (function, byte offset within its frame). Resolved at the end of
@@ -354,46 +118,15 @@ pub struct EvmCodegen<'gcx> {
     runtime_entry_reachability: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     /// Every external body emitted this pass, for sizing the heap floor.
     runtime_entry_funcs: Vec<FunctionId>,
-    /// The internal-convention function currently being emitted.
-    current_internal_function: Option<FunctionId>,
-    /// Copies to insert at block exits (from phi elimination).
-    block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
-    /// Values carried by planned stack-resident edges, keyed by predecessor block.
-    stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
-    /// Spill stores available on the current block's path at the current
-    /// emission point (`None` outside block emission or when no emitted
-    /// forward predecessor constrains it). Stores and clobbers in the block
-    /// update the set before it propagates to successors.
-    spill_available: Option<FxHashSet<ValueId>>,
-    /// Multi-return protocol instructions satisfied directly from adopted
-    /// stack-return words; the emission loop skips them.
-    elided_insts: FxHashSet<InstId>,
-    late_gas_operands: FxHashMap<ValueId, LateGasOperand>,
-    spill_stores: Vec<SpillStore>,
-    spill_loads: Vec<(SpillSlot, ir::BlockId, usize)>,
-    early_spill_removals: Vec<(ir::BlockId, std::ops::Range<usize>)>,
-    /// Stack-phi plans by function, shared by the resident-argument search and body emission.
-    /// A plan depends only on the function, its whole-function liveness, and the module's cold
-    /// functions, so one analysis per function serves both.
-    stack_phi_plans: FxHashMap<FunctionId, Arc<StackPhiPlan>>,
-    /// Whole-function liveness by function, shared the same way as `stack_phi_plans`.
-    function_liveness: FxHashMap<FunctionId, Arc<Liveness>>,
-    function_ir_block_start: usize,
-    /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
-    /// in a proxy) whose write reaches the compiler spill area. Values live
-    /// across one are kept stack-resident instead of reloaded from the
-    /// overwritten slot. Empty for every function without such a forward.
-    spill_hazard_insts: FxHashSet<InstId>,
+    /// The body being emitted.
+    body: Body,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
+    /// Memory-reference arguments that every internal call site passes a heap pointer.
+    heap_pointer_args: IndexVec<FunctionId, DenseBitSet<ArgIdx>>,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
     pending_runtime: Option<PendingRuntime>,
-    /// Whether the current function has canonical cross-block argument layouts.
-    global_stack_active: bool,
-    /// Calldata words physically identical to arguments in the active global
-    /// layout, adopted after their final validation use.
-    global_stack_aliases: FxHashMap<ValueId, ValueId>,
     /// Backend encodings derived from the current module's immutable declarations.
     immutable_encodings: IndexVec<ImmutableId, ImmutableEncoding>,
     /// First constructor-memory word reserved for immutable staging.
@@ -410,10 +143,6 @@ pub struct EvmCodegen<'gcx> {
     in_constructor: bool,
     /// Shared constructor completion reached by ordinary empty returns.
     constructor_exit: Option<Label>,
-    /// Number of constructor parameters (used for CODECOPY offset calculation).
-    constructor_param_count: u32,
-    /// Whether we're emitting an internal function body.
-    in_internal_function: bool,
     /// Whether we're emitting the MIR `entry` function. Its switch
     /// keeps the selector on the physical stack through the case chain and
     /// leaves it inert below the taken arm. This is only sound for `entry`: it
@@ -428,7 +157,6 @@ pub struct EvmCodegen<'gcx> {
     /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
     run_pipeline: bool,
 }
-
 impl<'gcx> EvmCodegen<'gcx> {
     /// Creates a new EVM code generator.
     #[must_use]
@@ -437,32 +165,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         Self {
             gcx,
             asm: Assembler::new(gcx),
-            scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version)
-                .with_wide_permutation_search(gcx.sess.opts.optimization.is_gas()),
+            spill_slots: FxHashMap::default(),
+            ret_spill_slot: None,
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
-            function_return_counts: IndexVec::new(),
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
             function_spill_sizes: FxHashMap::default(),
-            pending_frame_size_consts: Vec::new(),
-            dynamic_frame_extents: FxHashMap::default(),
-            static_call_abis: FxHashMap::default(),
-            disabled_stack_only_functions: DenseBitSet::new_empty(0),
-            lost_frame_stack_value: None,
-            stack_returns_enabled: true,
-            preserve_caller_stack: false,
-            recursive_stack_functions: DenseBitSet::new_empty(0),
             recursive_frame_functions: DenseBitSet::new_empty(0),
-            recursive_frame_edges: FxHashSet::default(),
-            recursion_reaching_functions: DenseBitSet::new_empty(0),
-            function_stack_peaks: FxHashMap::default(),
-            icall_stack_edges: Vec::new(),
-            runtime_stack_args: false,
             spill_addr_consts: FxHashMap::default(),
             external_spill_addr_consts: FxHashMap::default(),
-            restorable_internal_frames: DenseBitSet::new_empty(0),
             static_frame_functions: DenseBitSet::new_empty(0),
             static_frame_addr_consts: FxHashMap::default(),
             packed_static_frame_sizes: FxHashMap::default(),
@@ -471,23 +184,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             fmp_floor_consts: Vec::new(),
             runtime_entry_reachability: FxHashMap::default(),
             runtime_entry_funcs: Vec::new(),
-            current_internal_function: None,
-            block_copies: FxHashMap::default(),
-            stack_phi_sources: FxHashMap::default(),
-            spill_available: None,
-            elided_insts: FxHashSet::default(),
-            late_gas_operands: FxHashMap::default(),
-            spill_stores: Vec::new(),
-            spill_loads: Vec::new(),
-            early_spill_removals: Vec::new(),
-            stack_phi_plans: FxHashMap::default(),
-            function_liveness: FxHashMap::default(),
-            function_ir_block_start: 0,
-            spill_hazard_insts: FxHashSet::default(),
+            body: Body::External,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
+            heap_pointer_args: IndexVec::new(),
             pending_runtime: None,
-            global_stack_active: false,
-            global_stack_aliases: FxHashMap::default(),
             immutable_encodings: IndexVec::new(),
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 + EvmMemoryLayout::WORD_SIZE,
@@ -496,8 +196,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_heap_start: None,
             in_constructor: false,
             constructor_exit: None,
-            constructor_param_count: 0,
-            in_internal_function: false,
             emitting_entry: false,
             switch_gas_code_growth_remaining,
             capture_mir: false,
@@ -510,50 +208,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
         self.asm.clear();
-        self.scheduler.reset();
-        self.block_labels.clear();
-        self.function_labels.clear();
+        self.reset_artifact(module);
         self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());
-        self.cold_blocks.clear_to(0);
-        self.function_spill_sizes.clear();
-        self.pending_frame_size_consts.clear();
-        self.dynamic_frame_extents.clear();
-        self.static_call_abis.clear();
-        self.disabled_stack_only_functions.clear_to(module.functions.len());
-        self.lost_frame_stack_value = None;
-        self.stack_returns_enabled = true;
-        self.preserve_caller_stack = false;
-        self.recursive_stack_functions.clear_to(module.functions.len());
-        self.recursive_frame_functions.clear_to(module.functions.len());
-        self.recursive_frame_edges.clear();
-        self.recursion_reaching_functions.clear_to(module.functions.len());
-        self.function_stack_peaks.clear();
-        self.icall_stack_edges.clear();
-        self.runtime_stack_args = false;
-        self.spill_addr_consts.clear();
-        self.external_spill_addr_consts.clear();
-        self.restorable_internal_frames.clear_to(module.functions.len());
-        self.static_frame_functions.clear_to(module.functions.len());
-        self.static_frame_addr_consts.clear();
-        self.packed_static_frame_sizes.clear();
-        self.pending_static_allocs.clear();
-        self.runtime_free_memory_consts.clear();
-        self.fmp_floor_consts.clear();
-        self.runtime_entry_reachability.clear();
-        self.runtime_entry_funcs.clear();
-        self.current_internal_function = None;
-        self.block_copies.clear();
-        self.stack_phi_sources.clear();
-        self.spill_available = None;
-        self.elided_insts.clear();
-        self.late_gas_operands.clear();
-        self.stack_phi_plans.clear();
-        self.function_liveness.clear();
-        self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
-        self.global_stack_active = false;
-        self.global_stack_aliases.clear();
         self.immutable_encodings.clear();
         self.immutable_staging_base =
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
@@ -562,10 +220,31 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.constructor_heap_start = None;
         self.in_constructor = false;
         self.constructor_exit = None;
-        self.constructor_param_count = 0;
-        self.in_internal_function = false;
-        self.emitting_entry = false;
         self.reset_switch_gas_code_growth();
+    }
+
+    /// Clears the emission state of one artifact: labels, frames, and spill areas.
+    fn reset_artifact(&mut self, module: &Module) {
+        let functions = module.functions.len();
+        self.spill_slots.clear();
+        self.ret_spill_slot = None;
+        self.block_labels.clear();
+        self.function_labels.clear();
+        self.cold_blocks.clear_to(0);
+        self.function_spill_sizes.clear();
+        self.recursive_frame_functions.clear_to(functions);
+        self.spill_addr_consts.clear();
+        self.external_spill_addr_consts.clear();
+        self.static_frame_functions.clear_to(functions);
+        self.static_frame_addr_consts.clear();
+        self.packed_static_frame_sizes.clear();
+        self.pending_static_allocs.clear();
+        self.runtime_free_memory_consts.clear();
+        self.fmp_floor_consts.clear();
+        self.runtime_entry_reachability.clear();
+        self.runtime_entry_funcs.clear();
+        self.body = Body::External;
+        self.emitting_entry = false;
     }
 
     fn reset_switch_gas_code_growth(&mut self) {
@@ -646,6 +325,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.run_pipeline = run;
     }
 }
+/// The kind of body being emitted, which decides where its frame and spill slots live.
+#[derive(Clone, Copy, Debug)]
+enum Body {
+    /// The dispatch entry or an external entry, whose frame objects sit at the bottom of the
+    /// heap.
+    External,
+    /// An internal function, with a fixed frame that also holds its spill slots.
+    Internal(FunctionId),
+    /// The constructor, with a fixed frame and a spill area of its own.
+    Constructor(FunctionId),
+}
 
 /// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
 struct PendingRuntime {
@@ -675,9 +365,6 @@ pub struct EvmArtifact {
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
     pub runtime_debug_info: Option<DebugInfo>,
-    /// Runtime internal calls whose frames take memory at the free memory pointer, captured
-    /// with the final MIR.
-    pub runtime_dynamic_frames: Vec<DynamicFrame>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {

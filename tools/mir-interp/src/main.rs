@@ -1,11 +1,10 @@
 //! Runs lowered MIR in the compiler's MIR interpreter.
 //!
 //! The input is one lowered MIR module, such as a `.mir` test fixture, or the output of
-//! `solar -Zdump=mir-final`, whose modules come with the heap frames the backend takes for their
-//! calls. The tool runs a transaction on the module's dispatch entry, with calldata given in hex or
-//! as an ABI call, or one internal function on argument words, and prints how the run ended, the
-//! events it logged, and the storage it wrote. Storage and context reads return what the command
-//! line sets, and zero otherwise.
+//! `solar -Zdump=mir-final`. The tool runs a transaction on the module's dispatch entry, with
+//! calldata given in hex or as an ABI call, or one internal function on argument words, and prints
+//! how the run ended, the events it logged, and the storage it wrote. Storage and context reads
+//! return what the command line sets, and zero otherwise.
 
 use alloy_dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt, Specifier};
 use alloy_json_abi::Function;
@@ -14,7 +13,7 @@ use clap::Parser;
 use serde_json::{Map, Value as Json, json};
 use solar_codegen::{
     backend::evm::op,
-    interpret::{self, DumpedModule, Execution, HOST_READS, HeapFrame, Host, Options, Outcome},
+    interpret::{self, DumpedModule, Execution, HOST_READS, Host, Options, Outcome},
 };
 use solar_config::EvmVersion;
 use std::{
@@ -105,7 +104,7 @@ fn main() -> ExitCode {
 fn run(args: &Args) -> Result<ExitCode, String> {
     let text = read_input(&args.file)?;
     let module = select(interpret::parse_dump(&text), args.contract.as_deref())?;
-    let mut host = CommandLineHost::new(args, module.frames)?;
+    let mut host = CommandLineHost::new(args)?;
     let mut trace = |line: &str| eprintln!("{line}");
     let options = Options {
         evm_version: args.evm_version,
@@ -234,12 +233,11 @@ fn assignment<'a>(text: &'a str, what: &str) -> Result<(&'a str, &'a str), Strin
 struct CommandLineHost {
     storage: HashMap<U256, U256>,
     context: HashMap<u8, U256>,
-    frames: HashMap<String, HeapFrame>,
     heap_start: U256,
 }
 
 impl CommandLineHost {
-    fn new(args: &Args, frames: HashMap<String, HeapFrame>) -> Result<Self, String> {
+    fn new(args: &Args) -> Result<Self, String> {
         let mut storage = HashMap::new();
         for entry in &args.storage {
             let (slot, value) = assignment(entry, "a storage slot")?;
@@ -266,7 +264,7 @@ impl CommandLineHost {
             }
             context.insert(opcode, value);
         }
-        Ok(Self { storage, context, frames, heap_start: word(&args.heap_start)? })
+        Ok(Self { storage, context, heap_start: word(&args.heap_start)? })
     }
 }
 
@@ -281,10 +279,6 @@ impl Host for CommandLineHost {
 
     fn free_memory_start(&mut self) -> U256 {
         self.heap_start
-    }
-
-    fn heap_frame(&mut self, function: &str) -> Option<HeapFrame> {
-        self.frames.get(function).copied()
     }
 }
 

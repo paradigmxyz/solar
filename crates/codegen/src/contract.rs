@@ -2,7 +2,7 @@
 
 use crate::{
     Backend, EvmCodegen,
-    backend::evm::{DebugInfo, DynamicFrame, EvmArtifact, ir},
+    backend::evm::{DebugInfo, EvmArtifact, ir},
     link::{
         ContractBytecodes, DataBytes, EmbeddedBytecodes, LibraryRelocation, LibraryTable,
         QualifiedName, RelocatableBytecode,
@@ -49,9 +49,6 @@ pub struct ContractArtifact {
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// `-Zdump=mir-final` is absent, and post-pipeline otherwise.
     pub mir: Option<Module>,
-    /// Runtime internal calls whose frames take memory at the free memory pointer, captured
-    /// with post-pipeline MIR.
-    pub runtime_dynamic_frames: Vec<DynamicFrame>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -249,8 +246,7 @@ pub fn generate_contract_bytecodes(
 
 /// Generates the bytecode of a lowered MIR module given as input. Its pipeline already ran, so
 /// the backend runs no passes of its own, and `module` ends as the final MIR the backend compiled.
-/// The artifact also reports the heap frames of the runtime's internal calls and keeps the final
-/// EVM IR of both programs, which dumps of MIR input print.
+/// The artifact keeps the final EVM IR of both programs, which dumps of MIR input print.
 ///
 /// A module given as input comes with no other contract, so data holding another contract's
 /// bytecode has nothing to link it to, and is an error.
@@ -660,7 +656,6 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             deployment_link_references,
             runtime_link_references,
             mir,
-            runtime_dynamic_frames: artifact.runtime_dynamic_frames,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,

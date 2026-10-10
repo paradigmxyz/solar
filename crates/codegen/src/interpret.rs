@@ -4,9 +4,8 @@
 //! [`Host`] answering what the contract reads from its context, such as the caller or a storage
 //! slot's value before the transaction. [`call`] runs one internal function on argument words
 //! instead, with memory that holds only the free memory pointer. Both take the text of one lowered
-//! module, as `-Zdump=mir-final` prints it, and [`parse_dump`] splits such a dump into its modules
-//! and the heap frames the backend reports for each. [`Options::trace`] receives a line for every
-//! operation a run executes.
+//! module, as `-Zdump=mir-final` prints it, and [`parse_dump`] splits such a dump into its
+//! modules. [`Options::trace`] receives a line for every operation a run executes.
 //!
 //! The UI test runner executes every `run-call` directive in an EVM. With `SOLAR_RUN_CALL_MIR` set,
 //! it also runs the call through [`transact`] on the MIR the compiler lowered to that bytecode.
@@ -33,12 +32,9 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_interface::{ColorChoice, Session, source_map::FileName};
-use std::{collections::HashMap, fmt::Write as _};
+use std::fmt::Write as _;
 
-pub use crate::mir::utils::interp::{HeapFrame, Host, Log};
-
-/// The line that introduces a heap frame in a dump.
-const FRAME: &str = "// frame @";
+pub use crate::mir::utils::interp::{Host, Log};
 
 /// The opcodes whose values a run asks its [`Host`] for, such as `CALLER` and `TIMESTAMP`.
 pub const HOST_READS: &[u8] = &HOST_OPCODES;
@@ -98,8 +94,6 @@ pub struct DumpedModule {
     pub name: String,
     /// The module's text.
     pub mir: String,
-    /// The heap frame the backend takes for each function it calls with one, by function name.
-    pub frames: HashMap<String, HeapFrame>,
 }
 
 /// Runs a transaction with `calldata` on the contract whose lowered MIR module `mir` holds, asking
@@ -128,7 +122,7 @@ pub fn transact(
 
 /// Runs internal function `function` of the lowered MIR module `mir` on the words `args`, asking
 /// `host` for its context. Memory starts zeroed except for the free memory pointer, which holds
-/// the heap start the host reports, and calls take no heap frames. Fails when `mir` is not a
+/// the heap start the host reports. Fails when `mir` is not a
 /// valid lowered module, it has no such function, or the function reads its arguments from
 /// calldata.
 pub fn call(
@@ -177,10 +171,8 @@ pub fn call(
 }
 
 /// Splits the output of `solar -Zdump=mir-final` into its modules, each after a
-/// `// === NAME ===` header, and reads the heap frames of each from its
-/// `// frame @NAME: SIZE bytes, restores the free memory pointer` lines, or `keeps` it. Text
-/// without headers is one module, named by its `@module` line. The compiler's JSON output, which
-/// follows the dumps, ends the last module.
+/// `// === NAME ===` header. Text without headers is one module, named by its `@module` line. The
+/// compiler's JSON output, which follows the dumps, ends the last module.
 pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
     let headed = text.lines().any(|line| header(line).is_some());
     let mut modules = Vec::new();
@@ -195,9 +187,6 @@ pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
             break;
         }
         let Some(module) = &mut current else { continue };
-        if let Some((function, frame)) = line.strip_prefix(FRAME).and_then(parse_frame) {
-            module.frames.insert(function, frame);
-        }
         if module.name.is_empty()
             && let Some(name) = line.strip_prefix("@module ")
         {
@@ -214,15 +203,6 @@ pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
 /// Returns the contract a dump's module header names.
 fn header(line: &str) -> Option<&str> {
     line.strip_prefix("// === ").and_then(|rest| rest.strip_suffix(" ==="))
-}
-
-/// Parses a heap frame line after its `// frame @` prefix: `NAME: SIZE bytes, restores the free
-/// memory pointer`, or `keeps` it.
-fn parse_frame(line: &str) -> Option<(String, HeapFrame)> {
-    let (function, rest) = line.split_once(": ")?;
-    let size = rest.split_whitespace().next()?.parse().ok()?;
-    let restores_free_memory = rest.contains("restores the free memory pointer");
-    Some((function.to_owned(), HeapFrame { size, restores_free_memory }))
 }
 
 /// Parses `mir` as one lowered module and runs `f` on it within a session of its own.
@@ -464,10 +444,8 @@ fn @twice(arg0: i256) -> i256 {
         let dump = "// === a.sol:A ===
 @module A
 @phase lowered
-// frame @walk: 64 bytes, restores the free memory pointer
 // === a.sol:B ===
 @module B
-// frame @grow: 352 bytes, keeps the free memory pointer
 {\"contracts\":{}}
 ";
         let modules = parse_dump(dump);
@@ -475,8 +453,6 @@ fn @twice(arg0: i256) -> i256 {
             modules.iter().map(|module| &module.name[..]).collect::<Vec<_>>(),
             ["a.sol:A", "a.sol:B"]
         );
-        assert_eq!(modules[0].frames["walk"], HeapFrame { size: 64, restores_free_memory: true });
-        assert_eq!(modules[1].frames["grow"], HeapFrame { size: 352, restores_free_memory: false });
         assert!(!modules[1].mir.contains("contracts"));
         // A file without headers is one module, named by its `@module` line.
         let modules = parse_dump(MODULE);

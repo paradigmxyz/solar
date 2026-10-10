@@ -4,8 +4,7 @@ Runs lowered MIR in the compiler's MIR interpreter, which the UI test runner che
 directives against. The library side is `solar_codegen::interpret`.
 
 The input is one lowered MIR module, such as a fixture under `tests/ui/codegen/mir/`, or the output
-of `solar -Zdump=mir-final`, which prints the final MIR of each contract along with the heap frames
-the backend takes for its calls. The tool runs only a module the validator accepts, as the backend
+of `solar -Zdump=mir-final`, which prints the final MIR of each contract. The tool runs only a module the validator accepts, as the backend
 compiles only such modules. `-` reads standard input, so a contract can go straight from the
 compiler to the interpreter:
 

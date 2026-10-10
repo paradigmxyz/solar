@@ -8,34 +8,20 @@
 //@ run-call: prefixed 0x00abff => "0x00abff"
 
 // The shared helper keeps its free-memory pointer, result, and loop end on the
-// stack. Its entry block must participate in spill cleanup, even though the
-// caller created that EVM IR block before generating the function body.
+// stack across its loop: the loop test copies the end and the cursor without a load.
 // Reduced from Solady v0.1.26 LibString.toHexStringNoPrefix (MIT).
 //
 // CHECK: [[RETURN:bb[0-9]+]] [continuation]:
 // CHECK-NEXT: push {{bb[0-9]+}}
-// CHECK-NEXT: swap 1
 // CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
 // CHECK-NEXT: [[HELPER]]:
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: mload
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: add
-// CHECK-NEXT: push 64
-// CHECK-NEXT: mload
-// CHECK-NEXT: push 2
-// CHECK-NEXT: add
-// CHECK-NEXT: swap 4
+// CHECK: jump [[HEADER:bb[0-9]+]]
+// CHECK: [[HEADER]] [loop]:
 // CHECK-NEXT: dup 5
-// CHECK-NEXT: push 32
-// CHECK-NEXT: add
-// CHECK-NEXT: swap 3
-// CHECK-NEXT: add
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: dup 5
-// CHECK-NEXT: mstore
+// CHECK-NEXT: dup 3
+// CHECK-NEXT: sub
+// CHECK-NEXT: push {{bb[0-9]+}}
+// CHECK-NEXT: jumpi
 contract EntrySpillCleanup {
     function prefixed(bytes memory raw) external pure returns (string memory result) {
         result = toHexStringNoPrefix(raw);

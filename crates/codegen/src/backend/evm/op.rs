@@ -6,6 +6,7 @@
 
 use crate::target::GasTier;
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
 
@@ -806,6 +807,26 @@ impl StackOp {
         let (n, m) = if first < second { (first, second) } else { (second, first) };
         let op = Self::Exchange(n, m);
         if op.is_valid() { Some(op) } else { None }
+    }
+
+    /// Matches a cycle through the top that leaves the top in place, `SWAPa SWAPb1 ... SWAPbj
+    /// SWAPa` with at least one inner swap, at the start of `ops`. Returns the equivalent
+    /// `EXCHANGE a, b1 ... EXCHANGE a, bj` and the number of operations matched.
+    pub(crate) fn exchange_cycle(
+        ops: impl IntoIterator<Item = Self>,
+    ) -> Option<(SmallVec<[Self; 4]>, usize)> {
+        let mut ops = ops.into_iter();
+        let Some(Self::Swap(first)) = ops.next() else { return None };
+        let mut exchanges = SmallVec::new();
+        for op in ops {
+            let Self::Swap(depth) = op else { return None };
+            if depth == first {
+                let len = exchanges.len() + 2;
+                return (len > 2).then_some((exchanges, len));
+            }
+            exchanges.push(Self::from_swaps(first, depth, first)?);
+        }
+        None
     }
 }
 

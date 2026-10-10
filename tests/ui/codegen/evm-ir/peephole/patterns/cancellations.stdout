@@ -110,12 +110,12 @@
     swap 3
     push 0
     push 1
--   swap 1
--   swap 2
--   swap 1
-+   exchange 1, 2
-    pop
     swap 1
+    swap 2
+-   swap 1
++   swap 2
+    pop
+-   swap 1
     pop
     swap 4
     push 0
@@ -131,12 +131,12 @@
   bb14:
     push 0
     push 1
--   swap 1
--   swap 2
--   swap 1
-+   exchange 1, 2
-    pop
     swap 1
+    swap 2
+-   swap 1
++   swap 2
+    pop
+-   swap 1
     pop
     stop
   bb15:

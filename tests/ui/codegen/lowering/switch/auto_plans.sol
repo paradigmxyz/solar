@@ -301,10 +301,10 @@ contract Rotated32 {
     // shifts, so it falls back to a binary search.
     // CHECK-LABEL: @module Rotated32_runtime
     // GAS: mul
-    // GAS-NEXT: push 255{{$}}
     // GAS: push 1{{$}}
     // GAS-NEXT: shr
-    // GAS: shl
+    // GAS: push 255{{$}}
+    // GAS-NEXT: shl
     // GAS-NEXT: or
     // SIZE: mul
     // SIZE: push 1{{$}}

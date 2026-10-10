@@ -42,8 +42,7 @@ run a zero-argument `setUp()` if the contract defines one.
 With `SOLAR_RUN_CALL_MIR` set, every `run-call` and `run-call-fail` directive also
 runs through the MIR interpreter (`solar_codegen::interpret`) on the final MIR of
 the called contract, which the runner obtains by compiling the test again with
-`-Zdump=mir-final`, along with the frames the backend takes from the heap for
-internal calls. The interpreter starts from the storage, balances, code, and
+`-Zdump=mir-final`. The interpreter starts from the storage, balances, code, and
 heap start the EVM had just before the call, and must end the same way, return
 the same data, emit the same logs, and write the same storage. A disagreement
 fails the test: it is a bug in the backend or in the interpreter. Calls the

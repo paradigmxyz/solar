@@ -9,7 +9,7 @@ use alloy_json_abi::AbiItem;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
     ContractArtifact, ContractSelection, RuntimeDataFn,
-    backend::evm::{self, DynamicFrame, ir},
+    backend::evm::{self, ir},
     generate_contract_bytecodes, generate_mir_input_bytecode,
     mir::{Module, pass, validate},
 };
@@ -254,7 +254,6 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
             writeln!(writer, "// === {name} ===")
                 .and_then(|()| write_highlighted(&mut writer, module.to_string(), Syntax::Ir))
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-            write_heap_frames(&mut writer, gcx, &artifact.runtime_dynamic_frames)?;
         }
         let (deployment_ir, runtime_ir) =
             (artifact.deployment_evm_ir.as_ref(), artifact.runtime_evm_ir.as_ref());
@@ -566,21 +565,6 @@ fn dump_mir_contract(
     }
     if dump.kinds.contains(&DumpKind::MirFinal) {
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirFinal, first)?;
-        write_heap_frames(writer, gcx, &artifacts[&id].runtime_dynamic_frames)?;
-    }
-    Ok(())
-}
-
-/// Writes a line for each heap frame the runtime's internal calls take, after a final MIR dump.
-fn write_heap_frames(writer: &mut ConsoleWriter, gcx: Gcx<'_>, frames: &[DynamicFrame]) -> Result {
-    for frame in frames {
-        let restores = if frame.restores_free_memory { "restores" } else { "keeps" };
-        writeln!(
-            writer,
-            "// frame @{}: {} bytes, {restores} the free memory pointer",
-            frame.function, frame.size
-        )
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
 }

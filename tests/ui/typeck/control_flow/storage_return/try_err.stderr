@@ -1,0 +1,32 @@
+error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/try_err.sol:LL:CC
+   │
+LL │     function f() internal returns (S storage r)
+   ╰╴                                   ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/try_err.sol:LL:CC
+   │
+LL │     function g() internal returns (S storage r)
+   ╰╴                                   ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/try_err.sol:LL:CC
+   │
+LL │     function h() internal returns (S storage r)
+   ╰╴                                   ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/try_err.sol:LL:CC
+   │
+LL │         catch (bytes memory) { return r; }
+   │                                       ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/try_err.sol:LL:CC
+   │
+LL │     function i() internal returns (S storage r)
+   ╰╴                                   ━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

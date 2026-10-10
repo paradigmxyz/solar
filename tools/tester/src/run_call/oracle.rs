@@ -9,9 +9,6 @@
 //! skipped, and so is one the EVM ends by running out of gas or stack, which the interpreter does
 //! not model.
 //!
-//! The dump also reports the frames the backend takes from the heap for internal calls, which the
-//! interpreter takes the same way, so allocations get the addresses they get on chain.
-//!
 //! With `SOLAR_RUN_CALL_MIR=1`, only a disagreement is reported, as a test failure. Any other
 //! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
 //! or `mismatch`.
@@ -29,7 +26,7 @@ use evm2::{
 };
 use solar_codegen::{
     backend::evm::op,
-    interpret::{self, HeapFrame, Host, Outcome},
+    interpret::{self, Host, Outcome},
 };
 use solar_config::EvmVersion;
 use std::{
@@ -49,12 +46,10 @@ const VARIABLE: &str = "SOLAR_RUN_CALL_MIR";
 /// What a compiler command dumped, or why it could not.
 type Dumps = Arc<Result<Dump, String>>;
 
-/// The final MIR modules, heap frames, and runtime bytecode of each contract a compiler command
-/// built.
+/// The final MIR modules and runtime bytecode of each contract a compiler command built.
 #[derive(Default)]
 struct Dump {
     modules: HashMap<String, String>,
-    frames: HashMap<String, HashMap<String, HeapFrame>>,
     runtimes: HashMap<String, Vec<u8>>,
 }
 
@@ -177,7 +172,6 @@ struct EvmHost<'a> {
     value: U256,
     block: BlockEnv<BaseEvmTypes>,
     heap_start: Option<U256>,
-    frames: Option<&'a HashMap<String, HeapFrame>>,
 }
 
 impl EvmHost<'_> {
@@ -235,10 +229,6 @@ impl Host for EvmHost<'_> {
     fn free_memory_start(&mut self) -> U256 {
         self.heap_start.unwrap_or(U256::from(0x80))
     }
-
-    fn heap_frame(&mut self, function: &str) -> Option<HeapFrame> {
-        self.frames?.get(function).copied()
-    }
 }
 
 /// Runs `call` on its contract's MIR and checks that it agrees with `trace`, the EVM's run.
@@ -291,8 +281,7 @@ pub(super) fn check(
     }
     let block = BlockEnv::<BaseEvmTypes>::default();
     let heap_start = trace.heap_start;
-    let frames = dump.frames.get(call.contract);
-    let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start, frames };
+    let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start };
     let options = interpret::Options { evm_version: call.evm_version, ..Default::default() };
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
@@ -458,8 +447,7 @@ fn dump_command(command: &Command) -> Command {
     dump
 }
 
-/// Runs a dump command and splits its output into modules, heap frames, and runtime bytecode by
-/// contract.
+/// Runs a dump command and splits its output into modules and runtime bytecode by contract.
 fn run_dump(mut command: Command) -> Result<Dump, String> {
     let output = command.output().map_err(|error| format!("cannot run the compiler: {error}"))?;
     if !output.status.success() {
@@ -468,11 +456,10 @@ fn run_dump(mut command: Command) -> Result<Dump, String> {
     parse_dump(&output.stdout)
 }
 
-/// Splits what a dump command printed into modules, heap frames, and runtime bytecode by contract.
+/// Splits what a dump command printed into modules and runtime bytecode by contract.
 fn parse_dump(stdout: &[u8]) -> Result<Dump, String> {
     let mut dump = Dump::default();
     for module in interpret::parse_dump(&String::from_utf8_lossy(stdout)) {
-        dump.frames.insert(module.name.clone(), module.frames);
         dump.modules.insert(module.name, module.mir);
     }
     let json = super::compiler_json(stdout)?;

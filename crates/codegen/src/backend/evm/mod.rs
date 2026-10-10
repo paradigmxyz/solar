@@ -5,7 +5,7 @@
 //! - `EvmCodegen`: The main EVM code generator
 //! - `ir`: Machine-level EVM instructions and block metadata
 //! - `Assembler`: Final relocation and byte encoding
-//! - `codegen::stack`: MIR-to-EVM stack scheduling for DUP/SWAP generation
+//! - `codegen::stackify`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
 use crate::target::Target;
 use alloy_primitives::U256;
@@ -13,7 +13,7 @@ use solar_config::{EvmVersion, OptimizationMode};
 
 mod codegen;
 pub(crate) use codegen::select;
-pub use codegen::{DynamicFrame, EvmArtifact, EvmCodegen};
+pub use codegen::{EvmArtifact, EvmCodegen};
 
 mod debug_info;
 pub(crate) use debug_info::DebugInfoBuilder;

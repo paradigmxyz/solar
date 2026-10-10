@@ -65,12 +65,7 @@ struct PointerCall {
 impl<'gcx> Exposure<'gcx> {
     fn callees(&mut self, callee: &hir::Expr<'_>) -> SmallVec<[hir::FunctionId; 1]> {
         if let Some(id) = self.gcx.resolved_function(callee) {
-            return smallvec::smallvec![super::resolve_call_target(
-                self.gcx,
-                self.contract,
-                callee,
-                id
-            )];
+            return smallvec::smallvec![self.gcx.resolve_call_target(self.contract, callee, id)];
         }
         let Some(ty) = self.gcx.type_of_expr(callee.id) else { return SmallVec::new() };
         let TyKind::Fn(function) = ty.kind else { return SmallVec::new() };
@@ -153,7 +148,7 @@ impl<'gcx> Exposure<'gcx> {
             return None;
         }
         let id = self.gcx.resolved_function(expr)?;
-        Some(super::resolve_call_target(self.gcx, self.contract, expr, id))
+        Some(self.gcx.resolve_call_target(self.contract, expr, id))
     }
 
     /// Collects the bindings whose pointers an expression's value may copy or load, and the

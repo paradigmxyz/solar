@@ -1,0 +1,13 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/cross_source.sol:LL:CC
+   │
+LL │         x = 1;
+   ╰╴        ━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/auxiliary/cross_source_modifier.sol:LL:CC
+   │
+LL │ ┏         x = 2;
+LL │ ┃         x = 3;
+   ╰╴┗━━━━━━━━━━━━━┛
+

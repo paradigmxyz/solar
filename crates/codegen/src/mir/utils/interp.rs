@@ -36,11 +36,10 @@
 //!
 //! A transaction follows the backend's conventions for external entries: the free memory pointer
 //! starts at the heap start the host reports, and argument `i` of an external entry is the calldata
-//! word at `4 + 32 * i`. A call takes the heap frame the host reports for its callee at the free
-//! memory pointer, and releases it on return when the backend does. It also reads calldata,
-//! persistent and transient storage, and the context values its host provides, and records the logs
-//! it emits. It makes no calls, so its return data is always empty. Returning from the dispatch
-//! entry stops the transaction, as the backend's `STOP` does.
+//! word at `4 + 32 * i`. It also reads calldata, persistent and transient storage, and the context
+//! values its host provides, and records the logs it emits. It makes no calls, so its return data
+//! is always empty. Returning from the dispatch entry stops the transaction, as the backend's
+//! `STOP` does.
 //!
 //! # Limits
 //!
@@ -234,23 +233,6 @@ pub trait Host {
     fn free_memory_start(&mut self) -> U256 {
         U256::from(EvmMemoryLayout::HEAP_START)
     }
-
-    /// Returns the frame the backend takes from the heap on every call to `function`, which
-    /// programs can observe only through the addresses of their later allocations.
-    fn heap_frame(&mut self, function: &str) -> Option<HeapFrame> {
-        let _ = function;
-        None
-    }
-}
-
-/// A frame the backend takes from the heap, at the free memory pointer, on every call to a
-/// function.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HeapFrame {
-    /// Bytes the frame takes above the free memory pointer.
-    pub size: u64,
-    /// Whether the caller moves the free memory pointer back to the frame's base afterwards.
-    pub restores_free_memory: bool,
 }
 
 /// An event a transaction logged.
@@ -437,7 +419,6 @@ impl<'a> Machine<'a> {
                 calldata,
                 evm_version,
                 allocations: ALLOCATION_REGION,
-                heap_frames: FxHashMap::default(),
             }),
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[], meter);
@@ -466,15 +447,12 @@ struct Frame<'a> {
     next: usize,
     /// The caller's value receiving this call's first returned value.
     result: Option<ValueId>,
-    /// Where the free memory pointer returns to when this call returns, if the backend takes a
-    /// heap frame for the call and releases it.
-    heap_frame_base: Option<U256>,
 }
 
 impl<'a> Frame<'a> {
     fn new(body: &'a Function, args: IndexVec<ArgIdx, U256>, result: Option<ValueId>) -> Self {
         let values = index_vec![None; body.num_values()];
-        Self { body, args, values, block: BlockId::ENTRY, next: 0, result, heap_frame_base: None }
+        Self { body, args, values, block: BlockId::ENTRY, next: 0, result }
     }
 
     fn word(&self, value: ValueId) -> Option<U256> {
@@ -518,8 +496,6 @@ struct Transaction<'t> {
     evm_version: EvmVersion,
     /// The next free byte of the region holding the allocations the backend places itself.
     allocations: u64,
-    /// The heap frame of each called function, as the host reports it.
-    heap_frames: FxHashMap<FunctionId, Option<HeapFrame>>,
 }
 
 /// One execution in progress.
@@ -657,10 +633,7 @@ impl<'a> Run<'_, 'a, '_> {
                 let Some(callee) = self.machine.body(id) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
-                let base = self.take_heap_frame(id, callee)?;
-                self.call(callee, args, instruction.result())?;
-                self.frame().heap_frame_base = base;
-                return ControlFlow::Continue(());
+                return self.call(callee, args, instruction.result());
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
             Semantics::DataCopy(data, dest, len) => {
@@ -837,29 +810,6 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(U256::from(address))
     }
 
-    /// Takes the frame the backend allocates on the heap for a call to `callee`, returning the
-    /// base the free memory pointer returns to when the call returns, if the backend releases it.
-    fn take_heap_frame(
-        &mut self,
-        id: FunctionId,
-        callee: &Function,
-    ) -> ControlFlow<Outcome, Option<U256>> {
-        let (Some(transaction), Some(world)) = (&mut self.transaction, &mut self.world) else {
-            return ControlFlow::Continue(None);
-        };
-        let heap_frame = *transaction
-            .heap_frames
-            .entry(id)
-            .or_insert_with(|| world.host.heap_frame(&callee.name.to_string()));
-        let Some(heap_frame) = heap_frame else { return ControlFlow::Continue(None) };
-        // base = mload 0x40
-        // mstore 0x40, base + frame size
-        let slot = U256::from(EvmMemoryLayout::FMP_SLOT);
-        let base = limit(self.memory.load(slot))?;
-        limit(self.memory.store(slot, base.wrapping_add(U256::from(heap_frame.size))))?;
-        ControlFlow::Continue(heap_frame.restores_free_memory.then_some(base))
-    }
-
     /// Publishes the results after the first of a call returning several values the way the
     /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
     fn publish_multi_return(&mut self, values: &[U256]) -> ControlFlow<Outcome> {
@@ -915,11 +865,6 @@ impl<'a> Run<'_, 'a, '_> {
                 if values.len() > 1 {
                     self.publish_multi_return(&values)?;
                 }
-                if let Some(base) = frame.heap_frame_base {
-                    // mstore 0x40, heap frame base
-                    let slot = U256::from(EvmMemoryLayout::FMP_SLOT);
-                    limit(self.memory.store(slot, base))?;
-                }
                 let caller = self.frame();
                 if let Some(result) = frame.result {
                     let Some(&value) = values.first() else {
@@ -954,11 +899,7 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
                 let frame = self.frames.pop().expect("a run always has a frame");
-                self.call(callee, args, frame.result)?;
-                // The backend jumps to the callee without taking a heap frame for it, and the
-                // callee returns to this frame's caller, which releases this frame's heap.
-                self.frame().heap_frame_base = frame.heap_frame_base;
-                ControlFlow::Continue(())
+                self.call(callee, args, frame.result)
             }
             Terminator::SelfDestruct { .. } => {
                 ControlFlow::Break(Outcome::Unsupported("selfdestruct"))
@@ -1211,7 +1152,7 @@ fn @storage(arg0: i256) -> i256 {
         });
     }
 
-    /// Answers `CALLVALUE`, slot 7, and the heap frames of `@kept` and `@released`.
+    /// Answers `CALLVALUE` and slot 7.
     struct TestHost;
 
     impl Host for TestHost {
@@ -1221,14 +1162,6 @@ fn @storage(arg0: i256) -> i256 {
 
         fn storage(&mut self, slot: U256) -> U256 {
             if slot == U256::from(7) { U256::from(100) } else { U256::ZERO }
-        }
-
-        fn heap_frame(&mut self, function: &str) -> Option<HeapFrame> {
-            match function {
-                "kept" => Some(HeapFrame { size: 0x40, restores_free_memory: false }),
-                "released" => Some(HeapFrame { size: 0x60, restores_free_memory: true }),
-                _ => None,
-            }
         }
     }
 
@@ -1395,39 +1328,5 @@ fn @world(arg0: i256) -> i256 {
             let outcome = machine.run(id, &args, Memory::zeroed(), None, LIMITS, &mut ()).outcome;
             assert_eq!(outcome, Outcome::Unsupported("sload"));
         });
-    }
-
-    #[test]
-    fn heap_frames() {
-        let module = "@module Tx
-@phase lowered
-fn @kept() -> i256 {
-  bb0:
-    v0 = mload 64
-    ret v0
-}
-
-fn @released() -> i256 {
-  bb0:
-    v0 = mload 64
-    ret v0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = icall @released
-    v1 = mload 64
-    v2 = icall @kept
-    v3 = mload 64
-    mstore 512, v0
-    mstore 544, v1
-    mstore 576, v2
-    mstore 608, v3
-    returndata 512, 128
-}
-";
-        // A call takes its frame above the heap start, 0x80, and a released frame is given back.
-        let words = [0xe0, 0x80, 0xc0, 0xc0].map(|word| U256::from(word).to_be_bytes::<32>());
-        assert_eq!(transact(module, &[]).outcome, Outcome::ReturnData(words.concat()));
     }
 }
