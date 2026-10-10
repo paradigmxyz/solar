@@ -11,9 +11,6 @@ contract B {
 }
 
 contract C is A, B {
-    struct this { uint x; } //~ ERROR: identifier `this` already declared
-    struct super { uint x; } //~ ERROR: identifier `super` already declared
-
     function f() public {
         this.S1 memory x0; //~ ERROR: `this` is a builtin, which cannot be indexed in type paths
         super.S1 memory x1; //~ ERROR: `super` is a builtin, which cannot be indexed in type paths
@@ -24,3 +21,8 @@ contract C is A, B {
 
 contract D is this.C {} //~ ERROR: unresolved symbol `this`
 contract E is super.C {} //~ ERROR: unresolved symbol `super`
+
+contract F {
+    struct this { uint x; } //~ ERROR: the name `this` is reserved
+    struct super { uint x; } //~ ERROR: the name `super` is reserved
+}

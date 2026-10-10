@@ -1,0 +1,110 @@
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     function(uint this) internal f;
+   ╰╴                  ━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │ function _() {}
+   ╰╴         ━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │ contract super {}
+   ╰╴         ━━━━━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │ struct this { uint a; }
+   ╰╴       ━━━━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     error super();
+   ╰╴          ━━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     modifier _() { _; }
+   ╰╴             ━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     function this() internal {}
+   ╰╴             ━━━━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     function super() private {}
+   ╰╴             ━━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     uint public _;
+   ╰╴                ━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     struct S { uint super; }
+   ╰╴                    ━━━━━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     enum E { this, _ }
+   ╰╴             ━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     enum E { this, _ }
+   ╰╴                   ━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     error Er(uint _);
+   ╰╴                  ━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     event Ev(uint this);
+   ╰╴                  ━━━━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │     function(uint this) internal f;
+   ╰╴                  ━━━━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │         try C(msg.sender).h() returns (uint super) {} catch Error(string memory _) {}
+   ╰╴                                            ━━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │         try C(msg.sender).h() returns (uint super) {} catch Error(string memory _) {}
+   ╰╴                                                                                ━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
+   │
+LL │         uint256 _ = 34;
+   ╰╴                ━
+
+error: aborting due to 17 previous errors; 1 warning emitted
+
