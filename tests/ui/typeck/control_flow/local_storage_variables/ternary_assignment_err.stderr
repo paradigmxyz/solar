@@ -1,0 +1,14 @@
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/ternary_assignment_err.sol:LL:CC
+   │
+LL │         uint256[] storage y = d ? (x = s) : x;
+   │                                             ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/ternary_assignment_err.sol:LL:CC
+   │
+LL │         uint256[] storage x;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
