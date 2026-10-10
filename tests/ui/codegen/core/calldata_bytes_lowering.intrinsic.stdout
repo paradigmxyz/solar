@@ -162,8 +162,8 @@ fn @copyOut() [selector=0xa6f9b6f1, abi_wrapper, pure] {
   bb3:
     tail_call @revert_stub
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb5:
     revert 0, 0
@@ -220,8 +220,8 @@ fn @patch() [selector=0x9f852834, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

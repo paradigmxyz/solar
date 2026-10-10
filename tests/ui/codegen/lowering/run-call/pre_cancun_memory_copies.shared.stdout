@@ -65,8 +65,8 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     mstore 128, v30
     returndata 128, 32
   bb6:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -146,8 +146,8 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, inline_assembly, pure] {
     mstore8 v75, v32
     jump bb1
   bb8:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -296,8 +296,8 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     mstore 128, v32
     returndata 128, 32
   bb21:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -354,8 +354,8 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, inline_assembly, pure] {
     mstore 128, v15
     returndata 128, 32
   bb3:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -468,8 +468,8 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, inline_assembly, pure] {
     mstore 128, v26
     returndata 128, 32
   bb14:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -518,8 +518,8 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
     v26 = add v20, 64
     returndata v46, v26
   bb6:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -539,8 +539,8 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
     mstore v31, 0
     returndata v30, 64
   bb2:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 

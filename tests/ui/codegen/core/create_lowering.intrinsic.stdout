@@ -63,8 +63,8 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
     v38 = add v30, 64
     returndata v47, v38
   bb8:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     tail_call @revert_stub.7
@@ -121,8 +121,8 @@ fn @spawnAt() [selector=0x9639302c, abi_wrapper] {
     v39 = add v31, 64
     returndata v48, v39
   bb8:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     tail_call @revert_stub.7
@@ -226,8 +226,8 @@ fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
     mstore 64, v77 !metadata(memory=scratch)
     returndata v76, v54
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub.7
@@ -292,8 +292,8 @@ fn @attemptAt() [selector=0xaa568f57, abi_wrapper] {
     mstore 64, v78 !metadata(memory=scratch)
     returndata v77, v55
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub.7
@@ -332,8 +332,8 @@ fn @revert_stub.6() {
 
 fn @revert_stub.7() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -372,8 +372,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

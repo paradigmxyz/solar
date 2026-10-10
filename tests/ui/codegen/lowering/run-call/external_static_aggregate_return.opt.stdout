@@ -30,8 +30,8 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     mstore 160, v9
     returndata 128, 64
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -79,8 +79,8 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v16 = add v11, 1
     jump bb6
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -118,8 +118,8 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     mstore 192, v8
     returndata 128, 96
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -171,8 +171,8 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     mstore 128, v17
     returndata 128, 32
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -232,8 +232,8 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     mstore 128, v27
     returndata 128, 32
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:
     v39 = mload v69
@@ -283,8 +283,8 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     mstore 128, v17
     returndata 128, 32
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -337,8 +337,8 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     mstore 128, v26
     returndata 128, 32
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -378,8 +378,8 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     mstore 128, v17
     returndata 128, 32
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0

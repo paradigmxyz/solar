@@ -149,8 +149,8 @@ fn @overflow() [selector=0x0992e012, abi_wrapper] {
     v27 = add v19, 64
     returndata v34, v27
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -207,8 +207,8 @@ fn @read(arg0: i256, arg1: i256, arg2: i256) -> memptr [may_return_memory, view]
     icall @copyInto, v4, 0, arg0, arg1, arg2
     ret v4
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -224,12 +224,12 @@ fn @_outOfBounds() -> i256 [pure] {
     mstore 64, v7 !metadata(memory=scratch)
     mstore v6, 0
     mstore v6, 0
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -286,8 +286,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

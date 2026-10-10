@@ -50,7 +50,7 @@ contract Test {
     }
 
     function pick(uint256 code) external pure returns (uint256) {
-        return failWith(code) + 1;
+        return failWith(code) + 1; //~ WARN: unreachable code
     }
 
     modifier lock() {

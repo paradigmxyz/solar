@@ -30,7 +30,6 @@ from .stack import stack_rules, stack_variants
 DEFAULT_FILES = [
     ISLE / "mir/word",
     ISLE / "mir/word_sequence",
-    ISLE / "mir-to-evm/stack_select.isle",
     ISLE / "evm-ir/stack_peephole.isle",
     ISLE / "evm-ir/late_word.isle",
     ISLE / "mir/egraph",

@@ -58,7 +58,7 @@ contract Test {
 
     /// @custom:solar-terminates
     function inLoop(uint256 code) internal pure { //~ ERROR: `inLoop` is tagged `@custom:solar-terminates` but can return to its caller
-        for (uint256 i; i < code; ++i) {
+        for (uint256 i; i < code; ++i) { //~ WARN: unreachable code
             revert Bad(i);
         }
     }
@@ -85,15 +85,15 @@ contract Test {
 
     function use(uint256 code) external pure returns (uint256) {
         if (code > 9) {
-            return branches(code) + giveBack(code);
+            return branches(code) + giveBack(code); //~ WARN: unreachable code
         }
         fallsThrough(code);
         inLoop(code);
         throughVirtual();
-        guarded();
-        inAssembly();
-        failRaw("");
-        return code;
+        guarded(); //~ WARN: unreachable code
+        inAssembly(); //~ WARN: unreachable code
+        failRaw(""); //~ WARN: unreachable code
+        return code; //~ WARN: unreachable code
     }
 
     function done() external pure returns (string memory) {

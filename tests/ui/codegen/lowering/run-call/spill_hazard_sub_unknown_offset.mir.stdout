@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_sub_unknown_offset.sol:C ===
+@module C
+fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg2, 1
+    v1 = checked_add u256, arg2, 2
+    v2 = checked_add u256, arg2, 3
+    v3 = checked_add u256, arg2, 4
+    v4 = checked_add u256, arg2, 5
+    v5 = checked_add u256, arg2, 6
+    v6 = checked_add u256, arg2, 7
+    v7 = checked_add u256, arg2, 8
+    v8 = checked_add u256, arg2, 9
+    v9 = checked_add u256, arg2, 10
+    v10 = checked_add u256, arg2, 11
+    v11 = checked_add u256, arg2, 12
+    v12 = checked_add u256, arg2, 13
+    v13 = checked_add u256, arg2, 14
+    v14 = checked_add u256, arg2, 15
+    v15 = checked_add u256, arg2, 16
+    v16 = checked_add u256, arg2, 17
+    v17 = checked_add u256, arg2, 18
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = calldatasize
+    v20 = sub v18, arg0
+    v21 = sub v18, v20
+    calldatacopy v21, v19, arg1
+    v22 = xor v0, v1
+    v23 = xor v22, v2
+    v24 = xor v23, v3
+    v25 = xor v24, v4
+    v26 = xor v25, v5
+    v27 = xor v26, v6
+    v28 = xor v27, v7
+    v29 = xor v28, v8
+    v30 = xor v29, v9
+    v31 = xor v30, v10
+    v32 = xor v31, v11
+    v33 = xor v32, v12
+    v34 = xor v33, v13
+    v35 = xor v34, v14
+    v36 = xor v35, v15
+    v37 = xor v36, v16
+    v38 = xor v37, v17
+    v39 = checked_mul u256, v0, v1
+    v40 = checked_mul u256, v39, v2
+    v41 = checked_mul u256, v40, v3
+    v42 = checked_mul u256, v41, v4
+    v43 = checked_mul u256, v42, v5
+    v44 = checked_mul u256, v43, v6
+    v45 = checked_mul u256, v44, v7
+    v46 = checked_mul u256, v45, v8
+    v47 = checked_mul u256, v46, v9
+    v48 = checked_mul u256, v47, v10
+    v49 = checked_mul u256, v48, v11
+    v50 = checked_mul u256, v49, v12
+    v51 = checked_mul u256, v50, v13
+    v52 = checked_mul u256, v51, v14
+    v53 = checked_mul u256, v52, v15
+    v54 = checked_mul u256, v53, v16
+    v55 = checked_mul u256, v54, v17
+    v56 = xor v38, v55
+    ret v56
+}

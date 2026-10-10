@@ -128,8 +128,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, inline_assembly, pure] {
     v127 = inttoptr i256 v117 to memptr
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -203,8 +203,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, inline_assembly, pure] {
     v67 = add v7, 64
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0

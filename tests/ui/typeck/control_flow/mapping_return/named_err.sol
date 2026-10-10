@@ -1,0 +1,4 @@
+// ported-from: test/libsolidity/syntaxTests/controlFlow/mappingReturn/named_err.sol
+contract C {
+    function f() internal pure returns (mapping(uint=>uint) storage r) { } //~ ERROR: this variable is of storage pointer type and can be returned
+}

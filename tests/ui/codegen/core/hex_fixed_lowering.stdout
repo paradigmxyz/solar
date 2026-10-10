@@ -185,12 +185,12 @@ fn @spell() [selector=0x0f590e07, abi_wrapper, pure] {
     v165 = add v164, 32
     jump bb12
   bb17:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb15:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     v1 = shl 3, arg1

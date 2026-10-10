@@ -1,3 +1,31 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         locked = 0;
+   ╰╴        ━━━━━━━━━━
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │     function pointer() external lock returns (string memory) {
+   │                                               ━━━━━━━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │     function revertingPointer() external lock returns (string memory) {
+   │                                                        ━━━━━━━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
+   │
+LL │         locked = 0;
+   ╰╴        ━━━━━━━━━━
+
 error: this returns from the external call and skips the rest of modifier `lock`
    ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_modifiers.sol:LL:CC
    │
@@ -76,5 +104,5 @@ LL │         locked = 0;
    │         ━━━━━━━━━━━
    ╰ help: revert instead, or return from the external call outside the modifier's `_`
 
-error: aborting due to 6 previous errors
+error: aborting due to 6 previous errors; 4 warnings emitted
 

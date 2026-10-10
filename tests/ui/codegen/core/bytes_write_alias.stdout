@@ -114,8 +114,8 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v46 = lt v36, v45
     jumpi v46, bb11, bb9
   bb9:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb11:
     v66 = add v65, v36
@@ -123,8 +123,8 @@ fn @_doubled(arg0: memptr) -> memptr [may_return_memory, pure] {
     v54 = add v36, 1
     jump bb4
   bb7:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -163,8 +163,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

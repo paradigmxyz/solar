@@ -1303,10 +1303,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         // static = static_aggregate_layout(returns)
-        // buffer = static ? alloc_static_buffer(static) : none
+        // buffer = static ? raw(head_size(static)) : none
         // decode = any_return_is_nonword
-        // offset = static.data ? static.data : (!decode && returns > 1 ? input : zero)
-        // size = static.size ? static.size : (decode ? 0 : returns * 32)
+        // offset = buffer ? buffer : (!decode && returns > 1 ? input : zero)
+        // size = buffer ? head_size(static) : (decode ? 0 : returns * 32)
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let (ret_offset, ret_size) = if let Some(buffer) = static_return_buffer {
@@ -1516,8 +1516,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.pack_return_values(values, &decoded_types))
     }
 
-    /// Allocates the raw buffer a call decodes its static aggregate return values from, as a
-    /// memory slice whose length is the constant head size.
+    /// Allocates the raw buffer a call decodes its static aggregate return values from, and
+    /// returns it with its size, the constant head size.
     fn alloc_static_return_buffer(
         &mut self,
         layout: &AbiParamLayout,
@@ -1594,7 +1594,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         function: hir::FunctionId,
     ) -> hir::FunctionId {
-        super::resolve_call_target(self.cx.gcx, self.cx.contract_id, callee, function)
+        self.cx.gcx.resolve_call_target(self.cx.contract_id, callee, function)
     }
 }
 

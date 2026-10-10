@@ -49,8 +49,8 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
     mstore 128, v0
     returndata 128, 32
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -116,8 +116,8 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     v40 = add v14, 1
     jump bb3
   bb12:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb6:
     v59 = mload 64 !metadata(memory=scratch)
@@ -132,12 +132,12 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [may_return_mem
     mstore v59, 0
     jump bb9
   bb9:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

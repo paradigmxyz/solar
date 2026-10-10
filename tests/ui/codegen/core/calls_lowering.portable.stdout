@@ -74,8 +74,8 @@ fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
     mstore 224, v11
     returndata 128, 128
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -122,8 +122,8 @@ fn @probeStatic() [selector=0x2151f594, abi_wrapper] {
     mstore 224, v11
     returndata 128, 128
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -170,8 +170,8 @@ fn @probeDelegate() [selector=0xc0e324b4, abi_wrapper] {
     mstore 224, v11
     returndata 128, 128
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -221,8 +221,8 @@ fn @probeWide() [selector=0x9ac072a4, abi_wrapper] {
     mstore 256, v12
     returndata 128, 160
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -264,8 +264,8 @@ fn @probeEmpty() [selector=0x58eb6d8a, abi_wrapper] {
     mstore 224, v10
     returndata 128, 128
   bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -302,8 +302,8 @@ fn @readBytes32(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
     v24 = add v1, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -409,8 +409,8 @@ fn @deploy(arg0: memptr) -> i256 [may_return_memory, inline_assembly] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -449,8 +449,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

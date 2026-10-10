@@ -14,7 +14,7 @@ contract Test {
     modifier lock() {
         locked = 1;
         _;
-        locked = 0;
+        locked = 0; //~ WARN: unreachable code
     }
 
     modifier enter() {
@@ -53,12 +53,12 @@ contract Test {
     }
 
     // A pointer call reaches whatever the pointer can hold.
-    function pointer() external lock returns (string memory) {
+    function pointer() external lock returns (string memory) { //~ WARN: unnamed return variable can remain unassigned
         function(string memory) internal pure f = finish;
         f("x"); //~ ERROR: this call can return from the external call and skip the rest of modifier `lock`
     }
 
-    function revertingPointer() external lock returns (string memory) {
+    function revertingPointer() external lock returns (string memory) { //~ WARN: unnamed return variable can remain unassigned
         function() internal pure f = fail;
         f();
     }
@@ -79,7 +79,7 @@ contract Forwarder {
     modifier lock() {
         locked = 1;
         _;
-        locked = 0;
+        locked = 0; //~ WARN: unreachable code
     }
 
     fallback() external payable lock {

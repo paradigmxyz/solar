@@ -62,8 +62,8 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper, inline_assembly] {
     v42 = add v34, 64
     returndata v54, v42
   bb8:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     tail_call @revert_stub
@@ -117,8 +117,8 @@ fn @spawnAt() [selector=0x9639302c, abi_wrapper] {
     v32 = add v24, 64
     returndata v38, v32
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub
@@ -216,8 +216,8 @@ fn @attempt() [selector=0xa95d7aa6, abi_wrapper, inline_assembly] {
     mstore 64, v74 !metadata(memory=scratch)
     returndata v73, v54
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub
@@ -281,8 +281,8 @@ fn @attemptAt() [selector=0xaa568f57, abi_wrapper] {
     mstore 64, v70 !metadata(memory=scratch)
     returndata v69, v45
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     tail_call @revert_stub
@@ -338,8 +338,8 @@ fn @tryDeploy2(arg0: memptr, arg1: i256) -> struct1 [may_return_memory, inline_a
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -378,8 +378,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

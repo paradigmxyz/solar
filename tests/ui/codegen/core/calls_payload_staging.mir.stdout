@@ -71,8 +71,8 @@ fn @staged() [selector=0x22c471d3, abi_wrapper] {
     mstore 64, v87 !metadata(memory=scratch)
     returndata v86, v65
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -134,8 +134,8 @@ fn @stagedStatic() [selector=0x840c0812, abi_wrapper, view] {
     mstore 64, v86 !metadata(memory=scratch)
     returndata v85, v64
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -222,8 +222,8 @@ fn @allocated() [selector=0x966e16e3, abi_wrapper] {
     v41 = gt v40, 0
     jumpi v41, bb11, bb8
   bb8:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb11:
     v43 = mload v107
@@ -275,8 +275,8 @@ fn @allocated() [selector=0x966e16e3, abi_wrapper] {
     v3 = add v1, 1
     jump bb1
   bb15:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb12:
     revert 0, 0

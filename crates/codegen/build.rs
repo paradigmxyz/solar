@@ -5,7 +5,6 @@ use std::{env, fs, path::PathBuf};
 /// Rule sets and the ISLE files each one is compiled from, prelude first.
 const RULE_SETS: &[(&str, &[&str])] = &[
     ("select", &["mir/prelude.isle", "evm-ir/prelude.isle", "mir-to-evm/select.isle"]),
-    ("stack_select", &["mir/prelude.isle", "mir/extractors.isle", "mir-to-evm/stack_select.isle"]),
     (
         "egraph",
         &[

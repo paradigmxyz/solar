@@ -259,6 +259,32 @@ unrelated state, which the annotation exists to prevent.
 
 Coverage: `tests/ui/typeck/erc7201_namespaces.sol`.
 
+### TYPECK-007: Uninitialized storage pointers are reported once per location
+
+Status: intentional.
+
+Difference: `solc` analyzes each function once per contract that inherits it
+and reports error 3464 for every analysis, so a base function with one
+uninitialized access gets one error per derived contract. `solar` runs the same
+analyses but reports each location once.
+
+Rationale: the copies point at the same code and give no extra information.
+
+Coverage: `tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol`.
+
+### TYPECK-008: Unreachable code across sources
+
+Status: intentional.
+
+Difference: when unreachable code spans a function and a modifier declared in
+another source, `solc` merges the ranges into one with mixed sources and
+reports only the part in the function's source. `solar` reports the part in
+each source.
+
+Rationale: the merged `solc` range is invalid and hides unreachable code.
+
+Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

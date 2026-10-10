@@ -79,8 +79,8 @@ fn @sortInts() [selector=0xf42afd9e, abi_wrapper, pure] {
     v47 = add v41, 64
     returndata v61, v47
   bb5:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb3:
     revert 0, 0
@@ -367,14 +367,14 @@ fn @core_array_group_sum(arg0: memptr, arg1: memptr) [may_return_memory] {
     v28 = add v13, 32
     jump bb3
   bb11:
-    mstore 0, 0x4e487b71
     mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb1:
     ret
   bb9:
-    mstore 0, 0x4e487b71
     mstore 32, 50
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -417,8 +417,8 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     calldatacopy v25, v3, v10
     ret v19
   bb3:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0

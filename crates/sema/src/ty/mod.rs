@@ -255,6 +255,17 @@ impl Recursiveness {
     }
 }
 
+/// How an internal call resolves in the most-derived contract.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallDispatch {
+    /// The call runs the function it names.
+    Static,
+    /// The call runs the most-derived override.
+    Virtual,
+    /// A `super` call from the given contract runs the next override in the linearization.
+    Super(hir::ContractId),
+}
+
 /// Reference to the [global context](GlobalCtxt).
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "nightly", rustc_pass_by_value)]
@@ -1388,6 +1399,69 @@ impl<'gcx> Gcx<'gcx> {
         self.super_function_target((contract, defining_contract, function))
     }
 
+    /// Resolves an internal call of `function` through `callee` in the context of the
+    /// most-derived contract.
+    pub fn resolve_call_target(
+        self,
+        contract: hir::ContractId,
+        callee: &hir::Expr<'_>,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        self.dispatch_call(contract, function, self.call_dispatch(callee))
+    }
+
+    /// Returns how an internal call through `callee` resolves.
+    ///
+    /// `super` calls resolve to the next base, calls qualified with a contract name are static,
+    /// and other calls are virtual.
+    pub fn call_dispatch(self, callee: &hir::Expr<'_>) -> CallDispatch {
+        if let hir::ExprKind::Member(base, _) = callee.kind
+            && let Some(TyKind::Type(ty)) = self.type_of_expr(base.id).map(|ty| ty.kind)
+        {
+            return match ty.kind {
+                TyKind::Contract(_) => CallDispatch::Static,
+                TyKind::Super(defining_contract) => CallDispatch::Super(defining_contract),
+                _ => CallDispatch::Virtual,
+            };
+        }
+        CallDispatch::Virtual
+    }
+
+    /// Resolves an internal call of `function` with `dispatch` in the context of the
+    /// most-derived contract.
+    pub fn dispatch_call(
+        self,
+        contract: hir::ContractId,
+        function: hir::FunctionId,
+        dispatch: CallDispatch,
+    ) -> hir::FunctionId {
+        match dispatch {
+            CallDispatch::Static => function,
+            CallDispatch::Virtual => self.resolve_virtual_function(contract, function),
+            CallDispatch::Super(defining_contract) => {
+                self.resolve_super_function(contract, defining_contract, function)
+            }
+        }
+    }
+
+    /// Returns the function an internal call through `callee` runs, resolved in the context of
+    /// the most-derived contract, or `None` if `callee` is not an internal function.
+    pub fn internal_call_target(
+        self,
+        contract: Option<hir::ContractId>,
+        callee: &hir::Expr<'_>,
+    ) -> Option<hir::FunctionId> {
+        let TyKind::Fn(ty) = self.type_of_expr(callee.id)?.kind else { return None };
+        if !ty.is_internal() {
+            return None;
+        }
+        let function = ty.function_id.or_else(|| self.resolved_function(callee))?;
+        Some(match contract {
+            Some(contract) => self.resolve_call_target(contract, callee, function),
+            None => function,
+        })
+    }
+
     /// Returns all events included in the external interface of the given contract.
     pub fn interface_events(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
         let items = self.interface_items(id);
@@ -1570,9 +1644,14 @@ fn virtual_function_target(
 ) -> hir::FunctionId {
     let (contract, function) = key;
     debug_assert!(gcx.hir.function(function).virtual_);
+    let name = gcx.hir.function(function).name.map(|name| name.name);
     for &base in gcx.hir.contract(contract).linearized_bases {
         for candidate in gcx.hir.contract(base).functions() {
-            if candidate == function || gcx.function_overrides(candidate, function) {
+            // Compare names first; `function_overrides` is much slower.
+            if candidate == function
+                || (gcx.hir.function(candidate).name.map(|name| name.name) == name
+                    && gcx.function_overrides(candidate, function))
+            {
                 return candidate;
             }
         }

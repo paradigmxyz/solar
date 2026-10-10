@@ -1,3 +1,39 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │         for (uint256 i; i < code; ++i) {
+   ╰╴                                  ━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │             return branches(code) + giveBack(code);
+   ╰╴                                    ━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │         guarded();
+   ╰╴        ━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │         inAssembly();
+   ╰╴        ━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │         failRaw("");
+   ╰╴        ━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
+   │
+LL │         return code;
+   ╰╴        ━━━━━━━━━━━
+
 error: `giveBack` is tagged `@custom:solar-terminates` but can return to its caller
    ╭▸ ROOT/tests/ui/typeck/solar_terminates.sol:LL:CC
    │
@@ -71,5 +107,5 @@ LL │     /// @custom:solar-terminates
    │          ━━━━━━━━━━━━━━━━━━━━━━━
    ╰ note: a modifier can skip the body and return to the caller
 
-error: aborting due to 5 previous errors
+error: aborting due to 5 previous errors; 6 warnings emitted
 

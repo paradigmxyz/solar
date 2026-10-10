@@ -58,8 +58,7 @@ contract SwitchLowerings {
 
     // DENSE-LABEL: @module SwitchLowerings_runtime
     // DENSE: push 8
-    // DENSE-NEXT: swap 1
-    // DENSE-NEXT: sub
+    // DENSE: sub
     // DENSE: push 56
     // DENSE-NEXT: lt
     // DENSE: indexed_jump
@@ -78,7 +77,6 @@ contract SwitchLowerings {
     // PERFECTSIZE-LABEL: @module SwitchLowerings_runtime
     // PERFECTSIZE: push 8
     // PERFECTSIZE: sub
-    // PERFECTSIZE: push 253
     // PERFECTSIZE: push 3
     // PERFECTSIZE-NEXT: shr
     // PERFECTSIZE: shl

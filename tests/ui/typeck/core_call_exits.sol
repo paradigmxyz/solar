@@ -20,7 +20,7 @@ contract Checked {
 
     function _initial() internal pure returns (uint256) {
         Return.abiEncoded(uint256(1)); //~ ERROR: this ends the creation of `Checked` and deploys what it returns as its code
-        return 0;
+        return 0; //~ WARN: unreachable code
     }
 
     function _setUp() internal pure {
@@ -118,7 +118,7 @@ library Deployed {
 // The operations can only be called directly: a pointer to one would end the
 // call where no check follows it.
 contract Taken {
-    function viaPointer() external pure returns (uint256) {
+    function viaPointer() external pure returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         function(bytes memory) internal pure f = Return.raw; //~ ERROR: `Return.raw` can only be called directly
         f("");
     }

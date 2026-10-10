@@ -73,8 +73,8 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
     icall @storeBytes, v16, v10
     stop
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -168,12 +168,12 @@ fn @_outOfBounds() -> i256 [pure] {
     mstore 64, v7 !metadata(memory=scratch)
     mstore v6, 0
     mstore v6, 0
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

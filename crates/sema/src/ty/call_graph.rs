@@ -214,48 +214,32 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     }
 
     fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
-        let Some(ty) = self.gcx.type_of_expr(callee.id) else { return false };
-        match ty.kind {
-            TyKind::Fn(function) => {
-                let Some(function_id) =
-                    function.function_id.or_else(|| self.gcx.resolved_function(callee))
-                else {
-                    if function.is_internal() && self.pointer_call.is_none() {
-                        self.pointer_call = Some(self.current);
-                    }
-                    return false;
-                };
-                if !function.is_internal() {
-                    return false;
-                }
-                let function = self.resolve_call_target(callee, function_id);
-                self.enqueue_dispatched(function_id, function);
-                true
-            }
-            TyKind::Error(_, error) => {
-                self.graph.errors.insert(error);
-                false
-            }
-            _ => false,
+        if let Some(function) = self.gcx.internal_call_target(Some(self.contract), callee) {
+            let named = self.gcx.internal_call_target(None, callee).expect("the call names it");
+            self.enqueue_dispatched(named, function);
+            return true;
         }
+        match self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
+            Some(TyKind::Error(_, error)) => {
+                self.graph.errors.insert(error);
+            }
+            // A call through an internal function pointer.
+            Some(TyKind::Fn(function)) if function.is_internal() && self.pointer_call.is_none() => {
+                self.pointer_call = Some(self.current);
+            }
+            _ => {}
+        }
+        false
     }
 
     fn collect_function_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
         if self.direct_callee == Some(expr.id) {
             return;
         }
-        let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(expr.id).map(|ty| ty.kind) else {
-            return;
-        };
-        if !function.is_internal() {
-            return;
+        if let Some(function) = self.gcx.internal_call_target(Some(self.contract), expr) {
+            let named = self.gcx.internal_call_target(None, expr).expect("the reference names it");
+            self.add_internal_dispatch_target(named, function);
         }
-        let Some(function) = function.function_id.or_else(|| self.gcx.resolved_function(expr))
-        else {
-            return;
-        };
-        let resolved = self.resolve_call_target(expr, function);
-        self.add_internal_dispatch_target(function, resolved);
     }
 
     fn collect_constant_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
@@ -296,25 +280,6 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         if let Some(hir::Type { kind: hir::TypeKind::Custom(hir::ItemId::Contract(id)), .. }) = ty {
             self.graph.bytecode_dependencies.insert(*id);
         }
-    }
-
-    fn resolve_call_target(
-        &self,
-        callee: &hir::Expr<'_>,
-        function: hir::FunctionId,
-    ) -> hir::FunctionId {
-        if let hir::ExprKind::Member(base, _) = callee.kind
-            && let Some(TyKind::Type(ty)) = self.gcx.type_of_expr(base.id).map(|ty| ty.kind)
-        {
-            return match ty.kind {
-                TyKind::Contract(_) => function,
-                TyKind::Super(defining_contract) => {
-                    self.gcx.resolve_super_function(self.contract, defining_contract, function)
-                }
-                _ => self.gcx.resolve_virtual_function(self.contract, function),
-            };
-        }
-        self.gcx.resolve_virtual_function(self.contract, function)
     }
 }
 

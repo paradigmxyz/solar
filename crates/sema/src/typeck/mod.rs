@@ -14,6 +14,7 @@ mod builders;
 mod call_exits;
 mod checker;
 mod code_views;
+mod control_flow;
 mod erc7201;
 pub(crate) mod override_checker;
 pub(crate) mod safe_profile;
@@ -39,6 +40,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             });
     },);
     gcx.set_typeck_results(typeck_results);
+    control_flow::check(gcx);
     view_pure_checker::check(gcx);
     solar_tags::check(gcx);
     builders::check(gcx);

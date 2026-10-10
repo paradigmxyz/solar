@@ -149,8 +149,8 @@ fn @attempt() [selector=0xf1f9ae8f, abi_wrapper] {
     mstore 64, v143 !metadata(memory=scratch)
     returndata v142, v93
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -172,8 +172,8 @@ fn @fill(arg0: memptr, arg1: i256) [may_return_memory, pure] {
     v8 = lt v2, v7
     jumpi v8, bb4, bb3
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     v18 = add v17, v2

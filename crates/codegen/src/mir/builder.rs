@@ -251,13 +251,14 @@ impl<'a> FunctionBuilder<'a> {
             self.invalid();
             return;
         }
-        // mstore(0, Panic.selector); mstore(32, code); revert(28, 36)
-        let selector = self.imm(0x4e48_7b71_u64);
+        // Store the code first so every panic ends in the same tail.
+        // mstore(32, code); mstore(0, Panic.selector); revert(28, 36)
         let code = self.imm(code.as_u64());
-        let zero = self.imm(U256::ZERO);
-        self.mstore(zero, selector);
         let word = self.imm(32);
         self.mstore(word, code);
+        let selector = self.imm(0x4e48_7b71_u64);
+        let zero = self.imm(U256::ZERO);
+        self.mstore(zero, selector);
         let offset = self.imm(28);
         let size = self.imm(36);
         self.revert(offset, size);
@@ -1264,35 +1265,21 @@ impl<'a> FunctionBuilder<'a> {
         result
     }
 
-    /// Decodes a memory-backed ABI tuple into semantic values.
-    ///
-    /// `data` is a bytes object, a memory slice, or a raw word addressing a static head, which is
-    /// read as a slice of the head.
+    /// Decodes an ABI tuple from a bytes object or a memory slice into semantic values.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = self.abi_decode_input(&layout, data);
         // result = abi_decode data
         self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
     /// Checks the length of the data for an empty ABI tuple, which decodes to no values.
     pub(crate) fn abi_decode_void(&mut self, layout: crate::mir::AbiParamLayoutRef, data: ValueId) {
-        let data = self.abi_decode_input(&layout, data);
         // abi_decode data
         self.emit_void_inst(InstKind::AbiDecode { data, layout });
-    }
-
-    fn abi_decode_input(&mut self, layout: &crate::mir::AbiParamLayout, data: ValueId) -> ValueId {
-        if self.func.value_ty(data) != Some(MirType::I256) {
-            return data;
-        }
-        // data = make_memory_slice(data, static_head_size)
-        let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
-        self.make_slice(data, size, SliceLocation::Memory)
     }
 
     /// Emits an mcopy whose destination is proven to be in the heap.

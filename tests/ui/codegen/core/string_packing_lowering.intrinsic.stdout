@@ -170,8 +170,8 @@ fn @unpackPair() [selector=0x227bb006, abi_wrapper, pure] {
     mstore 64, v114 !metadata(memory=scratch)
     returndata v113, v84
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -212,8 +212,8 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

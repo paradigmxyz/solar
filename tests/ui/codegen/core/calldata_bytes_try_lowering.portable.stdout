@@ -218,8 +218,8 @@ fn @readBytes4(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v28 = add v2, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -253,8 +253,8 @@ fn @readBytes32(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v26 = add v1, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -301,15 +301,15 @@ fn @readUint256BE(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v21 = add v3, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

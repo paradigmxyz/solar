@@ -277,9 +277,17 @@ impl Cost {
     /// Nothing emitted.
     pub(crate) const ZERO: Self = Self::new(0, 0);
 
+    /// More than any real code costs.
+    pub(crate) const MAX: Self = Self::new(u32::MAX, u32::MAX);
+
     /// Creates a cost.
     pub(crate) const fn new(gas: u32, bytes: u32) -> Self {
         Self { gas, bytes }
+    }
+
+    /// Whether this costs no more gas and bytes than `other` and less of one.
+    pub(crate) fn dominates(self, other: Self) -> bool {
+        self.gas <= other.gas && self.bytes <= other.bytes && self != other
     }
 
     /// Cost of an opcode whose static gas is identical on every EVM version.
@@ -344,6 +352,10 @@ impl Target {
     /// run per invocation when weighing code growth inside it: GCC's estimate
     /// for such loops.
     pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+    /// How many times more often the stack planner counts a block for each loop around it.
+    pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
+    /// The most the stack planner counts any block, however deeply nested.
+    pub(crate) const MAX_BLOCK_WEIGHT: u32 = 512;
     /// The optimizer runs from which loop transformations that copy a loop's
     /// body, unrolling and peeling, may run: below them, as at the default 200,
     /// a build still values its code size, and the copies grow a contract built
@@ -389,6 +401,12 @@ impl Target {
         self.expected_executions
     }
 
+    /// The weight of a block inside one more loop than a block of weight `weight`.
+    pub(crate) const fn nested_block_weight(weight: u32) -> u32 {
+        let weight = weight.saturating_mul(Self::LOOP_BLOCK_WEIGHT);
+        if weight < Self::MAX_BLOCK_WEIGHT { weight } else { Self::MAX_BLOCK_WEIGHT }
+    }
+
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
     pub(crate) fn copies_loops(self) -> bool {
         self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
@@ -429,6 +447,13 @@ impl Target {
     /// Cost of one `DUP`.
     pub(crate) fn dup(self) -> Cost {
         self.opcode(op::DUP1)
+    }
+
+    /// Cost of one logical stack operation after target lowering, or `None` when the target
+    /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
+    pub(crate) fn stack_op(self, stack_op: op::StackOp) -> Option<Cost> {
+        let metrics = stack_op.metrics(self.evm_version)?;
+        Some(Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32))
     }
 
     /// Cost of pushing a block label, which resolves to a two-byte push in all but the largest
@@ -886,6 +911,24 @@ mod tests {
         assert_eq!(target.data_copy_gas(64), 18);
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
+        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(Cost::new(3, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Pop), Some(Cost::new(2, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(9, 3)));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 17)), None);
+        let amsterdam = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
+        assert_eq!(amsterdam.stack_op(op::StackOp::Dup(17)), Some(Cost::new(3, 2)));
+        assert_eq!(amsterdam.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(3, 2)));
+        assert!(Cost::new(3, 2).dominates(Cost::new(9, 3)));
+        assert!(Cost::new(9, 2).dominates(Cost::new(9, 3)));
+        assert!(!Cost::new(9, 3).dominates(Cost::new(9, 3)));
+        assert!(!Cost::new(3, 4).dominates(Cost::new(9, 3)));
+    }
+
+    #[test]
+    fn nested_block_weights() {
+        assert_eq!(Target::nested_block_weight(1), 8);
+        assert_eq!(Target::nested_block_weight(64), 512);
+        assert_eq!(Target::nested_block_weight(512), 512);
     }
 
     #[test]

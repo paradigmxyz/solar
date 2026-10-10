@@ -189,8 +189,8 @@ fn @readBytes4(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
     v26 = add v2, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -227,8 +227,8 @@ fn @readBytes32(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
     v24 = add v1, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -263,8 +263,8 @@ fn @readUint256BE(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
     v19 = add v2, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -287,8 +287,8 @@ fn @tryReadBytes4(arg0: memptr, arg1: i256) -> struct0 [may_return_memory, pure,
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -327,8 +327,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

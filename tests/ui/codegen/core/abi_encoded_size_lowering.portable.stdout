@@ -111,8 +111,8 @@ fn @dynamicSize() [selector=0x509079b7, abi_wrapper, pure] {
     mstore 128, v59
     returndata 128, 32
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -166,8 +166,8 @@ fn @staged() [selector=0xb73ce65c, abi_wrapper, pure] {
     mstore 128, v61
     returndata 128, 32
   bb7:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     v36 = calldataload v34

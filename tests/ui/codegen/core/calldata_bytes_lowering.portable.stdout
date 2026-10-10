@@ -119,8 +119,8 @@ fn @copyOut() [selector=0xa6f9b6f1, abi_wrapper, pure] {
     v31 = add v23, 64
     returndata v40, v31
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -223,8 +223,8 @@ fn @readBytes4(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v28 = add v2, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -258,8 +258,8 @@ fn @readBytes32(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v26 = add v1, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -291,8 +291,8 @@ fn @readUint256BE(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v21 = add v3, 1
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -345,8 +345,8 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5:
     v48 = add v17, 1
     jump bb5
   bb12:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb8:
     v57 = mload 64 !metadata(memory=scratch)
@@ -363,15 +363,15 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5:
   bb9:
     tail_call @revert_stub
   bb16:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

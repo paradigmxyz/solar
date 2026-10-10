@@ -1,3 +1,17 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/core_call_exits.sol:LL:CC
+   │
+LL │         return 0;
+   ╰╴        ━━━━━━━━
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/typeck/core_call_exits.sol:LL:CC
+   │
+LL │     function viaPointer() external pure returns (uint256) {
+   │                                                  ━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
 error: `Return.raw` can only be called directly
    ╭▸ ROOT/tests/ui/typeck/core_call_exits.sol:LL:CC
    │
@@ -143,5 +157,5 @@ LL │     function answer() public pure returns (bool) {
    │              ━━━━━━
    ╰ help: end the call with a value of the type the function returns
 
-error: aborting due to 12 previous errors
+error: aborting due to 12 previous errors; 2 warnings emitted
 

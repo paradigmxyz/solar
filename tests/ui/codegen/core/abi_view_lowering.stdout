@@ -49,8 +49,8 @@ fn @viewed() [selector=0xd3855add, abi_wrapper, pure] {
     mstore 160, v8
     returndata 128, 64
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -132,8 +132,8 @@ fn @viewedMemory() [selector=0x4dbfa2ea, abi_wrapper, pure] {
     mstore 160, v5
     returndata 128, 64
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -244,8 +244,8 @@ fn @nestedViewed() [selector=0x3fdd3a1d, abi_wrapper, pure] {
     v155 = add v154, 32
     jump bb1
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb14:
     v72 = calldataload v69
@@ -276,8 +276,8 @@ fn @nestedViewed() [selector=0x3fdd3a1d, abi_wrapper, pure] {
     v97 = add v69, 32
     jump bb13
   bb10:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7:
     revert 0, 0
@@ -353,8 +353,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     calldatacopy v19, v3, v8
     ret v14
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -403,8 +403,8 @@ fn @decode_aggregate(arg0: memptr) -> struct2 [may_return_memory, return_abi=[i2
     mcopy v30, v12, v17
     ret v6, v23
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

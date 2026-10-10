@@ -172,8 +172,8 @@ fn @attempt() [selector=0xf1f9ae8f, abi_wrapper] {
     v73 = add v72, 32
     jump bb1
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:
     revert 0, 0

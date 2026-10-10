@@ -26,8 +26,8 @@ fn @checksum.0(arg0: i256, arg1: i256) -> struct0 [may_return_memory, pure, retu
     v25 = add v1, 1
     jump bb1
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -81,8 +81,8 @@ fn @ofCalldata() [selector=0x41db85e5, abi_wrapper, pure] {
     mstore 160, v59
     returndata 128, 64
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -128,8 +128,8 @@ fn @ofMemory() [selector=0x7caecfb4, abi_wrapper, pure] {
     mstore 160, v34
     returndata 128, 64
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0
@@ -159,8 +159,8 @@ fn @checksum.3(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]
     v28 = add v1, 1
     jump bb1
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

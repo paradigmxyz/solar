@@ -115,8 +115,8 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [pure] {
     v20 = eq arg2, 0
     jumpi v20, bb8, bb15
   bb15:
-    mstore 0, 0x4e487b71
     mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb11:
     v21 = mulmod arg0, arg1, arg2
@@ -165,8 +165,8 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [pure] {
     v18 = ne arg2, 0
     jumpi v18, bb13, bb12
   bb12:
-    mstore 0, 0x4e487b71
     mstore 32, 18
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb13:
     v32 = div v11, arg2
@@ -192,15 +192,15 @@ fn @mulDiv.6(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [pure] {
     v6 = phi [bb2: v9], [bb5: v61], [bb7: v61]
     ret v6
   bb6:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

@@ -128,8 +128,8 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
   bb6:
     tail_call @revert_stub
   bb11:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:
     revert 0, 0
@@ -137,8 +137,8 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
