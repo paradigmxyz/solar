@@ -1,0 +1,314 @@
+error: `@custom:solar-trusted` must document a function, a modifier, a contract, or a library
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         /// @custom:solar-trusted
+   │              ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the reviewed code a `@custom:solar-safe` contract runs
+
+error: `@custom:solar-safe` must document a contract or a library
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+
+error: `@custom:solar-safe` must document a contract or a library
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     /// @custom:solar-safe
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
+
+error: `Safe` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { x = 1 - uint256(2); }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Safe.seed`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `Safe` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         return Math.wrappingAdd(a, 1);
+   │                ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Safe.wrap`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `Safe` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ …     function(uint256, uint256) internal pure returns (uint256) f = Math.wrappingAdd;
+   │                                                                      ━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Safe.wrapPointer`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { w := mload(add(b, 32)) }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Safe.read` → `Raw.word`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { v := 7 }
+   │         ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Safe.pointer` → `Safe.viaPointer`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `Safe` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { y := 5 }
+   │         ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `Base.run` → `Safe.hook`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     uint256 internal inherited = Math.wrappingAdd(1, 1);
+   │                                  ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     uint256 private seeded = Math.wrappingSub(1, 2);
+   │                              ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     function(uint256, uint256) internal pure returns (uint256) private op = Math.wrappingAdd;
+   │                                                                             ━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `SafeCreation` is tagged `@custom:solar-safe` but runs wrapping arithmetic
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ contract SafeCreation is WrappingState, ReviewedState, WrappingBase(Math.wrappingMul(2, 3)) {
+   │                                                                     ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this when it is created
+   ╰ help: use checked arithmetic, or review it and tag its contract `@custom:solar-trusted`
+
+error: `MemoryOnly` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { v := 1 }
+   │         ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe memory
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `MemoryOnly.g`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `ArithmeticOnly` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { return a + 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe arithmetic
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ArithmeticOnly.f`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeLib` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { v := 1 }
+   │         ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `SafeLib.f`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `@custom:solar-safe` has no property `everything`
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe everything
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: the properties are `memory` and `arithmetic`; naming none requires both
+
+error: `SafeOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { r = a - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedBase.run` → `SafeOverride._hook`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeOverride` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { mstore(0x40, 0) }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedBase.run` → `SafeOverride._hook`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeModifier` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { mstore(0x40, 0) }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ModifiedBase.f` → `SafeModifier.m`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeInit` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { x = x - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedInit.constructor` → `SafeInit._init`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `TwoTags` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { return a - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe memory
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `TwoTags.f`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeConstant` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     unchecked { r = a - 1; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `SafeConstant.open` → `wrapped`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeConstantOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { r = r - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedConstant.run` → `SafeConstantOverride._value`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: aborting due to 24 previous errors
+

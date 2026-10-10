@@ -1,0 +1,49 @@
+//@ revisions: intrinsic portable
+//@[intrinsic] compile-flags: -Ogas -Zdump=mir
+//@[intrinsic] filecheck: --check-prefix=INTRINSIC
+//@[portable] compile-flags: -Ogas -Zdump=mir -Zno-core-intrinsics
+//@[portable] filecheck: --check-prefix=PORTABLE
+
+// `Slots.load` and `Slots.store` hash the root's slot in scratch memory, test
+// the index against 2**64 and add it, where a dynamic array at that slot keeps
+// its elements. The hash comes first, so a loop over one region can hoist it.
+// The shipped bodies do the same in assembly and stay calls.
+// INTRINSIC-LABEL: fn @get
+// INTRINSIC: keccak256 0, 32
+// INTRINSIC: shr 64,
+// INTRINSIC: sload
+// INTRINSIC-NOT: icall @load
+// INTRINSIC-LABEL: fn @set
+// INTRINSIC: keccak256 0, 32
+// INTRINSIC: sstore
+// PORTABLE-LABEL: fn @get
+// PORTABLE: icall @load
+
+// `Slots.storeBytes` stores each whole word from a source cursor to a slot
+// stepping from the hash of the root's slot, without a check of its own; the
+// range and the count are checked up front. The hash starts the slot, and the
+// rest of the range goes to the slot where the loop stops.
+// INTRINSIC-LABEL: fn @put
+// INTRINSIC: [[HASH:v[0-9]+]] = keccak256 0, 32
+// INTRINSIC: [[SLOT:v[0-9]+]] = phi [{{bb[0-9]+}}: [[HASH]]]
+// INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}
+// INTRINSIC: stop
+// INTRINSIC: sstore [[SLOT]], {{v[0-9]+}}
+// INTRINSIC-NOT: keccak256
+import {Slots} from "solar:core/Slots.sol";
+
+contract Test {
+    Slots.Root root;
+
+    function get(uint256 index) public view returns (bytes32) {
+        return Slots.load(root, index);
+    }
+
+    function set(uint256 index, bytes32 value) public {
+        Slots.store(root, index, value);
+    }
+
+    function put(bytes memory b) public {
+        Slots.storeBytes(root, b, 0, b.length);
+    }
+}

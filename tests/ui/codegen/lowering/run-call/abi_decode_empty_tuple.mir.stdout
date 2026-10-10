@@ -59,7 +59,7 @@ fn @decodeCalldata(arg0: calldataslice) -> i256 [selector=0xea59e64a, abi_params
     ret v12
 }
 
-fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -97,7 +97,7 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     ret 3
 }
 
-fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 63, v0
@@ -109,7 +109,7 @@ fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_param
     ret 4
 }
 
-fn @decodeStorageLength(arg0: i256) -> i256 [selector=0x0359dd97, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @decodeStorageLength(arg0: i256) -> i256 [selector=0x0359dd97, inline_assembly, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 2
     v1 = add v0, 1

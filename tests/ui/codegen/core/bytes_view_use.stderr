@@ -1,0 +1,56 @@
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         v[0] = 0x01;
+   │         ━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         v.writeBytes1(0, 0x01);
+   │         ━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         w = v;
+   │             ━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         v = b;
+   │         ━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         return length(v);
+   │                       ━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `v` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_use.sol:LL:CC
+   │
+LL │         return v;
+   │                ━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: aborting due to 6 previous errors
+

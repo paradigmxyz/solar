@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/computed_address_cancellation.sol:ComputedAddressCancellation ===
 @module ComputedAddressCancellation
-fn @cancel(arg0: i256) -> i256 [selector=0x40e58ee5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @cancel(arg0: i256) -> i256 [selector=0x40e58ee5, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = sub v0, arg0

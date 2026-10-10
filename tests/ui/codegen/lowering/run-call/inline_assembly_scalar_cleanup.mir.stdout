@@ -8,13 +8,13 @@
   struct4: {i1, i1, i1, i1, i1, i1}
   struct5: {i16, i256}
 
-fn @signedAssignment() -> i256 [selector=0x8de017fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedAssignment() -> i256 [selector=0x8de017fc, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sext i8 255 to i256
     ret v0
 }
 
-fn @signedMerge(arg0: i1) -> i256 [selector=0xba2c8ddd, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedMerge(arg0: i1) -> i256 [selector=0xba2c8ddd, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sext i8 254 to i256
     jumpi arg0, bb1, bb2
@@ -28,7 +28,7 @@ fn @signedMerge(arg0: i1) -> i256 [selector=0xba2c8ddd, pure, abi_params=[bool],
     ret v2
 }
 
-fn @signedLoop(arg0: i256) -> i256 [selector=0x7cfa8702, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedLoop(arg0: i256) -> i256 [selector=0x7cfa8702, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sext i8 255 to i256
     jump bb1
@@ -55,13 +55,13 @@ fn @signedLoop(arg0: i256) -> i256 [selector=0x7cfa8702, pure, abi_params=[u256]
     jump bb1
 }
 
-fn @signedUserAssignment() -> i256 [selector=0xd75b1413, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedUserAssignment() -> i256 [selector=0xd75b1413, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sext i8 255 to i256
     ret v0
 }
 
-fn @signedModifier() -> i256 [selector=0xbea1d853, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedModifier() -> i256 [selector=0xbea1d853, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sext i8 255 to i256
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -85,7 +85,7 @@ fn @signedSource() -> struct0 [selector=0xeacc97f1, pure, abi_params=[], abi_ret
     ret v4
 }
 
-fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, inline_assembly, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -122,7 +122,7 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
     ret v14
 }
 
-fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, inline_assembly, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -155,14 +155,14 @@ fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bo
     ret v17
 }
 
-fn @signedAssemblyComparison() -> i256 [selector=0xc03e566f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedAssemblyComparison() -> i256 [selector=0xc03e566f, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq 1, 1
     v1 = zext i1 v0 to i256
     ret v1
 }
 
-fn @signedTernary(arg0: i1) -> struct2 [selector=0x70e03028, pure, abi_params=[bool], abi_returns=[word, word<bool>], abi_return_params=[i256, bool]] {
+fn @signedTernary(arg0: i1) -> struct2 [selector=0x70e03028, inline_assembly, pure, abi_params=[bool], abi_returns=[word, word<bool>], abi_return_params=[i256, bool]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -179,7 +179,7 @@ fn @signedTernary(arg0: i1) -> struct2 [selector=0x70e03028, pure, abi_params=[b
     ret v5
 }
 
-fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, pure, abi_params=[bool], abi_returns=[word, word], abi_return_params=[i256, u256]] {
+fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, inline_assembly, pure, abi_params=[bool], abi_returns=[word, word], abi_return_params=[i256, u256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -195,7 +195,7 @@ fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, pure, abi_para
     ret v4
 }
 
-fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -208,7 +208,7 @@ fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, pure, abi_params=[
     ret v1
 }
 
-fn @dirtySigned() -> i256 [selector=0x36c3b875, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtySigned() -> i256 [selector=0x36c3b875, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq 0, 0
     jumpi v0, bb1, bb2
@@ -220,7 +220,7 @@ fn @dirtySigned() -> i256 [selector=0x36c3b875, pure, abi_params=[], abi_returns
     ret 0x1234
 }
 
-fn @arithmetic() -> struct3 [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8, u8, u8]] {
+fn @arithmetic() -> struct3 [selector=0x980a67fd, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8, u8, u8]] {
   bb0:
     v0 = checked_add u8, i8 1, i8 0
     v1 = checked_mul u8, i8 1, i8 1
@@ -237,7 +237,7 @@ fn @arithmetic() -> struct3 [selector=0x980a67fd, pure, abi_params=[], abi_retur
     ret v11
 }
 
-fn @comparisons() -> struct4 [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
+fn @comparisons() -> struct4 [selector=0x6cf2b655, inline_assembly, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
     v0 = eq i8 1, i8 1
     v1 = ne i8 1, i8 1
@@ -256,7 +256,7 @@ fn @comparisons() -> struct4 [selector=0x6cf2b655, pure, abi_params=[], abi_retu
     ret v13
 }
 
-fn @increments() -> struct2 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
+fn @increments() -> struct2 [selector=0x56aa2dc5, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
     v0 = checked_add u8, i8 0, i8 1
     v1 = zext i8 v0 to i256
@@ -268,7 +268,7 @@ fn @increments() -> struct2 [selector=0x56aa2dc5, pure, abi_params=[], abi_retur
     ret v6
 }
 
-fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @decrements() -> i256 [selector=0xa1d28959, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = not 255
     v1 = trunc i256 v0 to i8
@@ -278,14 +278,14 @@ fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=
     ret v4
 }
 
-fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @negation() -> i256 [selector=0x336c96f8, inline_assembly, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
     v0 = checked_sub i8, i8 0, i8 128
     v1 = sext i8 v0 to i256
     ret v1
 }
 
-fn @wideningConversions() -> struct5 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<u16>, word], abi_return_params=[u16, u256]] {
+fn @wideningConversions() -> struct5 [selector=0x06a404a3, inline_assembly, pure, abi_params=[], abi_returns=[word<u16>, word], abi_return_params=[u16, u256]] {
   bb0:
     v0 = icall @widen, 120
     v1 = insert_value struct5, undef struct5, 0, i16 120
@@ -293,17 +293,17 @@ fn @wideningConversions() -> struct5 [selector=0x06a404a3, pure, abi_params=[], 
     ret v2
 }
 
-fn @explicitWideningReturn() -> i256 [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @explicitWideningReturn() -> i256 [selector=0xbd2ce75e, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 120
 }
 
-fn @implicitReturn() -> i256 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @implicitReturn() -> i256 [selector=0xf8438e3d, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     ret 0x12345678
 }
 
-fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
+fn @invalidEnum() -> i256 [selector=0xb65e9efe, inline_assembly, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = lt 2, 2
     v1 = eq v0, false
@@ -312,12 +312,12 @@ fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns
     ret 2
 }
 
-fn @assemblyRead() -> i256 [selector=0x4f21d5c0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @assemblyRead() -> i256 [selector=0x4f21d5c0, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 257
 }
 
-fn @internalArguments() -> struct2 [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
+fn @internalArguments() -> struct2 [selector=0xd0754141, inline_assembly, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
     v0 = icall @dirtyNot, 0x4200
     v1 = icall @dirtyNot, 0x4200
@@ -326,7 +326,7 @@ fn @internalArguments() -> struct2 [selector=0xd0754141, pure, abi_params=[], ab
     ret v3
 }
 
-fn @storageAssignment() -> i256 [selector=0x7bae1f27, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @storageAssignment() -> i256 [selector=0x7bae1f27, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq 5, 0
     v1 = eq v0, false
@@ -346,7 +346,7 @@ fn @widen(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @dirtyNot(arg0: i256) -> i256 [pure] {
+fn @dirtyNot(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = div arg0, 256
     ret v0

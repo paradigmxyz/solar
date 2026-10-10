@@ -100,7 +100,7 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     jump bb1
 }
 
-fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, inline_assembly, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

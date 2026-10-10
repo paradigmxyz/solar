@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_low_memory_arg.sol:C ===
 @module C
-fn @k(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
+fn @k(arg0: memptr, arg1: i256, arg2: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = checked_add u256, arg2, 1
     v1 = abi_encode [word], scratch, args v0
@@ -116,7 +116,7 @@ fn @k(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
     ret v109
 }
 
-fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = inttoptr i256 arg0 to memptr
     v1 = icall @k, v0, arg1, arg2

@@ -1,0 +1,91 @@
+error: the view `items` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         bytes memory copy = items[0];
+   │                             ━━━━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: declare a variable for it with `@custom:solar-view` to read it in place, or remove the tag of the view to work with a copy
+
+error: the view `pair` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         return keep(pair.b).length;
+   │                     ━━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: declare a variable for it with `@custom:solar-view` to read it in place, or remove the tag of the view to work with a copy
+
+error: the view `words` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         words[0] = 1;
+   │         ━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `pair` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         pair.a = 2;
+   │         ━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `rows` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         rows[0][0] = 3;
+   │         ━━━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `words` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         uint256[] memory other = words;
+   │                                  ━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: remove the tag to work with a copy
+
+error: the view `items` can only be read in place
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         return (first ? items[0] : items[1]).length;
+   │                         ━━━━━━━━
+   │
+   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ╰ help: declare a variable for it with `@custom:solar-view` to read it in place, or remove the tag of the view to work with a copy
+
+error: this may change bytes that the view `items` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         data[64] = 0x01;
+   │         ━━━━━━━━━━━━━━━
+   ╰╴
+note: `items` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         (bytes[] memory items) = abi.decode(data, (bytes[]));
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `pair` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         data[0] = 0x01;
+   │         ━━━━━━━━━━━━━━
+   ╰╴
+note: `pair` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/abi_view_nested_use.sol:LL:CC
+   │
+LL │         (Pair memory pair) = abi.decode(data, (Pair));
+   │          ━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: aborting due to 9 previous errors
+

@@ -1,0 +1,162 @@
+// === <solar:core/Slots.sol>:Slots ===
+@module Slots
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/slots_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @get() [selector=0x9507d39a, abi_wrapper, view] {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 36
+    jumpi v6, bb3, bb4
+  bb4:
+    mstore 0, 0 !metadata(memory=scratch)
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = shr 64, arg0
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = add v9, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    mstore 128, v4
+    returndata 128, 32
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @set() [selector=0x64c4ef1a, abi_wrapper] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 68
+    jumpi v5, bb3, bb4
+  bb4:
+    mstore 0, 0 !metadata(memory=scratch)
+    v6 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = shr 64, arg0
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = add v6, arg0
+    sstore v3, arg1 !metadata(storage=symbolic(v3))
+    stop
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @put() [selector=0x94f47146, abi_wrapper] {
+  bb0:
+    v28 = calldatasize
+    v29 = lt v28, 36
+    v30 = calldataload 4
+    v31 = add v30, 4
+    v32 = add v31, 32
+    v33 = gt v30, 0xffffffffffffffff
+    v34 = gt v32, v28
+    v35 = or v33, v34
+    v63 = or v29, v35
+    jumpi v63, bb9, bb10
+  bb10:
+    v37 = calldataload v31
+    v39 = add v37, 63
+    v40 = lt v39, v37
+    jumpi v40, bb11, bb12
+  bb12:
+    v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = mload 64 !metadata(memory=scratch)
+    v58 = add v57, v42
+    v59 = lt v58, v57
+    v60 = gt v58, 0xffffffffffffffff
+    v61 = or v59, v60
+    jumpi v61, bb11, bb14
+  bb14:
+    mstore 64, v58 !metadata(memory=scratch)
+    mstore v57, v37
+    v44 = sub v28, v32
+    v45 = gt v37, v44
+    jumpi v45, bb9, bb13
+  bb13:
+    v49 = add v57, 32
+    calldatacopy v49, v32, v37
+    mstore 0, 0 !metadata(memory=scratch)
+    v47 = keccak256 0, 32 !metadata(memory=scratch)
+    v2 = shr 69, v37
+    v3 = ne v2, 0
+    jumpi v3, bb6, bb7
+  bb7:
+    v4 = mload v57
+    v7 = gt v37, v4
+    jumpi v7, bb6, bb8
+  bb8:
+    v13 = and v37, 31
+    v14 = sub v37, v13
+    v15 = add v49, v14
+    jump bb1
+  bb1:
+    v16 = phi [bb8: v49], [bb2: v20]
+    v17 = phi [bb8: v47], [bb2: v21]
+    v18 = lt v16, v15
+    jumpi v18, bb2, bb3
+  bb3:
+    v22 = ne v13, 0
+    jumpi v22, bb4, bb5
+  bb4:
+    v23 = mload v16
+    v24 = shl 3, v13
+    v25 = shr v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v26 = not v25
+    v27 = and v23, v26
+    sstore v17, v27 !metadata(storage=symbolic(v17))
+    jump bb5
+  bb5:
+    stop
+  bb2:
+    v19 = mload v16
+    sstore v17, v19 !metadata(storage=symbolic(v17))
+    v20 = add v16, 32
+    v21 = add v17, 1
+    jump bb1
+  bb6:
+    tail_call @revert_stub
+  bb11:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb9:
+    revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x64c4ef1a => bb2, 0x94f47146 => bb3, 0x9507d39a => bb4]
+  bb4:
+    tail_call @get
+  bb3:
+    tail_call @put
+  bb2:
+    tail_call @set
+  bb5:
+    revert 0, 0
+}

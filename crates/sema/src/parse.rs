@@ -165,7 +165,12 @@ impl<'gcx> ParsingContext<'gcx> {
     }
 
     /// Adds a preloaded file to the resolver.
+    ///
+    /// A file under a name reserved for a compiler-owned module must be that module's text.
     pub fn add_file(&mut self, file: Arc<SourceFile>) {
+        if crate::core::check_reserved_source(self.dcx(), &file).is_err() {
+            return;
+        }
         self.sources.get_or_insert_file(file);
     }
 
@@ -410,10 +415,42 @@ impl<'gcx> ParsingContext<'gcx> {
             self.dcx().emit_err(span, "import path is not a valid UTF-8 string");
             return None;
         };
+        // A compiler-owned module is looked up before any file resolution, so
+        // no remapping or file on disk can stand in for it.
+        if let Some(path) = path.to_str()
+            && crate::core::is_reserved_path(path)
+        {
+            return self.resolve_core_module(path, span);
+        }
         self.file_resolver
             .resolve_file(path, parent)
             .map_err(self.map_resolve_error_with(Some(span)))
             .ok()
+    }
+
+    fn resolve_core_module(&self, path: &str, span: Span) -> Option<Arc<SourceFile>> {
+        let Some(module) = crate::core::lookup(path) else {
+            let available = crate::core::MODULES
+                .iter()
+                .map(|module| module.path)
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.dcx()
+                .err(format!("unknown compiler module `{path}`"))
+                .span(span)
+                .note(format!("available compiler modules: {available}"))
+                .emit();
+            return None;
+        };
+        let file = self
+            .sess
+            .source_map()
+            .new_source_file(crate::core::file_name(module), module.source)
+            .map_err(|e| self.dcx().err(format!("failed to load compiler module: {e}")).emit())
+            .ok()?;
+        // The source map returns a file already loaded under the name, whatever its text.
+        crate::core::check_reserved_source(self.dcx(), &file).ok()?;
+        Some(file)
     }
 
     fn map_resolve_error(&self) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {

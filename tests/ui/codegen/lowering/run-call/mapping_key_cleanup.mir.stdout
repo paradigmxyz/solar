@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
 @module C
-fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedUserKey() -> i256 [selector=0x27072c8b, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sext i16 0xffff to i256
     v1 = mapping_slot v0, 2
@@ -13,7 +13,7 @@ fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[wo
     ret v4
 }
 
-fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedKey() -> i256 [selector=0xa0b120fe, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sext i8 255 to i256
     v1 = mapping_slot v0, 1
@@ -26,7 +26,7 @@ fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word],
     ret v4
 }
 
-fn @test_cleanup() -> i1 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test_cleanup() -> i1 [selector=0x2b63198c, inline_assembly, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot 1, 0
     sstore v0, 3 !metadata(storage=symbolic(v0))

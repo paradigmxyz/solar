@@ -3,12 +3,21 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
+    pub(super) fn bind_signature(
+        &mut self,
+        id: hir::FunctionId,
+        function: &hir::Function<'_>,
+        passes: &[ViewPass],
+    ) {
         self.parameters.extend_from_slice(function.parameters);
-        for &param in function.parameters {
+        for (index, &param) in function.parameters.iter().enumerate() {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));
-            if ty.is_ref_at(DataLocation::Storage) {
+            let carrier = self.cx.state.scalar_carrier(self.cx.gcx, param);
+            let mir_ty = parameter_type(self.cx.gcx, id, index, ty, carrier, passes);
+            let value = self.builder.add_param(mir_ty);
+            if is_view_parameter(self.cx.gcx, id, index) {
+                self.bind_view_parameter(param, value);
+            } else if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
                     StorageAccess {

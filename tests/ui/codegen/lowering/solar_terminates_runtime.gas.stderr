@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/solar_terminates_runtime.sol:LL:CC
+   │
+LL │         return failWith(code) + 1;
+   ╰╴                                ━
+

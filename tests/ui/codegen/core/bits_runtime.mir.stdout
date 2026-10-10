@@ -1,0 +1,379 @@
+// === <solar:core/Bits.sol>:Bits ===
+@module Bits
+@library
+
+// === ROOT/tests/ui/codegen/core/bits_runtime.sol:Test ===
+@module Test
+fn @leading(arg0: i256) -> i256 [selector=0x3ce23483, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = clz arg0
+    ret v0
+}
+
+fn @highest(arg0: i256) -> i256 [selector=0xe076913c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = clz arg0
+    v1 = xor 255, v0
+    v2 = eq arg0, 0
+    v3 = zext i1 v2 to i256
+    v4 = mul 255, v3
+    v5 = xor v1, v4
+    ret v5
+}
+
+fn @trailing(arg0: i256) -> i256 [selector=0x5b348c5a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sub 0, arg0
+    v1 = and arg0, v0
+    v2 = clz v1
+    v3 = xor 255, v2
+    v4 = eq v1, 0
+    v5 = zext i1 v4 to i256
+    v6 = mul 255, v5
+    v7 = xor v3, v6
+    ret v7
+}
+
+fn @ones(arg0: i256) -> i256 [selector=0xb2f925a4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @popCount, arg0
+    ret v0
+}
+
+fn @sweep() -> i1 [selector=0x35faa416, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v67]
+    v3 = lt v2, 256
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret true
+  bb4:
+    v4 = shl v2, 1
+    v5 = clz v4
+    v6 = checked_sub u256, 255, v2
+    v7 = ne v5, v6
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v8 = shr 1, v4
+    v9 = or v4, v8
+    v10 = or v9, 1
+    v11 = clz v10
+    v12 = checked_sub u256, 255, v2
+    v13 = ne v11, v12
+    jumpi v13, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v14 = shr v2, v1
+    v15 = clz v14
+    v16 = ne v15, v2
+    jumpi v16, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    v17 = clz v4
+    v18 = xor 255, v17
+    v19 = eq v4, 0
+    v20 = zext i1 v19 to i256
+    v21 = mul 255, v20
+    v22 = xor v18, v21
+    v23 = ne v22, v2
+    jumpi v23, bb16, bb17
+  bb17:
+    jump bb18
+  bb18:
+    v24 = or v4, 1
+    v25 = clz v24
+    v26 = xor 255, v25
+    v27 = eq v24, 0
+    v28 = zext i1 v27 to i256
+    v29 = mul 255, v28
+    v30 = xor v26, v29
+    v31 = ne v30, v2
+    jumpi v31, bb19, bb20
+  bb20:
+    jump bb21
+  bb21:
+    v32 = sub 0, v4
+    v33 = and v4, v32
+    v34 = clz v33
+    v35 = xor 255, v34
+    v36 = eq v33, 0
+    v37 = zext i1 v36 to i256
+    v38 = mul 255, v37
+    v39 = xor v35, v38
+    v40 = ne v39, v2
+    jumpi v40, bb22, bb23
+  bb23:
+    jump bb24
+  bb24:
+    v41 = shl v2, v1
+    v42 = sub 0, v41
+    v43 = and v41, v42
+    v44 = clz v43
+    v45 = xor 255, v44
+    v46 = eq v43, 0
+    v47 = zext i1 v46 to i256
+    v48 = mul 255, v47
+    v49 = xor v45, v48
+    v50 = ne v49, v2
+    jumpi v50, bb25, bb26
+  bb26:
+    jump bb27
+  bb27:
+    v51 = or v4, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v52 = sub 0, v51
+    v53 = and v51, v52
+    v54 = clz v53
+    v55 = xor 255, v54
+    v56 = eq v53, 0
+    v57 = zext i1 v56 to i256
+    v58 = mul 255, v57
+    v59 = xor v55, v58
+    v60 = ne v59, v2
+    jumpi v60, bb28, bb29
+  bb29:
+    jump bb30
+  bb30:
+    v61 = shr v2, v1
+    v62 = icall @popCount, v61
+    v63 = checked_sub u256, 256, v2
+    v64 = ne v62, v63
+    jumpi v64, bb31, bb32
+  bb32:
+    jump bb33
+  bb33:
+    v65 = icall @popCount, v4
+    v66 = ne v65, 1
+    jumpi v66, bb34, bb35
+  bb35:
+    jump bb36
+  bb36:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v67 = checked_add u256, v2, 1
+    jump bb1
+  bb34:
+    ret false
+  bb31:
+    ret false
+  bb28:
+    ret false
+  bb25:
+    ret false
+  bb22:
+    ret false
+  bb19:
+    ret false
+  bb16:
+    ret false
+  bb13:
+    ret false
+  bb10:
+    ret false
+  bb7:
+    ret false
+}
+
+fn @leadingZeros(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: i8 128], [bb2: i8 0]
+    v2 = zext i8 v1 to i256
+    v3 = shr v2, arg0
+    v4 = gt v3, 0xffffffffffffffff
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v5 = phi [bb4: i8 64], [bb5: i8 0]
+    v6 = zext i8 v5 to i256
+    v7 = or v2, v6
+    v8 = shr v7, arg0
+    v9 = gt v8, 0xffffffff
+    jumpi v9, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb9
+  bb9:
+    v10 = phi [bb7: i8 32], [bb8: i8 0]
+    v11 = zext i8 v10 to i256
+    v12 = or v7, v11
+    v13 = shr v12, arg0
+    v14 = gt v13, 0xffff
+    jumpi v14, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    jump bb12
+  bb12:
+    v15 = phi [bb10: i8 16], [bb11: i8 0]
+    v16 = zext i8 v15 to i256
+    v17 = or v12, v16
+    v18 = shr v17, arg0
+    v19 = gt v18, 255
+    jumpi v19, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    jump bb15
+  bb15:
+    v20 = phi [bb13: i8 8], [bb14: i8 0]
+    v21 = zext i8 v20 to i256
+    v22 = or v17, v21
+    v23 = shr v22, arg0
+    v24 = shr v23, 0x8421084210842108cc6318c6db6d54be
+    v25 = and v24, 31
+    v26 = lt v25, 32
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = byte v25, 0xf8f9f9faf9fdfafbf9fdfcfdfafbfcfef9fafdfafcfcfbfefafafcfbffffffff
+    v29 = shl 248, v28
+    v30 = shr 248, v29
+    v31 = trunc i256 v30 to i8
+    v32 = zext i8 v31 to i256
+    v33 = xor v22, v32
+    v34 = eq arg0, 0
+    jumpi v34, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    jump bb18
+  bb18:
+    v35 = phi [bb16: i8 1], [bb17: i8 0]
+    v36 = zext i8 v35 to i256
+    v37 = add v33, v36
+    ret v37
+}
+
+fn @highestSetBit(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: i16 256], [bb2: i16 0]
+    v2 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v3 = phi [bb4: i8 128], [bb5: i8 0]
+    v4 = zext i8 v3 to i16
+    v5 = or v1, v4
+    v6 = zext i16 v5 to i256
+    v7 = shr v6, arg0
+    v8 = gt v7, 0xffffffffffffffff
+    jumpi v8, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb9
+  bb9:
+    v9 = phi [bb7: i8 64], [bb8: i8 0]
+    v10 = zext i8 v9 to i256
+    v11 = or v6, v10
+    v12 = shr v11, arg0
+    v13 = gt v12, 0xffffffff
+    jumpi v13, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    jump bb12
+  bb12:
+    v14 = phi [bb10: i8 32], [bb11: i8 0]
+    v15 = zext i8 v14 to i256
+    v16 = or v11, v15
+    v17 = shr v16, arg0
+    v18 = gt v17, 0xffff
+    jumpi v18, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    jump bb15
+  bb15:
+    v19 = phi [bb13: i8 16], [bb14: i8 0]
+    v20 = zext i8 v19 to i256
+    v21 = or v16, v20
+    v22 = shr v21, arg0
+    v23 = gt v22, 255
+    jumpi v23, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    jump bb18
+  bb18:
+    v24 = phi [bb16: i8 8], [bb17: i8 0]
+    v25 = zext i8 v24 to i256
+    v26 = or v21, v25
+    v27 = shr v26, arg0
+    v28 = shr v27, 0x8421084210842108cc6318c6db6d54be
+    v29 = and v28, 31
+    v30 = lt v29, 32
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = byte v29, 0x706060506020504060203020504030106050205030304010505030400000000
+    v33 = shl 248, v32
+    v34 = shr 248, v33
+    v35 = trunc i256 v34 to i8
+    v36 = zext i8 v35 to i256
+    v37 = or v26, v36
+    ret v37
+}
+
+fn @trailingZeros(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = sub 0, arg0
+    v1 = and arg0, v0
+    v2 = clz v1
+    v3 = xor 255, v2
+    v4 = eq v1, 0
+    v5 = zext i1 v4 to i256
+    v6 = mul 255, v5
+    v7 = xor v3, v6
+    ret v7
+}
+
+fn @popCount(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = and arg0, 1
+    v1 = shr 1, arg0
+    v2 = shr 1, v1
+    v3 = and v2, 0x5555555555555555555555555555555555555555555555555555555555555555
+    v4 = sub v1, v3
+    v5 = and v4, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v6 = shr 2, v4
+    v7 = and v6, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v8 = add v5, v7
+    v9 = shr 4, v8
+    v10 = add v8, v9
+    v11 = and v10, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v12 = mul v11, 0x101010101010101010101010101010101010101010101010101010101010101
+    v13 = shr 248, v12
+    v14 = add v13, v0
+    ret v14
+}

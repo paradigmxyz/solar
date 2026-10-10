@@ -191,7 +191,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
+fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, inline_assembly, pure] {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 36

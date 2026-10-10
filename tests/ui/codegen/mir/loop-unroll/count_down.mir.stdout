@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/count_down.sol:CountDown ===
 @module CountDown
-fn @countDown(arg0: i256) -> i256 [selector=0x3b396421, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @countDown(arg0: i256) -> i256 [selector=0x3b396421, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -47,7 +47,7 @@ fn @squaresDown(arg0: i256) -> i256 [selector=0x45ce5caf, pure, abi_params=[u256
     jump bb1
 }
 
-fn @stepDown(arg0: i256) -> i256 [selector=0x4e0372c8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @stepDown(arg0: i256) -> i256 [selector=0x4e0372c8, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -72,7 +72,7 @@ fn @stepDown(arg0: i256) -> i256 [selector=0x4e0372c8, pure, abi_params=[u256], 
     jump bb1
 }
 
-fn @downTo(arg0: i256, arg1: i256) -> i256 [selector=0x4930868e, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @downTo(arg0: i256, arg1: i256) -> i256 [selector=0x4930868e, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

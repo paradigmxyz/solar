@@ -171,14 +171,14 @@ fn @implicit_return_pointer(arg0: memptr) {
     returndata arg0, 32
 }
 
-//~? ERROR: [fn24] [bb0, inst0] ABI input location does not support its layout
+// A calldata slice of a dynamic tuple or of nested arrays is a view of its ABI
+// encoding, which the encoder copies from calldata.
 fn @dynamic_calldata_tuple(arg0: calldataslice) -> memoryslice {
   bb0:
     v0 = abi_encode [tuple<calldata_bytes>], args arg0
     ret v0
 }
 
-//~? ERROR: [fn25] [bb0, inst0] ABI input location does not support its layout
 fn @nested_calldata_array(arg0: calldataslice) -> memoryslice {
   bb0:
     v0 = abi_encode [calldata_array<calldata_array<word>>], args arg0
@@ -210,5 +210,12 @@ fn @mixed_width_compare(arg0: i16, arg1: i24) -> i1 {
 fn @wrong_result_annotation(arg0: i8, arg1: i8) -> i16 {
   bb0:
     v0: i16 = add arg0, arg1
+    ret v0
+}
+
+//~? ERROR: [fn30] [bb0, inst0] ABI input location does not support its layout
+fn @returndata_bytes_array(arg0: returndataslice) -> memoryslice {
+  bb0:
+    v0 = abi_encode [returndata_array<returndata_bytes>], args arg0
     ret v0
 }

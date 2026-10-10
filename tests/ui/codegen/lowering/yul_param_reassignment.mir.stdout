@@ -10,7 +10,7 @@ fn @indexOf.0(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [selector=0x86e2d6
     ret v0
 }
 
-fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
+fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = not 0
     v1 = ptrtoint memptr arg0 to i256

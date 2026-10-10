@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_loops.sol:PointerLoops ===
 @module PointerLoops
-fn @toHex(arg0: memptr) -> memptr [selector=0xc5bec6fc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @toHex(arg0: memptr) -> memptr [selector=0xc5bec6fc, inline_assembly, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
@@ -54,7 +54,7 @@ fn @toHex(arg0: memptr) -> memptr [selector=0xc5bec6fc, pure, abi_params=[bytes]
     jump bb1
 }
 
-fn @sumWords(arg0: memptr) -> i256 [selector=0x5a761098, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumWords(arg0: memptr) -> i256 [selector=0x5a761098, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
@@ -89,7 +89,7 @@ fn @sumWords(arg0: memptr) -> i256 [selector=0x5a761098, pure, abi_params=[array
     jump bb1
 }
 
-fn @stepThree(arg0: i256, arg1: i256) -> i256 [selector=0xbf2eba92, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @stepThree(arg0: i256, arg1: i256) -> i256 [selector=0xbf2eba92, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

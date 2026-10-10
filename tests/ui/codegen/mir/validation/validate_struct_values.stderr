@@ -44,10 +44,6 @@ error: [fn22] [bb0, inst0] `abi_encode` has incompatible scalar types; use an ex
 
 error: [fn23] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
 
-error: [fn24] [bb0, inst0] ABI input location does not support its layout
-
-error: [fn25] [bb0, inst0] ABI input location does not support its layout
-
 error: [fn26] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
 
 error: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
@@ -56,5 +52,7 @@ error: [fn28] [bb0, inst0] `eq` has incompatible scalar types; use an explicit c
 
 error: [fn29] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 29 previous errors
+error: [fn30] [bb0, inst0] ABI input location does not support its layout
+
+error: aborting due to 28 previous errors
 

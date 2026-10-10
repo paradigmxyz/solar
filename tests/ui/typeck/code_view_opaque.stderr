@@ -1,0 +1,58 @@
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return abi.decode(data, (Node)).children.length;
+   ╰╴                                 ━━━━ found `struct Test.Node memory`
+
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return abi.decode(data, (Tree)).children.length;
+   ╰╴                                 ━━━━ found `struct Test.Tree memory`
+
+error: a `CodeView` can only be made by `Code`
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return CodeView.wrap(word);
+   │                ━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: a view made from a word could hold a range nobody checked
+   ╰ help: use `Code.slice`
+
+error: the contents of a `CodeView` belong to `Code`
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return CodeView.unwrap(section);
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `Code.account`, `Code.offset` and `Code.length`
+
+error: a `CodeView` can only be made by `Code`
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         CodeView section = abi.decode(data, (CodeView));
+   │                                              ━━━━━━━━
+   │
+   ├ note: a decoded view could hold a range nobody checked
+   ╰ help: use `Code.slice`
+
+error: a `CodeView` can only be made by `Code`
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         Holder memory holder = abi.decode(data, (Holder));
+   │                                                  ━━━━━━
+   │
+   ├ note: a decoded view could hold a range nobody checked
+   ╰ help: use `Code.slice`
+
+error: a `CodeView` can only be made by `Code`
+   ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
+   │
+LL │         return abi.decode(data, (Tree)).children.length;
+   │                                  ━━━━
+   │
+   ├ note: a decoded view could hold a range nobody checked
+   ╰ help: use `Code.slice`
+
+error: aborting due to 7 previous errors
+

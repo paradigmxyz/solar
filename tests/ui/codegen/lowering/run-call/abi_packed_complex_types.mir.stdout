@@ -257,7 +257,7 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     ret v22
 }
 
-fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [word<u8>], scratch, args 2
     v1 = slice_ptr v0
@@ -266,7 +266,7 @@ fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_retur
     ret v3
 }
 
-fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @scalarCall() -> i256 [selector=0x6c091940, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas

@@ -36,7 +36,7 @@ fn @haltIndirect(arg0: i256, arg1: i1) {
     ret
 }
 
-fn @halt(arg0: i256, arg1: i1) {
+fn @halt(arg0: i256, arg1: i1) [inline_assembly] {
   bb0:
     jumpi arg1, bb1, bb2
   bb2:
@@ -57,7 +57,7 @@ fn @halt(arg0: i256, arg1: i1) {
     jump bb3
 }
 
-fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @changingSlot() -> i256 [selector=0xf8e62371, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

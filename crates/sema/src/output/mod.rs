@@ -2,9 +2,11 @@ use serde::Serialize;
 
 mod abi;
 mod natspec;
+mod safety;
 mod storage_layout;
 
 pub use natspec::{Documentation, DocumentationItem};
+pub use safety::SafetyOutput;
 pub use storage_layout::{
     StorageEncoding, StorageLayoutEntry, StorageLayoutMember, StorageLayoutOutput,
     StorageLayoutType,

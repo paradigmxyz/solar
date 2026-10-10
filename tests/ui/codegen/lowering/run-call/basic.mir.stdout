@@ -141,7 +141,7 @@ fn @pairInternal(arg0: i256) -> struct1 [pure] {
     ret v3
 }
 
-fn @fill(arg0: i256) -> memptr [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
+fn @fill(arg0: i256) -> memptr [selector=0x3fda5389, inline_assembly, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
   bb0:
     v0 = gt arg0, 4
     v1 = eq v0, false

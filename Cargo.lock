@@ -4784,10 +4784,15 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "solar-parse",
+ "solar-std",
  "strum 0.28.0",
  "thread_local",
  "tracing",
 ]
+
+[[package]]
+name = "solar-std"
+version = "0.2.0"
 
 [[package]]
 name = "solar-tester"

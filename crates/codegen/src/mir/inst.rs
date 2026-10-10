@@ -1206,13 +1206,21 @@ impl fmt::Display for InstKind {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ConcatPart {
     Bytes(ValueId),
-    Fixed { value: ValueId, size: super::TypeSize },
+    /// The bytes of a slice in memory or calldata, such as a `@custom:solar-view`.
+    Slice {
+        value: ValueId,
+        location: SliceLocation,
+    },
+    Fixed {
+        value: ValueId,
+        size: super::TypeSize,
+    },
 }
 
 impl ConcatPart {
     pub(crate) fn value(&self) -> ValueId {
         match *self {
-            Self::Bytes(value) | Self::Fixed { value, .. } => value,
+            Self::Bytes(value) | Self::Slice { value, .. } | Self::Fixed { value, .. } => value,
         }
     }
 }

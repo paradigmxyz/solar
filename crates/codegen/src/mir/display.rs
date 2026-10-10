@@ -313,6 +313,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.may_return_memory {
             write_function_attribute(f, &mut first, "may_return_memory")?;
         }
+        if func.attributes.inline_assembly {
+            write_function_attribute(f, &mut first, "inline_assembly")?;
+        }
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
         }
@@ -729,7 +732,22 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::AbiDecode { data, layout } => {
-            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))?;
+            // Every `bytes`, array, and struct value of the decode is a view of the data.
+            let views = match result_ty {
+                Some(MirType::Slice(_)) => true,
+                Some(MirType::Struct(id)) => module.is_some_and(|module| {
+                    module.struct_types[id]
+                        .fields
+                        .iter()
+                        .any(|field| matches!(field, MirType::Slice(_)))
+                }),
+                _ => false,
+            };
+            if views {
+                write!(f, ", views")?;
+            }
+            Ok(())
         }
         InstKind::StorageToMemory { storage, memory, layout } => write!(
             f,

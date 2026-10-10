@@ -81,7 +81,7 @@ fn @selectFalse(arg0: i1, arg1: i1) -> i1 [selector=0x9532bd85, pure, abi_params
     ret v0
 }
 
-fn @bothNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x4f851be3, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @bothNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x4f851be3, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
     v1 = zext i1 v0 to i256
@@ -95,7 +95,7 @@ fn @bothNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x4f851be3, pure, abi_
     ret v8
 }
 
-fn @eitherNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x980ee02c, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @eitherNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x980ee02c, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
     v1 = zext i1 v0 to i256
@@ -109,19 +109,19 @@ fn @eitherNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x980ee02c, pure, ab
     ret v8
 }
 
-fn @byteMask(arg0: i256) -> i256 [selector=0x7aeb5711, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @byteMask(arg0: i256) -> i256 [selector=0x7aeb5711, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = byte 31, arg0
     ret v0
 }
 
-fn @booleanBit(arg0: i256) -> i256 [selector=0xbe921bd1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @booleanBit(arg0: i256) -> i256 [selector=0xbe921bd1, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 1
     ret v0
 }
 
-fn @boolExtend(arg0: i256) -> i256 [selector=0xadfa22a9, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolExtend(arg0: i256) -> i256 [selector=0xadfa22a9, inline_assembly, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     v1 = zext i1 v0 to i256
@@ -204,7 +204,7 @@ fn @zeroSign(arg0: i256) -> i1 [selector=0x7e7e1169, pure, abi_params=[i256], ab
     ret v1
 }
 
-fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, inline_assembly, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
     v1 = zext i1 v0 to i256
@@ -216,7 +216,7 @@ fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, pure, abi_param
     ret v6
 }
 
-fn @boolAnd(arg0: i256, arg1: i256) -> i256 [selector=0xd2a614e6, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolAnd(arg0: i256, arg1: i256) -> i256 [selector=0xd2a614e6, inline_assembly, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
     v1 = zext i1 v0 to i256
@@ -323,7 +323,7 @@ fn @selectDistinct(arg0: i256, arg1: i256) -> i256 [selector=0x6da4b258, pure, a
     ret v1
 }
 
-fn @emptyCall(arg0: i256) -> i256 [selector=0x2f00bb41, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @emptyCall(arg0: i256) -> i256 [selector=0x2f00bb41, inline_assembly, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = staticcall v0, 4, arg0, 0, arg0, 0
@@ -331,30 +331,30 @@ fn @emptyCall(arg0: i256) -> i256 [selector=0x2f00bb41, view, abi_params=[u256],
     ret v2
 }
 
-fn @emptyHash(arg0: i256) -> i256 [selector=0x055e7154, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @emptyHash(arg0: i256) -> i256 [selector=0x055e7154, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256 arg0, 0
     ret v0
 }
 
-fn @emptyRevert(arg0: i256) [selector=0xf7cad58b, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @emptyRevert(arg0: i256) [selector=0xf7cad58b, inline_assembly, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     revert arg0, 0
 }
 
-fn @emptyLog(arg0: i256) [selector=0xade0865c, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @emptyLog(arg0: i256) [selector=0xade0865c, inline_assembly, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     log0 arg0, 0
     ret
 }
 
-fn @emptyCopy(arg0: i256) [selector=0xa8964271, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @emptyCopy(arg0: i256) [selector=0xa8964271, inline_assembly, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     calldatacopy arg0, arg0, 0
     ret
 }
 
-fn @emptyReturnCopy(arg0: i256) [selector=0xf7a3d452, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @emptyReturnCopy(arg0: i256) [selector=0xf7a3d452, inline_assembly, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     returndatacopy 0, arg0, 0 !metadata(memory=scratch)
     ret
@@ -388,7 +388,7 @@ fn @constantArms(arg0: i1) -> i256 [selector=0x3235250c, pure, abi_params=[bool]
     ret v2
 }
 
-fn @byteNibble(arg0: i256) -> i256 [selector=0x8b2910af, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @byteNibble(arg0: i256) -> i256 [selector=0x8b2910af, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = and v0, 15
@@ -412,7 +412,7 @@ fn @associateScale(arg0: i256, arg1: i256) -> i256 [selector=0xb62d0002, pure, a
     ret v2
 }
 
-fn @oppositeShifts(arg0: i256) -> i256 [selector=0xbd176740, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @oppositeShifts(arg0: i256) -> i256 [selector=0xbd176740, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 8, arg0
     v1 = shr 16, v0
@@ -451,14 +451,14 @@ fn @unsignedProduct(arg0: i128) -> i256 [selector=0xfb8ce99a, pure, abi_params=[
     ret v2
 }
 
-fn @signDiscard(arg0: i256) -> i256 [selector=0xb3802cbe, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @signDiscard(arg0: i256) -> i256 [selector=0xb3802cbe, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend 0, arg0
     v1 = shl 248, v0
     ret v1
 }
 
-fn @compareComposition(arg0: i256, arg1: i256) -> i256 [selector=0x34fce0f6, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareComposition(arg0: i256, arg1: i256) -> i256 [selector=0x34fce0f6, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, arg1
     v1 = zext i1 v0 to i256
@@ -482,7 +482,7 @@ fn @zeroSubtract(arg0: i256, arg1: i256) -> i256 [selector=0x7fd17438, pure, abi
     ret v2
 }
 
-fn @overflowingQuotient(arg0: i256) -> i256 [selector=0xd87f7bc1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @overflowingQuotient(arg0: i256) -> i256 [selector=0xd87f7bc1, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = div arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v1 = div v0, 2
@@ -497,7 +497,7 @@ fn @evenScale(arg0: i256, arg1: i256) -> i1 [selector=0x33b03690, pure, abi_para
     ret v2
 }
 
-fn @zeroDivisor(arg0: i256) -> i256 [selector=0xe073f44e, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @zeroDivisor(arg0: i256) -> i256 [selector=0xe073f44e, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = div arg0, 7
     v1 = div v0, 0
@@ -553,7 +553,7 @@ fn @xorIntersection(arg0: i256, arg1: i256) -> i256 [selector=0xe5393040, pure, 
     ret v2
 }
 
-fn @neutralLeft(arg0: i256) -> i256 [selector=0x43cf1c74, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @neutralLeft(arg0: i256) -> i256 [selector=0x43cf1c74, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mulmod 1, 5, arg0
     v1 = addmod 0, 5, arg0
@@ -561,7 +561,7 @@ fn @neutralLeft(arg0: i256) -> i256 [selector=0x43cf1c74, pure, abi_params=[u256
     ret v2
 }
 
-fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, arg1
     v1 = zext i1 v0 to i256
@@ -605,7 +605,7 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
     ret v38
 }
 
-fn @booleanZeroFlags(arg0: i256, arg1: i256) -> i256 [selector=0x0d2b8dbf, pure, abi_params=[bool, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @booleanZeroFlags(arg0: i256, arg1: i256) -> i256 [selector=0x0d2b8dbf, inline_assembly, pure, abi_params=[bool, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = eq v0, 0
@@ -637,7 +637,7 @@ fn @isZeroSignedAddress(arg0: i160) -> i1 [selector=0xd6e60996, pure, abi_params
     ret v1
 }
 
-fn @mixedSigns(arg0: i256, arg1: i256) -> i256 [selector=0x43adc8f7, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @mixedSigns(arg0: i256, arg1: i256) -> i256 [selector=0x43adc8f7, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slt arg1, arg0
     v1 = zext i1 v0 to i256
@@ -679,7 +679,7 @@ fn @undoBase(arg0: i256, arg1: i256) -> i256 [selector=0x589fd317, pure, abi_par
     ret v2
 }
 
-fn @comparisonComplements(arg0: i256, arg1: i256) -> i256 [selector=0xeb889202, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @comparisonComplements(arg0: i256, arg1: i256) -> i256 [selector=0xeb889202, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, arg1
     v1 = zext i1 v0 to i256

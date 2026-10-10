@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = calldataload 36
     v1 = shl 5, v0
@@ -15,7 +15,7 @@ fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_param
     ret v5
 }
 
-fn @highBuffer(arg0: i256, arg1: i256) -> struct0 [selector=0x7cd515d1, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @highBuffer(arg0: i256, arg1: i256) -> struct0 [selector=0x7cd515d1, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -49,7 +49,7 @@ fn @highBuffer(arg0: i256, arg1: i256) -> struct0 [selector=0x7cd515d1, pure, ab
     jump bb1
 }
 
-fn @f(arg0: i256) -> i256 {
+fn @f(arg0: i256) -> i256 [inline_assembly] {
   bb0:
     switch arg0, default bb3, [0 => bb2]
   bb2:

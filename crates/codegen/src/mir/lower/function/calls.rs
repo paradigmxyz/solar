@@ -513,9 +513,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && registry
                 .assembly_widens(self.cx.gcx, &InternalFunctionPointerShape::from_ty(function));
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function, from_assembly);
+        // The dispatcher calls every function the pointer can hold, so the modifier check follows
+        // the call into each of them.
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             self.builder.icall_void(dispatcher, values);
+            self.record_postlude_call(dispatcher, expr.span);
             return Some(CallResult::Void);
         }
         let return_types = function
@@ -527,6 +530,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         self.dirty_values.insert(result);
+        self.record_postlude_call(dispatcher, expr.span);
         Some(CallResult::Value(result))
     }
 
@@ -545,6 +549,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         };
         let function_id = self.resolve_call_target(expr, function_id);
+        // A pointer call passes objects, where a view parameter takes a slice.
+        let parameters = self.cx.gcx.hir.function(function_id).parameters.len();
+        if (0..parameters).any(|index| is_view_parameter(self.cx.gcx, function_id, index)) {
+            self.cx
+                .gcx
+                .dcx()
+                .err("a function with `@custom:solar-view` parameters cannot be used as a value")
+                .span(expr.span)
+                .help("call it directly, or remove the tag")
+                .emit();
+            // The reported error stops the compilation; the stand-in keeps lowering quiet.
+            return Some(self.builder.imm(U256::ZERO));
+        }
         self.cx.state.pointer_registry.targets.insert(function_id);
         Some(self.builder.imm(internal_function_pointer_id(function_id)))
     }
@@ -833,6 +850,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
         let function_id = self.resolve_call_target(callee, function_id);
+        // A compiler-owned module function is lowered directly, from either
+        // spelling: `Bytes.readBytes4(b, 0)` and `b.readBytes4(0)` resolve to
+        // the same declaration and reach the same operation.
+        if let Some(intrinsic) = self.core_intrinsic(function_id) {
+            return self
+                .lower_core_intrinsic_call(expr, intrinsic, function_id, attached_receiver, args)
+                .map(CallResult::Value);
+        }
         let function = self.cx.gcx.hir.function(function_id);
         if delegate_call {
             // result = delegatecall(library, function, args)
@@ -852,19 +877,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut values = Vec::with_capacity(function.parameters.len());
         if let Some(receiver) = attached_receiver {
             let parameter_ty = self.cx.gcx.type_of_item(function.parameters[0].into());
-            let value = if Self::is_storage_parameter(parameter_ty) {
-                let Some(access) = self.storage_access(receiver) else {
-                    return self.cx.report_unsupported(receiver.span, "storage access");
-                };
-                access.slot
+            let value = if is_view_parameter(self.cx.gcx, function_id, 0) {
+                self.lower_view_argument(receiver, parameter_ty)?
             } else {
-                self.lower_typed_expr(receiver, parameter_ty)?
+                let value = if Self::is_storage_parameter(parameter_ty) {
+                    let Some(access) = self.storage_access(receiver) else {
+                        return self.cx.report_unsupported(receiver.span, "storage access");
+                    };
+                    access.slot
+                } else {
+                    self.lower_typed_expr(receiver, parameter_ty)?
+                };
+                self.materialize_scalar_carrier(function.parameters[0], value, receiver.span)?
             };
-            values.push(self.materialize_scalar_carrier(
-                function.parameters[0],
-                value,
-                receiver.span,
-            )?);
+            values.push(value);
         }
         let arguments = self.lower_call_arguments(
             args,
@@ -876,8 +902,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             expr.span,
             "named function argument",
             |this, argument_index, argument| {
-                let parameter = function.parameters[argument_index + receiver_count];
+                let index = argument_index + receiver_count;
+                let parameter = function.parameters[index];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
+                if is_view_parameter(this.cx.gcx, function_id, index) {
+                    return this.lower_view_argument(argument, parameter_ty);
+                }
                 let value = if Self::is_storage_parameter(parameter_ty) {
                     let Some(access) = this.storage_access(argument) else {
                         return this.cx.report_unsupported(argument.span, "storage access");
@@ -893,12 +923,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
+        for (index, value) in values.iter_mut().enumerate() {
+            if is_view_parameter(self.cx.gcx, function_id, index) {
+                let parameter_ty = self.cx.gcx.type_of_item(function.parameters[index].into());
+                *value = self.view_argument(*value, parameter_ty);
+            }
+        }
+        let mir_id = self.view_callee(function_id, mir_id, &values);
         if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
             return Some(CallResult::Value(value));
         }
         if function.returns.is_empty() {
             // icall_void(function, call_args)
             self.builder.icall_void(mir_id, values);
+            self.record_postlude_call(mir_id, expr.span);
             return Some(CallResult::Void);
         }
         let return_types = function
@@ -910,6 +948,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
+        self.record_postlude_call(mir_id, expr.span);
         Some(CallResult::Value(result))
     }
 
