@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (before reorder-pushes) ===
 + // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (after reorder-pushes) ===
   @module MixedStack
+  @libraries
+    L_0: "a.sol:L"
+  
   bb0:
     push 1
 -   dup 1
@@ -11,7 +14,7 @@
     stop
   bb1 [stack=15]:
 -   dup 15
-    push_deferred 0
+    push_library L_0
 -   swap 1
 +   dup 16
     sub
@@ -45,6 +48,9 @@
 - // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (before peephole) ===
 + // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (after peephole) ===
   @module MixedStack
+  @libraries
+    L_0: "a.sol:L"
+  
   bb0:
     push 1
     push 10
@@ -52,7 +58,7 @@
     sub
     stop
   bb1 [stack=15]:
-    push_deferred 0
+    push_library L_0
     dup 16
     sub
     stop

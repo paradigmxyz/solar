@@ -32,7 +32,8 @@
   fn @addend_can_wrap(arg0: i256) -> i1 {
     bb0:
       v0 = and arg0, 255
-      v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+-     v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
++     v1 = sub v0, 128
       v2 = lt v1, v0
       ret v2
   }

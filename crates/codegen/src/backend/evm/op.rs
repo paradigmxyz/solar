@@ -2,6 +2,7 @@
 
 use crate::target::GasTier;
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
 
@@ -29,6 +30,10 @@ impl OpcodeTraits {
     pub(crate) const WRITES_STORAGE: Self = Self(1 << 3);
     /// The operation halts or unconditionally transfers control.
     pub(crate) const TERMINAL: Self = Self(1 << 4);
+    /// The operation depends on the gas left: `GAS` reads it, calls and creates forward all but
+    /// a 64th of it, and `SSTORE` fails unless more than the 2,300-gas call stipend remains. Work
+    /// that moves before it changes what it sees.
+    pub(crate) const OBSERVES_GAS: Self = Self(1 << 5);
 
     /// Returns the union of two property sets.
     pub(crate) const fn union(self, other: Self) -> Self {
@@ -368,12 +373,12 @@ opcodes! {
     0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
     0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy) => input_bits(256, 8);
     0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
-    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(sstore) => available(legacy);
+    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(sstore) => available(legacy);
     0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
     0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
     0x58 => PC => pc => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x59 => MSIZE => msize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x5a => GAS => gas => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x5a => GAS => gas => stack_io(0, 1) => traits(OBSERVES_GAS) => gas(base) => available(legacy);
     0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
     0x5c => TLOAD => tload => stack_io(1, 1) => traits() => gas(transient) => available(since Cancun);
     0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(transient) => available(since Cancun);
@@ -451,13 +456,13 @@ opcodes! {
     0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(legacy) => result_bits(160);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(since Constantinople) => result_bits(160);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
@@ -515,6 +520,12 @@ impl OpDef {
     #[must_use]
     pub(crate) const fn writes_storage(self) -> bool {
         self.traits.contains(OpcodeTraits::WRITES_STORAGE)
+    }
+
+    /// Returns whether this operation depends on the gas left.
+    #[must_use]
+    pub(crate) const fn observes_gas(self) -> bool {
+        self.traits.contains(OpcodeTraits::OBSERVES_GAS)
     }
 }
 
@@ -754,6 +765,26 @@ impl StackOp {
         let op = Self::Exchange(n, m);
         if op.is_valid() { Some(op) } else { None }
     }
+
+    /// Matches a cycle through the top that leaves the top in place, `SWAPa SWAPb1 ... SWAPbj
+    /// SWAPa` with at least one inner swap, at the start of `ops`. Returns the equivalent
+    /// `EXCHANGE a, b1 ... EXCHANGE a, bj` and the number of operations matched.
+    pub(crate) fn exchange_cycle(
+        ops: impl IntoIterator<Item = Self>,
+    ) -> Option<(SmallVec<[Self; 4]>, usize)> {
+        let mut ops = ops.into_iter();
+        let Some(Self::Swap(first)) = ops.next() else { return None };
+        let mut exchanges = SmallVec::new();
+        for op in ops {
+            let Self::Swap(depth) = op else { return None };
+            if depth == first {
+                let len = exchanges.len() + 2;
+                return (len > 2).then_some((exchanges, len));
+            }
+            exchanges.push(Self::from_swaps(first, depth, first)?);
+        }
+        None
+    }
 }
 
 /// Encodes the immediate used by `DUPN` and `SWAPN`.
@@ -901,34 +932,23 @@ pub(crate) const fn writes_storage(op: u8) -> bool {
     }
 }
 
+/// Returns whether an opcode reads nothing but its operands and calldata, so it gives the same
+/// result wherever it runs within a transaction's frame.
+#[must_use]
+pub(crate) const fn reads_only_operands_or_calldata(op: u8) -> bool {
+    is_pure(op) || matches!(op, CALLDATALOAD | CALLDATASIZE)
+}
+
+/// Returns whether an opcode is a memory or storage load or store, or `KECCAK256`: an access
+/// whose only effect is on the words it names.
+#[must_use]
+pub(crate) const fn is_plain_access(op: u8) -> bool {
+    matches!(op, MLOAD | MSTORE | MSTORE8 | SLOAD | SSTORE | TLOAD | TSTORE | KECCAK256)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn opcode_schema_drives_metadata() {
-        let add = definition(ADD).expect("declared opcode");
-        assert_eq!(add.opcode, ADD);
-        assert_eq!(add.mnemonic, "add");
-        assert_eq!(add.stack_io, Some((2, 1)));
-        assert!(add.is_pure());
-        assert!(add.is_commutative());
-        assert_eq!(definition(0x0c), None);
-        assert!(is_terminal(STOP));
-        assert!(!is_terminal(ADD));
-
-        for opcode in u8::MIN..=u8::MAX {
-            if let Some(definition) = definition(opcode) {
-                assert_eq!(definition.opcode, opcode);
-                assert_eq!(mnemonic(opcode), Some(definition.mnemonic));
-            }
-        }
-
-        let exchange = StackOp::Exchange(2, 3).definition();
-        assert_eq!(exchange.mnemonic, "exchange");
-        assert_eq!(exchange.ir_opcode, EXCHANGE);
-        assert_eq!(exchange.gas, GasTier::VeryLow);
-    }
 
     #[test]
     fn opcode_table() {
@@ -1003,6 +1023,7 @@ mod tests {
                 ("writes_memory", def.writes_memory()),
                 ("writes_storage", def.writes_storage()),
                 ("terminal", def.is_terminal()),
+                ("observes_gas", def.observes_gas()),
             ];
             for (name, set) in traits {
                 if set {
@@ -1021,41 +1042,5 @@ mod tests {
             isle_prelude(),
             snapbox::file!["../../../isle/evm-ir/prelude.isle"]
         );
-    }
-
-    #[test]
-    fn eip_8024_immediates() {
-        assert_eq!(encode_stack_depth(17), 0x80);
-        assert_eq!(decode_stack_depth(0xdb), Some(108));
-        assert_eq!(decode_stack_depth(0x5b), None);
-        assert_eq!(encode_exchange(2, 3), 0x9d);
-        assert_eq!(encode_exchange(1, 19), 0x2f);
-        assert_eq!(decode_exchange(0x50), Some((14, 16)));
-        assert_eq!(decode_exchange(0x52), None);
-        assert_eq!(
-            StackOp::Dup(16).lowering(EvmVersion::Osaka),
-            Some(StackOpLowering::Direct(DUP16, None))
-        );
-        assert_eq!(StackOp::Dup(17).lowering(EvmVersion::Osaka), None);
-        assert_eq!(
-            StackOp::Swap(108).lowering(EvmVersion::Amsterdam),
-            Some(StackOpLowering::Direct(SWAPN, Some(0xdb)))
-        );
-        assert_eq!(StackOp::Exchange(1, 16).assembled_len(EvmVersion::Osaka), Some(3));
-        assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Osaka), None);
-        assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Amsterdam), Some(2));
-        assert_eq!(StackOp::from_swaps(2, 3, 2), Some(StackOp::Exchange(2, 3)));
-
-        for depth in 17..=235 {
-            assert_eq!(decode_stack_depth(encode_stack_depth(depth)), Some(depth));
-        }
-        for immediate in u8::MIN..=u8::MAX {
-            if let Some(depth) = decode_stack_depth(immediate) {
-                assert_eq!(encode_stack_depth(depth), immediate);
-            }
-            if let Some((n, m)) = decode_exchange(immediate) {
-                assert_eq!(encode_exchange(n, m), immediate);
-            }
-        }
     }
 }

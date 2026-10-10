@@ -15,7 +15,7 @@ contract RuntimeCode {
     // CHECK: set_memory_object_len memorybytes, [[OBJECT]], [[LEN]]
     // CHECK: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[OBJECT]]
     // CHECK: [[TAIL:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 31, aligned
-    // CHECK: [[BASE:v[0-9]+]] = ptrtoint memorybytes [[OBJECT]] to i256
+    // CHECK: [[BASE:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
     // CHECK: [[TAIL_PTR:v[0-9]+]] = add [[BASE]], [[TAIL]]
     // CHECK: mstore [[TAIL_PTR]], 0
     // CHECK: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256

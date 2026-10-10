@@ -28,6 +28,15 @@
 //! loop that reads it; the late run hoists that base so a hot loop carries one word instead
 //! of reloading its argument and re-adding the header on every iteration.
 //!
+//! In gas mode, an unsigned checked product inside a loop whose factor `y` is defined before
+//! the loop, lowered as `y == 0 || (x * y) / y == x` or, with `y` first, as a check that
+//! divides by `x`, becomes `x <= MAX / y - (y == 0)`, with the bound computed once in the
+//! preheader. A nonzero `y` keeps the product below `2^256`
+//! exactly when `x <= MAX / y`. A zero `y` turns the bound into `0 - 1 = MAX`, which every
+//! `x` meets. Each iteration then compares instead of dividing. The check keeps its branch,
+//! which panics when the comparison fails: flipping the branch so the check could merge with
+//! the add overflow check after it made the loop carry more words, and it measured slower.
+//!
 //! ## Gas Savings
 //!
 //! This optimization is particularly important for EVM:
@@ -38,8 +47,8 @@
 //! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, Module, OpTraits,
-    StorageAlias, Terminator, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId,
+    InstKind, Instruction, MirType, Module, OpTraits, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
         LocationSize, Loop, LoopAnalyzer, ScalarEvolution,
@@ -191,6 +200,15 @@ impl LoopOptimizer {
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
+        if self.hoist_cheap {
+            for loop_data in &loops {
+                // The product's limit runs before the loop, so whatever in the loop checks the gas
+                // left would see what the limit cost before the first check paid for it.
+                if !self.loop_checks_gas_left(func, loop_data) {
+                    self.stats.instructions_hoisted += reduce_product_checks(func, loop_data);
+                }
+            }
+        }
         let inst_blocks = func.inst_block_table();
         let mut carried = loops
             .iter()
@@ -471,7 +489,7 @@ impl LoopOptimizer {
             // header. Element, byte, and word stores address the payload that
             // follows the header, so alias analysis can prove the loop leaves
             // the length alone while the object identity is still explicit.
-            // Nominal object types do not prove that the header is allocated.
+            // An object layout does not prove that the header is allocated.
             // As with raw loads, require execution on every path through the loop.
             InstKind::MemoryObjectLen(..) => {
                 return !self.function_observes_msize(func)
@@ -710,6 +728,20 @@ impl LoopOptimizer {
             }
         }
         false
+    }
+
+    /// Whether the loop checks the gas left: a `gas` reading or a call that observes it, or a
+    /// persistent storage write, which fails when its sentry finds 2300 gas or less.
+    fn loop_checks_gas_left(&self, func: &Function, loop_data: &Loop) -> bool {
+        let aa = self.alias();
+        loop_data.blocks.iter().any(|block_id| {
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                let mod_ref = aa.instruction_mod_ref(func, inst_id);
+                func.inst(inst_id).kind.observes_gas()
+                    || mod_ref.observes_gas()
+                    || mod_ref.writes_space(AddressSpace::Storage)
+            })
+        })
     }
 
     fn inst_dominates_loop_backedges(
@@ -1147,4 +1179,93 @@ impl LoopOptimizer {
 
 fn u256_to_i128(value: U256) -> Option<i128> {
     if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
+}
+
+/// Rewrites each check of a product `x * y` with a factor `y` defined before the loop, lowered as
+/// `d == 0 || (x * y) / d == q` for either order of the factors, into `x <= MAX / y - (y == 0)`,
+/// computing the bound once in the preheader. Returns the number of checks rewritten.
+fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
+    let Some(preheader) = loop_data.preheader else { return 0 };
+    let inst_blocks = func.inst_block_table();
+    let outside = |func: &Function, value: ValueId| match *func.value(value) {
+        Value::Arg(_) => true,
+        Value::Inst(inst) => {
+            inst_blocks.get(inst).copied().flatten().is_some_and(|b| !loop_data.blocks.contains(b))
+        }
+        _ => false,
+    };
+    let mut checks = Vec::new();
+    for block in loop_data.blocks.iter() {
+        for &inst in &func.blocks[block].instructions {
+            let InstKind::Or(a, b) = func.inst(inst).kind else { continue };
+            let Some((divisor, other, zero)) =
+                product_check(func, a, b).or_else(|| product_check(func, b, a))
+            else {
+                continue;
+            };
+            // Overflow does not depend on which factor the check divides by.
+            if outside(func, divisor) {
+                checks.push((block, inst, other, divisor, Some(zero)));
+            } else if outside(func, other) {
+                checks.push((block, inst, divisor, other, None));
+            }
+        }
+    }
+    let mut limits = FxHashMap::default();
+    for &(block, inst, x, y, zero) in &checks {
+        let context = func.inst(inst).metadata.debug_context();
+        let limit = *limits.entry(y).or_insert_with(|| {
+            // preheader: zero = eq y, 0
+            //            limit = sub (div MAX, y), (zext zero)
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(preheader);
+            builder.set_debug_context(&context);
+            let zero = match zero {
+                Some(zero) if outside(builder.func(), zero) => zero,
+                _ => builder.eq_zero(y),
+            };
+            let max = builder.imm(U256::MAX);
+            let quotient = builder.div(max, y);
+            let wide = builder.cast(zero, MirType::I256);
+            builder.sub(quotient, wide)
+        });
+        // overflows = gt x, limit
+        let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
+        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
+        let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
+        let position = position.expect("the check is in its block");
+        func.blocks[block].instructions.insert(position, overflows_inst);
+        // valid = eq overflows, 0
+        let zero = func.alloc_value(Value::Immediate(Immediate::I1(false)));
+        func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
+    }
+    checks.len()
+}
+
+/// Matches `d == 0` and `(x * y) / d == q`, where `d` and `q` are the factors `x` and `y` in
+/// either order, as the two operands of a product's check, returning `d`, `q`, and the zero test.
+fn product_check(
+    func: &Function,
+    zero_test: ValueId,
+    exact: ValueId,
+) -> Option<(ValueId, ValueId, ValueId)> {
+    let def = |value: ValueId| match *func.value(value) {
+        Value::Inst(inst) => Some(&func.inst(inst).kind),
+        _ => None,
+    };
+    let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
+    let divisor = match (func.value_u256(l), func.value_u256(r)) {
+        (None, Some(zero)) if zero.is_zero() => l,
+        (Some(zero), None) if zero.is_zero() => r,
+        _ => return None,
+    };
+    let InstKind::Eq(l, r) = *def(exact)? else { return None };
+    [(l, r), (r, l)].into_iter().find_map(|(quotient, other)| {
+        let &InstKind::Div(product, by) = def(quotient)? else { return None };
+        let &InstKind::Mul(a, b) = def(product)? else { return None };
+        let factors = (a == other && b == divisor) || (a == divisor && b == other);
+        let words = [divisor, other].iter().all(|&v| func.value_ty(v) == Some(MirType::I256));
+        (by == divisor && factors && words).then_some((divisor, other, zero_test))
+    })
 }

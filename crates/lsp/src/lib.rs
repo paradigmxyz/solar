@@ -308,6 +308,7 @@ fn resolve_foundry_workspace_paths(root: &Path, paths: Vec<PathBuf>) -> Vec<Path
     paths.into_iter().map(|path| root.join(path).normalize()).collect()
 }
 
+mod builtin_symbols;
 mod call_hierarchy;
 mod code_actions;
 mod code_lens;

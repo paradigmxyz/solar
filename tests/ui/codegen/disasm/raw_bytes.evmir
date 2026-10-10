@@ -1,0 +1,19 @@
+//@ revisions: amsterdam osaka shanghai berlin
+//@[amsterdam] compile-flags: -Zevm-ir-pipeline=default -O none --evm-version amsterdam -Zdump=disasm-runtime
+//@[osaka] compile-flags: -Zevm-ir-pipeline=default -O none --evm-version osaka -Zdump=disasm-runtime
+//@[shanghai] compile-flags: -Zevm-ir-pipeline=default -O none --evm-version shanghai -Zdump=disasm-runtime
+//@[berlin] compile-flags: -Zevm-ir-pipeline=default -O none --evm-version berlin -Zdump=disasm-runtime
+
+// The jump lands on raw bytes appended after the code, so the disassembler
+// decodes them under each fork's rules. Amsterdam decodes the EIP-8024 stack
+// immediates and flags bad ones; the last `EXCHANGE` has no immediate byte, so
+// it reads zero. Older forks print these opcodes as unknown. Before Shanghai,
+// `PUSH0` is unknown, so the walk stops there and leaves the second `JUMPDEST`
+// without a label. Before Paris, 0x44 is `DIFFICULTY`.
+@module raw_bytes
+@data
+  literal_0: hex"5b5f5b44e680e7dbe89de75be8524be8"
+
+bb0:
+  push_data literal_0
+  jump

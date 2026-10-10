@@ -8,12 +8,13 @@ library Lib {
 }
 
 contract C {
-    // Linked-library calls return through DELEGATECALL. Lowering decodes the
-    // returned words before tuple extraction.
+    // Linked-library calls return through DELEGATECALL into the input area.
+    // Lowering loads the returned words before tuple extraction.
     // CHECK-LABEL: fn @pair{{[( ]}}
-    // CHECK: delegatecall
-    // CHECK: icall returndata_bytes<>
-    // CHECK: [[PAIR:v[0-9]+]] = abi_decode [u256, u256]
+    // CHECK: [[INPUT:v[0-9]+]] = slice_ptr
+    // CHECK: delegatecall {{v[0-9]+}}, {{.*}}, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
+    // CHECK-NOT: returndata_bytes
+    // CHECK: [[PAIR:v[0-9]+]] = insert_value {{struct[0-9]+}}, {{v[0-9]+}}, 1
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 1
     function pair() external pure returns (uint256, uint256) {

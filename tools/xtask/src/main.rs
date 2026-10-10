@@ -55,17 +55,21 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            let mut cmd =
-                if bless { cmd!(sh, "cargo test") } else { cmd!(sh, "cargo nextest run") };
+            // nextest treats arguments after `--` as test-name filters, which match nothing in
+            // the single `ui_test` harness test, so filtered runs go to the harness directly.
+            let mode = test_name.as_deref().and_then(tester_mode);
+            let mut cmd = if bless || (mode.is_some() && !rest.is_empty()) {
+                cmd!(sh, "cargo test")
+            } else {
+                cmd!(sh, "cargo nextest run")
+            };
             if bless && test_name.is_none() {
                 cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", "ui");
             }
-            if let Some(t) = test_name {
-                if let Some(mode) = tester_mode(&t) {
-                    cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);
-                } else {
-                    cmd = cmd.arg(t);
-                }
+            if let Some(mode) = mode {
+                cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);
+            } else if let Some(t) = &test_name {
+                cmd = cmd.arg(t);
             }
             cmd = cmd.arg("--");
             if bless {

@@ -21,12 +21,12 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb9 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
+bb8 [cold]:
   push 17
   push 32
+  mstore
+  push 0x4e487b71
+  push 0
   mstore
   push 36
   push 28
@@ -42,9 +42,10 @@ bb1:
   lt
   push bb3
   jumpi
-  push 1
   push 4
   calldataload
+  push 1
+  dup 2
   add
   dup 1
   sload
@@ -55,13 +56,12 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb9
+  push bb8
   jumpi
   dup 1
   swap 2
   sstore
-  push 4
-  calldataload
+  swap 1
   sload
   push 0
   not
@@ -74,16 +74,16 @@ bb1:
   swap 2
   dup 3
   lt
-  push bb9
-  jumpi
+  swap 1
   push 128
   shr
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb9
+  or
+  push bb8
   jumpi
   push 128
   mstore

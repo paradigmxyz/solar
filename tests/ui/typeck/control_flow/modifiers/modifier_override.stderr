@@ -1,0 +1,17 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/modifiers/modifier_override.sol:LL:CC
+   │
+LL │       function f() mod internal returns (uint[] storage) {
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/modifiers/modifier_override.sol:LL:CC
+   │
+LL │     function f() mod internal returns (uint[] storage) {
+   ╰╴                                       ━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error; 1 warning emitted
+

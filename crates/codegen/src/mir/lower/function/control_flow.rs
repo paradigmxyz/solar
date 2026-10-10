@@ -48,8 +48,8 @@ struct TryTarget<'a, 'gcx> {
     return_types: Vec<Ty<'gcx>>,
     /// Parameter names for named-argument resolution.
     parameter_names: Option<CallableParamNames>,
-    /// Whether the call must use STATICCALL.
-    static_call: bool,
+    /// The call opcode; unused for a contract creation.
+    kind: AddressCallKind,
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -145,6 +145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
+        let selector = self.builder.cast_word(selector);
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
         let merge_block = self.builder.create_block();
@@ -231,12 +232,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .collect(),
                 return_types: Vec::new(),
                 parameter_names: Some(parameter_names),
-                static_call: false,
+                kind: AddressCallKind::Call,
             }
-        } else if let ExprKind::Member(receiver, _) = callee.kind {
-            let Some(function_id) = self.cx.gcx.resolved_function(callee) else {
-                return self.cx.report_unsupported(try_stmt.expr.span, "try target");
-            };
+        } else if let ExprKind::Member(receiver, _) = callee.kind
+            && let Some(function_id) = self.cx.gcx.resolved_function(callee)
+        {
             let function = self.cx.gcx.hir.function(function_id);
             let is_external_library = function.contract.is_some_and(|contract| {
                 self.cx.gcx.hir.contract(contract).kind == hir::ContractKind::Library
@@ -244,7 +244,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 function.visibility,
                 hir::Visibility::Public | hir::Visibility::External
             );
-            let (callee, parameter_types, parameter_names, static_call) = if is_external_library {
+            let (callee, parameter_types, parameter_names, kind) = if is_external_library {
                 let address = self.library_address(function_id);
                 let attached =
                     self.cx.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
@@ -264,7 +264,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .call_param_source(callee)
                         .map(|source| self.cx.gcx.callable_param_names(source)),
-                    false,
+                    AddressCallKind::Delegate,
                 )
             } else {
                 (
@@ -281,7 +281,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         id: function_id,
                         skips_receiver: false,
                     })),
-                    self.uses_static_call(function.state_mutability),
+                    self.external_call_kind(function.state_mutability),
                 )
             };
             TryTarget {
@@ -293,7 +293,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .map(|&return_id| self.cx.gcx.type_of_item(return_id.into()))
                     .collect(),
                 parameter_names,
-                static_call,
+                kind,
             }
         } else if let Some(TyKind::Fn(function)) =
             self.cx.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -307,7 +307,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parameter_types: function.parameters.to_vec(),
                 return_types: function.returns.to_vec(),
                 parameter_names: None,
-                static_call: self.uses_static_call(function.state_mutability),
+                kind: self.external_call_kind(function.state_mutability),
             }
         } else {
             return self.cx.report_unsupported(try_stmt.expr.span, "try target");
@@ -370,6 +370,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let return_types = self.external_return_types(&target.return_types);
 
+        // Several return words come back over the input area and may reach past it into free
+        // memory, so the defaults are allocated before the call rather than over its output.
+        self.materialize_default_bindings();
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
@@ -387,7 +390,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
                     let capacity = args.len() + usize::from(receiver.is_some());
@@ -430,52 +432,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            // buffer = alloc_overlay_return_buffer(returns)
-            // input = abi_encode(selector, args)
-            let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
-            // mstore(add(fmp(), ret_size), 0)
-            self.touch_call_output_area(options.gas, &return_types, overlay_buffer.is_some());
-            let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-            let encoded =
-                self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-            let input = self.builder.slice_ptr(encoded);
-            let input_size = self.builder.slice_len(encoded);
-            // From Byzantium on the return values come out of the return data, which the catch
-            // clauses need anyway; before it the call writes them into an output area overlaying
-            // its input and the success path reads them back from there.
-            // ret_offset, ret_size = plan_return_buffer(returns)
-            let ret_plan = (!supports_returndata)
-                .then(|| self.plan_return_buffer(input, zero, &return_types, overlay_buffer));
-            let (ret_offset, ret_size) = match &ret_plan {
-                Some(plan) => plan.output_area(),
-                None => (zero, self.builder.imm(0)),
-            };
-            if self.needs_code_check(return_types.len()) {
-                self.revert_if_no_code(address);
-            }
-            // The code check above is emitted at every version that needs the reserve, so the
-            // call cannot create the callee's account.
-            // gas = gas() | sub(gas(), reserve)
-            let gas = self.call_gas(options.gas, options.value_set, false);
-            // ok = delegatecall|staticcall|call(gas, address, input, ret_offset, ret_size)
-            let success = match target.callee {
-                TryCallee::LinkedLibrary { .. } => {
-                    self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
-                }
-                _ if target.static_call => {
-                    self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
-                }
-                _ => self
-                    .builder
-                    .call(gas, address, call_value, input, input_size, ret_offset, ret_size),
-            };
-            (success, None, ret_plan)
+            // ok = delegatecall|staticcall|call(address, selector, args)
+            let (success, ret_plan) = self.emit_external_call(
+                target.kind,
+                address,
+                selector,
+                (values, types),
+                &return_types,
+                Some(options),
+            );
+            (success, None, Some(ret_plan))
         };
 
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
-        self.materialize_default_bindings();
         let before = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         // branch(ok, success, catch)
@@ -487,23 +458,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(value) = creation_value else {
                 return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             };
+            let value = self.materialize_raw_scalar(binding, value);
             self.values.insert(binding, value);
-        } else if !return_types.is_empty() {
-            let values = if let Some(plan) = ret_plan {
-                // success.returns = load_words(ret_offset) | abi_decode(buffer)
-                self.finish_external_call(
-                    plan,
-                    &return_types,
-                    returns_clause.span,
-                    ExternalReturnMode::All,
-                    "codegen cannot decode try/catch returndata before Byzantium",
-                )?
-            } else {
-                // success.returns = abi_decode(returndata)
-                let data = self.materialize_returndata_bytes();
-                self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
-            };
+        } else if let Some(plan) = ret_plan {
+            // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
+            let values = self.finish_external_call(
+                plan,
+                &return_types,
+                returns_clause.span,
+                ExternalReturnMode::All,
+                "codegen cannot decode try/catch returndata before Byzantium",
+            )?;
             for (&binding, value) in returns_clause.args.iter().zip(values) {
+                let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
             }
         }
@@ -651,7 +618,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Lit(lit) = expr.peel_parens().kind {
             return self.lower_word_literal(lit);
         }
-        self.lower_expr(expr)
+        let value = self.lower_expr(expr)?;
+        let ty = self
+            .cx
+            .gcx
+            .resolved_variable(expr)
+            .map(|id| self.cx.gcx.type_of_item(id.into()))
+            .or_else(|| self.cx.gcx.type_of_expr(expr.id));
+        Some(if let Some(ty) = ty {
+            raw_scalars::cast_carrier(
+                &mut self.builder,
+                value,
+                types::TypeLowerer::value_layout(ty),
+                MirType::I256,
+            )
+        } else {
+            self.builder.cast_word(value)
+        })
     }
 
     pub(super) fn merge_storage_refs(
@@ -661,10 +644,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = before;
-        let ids = merged.keys().copied().collect::<Vec<_>>();
+        let mut ids = merged
+            .keys()
+            .chain(then_branch.values.keys())
+            .chain(else_branch.values.keys())
+            .copied()
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
+            if (!then_branch.terminated && then.is_none())
+                || (!else_branch.terminated && else_.is_none())
+            {
+                continue;
+            }
             let mut incoming = Vec::with_capacity(2);
             if !then_branch.terminated
                 && let Some(access) = then
@@ -689,13 +684,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
     ) -> Option<ValueId> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
         let condition = self.lower_expr(condition)?;
-        let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
-        let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
-        let ty = then_ty.common_type(else_ty, self.cx.gcx)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -706,22 +699,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
             _ if then_branch.value == else_branch.value => Some(then_branch.value),
-            _ => Some(self.merge_value_phi(vec![
-                (then_branch.block, then_branch.value),
-                (else_branch.block, else_branch.value),
-            ])),
+            _ => Some(self.merge_ternary_phi(
+                vec![
+                    (then_branch.block, then_branch.value),
+                    (else_branch.block, else_branch.value),
+                ],
+                ty,
+            )),
         }
     }
 
-    fn lower_ternary_value(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<ValueId> {
+    fn merge_ternary_phi(
+        &mut self,
+        mut incoming: Vec<(BlockId, ValueId)>,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        let layout = types::TypeLowerer::value_layout(ty);
+        if matches!(layout, crate::mir::ValueLayout::Int(_))
+            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value))
+        {
+            let current = self.builder.current_block();
+            for (block, value) in &mut incoming {
+                self.builder.switch_to_block(*block);
+                let dirty = self.dirty_values.contains(value);
+                *value =
+                    raw_scalars::cast_carrier(&mut self.builder, *value, layout, MirType::I256);
+                if dirty {
+                    self.dirty_values.insert(*value);
+                }
+            }
+            self.builder.switch_to_block(current);
+        }
+        self.merge_value_phi(incoming)
+    }
+
+    pub(super) fn lower_ternary_value(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
-        let value = self.lower_expr(expr)?;
-        let value = if ty.is_ref_at(DataLocation::Memory) {
-            self.materialize_memory_argument(ty, value, expr.span)?
-        } else {
-            value
-        };
-        Some(self.coerce_value(value, source_ty, ty))
+        let value = self.lower_component(expr)?;
+        self.convert_tuple_component(value, source_ty, ty, expr.span)
     }
 
     pub(super) fn lower_logical(
@@ -759,14 +778,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
     ) -> Option<Vec<ValueId>> {
+        let TyKind::Tuple(types) = ty.kind else {
+            return self
+                .lower_ternary(condition, then_expr, else_expr, ty)
+                .map(|value| vec![value]);
+        };
         let condition = self.lower_expr(condition)?;
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
-            |this| this.lower_values(then_expr),
-            |this| this.lower_values(else_expr),
+            |this| this.lower_ternary_components(then_expr, types),
+            |this| this.lower_ternary_components(else_expr, types),
         )?;
         if !then_branch.terminated
             && !else_branch.terminated
@@ -783,19 +808,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .value
                 .into_iter()
                 .zip(else_branch.value)
-                .map(|(then, else_)| {
+                .zip(types)
+                .map(|((then, else_), &ty)| {
                     if then == else_ {
                         then
                     } else {
-                        self.merge_value_phi(vec![
-                            (then_branch.block, then),
-                            (else_branch.block, else_),
-                        ])
+                        self.merge_ternary_phi(
+                            vec![(then_branch.block, then), (else_branch.block, else_)],
+                            ty,
+                        )
                     }
                 })
                 .collect(),
         };
         Some(values)
+    }
+
+    fn lower_ternary_components(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        types: &[Ty<'gcx>],
+    ) -> Option<Vec<ValueId>> {
+        let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
+            return None;
+        };
+        self.lower_values(expr)?
+            .into_iter()
+            .zip(sources)
+            .zip(types)
+            .map(|((value, &source), &target)| {
+                self.convert_tuple_component(value, source, target, expr.span)
+            })
+            .collect()
     }
 
     pub(super) fn lower_loop(
@@ -833,6 +877,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
         for (&id, &value) in &before_values {
+            let value = if self.cx.state.raw_scalars.contains(&id)
+                && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+            {
+                self.builder.switch_to_block(preheader);
+                let value = self.materialize_raw_scalar(id, value);
+                self.builder.switch_to_block(header);
+                value
+            } else {
+                value
+            };
             let phi = self.merge_value_phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
@@ -1093,15 +1147,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        // Source bindings may acquire raw bits through assembly on a backedge.
-        // Preserve those bits even when the initial incoming value is i1 or i160.
-        let ty = incoming
-            .first()
-            .and_then(|(_, value)| self.builder.func().value_ty(*value))
-            .map(|ty| if matches!(ty, MirType::I1 | MirType::I160) { MirType::I256 } else { ty })
-            .unwrap_or(MirType::I256);
-        // value = phi [predecessor: cast incoming to the source carrier type, ...]
-        let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));
+        let value = if dirty {
+            // Preserve native widths; raw assembly carriers already use i256.
+            self.builder.phi(incoming)
+        } else {
+            let ty = incoming
+                .first()
+                .and_then(|(_, value)| self.builder.func().value_ty(*value))
+                .unwrap_or(MirType::I256);
+            self.builder.emit_inst(InstKind::Phi(incoming), Some(ty))
+        };
         if dirty {
             self.dirty_values.insert(value);
         }
@@ -1113,9 +1168,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.extend(states.iter().flat_map(|state| state.storage_refs.keys().copied()));
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let fallback = before.get(&id).copied();
+            if fallback.is_none()
+                && states.iter().any(|state| !state.storage_refs.contains_key(&id))
+            {
+                continue;
+            }
             let incoming = states
                 .iter()
                 .filter_map(|state| {

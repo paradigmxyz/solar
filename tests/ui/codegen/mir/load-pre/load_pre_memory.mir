@@ -180,7 +180,7 @@ fn @msize_blocks_memory(arg0: i1) -> i256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memorybytes) -> i256 {
+fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memptr) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -204,7 +204,7 @@ fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memorybytes) -> i256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @default_gas_call_blocks_reload(arg0: i1, arg1: memorybytes) -> i256 {
+fn @default_gas_call_blocks_reload(arg0: i1, arg1: memptr) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -228,7 +228,7 @@ fn @default_gas_call_blocks_reload(arg0: i1, arg1: memorybytes) -> i256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memorybytes) -> i256 {
+fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memptr) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

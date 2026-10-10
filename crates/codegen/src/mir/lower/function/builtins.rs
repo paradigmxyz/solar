@@ -11,21 +11,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
-    ) -> Option<ValueId> {
+        capture_value: bool,
+    ) -> Option<CallResult> {
         match builtin {
             Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
                 // result = address_call(receiver, args, opts)
                 let ExprKind::Member(receiver, _) = callee.kind else {
                     return self.cx.report_unsupported(callee.span, "address call");
                 };
-                return self.lower_address_call(
-                    callee.span,
-                    receiver,
-                    builtin,
-                    args,
-                    call_opts,
-                    false,
-                );
+                return self
+                    .lower_address_call(callee.span, receiver, builtin, args, call_opts, false)
+                    .map(CallResult::Value);
             }
             Builtin::AddressPayableSend | Builtin::AddressPayableTransfer => {
                 // result = payable_address_call(receiver, args)
@@ -36,25 +32,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::ArrayPush => {
                 // result = storage_array_push(receiver, value)
-                let result = self.builtin_args::<1>(builtin, &args).and_then(|arguments| {
-                    self.lower_storage_array_push(expr, callee, arguments.first())
+                return self.builtin_args::<1>(builtin, &args).and_then(|arguments| {
+                    self.lower_storage_array_push(expr, callee, arguments.first(), capture_value)
                 });
-                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             Builtin::ArrayPush0 => {
                 // result = storage_array_push(receiver)
-                let result = self
-                    .builtin_args::<0>(builtin, &args)
-                    .and_then(|_| self.lower_storage_array_push(expr, callee, None));
-                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
+                return self.builtin_args::<0>(builtin, &args).and_then(|_| {
+                    self.lower_storage_array_push(expr, callee, None, capture_value)
+                });
             }
             Builtin::ArrayPop => {
                 // storage_array_pop(receiver)
-                let result = self
+                return self
                     .builtin_args::<0>(builtin, &args)
-                    .and_then(|_| self.lower_storage_array_pop(expr, callee));
-                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
+                    .and_then(|_| self.lower_storage_array_pop(expr, callee))
+                    .map(|()| CallResult::Void);
             }
+            Builtin::AbiDecode => return self.lower_abi_decode(args),
             _ => {}
         }
 
@@ -80,21 +75,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = lower_builtin((yul | solidity), (void | value), args)
         match (is_yul, is_void) {
             (true, true) => {
-                let _ = self.lower_yul_unit_builtin_call(builtin, args);
-                Some(self.builder.imm(U256::ZERO))
+                self.lower_yul_unit_builtin_call(builtin, args).map(|()| CallResult::Void)
             }
-            (true, false) => Some(
-                self.lower_yul_value_builtin_call(builtin, args)
-                    .unwrap_or_else(|| self.builder.imm(U256::ZERO)),
-            ),
+            (true, false) => {
+                self.lower_yul_value_builtin_call(builtin, args).map(CallResult::Value)
+            }
             (false, true) => {
-                let _ = self.lower_solidity_unit_builtin_call(builtin, args);
-                Some(self.builder.imm(U256::ZERO))
+                self.lower_solidity_unit_builtin_call(builtin, args).map(|()| CallResult::Void)
             }
-            (false, false) => Some(
-                self.lower_solidity_value_builtin_call(expr, builtin, args)
-                    .unwrap_or_else(|| self.builder.imm(U256::ZERO)),
-            ),
+            (false, false) => {
+                self.lower_solidity_value_builtin_call(expr, builtin, args).map(CallResult::Value)
+            }
         }
     }
 
@@ -168,7 +159,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         builtin: Builtin,
         args: hir::CallArgs<'_>,
-    ) -> Option<ValueId> {
+    ) -> Option<CallResult> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_typed_expr(amount, self.cx.gcx.types.uint(256))?;
@@ -176,11 +167,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::AddressPayableTransfer => {
                 // transfer(address, amount)
                 self.builder.transfer(address, amount);
-                Some(self.builder.imm(U256::ZERO))
+                Some(CallResult::Void)
             }
             Builtin::AddressPayableSend => {
                 // success = send(address, amount)
-                Some(self.builder.send(address, amount))
+                Some(CallResult::Value(self.builder.send(address, amount)))
             }
             _ => unreachable!(),
         }
@@ -240,15 +231,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let receiver = self.lower_expr(receiver)?;
                 Some(self.builder.balance(receiver))
-            }
-            Builtin::ArrayPop => {
-                let ExprKind::Member(receiver, _) = &expr.kind else {
-                    return self.cx.report_unsupported(expr.span, "array pop");
-                };
-                if self.storage_access(receiver).is_none() {
-                    return self.cx.report_unsupported(receiver.span, "storage access");
-                }
-                Some(self.builder.imm(U256::ZERO))
             }
             Builtin::ContractCreationCode
             | Builtin::ContractRuntimeCode
@@ -334,7 +316,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match item {
                     Some(item) => {
                         // selector = selector(item) << 224
-                        self.lower_selector_receiver_effects(receiver)?;
+                        self.lower_discarded_expr(receiver)?;
                         let selector = self.cx.gcx.function_selector(item).0;
                         Some(self.builder.imm(U256::from_be_slice(&selector) << 224))
                     }
@@ -458,23 +440,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::TxOrigin => Some(self.builder.origin()),
             Builtin::TxGasPrice => Some(self.builder.gasprice()),
             _ => self.cx.report_unsupported(expr.span, "environment builtin"),
-        }
-    }
-
-    pub(super) fn lower_selector_receiver_effects(
-        &mut self,
-        receiver: &hir::Expr<'_>,
-    ) -> Option<()> {
-        let receiver = receiver.peel_parens();
-        match receiver.kind {
-            ExprKind::Ident(_) | ExprKind::Type(_) => Some(()),
-            ExprKind::Member(base, _)
-                if matches!(base.peel_parens().kind, ExprKind::Ident(_) | ExprKind::Type(_)) =>
-            {
-                Some(())
-            }
-            ExprKind::Member(base, _) => self.lower_expr(base).map(|_| ()),
-            _ => self.lower_expr(receiver).map(|_| ()),
         }
     }
 
@@ -647,7 +612,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::AbiEncodePacked => self.lower_abi_encode_packed(args),
             Builtin::AbiEncodeWithSignature => self.lower_abi_encode_with_signature(args),
             Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
-            Builtin::AbiDecode => self.lower_abi_decode(args),
             Builtin::Blockhash | Builtin::Blobhash => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
                 let value = self.lower_expr(value)?;
@@ -793,10 +757,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // output = icall concat, parts
-        Some(self.builder.emit_inst(
-            InstKind::concat(parts),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-        ))
+        Some(self.builder.emit_inst(InstKind::concat(parts), Some(MirType::MemPtr)))
     }
 
     fn lower_yul_unit_builtin_call(

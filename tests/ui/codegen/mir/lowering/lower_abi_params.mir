@@ -5,7 +5,7 @@
 // CHECK: + v{{[0-9]+}} = calldatasize
 @module LowerAbiParams
 
-fn @read(arg0: memoryfixedarray, arg1: i256) -> i256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+fn @read(arg0: memptr, arg1: i256) -> i256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
   bb0:
     ret arg1
 }
@@ -16,12 +16,12 @@ fn @read(arg0: memoryfixedarray, arg1: i256) -> i256 [selector=0x12345678, abi_p
 // CHECK: + set_memory_object_len memoryarray
 // CHECK: + memory_object_copy_from_slice memoryarray
 // CHECK: + memory_object_store_field memorystruct<3>
-fn @read_words(arg0: memorystruct) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+fn @read_words(arg0: memptr) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
   bb0:
     v7 = memory_object_field_addr memorystruct, arg0, 0
     v0 = ptrtoint memptr v7 to i256
     v1 = mload v0
-    v6 = inttoptr i256 v1 to memoryarray
+    v6 = inttoptr i256 v1 to memptr
     v2 = memory_object_len memoryarray, v6
     v8 = memory_object_field_addr memorystruct, arg0, 1
     v3 = ptrtoint memptr v8 to i256
@@ -37,7 +37,7 @@ fn @read_words(arg0: memorystruct) -> i256 [selector=0x12345679, abi_params=[tup
 // CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
 // CHECK-NOT: {{^[ +].*}}= zext
 // CHECK: + mstore 128, arg3
-fn @read_address(arg0: memoryfixedarray, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, u256>, address], abi_returns=[word]] {
+fn @read_address(arg0: memptr, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, u256>, address], abi_returns=[word]] {
   bb0:
     v0 = trunc i256 arg1 to i160
     v1 = zext i160 v0 to i256

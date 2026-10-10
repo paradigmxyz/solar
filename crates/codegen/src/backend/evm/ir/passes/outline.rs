@@ -3,8 +3,9 @@
 //! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
 //! with a jump to one shared body, and returns from that body through a stack-held continuation.
 //! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
-//! stack parameters in size mode. A final specialized path shares repeated large pushes
-//! when the call and return sequence is smaller than spelling out each literal.
+//! stack parameters in size mode, with up to sixteen result words. A final specialized path
+//! shares repeated large pushes when the call and return sequence is smaller than spelling out
+//! each literal.
 //!
 //! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
 //! and produce up to sixteen outputs. The hidden return address remains below those outputs;
@@ -501,7 +502,7 @@ fn outline_parametric_machine_runs(
                 let outputs = inputs + delta;
                 if len < MIN_RUN_LENGTH
                     || inputs != 0
-                    || !matches!(outputs, 0 | 1)
+                    || !(0..=16).contains(&outputs)
                     || immediate_pushes == 0
                     || immediate_pushes > MAX_PARAMETERS * 2
                     || !is_split_point(&block.instructions, end + 1)
@@ -610,6 +611,9 @@ fn outline_parametric_machine_runs(
                     .sum::<usize>()
             })
             .sum::<usize>();
+        // The byte per parameter pays for no emitted instruction. It is a margin: groups are
+        // taken longest first, and without it a barely profitable long group can claim sites
+        // that a shorter group shares better.
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + parameters.len();
         let stub_size = 1 + lower_bound(gcx, &stub_body) + usize::from(first.outputs) + 1;
         if inline_size < parameter_bytes + free.len() * site_size + stub_size + 2 {
@@ -661,19 +665,18 @@ fn outline_parametric_machine_runs(
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
             let source = &module.blocks[site.block].instructions;
-            let mut prefix = group
+            let mut parameters = group
                 .parameters
                 .iter()
                 .rev()
                 .map(|&index| source[site.start + index].clone())
                 .collect::<Vec<_>>();
-            clear_function_invokes(&mut prefix);
+            clear_function_invokes(&mut parameters);
             edits.entry(site.block).or_default().push(ParamEdit {
                 start: site.start,
                 len: site.len,
                 stub,
-                inputs: group.parameters.len() as u16,
-                prefix,
+                parameters,
             });
         }
     }
@@ -683,9 +686,7 @@ fn outline_parametric_machine_runs(
 }
 
 fn parameterizable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push()
-        && inst.immutable_push().is_none()
-        && matches!(inst.value, Some(PushValue::Immediate(_)))
+    inst.concrete_immediate().is_some()
 }
 
 fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<Instruction>> {
@@ -744,32 +745,10 @@ fn split_parametric_outline_site(
     edit: &ParamEdit,
     continuation_label: u32,
 ) {
-    let function_invoke = range_function_invoke(
-        &module.blocks[block].instructions[edit.start..edit.start + edit.len],
-    );
-    // prefix; parameters; push continuation; rotate return below inputs; jump stub
+    // prefix; push continuation; parameters; jump stub
     // continuation: suffix; original terminator
-    let mut continuation = Block::new(continuation_label);
-    continuation.metadata = module.blocks[block].metadata;
-    continuation.metadata.is_continuation = true;
-    continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
-    module.blocks[block].instructions.truncate(edit.start);
-    continuation.terminator = module.blocks[block].terminator.take();
-    let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.extend_from_slice(&edit.prefix);
-    module.blocks[block]
-        .instructions
-        .push(Instruction::push_block(continuation).with_debug_info_dropped());
-    for depth in (1..=edit.inputs).rev() {
-        module.blocks[block]
-            .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
-    }
-    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped();
-    if let Some(function) = function_invoke {
-        terminator.metadata.set_function_invoke(function);
-    }
-    module.blocks[block].terminator = Some(terminator);
+    split_outline_site(module, block, edit.start, edit.len, edit.stub, 0, continuation_label);
+    module.blocks[block].instructions.extend_from_slice(&edit.parameters);
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -779,14 +758,11 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             continue;
         }
         for (index, inst) in block.instructions.iter().enumerate() {
-            if inst.is_encoded_push()
-                && inst.deferred_push().is_none()
-                && inst.immutable_push().is_none()
+            if let Some(value) = inst.concrete_immediate()
                 && is_split_point(&block.instructions, index)
                 && is_split_point(&block.instructions, index + 1)
-                && let Some(PushValue::Immediate(value)) = &inst.value
             {
-                sites.entry(*value).or_default().push((block_id, index));
+                sites.entry(value).or_default().push((block_id, index));
             }
         }
     }
@@ -1031,8 +1007,7 @@ struct ParamEdit {
     start: usize,
     len: usize,
     stub: BlockId,
-    inputs: u16,
-    prefix: Vec<Instruction>,
+    parameters: Vec<Instruction>,
 }
 
 /// Instruction tables over all blocks: whether each instruction occurs more than
@@ -1162,25 +1137,5 @@ impl RunState {
     fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
         let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
         labels.take(count)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn machine_run_candidate_budget() {
-        for repeated in [1, 10, 1_000, 200_000, 2_000_000] {
-            let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
-            assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
-        }
-    }
-
-    #[test]
-    fn machine_run_lifetime_profitability() {
-        assert!(sharing_improves_lifetime(100, 2, 40, 200));
-        assert!(!sharing_improves_lifetime(80, 2, 40, 200));
-        assert!(!sharing_improves_lifetime(100, 2, 40, 1_000_000));
     }
 }

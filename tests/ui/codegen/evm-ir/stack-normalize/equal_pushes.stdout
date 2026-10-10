@@ -1,0 +1,38 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/equal_pushes.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/equal_pushes.evmir (after stack-normalize) ===
+  @module module
+  bb0:
+    address
+    caller
+    callvalue
+    gas
+    origin
+    push 0
+    push 0
++   swap 4
++   swap 1
+    swap 5
+    swap 6
+    swap 3
+-   swap 1
+-   swap 4
+-   swap 1
+    delegatecall
+    stop
+  bb1:
+    address
+    caller
+    callvalue
+    gas
+    origin
+    push 0
+    push 1
+    swap 5
+    swap 6
+    swap 3
+    swap 1
+    swap 4
+    swap 1
+    delegatecall
+    stop
+  

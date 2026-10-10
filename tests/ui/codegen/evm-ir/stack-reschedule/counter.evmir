@@ -1,0 +1,55 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// Four unrolled copies of `t += i; i += 1` with one merged overflow check. Each copy computes
+// the step from a copy of `i` first and lets the sum consume `i` itself, and the check reads only
+// its condition, as its revert reads nothing from the stack, so the run continues through it.
+// The last step stays below the check: above it, the path that reverts would pay for it. The
+// block's shuffles and pushes drop from 20 to 16, and the code before the check from 75 gas to
+// 63.
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=3]:
+// CHECK: {{^[ +] *(lt|gt)$}}
+// CHECK-NEXT: push bb1
+// CHECK-NEXT: jumpi
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: push 1
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: jump bb0
+bb0 [loop, stack=3]:
+  dup 2
+  dup 2
+  add
+  swap 2
+  push 1
+  add
+  dup 1
+  swap 3
+  add
+  swap 2
+  push 1
+  add
+  dup 1
+  swap 3
+  add
+  swap 2
+  push 1
+  add
+  dup 1
+  swap 3
+  add
+  swap 1
+  dup 2
+  lt
+  push bb1
+  jumpi
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb0
+bb1 [cold]:
+  push 0
+  push 0
+  revert

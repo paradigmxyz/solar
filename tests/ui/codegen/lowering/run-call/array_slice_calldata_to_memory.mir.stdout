@@ -57,7 +57,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x65750e
     ret v42
 }
 
-fn @first(arg0: memoryarray) -> i256 [pure] {
+fn @first(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -170,19 +170,19 @@ fn @literal(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x75a
     set_memory_object_len memoryarray, v38, v17
     v39 = make_calldata_slice v18, v29
     memory_object_copy_from_slice memoryarray, v38, v39
-    v40 = ptrtoint memoryarray v38 to i256
+    v40 = ptrtoint memptr v38 to i256
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v40
     v41 = lt 0, 1
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v44 = inttoptr i256 v43 to memoryarray
+    v44 = inttoptr i256 v43 to memptr
     v45 = eq v43, 0
     jumpi v45, bb1, bb2
   bb1:
     v46 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v46, 0
-    v47 = ptrtoint memoryarray v46 to i256
+    v47 = ptrtoint memptr v46 to i256
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v47
     jump bb2
   bb2:

@@ -5,12 +5,11 @@ fn @f() [selector=0x26121ff0, view, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
-fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @h() -> i160 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = address
-    v1 = zext i160 v0 to i256
-    ret v1
+    ret v0
 }
 
 fn @read() -> i256 [selector=0x57de26a4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

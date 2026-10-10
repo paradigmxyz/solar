@@ -7,8 +7,8 @@
 // Splitting either predecessor must update only its incoming phi label. The panic payload
 // stays shared across both original blocks; the reason depends on revert-string mode.
 // CHECK-LABEL: fn @branch_checks(
-// CHECK: mstore 0, 0x4e487b71
-// CHECK-NEXT: mstore 32, 1
+// CHECK: mstore 32, 1
+// CHECK-NEXT: mstore 0, 0x4e487b71
 // CHECK-NEXT: revert 28, 36
 fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
   bb0:
@@ -32,7 +32,7 @@ fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
     ret v2
 }
 
-fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
+fn @payloads(arg0: i1, arg1: memptr, arg2: i256) {
   bb0:
     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     icall require<empty_string>, arg0

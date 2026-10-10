@@ -338,7 +338,7 @@ impl SccpCx {
     /// Evaluates a single instruction and returns its lattice value.
     fn evaluate_instruction(
         &self,
-        _func: &Function,
+        func: &Function,
         kind: &InstKind,
         lattice: &IndexVec<ValueId, LatticeValue>,
     ) -> LatticeValue {
@@ -363,7 +363,7 @@ impl SccpCx {
             };
         }
 
-        match eval::eval_inst(kind, |value| get_const(value).ok_or(())) {
+        match eval::eval_typed_inst(func, kind, |value| get_const(value).ok_or(())) {
             Ok(Some(value)) => LatticeValue::Constant(value),
             Ok(None) => LatticeValue::Bottom,
             Err(()) => match *kind {
@@ -669,19 +669,23 @@ fn can_change(func: &Function) -> bool {
             | InstKind::Mod(_, divisor)
             | InstKind::SMod(_, divisor) => {
                 func.value_u256(*divisor).is_some_and(|divisor| divisor.is_zero())
-                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
-                        .ok()
-                        .flatten()
-                        .is_some()
+                    || eval::eval_typed_inst(func, &inst.kind, |value| {
+                        func.value_u256(value).ok_or(())
+                    })
+                    .ok()
+                    .flatten()
+                    .is_some()
             }
             InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus) => {
                 func.value_u256(*modulus).is_some_and(|modulus| modulus.is_zero())
-                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
-                        .ok()
-                        .flatten()
-                        .is_some()
+                    || eval::eval_typed_inst(func, &inst.kind, |value| {
+                        func.value_u256(value).ok_or(())
+                    })
+                    .ok()
+                    .flatten()
+                    .is_some()
             }
-            _ => eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+            _ => eval::eval_typed_inst(func, &inst.kind, |value| func.value_u256(value).ok_or(()))
                 .ok()
                 .flatten()
                 .is_some(),
@@ -717,19 +721,4 @@ fn can_change(func: &Function) -> bool {
         !reachable.contains(block)
             && !matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::MirType;
-
-    #[test]
-    fn immediate_for_type_preserves_result_types() {
-        let one = U256::ONE;
-        assert_eq!(Immediate::for_type(Some(MirType::I1), one), Immediate::I1(true));
-        assert_eq!(Immediate::for_type(Some(MirType::I1), U256::ZERO), Immediate::I1(false));
-        assert_eq!(Immediate::for_type(Some(MirType::I256), one), Immediate::I256(one));
-        assert_eq!(Immediate::for_type(None, U256::MAX), Immediate::I256(U256::MAX));
-    }
 }

@@ -164,6 +164,53 @@ accepted statement always compiles.
 
 Coverage: `tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol`.
 
+### TYPECK-006: Oversized fixed-array copies
+
+Status: intentional.
+
+Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
+`2^64 - 1` elements during type checking, including arrays nested in structs.
+It still accepts their storage declarations, indexed accesses, and storage
+reference bindings. Solc 0.8.37 compiles the storage-to-storage array, tuple,
+and struct copies covered by the fixture, but those copies panic with code
+`0x41` at runtime. ABI-encoding the same array causes an internal compiler
+error in solc 0.8.37. These results hold with both code generators and with
+optimization enabled or disabled.
+
+Rationale: report unsupported copies at their source during type checking,
+rather than fail during lowering or emit a runtime panic for a known oversized
+copy. The restriction applies to copying the values, not to addressing their
+storage.
+
+Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
+`tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
+
+### TYPECK-007: Uninitialized storage pointers are reported once per location
+
+Status: intentional.
+
+Difference: `solc` analyzes each function once per contract that inherits it
+and reports error 3464 for every analysis, so a base function with one
+uninitialized access gets one error per derived contract. `solar` runs the same
+analyses but reports each location once.
+
+Rationale: the copies point at the same code and give no extra information.
+
+Coverage: `tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol`.
+
+### TYPECK-008: Unreachable code across sources
+
+Status: intentional.
+
+Difference: when unreachable code spans a function and a modifier declared in
+another source, `solc` merges the ranges into one with mixed sources and
+reports only the part in the function's source. `solar` reports the part in
+each source.
+
+Rationale: the merged `solc` range is invalid and hides unreachable code.
+
+Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
@@ -326,3 +373,60 @@ No intentional divergences documented yet.
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
   expected source text before applying the correction.
+
+### CODEGEN-009: Static frames sit below the initial free memory pointer
+
+- ID: CODEGEN-009
+- Status: intentional
+- Difference: `solc` starts the free memory pointer at `0x80`. `solar` keeps
+  internal-call frames and spill slots in static memory from `0x80` up to the
+  initial free memory pointer, so a contract's heap starts above every frame it
+  can reach. Inline assembly that stores data at constant addresses in that
+  range, instead of allocating through the free memory pointer, can have it
+  overwritten by any internal call, including the helpers the compiler
+  generates for ABI encoding and pre-Cancun memory copies.
+- Rationale: The Solidity documentation counts only scratch space, memory
+  allocated through the free memory pointer, and memory past the free memory
+  pointer within one assembly block as memory-safe. Static frames make internal
+  calls cheaper than a memory stack, and memory-safe assembly never reaches
+  them.
+- Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
+  encodes an object that assembly allocates through the shared copy helper.
+
+### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
+
+- ID: CODEGEN-010
+- Status: intentional
+- Difference: When inline assembly stores a value computed from constants
+  and calldata into the free memory pointer slot, every later read of the
+  slot as the pointer sees at least the initial free memory pointer: an
+  allocation, or an `mload` whose word addresses memory. After
+  `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
+  pointer here. A word that is also read as data, such as one hashed in
+  scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer
+  reads see the raised value. Each external function
+  that runs code writing memory at an absolute address computed from calldata,
+  as Seaport lays out a basic order's hashes and event data, keeps its spill
+  slots and the frames it reaches above `0x2080`, and above the constant
+  ranges assembly names there in the functions it runs or that an external
+  function sharing those frames runs. This costs memory expansion gas; other
+  external functions keep their memory low unless they share those frames, or
+  a recursive helper places every frame above all external functions.
+- Rationale: The spill slots and internal-call frames below the initial free
+  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
+  the next allocation after a lowered pointer, or the absolute layout itself,
+  would replace them. Raising only the pointer reads keeps the stored value for
+  code that uses the slot as scratch, such as an error argument before a revert
+  or a hash input before the pointer is restored. A pointer derived from the
+  heap already lies above the initial one, and an absolute pointer that reaches
+  the store through a parameter, memory, or a call keeps its value. The
+  `heap-floor` pass documents how it tells pointer reads from data reads. A
+  layout that grows past `0x2080`, or one indexed by a loop counter alone, can
+  still reach the compiler's memory; Seaport's basic orders with about 40 or
+  more additional recipients do.
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `cargo tq foundry-external seaport`.

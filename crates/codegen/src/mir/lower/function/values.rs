@@ -18,8 +18,13 @@ enum TupleAssignmentRhs<'gcx> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         let expr = expr.peel_parens();
+        if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
+            self.lower_discarded_expr(expr)?;
+            return Some(Vec::new());
+        }
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
-            return self.lower_ternary_values(condition, then_expr, else_expr);
+            let ty = self.cx.gcx.type_of_expr(expr.id)?;
+            return self.lower_ternary_values(condition, then_expr, else_expr, ty);
         }
         if let Some((callee, args, call_opts)) = expr.as_call() {
             if let Some(builtin) = self.low_level_call_builtin(expr) {
@@ -56,24 +61,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.lower_expr(expr)?;
                 return Some(self.unpack_return_value(value));
             }
-            let returns_empty = returns.is_some_and(|returns| returns == 0)
-                || resolved_builtin.is_some_and(|builtin| {
-                    matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
-                });
-            if returns_empty {
-                self.lower_expr(expr)?;
-                return Some(Vec::new());
-            }
         }
         match &expr.kind {
             ExprKind::Tuple(values) => {
-                values.iter().flatten().map(|expr| self.lower_expr(expr)).collect()
+                values.iter().flatten().map(|expr| self.lower_component(expr)).collect()
             }
-            _ => Some(vec![self.lower_expr(expr)?]),
+            _ => Some(vec![self.lower_component(expr)?]),
         }
     }
 
     pub(super) fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        if self.cx.gcx.type_of_expr(expr.id)?.is_unit() {
+            self.lower_discarded_expr(expr)?;
+            return Some(Vec::new());
+        }
         if self.returns.len() == 1 {
             let ty = self.cx.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
@@ -136,7 +137,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(returns)
                 .map(|((value, source_ty), id)| {
                     let target_ty = self.cx.gcx.type_of_item(id.into());
-                    self.convert_return_component(value, source_ty, target_ty, expr.span)
+                    self.convert_tuple_component(value, source_ty, target_ty, expr.span)
                 })
                 .collect();
         }
@@ -153,9 +154,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(types.to_vec())
     }
 
-    /// Converts one already-lowered component of a multi-value return source to the type the
-    /// enclosing function declares for it.
-    fn convert_return_component(
+    /// Converts an already-lowered tuple component to its target type.
+    pub(super) fn convert_tuple_component(
         &mut self,
         value: ValueId,
         source_ty: Ty<'gcx>,
@@ -191,6 +191,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
+    /// Lowers one component of a multi-value expression in the shape `convert_tuple_component`
+    /// expects: a storage reference as its slot word, like one returned by a call.
+    pub(super) fn lower_component(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        // `lower_expr` copies a storage state variable to memory, unlike any other storage
+        // reference.
+        if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage)) {
+            let Some(access) = self.storage_access(expr) else {
+                return self.cx.report_unsupported(expr.span, "storage access");
+            };
+            return Some(access.slot);
+        }
+        self.lower_expr(expr)
+    }
+
     pub(super) fn lower_tuple_assignment<'hir>(
         &mut self,
         elements: &[Option<&'hir hir::Expr<'hir>>],
@@ -205,7 +219,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 || self.type_of_expr_or_variable(element).is_some_and(|ty| {
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
                 })
-        }) && let Some(values) = self.lower_storage_reference_call(rhs)
+        }) && let Some(values) = self.lower_storage_reference_values(rhs)
         {
             if values.len() != elements.len() {
                 return self.cx.report_unsupported(rhs.span, "storage reference tuple");
@@ -265,9 +279,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let values = self.lower_values(rhs)?;
                 if values.len() >= elements.len() {
-                    return self.store_tuple_values(elements.iter().zip(values).filter_map(
-                        |(element, value)| element.map(|element| (element, value, None)),
-                    ));
+                    let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+                    let sources = match source_ty.kind {
+                        TyKind::Tuple(sources) => sources,
+                        _ => std::slice::from_ref(&source_ty),
+                    };
+                    return self.store_tuple_values(
+                        elements.iter().zip(values).zip(sources).filter_map(
+                            |((element, value), &source)| {
+                                element.map(|element| (element, value, Some(source)))
+                            },
+                        ),
+                    );
                 }
             }
             let mut values = Vec::with_capacity(rhs_elements.len());
@@ -282,12 +305,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if values.len() < elements.len() {
             return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
         }
-        self.store_tuple_values(
-            elements
-                .iter()
-                .zip(values)
-                .filter_map(|(element, value)| element.map(|element| (element, value, None))),
-        )
+        let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+        let source_types = match source_ty.kind {
+            TyKind::Tuple(types) => types,
+            _ => std::slice::from_ref(&source_ty),
+        };
+        self.store_tuple_values(elements.iter().zip(values).zip(source_types).filter_map(
+            |((element, value), &source_ty)| {
+                element.map(|element| (element, value, Some(source_ty)))
+            },
+        ))
     }
 
     fn prepare_tuple_rhs(
@@ -304,10 +331,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let source_ty = source_ty.unwrap_or(target_ty);
-        let value = if target_ty.is_ref_at(DataLocation::Storage) {
-            value
-        } else {
+        let value = if target_ty.is_ref_at(DataLocation::Memory) {
             self.materialize_memory_argument(target_ty, value, span)?
+        } else {
+            value
         };
         let value = self.coerce_value(value, source_ty, target_ty);
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })
@@ -317,9 +344,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
-        self.store_prepared_tuple_values(values.into_iter().map(|(element, value, source_ty)| {
-            (element, TupleAssignmentRhs::Materialized { value, source_ty, span: element.span })
-        }))
+        let values = values
+            .into_iter()
+            .map(|(element, value, source_ty)| {
+                let rhs = TupleAssignmentRhs::Materialized { value, source_ty, span: element.span };
+                Some((element, self.prepare_tuple_rhs(element, rhs)?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.store_prepared_tuple_values(values)
     }
 
     fn store_prepared_tuple_values<'hir>(
@@ -498,38 +530,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_storage_reference_call(
+    /// Lowers a call or conditional whose values include storage references, pairing each value
+    /// with its source type and, for a storage reference, the slot it refers to.
+    pub(super) fn lower_storage_reference_values(
         &mut self,
         expr: &hir::Expr<'_>,
     ) -> Option<Vec<(ValueId, Ty<'gcx>, Option<StorageAccess>)>> {
-        let (callee, _, _) = expr.as_call()?;
-        let return_types = if let Some(function_id) = self.cx.gcx.resolved_function(callee) {
-            self.cx
-                .gcx
-                .hir
-                .function(function_id)
-                .returns
-                .iter()
-                .map(|&id| self.cx.gcx.type_of_item(id.into()))
-                .collect::<Vec<_>>()
-        } else {
-            let TyKind::Fn(function) = self.cx.gcx.type_of_expr(callee.id)?.kind else {
-                return None;
-            };
-            function.returns.to_vec()
-        };
-        if return_types.is_empty() {
+        if expr.as_call().is_none() && !matches!(expr.kind, ExprKind::Ternary(..)) {
             return None;
         }
-        if !return_types.iter().any(|ty| ty.is_ref_at(DataLocation::Storage)) {
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        let types = match ty.kind {
+            TyKind::Tuple(types) => types,
+            _ => std::slice::from_ref(&ty),
+        };
+        if !types.iter().any(|ty| ty.is_ref_at(DataLocation::Storage)) {
             return None;
         }
         let values = self.lower_values(expr)?;
-        (values.len() == return_types.len()).then(|| {
+        (values.len() == types.len()).then(|| {
             values
                 .into_iter()
-                .zip(return_types)
-                .map(|(value, ty)| {
+                .zip(types)
+                .map(|(value, &ty)| {
                     let access = ty.is_ref_at(DataLocation::Storage).then(|| StorageAccess {
                         slot: value,
                         location: StorageLocation::word(U256::ZERO),
@@ -546,7 +569,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values: Vec<ValueId>,
         types: &[Ty<'gcx>],
     ) -> ValueId {
-        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let ty = self.cx.module.intern_return_type(fields).expect("return values are not empty");
         if let MirType::Struct(id) = ty {
             // result = insert_value(undef, field0), ...
@@ -601,15 +624,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
+        if types::TypeLowerer::mir_type(ty) != MirType::MemPtr {
             return self.load_static_abi_return_value(base, index, returns);
-        };
+        }
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
-        self.builder.memory_object_load_object(
+        self.builder.memory_object_load_element_as(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             index,
-            kind,
+            MirType::MemPtr,
         )
     }
 }

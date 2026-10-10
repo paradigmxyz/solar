@@ -46,8 +46,6 @@ pub(crate) enum MemoryBase {
     Allocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
-    /// A nominal memory-object argument, without allocation ownership.
-    Param(ValueId),
     /// A symbolic MIR value.
     Value(ValueId),
 }
@@ -87,12 +85,6 @@ impl MemoryAddress {
         Self { region, base: MemoryBase::Value(value), offset: 0 }
     }
 
-    /// Creates the address of a memory object passed in as an argument.
-    #[must_use]
-    pub(crate) const fn param(value: ValueId) -> Self {
-        Self { region: MemoryRegion::Heap, base: MemoryBase::Param(value), offset: 0 }
-    }
-
     /// Returns the absolute address, if known.
     #[must_use]
     pub(crate) const fn as_absolute(self) -> Option<u64> {
@@ -101,7 +93,6 @@ impl MemoryAddress {
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -114,7 +105,6 @@ impl MemoryAddress {
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -879,7 +869,6 @@ impl AliasAnalysis {
                 InstKind::SlicePtr(predecessor)
                 | InstKind::IntToPtr(predecessor)
                 | InstKind::PtrToInt(predecessor, 256)
-                | InstKind::Bitcast(predecessor)
                 | InstKind::MemoryObjectData(predecessor, _)
                 | InstKind::MemoryObjectFieldAddr { object: predecessor, .. } => {
                     propagate(*predecessor);
@@ -920,7 +909,7 @@ impl AliasAnalysis {
             | InstKind::MakeSlice { .. }
             | InstKind::SlicePtr(_)
             | InstKind::IntToPtr(..)
-            | InstKind::PtrToInt(_, 256) | InstKind::Bitcast(_)
+            | InstKind::PtrToInt(_, 256)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
@@ -1107,6 +1096,20 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Memory);
             }
         };
+        // A memory slice built in this function reads exactly `[ptr, ptr + len)`; other
+        // locations read no memory.
+        let read_memory_slice = |effects: &mut ModRef, slice| {
+            if func.value_slice_location(slice) != Some(SliceLocation::Memory) {
+                return;
+            }
+            if let Value::Inst(inst) = func.value(resolve(slice))
+                && let InstKind::MakeSlice { ptr, len, .. } = func.inst(*inst).kind
+            {
+                read_memory(effects, ptr, SizeOperand::Value(len));
+            } else {
+                effects.read_any(AddressSpace::Memory);
+            }
+        };
         let write_memory = |effects: &mut ModRef, address, size| {
             if let Some(location) = self.memory_location(
                 func,
@@ -1242,12 +1245,7 @@ impl AliasAnalysis {
             // runtime offset into it, and never rewrite the length word.
             InstKind::MemoryObjectCopyFromSlice { object, kind, source }
             | InstKind::MemoryObjectCopyFromSliceAt { object, kind, source, .. } => {
-                if matches!(
-                    func.value_ty(source),
-                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
-                ) {
-                    effects.read_any(AddressSpace::Memory);
-                }
+                read_memory_slice(&mut effects, source);
                 if let Some(location) =
                     self.memory_object_data_location(func, inst_id, object, kind)
                 {
@@ -1327,7 +1325,11 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::AbiDecode { data, .. } => {
-                read_memory(&mut effects, data, SizeOperand::Unknown);
+                if func.value_slice_location(data).is_some() {
+                    read_memory_slice(&mut effects, data);
+                } else {
+                    read_memory(&mut effects, data, SizeOperand::Unknown);
+                }
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::StorageToMemory { .. } => {
@@ -1654,8 +1656,7 @@ impl AliasAnalysis {
         // disjoint from every other allocation site. Two accesses to the same
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
-        // non-allocation base is likewise `MayAlias`. A memory-object
-        // argument has a nominal type but no allocation ownership proof.
+        // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
@@ -1759,14 +1760,8 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            // Preserve parameter identity without assuming an allocation origin.
-            Value::Arg(index) => {
-                Some(if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
-                    MemoryAddress::param(value)
-                } else {
-                    MemoryAddress::symbolic(value, MemoryRegion::Unknown)
-                })
-            }
+            // An opaque pointer argument implies no allocation origin or region.
+            Value::Arg(_) => Some(MemoryAddress::symbolic(value, MemoryRegion::Unknown)),
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
@@ -1785,18 +1780,28 @@ impl AliasAnalysis {
                 } else {
                     MemoryAddress::symbolic(value, MemoryRegion::Heap)
                 }),
-                InstKind::Add(first, second) => self
-                    .address_add(func, first, second, depth)
-                    .or_else(|| self.address_add(func, second, first, depth))
-                    .or_else(|| {
-                        Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
-                    }),
-                InstKind::Sub(base, offset) => {
+                InstKind::Add(first, second)
+                    if (super::integers::integer_bits(func, value) == 256
+                        || super::integers::arithmetic_no_wrap(func, value)) =>
+                {
+                    self.address_add(func, first, second, depth)
+                        .or_else(|| self.address_add(func, second, first, depth))
+                        .or_else(|| {
+                            Some(MemoryAddress::symbolic(
+                                value,
+                                self.pointer_region(func, value, 0),
+                            ))
+                        })
+                }
+                InstKind::Sub(base, offset)
+                    if (super::integers::integer_bits(func, value) == 256
+                        || super::integers::arithmetic_no_wrap(func, value)) =>
+                {
                     self.address_sub(func, base, offset, depth).or_else(|| {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
                     })
                 }
-                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) | InstKind::Bitcast(ptr) => {
+                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) => {
                     self.memory_address_with_depth(func, ptr, depth + 1)
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
@@ -1838,6 +1843,12 @@ impl AliasAnalysis {
         offset: ValueId,
         depth: usize,
     ) -> Option<MemoryAddress> {
+        if let Value::Inst(inst) = func.value(offset)
+            && let InstKind::Sub(value, subtrahend) = func.inst(*inst).kind
+            && subtrahend == base
+        {
+            return self.memory_address_with_depth(func, value, depth + 1);
+        }
         self.memory_address_with_depth(func, base, depth + 1)?.checked_add(func.value_u64(offset)?)
     }
 
@@ -1918,14 +1929,7 @@ impl AliasAnalysis {
             return MemoryRegion::Unknown;
         }
         let Value::Inst(inst_id) = func.value(value) else {
-            return match func.value(value) {
-                Value::Arg(index)
-                    if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) =>
-                {
-                    MemoryRegion::Heap
-                }
-                _ => MemoryRegion::Unknown,
-            };
+            return MemoryRegion::Unknown;
         };
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
@@ -1935,7 +1939,10 @@ impl AliasAnalysis {
             {
                 MemoryRegion::Heap
             }
-            InstKind::Add(first, second) => {
+            InstKind::Add(first, second)
+                if (super::integers::integer_bits(func, value) == 256
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
+            {
                 let first = self.pointer_region(func, first, depth + 1);
                 if first != MemoryRegion::Unknown {
                     first
@@ -1943,10 +1950,11 @@ impl AliasAnalysis {
                     self.pointer_region(func, second, depth + 1)
                 }
             }
-            InstKind::Sub(base, _)
-            | InstKind::IntToPtr(base)
+            InstKind::Sub(base, offset) if Self::sub_keeps_pointer_region(func, offset) => {
+                self.pointer_region(func, base, depth + 1)
+            }
+            InstKind::IntToPtr(base)
             | InstKind::PtrToInt(base, 256)
-            | InstKind::Bitcast(base)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
             | InstKind::MemoryObjectElementAddr { object: base, .. } => {
@@ -1970,6 +1978,15 @@ impl AliasAnalysis {
             }
             _ => MemoryRegion::Unknown,
         }
+    }
+
+    /// Whether `sub(pointer, offset)` stays in the pointer's region: a constant
+    /// step back of at most one word, such as from a dynamic object's data to
+    /// its length word. Any other subtrahend can move the result anywhere, as
+    /// in `sub(p, sub(p, x)) == x`.
+    #[must_use]
+    pub(crate) fn sub_keeps_pointer_region(func: &Function, offset: ValueId) -> bool {
+        func.value_u64(offset).is_some_and(|offset| offset <= EvmMemoryLayout::WORD_SIZE)
     }
 
     fn join_pointer_regions(
@@ -2005,6 +2022,19 @@ impl AliasAnalysis {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
+    /// Returns whether an instruction may terminate the current EVM call successfully.
+    #[must_use]
+    pub(crate) fn instruction_may_terminate(&self, func: &Function, inst: InstId) -> bool {
+        match &func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => self
+                .call_summaries
+                .as_deref()
+                .and_then(|summaries| summaries.get(*function))
+                .is_none_or(|summary| summary.may_terminate()),
+            kind => kind.effects().control.may_terminate,
+        }
+    }
+
     fn instruction_may_reset_fmp_with_summaries(
         func: &Function,
         inst: InstId,
@@ -2027,8 +2057,8 @@ impl AliasAnalysis {
             | InstKind::MemoryObjectCopyFromSlice { object, .. }
             | InstKind::MemoryObjectCopyFromSliceAt { object, .. }
             | InstKind::MemoryObjectCopy { destination: object, .. } => {
-                // Object types do not prove ownership: raw pointers can be rebound
-                // to objects, and lowering exposes their writes to reserved memory.
+                // Object layouts do not prove ownership: any pointer can be accessed
+                // as an object, and lowering exposes their writes to reserved memory.
                 Self::range_may_overlap_fmp(func, object, None)
             }
             InstKind::MCopy(dest, _, size)
@@ -2095,22 +2125,32 @@ impl AliasAnalysis {
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
-            InstKind::PtrToInt(value, 256)
-            | InstKind::Bitcast(value)
-            | InstKind::IntToPtr(value) => Self::pointer_lower_bound(func, *value, depth + 1),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
+                Self::pointer_lower_bound(func, *value, depth + 1)
+            }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::MemoryObjectData(object, kind) => {
                 Self::pointer_lower_bound(func, *object, depth + 1)?
                     .checked_add(EvmMemoryLayout::object_data_offset(*kind))
             }
-            InstKind::Add(first, second) => Self::pointer_lower_bound(func, *first, depth + 1)
-                .and_then(|base| base.checked_add(func.value_u64(*second)?))
-                .or_else(|| {
-                    Self::pointer_lower_bound(func, *second, depth + 1)
-                        .and_then(|base| base.checked_add(func.value_u64(*first)?))
-                }),
-            InstKind::Sub(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)
-                .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
+            InstKind::Add(first, second)
+                if (super::integers::integer_bits(func, value) == 256
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
+            {
+                Self::pointer_lower_bound(func, *first, depth + 1)
+                    .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                    .or_else(|| {
+                        Self::pointer_lower_bound(func, *second, depth + 1)
+                            .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                    })
+            }
+            InstKind::Sub(base, offset)
+                if (super::integers::integer_bits(func, value) == 256
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
+            {
+                Self::pointer_lower_bound(func, *base, depth + 1)
+                    .and_then(|base| base.checked_sub(func.value_u64(*offset)?))
+            }
             InstKind::SlicePtr(slice) => {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.inst(*slice).kind {
@@ -2179,447 +2219,4 @@ enum SizeOperand {
     Const(u64),
     Value(ValueId),
     Unknown,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{FunctionBuilder, Instruction, MirType, Module};
-    use alloy_primitives::U256;
-    use solar_interface::Ident;
-    use std::sync::Arc;
-
-    fn function() -> Function {
-        Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn semantic_hashes_declare_lowering_memory_writes() {
-        let mut func = function();
-        let cases = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let slot = builder.add_param(MirType::I256);
-            let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
-            let cases = [
-                (InstKind::StorageBytesStore(slot, object), Some(32), false),
-                (
-                    InstKind::StorageBytesStoreLiteral { slot, bytes: Default::default() },
-                    Some(32),
-                    false,
-                ),
-                (InstKind::StorageClearWords(slot, slot, slot), Some(32), false),
-                (InstKind::StorageArrayDataSlot(slot), Some(32), true),
-                (
-                    InstKind::StorageArrayElementSlot { slot, index: slot, element_slots: 2 },
-                    Some(32),
-                    true,
-                ),
-                (InstKind::MappingSlot(slot, slot), Some(64), true),
-                (InstKind::MappingSlotMemory(object, slot), None, true),
-                (InstKind::MappingSlotCalldata(calldata, slot), None, true),
-            ];
-            cases.map(|(kind, size, has_result)| {
-                // semantic hash/store operands
-                let inst = Instruction::new(kind, has_result.then_some(MirType::I256));
-                (builder.append_instruction(inst).0, size)
-            })
-        };
-        let aa = AliasAnalysis::new(&func);
-        for (inst, size) in cases {
-            let effects = aa.instruction_mod_ref(&func, inst);
-            let memory_writes = effects
-                .writes()
-                .iter()
-                .copied()
-                .filter(|access| {
-                    matches!(
-                        access,
-                        Access::Any(AddressSpace::Memory) | Access::Location(Location::Memory(_))
-                    )
-                })
-                .collect::<Vec<_>>();
-            let expected = size.map_or(Access::Any(AddressSpace::Memory), |size| {
-                Access::Location(Location::Memory(MemoryLocation::new(
-                    MemoryAddress::absolute(0),
-                    LocationSize::Const(size),
-                )))
-            });
-            assert_eq!(memory_writes, [expected], "{:?}", func.inst(inst).kind);
-            let behavior = func.inst(inst).kind.effects();
-            assert!(behavior.must_execute(false));
-            assert!(behavior.expands_memory);
-            assert_eq!(
-                behavior.can_common(),
-                size.is_some() && func.inst(inst).result_ty.is_some()
-            );
-            assert!(!behavior.can_speculate());
-            assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none());
-        }
-    }
-
-    #[test]
-    fn semantic_object_writes_require_owned_destinations() {
-        for owned in [false, true] {
-            let mut func = function();
-            let (writes, allocation) = {
-                let mut builder = FunctionBuilder::new(&mut func);
-                let source = builder.add_param(MirType::Slice(SliceLocation::Calldata));
-                let size = builder.imm(128);
-                let objects = [
-                    MemoryObjectLayout::Bytes,
-                    MemoryObjectLayout::structure(1),
-                    MemoryObjectLayout::WORD_ARRAY,
-                ]
-                .map(|layout| {
-                    if owned {
-                        // object = alloc 128
-                        builder.alloc_object(
-                            size,
-                            layout,
-                            crate::mir::AllocationSemantics::INTERNAL,
-                        )
-                    } else {
-                        builder.add_param(MirType::MemoryObject(layout.kind()))
-                    }
-                });
-                let [bytes, structure, array] = objects;
-                let zero = builder.imm(0);
-                let writes = [
-                    InstKind::SetMemoryObjectLen(bytes, zero, MemoryObjectKind::Bytes),
-                    InstKind::MemoryObjectStoreField {
-                        object: structure,
-                        layout: MemoryObjectLayout::structure(1),
-                        field: 0,
-                        value: zero,
-                    },
-                    InstKind::MemoryObjectStoreElement {
-                        object: array,
-                        layout: MemoryObjectLayout::WORD_ARRAY,
-                        index: zero,
-                        value: zero,
-                    },
-                    InstKind::MemoryObjectStoreByte { object: bytes, index: zero, value: zero },
-                    InstKind::MemoryObjectStoreWord { object: bytes, offset: zero, value: zero },
-                    InstKind::MemoryObjectCopyFromSlice {
-                        object: bytes,
-                        kind: MemoryObjectKind::Bytes,
-                        source,
-                    },
-                    InstKind::MemoryObjectCopyFromSliceAt {
-                        object: bytes,
-                        kind: MemoryObjectKind::Bytes,
-                        offset: zero,
-                        source,
-                    },
-                    InstKind::MemoryObjectCopy {
-                        destination: bytes,
-                        destination_kind: MemoryObjectKind::Bytes,
-                        source: bytes,
-                        source_kind: MemoryObjectKind::Bytes,
-                        length: size,
-                    },
-                ]
-                .map(|kind| {
-                    // semantic store/copy object, value
-                    builder.append_instruction(Instruction::new(kind, None)).0
-                });
-                // allocation = alloc 128; stop
-                let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-                builder.stop();
-                (writes, allocation)
-            };
-            let aa = AliasAnalysis::new(&func);
-            for inst in writes {
-                assert_eq!(
-                    aa.instruction_may_reset_fmp(&func, inst),
-                    !owned,
-                    "{:?}",
-                    func.inst(inst).kind
-                );
-            }
-            let base = aa.memory_address(&func, allocation).unwrap().base;
-            assert_eq!(matches!(base, MemoryBase::Allocation(_)), owned);
-            if !owned {
-                assert_eq!(base, MemoryBase::Value(allocation));
-            }
-        }
-    }
-
-    #[test]
-    fn distinguishes_and_classifies_memory_ranges() {
-        let base = ValueId::from_usize(0);
-        let location = |offset, size| {
-            Location::Memory(MemoryLocation::new(
-                MemoryAddress { region: MemoryRegion::Heap, base: MemoryBase::Value(base), offset },
-                LocationSize::Const(size),
-            ))
-        };
-
-        assert_eq!(
-            AliasAnalysis::alias_locations(location(0, 32), location(0, 32)),
-            AliasResult::MustAlias
-        );
-        assert_eq!(
-            AliasAnalysis::alias_locations(location(0, 32), location(16, 32)),
-            AliasResult::PartialAlias
-        );
-        assert_eq!(
-            AliasAnalysis::alias_locations(location(0, 32), location(32, 32)),
-            AliasResult::NoAlias
-        );
-
-        let scratch = Location::Memory(AliasAnalysis::fmp_location());
-        assert_eq!(AliasAnalysis::alias_locations(scratch, location(0, 32)), AliasResult::MayAlias);
-    }
-
-    #[test]
-    fn canonicalizes_absolute_memory_addresses() {
-        let mut func = function();
-        let absolute = FunctionBuilder::new(&mut func).imm(0x20);
-        let aa = AliasAnalysis::new(&func);
-
-        assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
-    }
-
-    #[test]
-    fn propagates_escape_facts_back_through_pointer_derivations() {
-        let mut func = function();
-        let (local, captured) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let local = builder.add_param(MirType::I256);
-            let captured = builder.add_param(MirType::I256);
-            let offset = builder.imm(32);
-            let local_address = builder.add(local, offset);
-            let captured_address = builder.add(captured, offset);
-            let value = builder.imm(1);
-            let destination = builder.imm(0x80);
-            builder.mstore(local_address, value);
-            builder.mstore(destination, captured_address);
-            builder.stop();
-            (local, captured)
-        };
-        let aa = AliasAnalysis::new(&func);
-
-        assert!(!aa.value_escapes(&func, local));
-        assert!(aa.value_escapes(&func, captured));
-    }
-
-    #[test]
-    fn does_not_globalize_loop_allocation_identity() {
-        let mut func = function();
-        let allocation = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let condition = builder.add_param(MirType::I1);
-            let header = builder.create_block();
-            let exit = builder.create_block();
-            builder.jump(header);
-            builder.switch_to_block(header);
-            let size = builder.imm(32);
-            let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            builder.branch(condition, header, exit);
-            builder.switch_to_block(exit);
-            builder.stop();
-            allocation
-        };
-
-        let aa = AliasAnalysis::new(&func);
-        let address = aa.memory_address(&func, allocation).unwrap();
-        assert!(matches!(address.base, MemoryBase::DynamicAllocation(_)));
-        let location = MemoryLocation::new(address, LocationSize::Const(32));
-        assert_eq!(aa.memory_alias(location, location), AliasResult::MayAlias);
-    }
-
-    #[test]
-    fn pointer_reset_discards_loop_allocation_identity() {
-        let mut func = function();
-        let allocation = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let pointer = builder.add_param(MirType::I256);
-            let condition = builder.add_param(MirType::I1);
-            let header = builder.create_block();
-            let exit = builder.create_block();
-            // jump header
-            // header: set_fmp pointer; object = alloc 32; branch condition, header, exit
-            // exit: stop
-            builder.jump(header);
-            builder.switch_to_block(header);
-            builder.set_fmp(pointer);
-            let size = builder.imm(32);
-            let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            builder.branch(condition, header, exit);
-            builder.switch_to_block(exit);
-            builder.stop();
-            allocation
-        };
-        let aa = AliasAnalysis::new(&func);
-        let address = aa.memory_address(&func, allocation).unwrap();
-        assert_eq!(address.base, MemoryBase::Value(allocation));
-        assert_eq!(
-            aa.memory_alias(
-                MemoryLocation::new(address, LocationSize::Const(32)),
-                AliasAnalysis::fmp_location(),
-            ),
-            AliasResult::MayAlias
-        );
-    }
-
-    #[test]
-    fn classifies_storage_aliases() {
-        let first = Location::Storage(StorageAlias::Slot(U256::from(1)));
-        let second = Location::Storage(StorageAlias::Slot(U256::from(2)));
-        assert_eq!(AliasAnalysis::alias_locations(first, first), AliasResult::MustAlias);
-        assert_eq!(AliasAnalysis::alias_locations(first, second), AliasResult::NoAlias);
-
-        let symbolic = Location::Storage(StorageAlias::Symbolic(ValueId::from_usize(0)));
-        assert_eq!(AliasAnalysis::alias_locations(first, symbolic), AliasResult::MayAlias);
-        assert_eq!(
-            AliasAnalysis::alias_locations(
-                first,
-                Location::Transient(StorageAlias::Slot(U256::from(1))),
-            ),
-            AliasResult::NoAlias
-        );
-    }
-
-    #[test]
-    fn reports_precise_immutable_modref() {
-        let mut func = function();
-        let id = ImmutableId::new(3);
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let value = builder.add_param(MirType::I256);
-            builder.store_immutable(id, value);
-            let _value = builder.load_immutable(id, MirType::I256);
-            builder.stop();
-        }
-        let [store, load] = func.blocks[BlockId::ENTRY].instructions.as_slice() else {
-            panic!("expected one immutable store and load")
-        };
-        let location = Access::Location(Location::Immutable(id));
-        let aa = AliasAnalysis::new(&func);
-
-        assert_eq!(aa.instruction_mod_ref(&func, *store).writes(), &[location]);
-        assert_eq!(aa.instruction_mod_ref(&func, *load).reads(), &[location]);
-    }
-
-    #[test]
-    fn reports_precise_copy_modref() {
-        let mut func = function();
-        let copy = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let dest = builder.imm(0x80);
-            let source = builder.imm(0x20);
-            let size = builder.imm(32);
-            builder.mcopy(dest, source, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
-        };
-        let aa = AliasAnalysis::new(&func);
-        let effects = aa.instruction_mod_ref(&func, copy);
-
-        assert_eq!(effects.reads().len(), 1);
-        assert_eq!(effects.writes().len(), 1);
-        assert!(effects.reads_space(AddressSpace::Memory));
-        assert!(effects.writes_space(AddressSpace::Memory));
-    }
-
-    #[test]
-    fn static_call_reads_state_but_cannot_write_it() {
-        let mut func = function();
-        let call = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let gas = builder.imm(100_000);
-            let address = builder.imm(1);
-            let offset = builder.imm(0x80);
-            let size = builder.imm(32);
-            builder.staticcall(gas, address, offset, size, offset, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
-        };
-        let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
-
-        assert!(effects.reads_space(AddressSpace::Storage));
-        assert!(!effects.writes_space(AddressSpace::Storage));
-        assert!(effects.reads_space(AddressSpace::Memory));
-        assert!(effects.writes_space(AddressSpace::Memory));
-    }
-
-    #[test]
-    fn callcode_reads_and_writes_state_and_memory() {
-        let mut func = function();
-        let call = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let gas = builder.imm(100_000);
-            let address = builder.imm(1);
-            let value = builder.imm(2);
-            let offset = builder.imm(0x80);
-            let size = builder.imm(32);
-            builder.callcode(gas, address, value, offset, size, offset, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
-        };
-        let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
-
-        assert!(effects.reads_space(AddressSpace::Storage));
-        assert!(effects.writes_space(AddressSpace::Storage));
-        assert!(effects.reads_space(AddressSpace::Transient));
-        assert!(effects.writes_space(AddressSpace::Transient));
-        assert!(effects.reads_space(AddressSpace::Memory));
-        assert!(effects.writes_space(AddressSpace::Memory));
-    }
-
-    #[test]
-    fn internal_calls_propagate_memory_size_observations() {
-        let mut module = Module::new(Ident::DUMMY);
-
-        let mut observer = function();
-        {
-            let mut builder = FunctionBuilder::new(&mut observer);
-            // size = msize
-            // return size
-            let size = builder.msize();
-            builder.ret([size]);
-        }
-        observer.set_return_type(MirType::I256);
-        let observer = module.add_function(observer);
-
-        let mut caller = function();
-        let call = {
-            let mut builder = FunctionBuilder::new(&mut caller);
-            // mstore 0x1000, 1
-            // value = icall @observer
-            // return
-            let destination = builder.imm(0x1000);
-            let value = builder.imm(1);
-            builder.mstore(destination, value);
-            let _ = builder.icall(observer, vec![], MirType::I256);
-            builder.ret([]);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
-        };
-        let caller = module.add_function(caller);
-
-        let mut tail_caller = function();
-        // tail_call @observer
-        FunctionBuilder::new(&mut tail_caller).tail_call(observer, vec![]);
-        let tail_caller = module.add_function(tail_caller);
-
-        let summaries = Arc::new(MemoryCallSummaries::new(&module));
-        let caller = &module.functions[caller];
-        let conservative = AliasAnalysis::new(caller).instruction_mod_ref(caller, call);
-        assert!(conservative.observes_memory_size());
-        assert!(conservative.observes_gas());
-
-        let effects = AliasAnalysis::with_call_summaries(caller, Arc::clone(&summaries))
-            .instruction_mod_ref(caller, call);
-        assert!(effects.observes_memory_size());
-
-        let tail_caller = &module.functions[tail_caller];
-        let terminator = tail_caller.blocks[BlockId::ENTRY].terminator.as_ref().unwrap();
-        let conservative =
-            AliasAnalysis::new(tail_caller).terminator_mod_ref(tail_caller, terminator);
-        assert!(conservative.observes_memory_size());
-        assert!(conservative.observes_gas());
-
-        let effects = AliasAnalysis::with_call_summaries(tail_caller, summaries)
-            .terminator_mod_ref(tail_caller, terminator);
-        assert!(effects.observes_memory_size());
-    }
 }

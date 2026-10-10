@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/checked_insertion_shift.sol:CheckedInsertionShift ===
 @module CheckedInsertionShift
-fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @sort(arg0: memptr) -> memptr [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 1], [bb3: v34]
-    v1 = phi [bb0: memoryarray 96], [bb3: v13]
+    v1 = phi [bb0: memptr 96], [bb3: v13]
     v2 = phi [bb0: arg0], [bb3: v10]
     v3 = memory_object_len memoryarray, v2
     v4 = lt v0, v3
@@ -75,7 +75,7 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     jump bb7
 }
 
-fn @shiftAt(arg0: memoryarray, arg1: i256) -> memoryarray [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @shiftAt(arg0: memptr, arg1: i256) -> memptr [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2

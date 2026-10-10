@@ -180,6 +180,22 @@ impl Terminator {
         }
     }
 
+    /// Returns whether this terminator has any successor blocks.
+    #[must_use]
+    pub(crate) fn has_successors(&self) -> bool {
+        match self {
+            Self::Jump(_) | Self::Branch { .. } | Self::Switch { .. } => true,
+            Self::Return { .. }
+            | Self::Revert { .. }
+            | Self::RevertReturndata
+            | Self::ReturnData { .. }
+            | Self::Stop
+            | Self::SelfDestruct { .. }
+            | Self::TailCall { .. }
+            | Self::Invalid => false,
+        }
+    }
+
     /// Visits the value operands of this terminator without allocating.
     pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
         match self {

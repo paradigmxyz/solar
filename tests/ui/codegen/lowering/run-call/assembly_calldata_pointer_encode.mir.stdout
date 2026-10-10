@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
 @module AssemblyCalldataPointerEncode
-fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @arrayCopy() -> memptr [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = make_calldata_slice 4, 2
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v2 = ptrtoint memoryfixedarray v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 64
     v3 = slice_ptr v0
     v4 = calldatasize
@@ -17,7 +17,7 @@ fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], a
     ret v7
 }
 
-fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -102,17 +102,18 @@ fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=
     ret v6
 }
 
-fn @structFirst() -> i256 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = icall @makeStruct
     v1 = slice_ptr v0
     v2 = add v1, 0
     v3 = calldataload v2
-    v4 = and v3, 255
-    v5 = eq v3, v4
+    v4 = shr 8, v3
+    v5 = eq v4, 0
     v6 = eq v5, false
     icall revert_if<empty>, v6
-    ret v3
+    v7 = trunc i256 v3 to i8
+    ret v7
 }
 
 fn @makeStruct() -> calldataslice [pure] {

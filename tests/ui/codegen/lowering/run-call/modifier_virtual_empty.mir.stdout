@@ -1,20 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_virtual_empty.sol:ModifierVirtualEmpty ===
 @module ModifierVirtualEmpty
-fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f() -> i1 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi false, bb2, bb3
   bb3:
     jump bb4
   bb2:
-    v0 = zext i1 1 to i256
     jump bb5
   bb5:
     jump bb4
   bb4:
-    v1 = phi [bb5: v0], [bb3: 0]
+    v0 = phi [bb5: true], [bb3: false]
     jump bb1
   bb1:
-    ret v1
+    ret v0
 }
 
 fn @constructor() [constructor] {

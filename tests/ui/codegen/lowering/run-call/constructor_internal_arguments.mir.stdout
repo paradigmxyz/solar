@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArgumentsHelper ===
 @module ConstructorInternalArgumentsHelper
-fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes3, bool]] {
+fn @constructor(arg0: i256, arg1: i1) [constructor, abi_params=[bytes3, bool]] {
   bb0:
     v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
@@ -10,34 +10,32 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes3, bool]]
     v5 = and v4, 0xffffff
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    v7 = eq arg1, 0
-    v8 = eq v7, false
-    v9 = shl 24, 255
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = not v9
-    v12 = and v10, v11
-    v13 = zext i1 v8 to i256
-    v14 = and v13, 255
-    v15 = shl 24, v14
-    v16 = or v12, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v7 = shl 24, 255
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = zext i1 arg1 to i256
+    v12 = and v11, 255
+    v13 = shl 24, v12
+    v14 = or v10, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffff
-    v2 = shl 232, v1
-    ret v2
+    v1 = shl 232, v0
+    ret v1
 }
 
-fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 24, v0
-    v2 = and v1, 255
-    ret v2
+    v2 = trunc i256 v1 to i8
+    v3 = ne v2, i8 0
+    ret v3
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArguments ===
@@ -48,91 +46,85 @@ fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
 fn @constructor() [constructor] {
   bb0:
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = zext i1 1 to i256
-    v2 = eq v1, 0
-    v3 = eq v2, false
-    v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bytes3>, word<bool>], args v0, v4
-    v6 = datasize ConstructorInternalArgumentsHelper_creation_code_0
-    v7 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
-    v8 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 95, aligned
-    v9 = alloc raw, exact, uninitialized, infallible, v8
-    v10 = ptrtoint memptr v9 to i256
-    datacopy ConstructorInternalArgumentsHelper_creation_code_0, v10, v6
-    v11 = slice_ptr v5
-    v12 = ptrtoint memptr v9 to i256
-    v13 = add v12, v6
-    mcopy v13, v11, 64 !metadata(memory=heap)
-    v14 = ptrtoint memptr v9 to i256
-    v15 = create 0, v14, v7
-    v16 = zext i160 v15 to i256
-    v17 = ne v16, 0
-    jumpi v17, bb2, bb1
+    v1 = eq true, false
+    v2 = eq v1, false
+    v3 = zext i1 v2 to i256
+    v4 = abi_encode [word<bytes3>, word<bool>], args v0, v3
+    v5 = datasize ConstructorInternalArgumentsHelper_creation_code_0
+    v6 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
+    v7 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 95, aligned
+    v8 = alloc raw, exact, uninitialized, infallible, v7
+    v9 = ptrtoint memptr v8 to i256
+    datacopy ConstructorInternalArgumentsHelper_creation_code_0, v9, v5
+    v10 = slice_ptr v4
+    v11 = ptrtoint memptr v8 to i256
+    v12 = add v11, v5
+    mcopy v12, v10, 64 !metadata(memory=heap)
+    v13 = ptrtoint memptr v8 to i256
+    v14 = create 0, v13, v6
+    v15 = ne v14, i160 0
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = and v18, v19
-    v21 = zext i160 v15 to i256
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = or v20, v22
-    sstore 0, v23 !metadata(storage=slot(0))
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = and v16, v17
+    v19 = zext i160 v14 to i256
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
+    v21 = or v18, v20
+    sstore 0, v21 !metadata(storage=slot(0))
     ret
 }
 
-fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0xf963393000000000000000000000000000000000000000000000000000000000
     v4 = slice_ptr v3
     v5 = slice_len v3
-    v6 = staticcall v2, v1, v4, v5, 0, 32
-    jumpi v6, bb2, bb1
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, v4, v5, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    v13 = zext i1 v12 to i256
-    v14 = eq v10, v13
-    v15 = eq v14, false
-    icall revert_if<empty>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    ret v17
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = lt v11, 2
+    v13 = eq v12, false
+    icall revert_if<empty>, v13
+    v14 = ne v11, 0
+    ret v14
 }
 
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
     v4 = slice_ptr v3
     v5 = slice_len v3
-    v6 = staticcall v2, v1, v4, v5, 0, 32
-    jumpi v6, bb2, bb1
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, v4, v5, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = and v10, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v12 = eq v10, v11
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = shl 24, v11
+    v13 = eq v12, 0
+    v14 = eq v13, false
+    icall revert_if<empty>, v14
+    ret v11
 }

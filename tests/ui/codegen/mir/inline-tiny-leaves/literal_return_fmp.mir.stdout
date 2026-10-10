@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_return_fmp.sol:LiteralReturnFmp ===
 @module LiteralReturnFmp
 @types
-  struct0: {memorybytes, memorybytes}
+  struct0: {memptr, memptr}
 
 fn @retainedLiteral() -> struct0 [selector=0xe174bc9a, pure, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
@@ -12,7 +12,7 @@ fn @retainedLiteral() -> struct0 [selector=0xe174bc9a, pure, abi_params=[], abi_
     ret v3
 }
 
-fn @literal() -> memorybytes [pure] {
+fn @literal() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1

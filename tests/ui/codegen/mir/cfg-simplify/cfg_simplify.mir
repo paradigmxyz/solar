@@ -131,3 +131,39 @@ fn @same_incoming_arms(arg0: i1) -> i256 {
   bb3:
     ret 2
 }
+
+// CHECK-LABEL: fn @branch_fact_through_chain
+// CHECK: - jumpi arg0, bb4, bb5
+fn @branch_fact_through_chain(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    mstore 0, 2
+    jumpi arg1, bb3, bb1
+  bb3:
+    mstore 32, 3
+    jumpi arg0, bb4, bb5
+  bb4:
+    ret 4
+  bb5:
+    ret 5
+}
+
+// A loop recomputes its condition; the backedge cannot prove its next value.
+// CHECK-LABEL: fn @loop_condition_recomputed
+// CHECK: jumpi v1,
+fn @loop_condition_recomputed(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v2]
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = sub v0, 1
+    jump bb1
+  bb3:
+    ret v0
+}

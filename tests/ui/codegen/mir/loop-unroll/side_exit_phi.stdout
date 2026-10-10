@@ -1,0 +1,72 @@
+- // === ROOT/tests/ui/codegen/mir/loop-unroll/side_exit_phi.mir (before loop-unroll) ===
++ // === ROOT/tests/ui/codegen/mir/loop-unroll/side_exit_phi.mir (after loop-unroll) ===
+  @module SideExitPhi
+  fn @search(arg0: i256) -> i256 {
+    bb0:
+-     jump bb1
++     jump bb6
++   bb6:
++     v9 = phi [bb0: 0], [bb17: v32]
++     v10 = phi [bb0: 1], [bb17: v30]
++     v33 = add v9, 3
++     v34 = lt v33, arg0
++     jumpi v34, bb7, bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb3: v5]
+-     v1 = phi [bb0: 1], [bb3: v3]
++     v0 = phi [bb6: v9], [bb3: v5]
++     v1 = phi [bb6: v10], [bb3: v3]
+      v2 = lt v0, arg0
+      jumpi v2, bb2, bb5
+    bb5:
+      ret v1
+    bb2:
+      v3 = mul v1, 3
+      v4 = gt v3, 0x3e8
+      jumpi v4, bb4, bb3
+    bb3:
+      v5 = add v0, 1
+      jump bb1
++   bb7:
++     v12 = mul v10, 3
++     v13 = gt v12, 0x3e8
++     jumpi v13, bb4, bb8
++   bb8:
++     v14 = add v9, 1
++     jump bb9
++   bb9:
++     jump bb10
++   bb10:
++     v18 = mul v12, 3
++     v19 = gt v18, 0x3e8
++     jumpi v19, bb4, bb11
++   bb11:
++     v20 = add v9, 2
++     jump bb12
++   bb12:
++     jump bb13
++   bb13:
++     v24 = mul v18, 3
++     v25 = gt v24, 0x3e8
++     jumpi v25, bb4, bb14
++   bb14:
++     v26 = add v9, 3
++     jump bb15
++   bb15:
++     jump bb16
++   bb16:
++     v30 = mul v24, 3
++     v31 = gt v30, 0x3e8
++     jumpi v31, bb4, bb17
++   bb17:
++     v32 = add v9, 4
++     jump bb6
+    bb4:
+-     v6 = phi [bb2: v3]
+-     v7 = add v6, v3
++     v8 = phi [bb2: v3], [bb7: v12], [bb10: v18], [bb13: v24], [bb16: v30]
++     v6 = phi [bb2: v3], [bb7: v12], [bb10: v18], [bb13: v24], [bb16: v30]
++     v7 = add v6, v8
+      ret v7
+  }
+  

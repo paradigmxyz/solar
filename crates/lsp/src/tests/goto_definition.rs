@@ -44,16 +44,30 @@ fn resolves_definitions_and_references() {
                 return Choice.$13A;
             }
         }
+
+        contract InterfaceCaller {
+            function call(I target) external returns (uint256) {
+                return target.$15f();
+            }
+        }
+
+        abstract contract AbstractCaller {
+            function hook() internal virtual;
+            function callHook() internal {
+                $16hook();
+            }
+        }
         "#,
         "/Navigation.sol",
     );
 
-    fixture.check_queries(&[Query::Definition, Query::References(true)], 1..=14, str![[r#"
+    fixture.check_queries(&[Query::Definition, Query::References(true)], 1..=16, str![[r#"
 $1 definition: /Navigation.sol:0:8 library L {
 $1 references: /Navigation.sol:0:8 library L {
 /Navigation.sol:5:6 using L for uint256;
-$2 definition: <none>
+$2 definition: /Navigation.sol:7:13 function f() external returns (uint256);
 $2 references: /Navigation.sol:7:13 function f() external returns (uint256);
+/Navigation.sol:32:22 return target.f();
 $3 definition: /Navigation.sol:11:20 function g(uint amount) public virtual {}
 $3 references: /Navigation.sol:10:15 /// @param amount The amount.
 /Navigation.sol:11:20 function g(uint amount) public virtual {}
@@ -91,6 +105,12 @@ $14 definition: /Navigation.sol:14:9 enum Choice { A, B }
 $14 references: /Navigation.sol:14:9 enum Choice { A, B }
 /Navigation.sol:23:54 function caller(Data memory data) public returns (Choice) {
 /Navigation.sol:27:15 return Choice.A;
+$15 definition: /Navigation.sol:7:13 function f() external returns (uint256);
+$15 references: /Navigation.sol:7:13 function f() external returns (uint256);
+/Navigation.sol:32:22 return target.f();
+$16 definition: /Navigation.sol:36:13 function hook() internal virtual;
+$16 references: /Navigation.sol:36:13 function hook() internal virtual;
+/Navigation.sol:38:8 hook();
 
 "#]]);
     fixture.check_queries(

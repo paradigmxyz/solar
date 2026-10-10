@@ -17,12 +17,12 @@
 +   bb2:
       ret v0
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=10..20, modifier_depth=1)
 +     mstore 32, 34 !metadata(memory=scratch, span=10..20, modifier_depth=1)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=10..20, modifier_depth=1)
 +     revert 28, 36 !metadata(span=10..20, modifier_depth=1)
   }
   
-  fn @load(arg0: i256) -> memorybytes {
+  fn @load(arg0: i256) -> memptr {
     bb0:
 -     v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
 -     ret v0
@@ -71,16 +71,16 @@
 +     v24 = add v19, 1 !metadata(span=20..30, modifier_depth=2)
 +     jump bb8 !metadata(span=20..30, modifier_depth=2)
 +   bb3:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     mstore 32, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     mstore 32, 34 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
   }
   
-  fn @edge(arg0: i1, arg1: i256, arg2: memorybytes) -> memorybytes {
+  fn @edge(arg0: i1, arg1: i256, arg2: memptr) -> memptr {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -136,12 +136,12 @@
 +     v25 = add v20, 1
 +     jump bb11
 +   bb6:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -173,7 +173,7 @@
 +     jump bb4 !metadata(span=30..40, modifier_depth=3)
   }
   
-  fn @store(arg0: i1, arg1: i256, arg2: memorybytes) -> i256 {
+  fn @store(arg0: i1, arg1: i256, arg2: memptr) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -266,12 +266,12 @@
 +     v0 = phi [bb12: 1], [bb2: 2]
       ret v0
 +   bb6:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     mstore 32, 65 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     mstore 32, 34 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
   }
   
@@ -332,8 +332,8 @@
 +     sstore arg1, 0 !metadata(storage=symbolic(arg1))
       jump bb3
 +   bb8:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
     bb1:
 -     store_storage_bytes_literal arg1, hex"61" !metadata(span=50..60, modifier_depth=5)
@@ -365,8 +365,8 @@
 +     v0 = phi [bb7: 1], [bb14: 2]
       ret v0
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     mstore 32, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
   }
   
@@ -430,8 +430,8 @@
 +     sstore arg0, 0x7800000000000000000000000000000000000000000000000000000000000002 !metadata(storage=symbolic(arg0))
 +     ret
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

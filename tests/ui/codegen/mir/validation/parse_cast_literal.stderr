@@ -1,0 +1,8 @@
+error: cast literal does not fit its source type
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_cast_literal.mir:LL:CC
+   │
+LL │     v0 = zext i1 2 to i256
+   ╰╴                   ━━
+
+error: aborting due to 1 previous error
+

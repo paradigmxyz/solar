@@ -506,3 +506,171 @@ $11 44:8-44:14 function update(uint256 renamed) public pure override returns (ui
 "#]],
     );
 }
+
+#[test]
+fn shows_builtin_signature() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Builtins.sol open
+        contract C {
+            function hash(bytes memory data) external pure returns (bytes32) {
+                return $1keccak256(data);
+            }
+        }
+        "#,
+        "/Builtins.sol",
+    );
+
+    fixture.check_queries(
+        &[Query::Hover],
+        [1],
+        str![[r#"
+$1 2:15-2:24 function keccak256(bytes memory) pure returns (bytes32)
+
+"#]],
+    );
+    fixture.check_queries(
+        &[Query::Definition, Query::Declaration],
+        [1],
+        str![[r#"
+$1 definition: <none>
+$1 declaration: <none>
+
+"#]],
+    );
+}
+
+#[test]
+fn builtin_hover_distinguishes_selectors_and_bound_array_overloads() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Members.sol open
+        contract C {
+            event E(uint256 value);
+            error Bad(uint256 value);
+            uint256[] values;
+            function f() external {}
+            function inspect() external view returns (bytes4, bytes32, bytes4, address) {
+                return (this.f.$1selector, E.$2selector, Bad.$3selector, /* 😀 */ msg.$4sender);
+            }
+            function mutate() external {
+                values.$5push();
+                values.$6push(1);
+                values.$7pop();
+            }
+        }
+        "#,
+        "/Members.sol",
+    );
+
+    fixture.check_queries(
+        &[Query::Hover],
+        1..=7,
+        str![[r#"
+$1 6:23-6:31 bytes4 function.selector
+$2 6:35-6:43 bytes32 event.selector
+$3 6:49-6:57 bytes4 error.selector
+$4 6:72-6:78 address msg.sender
+$5 9:15-9:19 function uint256[] storage.push() returns (uint256)
+$6 10:15-10:19 function uint256[] storage.push(uint256)
+$7 11:15-11:18 function uint256[] storage.pop()
+
+"#]],
+    );
+    fixture.check_queries(
+        &[Query::Definition, Query::Declaration],
+        1..=7,
+        str![[r#"
+$1 definition: <none>
+$1 declaration: <none>
+$2 definition: <none>
+$2 declaration: <none>
+$3 definition: <none>
+$3 declaration: <none>
+$4 definition: <none>
+$4 declaration: <none>
+$5 definition: <none>
+$5 declaration: <none>
+$6 definition: <none>
+$6 declaration: <none>
+$7 definition: <none>
+$7 declaration: <none>
+
+"#]],
+    );
+}
+
+#[test]
+fn builtin_hover_uses_concrete_receiver_names() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Names.sol open
+        type Price is uint256;
+        contract C {
+            uint256[] values;
+            bytes data;
+            function inspect(address payable target, bytes32 word, uint256[2] memory fixedValues)
+                external view
+            {
+                $1msg;
+                $2block.$3timestamp;
+                $4tx.$5origin;
+                $6abi.$7encode(1);
+                target.$8balance;
+                target.$9code;
+                word.$10length;
+                values.$11length;
+                data.$12length;
+                fixedValues.$13length;
+                type(C).$14name;
+                type(uint256).$15max;
+                Price.$16wrap(Price.$17unwrap(Price.wrap(1)));
+                string.$18concat("a", "b");
+                bytes.$19concat(hex"01", hex"02");
+                data.$20pop;
+            }
+            function mutate(address payable target) external {
+                target.$21call("");
+                target.$22send(1);
+                data.$23push();
+                data.$24push(0x01);
+                data.$25pop();
+            }
+        }
+        "#,
+        "/Names.sol",
+    );
+
+    fixture.check_queries(
+        &[Query::Hover],
+        1..=25,
+        str![[r#"
+$1 7:8-7:11 namespace msg
+$2 8:8-8:13 namespace block
+$3 8:14-8:23 uint256 block.timestamp
+$4 9:8-9:10 namespace tx
+$5 9:11-9:17 address tx.origin
+$6 10:8-10:11 namespace abi
+$7 10:12-10:18 function abi.encode(...) pure returns (bytes memory)
+$8 11:15-11:22 uint256 address payable.balance
+$9 12:15-12:19 bytes memory address payable.code
+$10 13:13-13:19 uint8 bytes32.length
+$11 14:15-14:21 uint256 uint256[] storage.length
+$12 15:13-15:19 uint256 bytes storage.length
+$13 16:20-16:26 uint256 uint256[2] memory.length
+$14 17:16-17:20 string memory type(contract C).name
+$15 18:22-18:25 uint256 type(uint256).max
+$16 19:14-19:18 function Price.wrap(uint256) pure returns (Price)
+$17 19:25-19:31 function Price.unwrap(Price) pure returns (uint256)
+$18 20:15-20:21 function string.concat(...) pure returns (string memory)
+$19 21:14-21:20 function bytes.concat(...) pure returns (bytes memory)
+$20 22:13-22:16 function bytes storage.pop()
+$21 25:15-25:19 function address payable.call(bytes memory) payable returns (bool, bytes memory)
+$22 26:15-26:19 function address payable.send(uint256) returns (bool)
+$23 27:13-27:17 function bytes storage.push() returns (bytes1)
+$24 28:13-28:17 function bytes storage.push(bytes1)
+$25 29:13-29:16 function bytes storage.pop()
+
+"#]],
+    );
+}

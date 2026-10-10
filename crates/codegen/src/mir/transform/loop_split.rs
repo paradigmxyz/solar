@@ -24,9 +24,9 @@
 //! original loop the exact loop-carried state where it stops. Every loop
 //! block is cloned with its instructions and effects unchanged. Edges that
 //! leave the loop from its body reach the same blocks from both copies;
-//! their phis gain the cloned edge, and such a loop qualifies only when no
-//! loop-defined value is used outside the loop except by a phi, so every
-//! definition still dominates its uses.
+//! their phis gain the cloned edge. Loop-defined values may escape only on
+//! those direct exit edges; downstream uses would lose their dominating
+//! definition when the cloned loop bypasses the original loop.
 //!
 //! Profitability: gas mode only, since the loop's code is duplicated; the
 //! loop is bounded in instructions and must hold a guard to fold. Runs
@@ -38,6 +38,7 @@ use crate::{
         ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo},
         pass::{MirPass, run_function_pass},
+        utils::rebuild_predecessors,
     },
     target::Target,
 };
@@ -193,8 +194,16 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     }
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from its
     // start, so `counter + lookahead` never wraps.
-    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
-    start.checked_add(travel)?.checked_add(lookahead)?;
+    let travel = if let Some(trips) = l.trip_count {
+        step.checked_mul(U256::from(trips))?
+    } else {
+        step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?
+    };
+    if start.checked_add(travel)?.checked_add(lookahead)?
+        > crate::mir::analysis::integers::integer_max(func, counter)
+    {
+        return None;
+    }
 
     let mut body_exit = false;
     for block in l.blocks.iter() {
@@ -212,8 +221,12 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
             }
             let in_instructions = body.instructions.iter().any(|&inst| {
                 let kind = &func.inst(inst).kind;
-                !matches!(kind, InstKind::Phi(_))
-                    && kind.operands().into_iter().any(defined_in_loop)
+                match kind {
+                    InstKind::Phi(incoming) => incoming
+                        .iter()
+                        .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value)),
+                    _ => kind.operands().into_iter().any(defined_in_loop),
+                }
             });
             let in_terminator = body
                 .terminator
@@ -303,9 +316,11 @@ fn apply(func: &mut Function, split: &Split) {
 
     // main_header: ahead = add counter', lookahead
     //              jumpi (lt ahead, bound), body', header
-    let lookahead = func.alloc_value(Value::Immediate(Immediate::I256(split.lookahead)));
+    let ty = func.value_ty(split.counter).unwrap();
+    let lookahead =
+        func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), split.lookahead)));
     let (add, ahead) = func.alloc_value_inst(
-        Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(MirType::I256))
+        Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(ty))
             .with_debug_info_dropped(),
     );
     let (lt, condition) = func.alloc_value_inst(
@@ -373,7 +388,7 @@ fn apply(func: &mut Function, split: &Split) {
 }
 
 /// Replaces every successor of a terminator through `map`.
-fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
+pub(super) fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
     match terminator {
         Terminator::Jump(target) => *target = map(*target),
         Terminator::Branch { then_block, else_block, .. } => {
@@ -387,24 +402,5 @@ fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
             }
         }
         _ => {}
-    }
-}
-
-/// Recomputes every block's predecessor list from the terminators.
-fn rebuild_predecessors(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, body) in func.blocks.iter_enumerated() {
-        if let Some(terminator) = &body.terminator {
-            terminator.for_each_successor(|successor| edges.push((block, successor)));
-        }
-    }
-    for body in func.blocks.iter_mut() {
-        body.predecessors.clear();
-    }
-    for (from, to) in edges {
-        let predecessors = &mut func.blocks[to].predecessors;
-        if !predecessors.contains(&from) {
-            predecessors.push(from);
-        }
     }
 }

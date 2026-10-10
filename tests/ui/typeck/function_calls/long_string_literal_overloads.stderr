@@ -1,0 +1,14 @@
+error: member `toEthSignedMessageHash` not unique on type `type(library MessageHashUtils)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/long_string_literal_overloads.sol:LL:CC
+   │
+LL │ …     MessageHashUtils.toEthSignedMessageHash("abcdefghijklmnopqrstuvwxyz012345");
+   ╰╴                       ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no unique declarations found
+   ╭▸ ROOT/tests/ui/typeck/function_calls/long_string_literal_overloads.sol:LL:CC
+   │
+LL │         hash("abcdefghijklmnopqrstuvwxyz012345");
+   ╰╴        ━━━━
+
+error: aborting due to 2 previous errors
+

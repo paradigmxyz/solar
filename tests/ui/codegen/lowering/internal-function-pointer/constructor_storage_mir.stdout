@@ -19,9 +19,10 @@ fn @onlyStored() -> i256 [pure] {
 fn @callStoredOnly() -> i256 [selector=0x11cfff8f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffff
-    v2 = icall @internal_dispatcher_p_none_r_u256, v1
-    ret v2
+    v1 = trunc i256 v0 to i64
+    v2 = zext i64 v1 to i256
+    v3 = icall @internal_dispatcher_p_none_r_u256, v2
+    ret v3
 }
 
 fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {

@@ -1,0 +1,38 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+
+@module ComputedAddressCancellation
+
+// CHECK-LABEL: @cancel
+// CHECK: + {{ *}}ret 42
+fn @cancel(arg0: i256) -> i256 {
+  bb0:
+    v0 = sub 128, arg0
+    v1 = add arg0, v0
+    mstore v1, 42
+    v2 = mload 128
+    ret v2
+}
+
+// CHECK-LABEL: @swapped
+// CHECK: + {{ *}}ret 43
+fn @swapped(arg0: i256) -> i256 {
+  bb0:
+    v0 = sub 128, arg0
+    v1 = add v0, arg0
+    mstore v1, 43
+    v2 = mload 128
+    ret v2
+}
+
+// CHECK-LABEL: @different_base
+// CHECK: {{^[ +].*}}mload 128
+fn @different_base(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 128, 42
+    v0 = sub 128, arg0
+    v1 = add arg1, v0
+    mstore v1, 43
+    v2 = mload 128
+    ret v2
+}

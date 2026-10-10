@@ -34,19 +34,19 @@
       ret v4
   }
   
-  fn @constant_decode_caller(arg0: memorybytes) -> i256 {
+  fn @constant_decode_caller(arg0: memptr) -> i256 {
     bb0:
       v0 = icall @decode_leaf, arg0, 1
       ret v0
   }
   
-  fn @dynamic_decode_caller(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @dynamic_decode_caller(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = icall @decode_leaf, arg0, arg1
       ret v0
   }
   
-  fn @decode_leaf(arg0: memorybytes, arg1: i256) -> i256 [pure] {
+  fn @decode_leaf(arg0: memptr, arg1: i256) -> i256 [pure] {
     bb0:
       v0 = abi_decode [u256], arg0
       v1 = add v0, arg1

@@ -8,7 +8,7 @@
   struct0: {}
   struct1: {calldataslice, i256}
   struct2: {memoryslice, struct0, struct1, returndataslice}
-  struct3: {memorybytes}
+  struct3: {memptr}
 
 fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
   bb0:
@@ -129,7 +129,7 @@ fn @slice_identity(arg0: calldataslice) -> calldataslice {
     ret arg0
 }
 
-fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 {
+fn @memory_call_results(arg0: i1, arg1: memptr) -> struct3 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -145,7 +145,7 @@ fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 {
     ret v4
 }
 
-fn @memory_identity(arg0: memorybytes) -> memorybytes {
+fn @memory_identity(arg0: memptr) -> memptr {
   bb0:
     ret arg0
 }

@@ -18,7 +18,7 @@ fn @static(arg0: i256) -> memoryslice {
 // CHECK-LABEL: {{^[ +].*}}fn @static_bytes{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
 // CHECK: + set_memory_object_len memorybytes, [[OBJECT]], 64
-fn @static_bytes(arg0: i256, arg1: i256) -> memorybytes {
+fn @static_bytes(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = abi_encode [word, word], object, args arg0, arg1
     ret v0
@@ -27,7 +27,7 @@ fn @static_bytes(arg0: i256, arg1: i256) -> memorybytes {
 // CHECK-LABEL: {{^[ +].*}}fn @selector_bytes{{[( ]}}
 // CHECK: + [[SELECTOR_OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
 // CHECK: + set_memory_object_len memorybytes, [[SELECTOR_OBJECT]], 36
-fn @selector_bytes(arg0: i256) -> memorybytes {
+fn @selector_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, object, args arg0
     ret v0
@@ -66,7 +66,7 @@ fn @dynamic(arg0: calldataslice) -> memoryslice {
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
 // CHECK: + {{v[0-9]+}} = memory_object_len memoryarray, arg0
 // CHECK: + {{v[0-9]+}} = memory_object_data memoryarray, arg0
-fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
+fn @nested_dynamic_array(arg0: memptr) -> memoryslice {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
     ret v0
@@ -74,8 +74,10 @@ fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
 
 // A fixed array expands one encoder site per element.
 // CHECK-LABEL: {{^[ +].*}}fn @fixed_nested_dynamic_arrays{{[( ]}}
-// CHECK: + {{v[0-9]+}} = icall @encode_abi_array
-fn @fixed_nested_dynamic_arrays(arg0: memoryfixedarray) -> memoryslice {
+// CHECK: + [[DEST:v[0-9]+]] = inttoptr i256 [[TAIL:v[0-9]+]] to memptr
+// CHECK-NEXT: + [[ENCODED_LEN:v[0-9]+]] = icall @encode_abi_array, {{v[0-9]+}}, [[DEST]]
+// CHECK-NEXT: + {{v[0-9]+}} = add [[TAIL]], [[ENCODED_LEN]]
+fn @fixed_nested_dynamic_arrays(arg0: memptr) -> memoryslice {
   bb0:
     v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
     ret v0

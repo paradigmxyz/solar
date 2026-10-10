@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArrayTarget ===
 @module ExternalFunctionPointerNestedArrayTarget
-fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
+fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -23,7 +23,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
     v13 = icall returndata_bytes<>
     v14 = abi_decode [function], v13
     v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v16 = ptrtoint memoryfixedarray v15 to i256
+    v16 = ptrtoint memptr v15 to i256
     memory_zero v16, 96
     v17 = lt 0, 3
     v18 = eq v17, false
@@ -130,111 +130,99 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mcopy v32, v30, 0 !metadata(memory=heap)
     v33 = ptrtoint memptr v28 to i256
     v34 = create 0, v33, v26
-    v35 = zext i160 v34 to i256
-    v36 = ne v35, 0
-    jumpi v36, bb8, bb7
+    v35 = ne v34, i160 0
+    jumpi v35, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v37 = gas
-    v38 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = alloc raw, exact, uninitialized, infallible, 96
-    v42 = zext i160 v34 to i256
-    v43 = ptrtoint memptr v41 to i256
-    v44 = call v37, v42, 0, v39, v40, v43, 96
-    jumpi v44, bb10, bb9
+    v36 = gas
+    v37 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = alloc raw, exact, uninitialized, infallible, 96
+    v41 = zext i160 v34 to i256
+    v42 = ptrtoint memptr v40 to i256
+    v43 = call v36, v41, 0, v38, v39, v42, 96
+    jumpi v43, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v45 = returndatasize
-    v46 = lt v45, 96
-    icall revert_if<tuple_data_too_short>, v46
-    v47 = not 31
-    v48 = and 159, v47
-    v49 = alloc memorybytes, exact, uninitialized, infallible, v48
-    set_memory_object_len memorybytes, v49, 96
-    v50 = ptrtoint memptr v41 to i256
-    v51 = make_memory_slice v50, 96
-    memory_object_copy_from_slice memorybytes, v49, v51
-    v52 = abi_decode [array<3, function>], v49
-    v53 = lt 0, 3
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = memory_object_load_element memoryfixedarray<3, 1>, v52, 0
-    v56 = shr 64, v55
-    v57 = and v56, 0xffffffff
-    v58 = shl 224, v57
-    v59 = shr 32, v56
-    v60 = gas
-    v61 = abi_encode [], selector v58
-    v62 = slice_ptr v61
-    v63 = slice_len v61
-    v64 = call v60, v59, 0, v62, v63, 0, 32
-    jumpi v64, bb12, bb11
+    v44 = returndatasize
+    v45 = lt v44, 96
+    icall revert_if<tuple_data_too_short>, v45
+    v46 = ptrtoint memptr v40 to i256
+    v47 = make_memory_slice v46, 96
+    v48 = abi_decode [array<3, function>], v47
+    v49 = lt 0, 3
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = memory_object_load_element memoryfixedarray<3, 1>, v48, 0
+    v52 = shr 64, v51
+    v53 = and v52, 0xffffffff
+    v54 = shl 224, v53
+    v55 = shr 32, v52
+    v56 = gas
+    v57 = abi_encode [], selector v54
+    v58 = slice_ptr v57
+    v59 = slice_len v57
+    v60 = call v56, v55, 0, v58, v59, 0, 32
+    jumpi v60, bb12, bb11
   bb11:
     revert_returndata
   bb12:
-    v65 = returndatasize
-    v66 = lt v65, 32
-    icall revert_if<tuple_data_too_short>, v66
-    v67 = add 0, 0
-    v68 = mload v67
-    v69 = add 0, 0
-    v70 = mload v69
-    v71 = lt 1, 3
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = memory_object_load_element memoryfixedarray<3, 1>, v52, 1
-    v74 = shr 64, v73
-    v75 = and v74, 0xffffffff
-    v76 = shl 224, v75
-    v77 = shr 32, v74
-    v78 = gas
-    v79 = abi_encode [], selector v76
-    v80 = slice_ptr v79
-    v81 = slice_len v79
-    v82 = call v78, v77, 0, v80, v81, 0, 32
-    jumpi v82, bb14, bb13
+    v61 = returndatasize
+    v62 = lt v61, 32
+    icall revert_if<tuple_data_too_short>, v62
+    v63 = add 0, 0
+    v64 = mload v63
+    v65 = lt 1, 3
+    v66 = eq v65, false
+    icall panic_if<0x32>, v66
+    v67 = memory_object_load_element memoryfixedarray<3, 1>, v48, 1
+    v68 = shr 64, v67
+    v69 = and v68, 0xffffffff
+    v70 = shl 224, v69
+    v71 = shr 32, v68
+    v72 = gas
+    v73 = abi_encode [], selector v70
+    v74 = slice_ptr v73
+    v75 = slice_len v73
+    v76 = call v72, v71, 0, v74, v75, 0, 32
+    jumpi v76, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v83 = returndatasize
-    v84 = lt v83, 32
-    icall revert_if<tuple_data_too_short>, v84
-    v85 = add 0, 0
-    v86 = mload v85
-    v87 = add 0, 0
-    v88 = mload v87
-    v89 = lt 2, 3
-    v90 = eq v89, false
-    icall panic_if<0x32>, v90
-    v91 = memory_object_load_element memoryfixedarray<3, 1>, v52, 2
-    v92 = shr 64, v91
-    v93 = and v92, 0xffffffff
-    v94 = shl 224, v93
-    v95 = shr 32, v92
-    v96 = gas
-    v97 = abi_encode [], selector v94
-    v98 = slice_ptr v97
-    v99 = slice_len v97
-    v100 = call v96, v95, 0, v98, v99, 0, 32
-    jumpi v100, bb16, bb15
+    v77 = returndatasize
+    v78 = lt v77, 32
+    icall revert_if<tuple_data_too_short>, v78
+    v79 = add 0, 0
+    v80 = mload v79
+    v81 = lt 2, 3
+    v82 = eq v81, false
+    icall panic_if<0x32>, v82
+    v83 = memory_object_load_element memoryfixedarray<3, 1>, v48, 2
+    v84 = shr 64, v83
+    v85 = and v84, 0xffffffff
+    v86 = shl 224, v85
+    v87 = shr 32, v84
+    v88 = gas
+    v89 = abi_encode [], selector v86
+    v90 = slice_ptr v89
+    v91 = slice_len v89
+    v92 = call v88, v87, 0, v90, v91, 0, 32
+    jumpi v92, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v101 = returndatasize
-    v102 = lt v101, 32
-    icall revert_if<tuple_data_too_short>, v102
-    v103 = add 0, 0
-    v104 = mload v103
-    v105 = add 0, 0
-    v106 = mload v105
-    v107 = insert_value struct0, undef struct0, 0, v70
-    v108 = insert_value struct0, v107, 1, v88
-    v109 = insert_value struct0, v108, 2, v106
-    ret v109
+    v93 = returndatasize
+    v94 = lt v93, 32
+    icall revert_if<tuple_data_too_short>, v94
+    v95 = add 0, 0
+    v96 = mload v95
+    v97 = insert_value struct0, undef struct0, 0, v64
+    v98 = insert_value struct0, v97, 1, v80
+    v99 = insert_value struct0, v98, 2, v96
+    ret v99
   bb4:
     v8 = address
     v9 = zext i160 v8 to i256

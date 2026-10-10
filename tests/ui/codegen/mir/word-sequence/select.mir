@@ -1,7 +1,7 @@
 //@ revisions: gas size shape
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
-//@[shape] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-evm-shaped
+//@[shape] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-integers,lower-evm-shaped
 //@[gas] filecheck: --check-prefixes=RECIPE,GAS
 //@[size] filecheck: --check-prefixes=RECIPE,SIZE
 //@[shape] filecheck: --check-prefix=SHAPE
@@ -220,11 +220,11 @@ fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
 }
 
 // RECIPE-LABEL: fn @pointer_arm(
-// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, memorybytes 0
+// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, memptr 0
 // RECIPE-NEXT: {{ *}}ret [[R]]
-fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
+fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr {
   bb0:
-    v0 = select arg0, arg1, memorybytes 0
+    v0 = select arg0, arg1, memptr 0
     ret v0
 }
 
@@ -295,5 +295,50 @@ fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v0 = add arg1, arg2
     v1 = trunc i256 arg0 to i1
     v2 = select v1, v0, arg2
+    ret v2
+}
+
+// RECIPE-LABEL: fn @factor_zext_native(
+// RECIPE: + {{ *}}[[SELECTED:v[0-9]+]] = select arg0, arg1, arg2
+// RECIPE-NEXT: + {{ *}}v2 = zext i8 [[SELECTED]] to i256
+fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
+  bb0:
+    v0 = zext i8 arg1 to i256
+    v1 = zext i8 arg2 to i256
+    v2 = select arg0, v0, v1
+    ret v2
+}
+
+// RECIPE-LABEL: fn @factor_sext_native(
+// RECIPE: + {{ *}}[[SELECTED:v[0-9]+]] = select arg0, arg1, arg2
+// RECIPE-NEXT: + {{ *}}v2 = sext i8 [[SELECTED]] to i160
+fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
+  bb0:
+    v0 = sext i8 arg1 to i160
+    v1 = sext i8 arg2 to i160
+    v2 = select arg0, v0, v1
+    ret v2
+}
+
+// RECIPE-LABEL: fn @factor_trunc_native(
+// RECIPE: + {{ *}}[[SELECTED:v[0-9]+]] = select arg0, arg1, arg2
+// RECIPE-NEXT: + {{ *}}v2 = trunc i160 [[SELECTED]] to i8
+fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
+  bb0:
+    v0 = trunc i160 arg1 to i8
+    v1 = trunc i160 arg2 to i8
+    v2 = select arg0, v0, v1
+    ret v2
+}
+
+// RECIPE-LABEL: fn @keep_mixed_source_widths(
+// RECIPE: {{ *}}v0 = zext i8 arg1 to i256
+// RECIPE-NEXT: {{ *}}v1 = zext i16 arg2 to i256
+// RECIPE-NEXT: {{ *}}v2 = select arg0, v0, v1
+fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
+  bb0:
+    v0 = zext i8 arg1 to i256
+    v1 = zext i16 arg2 to i256
+    v2 = select arg0, v0, v1
     ret v2
 }

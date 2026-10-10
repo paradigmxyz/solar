@@ -142,6 +142,14 @@ ALGORITHM_INPUTS = (
 )
 
 
+# Batch inputs for calldata array loops: 32 amounts of seven to eight nonzero
+# bytes, small weights, and distinct accounts searched for the last one.
+CALLDATA_AMOUNTS = "[" + ",".join(str(10**15 * (i + 1)) for i in range(32)) + "]"
+CALLDATA_WEIGHTS = "[" + ",".join(str(i + 1) for i in range(32)) + "]"
+CALLDATA_ACCOUNTS = "[" + ",".join(f"0x{0xA11CE000 + i:040x}" for i in range(32)) + "]"
+CALLDATA_LAST_ACCOUNT = f"0x{0xA11CE000 + 31:040x}"
+
+
 @dataclass(frozen=True)
 class RuntimeCheck:
     label: str
@@ -521,6 +529,229 @@ TEST_CASES: Sequence[TestCase] = (
                 ("wrap", (MAX_UINT256, "1", "64")),
                 ("zero", ("0", "0", "0")),
             )
+        ),
+    ),
+    TestCase(
+        test_id="division-words",
+        description="Synthetic fixed-point, lot and calendar division in hot loops",
+        source_code=(TESTDATA_ROOT / "runtime/DivisionWords.sol").read_text(),
+        source_path="testdata/runtime/DivisionWords.sol",
+        source_name="DivisionWords.sol",
+        contract_name="DivisionWords",
+        gas_calls=(
+            GasCall("route", "route(uint256,uint256)", (str(10**30), "64")),
+            GasCall(
+                "to-wad", "toWad(uint256,uint256,uint256)", (str(10**9), "12345", "64")
+            ),
+            GasCall("lots", "lots(uint256,uint256,uint256)", ("0", "100003", "64")),
+            GasCall(
+                "week-starts",
+                "weekStarts(uint256,uint256,uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            GasCall(
+                "period-starts",
+                "periodStarts(uint256,uint256,uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            GasCall(
+                "units",
+                "units(uint256,uint256,uint256)",
+                (str(10**18), str(10**17), "64"),
+            ),
+            GasCall(
+                "after-fees",
+                "afterFees(uint256,uint256,uint256)",
+                (str(10**18), "12345", "64"),
+            ),
+            GasCall("keep", "keep(uint256,uint256,uint256)", (str(10**18), "3", "64")),
+            GasCall(
+                "seconds-into-day",
+                "secondsIntoDay(uint256,uint256,uint256)",
+                ("1700000000", "3601", "64"),
+            ),
+            GasCall(
+                "whole-lots", "wholeLots(uint256,uint256,uint256)", ("0", "250", "64")
+            ),
+        ),
+        runtime_checks=(
+            RuntimeCheck(
+                "route", "route(uint256,uint256)(uint256)", (str(10**30), "64")
+            ),
+            RuntimeCheck(
+                "route-limit",
+                "route(uint256,uint256)(uint256)",
+                (str(((1 << 256) - 1) // 997), "1"),
+            ),
+            RuntimeCheck(
+                "to-wad-limit",
+                "toWad(uint256,uint256,uint256)(uint256)",
+                (str(((1 << 256) - 1) // 10**12), "0", "1"),
+            ),
+            RuntimeCheck(
+                "lots",
+                "lots(uint256,uint256,uint256)(uint256,uint256)",
+                ("0", "100003", "64"),
+            ),
+            RuntimeCheck(
+                "lots-edges",
+                "lots(uint256,uint256,uint256)(uint256,uint256)",
+                ("999999", "4001001", "2"),
+            ),
+            RuntimeCheck(
+                "week-starts",
+                "weekStarts(uint256,uint256,uint256)(uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            RuntimeCheck(
+                "week-starts-max",
+                "weekStarts(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+            RuntimeCheck(
+                "period-starts",
+                "periodStarts(uint256,uint256,uint256)(uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            RuntimeCheck(
+                "period-starts-max",
+                "periodStarts(uint256,uint256,uint256)(uint256)",
+                (str((1 << 256) - 1 - 3600), "7", "1"),
+            ),
+            RuntimeCheck(
+                "units",
+                "units(uint256,uint256,uint256)(uint256)",
+                (str(10**18), str(10**17), "64"),
+            ),
+            RuntimeCheck(
+                "units-max",
+                "units(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+            RuntimeCheck(
+                "after-fees",
+                "afterFees(uint256,uint256,uint256)(uint256)",
+                (str(10**18), "12345", "64"),
+            ),
+            RuntimeCheck(
+                "after-fees-limit",
+                "afterFees(uint256,uint256,uint256)(uint256)",
+                (str(((1 << 256) - 1) // 30), "0", "1"),
+            ),
+            RuntimeCheck(
+                "keep",
+                "keep(uint256,uint256,uint256)(uint256)",
+                (str(10**18), "3", "64"),
+            ),
+            RuntimeCheck(
+                "keep-all-shares",
+                "keep(uint256,uint256,uint256)(uint256)",
+                (str(10**18), "1", "4"),
+            ),
+            RuntimeCheck(
+                "seconds-into-day",
+                "secondsIntoDay(uint256,uint256,uint256)(uint256)",
+                ("1700000000", "3601", "64"),
+            ),
+            RuntimeCheck(
+                "seconds-into-day-max",
+                "secondsIntoDay(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+            RuntimeCheck(
+                "whole-lots",
+                "wholeLots(uint256,uint256,uint256)(uint256)",
+                ("0", "250", "64"),
+            ),
+            RuntimeCheck(
+                "whole-lots-max",
+                "wholeLots(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+        ),
+    ),
+    TestCase(
+        test_id="calldata-loops",
+        description="Totals, maxima, searches and dot products over calldata arrays",
+        source_code=(TESTDATA_ROOT / "runtime/CalldataLoops.sol").read_text(),
+        source_path="testdata/runtime/CalldataLoops.sol",
+        source_name="CalldataLoops.sol",
+        contract_name="CalldataLoops",
+        gas_calls=(
+            GasCall("sum", "sum(uint256[],uint256)", (CALLDATA_AMOUNTS, "16")),
+            GasCall(
+                "weighted",
+                "weighted(uint256[],uint256,uint256)",
+                (CALLDATA_AMOUNTS, "3000000007", "16"),
+            ),
+            GasCall("max", "max(uint256[],uint256)", (CALLDATA_AMOUNTS, "16")),
+            GasCall(
+                "index-of",
+                "indexOf(address[],address,uint256)",
+                (CALLDATA_ACCOUNTS, CALLDATA_LAST_ACCOUNT, "16"),
+            ),
+            GasCall(
+                "dot",
+                "dot(uint256[],uint256[],uint256)",
+                (CALLDATA_AMOUNTS, CALLDATA_WEIGHTS, "16"),
+            ),
+        ),
+        runtime_checks=(
+            RuntimeCheck(
+                "sum", "sum(uint256[],uint256)(uint256)", (CALLDATA_AMOUNTS, "16")
+            ),
+            RuntimeCheck("sum-empty", "sum(uint256[],uint256)(uint256)", ("[]", "4")),
+            RuntimeCheck(
+                "sum-max",
+                "sum(uint256[],uint256)(uint256)",
+                (f"[{MAX_UINT256},0]", "1"),
+            ),
+            RuntimeCheck(
+                "weighted",
+                "weighted(uint256[],uint256,uint256)(uint256)",
+                (CALLDATA_AMOUNTS, "3000000007", "16"),
+            ),
+            RuntimeCheck(
+                "weighted-limit",
+                "weighted(uint256[],uint256,uint256)(uint256)",
+                (f"[{((1 << 256) - 1) // 3}]", "3", "1"),
+            ),
+            RuntimeCheck(
+                "weighted-zero-price",
+                "weighted(uint256[],uint256,uint256)(uint256)",
+                (CALLDATA_AMOUNTS, "0", "2"),
+            ),
+            RuntimeCheck(
+                "max", "max(uint256[],uint256)(uint256)", (CALLDATA_AMOUNTS, "16")
+            ),
+            RuntimeCheck(
+                "max-first", "max(uint256[],uint256)(uint256)", ("[9,3,1]", "1")
+            ),
+            RuntimeCheck(
+                "index-of",
+                "indexOf(address[],address,uint256)(uint256)",
+                (CALLDATA_ACCOUNTS, CALLDATA_LAST_ACCOUNT, "16"),
+            ),
+            RuntimeCheck(
+                "index-of-missing",
+                "indexOf(address[],address,uint256)(uint256)",
+                (CALLDATA_ACCOUNTS, ZERO_ADDRESS, "1"),
+            ),
+            RuntimeCheck(
+                "index-of-zero-rounds",
+                "indexOf(address[],address,uint256)(uint256)",
+                (CALLDATA_ACCOUNTS, CALLDATA_LAST_ACCOUNT, "0"),
+            ),
+            RuntimeCheck(
+                "dot",
+                "dot(uint256[],uint256[],uint256)(uint256)",
+                (CALLDATA_AMOUNTS, CALLDATA_WEIGHTS, "16"),
+            ),
+            RuntimeCheck(
+                "dot-empty",
+                "dot(uint256[],uint256[],uint256)(uint256)",
+                ("[]", "[]", "3"),
+            ),
         ),
     ),
     TestCase(

@@ -142,7 +142,7 @@
       ret v4
   }
   
-  fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memorybytes) -> i256 {
+  fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memptr) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -159,7 +159,7 @@
       ret v5
   }
   
-  fn @default_gas_call_blocks_reload(arg0: i1, arg1: memorybytes) -> i256 {
+  fn @default_gas_call_blocks_reload(arg0: i1, arg1: memptr) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -176,7 +176,7 @@
       ret v5
   }
   
-  fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memorybytes) -> i256 {
+  fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memptr) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

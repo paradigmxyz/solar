@@ -70,7 +70,7 @@ single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.
 
 `build.rs` compiles the rule sets to Rust with `cranelift-isle`. Local identities
-in `isle/mir/egraph.isle` run inside the existing Rust e-graph algorithm; EVM IR window
+in `isle/mir/egraph` run inside the existing Rust e-graph algorithm; EVM IR window
 patterns live in `isle/evm-ir/peephole.isle`. Global analysis, profitability, stack
 scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
@@ -91,7 +91,7 @@ facts and choose placement. Keep these algorithms in Rust and use ISLE for
 bounded local identities. This gives us typed matchers, overlap checks, and
 one rule source for optimization and offline checking without implying that
 every Rust rewrite belongs in the DSL. See the repository's
-[rule-writing guidance](../../AGENTS.md#operation-schema-and-isle-rules).
+[rule-writing guidance](../../docs/CODEGEN.md#operation-schema-and-isle-rules).
 
 ### Library addresses and relocations
 
@@ -149,8 +149,8 @@ replacement avoids changes to earlier sharing decisions that can turn a local
 MIR size reduction into larger final bytecode.
 
 CI checks the compiled word rules and a separate pure physical-stack subset.
-Z3 verifies the rules and cvc5 replays every exported proof query, including
-exhaustive index partitions and their coverage checks.
+Lean proves every rule against EVM semantics written in Lean, and its kernel
+checks each proof.
 These proofs cover the modeled rules and explicit trusted contracts, not global
 memory transformations, the complete backend, or whole-program correctness.
 

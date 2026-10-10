@@ -19,23 +19,19 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36
-    jumpi v3, bb1, bb2
-  bb2:
     v4 = calldataload 4
     v5 = add v4, 4
     v6 = add v5, 32
     v7 = gt v4, 0xffffffffffffffff
     v8 = gt v6, v2
     v9 = or v7, v8
-    v10 = zext i1 v9 to i256
     v11 = calldataload v5
     v13 = sub v2, v6
     v14 = gt v11, v13
-    v15 = zext i1 v14 to i256
-    v16 = or v10, v15
-    v17 = ne v16, 0
-    jumpi v17, bb1, bb3
-  bb3:
+    v17 = or v9, v14
+    v27 = or v3, v17
+    jumpi v27, bb1, bb2
+  bb2:
     v0 = icall @unwrap, v6, v11
     v23 = mload 32 !metadata(memory=scratch)
     v24 = add v23, 32
