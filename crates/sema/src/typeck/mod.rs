@@ -44,10 +44,13 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_payable_fallback_without_receive(gcx, id);
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
+    check_constructor_parameters(gcx, id);
     check_library_functions(gcx, id);
     check_interface_members(gcx, id);
     for f_id in gcx.hir.contract(id).functions() {
-        check_payable_function(gcx, gcx.hir.function(f_id));
+        let f = gcx.hir.function(f_id);
+        check_payable_function(gcx, f);
+        check_fallback_signature(gcx, f);
     }
     for using in gcx.hir.contract(id).usings {
         check_using_directive(gcx, using);
@@ -642,6 +645,62 @@ fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
             return;
         };
     gcx.dcx().err(msg).code(code).span(f.span).emit();
+}
+
+/// Checks that a fallback function has one of the two signatures the dispatcher can route.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L2037-L2050>
+fn check_fallback_signature(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if !f.kind.is_fallback() || (f.parameters.is_empty() && f.returns.is_empty()) {
+        return;
+    }
+    if let [param] = *f.parameters
+        && let [ret] = *f.returns
+        && gcx.type_of_item(param.into()) == gcx.types.bytes_ref.calldata
+        && gcx.type_of_item(ret.into()) == gcx.types.bytes_ref.memory
+    {
+        return;
+    }
+    if f.variables().any(|var| gcx.type_of_item(var.into()).references_error()) {
+        return;
+    }
+
+    // Like solc, point at the returns, or at the parameters when there are none.
+    let vars = if f.returns.is_empty() { f.parameters } else { f.returns };
+    gcx.dcx()
+        .err("invalid fallback function signature")
+        .code(error_code!(5570))
+        .span(Span::join_first_last(vars.iter().map(|&var| gcx.hir.variable(var).span)))
+        .help("use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`")
+        .emit();
+}
+
+/// Checks that the constructor of a non-abstract contract only takes parameters that can be
+/// ABI-decoded from the deployment data.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L343-L370>
+fn check_constructor_parameters(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    let Some(ctor) = contract.ctor.filter(|_| !contract.is_abstract()) else { return };
+    for &param in gcx.hir.function(ctor).parameters {
+        let var = gcx.hir.variable(param);
+        let ty = gcx.type_of_item(param.into());
+        if ty.references_error() {
+            continue;
+        }
+        let diag = if var.data_location == Some(DataLocation::Storage) {
+            gcx.dcx()
+                .err("this parameter has a type that can only be used internally")
+                .code(error_code!(3644))
+        } else if let Some(subject) = ty.interface_type_error(false, gcx) {
+            gcx.dcx()
+                .err(format!("{subject} cannot be constructor parameters"))
+                .code(error_code!(4103))
+        } else {
+            continue;
+        };
+        diag.span(var.span).help("make the contract `abstract` to avoid this problem").emit();
+    }
 }
 
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.

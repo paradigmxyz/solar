@@ -1761,27 +1761,10 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 result = Err(guar);
                 continue;
             }
-            if !ty.can_be_exported(gcx) {
-                // Library storage pointers cross the ABI as slots, so recursive
-                // structs and mappings are allowed. Their members must still have
-                // interface types: internal function pointers are never exported.
-                let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
-                if library_storage && !ty.has_internal_function(gcx) {
-                    continue;
-                }
-
+            let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+            if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
                 let kind = f.description();
-                // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
-                // recursive struct is rejected before its members are inspected for mappings.
-                let msg = if !library_storage && ty.is_recursive(gcx) {
-                    format!("recursive types cannot be parameter or return types of public {kind}s")
-                } else if !library_storage && ty.has_mapping(gcx) {
-                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.has_internal_function(gcx) {
-                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
-                } else {
-                    format!("this type cannot be parameter or return type of a public {kind}")
-                };
+                let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
                 let span = gcx.hir.variable(var_id).ty.span;
                 result = Err(gcx.dcx().emit_err(span, msg));
             }
