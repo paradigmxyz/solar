@@ -1,0 +1,14 @@
+error[6161]: the value of the constant `VAL` has a cyclic dependency via `VAL`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_library.sol:LL:CC
+   │
+LL │     uint256 constant VAL = B.VAL + 1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `VAL` has a cyclic dependency via `VAL`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_library.sol:LL:CC
+   │
+LL │     uint256 constant VAL = A.VAL + 1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

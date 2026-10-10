@@ -4,7 +4,8 @@ use crate::{
     ty::{Ty, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
+use solar_data_structures::smallvec::SmallVec;
+use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, error_code, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
     pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
@@ -62,6 +63,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit_err(span, "assembly access to immutable variables is not supported"));
         }
 
+        if var.is_constant() && self.is_constant_recursive(var_id) {
+            return Err(self
+                .dcx()
+                .err("constant variable is circular")
+                .code(error_code!(3558))
+                .span(span)
+                .emit());
+        }
+
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
@@ -102,6 +112,47 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         Ok(true)
+    }
+
+    /// Returns whether following the value of the constant `id` through the constants it names
+    /// reaches a cycle.
+    ///
+    /// Like solc's `isConstantVariableRecursive`, this only follows values that are an identifier
+    /// or a member access. Other sources may not be type checked yet, so member accesses are
+    /// resolved here.
+    fn is_constant_recursive(&self, mut id: hir::VariableId) -> bool {
+        let mut seen = SmallVec::<[_; 8]>::new();
+        while !seen.contains(&id) {
+            seen.push(id);
+            let var = self.gcx.hir.variable(id);
+            let Some(next) = var
+                .initializer
+                .and_then(|init| self.referenced_res(init, var))
+                .and_then(|res| res.as_variable())
+                .filter(|&next| self.gcx.hir.variable(next).is_constant())
+            else {
+                return false;
+            };
+            id = next;
+        }
+        true
+    }
+
+    /// Resolves an identifier or a member access in the scope of the variable `scope`.
+    fn referenced_res(&self, expr: &hir::Expr<'_>, scope: &hir::Variable<'_>) -> Option<hir::Res> {
+        match expr.kind {
+            hir::ExprKind::Ident(&[res]) => Some(res),
+            hir::ExprKind::Member(base, member) => {
+                let base_ty = self.gcx.type_of_res(self.referenced_res(base, scope)?);
+                let members = self
+                    .gcx
+                    .members_of(base_ty, scope.source, scope.contract)
+                    .filter(|m| m.name == member.name)
+                    .collect::<SmallVec<[_; 4]>>();
+                self.select_member_access(&members).ok()?.res
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn check_yul_member(
