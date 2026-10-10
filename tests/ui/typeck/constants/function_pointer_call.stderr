@@ -1,0 +1,8 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/function_pointer_call.sol:LL:CC
+   │
+LL │     uint constant y = x();
+   ╰╴                      ━━━
+
+error: aborting due to 1 previous error
+
