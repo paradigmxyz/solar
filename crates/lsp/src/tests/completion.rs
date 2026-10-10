@@ -1028,7 +1028,6 @@ inherited Method detail="Base"
 total Property detail="Base"
 $8:
 externalCall Method detail="Base"
-total Method
 $9:
 address Method
 selector Method
