@@ -143,12 +143,9 @@ impl CopyElisionCx {
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
         let (target, index, data_offset, stride) = match func.inst(inst).kind {
-            InstKind::MemoryObjectStoreElement { layout, object, index, .. } => (
-                object,
-                index,
-                EvmMemoryLayout::object_data_offset(layout.kind()),
-                EvmMemoryLayout::element_stride(layout)?,
-            ),
+            InstKind::MemoryObjectStoreElement { layout, object, index, .. } => {
+                (object, index, 0, EvmMemoryLayout::element_stride(layout)?)
+            }
             InstKind::SliceStoreElement { slice, index, .. } => (
                 func.memory_slice_object(slice)?,
                 index,

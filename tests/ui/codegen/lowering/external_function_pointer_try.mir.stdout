@@ -22,7 +22,7 @@ fn @invoke(arg0: i256, arg1: memptr) {
     v11 = memory_slice v10
     v12 = slice_ptr v11
     v13 = slice_len v11
-    v14 = memory_slice_load_word memory, v11, 0
+    v14 = slice_load_word v11, 0
     v15 = shr 224, v14
     jumpi true, bb4, bb5
   bb5:

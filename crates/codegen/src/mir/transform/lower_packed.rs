@@ -343,12 +343,11 @@ impl PackedEncoder<'_, '_> {
                         self.builder.memory_object_load_element(value, layout, index)
                     }
                     PackedArraySource::Slice(location) => match location {
-                        SliceLocation::Memory => self.builder.memory_slice_load_word(
-                            memory_source.expect("memory slice"),
-                            element_offset,
-                        ),
+                        SliceLocation::Memory => self
+                            .builder
+                            .slice_load_word(memory_source.expect("memory slice"), element_offset),
                         SliceLocation::Calldata => {
-                            self.builder.calldata_slice_load_word(value, element_offset)
+                            self.builder.slice_load_word(value, element_offset)
                         }
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },

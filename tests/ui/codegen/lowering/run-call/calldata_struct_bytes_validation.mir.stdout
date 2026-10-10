@@ -241,7 +241,7 @@ fn @indexField(arg0: calldataslice) -> i256 [selector=0xec2824a8, pure, abi_para
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = slice_ptr v20
-    v25 = calldata_slice_load_word calldata, v20, 0
+    v25 = slice_load_word v20, 0
     v26 = byte 0, v25
     v27 = shl 248, v26
     v28 = shr 248, v27
@@ -277,7 +277,7 @@ fn @fixedField(arg0: calldataslice) -> i256 [selector=0x4d20e66c, pure, abi_para
     icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
-    v21 = calldata_slice_load_word calldata, v20, 0
+    v21 = slice_load_word v20, 0
     v22 = slice_len v20
     v23 = lt v22, 1
     v24 = sub 1, v22

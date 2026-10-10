@@ -714,8 +714,10 @@ class MemoryAddressTests(unittest.TestCase):
             lhs, rhs = cx.obligation(rule)
             result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
-            # Removing the actual source guard must expose a nonzero header
-            # or field offset, rather than implicitly assuming the rewrite.
+            if len(rule.form) == 3:
+                continue
+            # Removing the actual source guard must expose a nonzero field
+            # offset, rather than implicitly assuming the rewrite.
             unguarded = Rule(
                 (rule.form[0], rule.form[1], rule.form[-1]), rule.line, rule.source
             )
@@ -728,14 +730,6 @@ class MemoryAddressTests(unittest.TestCase):
     def assert_concrete_and_symbolic(self, value, values, expected):
         self.assertTrue(lean_evaluates(value, values, expected))
         self.assertEqual(concrete(value, values), expected)
-
-    def test_data_headers(self):
-        cx = Context()
-        layout = Expr.var("layout")
-        value = cx.memory.constructor("object_data_offset", (layout,))
-        shape = cx.memory.layouts[layout]
-        for tag, header in ((0, 32), (1, 32), (2, 0), (3, 0)):
-            self.assert_concrete_and_symbolic(value, {shape.kind.args[0]: tag}, header)
 
     def test_field_offsets_saturate_before_full_word_address_addition(self):
         cx = Context()
@@ -760,18 +754,16 @@ class MemoryAddressTests(unittest.TestCase):
         object, layout, index = map(Expr.var, ("object", "layout", "index"))
         value = cx.operation("Op.MemoryObjectElementAddr", [object, layout, index])
         shape = cx.memory.layouts[layout]
-        for tag in range(3):
-            for words in (0, 1, (1 << 32) - 1):
-                for i in (0, 1, MASK):
-                    values = {
-                        "object": MASK,
-                        "index": i,
-                        shape.kind.args[0]: tag,
-                        shape.element_words.args[0]: words,
-                    }
-                    stride = 32 if tag == 0 else words * 32
-                    expected = (MASK + (32 if tag < 2 else 0) + i * stride) & MASK
-                    self.assert_concrete_and_symbolic(value, values, expected)
+        for words in (0, 1, (1 << 32) - 1):
+            for i in (0, 1, MASK):
+                values = {
+                    "object": MASK,
+                    "index": i,
+                    shape.kind.args[0]: 2,
+                    shape.element_words.args[0]: words,
+                }
+                expected = (MASK + i * words * 32) & MASK
+                self.assert_concrete_and_symbolic(value, values, expected)
         result = check(
             value, value, [*cx.assumptions, Cond("eq", (shape.kind, Expr.const(3)))]
         )

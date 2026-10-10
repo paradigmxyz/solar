@@ -66,7 +66,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v12 = memory_slice v11
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = memory_slice_load_word memory, v12, 0
+    v15 = slice_load_word v12, 0
     v16 = shr 224, v15
     v17 = eq v16, 0x4e487b71
     v18 = lt v14, 36
@@ -81,7 +81,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v23 = add v22, 32
     v24 = add v23, 4
     v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
+    v26 = slice_load_word v25, 0
     ret v26
   bb1:
     jump bb3
@@ -109,7 +109,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v12 = memory_slice v11
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = memory_slice_load_word memory, v12, 0
+    v15 = slice_load_word v12, 0
     v16 = shr 224, v15
     v17 = eq v16, 0x4e487b71
     v18 = lt v14, 36
@@ -124,7 +124,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v23 = add v22, 32
     v24 = add v23, 4
     v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
+    v26 = slice_load_word v25, 0
     ret v26
   bb1:
     jump bb3

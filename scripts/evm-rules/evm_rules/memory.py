@@ -60,11 +60,6 @@ class MemoryAddresses:
             )
         return self.layouts[value]
 
-    def data_offset(self, kind):
-        # Bytes and dynamic arrays have one header word; fixed arrays and
-        # structs start directly at their payload. No equality is assumed.
-        return expr("select", expr("lt", kind, 2), 32, 0)
-
     def field_offset(self, layout, field):
         layout = self.layout(layout)
         cx = self.context
@@ -90,16 +85,15 @@ class MemoryAddresses:
                 return expr("add", object, self.field_offset(layout, field))
             case "Op.MemoryObjectElementAddr", (object, layout, index):
                 layout = self.layout(layout)
-                cx.assumptions.append(Cond("ne", (layout.kind, Expr.const(3))))
-                words = expr(
-                    "select", expr("eq", layout.kind, 0), 1, layout.element_words
-                )
-                # base + header + index * stride, with full-width wrapping
-                # arithmetic. Layout length does not enter this calculation.
+                # Element addresses exist only for fixed arrays, which have no
+                # header; dynamic objects are addressed through slice views.
+                cx.assumptions.append(Cond("eq", (layout.kind, Expr.const(2))))
+                # base + index * stride, with full-width wrapping arithmetic.
+                # Layout length does not enter this calculation.
                 return expr(
                     "add",
-                    expr("add", object, self.data_offset(layout.kind)),
-                    expr("mul", index, expr("mul", words, 32)),
+                    object,
+                    expr("mul", index, expr("mul", layout.element_words, 32)),
                 )
         raise Unsupported(
             f"unmodeled memory address operation or arity: {name}/{len(args)}"
@@ -107,8 +101,6 @@ class MemoryAddresses:
 
     def constructor(self, name, args):
         match name, args:
-            case "object_data_offset", (layout,):
-                return self.data_offset(self.layout(layout).kind)
             case "field_offset", (layout, field):
                 return self.field_offset(layout, field)
         raise Unsupported(

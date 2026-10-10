@@ -41,6 +41,6 @@ fn @memory_field(arg0: memoryslice) -> i256 {
 // CHECK: ret [[CALLDATA]]
 fn @calldata_field(arg0: calldataslice) -> i256 {
   bb0:
-    v2 = calldata_slice_load_word calldata, arg0, 0
+    v2 = slice_load_word arg0, 0
     ret v2
 }

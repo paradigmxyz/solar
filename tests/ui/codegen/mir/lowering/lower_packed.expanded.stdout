@@ -138,7 +138,7 @@
 +   bb15:
 +     v56 = mul v54, 32
 +     v57 = add v33, v56
-+     v58 = calldata_slice_load_word calldata, arg1, v56
++     v58 = slice_load_word arg1, v56
 +     v59 = eq v58, 0
 +     v60 = eq v59, false
 +     v61 = memory_slice v24

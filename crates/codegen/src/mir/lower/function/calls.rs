@@ -631,12 +631,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some((word, length))
                 }
                 Some(MirType::Slice(SliceLocation::Calldata)) => {
-                    let word = self.builder.calldata_slice_load_word(value, zero);
+                    let word = self.builder.slice_load_word(value, zero);
                     let length = self.builder.slice_len(value);
                     Some((word, length))
                 }
                 Some(MirType::Slice(SliceLocation::Memory)) => {
-                    let word = self.builder.memory_slice_load_word(value, zero);
+                    let word = self.builder.slice_load_word(value, zero);
                     let length = self.builder.slice_len(value);
                     Some((word, length))
                 }

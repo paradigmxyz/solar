@@ -1002,22 +1002,9 @@ impl<'a> FunctionBuilder<'a> {
             || matches!(func.value_ty(object), Some(MirType::Slice(_)))
     }
 
-    /// Loads one word from a memory slice at a byte offset through its
-    /// semantic representation.
-    pub(crate) fn memory_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
-        self.emit_inst(
-            InstKind::MemorySliceLoadWord { slice, offset },
-            Some(crate::mir::MirType::I256),
-        )
-    }
-
-    /// Loads one word from a calldata slice at a byte offset through its
-    /// semantic representation.
-    pub(crate) fn calldata_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
-        self.emit_inst(
-            InstKind::CalldataSliceLoadWord { slice, offset },
-            Some(crate::mir::MirType::I256),
-        )
+    /// Loads one word at a byte offset from a slice.
+    pub(crate) fn slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
+        self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
     }
 
     /// Copies a slice into a dynamic memory object's payload.

@@ -396,7 +396,7 @@ fn lower_hash(
     precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
     let zero = builder.imm(0);
     let output = builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
-    let value = builder.memory_slice_load_word(output, zero);
+    let value = builder.slice_load_word(output, zero);
     if ripemd {
         // result = result << 96
         let scale = builder.imm(1_u128 << 96);
@@ -439,7 +439,7 @@ fn lower_ecrecover(
     precompile_call(builder, evm, address, pointer, input_size, output, output_size);
     let slice = builder.make_slice(output, output_size, SliceLocation::Memory);
     let zero = builder.imm(0);
-    builder.memory_slice_load_word(slice, zero)
+    builder.slice_load_word(slice, zero)
 }
 
 fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {

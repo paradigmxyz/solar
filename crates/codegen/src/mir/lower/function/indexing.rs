@@ -76,8 +76,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return if self.is_dynamic_bytes_type(receiver_ty) {
                 // value = byte(0, load_word(slice, index))
                 let word = match location {
-                    SliceLocation::Calldata => self.builder.calldata_slice_load_word(object, index),
-                    SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
+                    SliceLocation::Calldata => self.builder.slice_load_word(object, index),
+                    SliceLocation::Memory => self.builder.slice_load_word(object, index),
                     SliceLocation::Returndata => {
                         return self.cx.report_unsupported(expr.span, "returndata index");
                     }

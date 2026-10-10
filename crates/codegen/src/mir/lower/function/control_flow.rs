@@ -504,7 +504,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let data = self.builder.slice_ptr(view);
             let len = self.builder.slice_len(view);
             let zero = self.builder.imm(U256::ZERO);
-            let selector_word = self.builder.memory_slice_load_word(view, zero);
+            let selector_word = self.builder.slice_load_word(view, zero);
             let selector_shift = self.builder.imm(224);
             let selector = self.builder.shr(selector_shift, selector_word);
             TryCatchData { object, data, len, selector }

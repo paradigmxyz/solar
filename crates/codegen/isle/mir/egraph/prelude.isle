@@ -161,9 +161,6 @@
 (decl pure has_known_sign_bit (Value) bool)
 (extern constructor has_known_sign_bit has_known_sign_bit)
 
-(decl pure object_data_offset (MemoryObjectLayout) u64)
-(extern constructor object_data_offset object_data_offset)
-
 (decl pure partial field_offset (MemoryObjectLayout u64) u64)
 (extern constructor field_offset field_offset)
 

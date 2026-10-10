@@ -434,7 +434,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
         let word_size = self.builder.imm(32);
         let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
-        self.builder.memory_slice_load_word(payload, zero)
+        self.builder.slice_load_word(payload, zero)
     }
 
     pub(super) fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {

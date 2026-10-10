@@ -221,7 +221,7 @@ pub(super) fn store(
     // header = mask(mload(data), length) | length * 2
     // sstore(slot, header)
     builder.switch_to_block(short_block);
-    let data_word = builder.memory_slice_load_word(data, zero);
+    let data_word = builder.slice_load_word(data, zero);
     let header = builder.short_storage_bytes_header(data_word, length);
     builder.sstore(slot, header);
     builder.jump(merge_block);
@@ -239,7 +239,7 @@ pub(super) fn store(
     let full_words = builder.div(length, word_size);
     builder.counted_loop(full_words, |builder, index| {
         let byte_offset = builder.mul(index, word_size);
-        let value = builder.memory_slice_load_word(data, byte_offset);
+        let value = builder.slice_load_word(data, byte_offset);
         let element_slot = builder.add(data_slot, index);
         builder.sstore(element_slot, value);
     });
@@ -255,7 +255,7 @@ pub(super) fn store(
     // }
     builder.switch_to_block(partial_block);
     let partial_offset = builder.mul(full_words, word_size);
-    let partial_word = builder.memory_slice_load_word(data, partial_offset);
+    let partial_word = builder.slice_load_word(data, partial_offset);
     let partial_word = builder.mask_storage_bytes_data(partial_word, remainder);
     let partial_slot = builder.add(data_slot, full_words);
     builder.sstore(partial_slot, partial_word);

@@ -1838,27 +1838,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 operands!(slice, offset, value);
                 (InstKind::SliceStoreWord { slice, offset, value }, None)
             }
-            sym::memory_slice_load_word => {
-                self.parser.expect(TokenKind::Ident(kw::Memory))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let slice = self.parse_value(builder)?;
-                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Memory)) {
-                    return Err(self.parser.error("memory slice load requires a memory slice"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::I256))
-            }
-            sym::calldata_slice_load_word => {
-                self.parser.expect(TokenKind::Ident(kw::Calldata))?;
-                self.parser.expect(TokenKind::Comma)?;
-                let slice = self.parse_value(builder)?;
-                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Calldata)) {
-                    return Err(self.parser.error("calldata slice load requires a calldata slice"));
-                }
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::I256))
+            sym::slice_load_word => {
+                operands!(slice, offset);
+                (InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
             }
             sym::slice_copy => {
                 operands!(destination, offset, source);

@@ -556,18 +556,6 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::MemorySliceLoadWord { slice, offset } => write!(
-            f,
-            "memory_slice_load_word memory, {}, {}",
-            display_val(*slice, func),
-            display_val(*offset, func)
-        ),
-        InstKind::CalldataSliceLoadWord { slice, offset } => write!(
-            f,
-            "calldata_slice_load_word calldata, {}, {}",
-            display_val(*slice, func),
-            display_val(*offset, func)
-        ),
         InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
             f,
             "store_storage_bytes_literal {}, hex\"{}\"",

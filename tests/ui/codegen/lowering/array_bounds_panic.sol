@@ -112,7 +112,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdBytes{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: calldata_slice_load_word calldata
+    // CHECK: slice_load_word
     function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) {
         return b[i];
     }

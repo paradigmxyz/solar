@@ -1648,10 +1648,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
                 seq(&[op::ADD])
             }
         }
-        InstKind::MemoryObjectElementAddr { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD]).plus(if base { seq(&[op::ADD]) } else { Cost::ZERO })
-        }
+        InstKind::MemoryObjectElementAddr { .. } => seq(&[op::MUL, op::ADD]),
         InstKind::MemoryObjectLoadField { layout, field, .. } => {
             if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
                 seq(&[op::MLOAD])
@@ -1666,29 +1663,14 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
                 seq(&[op::ADD, op::MSTORE])
             }
         }
-        InstKind::MemoryObjectLoadElement { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD, op::MLOAD]).plus(if base {
-                seq(&[op::ADD])
-            } else {
-                Cost::ZERO
-            })
-        }
-        InstKind::MemoryObjectStoreElement { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD, op::MSTORE]).plus(if base {
-                seq(&[op::ADD])
-            } else {
-                Cost::ZERO
-            })
-        }
+        InstKind::MemoryObjectLoadElement { .. } => seq(&[op::MUL, op::ADD, op::MLOAD]),
+        InstKind::MemoryObjectStoreElement { .. } => seq(&[op::MUL, op::ADD, op::MSTORE]),
         InstKind::SliceLoadElement { .. } => seq(&[op::MUL, op::ADD, op::MLOAD]),
         InstKind::SliceStoreElement { .. } => seq(&[op::MUL, op::ADD, op::MSTORE]),
         InstKind::SliceLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
         InstKind::SliceStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
         InstKind::SliceStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
-        InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
-        InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
+        InstKind::SliceLoadWord { .. } => seq(&[op::MLOAD]),
         InstKind::SliceCopy { .. } => seq(&[op::MCOPY]),
         InstKind::MemorySlice(_) | InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
         InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),

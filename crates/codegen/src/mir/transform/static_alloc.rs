@@ -507,7 +507,7 @@ fn candidate_uses_are_safe(
 fn object_element_offset(layout: MemoryObjectLayout, index: Option<u64>) -> Option<u64> {
     let index = index?;
     let stride = EvmMemoryLayout::element_stride(layout)?;
-    EvmMemoryLayout::object_data_offset(layout.kind()).checked_add(index.checked_mul(stride)?)
+    index.checked_mul(stride)
 }
 
 fn call_use_is_safe(

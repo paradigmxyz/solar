@@ -234,7 +234,7 @@
 +     jumpi v42, bb12, bb16 !metadata(span=40..50, modifier_depth=4)
 +   bb16:
 +     v43 = mul v34, 32 !metadata(span=40..50, modifier_depth=4)
-+     v44 = memory_slice_load_word memory, v10, v43 !metadata(span=40..50, modifier_depth=4)
++     v44 = slice_load_word v10, v43 !metadata(span=40..50, modifier_depth=4)
 +     v45 = sub 32, v41 !metadata(span=40..50, modifier_depth=4)
 +     v46 = mul v45, 8 !metadata(span=40..50, modifier_depth=4)
 +     v47 = shl v46, 1 !metadata(span=40..50, modifier_depth=4)
@@ -246,13 +246,13 @@
 +     jump bb12 !metadata(span=40..50, modifier_depth=4)
 +   bb14:
 +     v37 = mul v35, 32 !metadata(span=40..50, modifier_depth=4)
-+     v38 = memory_slice_load_word memory, v10, v37 !metadata(span=40..50, modifier_depth=4)
++     v38 = slice_load_word v10, v37 !metadata(span=40..50, modifier_depth=4)
 +     v39 = add v33, v35 !metadata(span=40..50, modifier_depth=4)
 +     sstore v39, v38 !metadata(storage=symbolic(v39), span=40..50, modifier_depth=4)
 +     v40 = add v35, 1 !metadata(span=40..50, modifier_depth=4)
 +     jump bb13 !metadata(span=40..50, modifier_depth=4)
 +   bb10:
-+     v22 = memory_slice_load_word memory, v10, 0 !metadata(span=40..50, modifier_depth=4)
++     v22 = slice_load_word v10, 0 !metadata(span=40..50, modifier_depth=4)
 +     v23 = sub 32, v11 !metadata(span=40..50, modifier_depth=4)
 +     v24 = mul v23, 8 !metadata(span=40..50, modifier_depth=4)
 +     v25 = shl v24, 1 !metadata(span=40..50, modifier_depth=4)

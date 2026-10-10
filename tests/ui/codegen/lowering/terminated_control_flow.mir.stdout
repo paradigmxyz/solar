@@ -242,7 +242,7 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v13 = memory_slice v12
     v14 = slice_ptr v13
     v15 = slice_len v13
-    v16 = memory_slice_load_word memory, v13, 0
+    v16 = slice_load_word v13, 0
     v17 = shr 224, v16
     jumpi true, bb4, bb5
   bb5:
@@ -344,7 +344,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v11 = memory_slice v10
     v12 = slice_ptr v11
     v13 = slice_len v11
-    v14 = memory_slice_load_word memory, v11, 0
+    v14 = slice_load_word v11, 0
     v15 = shr 224, v14
     jumpi true, bb4, bb5
   bb5:

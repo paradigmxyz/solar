@@ -493,7 +493,7 @@ fn object_access_index(kind: &InstKind) -> Option<ValueId> {
         | InstKind::SliceLoadByte { index, .. }
         | InstKind::SliceStoreByte { index, .. } => Some(index),
         InstKind::SliceStoreWord { offset, .. }
-        | InstKind::MemorySliceLoadWord { offset, .. }
+        | InstKind::SliceLoadWord { offset, .. }
         | InstKind::SliceCopy { offset, .. } => Some(offset),
         _ => None,
     }
@@ -520,8 +520,7 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }
                 | InstKind::SliceCopy { .. }
-                | InstKind::MemorySliceLoadWord { .. }
-                | InstKind::CalldataSliceLoadWord { .. }
+                | InstKind::SliceLoadWord { .. }
                 | InstKind::Keccak256Bytes(..)
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)

@@ -623,10 +623,6 @@ impl generated::Context for RuleContext<'_> {
         has_known_sign_bit(self.func, value)
     }
 
-    fn object_data_offset(&mut self, layout: MemoryObjectLayout) -> u64 {
-        EvmMemoryLayout::object_data_offset(layout.kind())
-    }
-
     fn field_offset(&mut self, layout: MemoryObjectLayout, field: u64) -> Option<u64> {
         EvmMemoryLayout::field_offset(layout, field)
     }

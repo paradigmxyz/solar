@@ -31,7 +31,7 @@ fn @u32(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = slice_ptr v1
-    v12 = calldata_slice_load_word calldata, v1, v0
+    v12 = slice_load_word v1, v0
     v13 = byte 0, v12
     v14 = shl 248, v13
     v15 = shr 248, v14
@@ -74,7 +74,7 @@ fn @u16(arg0: calldataslice, arg1: i256) -> struct1 [pure] {
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = slice_ptr v0
-    v12 = calldata_slice_load_word calldata, v0, v4
+    v12 = slice_load_word v0, v4
     v13 = byte 0, v12
     v14 = shl 248, v13
     v15 = shr 248, v14

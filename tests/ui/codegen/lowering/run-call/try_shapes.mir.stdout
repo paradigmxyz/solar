@@ -77,7 +77,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v12 = memory_slice v11
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = memory_slice_load_word memory, v12, 0
+    v15 = slice_load_word v12, 0
     v16 = shr 224, v15
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5
@@ -123,7 +123,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v42 = memory_slice v41
     v43 = slice_ptr v42
     v44 = slice_len v42
-    v45 = memory_slice_load_word memory, v42, 0
+    v45 = slice_load_word v42, 0
     v46 = shr 224, v45
     v47 = eq v46, 0x8c379a0
     jumpi v47, bb12, bb13
@@ -180,7 +180,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v78 = memory_slice v77
     v79 = slice_ptr v78
     v80 = slice_len v78
-    v81 = memory_slice_load_word memory, v78, 0
+    v81 = slice_load_word v78, 0
     v82 = shr 224, v81
     v83 = eq v82, 0x4e487b71
     v84 = lt v80, 36
@@ -200,7 +200,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v89 = add v88, 32
     v90 = add v89, 4
     v91 = make_memory_slice v90, 32
-    v92 = memory_slice_load_word memory, v91, 0
+    v92 = slice_load_word v91, 0
     v93 = checked_add u256, v63, 400
     jump bb21
   bb19:

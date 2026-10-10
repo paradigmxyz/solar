@@ -61,10 +61,8 @@
       object)
 
 ;; memoryobjectelementaddr(object, layout, 0) => object.
-;; Requires: layout has zero data offset.
-(rule (simplify (Op.MemoryObjectElementAddr object layout (zero)))
-      (if-let 0 (object_data_offset layout))
-      object)
+;; Element addresses exist only for fixed arrays, whose elements start at the object.
+(rule (simplify (Op.MemoryObjectElementAddr object layout (zero))) object)
 
 ;; call(gas, addr, value, offset, 0, out, size) => call(gas, addr, value, 0, 0, out, size).
 ;; Requires: offset != 0.

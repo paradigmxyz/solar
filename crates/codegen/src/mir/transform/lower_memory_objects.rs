@@ -1,10 +1,12 @@
-//! Lower semantic memory-object operations to physical word operations.
+//! Lower semantic memory-object and slice operations to physical word operations.
 //!
-//! The selected memory-layout policy supplies object headers, field offsets, and element strides.
-//! Semantic accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
-//! operations. Mixed slice/object merges are materialized first so later operations still use the
-//! correct representation. Unreachable blocks are removed before substitution: their definitions
-//! need not obey SSA and can contain cast cycles.
+//! The selected memory-layout policy supplies the dynamic-object header, field offsets, and
+//! fixed-array strides. Semantic accesses and allocations become raw pointer arithmetic, loads,
+//! stores, and allocation operations. A `memory_slice` view becomes `{object + header, mload
+//! object}`. When every use of a view lowers here, the view becomes only its length load and each
+//! use recomputes its data address from the object, so the address does not stay live from the
+//! view to its uses. Unreachable blocks are removed before substitution: their definitions need
+//! not obey SSA and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -15,8 +17,8 @@
 //! and address spaces retain their operations for the subsequent phase checks.
 
 use crate::mir::{
-    AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate,
-    InstKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Value,
+    AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstKind,
+    MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Value,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::MirPass,
 };
@@ -79,7 +81,6 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
 
     // unreachable definitions -> removed blocks and phi inputs
     let _ = super::cfg_simplify::remove_unreachable_blocks(func);
-    materialize_mixed_byte_phis(func);
     let views = local_views(func);
     let mut replacements = FxHashMap::default();
     let blocks = func.blocks.indices();
@@ -340,15 +341,16 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let address = dynamic_offset_address(&mut builder, base, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
-                    InstKind::MemorySliceLoadWord { slice, offset } => {
+                    InstKind::SliceLoadWord { slice, offset } => {
+                        let Some(location) = slice_location(builder.func(), &views, slice) else {
+                            return true;
+                        };
                         let source = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, source, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::CalldataSliceLoadWord { slice, offset } => {
-                        let source = slice_data::<P>(&mut builder, &views, slice);
-                        let address = dynamic_offset_address(&mut builder, source, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
+                        let Some(kind) = slice_load_kind(location, address) else {
+                            return true;
+                        };
+                        builder.func_mut().inst_mut(inst).kind = kind;
                     }
                     InstKind::SliceCopy { destination, offset, source } => {
                         let base = slice_data::<P>(&mut builder, &views, destination);
@@ -533,66 +535,6 @@ fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Opt
     }
 }
 
-/// Materializes a calldata slice before it enters a memory-object phi.
-///
-/// A conditional assignment such as `bytes memory x = condition ? bytes(0) :
-/// msg.data[...]` has one memory-object incoming edge and one slice incoming
-/// edge. The memory-object users after this pass expect the same header/data
-/// representation on both edges, so copy the slice into a fresh bytes object
-/// before forming the phi.
-///
-/// NOTE: pointers carry no object kind, so this treats every pointer phi with a
-/// slice input as bytes; only `bytes` and `string` values join slices in source.
-fn materialize_mixed_byte_phis(func: &mut Function) {
-    let blocks = func.blocks.indices();
-    for block in blocks {
-        let phis: Vec<_> = func.blocks[block]
-            .instructions
-            .iter()
-            .copied()
-            .filter(|&inst| {
-                let Some(result) = func.inst_result_value(inst) else { return false };
-                matches!(func.value_ty(result), Some(MirType::MemPtr))
-                    && matches!(func.inst(inst).kind, InstKind::Phi(_))
-            })
-            .collect();
-        for inst in phis {
-            let InstKind::Phi(incoming) = func.inst(inst).kind.clone() else { continue };
-            if !incoming
-                .iter()
-                .any(|(_, value)| matches!(func.value_ty(*value), Some(MirType::Slice(_))))
-                || !incoming.iter().all(|(_, value)| {
-                    matches!(func.value_ty(*value), Some(MirType::Slice(_) | MirType::MemPtr))
-                })
-            {
-                continue;
-            }
-
-            let mut lowered = Vec::with_capacity(incoming.len());
-            for (predecessor, value) in incoming {
-                if !matches!(func.value_ty(value), Some(MirType::Slice(_))) {
-                    lowered.push((predecessor, value));
-                    continue;
-                }
-
-                let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(predecessor);
-                let length = builder.slice_len(value);
-                let size = builder.add_u64_offset(length, EvmMemoryLayout::WORD_SIZE);
-                let semantics = AllocationSemantics {
-                    alignment: AllocationAlignment::Word,
-                    ..AllocationSemantics::SOLIDITY_UNINITIALIZED
-                };
-                let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
-                builder.set_memory_len(object, length);
-                builder.memory_copy_from_slice(object, value);
-                lowered.push((predecessor, object));
-            }
-            func.inst_mut(inst).kind = InstKind::Phi(lowered);
-        }
-    }
-}
-
 fn dynamic_offset_address(
     builder: &mut FunctionBuilder<'_>,
     base: crate::mir::ValueId,
@@ -635,7 +577,7 @@ fn local_views(func: &Function) -> FxHashMap<crate::mir::ValueId, crate::mir::Va
                 | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }
-                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::SliceLoadWord { .. }
                 | InstKind::SliceCopy { .. }
         );
         if !local {
@@ -723,17 +665,14 @@ fn memory_element_address_parts<P: MemoryLayoutPolicy>(
 ) -> Option<(crate::mir::ValueId, Option<crate::mir::ValueId>)> {
     let stride = P::element_stride(layout)?;
     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-    let base_offset = P::object_data_offset(layout.kind());
     if let Some(index) = builder.func().value_u64(index)
         && let Some(offset) = index.checked_mul(stride)
-        && let Some(offset) = base_offset.checked_add(offset)
     {
         Some((object, (offset != 0).then(|| builder.imm(offset))))
     } else {
-        let base = builder.add_u64_offset(object, base_offset);
         let stride = builder.imm(stride);
         let offset = builder.mul(index, stride);
-        Some((base, Some(offset)))
+        Some((object, Some(offset)))
     }
 }
 
