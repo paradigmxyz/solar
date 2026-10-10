@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
 @phase lowered
-fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
+fn @patch() [selector=0x7f603a02, abi_wrapper, pure, implicit_args=[i1]] {
   bb0:
     v12 = calldatasize
     v13 = lt v12, 36

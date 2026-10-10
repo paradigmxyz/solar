@@ -628,6 +628,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                     builder.func_mut().set_return_abi(components);
                 }
+                sym::implicit_args => {
+                    if !builder.func().params.is_empty() {
+                        return Err(self
+                            .parser
+                            .error("a function with parameters has no implicit arguments"));
+                    }
+                    self.parser.expect(TokenKind::Eq)?;
+                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                        loop {
+                            let ty = self.parse_type()?;
+                            self.arg_values.push(builder.func_mut().alloc_implicit_arg(ty));
+                            if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                                break;
+                            }
+                            self.parser.expect(TokenKind::Comma)?;
+                        }
+                    }
+                }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
