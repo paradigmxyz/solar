@@ -304,3 +304,62 @@ async fn content_identical_edits_preserve_pending_requests() {
     let response = within("request", hover).await.unwrap();
     assert!(response.is_some());
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn incomplete_do_bodies_publish_diagnostics_and_recover_after_edits() {
+    for body in [
+        "do i = 1\nuint8 y;",
+        "do i++ { } while (true);",
+        "do if (true) i++\nuint8 y;",
+        "do while (true) i++\nuint8 y;",
+        "do for (;;) i++\nuint8 y;",
+        "do do i++\nuint8 y;",
+        "do i++",
+    ] {
+        let (_project, mut state, uri) = fixture();
+        let source =
+            format!("contract Broken {{ function f() external pure {{ uint256 i;\n{body}\n}} }}");
+        change(&mut state, &uri, 1, source);
+        let diagnostics = crate::handlers::document_diagnostic(
+            &mut state,
+            document_diagnostic_params(&uri, None),
+        );
+        state.prioritize_pending_analysis();
+        let report = within("incomplete do body diagnostics", diagnostics).await.unwrap();
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) = report
+        else {
+            panic!("expected a full diagnostic report for {body:?}");
+        };
+        assert!(
+            report
+                .full_document_diagnostic_report
+                .items
+                .iter()
+                .any(|diagnostic| diagnostic.severity == Some(lsp_types::DiagnosticSeverity::ERROR)),
+            "expected syntax diagnostics for {body:?}"
+        );
+
+        change(
+            &mut state,
+            &uri,
+            2,
+            "contract After { function f() external pure { uint256 i; do i++; while (i < 2); } }",
+        );
+        let diagnostics = crate::handlers::document_diagnostic(
+            &mut state,
+            document_diagnostic_params(&uri, None),
+        );
+        state.prioritize_pending_analysis();
+        let report = within("corrected do body diagnostics", diagnostics).await.unwrap();
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) = report
+        else {
+            panic!("expected a full diagnostic report after correcting {body:?}");
+        };
+        assert!(report.full_document_diagnostic_report.items.is_empty());
+        assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
+        let tables = state.symbol_tables.load();
+        assert!(tables.workspace_symbols("Before").is_empty());
+        assert!(tables.workspace_symbols("Broken").is_empty());
+        assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
+    }
+}

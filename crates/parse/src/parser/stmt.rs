@@ -77,6 +77,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             } else {
                 self.expect_semi()?;
             }
+            // Inserting a semicolon completes the statement without consuming the current
+            // token. Enclosing statements may still need to diagnose it, e.g. a missing `while`.
+            self.last_unexpected_token_span = None;
+            self.expected_tokens.clear();
         }
         kind
     }

@@ -1,0 +1,98 @@
+error: expected one of `;` or `?`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do i++
+   │               ─ expected one of `;` or `?`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do i++
+   │               ─ expected `while`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `;` or `?`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do if (true) i++
+   │                         ─ expected one of `;` or `?`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `else` or `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do if (true) i++
+   │                         ─ expected one of `else` or `while`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `;` or `?`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do while (true) i++
+   │                            ─ expected one of `;` or `?`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do while (true) i++
+   │                            ─ expected `while`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `;` or `?`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do for (;;) i++
+   │                        ─ expected one of `;` or `?`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do for (;;) i++
+   │                        ─ expected `while`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `;` or `?`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do do i++
+   │                  ─ expected one of `;` or `?`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do do i++
+   │                  ─ expected `while`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found keyword `uint8`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do i = 1
+   │                 ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         uint8 y;
+   ╰╴        ━━━━━ unexpected token
+
+error: expected `while`, found keyword `uint8`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while.sol:LL:CC
+   │
+LL │         do i = 1
+   │                 ─ expected `while`
+LL │         uint8 y;
+   ╰╴        ━━━━━ unexpected token
+
+error: aborting due to 12 previous errors
+

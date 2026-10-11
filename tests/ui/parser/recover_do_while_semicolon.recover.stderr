@@ -1,0 +1,44 @@
+error: expected one of `;` or `?`, found keyword `while`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         do i++ while (false);
+   ╰╴               ━━━━━ expected one of `;` or `?`
+
+error: expected one of `;` or `?`, found keyword `while`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         do if (true) i++ while (false);
+   ╰╴                         ━━━━━ expected one of `;` or `?`
+
+error: expected one of `;` or `?`, found keyword `while`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         do while (false) i++ while (false);
+   ╰╴                             ━━━━━ expected one of `;` or `?`
+
+error: expected one of `;` or `?`, found keyword `while`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         do for (; false;) i++ while (false);
+   ╰╴                              ━━━━━ expected one of `;` or `?`
+
+error: expected one of `;` or `?`, found keyword `while`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         do do i++ while (false) while (false);
+   ╰╴                  ━━━━━ expected one of `;` or `?`
+
+error: expected `;`, found keyword `while`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         do do i++ while (false) while (false);
+   ╰╴                                ━━━━━ expected `;`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_semicolon.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 7 previous errors
+

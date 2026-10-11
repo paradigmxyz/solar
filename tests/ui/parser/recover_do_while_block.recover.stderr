@@ -1,0 +1,14 @@
+error: expected one of `;` or `?`, found `{`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_block.sol:LL:CC
+   │
+LL │         do i++ { } while (true);
+   ╰╴               ━ expected one of `;` or `?`
+
+error: expected `while`, found `{`
+   ╭▸ ROOT/tests/ui/parser/recover_do_while_block.sol:LL:CC
+   │
+LL │         do i++ { } while (true);
+   ╰╴               ━ expected `while`
+
+error: aborting due to 2 previous errors
+
