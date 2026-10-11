@@ -1199,6 +1199,16 @@ fn completes_members_and_later_locals_after_statement_recovery() {
         ("tokens[i].", "return;"),
         ("tokens[i].", "revert Failed();"),
         ("tokens[i].bal", "uint256 next;"),
+        ("tokens[i].bal", "Token next;"),
+        ("tokens[i].bal", "Token[] memory next;"),
+        ("tokens[i].bal", "Token[2] memory next;"),
+        ("tokens[i].bal", "Lib.Record memory next;"),
+        ("tokens[i].bal", "Record memory next;"),
+        ("tokens[i].bal", "Token /* type */ next /* name */;"),
+        ("tokens[i].bal", "Token\nnext;"),
+        ("getToken().bal", "Token next;"),
+        ("this.getToken().bal", "Lib.Record memory next;"),
+        ("getTokens()[i].bal", "Token next;"),
         ("getToken().", "Token next;"),
         ("this.getToken().", "Lib.Record memory next;"),
         ("getTokens()[i].", "Token next;"),
@@ -1244,5 +1254,56 @@ laterLocal Variable detail="f"
         let changed = fixture.project_contents("/Completion.sol");
         let mut state = analyzed.completion_state_after_changes(&[("/Completion.sol", &changed)]);
         analyzed.check_completions_in(&mut state, &["$1", "$2"], expected);
+    }
+}
+
+#[test]
+fn completes_initializer_members_before_incomplete_declarations() {
+    for member in ["", "bal", "balance"] {
+        for (following, complete_following) in [
+            ("Token memory next;", "Token memory next;"),
+            ("Token memory next", "Token memory next;"),
+            ("Token memory next Token memory other;", "Token memory next; Token memory other;"),
+            ("Token memory next address account;", "Token memory next; address account;"),
+            ("Kind next Kind other;", "Kind next; Kind other;"),
+            ("Kind next Kind other Kind last", "Kind next; Kind other; Kind last;"),
+        ] {
+            let source = format!(
+                r#"
+                //- /Completion.sol open
+                struct Token {{ uint256 balance; }}
+                contract C {{
+                    enum Kind {{ First }}
+                    function f(Token memory token) public pure {{
+                        if (true) {{
+                            uint256 b = token.{member}$1
+                            {following}
+                        }}
+                        uint256 laterLocal;
+                        later$2Local;
+                    }}
+                }}
+                "#,
+            );
+            let fixture = RequestFixture::new_allowing_diagnostics(&source, "/Completion.sol");
+            let expected = str![[r#"
+$1:
+balance Property detail="Token"
+$2:
+laterLocal Variable detail="f"
+
+"#]];
+            fixture.check_completions(&["$1", "$2"], expected.clone());
+
+            let suffix = &"balance"[member.len()..];
+            let clean = source
+                .replace(following, complete_following)
+                .replace("$1", &format!("$1{suffix};"));
+            let analyzed = RequestFixture::new(&clean, "/Completion.sol");
+            let changed = fixture.project_contents("/Completion.sol");
+            let mut state =
+                analyzed.completion_state_after_changes(&[("/Completion.sol", &changed)]);
+            analyzed.check_completions_in(&mut state, &["$1", "$2"], expected);
+        }
     }
 }

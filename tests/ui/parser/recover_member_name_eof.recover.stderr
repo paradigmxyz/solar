@@ -1,0 +1,24 @@
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Token`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name_eof.sol:LL:CC
+   │
+LL │         uint256 b = token.balance
+   │                                  ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Token memory next
+   ╰╴        ━━━━━ unexpected token
+
+error: expected one of `;` or `=`, found `<eof>`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name_eof.sol:LL:CC
+   │
+LL │         Token memory next
+   ╰╴                     ━━━━ expected one of `;` or `=`
+
+error: expected contract item (function, variable, struct, or modifier definition), found `<eof>`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name_eof.sol:LL:CC
+   │
+LL │         Token memory next
+   │                      ━━━━
+   │
+   ╰ note: for a full list of valid contract items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractBodyElement>
+
+error: aborting due to 3 previous errors
+

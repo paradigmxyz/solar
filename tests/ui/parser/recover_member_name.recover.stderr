@@ -1,0 +1,204 @@
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Token`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint256 b = token.balance
+   │                                  ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Token memory next;
+   ╰╴        ━━━━━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Token`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         tokens[i].bal
+   │                      ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Token[] memory next;
+   ╰╴        ━━━━━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Lib`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         getToken().bal
+   │                       ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Lib.Record memory next;
+   ╰╴        ━━━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint256 b = token.balance
+   │                                  ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind first
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `;` or `=`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind first
+   │                   ─ expected one of `;` or `=`
+LL │         Kind second
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `;` or `=`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind second
+   │                    ─ expected one of `;` or `=`
+LL │         Kind third;
+   ╰╴        ━━━━ unexpected token
+
+error: expected identifier, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind first
+   ╰╴        ━━━━
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint256 b = token.
+   │                           ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind first
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `;` or `=`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind first
+   │                   ─ expected one of `;` or `=`
+LL │
+LL │         Kind second
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `;` or `=`, found keyword `address`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind second
+   │                    ─ expected one of `;` or `=`
+LL │         address account;
+   ╰╴        ━━━━━━━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint256 b = token.balance
+   │                                  ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind next
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `;` or `=`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind next
+   │                  ─ expected one of `;` or `=`
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected identifier, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind next
+   ╰╴        ━━━━
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint256 b = token.
+   │                           ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind next
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `;` or `=`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         Kind next
+   │                  ─ expected one of `;` or `=`
+LL │
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         (this.call).address
+   │                            ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind next;
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         address a = this.call.address
+   │                                      ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind next;
+   ╰╴        ━━━━ unexpected token
+
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `Kind`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint256 b = token./* member */balance
+   │                                              ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+LL │         Kind /* type */ next /* name */;
+   ╰╴        ━━━━ unexpected token
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: member `bal` not found on type `struct Token storage`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         tokens[i].bal
+   ╰╴                  ━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: member `bal` not found on type `struct Token memory`
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         getToken().bal
+   ╰╴                   ━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_member_name.sol:LL:CC
+   │
+LL │         uint8 later = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 28 previous errors
+

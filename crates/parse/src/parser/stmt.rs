@@ -510,44 +510,64 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn is_type_declaration_boundary(&self) -> bool {
-        let is_address = self.token.is_keyword(kw::Address);
-        if !self.token.is_non_reserved_ident(false) && !is_address {
-            return false;
-        }
-
         let mut tokens = self.tokens.as_slice().iter().copied().filter(|t| !t.is_comment_or_doc());
-        let mut next = tokens.next().unwrap_or(Token::EOF);
-        if is_address {
-            if next.is_keyword(kw::Payable) {
-                next = tokens.next().unwrap_or(Token::EOF);
+        let mut ty = self.token;
+        loop {
+            let is_address = ty.is_keyword(kw::Address);
+            if !ty.is_non_reserved_ident(false) && !is_address {
+                return false;
             }
-        } else {
-            while next.kind == TokenKind::Dot {
-                if !tokens.next().is_some_and(|t| t.is_non_reserved_ident(false)) {
-                    return false;
+
+            let mut next = tokens.next().unwrap_or(Token::EOF);
+            if is_address {
+                if next.is_keyword(kw::Payable) {
+                    next = tokens.next().unwrap_or(Token::EOF);
+                }
+            } else {
+                while next.kind == TokenKind::Dot {
+                    if !tokens.next().is_some_and(|t| t.is_non_reserved_ident(false)) {
+                        return false;
+                    }
+                    next = tokens.next().unwrap_or(Token::EOF);
+                }
+            }
+            while next.kind == TokenKind::OpenDelim(Delimiter::Bracket) {
+                let mut depth = 1;
+                while depth > 0 {
+                    match tokens.next().unwrap_or(Token::EOF).kind {
+                        TokenKind::OpenDelim(Delimiter::Bracket) => depth += 1,
+                        TokenKind::CloseDelim(Delimiter::Bracket) => depth -= 1,
+                        TokenKind::Semi
+                        | TokenKind::Eof
+                        | TokenKind::OpenDelim(Delimiter::Brace)
+                        | TokenKind::CloseDelim(Delimiter::Brace) => return false,
+                        _ => {}
+                    }
                 }
                 next = tokens.next().unwrap_or(Token::EOF);
             }
-        }
-        while next.kind == TokenKind::OpenDelim(Delimiter::Bracket) {
-            let mut depth = 1;
-            while depth > 0 {
-                match tokens.next().unwrap_or(Token::EOF).kind {
-                    TokenKind::OpenDelim(Delimiter::Bracket) => depth += 1,
-                    TokenKind::CloseDelim(Delimiter::Bracket) => depth -= 1,
-                    TokenKind::Semi
-                    | TokenKind::Eof
-                    | TokenKind::OpenDelim(Delimiter::Brace)
-                    | TokenKind::CloseDelim(Delimiter::Brace) => return false,
-                    _ => {}
-                }
+            if next.is_location_specifier() {
+                next = tokens.next().unwrap_or(Token::EOF);
             }
-            next = tokens.next().unwrap_or(Token::EOF);
+            if !next.is_non_reserved_ident(false) {
+                return false;
+            }
+
+            // After a dot, the candidate type may still be the member: `expr.member Type name`.
+            // Check past the candidate variable, including declarations with missing semicolons.
+            // At statement end, the prefix is enough; rescanning the rest would be quadratic.
+            if self.prev_token.kind != TokenKind::Dot {
+                return true;
+            }
+            ty = tokens.next().unwrap_or(Token::EOF);
+            if !ty.is_non_reserved_ident(false) && !ty.is_keyword(kw::Address) {
+                return !ty.is_location_specifier()
+                    && !matches!(
+                        ty.kind,
+                        TokenKind::Dot | TokenKind::OpenDelim(Delimiter::Bracket)
+                    );
+            }
         }
-        if next.is_location_specifier() {
-            next = tokens.next().unwrap_or(Token::EOF);
-        }
-        next.is_non_reserved_ident(false)
     }
 }
 
