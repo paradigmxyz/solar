@@ -4,6 +4,7 @@ use super::{
 };
 use crate::workspace::WorkspaceEditError;
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
+use snapbox::{assert_data_eq, str};
 
 fn create_files(state: &mut GlobalState, path: &Path) {
     let files = vec![FileCreate { uri: Url::from_file_path(path).unwrap().to_string() }];
@@ -585,4 +586,122 @@ async fn watched_missing_excluded_dependency_recovers_on_create_and_later_change
     let tables = settle(&state).await;
     assert_eq!(symbol_names(&tables, "Missing"), ["Missing"]);
     assert_eq!(symbol_names(&tables, "latest"), ["latest"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_deep_manifest_lifecycle_refreshes_project_ownership_and_remappings() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /packages/domain/contracts/app/src/Main.sol open
+        import "pkg/$1Target.sol";
+
+        //- /packages/domain/contracts/app/lib/old/Target.sol
+        contract OldTarget {}
+
+        //- /packages/domain/contracts/app/lib/new/Target.sol
+        contract NewTarget {}
+        "#,
+        "/packages/domain/contracts/app/src/Main.sol",
+    );
+    let mut state = fixture.state();
+    let root = fixture.project_path("/");
+    let project_root = fixture.project_path("/packages/domain/contracts/app");
+    let manifest = project_root.join("foundry.toml");
+    assert_eq!(workspace_bases(&state.config), std::slice::from_ref(&root));
+    assert_data_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        str![[r#"
+<none>
+
+"#]],
+    );
+
+    for (typ, target, expected) in [
+        (
+            FileChangeType::CREATED,
+            "old",
+            str![[r#"
+/packages/domain/contracts/app/lib/old/Target.sol:0:0 contract OldTarget {}
+
+"#]],
+        ),
+        (
+            FileChangeType::CHANGED,
+            "new",
+            str![[r#"
+/packages/domain/contracts/app/lib/new/Target.sol:0:0 contract NewTarget {}
+
+"#]],
+        ),
+    ] {
+        std::fs::write(
+            &manifest,
+            format!(
+                "[profile.default]\nauto_detect_remappings = false\nremappings = [\"pkg/=lib/{target}/\"]\n"
+            ),
+        )
+        .unwrap();
+        watch_files(&mut state, [(&manifest, typ)]);
+        settle(&state).await;
+
+        assert_eq!(workspace_bases(&state.config), std::slice::from_ref(&project_root));
+        assert_data_eq!(fixture.query_in(&mut state, Query::Definition, "$1").await, expected);
+    }
+
+    std::fs::remove_file(&manifest).unwrap();
+    watch_files(&mut state, [(&manifest, FileChangeType::DELETED)]);
+    settle(&state).await;
+
+    assert_eq!(workspace_bases(&state.config), [root]);
+    assert_data_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        str![[r#"
+<none>
+
+"#]],
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_deep_repository_marker_restores_and_prunes_projects_from_naked_roots() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /packages/domain/app/.git
+        gitdir: elsewhere
+
+        //- /packages/domain/app/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/pkg/"]
+
+        //- /packages/domain/app/src/Nested.sol
+        import "pkg/Target.sol";
+        contract Nested is Target {}
+
+        //- /packages/domain/app/lib/pkg/Target.sol
+        contract Target {}
+        "#,
+    );
+    let mut state = state_with(project.config());
+    let root = project.path("/");
+    let project_root = project.path("/packages/domain/app");
+    let marker = project_root.join(".git");
+    assert_eq!(workspace_bases(&state.config), std::slice::from_ref(&root));
+    assert!(
+        state.config.tracked_source_files_under(std::slice::from_ref(&project_root)).is_empty()
+    );
+
+    std::fs::remove_file(&marker).unwrap();
+    watch_files(&mut state, [(&marker, FileChangeType::DELETED)]);
+    let tables = settle(&state).await;
+    assert_eq!(workspace_bases(&state.config), [project_root]);
+    assert_eq!(symbol_names(&tables, "Nested"), ["Nested"]);
+    assert_eq!(symbol_names(&tables, "Target"), ["Target"]);
+
+    std::fs::write(&marker, "gitdir: elsewhere").unwrap();
+    watch_files(&mut state, [(&marker, FileChangeType::CREATED)]);
+    let tables = settle(&state).await;
+    assert_eq!(workspace_bases(&state.config), [root]);
+    assert!(symbol_names(&tables, "Nested").is_empty());
+    assert!(symbol_names(&tables, "Target").is_empty());
 }

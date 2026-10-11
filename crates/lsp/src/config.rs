@@ -1643,8 +1643,6 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /project/packages *.sol Change
 /project/packages foundry.toml Create | Change | Delete
 /project/packages/app * Create | Delete
-/project/packages/app **/.git Create | Delete
-/project/packages/app **/foundry.toml Create | Change | Delete
 /project/packages/app *.sol Change
 /project/packages/app foundry.toml Create | Change | Delete
 /project/packages/app remappings.txt Create | Change | Delete
@@ -1709,8 +1707,6 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /repo/workspace foundry.toml Create | Change | Delete
 /repo/workspace remappings.txt Create | Change | Delete
 /repo/workspace/nested * Create | Delete
-/repo/workspace/nested **/.git Create | Delete
-/repo/workspace/nested **/foundry.toml Create | Change | Delete
 /repo/workspace/nested *.sol Change
 /repo/workspace/nested foundry.toml Create | Change | Delete
 /repo/workspace/nested remappings.txt Create | Change | Delete
@@ -1835,6 +1831,28 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                     ("/project/remappings.txt", true),
                     ("/project/packages/app/foundry.toml", true),
                     ("/other/foundry.toml", false),
+                ][..],
+            ),
+            // Naked roots watch the directories they search for manifests.
+            (
+                r#"
+                //- /packages/contracts/foundry.toml
+
+                //- /packages/frontend/package.json
+                {}
+
+                //- /packages/frontend/deep/project/.keep
+
+                //- /node_modules/dependency/foundry.toml
+                "#,
+                &["/"][..],
+                None,
+                &[
+                    ("/packages/foundry.toml", true),
+                    ("/packages/contracts/foundry.toml", true),
+                    ("/packages/frontend/foundry.toml", true),
+                    ("/packages/frontend/deep/project/foundry.toml", true),
+                    ("/node_modules/foundry.toml", false),
                 ][..],
             ),
             // Custom globs are relative to the deepest workspace.
