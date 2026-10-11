@@ -1,5 +1,5 @@
 use super::*;
-use snapbox::str;
+use snapbox::{assert_data_eq, str};
 
 #[tokio::test(flavor = "current_thread")]
 async fn remappings_change_refreshes_import_definitions() {
@@ -36,6 +36,33 @@ async fn remappings_change_refreshes_import_definitions() {
     assert_eq!(
         fixture.query_in(&mut state, Query::Definition, "$1").await,
         "/lib/new/Target.sol:0:0 contract NewTarget {}\n"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn naked_root_discovers_deep_projects() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /packages/team/contracts/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/pkg/"]
+
+        //- /packages/team/contracts/src/Main.sol open
+        import "pkg/$1Target.sol";
+
+        //- /packages/team/contracts/lib/pkg/Target.sol
+        contract Target {}
+        "#,
+        "/packages/team/contracts/src/Main.sol",
+    );
+    let mut state = fixture.state();
+    assert_data_eq!(
+        fixture.query_in(&mut state, Query::Definition, "$1").await,
+        str![[r#"
+/packages/team/contracts/lib/pkg/Target.sol:0:0 contract Target {}
+
+"#]],
     );
 }
 
