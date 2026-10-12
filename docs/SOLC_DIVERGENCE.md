@@ -111,7 +111,23 @@ No intentional divergences documented yet.
 
 ## Name Resolution
 
-No intentional divergences documented yet.
+### NAME-001: Yul declarations can shadow enclosing Yul names
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul variable or function whose name is already
+declared in any enclosing Yul scope, including across function boundaries and
+`for` loop parts, with errors 1395 and 6052. `solar` rejects only a name that
+is already declared in the same Yul scope, so `{ let x := 1 { let x := 2 } }`
+compiles and the inner `x` shadows the outer one.
+
+Rationale: an inner declaration resolves without ambiguity to the innermost
+scope, as in Solidity, so the code compiles to the same program the author
+wrote. Duplicates within one scope stay errors because Yul has no overloads,
+and a use of the name there would be ambiguous.
+
+Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
+`tests/ui/yul_lowering/yul_function_scope.sol`.
 
 ## Type Checking
 
@@ -246,6 +262,18 @@ each source.
 Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
+
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
 
 ### TYPECK-009: Constant initializers that are not compile-time constants
 
@@ -459,3 +487,22 @@ No intentional divergences documented yet.
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
+
+### CODEGEN-011: ABI coder v1 is not supported
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
+  encoders and decoders for that source unit. `solar` warns that ABI coder v1
+  is not supported and always generates ABI coder v2 code. Calldata decoding
+  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
+  `address` argument with dirty high bits reverts, where v1 cleans it and
+  continues. The type checker also does not apply v1's restrictions, so v1
+  source units may use structs and nested dynamic arrays at ABI boundaries,
+  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
+  `--allow 9511` also hides this change.
+- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
+  accepts the same way. A second coder would only change how malformed input
+  fails and which types compile.
+- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
+  `tests/ui/parser/pragma_valid.sol`.
