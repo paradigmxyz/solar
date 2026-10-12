@@ -352,6 +352,12 @@ impl Config {
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "foundry.toml"));
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
 
+            for root in workspace.dependency_config_roots() {
+                for pattern in ["foundry.toml", "remappings.txt"] {
+                    specs.insert(WatchedFileSpec::new(root.clone(), pattern));
+                }
+            }
+
             for root in workspace.index_import_only_roots() {
                 if is_approved_index_root(root, base_path, &self.workspace_roots) {
                     specs.insert(WatchedFileSpec::create_delete(root.clone(), "*"));
@@ -452,6 +458,13 @@ impl Config {
         };
         let Some(directory) = path.parent() else { return false };
 
+        if matches!(file_name, "foundry.toml" | "remappings.txt")
+            && self.workspaces.iter().any(|workspace| {
+                workspace.dependency_config_roots().iter().any(|root| root == directory)
+            })
+        {
+            return true;
+        }
         if file_name == "remappings.txt" {
             return self.workspace_roots.iter().any(|root| root == directory)
                 || self.workspaces.iter().any(|workspace| {
@@ -510,7 +523,14 @@ impl Config {
             self.workspaces
                 .iter()
                 .filter(|workspace| workspace.kind() == WorkspaceKind::Foundry)
-                .filter_map(|workspace| workspace.compile_opts().base_path.as_deref())
+                .flat_map(|workspace| {
+                    workspace
+                        .compile_opts()
+                        .base_path
+                        .as_deref()
+                        .into_iter()
+                        .chain(workspace.dependency_config_roots().iter().map(PathBuf::as_path))
+                })
                 .flat_map(|base_path| {
                     ["foundry.toml", "remappings.txt"].map(|name| base_path.join(name))
                 })
@@ -1788,6 +1808,8 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /shared/contracts **/.git Create | Delete
 /shared/contracts **/foundry.toml Create | Change | Delete
 /shared/lib * Create | Delete
+/shared/lib/pkg foundry.toml Create | Change | Delete
+/shared/lib/pkg remappings.txt Create | Change | Delete
 /workspace * Create | Delete
 /workspace **/.git Create | Delete
 /workspace **/foundry.toml Create | Change | Delete
