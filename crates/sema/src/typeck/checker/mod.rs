@@ -2993,7 +2993,11 @@ impl<'gcx> TypeChecker<'gcx> {
             && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
             && size >= u32::MAX
         {
-            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+            self.dcx()
+                .err(format!("type too large for {loc}"))
+                .code(error_code!(1534))
+                .span(var.ty.span)
+                .emit();
         }
     }
 
