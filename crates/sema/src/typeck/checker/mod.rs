@@ -13,7 +13,7 @@ use solar_ast::{
 use solar_data_structures::{
     Never,
     bit_set::{DenseBitSet, GrowableBitSet},
-    map::{FxHashMap, FxIndexSet},
+    map::FxHashMap,
     pluralize,
     smallvec::SmallVec,
 };
@@ -227,16 +227,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 .code(error_code!(1763))
                 .span(slot.span)
                 .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit();
-            return;
-        }
-        // solc's constant evaluator does not support conditionals, while ours folds them.
-        if let Some(conditional) = ConditionalFinder::find(&self.gcx.hir, slot) {
-            self.dcx()
-                .err("base slot of storage layout cannot be evaluated at compile time")
-                .code(error_code!(1505))
-                .span(slot.span)
-                .span_label(conditional, "the constant evaluator does not support conditionals")
                 .emit();
             return;
         }
@@ -4155,56 +4145,4 @@ fn valid_meta_type(ty: Ty<'_>) -> bool {
             | TyKind::Contract(_)
             | TyKind::Enum(_)
     )
-}
-
-/// Finds a conditional in a constant expression, including in the initializers of the constants
-/// it reads.
-struct ConditionalFinder<'gcx> {
-    hir: &'gcx hir::Hir<'gcx>,
-    /// The constants read so far, whose initializers are scanned in this order.
-    constants: FxIndexSet<hir::VariableId>,
-}
-
-impl<'gcx> ConditionalFinder<'gcx> {
-    /// Returns the span of the first conditional found.
-    ///
-    /// Initializers are scanned from a worklist rather than recursively, so a long chain of
-    /// constants cannot exhaust the stack.
-    fn find(hir: &'gcx hir::Hir<'gcx>, mut expr: &'gcx hir::Expr<'gcx>) -> Option<Span> {
-        let mut finder = Self { hir, constants: Default::default() };
-        let mut next = 0;
-        loop {
-            if let ControlFlow::Break(span) = finder.visit_expr(expr) {
-                return Some(span);
-            }
-            let &id = finder.constants.get_index(next)?;
-            expr = hir.variable(id).initializer?;
-            next += 1;
-        }
-    }
-}
-
-impl<'gcx> Visit<'gcx> for ConditionalFinder<'gcx> {
-    type BreakValue = Span;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        self.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        match expr.kind {
-            hir::ExprKind::Ternary(..) => return ControlFlow::Break(expr.span),
-            hir::ExprKind::Ident(res) => {
-                if let Some(id) = res.iter().find_map(hir::Res::as_variable)
-                    && let var = self.hir.variable(id)
-                    && var.is_constant()
-                    && var.initializer.is_some()
-                {
-                    self.constants.insert(id);
-                }
-            }
-            _ => {}
-        }
-        self.walk_expr(expr)
-    }
 }

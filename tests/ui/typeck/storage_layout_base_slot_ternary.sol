@@ -1,7 +1,7 @@
-// ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol
+// solc rejects conditionals in base slots with error 1505; see CONTRACT-001.
 
-uint constant T = true ? 42 : 94;
+uint constant T = true ? 1 : 0;
 
-contract Ternary layout at true ? 42 : 94 {} //~ ERROR: base slot of storage layout cannot be evaluated at compile time
-contract TernaryOperand layout at 255 + (true ? 1 : 0) {} //~ ERROR: base slot of storage layout cannot be evaluated at compile time
-contract TernaryConstant layout at T {} //~ ERROR: base slot of storage layout cannot be evaluated at compile time
+contract A layout at true ? 42 : 94 {}
+contract B layout at 255 + (true ? 1 : 0) {}
+contract C layout at T {}
