@@ -91,6 +91,15 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
     }
+
+    /// Evaluates the given expression like solc's constant evaluator, without caching the result
+    /// or emitting diagnostics.
+    ///
+    /// Unlike [`try_eval_const_value`](Self::try_eval_const_value), this does not fold
+    /// conditionals. Checks that solc runs on constant operands use it to report the same code.
+    pub(crate) fn try_eval_solc_const(self, expr: &hir::Expr<'_>) -> EvalResult {
+        ConstantEvaluator { gcx: self, depth: 0, fold_ternaries: false }.try_eval_value(expr)
+    }
 }
 
 pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
@@ -105,13 +114,15 @@ pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
 struct ConstantEvaluator<'gcx> {
     gcx: Gcx<'gcx>,
     depth: usize,
+    /// Whether to fold conditionals, which solc's constant evaluator does not.
+    fold_ternaries: bool,
 }
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, depth: 0 }
+        Self { gcx, depth: 0, fold_ternaries: true }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -169,7 +180,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
-            hir::ExprKind::Ternary(cond, t, f) => {
+            hir::ExprKind::Ternary(cond, t, f) if self.fold_ternaries => {
                 let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
                     return Err(EE::UnsupportedExpr.into());
                 };

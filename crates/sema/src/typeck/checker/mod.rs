@@ -1198,17 +1198,17 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::BinOpKind::Rem => "modulo zero",
             _ => return,
         };
-        if self.gcx.try_eval_const(lhs).is_ok()
-            && self.is_const_zero(rhs)
+        if self.is_const_zero(rhs)
+            && self.gcx.try_eval_solc_const(lhs).is_ok()
             && !self.array_len_fails_at(expr)
         {
             self.dcx().err(msg).code(error_code!(1211)).span(expr.span).emit();
         }
     }
 
-    /// Returns whether the given expression is a constant zero.
+    /// Returns whether solc's constant evaluator gives the given expression the value zero.
     fn is_const_zero(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        self.gcx.try_eval_const(expr).is_ok_and(|value| value.is_zero())
+        self.gcx.try_eval_solc_const(expr).is_ok_and(|value| value.is_zero())
     }
 
     fn check_user_unop(
