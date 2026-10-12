@@ -116,7 +116,7 @@ fn merge_typeck_results<'gcx>(
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
-    let using_ty = gcx.type_of_using_directive(using);
+    let using_ty = gcx.type_of_using_directive(using).filter(|ty| !ty.references_error());
 
     if using.global
         && let Some(ty) = using_ty
@@ -130,14 +130,6 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
                 gcx.dcx().emit_err(using.span, "can only use `global` with types defined in the same source unit at file level");
             }
         }
-    }
-
-    if !using.global
-        && let Some(ty) = using_ty
-        && let TyKind::Contract(id) = ty.kind
-        && gcx.hir.contract(id).kind.is_library()
-    {
-        gcx.dcx().emit_err(using.span, "invalid use of library name");
     }
 
     for entry in using.entries {
@@ -530,6 +522,16 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
     if !contract.kind.is_interface() {
         return;
+    }
+
+    for (base, &base_id) in contract.bases_args.iter().zip(contract.bases) {
+        if !gcx.hir.contract(base_id).kind.is_interface() {
+            gcx.dcx()
+                .err("interfaces can only inherit from other interfaces")
+                .code(error_code!(6536))
+                .span(base.span)
+                .emit();
+        }
     }
 
     // Iterate over the items in declaration order to report them in the same order solc does.

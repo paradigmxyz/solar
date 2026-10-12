@@ -768,10 +768,6 @@ impl<'gcx> TypeChecker<'gcx> {
                             self.gcx.mk_ty_err(
                                 self.dcx().emit_err(hir_ty.span, "cannot instantiate mappings"),
                             )
-                        } else if ty.contains_library(self.gcx) {
-                            self.gcx.mk_ty_err(
-                                self.dcx().emit_err(hir_ty.span, "invalid use of a library name"),
-                            )
                         } else {
                             let ty = ty.with_loc(self.gcx, DataLocation::Memory);
                             self.gcx.mk_builtin_fn(
