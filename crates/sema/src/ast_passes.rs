@@ -195,7 +195,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        self.walk_item_struct(item)
+        ControlFlow::Continue(())
     }
 
     fn visit_item_enum(
@@ -516,24 +516,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         )
                         .emit();
                 }
-            }
-            if let Some(visibility) = f.visibility
-                && matches!(*visibility, ast::Visibility::Private | ast::Visibility::Public)
-            {
-                self.dcx()
-                    .err("invalid visibility, can only be `external` or `internal`")
-                    .code(error_code!(6012))
-                    .span(visibility.span)
-                    .emit();
-            } else if let Some(state_mutability) = f.state_mutability
-                && *state_mutability == ast::StateMutability::Payable
-                && f.visibility() != Some(ast::Visibility::External)
-            {
-                self.dcx()
-                    .err("only external function types can be payable")
-                    .code(error_code!(7415))
-                    .span(state_mutability.span)
-                    .emit();
             }
         }
         self.walk_ty(ty)

@@ -702,9 +702,7 @@ impl<'hir> Item<'_, 'hir> {
     pub fn is_visible_via_contract_type_access(self) -> bool {
         match self {
             // A getter is part of the external interface, but its state variable is not visible.
-            Item::Function(f) => {
-                f.is_ordinary() && !f.is_getter() && f.visibility >= Visibility::Public
-            }
+            Item::Function(f) => f.is_part_of_external_interface() && !f.is_getter(),
             Item::Struct(_) | Item::Enum(_) | Item::Udvt(_) | Item::Error(_) | Item::Event(_) => {
                 true
             }
