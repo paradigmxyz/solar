@@ -73,8 +73,8 @@ pub struct DeployableBytecode {
 /// Assembles a program, whose EVM IR pipeline already ran, as runtime bytecode, together with
 /// creation bytecode that deploys it unchanged.
 ///
-/// Nothing links library addresses into the result, so a program that pushes one is an error;
-/// immutables keep their zero placeholders.
+/// Nothing links library addresses into the result, and the creation code sets no immutables, so
+/// a program that pushes either is an error.
 pub fn into_deployable_bytecode(
     gcx: Gcx<'_>,
     module: Module,
@@ -107,7 +107,8 @@ pub fn into_deployable_bytecode(
 }
 
 /// Assembles `module` without running the EVM IR pipeline, only legalizing it for the target.
-/// Fails when it pushes a library address, which nothing links.
+/// Fails when it pushes a library address, which nothing links, or an immutable, which nothing
+/// sets.
 fn assemble_legalized(gcx: Gcx<'_>, module: Module) -> solar_interface::Result<Vec<u8>> {
     let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
     assembler.legalize();
@@ -121,6 +122,11 @@ fn assemble_legalized(gcx: Gcx<'_>, module: Module) -> solar_interface::Result<V
     if !assembled.library_relocations.is_empty() {
         let message = "EVM IR input that pushes library addresses has no bytecode to emit";
         return Err(gcx.dcx().err(message).emit());
+    }
+    if !assembled.immutable_refs.is_empty() {
+        let message = "EVM IR input that pushes immutables has no bytecode to emit";
+        let note = "its creation code only copies the runtime, so every immutable would read zero";
+        return Err(gcx.dcx().err(message).note(note).emit());
     }
     Ok(assembled.bytecode)
 }
