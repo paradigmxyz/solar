@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_arithmetic.sol:FixedBytesConstantArithmetic ===
+@module FixedBytesConstantArithmetic
+fn @narrowRoundTrip() -> i256 [selector=0x30090410, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    v0 = shl 8, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v2 = shr 8, v1
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v3
+}
+
+fn @wideRoundTrip() -> i256 [selector=0x507f52af, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = shl 8, 0xff000000000000000000000000000000000000000000000000000000000000ff
+    v1 = shr 8, v0
+    ret v1
+}
+
+fn @compare() -> i1 [selector=0x3da0ac79, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x1234567800000000000000000000000000000000000000000000000000000000, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @widenedCompare() -> i1 [selector=0x8ef2a79d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x1234567800000000000000000000000000000000000000000000000000000000, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v0
+}
