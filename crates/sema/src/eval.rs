@@ -28,7 +28,11 @@ pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
     let int = gcx.eval_const(size)?;
     let Some(int) = int.as_u256() else {
-        let msg = "array length cannot be negative";
+        let msg = if int.is_negative() {
+            "array length cannot be negative"
+        } else {
+            "array length is too large"
+        };
         return Err(gcx.dcx().emit_err(size.span, msg));
     };
     if int.is_zero() {

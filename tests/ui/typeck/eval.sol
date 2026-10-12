@@ -47,6 +47,7 @@ contract C {
     function d13(uint[maxUint8 + 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d14(uint[(maxInt8 + 1) - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d15(uint[maxUint8 * 2 / 2] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d16(uint[2**300] memory) public {} //~ ERROR: array length is too large
     function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
     function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
 
