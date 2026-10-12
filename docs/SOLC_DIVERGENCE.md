@@ -75,7 +75,23 @@ No intentional divergences documented yet.
 
 ## Name Resolution
 
-No intentional divergences documented yet.
+### NAME-001: Yul declarations can shadow enclosing Yul names
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul variable or function whose name is already
+declared in any enclosing Yul scope, including across function boundaries and
+`for` loop parts, with errors 1395 and 6052. `solar` rejects only a name that
+is already declared in the same Yul scope, so `{ let x := 1 { let x := 2 } }`
+compiles and the inner `x` shadows the outer one.
+
+Rationale: an inner declaration resolves without ambiguity to the innermost
+scope, as in Solidity, so the code compiles to the same program the author
+wrote. Duplicates within one scope stay errors because Yul has no overloads,
+and a use of the name there would be ambiguous.
+
+Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
+`tests/ui/yul_lowering/yul_function_scope.sol`.
 
 ## Type Checking
 

@@ -1155,12 +1155,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
         let res = Res::Item(hir::ItemId::Function(id));
-        let _ = self.scopes.current_scope().declare_res(
-            self.lcx.sess,
-            &self.lcx.hir,
-            function.name,
-            res,
-        );
+        let _ = self.scopes.declare_yul(self.dcx(), function.name, res);
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
@@ -1170,9 +1165,9 @@ impl<'gcx> ResolveContext<'gcx> {
         let previous_yul_function_scope = self.yul_function_scope.replace(function_scope);
 
         self.hir.functions[id].parameters =
-            self.lower_yul_function_variables(id, function.parameters, hir::VarKind::FunctionParam);
+            self.lower_yul_function_variables(function.parameters, hir::VarKind::FunctionParam);
         self.hir.functions[id].returns =
-            self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
+            self.lower_yul_function_variables(function.returns, hir::VarKind::FunctionReturn);
 
         let block = self.lower_yul_block(&function.body);
         let unchecked = self.hir_builder().stmt(hir::StmtKind::AssemblyBlock(block), block.span);
@@ -1186,32 +1181,12 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_function_variables(
         &mut self,
-        function: hir::FunctionId,
         idents: &[Ident],
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
         self.arena.alloc_slice_fill_iter(
-            idents.iter().map(|&ident| self.lower_yul_function_variable(function, ident, kind)),
+            idents.iter().map(|&ident| self.lower_yul_variable(ident, kind).0),
         )
-    }
-
-    fn lower_yul_function_variable(
-        &mut self,
-        function: hir::FunctionId,
-        name: Ident,
-        kind: hir::VarKind,
-    ) -> hir::VariableId {
-        let var = self.mk_yul_var(
-            Some(function),
-            name.span,
-            self.yul_uint_type(name.span),
-            Some(name),
-            kind,
-        );
-        let id = self.hir.variables.push(var);
-        let res = Res::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        id
     }
 
     fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
@@ -1271,7 +1246,7 @@ impl<'gcx> ResolveContext<'gcx> {
     ) -> hir::StmtKind<'gcx> {
         let vars = idents
             .iter()
-            .map(|&ident| self.lower_yul_variable(ident))
+            .map(|&ident| self.lower_yul_variable(ident, hir::VarKind::Statement))
             .collect::<SmallVec<[_; 4]>>();
         if let Some(guar) = vars.iter().find_map(|(_, result)| result.err()) {
             return hir::StmtKind::Err(guar);
@@ -1300,19 +1275,18 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_variable(
         &mut self,
         name: Ident,
+        kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
         let var = self.mk_yul_var(
             self.function_id,
             name.span,
             self.yul_uint_type(name.span),
             Some(name),
-            hir::VarKind::Statement,
+            kind,
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result =
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        (id, result)
+        (id, self.scopes.declare_yul(self.dcx(), name, res))
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -2403,6 +2377,34 @@ impl SymbolResolverScopes {
     fn exit(&mut self) {
         let scope = self.scopes.pop().expect("unbalanced enter/exit");
         self.pool.push(scope);
+    }
+
+    /// Declares a Yul function or variable in the current scope.
+    ///
+    /// Like solc, Yul has no overloads, so a name can be declared only once per scope.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libyul/ScopeFiller.cpp#L136-L163>
+    fn declare_yul(
+        &mut self,
+        dcx: &DiagCtxt,
+        name: Ident,
+        res: Res,
+    ) -> Result<(), ErrorGuaranteed> {
+        let scope = self.current_scope();
+        if let Some(previous) = scope.resolve(name) {
+            let (kind, code) = match res {
+                Res::Item(hir::ItemId::Function(_)) => ("function", error_code!(6052)),
+                _ => ("variable", error_code!(1395)),
+            };
+            return Err(dcx
+                .err(format!("{kind} name `{name}` already taken in this scope"))
+                .code(code)
+                .span(name.span)
+                .span_note(previous[0].span, "previous declaration declared here")
+                .emit());
+        }
+        scope.declare_unchecked(name.name, Declaration { res, span: name.span });
+        Ok(())
     }
 }
 
