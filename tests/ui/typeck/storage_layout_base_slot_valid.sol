@@ -4,7 +4,6 @@
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/layout_specification_binary_expression.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/layout_specification_constant_in_expression.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/layout_specification_max_value.sol
-// ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/intermediate_operation_out_of_range.sol
 
 uint constant X = 42;
 
