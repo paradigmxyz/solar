@@ -1131,7 +1131,8 @@ impl<'gcx> TypeChecker<'gcx> {
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
-        let mut err = self.dcx().err(msg).span(op.span);
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        let mut err = self.dcx().err(msg).code(code).span(op.span);
         err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
         err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
         self.gcx.mk_ty_err(err.emit())

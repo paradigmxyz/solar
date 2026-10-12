@@ -10,7 +10,7 @@ error: operators can only be defined in a global `using for` directive
 LL │ using {add as +, neg as -} for DefinedInt;
    ╰╴                 ━━━
 
-error: cannot apply builtin operator `+` to `DefinedInt` and `DefinedInt`
+error[2271]: cannot apply builtin operator `+` to `DefinedInt` and `DefinedInt`
    ╭▸ ROOT/tests/ui/using-for/imports/imported_non_global_operator_definition.sol:LL:CC
    │
 LL │         return a + b;
