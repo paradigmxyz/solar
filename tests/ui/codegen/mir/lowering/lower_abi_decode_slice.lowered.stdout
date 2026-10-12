@@ -22,28 +22,30 @@
     bb0:
       v0 = make_memory_slice arg0, 64
 -     v1 = abi_decode [tuple<u256, u256>], v0
-+     v7 = slice_ptr v0
-+     v8 = inttoptr i256 v7 to memptr
-+     v9 = slice_len v0
-+     v10 = slt v9, 64
-+     jumpi v10, bb1, bb2
++     v9 = slice_ptr v0
++     v10 = inttoptr i256 v9 to memptr
++     v11 = slice_len v0
++     v12 = slt v11, 64
++     jumpi v12, bb1, bb2
 +   bb2:
-+     v11 = icall @decode_static, v8
++     v13 = icall @decode_static, v10
       v2 = make_memory_slice arg1, arg1
 -     v3 = abi_decode [tuple<u256, u256>], v2
--     v4 = memory_object_load_field memorystruct<2>, v1, 0
--     v5 = memory_object_load_field memorystruct<2>, v3, 1
-+     v12 = slice_ptr v2
-+     v13 = inttoptr i256 v12 to memptr
-+     v14 = slice_len v2
-+     v15 = slt v14, 64
-+     jumpi v15, bb1, bb3
+-     v4 = make_memory_slice v1, 2
++     v14 = slice_ptr v2
++     v15 = inttoptr i256 v14 to memptr
++     v16 = slice_len v2
++     v17 = slt v16, 64
++     jumpi v17, bb1, bb3
 +   bb3:
-+     v16 = icall @decode_static, v13
-+     v4 = memory_object_load_field memorystruct<2>, v11, 0
-+     v5 = memory_object_load_field memorystruct<2>, v16, 1
-      v6 = add v4, v5
-      ret v6
++     v18 = icall @decode_static, v15
++     v4 = make_memory_slice v13, 2
+      v5 = slice_load_element v4, 0
+-     v6 = make_memory_slice v3, 2
++     v6 = make_memory_slice v18, 2
+      v7 = slice_load_element v6, 1
+      v8 = add v5, v7
+      ret v8
 +   bb1:
 +     revert 0, 0
   }
@@ -105,12 +107,13 @@
 +     jumpi v2, bb1, bb2
 +   bb2:
 +     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-+     v4 = mload arg0
-+     memory_object_store_field memorystruct<2>, v3, 0, v4
-+     v5 = ptrtoint memptr arg0 to i256
-+     v6 = add v5, 32
-+     v7 = mload v6
-+     memory_object_store_field memorystruct<2>, v3, 1, v7
++     v4 = make_memory_slice v3, 2
++     v5 = mload arg0
++     slice_store_element v4, 0, v5
++     v6 = ptrtoint memptr arg0 to i256
++     v7 = add v6, 32
++     v8 = mload v7
++     slice_store_element v4, 1, v8
 +     ret v3
 +   bb1:
 +     revert 0, 0

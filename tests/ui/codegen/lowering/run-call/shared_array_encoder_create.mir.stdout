@@ -34,20 +34,20 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, address>]] {
     jump bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
+    v20 = memory_slice arg0
     jump bb6
   bb6:
-    v20 = phi [bb2: 0], [bb7: v37]
-    v21 = lt v20, v1
-    jumpi v21, bb7, bb8
+    v21 = phi [bb2: 0], [bb7: v37]
+    v22 = lt v21, v1
+    jumpi v22, bb7, bb8
   bb8:
     ret
   bb7:
-    v22 = memory_slice arg0
-    v23 = slice_load_element v22, v20
+    v23 = slice_load_element v20, v21
     v24 = storage_array_data_slot 0
-    v25 = div v20, 1
+    v25 = div v21, 1
     v26 = add v24, v25
-    v27 = mod v20, 1
+    v27 = mod v21, 1
     v28 = mul v27, 20
     v29 = mul v28, 8
     v30 = shl v29, 0xffffffffffffffffffffffffffffffffffffffff
@@ -58,7 +58,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, address>]] {
     v35 = shl v29, v34
     v36 = or v33, v35
     sstore v26, v36 !metadata(storage=symbolic(v26))
-    v37 = add v20, 1
+    v37 = add v21, 1
     jump bb6
   bb4:
     v6 = storage_array_data_slot 0

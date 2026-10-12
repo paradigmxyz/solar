@@ -4,8 +4,6 @@
 //! embedding these addresses. Inline assembly can still access the conventional
 //! words directly, so alias analysis and backend lowering share this policy.
 
-use crate::mir::MemoryObjectLayout;
-
 /// Policy interface between semantic memory-object MIR and a physical target
 /// memory representation.
 pub(crate) trait MemoryLayoutPolicy {
@@ -14,13 +12,6 @@ pub(crate) trait MemoryLayoutPolicy {
 
     /// Size of the length header in front of a dynamic object's payload.
     const DYNAMIC_HEADER_SIZE: u64;
-
-    /// Returns the byte offset of a direct struct field.
-    fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64>;
-
-    /// Returns the byte stride of a fixed array's element. Fixed arrays and structs start at
-    /// their object; dynamic objects are accessed through `memory_slice` views.
-    fn element_stride(layout: MemoryObjectLayout) -> Option<u64>;
 }
 
 /// The selected physical EVM memory layout.
@@ -64,14 +55,4 @@ impl EvmMemoryLayout {
 impl MemoryLayoutPolicy for EvmMemoryLayout {
     const WORD_SIZE: u64 = Self::WORD_SIZE;
     const DYNAMIC_HEADER_SIZE: u64 = Self::DYNAMIC_HEADER_SIZE;
-
-    fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64> {
-        let MemoryObjectLayout::Struct { fields } = layout else { return None };
-        (field < fields).then(|| field.saturating_mul(Self::WORD_SIZE))
-    }
-
-    fn element_stride(layout: MemoryObjectLayout) -> Option<u64> {
-        let MemoryObjectLayout::FixedArray { element_words, .. } = layout else { return None };
-        u64::from(element_words).checked_mul(Self::WORD_SIZE)
-    }
 }

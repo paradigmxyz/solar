@@ -53,10 +53,10 @@ fn store_memory_object_word(
 ) {
     match destination {
         MemoryObjectAccess::Field { object, layout, field } => {
-            builder.memory_object_store_field(object, layout, field, value)
+            builder.memory_store_field(object, layout, field, value)
         }
         MemoryObjectAccess::Element { object, layout, index } => {
-            builder.memory_object_store_element(object, layout, index, value)
+            builder.memory_store_element(object, layout, index, value)
         }
     }
 }
@@ -67,10 +67,10 @@ fn load_memory_object_word(
 ) -> ValueId {
     match source {
         MemoryObjectAccess::Field { object, layout, field } => {
-            builder.memory_object_load_field(object, layout, field)
+            builder.memory_load_field(object, layout, field)
         }
         MemoryObjectAccess::Element { object, layout, index } => {
-            builder.memory_object_load_element(object, layout, index)
+            builder.memory_load_element(object, layout, index)
         }
     }
 }
@@ -155,6 +155,8 @@ fn visit_storage_fields(
     mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, ValueId, MemoryObjectAccess),
 ) {
     let memory_layout = memory_object_layout(layout);
+    // view = make_memory_slice memory, words
+    let memory = builder.memory_object_view(memory, memory_layout);
     match layout {
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;

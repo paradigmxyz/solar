@@ -20,14 +20,16 @@ fn @agg() -> memptr [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[arra
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = lt 0, 2
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
-    v4 = lt 1, 2
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
+    v2 = make_memory_slice v0, 2
+    v3 = lt 0, 2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    slice_store_element v2, 0, 11
+    v5 = make_memory_slice v0, 2
+    v6 = lt 1, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    slice_store_element v5, 1, 22
     ret v0
 }
 
@@ -182,19 +184,21 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v21 = ptrtoint memptr v15 to i256
     v22 = make_memory_slice v21, 64
     v23 = abi_decode [array<2, u256>], v22
-    v24 = lt 0, 2
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = memory_object_load_element memoryfixedarray<2, 1>, v23, 0
-    v27 = lt 1, 2
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryfixedarray<2, 1>, v23, 1
-    v30 = checked_add u256, v26, v29
+    v24 = make_memory_slice v23, 2
+    v25 = lt 0, 2
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = slice_load_element v24, 0
+    v28 = make_memory_slice v23, 2
+    v29 = lt 1, 2
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = slice_load_element v28, 1
+    v32 = checked_add u256, v27, v31
     jump bb5
   bb5:
-    v31 = phi [bb3: v30], [bb6: 7]
-    ret v31
+    v33 = phi [bb3: v32], [bb6: 7]
+    ret v33
 }
 
 fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

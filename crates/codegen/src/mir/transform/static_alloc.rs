@@ -20,10 +20,10 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectLayout,
-    Module, Terminator, Value, ValueId,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module,
+    SliceLocation, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+    memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
 use alloy_primitives::U256;
@@ -350,15 +350,11 @@ fn candidate_uses_are_safe(
                     pending.push(result);
                     continue;
                 }
-                InstKind::MemoryObjectFieldAddr { object, layout, field } if object == value => {
-                    derived.get(&value).and_then(|&base| {
-                        EvmMemoryLayout::field_offset(layout, field)?.checked_add(base)
-                    })
-                }
-                InstKind::MemoryObjectElementAddr { object, layout, index } if object == value => {
-                    derived.get(&value).and_then(|&base| {
-                        object_element_offset(layout, func.value_u64(index))?.checked_add(base)
-                    })
+                // A view of a fixed array or struct starts at its address.
+                InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. }
+                    if ptr == value =>
+                {
+                    derived.get(&value).copied()
                 }
                 _ => continue,
             };
@@ -408,12 +404,11 @@ fn candidate_uses_are_safe(
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _) | InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
-                    func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
-                }
-                InstKind::SlicePtr(_)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. } => {
+                InstKind::Add(_, _)
+                | InstKind::PtrToInt(_, 256)
+                | InstKind::IntToPtr(_)
+                | InstKind::SlicePtr(_)
+                | InstKind::MakeSlice { .. } => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
                 // The view reads the length word in front of its data.
@@ -423,22 +418,6 @@ fn candidate_uses_are_safe(
                         && in_range(off, 32)
                 }
                 InstKind::SliceLen(_) => true,
-                InstKind::MemoryObjectLoadField { object, layout, field } => {
-                    operand == object
-                        && EvmMemoryLayout::field_offset(layout, field)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectStoreField { object, layout, field, value } => {
-                    operand == object
-                        && !derived.contains_key(&value)
-                        && EvmMemoryLayout::field_offset(layout, field)
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                    operand == object
-                        && object_element_offset(layout, func.value_u64(index))
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
-                }
                 InstKind::SliceLoadElement { slice, index } => {
                     operand == slice
                         && func
@@ -449,12 +428,6 @@ fn candidate_uses_are_safe(
                 InstKind::SliceLoadByte { slice, index } => {
                     operand == slice
                         && func.value_u64(index).is_some_and(|index| in_range_at(off, index, 1))
-                }
-                InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
-                    operand == object
-                        && !derived.contains_key(&value)
-                        && object_element_offset(layout, func.value_u64(index))
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
                 }
                 InstKind::SliceStoreElement { slice, index, value } => {
                     operand == slice
@@ -502,12 +475,6 @@ fn candidate_uses_are_safe(
     }
 
     true
-}
-
-fn object_element_offset(layout: MemoryObjectLayout, index: Option<u64>) -> Option<u64> {
-    let index = index?;
-    let stride = EvmMemoryLayout::element_stride(layout)?;
-    index.checked_mul(stride)
 }
 
 fn call_use_is_safe(

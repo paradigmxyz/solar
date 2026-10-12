@@ -236,11 +236,12 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     jump bb5
   bb5:
     sstore 1, v4 !metadata(storage=slot(1))
+    v12 = memory_slice v2
     jump bb9
   bb9:
-    v12 = phi [bb5: 0], [bb10: v18]
-    v13 = lt v12, v4
-    jumpi v13, bb10, bb11
+    v13 = phi [bb5: 0], [bb10: v18]
+    v14 = lt v13, v4
+    jumpi v14, bb10, bb11
   bb11:
     v19 = icall @load_storage_word_array, v0
     v20 = memory_slice v19
@@ -258,11 +259,12 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     jump bb13
   bb13:
     sstore 0, v21 !metadata(storage=slot(0))
+    v29 = memory_slice v19
     jump bb17
   bb17:
-    v29 = phi [bb13: 0], [bb18: v35]
-    v30 = lt v29, v21
-    jumpi v30, bb18, bb19
+    v30 = phi [bb13: 0], [bb18: v35]
+    v31 = lt v30, v21
+    jumpi v31, bb18, bb19
   bb19:
     v36 = icall @load_storage_word_array, 0
     v37 = icall @load_storage_word_array, 1
@@ -270,12 +272,11 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v39 = insert_value struct0, v38, 1, v37
     ret v39
   bb18:
-    v31 = memory_slice v19
-    v32 = slice_load_element v31, v29
+    v32 = slice_load_element v29, v30
     v33 = storage_array_data_slot 0
-    v34 = add v33, v29
+    v34 = add v33, v30
     sstore v34, v32 !metadata(storage=symbolic(v34))
-    v35 = add v29, 1
+    v35 = add v30, 1
     jump bb17
   bb15:
     v26 = storage_array_data_slot 0
@@ -284,12 +285,11 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v28 = add v24, 1
     jump bb14
   bb10:
-    v14 = memory_slice v2
-    v15 = slice_load_element v14, v12
+    v15 = slice_load_element v12, v13
     v16 = storage_array_data_slot 1
-    v17 = add v16, v12
+    v17 = add v16, v13
     sstore v17, v15 !metadata(storage=symbolic(v17))
-    v18 = add v12, 1
+    v18 = add v13, 1
     jump bb9
   bb7:
     v9 = storage_array_data_slot 1
@@ -402,11 +402,12 @@ fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], ab
     jump bb5
   bb5:
     sstore 0, v4 !metadata(storage=slot(0))
+    v12 = memory_slice v2
     jump bb9
   bb9:
-    v12 = phi [bb5: 0], [bb10: v18]
-    v13 = lt v12, v4
-    jumpi v13, bb10, bb11
+    v13 = phi [bb5: 0], [bb10: v18]
+    v14 = lt v13, v4
+    jumpi v14, bb10, bb11
   bb11:
     v19 = icall @load_storage_word_array, v0
     v20 = icall @load_storage_word_array, 0
@@ -414,12 +415,11 @@ fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], ab
     v22 = insert_value struct0, v21, 1, v20
     ret v22
   bb10:
-    v14 = memory_slice v2
-    v15 = slice_load_element v14, v12
+    v15 = slice_load_element v12, v13
     v16 = storage_array_data_slot 0
-    v17 = add v16, v12
+    v17 = add v16, v13
     sstore v17, v15 !metadata(storage=symbolic(v17))
-    v18 = add v12, 1
+    v18 = add v13, 1
     jump bb9
   bb7:
     v9 = storage_array_data_slot 0

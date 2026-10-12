@@ -59,9 +59,9 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: memptr 96], [bb3: v22]
+    v4 = phi [bb0: memptr 96], [bb3: v21]
     v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v23]
+    v6 = phi [bb0: 0], [bb3: v22]
     v7 = phi [bb0: 0], [bb3: v7]
     v8 = memory_slice v5
     v9 = slice_len v8
@@ -70,13 +70,13 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb5:
     jump bb2
   bb2:
-    v24 = memory_slice v4
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = keccak256 v25, v26
-    v28 = insert_value struct1, undef struct1, 0, v27
-    v29 = insert_value struct1, v28, 1, v3
-    ret v29
+    v23 = memory_slice v4
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = keccak256 v24, v25
+    v27 = insert_value struct1, undef struct1, 0, v26
+    v28 = insert_value struct1, v27, 1, v3
+    ret v28
   bb4:
     v11 = memory_slice v5
     v12 = slice_len v11
@@ -90,17 +90,16 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb7:
     v18 = alloc memorybytes, exact, uninitialized, infallible, 32
     mstore v18, 0
-    v19 = memory_slice v5
-    v20 = ptrtoint memptr v18 to i256
-    slice_store_element v19, v6, v20
+    v19 = ptrtoint memptr v18 to i256
+    slice_store_element v11, v6, v19
     jump bb8
   bb8:
-    v21 = phi [bb4: v16], [bb7: v18]
-    v22 = abi_encode_packed (bytes v4, bytes v21)
+    v20 = phi [bb4: v16], [bb7: v18]
+    v21 = abi_encode_packed (bytes v4, bytes v20)
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v6, 1
+    v22 = checked_add u256, v6, 1
     jump bb1
 }

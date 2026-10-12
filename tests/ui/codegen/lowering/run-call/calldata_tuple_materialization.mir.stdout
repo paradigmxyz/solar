@@ -63,62 +63,65 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
 fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v0, 0, 96
-    v1 = icall @split, arg0
-    v2 = extract_value struct2, v1, 0
-    v3 = extract_value struct2, v1, 1
-    v4 = slice_len v3
-    v5 = slice_ptr v3
-    v6 = mul v4, 32
-    v7 = eq 32, 0
-    v8 = div v6, 32
-    v9 = eq v8, v4
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = calldatasize
-    v14 = sub v13, v5
-    v15 = slt v14, v6
-    icall revert_if<calldata_tail_too_short>, v15
-    v16 = mul v4, 32
-    v17 = eq 32, 0
-    v18 = div v16, 32
-    v19 = eq v18, v4
-    v20 = or v17, v19
-    v21 = zext i1 v20 to i256
-    v22 = eq v21, 0
-    icall panic_if<0x41>, v22
-    v23 = add 32, v16
-    v24 = lt v23, 32
-    icall panic_if<0x41>, v24
-    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
-    mstore v25, v4
-    v26 = make_calldata_slice v5, v16
-    v27 = ptrtoint memptr v25 to i256
-    v28 = add v27, 32
-    v29 = slice_len v26
-    v30 = make_memory_slice v28, v29
-    slice_copy v30, 0, v26
-    v31 = ptrtoint memptr v25 to i256
-    memory_object_store_field memorystruct<1>, v0, 0, v31
-    v32 = slice_len v2
-    v33 = lt 0, v32
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = slice_ptr v2
-    v36 = add v35, 0
-    v37 = calldataload v36
-    v38 = memory_object_load_field memorystruct<1>, v0, 0, memptr
-    v39 = memory_slice v38
-    v40 = slice_len v39
-    v41 = lt 0, v40
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = slice_load_element v39, 0
-    v44 = insert_value struct1, undef struct1, 0, v37
-    v45 = insert_value struct1, v44, 1, v43
-    ret v45
+    v1 = make_memory_slice v0, 1
+    slice_store_element v1, 0, 96
+    v2 = icall @split, arg0
+    v3 = extract_value struct2, v2, 0
+    v4 = extract_value struct2, v2, 1
+    v5 = slice_len v4
+    v6 = slice_ptr v4
+    v7 = mul v5, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, v5
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = calldatasize
+    v15 = sub v14, v6
+    v16 = slt v15, v7
+    icall revert_if<calldata_tail_too_short>, v16
+    v17 = mul v5, 32
+    v18 = eq 32, 0
+    v19 = div v17, 32
+    v20 = eq v19, v5
+    v21 = or v18, v20
+    v22 = zext i1 v21 to i256
+    v23 = eq v22, 0
+    icall panic_if<0x41>, v23
+    v24 = add 32, v17
+    v25 = lt v24, 32
+    icall panic_if<0x41>, v25
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
+    mstore v26, v5
+    v27 = make_calldata_slice v6, v17
+    v28 = ptrtoint memptr v26 to i256
+    v29 = add v28, 32
+    v30 = slice_len v27
+    v31 = make_memory_slice v29, v30
+    slice_copy v31, 0, v27
+    v32 = make_memory_slice v0, 1
+    v33 = ptrtoint memptr v26 to i256
+    slice_store_element v32, 0, v33
+    v34 = slice_len v3
+    v35 = lt 0, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = slice_ptr v3
+    v38 = add v37, 0
+    v39 = calldataload v38
+    v40 = make_memory_slice v0, 1
+    v41 = slice_load_element v40, 0, memptr
+    v42 = memory_slice v41
+    v43 = slice_len v42
+    v44 = lt 0, v43
+    v45 = eq v44, false
+    icall panic_if<0x32>, v45
+    v46 = slice_load_element v42, 0
+    v47 = insert_value struct1, undef struct1, 0, v39
+    v48 = insert_value struct1, v47, 1, v46
+    ret v48
 }
 
 fn @split(arg0: calldataslice) -> struct2 [pure] {
@@ -161,44 +164,45 @@ fn @widenedTuple(arg0: calldataslice) -> struct3 [selector=0x9eda07fe, abi_param
     v13 = slice_len v11
     v14 = make_memory_slice v12, v13
     slice_copy v14, 0, v11
+    v15 = make_memory_slice v10, 2
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb6: v20]
-    v16 = lt v15, 3
-    jumpi v16, bb2, bb3
+    v16 = phi [bb0: 0], [bb6: v21]
+    v17 = lt v16, 3
+    jumpi v17, bb2, bb3
   bb3:
-    v21 = lt 0, 3
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = add 2, 0
-    v24 = sload v23 !metadata(storage=slot(2))
-    v25 = lt 1, 3
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = add 2, 1
-    v28 = sload v27 !metadata(storage=slot(3))
-    v29 = lt 2, 3
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = add 2, 2
-    v32 = sload v31 !metadata(storage=slot(4))
-    v33 = insert_value struct3, undef struct3, 0, v24
-    v34 = insert_value struct3, v33, 1, v28
-    v35 = insert_value struct3, v34, 2, v32
-    ret v35
+    v22 = lt 0, 3
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = add 2, 0
+    v25 = sload v24 !metadata(storage=slot(2))
+    v26 = lt 1, 3
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = add 2, 1
+    v29 = sload v28 !metadata(storage=slot(3))
+    v30 = lt 2, 3
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = add 2, 2
+    v33 = sload v32 !metadata(storage=slot(4))
+    v34 = insert_value struct3, undef struct3, 0, v25
+    v35 = insert_value struct3, v34, 1, v29
+    v36 = insert_value struct3, v35, 2, v33
+    ret v36
   bb2:
-    v17 = add 2, v15
-    v18 = lt v15, 2
-    jumpi v18, bb4, bb5
+    v18 = add 2, v16
+    v19 = lt v16, 2
+    jumpi v19, bb4, bb5
   bb5:
-    sstore v17, 0 !metadata(storage=offset(v15, 2))
+    sstore v18, 0 !metadata(storage=offset(v16, 2))
     jump bb6
   bb4:
-    v19 = memory_object_load_element memoryfixedarray<2, 1>, v10, v15
-    sstore v17, v19 !metadata(storage=offset(v15, 2))
+    v20 = slice_load_element v15, v16
+    sstore v18, v20 !metadata(storage=offset(v16, 2))
     jump bb6
   bb6:
-    v20 = add v15, 1
+    v21 = add v16, 1
     jump bb1
 }
 
@@ -270,11 +274,12 @@ fn @sliceTuple(arg0: calldataslice) -> struct3 [selector=0x09979d7d, abi_params=
     jump bb2
   bb2:
     sstore 5, v37 !metadata(storage=slot(5))
+    v45 = memory_slice v30
     jump bb6
   bb6:
-    v45 = phi [bb2: 0], [bb7: v51]
-    v46 = lt v45, v37
-    jumpi v46, bb7, bb8
+    v46 = phi [bb2: 0], [bb7: v51]
+    v47 = lt v46, v37
+    jumpi v47, bb7, bb8
   bb8:
     v52 = sload 5 !metadata(storage=slot(5))
     v53 = lt 0, v52
@@ -302,12 +307,11 @@ fn @sliceTuple(arg0: calldataslice) -> struct3 [selector=0x09979d7d, abi_params=
     v72 = insert_value struct3, v71, 2, v69
     ret v72
   bb7:
-    v47 = memory_slice v30
-    v48 = slice_load_element v47, v45
+    v48 = slice_load_element v45, v46
     v49 = storage_array_data_slot 5
-    v50 = add v49, v45
+    v50 = add v49, v46
     sstore v50, v48 !metadata(storage=symbolic(v50))
-    v51 = add v45, 1
+    v51 = add v46, 1
     jump bb6
   bb4:
     v42 = storage_array_data_slot 5

@@ -6,18 +6,20 @@ fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[
     v1 = lt i8 0, i8 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    memory_object_store_field memorystruct<1>, v0, 0, 0
-    v3 = ptrtoint memptr v0 to i256
-    mstore v3, 2
-    v4 = memory_object_load_field memorystruct<1>, v0, 0
-    v5 = lt v4, 2
-    v6 = eq v5, false
-    icall panic_if<0x21>, v6
-    v7 = trunc i256 v4 to i8
-    v8 = lt v7, i8 2
-    v9 = eq v8, false
-    icall panic_if<0x21>, v9
-    ret v7
+    v3 = make_memory_slice v0, 1
+    slice_store_element v3, 0, 0
+    v4 = ptrtoint memptr v0 to i256
+    mstore v4, 2
+    v5 = make_memory_slice v0, 1
+    v6 = slice_load_element v5, 0
+    v7 = lt v6, 2
+    v8 = eq v7, false
+    icall panic_if<0x21>, v8
+    v9 = trunc i256 v6 to i8
+    v10 = lt v9, i8 2
+    v11 = eq v10, false
+    icall panic_if<0x21>, v11
+    ret v9
 }
 
 fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
@@ -27,18 +29,19 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     memory_zero v1, 32
     v2 = ptrtoint memptr v0 to i256
     mstore v2, 2
-    v3 = lt 0, 1
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v6 = lt v5, 2
-    v7 = eq v6, false
-    icall panic_if<0x21>, v7
-    v8 = trunc i256 v5 to i8
-    v9 = lt v8, i8 2
-    v10 = eq v9, false
-    icall panic_if<0x21>, v10
-    ret v8
+    v3 = make_memory_slice v0, 1
+    v4 = lt 0, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = slice_load_element v3, 0
+    v7 = lt v6, 2
+    v8 = eq v7, false
+    icall panic_if<0x21>, v8
+    v9 = trunc i256 v6 to i8
+    v10 = lt v9, i8 2
+    v11 = eq v10, false
+    icall panic_if<0x21>, v11
+    ret v9
 }
 
 fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {

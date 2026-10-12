@@ -366,14 +366,8 @@ impl CfgSimplifier {
                 InstKind::Phi(_)
                 | InstKind::Alloc { .. }
                 | InstKind::MemorySlice(..)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. }
-                | InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectStoreField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
                 | InstKind::SliceLoadElement { .. }
                 | InstKind::SliceLoadByte { .. }
-                | InstKind::MemoryObjectStoreElement { .. }
                 | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }

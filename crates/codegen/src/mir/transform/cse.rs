@@ -73,8 +73,7 @@
 
 use crate::mir::{
     AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MemoryObjectLayout, MirType, Module, SliceLocation,
-    StorageAlias, Value, ValueId,
+    InstId, InstKind, Instruction, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -271,8 +270,6 @@ enum ExprKey {
     MakeSlice(OperandKey, OperandKey, SliceLocation),
     SlicePtr(OperandKey),
     SliceLen(OperandKey),
-    MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
-    MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey),
@@ -1180,12 +1177,6 @@ impl CommonSubexprEliminator {
                 let key =
                     self.alias().memory_object_length_location(func, inst_id, value(*object))?;
                 Some(ExprKey::MemorySlice(key))
-            }
-            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
-            }
-            InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                Some(ExprKey::MemoryObjectElementAddr(operand(*object), *layout, operand(*index)))
             }
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(

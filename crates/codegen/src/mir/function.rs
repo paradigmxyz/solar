@@ -201,6 +201,36 @@ impl Function {
         }
     }
 
+    /// Returns the fixed array or struct a `make_memory_slice` of its `memptr` views, if `id`
+    /// is one.
+    #[must_use]
+    pub(crate) fn fixed_view_object(&self, id: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst) = self.value(id) else { return None };
+        match self.inst(*inst).kind {
+            InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. }
+                if self.value_ty(ptr) == Some(MirType::MemPtr) =>
+            {
+                Some(ptr)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the object a memory view reads, through either kind of view.
+    #[must_use]
+    pub(crate) fn view_object(&self, id: ValueId) -> Option<ValueId> {
+        self.memory_slice_object(id).or_else(|| self.fixed_view_object(id))
+    }
+
+    /// Whether `value` is an element loaded from a fixed array or struct.
+    #[must_use]
+    pub(crate) fn fixed_view_load(&self, value: ValueId) -> bool {
+        matches!(self.value(value), Value::Inst(inst) if matches!(
+            self.inst(*inst).kind,
+            InstKind::SliceLoadElement { slice, .. } if self.fixed_view_object(slice).is_some()
+        ))
+    }
+
     /// Whether `kind` reads the length of a `memory_slice` view.
     #[must_use]
     pub(crate) fn is_view_length(&self, kind: &InstKind) -> bool {

@@ -1607,124 +1607,6 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     MemorySlice(object: ValueId),
-    /// Address a direct field of a struct object.
-    #[mir_op(
-        mnemonic = "memory_object_field_addr",
-        result = MemPtr,
-        phases = PhaseSet::SEMANTIC,
-        effect = Pure,
-        traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object)]))]
-    MemoryObjectFieldAddr {
-        /// Struct object reference.
-        object: ValueId,
-        /// Complete direct-object layout.
-        layout: MemoryObjectLayout,
-        /// Zero-based direct field index.
-        field: u64,
-    },
-    /// Address an array element under the semantic object layout.
-    #[mir_op(
-        mnemonic = "memory_object_element_addr",
-        result = MemPtr,
-        phases = PhaseSet::SEMANTIC,
-        effect = Pure,
-        traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object), MirType::I256]))]
-    MemoryObjectElementAddr {
-        /// Array object reference.
-        object: ValueId,
-        /// Complete direct-object layout.
-        layout: MemoryObjectLayout,
-        /// Runtime element index.
-        index: ValueId,
-    },
-    /// Load one direct struct field without exposing its physical address.
-    #[mir_op(
-        mnemonic = "memory_object_load_field",
-        result = Word,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryRead,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object)]))]
-    MemoryObjectLoadField {
-        /// Struct object reference.
-        object: ValueId,
-        /// Complete direct-object layout.
-        layout: MemoryObjectLayout,
-        /// Zero-based direct field index.
-        field: u64,
-    },
-    /// Store one direct struct field without exposing its physical address.
-    #[mir_op(
-        mnemonic = "memory_object_store_field",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = true,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
-    MemoryObjectStoreField {
-        /// Struct object reference.
-        object: ValueId,
-        /// Complete direct-object layout.
-        layout: MemoryObjectLayout,
-        /// Zero-based direct field index.
-        field: u64,
-        /// Value to store.
-        value: ValueId,
-    },
-    /// Load one array element without exposing its physical address.
-    #[mir_op(
-        mnemonic = "memory_object_load_element",
-        result = Word,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryRead,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object), MirType::I256]))]
-    MemoryObjectLoadElement {
-        /// Array object reference.
-        object: ValueId,
-        /// Complete direct-object layout.
-        layout: MemoryObjectLayout,
-        /// Runtime element index.
-        index: ValueId,
-    },
-    /// Store one array element without exposing its physical address.
-    #[mir_op(
-        mnemonic = "memory_object_store_element",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = true,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, MirType::I256]))]
-    MemoryObjectStoreElement {
-        /// Array object reference.
-        object: ValueId,
-        /// Complete direct-object layout.
-        layout: MemoryObjectLayout,
-        /// Runtime element index.
-        index: ValueId,
-        /// Value to store.
-        value: ValueId,
-    },
     /// Load one word-sized element from a slice.
     #[mir_op(
         mnemonic = "slice_load_element",
@@ -2071,9 +1953,9 @@ define_mir_ops! {
     )]
     #[mnemonic(InstKind::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice")]
     #[mnemonic(InstKind::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice")]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *ptr), MirType::I256]))]
     MakeSlice {
-        /// Address of the first element or byte.
+        /// Address of the first element or byte; a memory slice may start at a `memptr`.
         ptr: ValueId,
         /// Logical element or byte length.
         len: ValueId,

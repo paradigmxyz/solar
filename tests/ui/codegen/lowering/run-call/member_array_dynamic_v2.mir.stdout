@@ -4,51 +4,52 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
   bb0:
     v0 = slice_ptr arg0
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v2 = calldatasize
-    v3 = sub v2, v0
-    v4 = slt v3, 32
-    icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v0
-    v6 = add v0, v5
-    v7 = calldatasize
-    v8 = sub v7, v0
-    v9 = sub v8, 31
-    v10 = slt v5, v9
-    v11 = eq v10, false
-    icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = mul v12, 32
-    v15 = add v6, 32
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v15, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    v19 = add v6, 32
-    v20 = mul v12, 32
-    v21 = eq 32, 0
-    v22 = div v20, 32
-    v23 = eq v22, v12
-    v24 = or v21, v23
-    v25 = zext i1 v24 to i256
-    v26 = eq v25, 0
-    icall panic_if<0x41>, v26
-    v27 = add 32, v20
-    v28 = lt v27, 32
-    icall panic_if<0x41>, v28
-    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v27
-    mstore v29, v12
-    v30 = make_calldata_slice v19, v20
-    v31 = ptrtoint memptr v29 to i256
-    v32 = add v31, 32
-    v33 = slice_len v30
-    v34 = make_memory_slice v32, v33
-    slice_copy v34, 0, v30
-    v35 = ptrtoint memptr v29 to i256
-    memory_object_store_field memorystruct<1>, v1, 0, v35
-    v36 = abi_encode [tuple<memory_array<word>>], object, args v1
-    ret v36
+    v2 = make_memory_slice v1, 1
+    v3 = calldatasize
+    v4 = sub v3, v0
+    v5 = slt v4, 32
+    icall revert_if<calldata_tail_too_short>, v5
+    v6 = calldataload v0
+    v7 = add v0, v6
+    v8 = calldatasize
+    v9 = sub v8, v0
+    v10 = sub v9, 31
+    v11 = slt v6, v10
+    v12 = eq v11, false
+    icall revert_if<invalid_calldata_tail_offset>, v12
+    v13 = calldataload v7
+    v14 = gt v13, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = mul v13, 32
+    v16 = add v7, 32
+    v17 = calldatasize
+    v18 = sub v17, v15
+    v19 = sgt v16, v18
+    icall revert_if<calldata_tail_too_short>, v19
+    v20 = add v7, 32
+    v21 = mul v13, 32
+    v22 = eq 32, 0
+    v23 = div v21, 32
+    v24 = eq v23, v13
+    v25 = or v22, v24
+    v26 = zext i1 v25 to i256
+    v27 = eq v26, 0
+    icall panic_if<0x41>, v27
+    v28 = add 32, v21
+    v29 = lt v28, 32
+    icall panic_if<0x41>, v29
+    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
+    mstore v30, v13
+    v31 = make_calldata_slice v20, v21
+    v32 = ptrtoint memptr v30 to i256
+    v33 = add v32, 32
+    v34 = slice_len v31
+    v35 = make_memory_slice v33, v34
+    slice_copy v35, 0, v31
+    v36 = ptrtoint memptr v30 to i256
+    slice_store_element v2, 0, v36
+    v37 = abi_encode [tuple<memory_array<word>>], object, args v1
+    ret v37
 }
 
 fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -57,59 +58,60 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v1 = gas
     v2 = slice_ptr arg0
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v4 = calldatasize
-    v5 = sub v4, v2
-    v6 = slt v5, 32
-    icall revert_if<calldata_tail_too_short>, v6
-    v7 = calldataload v2
-    v8 = add v2, v7
-    v9 = calldatasize
-    v10 = sub v9, v2
-    v11 = sub v10, 31
-    v12 = slt v7, v11
-    v13 = eq v12, false
-    icall revert_if<invalid_calldata_tail_offset>, v13
-    v14 = calldataload v8
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = mul v14, 32
-    v17 = add v8, 32
-    v18 = calldatasize
-    v19 = sub v18, v16
-    v20 = sgt v17, v19
-    icall revert_if<calldata_tail_too_short>, v20
-    v21 = add v8, 32
-    v22 = mul v14, 32
-    v23 = eq 32, 0
-    v24 = div v22, 32
-    v25 = eq v24, v14
-    v26 = or v23, v25
-    v27 = zext i1 v26 to i256
-    v28 = eq v27, 0
-    icall panic_if<0x41>, v28
-    v29 = add 32, v22
-    v30 = lt v29, 32
-    icall panic_if<0x41>, v30
-    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v29
-    mstore v31, v14
-    v32 = make_calldata_slice v21, v22
-    v33 = ptrtoint memptr v31 to i256
-    v34 = add v33, 32
-    v35 = slice_len v32
-    v36 = make_memory_slice v34, v35
-    slice_copy v36, 0, v32
-    v37 = ptrtoint memptr v31 to i256
-    memory_object_store_field memorystruct<1>, v3, 0, v37
-    v38 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = zext i160 v0 to i256
-    v42 = call v1, v41, 0, v39, v40, 0, 0
-    jumpi v42, bb2, bb1
+    v4 = make_memory_slice v3, 1
+    v5 = calldatasize
+    v6 = sub v5, v2
+    v7 = slt v6, 32
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = calldataload v2
+    v9 = add v2, v8
+    v10 = calldatasize
+    v11 = sub v10, v2
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = eq v13, false
+    icall revert_if<invalid_calldata_tail_offset>, v14
+    v15 = calldataload v9
+    v16 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v16
+    v17 = mul v15, 32
+    v18 = add v9, 32
+    v19 = calldatasize
+    v20 = sub v19, v17
+    v21 = sgt v18, v20
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = add v9, 32
+    v23 = mul v15, 32
+    v24 = eq 32, 0
+    v25 = div v23, 32
+    v26 = eq v25, v15
+    v27 = or v24, v26
+    v28 = zext i1 v27 to i256
+    v29 = eq v28, 0
+    icall panic_if<0x41>, v29
+    v30 = add 32, v23
+    v31 = lt v30, 32
+    icall panic_if<0x41>, v31
+    v32 = alloc memoryarray<1>, exact, uninitialized, infallible, v30
+    mstore v32, v15
+    v33 = make_calldata_slice v22, v23
+    v34 = ptrtoint memptr v32 to i256
+    v35 = add v34, 32
+    v36 = slice_len v33
+    v37 = make_memory_slice v35, v36
+    slice_copy v37, 0, v33
+    v38 = ptrtoint memptr v32 to i256
+    slice_store_element v4, 0, v38
+    v39 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
+    v40 = slice_ptr v39
+    v41 = slice_len v39
+    v42 = zext i160 v0 to i256
+    v43 = call v1, v42, 0, v40, v41, 0, 0
+    jumpi v43, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v43 = icall returndata_bytes<>
-    v44 = abi_decode [bytes], v43
-    ret v44
+    v44 = icall returndata_bytes<>
+    v45 = abi_decode [bytes], v44
+    ret v45
 }

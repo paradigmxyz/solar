@@ -52,11 +52,12 @@ fn @constructor() [constructor] {
     jump bb2
   bb2:
     sstore v20, v22 !metadata(storage=symbolic(v20))
+    v30 = memory_slice v15
     jump bb6
   bb6:
-    v30 = phi [bb2: 0], [bb7: v36]
-    v31 = lt v30, v22
-    jumpi v31, bb7, bb8
+    v31 = phi [bb2: 0], [bb7: v36]
+    v32 = lt v31, v22
+    jumpi v32, bb7, bb8
   bb8:
     sstore 1, v18 !metadata(storage=slot(1))
     v37 = sload 0 !metadata(storage=slot(0))
@@ -69,12 +70,11 @@ fn @constructor() [constructor] {
     sstore v41, 0 !metadata(storage=symbolic(v41))
     ret
   bb7:
-    v32 = memory_slice v15
-    v33 = slice_load_element v32, v30
+    v33 = slice_load_element v30, v31
     v34 = storage_array_data_slot v20
-    v35 = add v34, v30
+    v35 = add v34, v31
     sstore v35, v33 !metadata(storage=symbolic(v35))
-    v36 = add v30, 1
+    v36 = add v31, 1
     jump bb6
   bb4:
     v27 = storage_array_data_slot v20
@@ -145,11 +145,12 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
     jump bb2
   bb2:
     sstore v10, v12 !metadata(storage=symbolic(v10))
+    v20 = memory_slice v5
     jump bb6
   bb6:
-    v20 = phi [bb2: 0], [bb7: v26]
-    v21 = lt v20, v12
-    jumpi v21, bb7, bb8
+    v21 = phi [bb2: 0], [bb7: v26]
+    v22 = lt v21, v12
+    jumpi v22, bb7, bb8
   bb8:
     sstore 1, v8 !metadata(storage=slot(1))
     v27 = sload 1 !metadata(storage=slot(1))
@@ -179,12 +180,11 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
     v48 = insert_value struct1, v47, 1, v46
     ret v48
   bb7:
-    v22 = memory_slice v5
-    v23 = slice_load_element v22, v20
+    v23 = slice_load_element v20, v21
     v24 = storage_array_data_slot v10
-    v25 = add v24, v20
+    v25 = add v24, v21
     sstore v25, v23 !metadata(storage=symbolic(v25))
-    v26 = add v20, 1
+    v26 = add v21, 1
     jump bb6
   bb4:
     v17 = storage_array_data_slot v10
@@ -213,11 +213,12 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     jump bb2
   bb2:
     sstore 2, v3 !metadata(storage=slot(2))
+    v11 = memory_slice v0
     jump bb6
   bb6:
-    v11 = phi [bb2: 0], [bb7: v17]
-    v12 = lt v11, v3
-    jumpi v12, bb7, bb8
+    v12 = phi [bb2: 0], [bb7: v17]
+    v13 = lt v12, v3
+    jumpi v13, bb7, bb8
   bb8:
     v18 = sload 2 !metadata(storage=slot(2))
     v19 = lt 0, v18
@@ -241,12 +242,11 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     v35 = insert_value struct0, v34, 2, v32
     ret v35
   bb7:
-    v13 = memory_slice v0
-    v14 = slice_load_element v13, v11
+    v14 = slice_load_element v11, v12
     v15 = storage_array_data_slot 2
-    v16 = add v15, v11
+    v16 = add v15, v12
     sstore v16, v14 !metadata(storage=symbolic(v16))
-    v17 = add v11, 1
+    v17 = add v12, 1
     jump bb6
   bb4:
     v8 = storage_array_data_slot 2

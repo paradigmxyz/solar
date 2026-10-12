@@ -41,7 +41,6 @@ from evm_rules.lean import (
     term,
     theorem,
 )
-from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.prover import (
     LEAN_PROJECT,
@@ -697,109 +696,6 @@ class CallEffectTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(Unsupported, "instruction roots"):
             Context().obligation(changed)
-
-
-class MemoryAddressTests(unittest.TestCase):
-    def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "mir/egraph"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(read_egraph_source())
-            if form[0] == "rule"
-            and any(name in repr(form) for name in MemoryAddresses.SHAPES)
-        ]
-        self.assertEqual(len(rules), 2)
-        for rule in rules:
-            cx = Context()
-            lhs, rhs = cx.obligation(rule)
-            result = check(lhs, rhs, cx.assumptions)
-            self.assertEqual(result["status"], "proved", rule.line)
-            if not any(part[0] == "if-let" for part in rule.form[2:-1]):
-                continue
-            # Removing the actual source guard must expose a nonzero field
-            # offset, rather than implicitly assuming the rewrite.
-            unguarded = Rule(
-                (rule.form[0], rule.form[1], rule.form[-1]), rule.line, rule.source
-            )
-            cx = Context()
-            lhs, rhs = cx.obligation(unguarded)
-            result = check(lhs, rhs, cx.assumptions)
-            self.assertEqual(result["status"], "counterexample", rule.line)
-            self.assertTrue(result["replayed"])
-
-    def assert_concrete_and_symbolic(self, value, values, expected):
-        self.assertTrue(lean_evaluates(value, values, expected))
-        self.assertEqual(concrete(value, values), expected)
-
-    def test_field_offsets_saturate_before_full_word_address_addition(self):
-        cx = Context()
-        object, layout, field = map(Expr.var, ("object", "layout", "field"))
-        value = cx.operation("Op.MemoryObjectFieldAddr", [object, layout, field])
-        for index in (0, 1, (1 << 59) - 1, 1 << 59, (1 << 64) - 2):
-            expected_offset = min(index * 32, (1 << 64) - 1)
-            self.assert_concrete_and_symbolic(
-                value, {"object": MASK, "field": index}, (MASK + expected_offset) & MASK
-            )
-        # Fields outside a struct's declared range have no valid projection.
-        shape = cx.memory.layouts[layout]
-        result = check(
-            value,
-            value,
-            [*cx.assumptions, Cond("eq", (field, shape.fields))],
-        )
-        self.assertEqual(result["status"], "inapplicable")
-
-    def test_element_strides_keep_zero_full_u32_and_wrapping_indices(self):
-        cx = Context()
-        object, layout, index = map(Expr.var, ("object", "layout", "index"))
-        value = cx.operation("Op.MemoryObjectElementAddr", [object, layout, index])
-        shape = cx.memory.layouts[layout]
-        for words in (0, 1, (1 << 32) - 1):
-            for i in (0, 1, MASK):
-                values = {
-                    "object": MASK,
-                    "index": i,
-                    shape.kind.args[0]: 2,
-                    shape.element_words.args[0]: words,
-                }
-                expected = (MASK + i * words * 32) & MASK
-                self.assert_concrete_and_symbolic(value, values, expected)
-        result = check(
-            value, value, [*cx.assumptions, Cond("eq", (shape.kind, Expr.const(3)))]
-        )
-        self.assertEqual(result["status"], "inapplicable")
-
-    def test_generated_schema_drift_and_wrong_arity_fail_closed(self):
-        cx = Context()
-        object, layout, field = map(Expr.var, ("object", "layout", "field"))
-        with (
-            patch(
-                "evm_rules.isle.forms",
-                return_value=[
-                    (
-                        (
-                            "type",
-                            "Op",
-                            "extern",
-                            (
-                                "enum",
-                                (
-                                    "MemoryObjectFieldAddr",
-                                    ("layout", "MemoryObjectLayout"),
-                                    ("object", "Value"),
-                                    ("field", "u64"),
-                                ),
-                            ),
-                        ),
-                        1,
-                    )
-                ],
-            ),
-            self.assertRaisesRegex(Unsupported, "changed memory address schema"),
-        ):
-            cx.operation("Op.MemoryObjectFieldAddr", [object, layout, field])
-        with self.assertRaises(Unsupported):
-            cx.operation("Op.MemoryObjectFieldAddr", [object, layout])
 
 
 class RuleTests(unittest.TestCase):

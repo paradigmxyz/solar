@@ -228,7 +228,8 @@ fn @givesZeroedThenDirtyTuple() -> memptr [selector=0x0dead00c, abi_returns=[tup
     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 32
-    memory_object_store_field memorystruct<1>, v0, 0, 256
+    v2 = make_memory_slice v0, 1
+    slice_store_element v2, 0, 256
     ret v0
 }
 
@@ -257,7 +258,8 @@ fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_
     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     jumpi arg0, bb1, bb2
   bb1:
-    memory_object_store_field memorystruct<1>, v0, 0, 1
+    v1 = make_memory_slice v0, 1
+    slice_store_element v1, 0, 1
     jump bb2
   bb2:
     ret v0
@@ -267,8 +269,10 @@ fn @aliasedAddressContainer(arg0: memptr, arg1: memptr) -> memptr {
   bb0:
     v0 = icall @canonicalAddresses
     v1 = ptrtoint memptr v0 to i256
-    memory_object_store_field memorystruct<1>, arg0, 0, v1
-    v2 = memory_object_load_field memorystruct<1>, arg1, 0
+    v5 = make_memory_slice arg0, 1
+    slice_store_element v5, 0, v1
+    v6 = make_memory_slice arg1, 1
+    v2 = slice_load_element v6, 0
     v3 = inttoptr i256 v2 to memptr
     v4 = memory_slice v3
     slice_store_element v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -294,7 +298,8 @@ fn @conditionalFixedArray(arg0: i1) -> memptr {
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
     jumpi arg0, bb1, bb2
   bb1:
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, 1
+    v1 = make_memory_slice v0, 1
+    slice_store_element v1, 0, 1
     jump bb2
   bb2:
     ret v0
@@ -364,17 +369,11 @@ fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_return
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
     v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
-    memory_object_store_field memorystruct<1>, v1, 0, 1
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 1, 256
+    v2 = make_memory_slice v1, 1
+    slice_store_element v2, 0, 1
+    v3 = make_memory_slice v0, 1
+    slice_store_element v3, 1, 256
     ret v1
-}
-
-fn @givesMismatchedArrayStride() -> memptr [selector=0x0dead016, abi_returns=[array<2, word>], abi_return_params=[array<2, u8>]] {
-  bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 96
-    memory_object_store_element memoryfixedarray<2, 2>, v0, 0, 1
-    memory_object_store_element memoryfixedarray<2, 2>, v0, 1, 1
-    ret v0
 }
 
 fn @canonicalStorageAddresses(arg0: i256) -> memptr {
@@ -408,6 +407,7 @@ fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u12
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v1 = zext i128 arg0 to i256
-    memory_object_store_field memorystruct<1>, v0, 0, v1
+    v2 = make_memory_slice v0, 1
+    slice_store_element v2, 0, v1
     ret v0
 }

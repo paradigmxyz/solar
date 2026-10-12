@@ -125,41 +125,43 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     jumpi v26, bb1, bb2
   bb1:
     v27 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v27, 0, 0
-    memory_object_store_field memorystruct<2>, v27, 1, 0
-    v28 = memory_slice v19
+    v28 = make_memory_slice v27, 2
+    slice_store_element v28, 0, 0
+    slice_store_element v28, 1, 0
     v29 = ptrtoint memptr v27 to i256
-    slice_store_element v28, 0, v29
+    slice_store_element v20, 0, v29
     jump bb2
   bb2:
     v30 = phi [bb0: v25], [bb1: v27]
-    v31 = memory_object_load_field memorystruct<2>, v30, 0
-    v32 = memory_slice v19
-    v33 = slice_len v32
-    v34 = lt 0, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = slice_load_element v32, 0
-    v37 = inttoptr i256 v36 to memptr
-    v38 = eq v36, 0
-    jumpi v38, bb3, bb4
+    v31 = make_memory_slice v30, 2
+    v32 = slice_load_element v31, 0
+    v33 = memory_slice v19
+    v34 = slice_len v33
+    v35 = lt 0, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = slice_load_element v33, 0
+    v38 = inttoptr i256 v37 to memptr
+    v39 = eq v37, 0
+    jumpi v39, bb3, bb4
   bb3:
-    v39 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v39, 0, 0
-    memory_object_store_field memorystruct<2>, v39, 1, 0
-    v40 = memory_slice v19
-    v41 = ptrtoint memptr v39 to i256
-    slice_store_element v40, 0, v41
+    v40 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v41 = make_memory_slice v40, 2
+    slice_store_element v41, 0, 0
+    slice_store_element v41, 1, 0
+    v42 = ptrtoint memptr v40 to i256
+    slice_store_element v33, 0, v42
     jump bb4
   bb4:
-    v42 = phi [bb2: v37], [bb3: v39]
-    v43 = memory_object_load_field memorystruct<2>, v42, 1
-    v44 = memory_slice v19
-    v45 = slice_len v44
-    v46 = insert_value struct0, undef struct0, 0, v31
-    v47 = insert_value struct0, v46, 1, v43
-    v48 = insert_value struct0, v47, 2, v45
-    ret v48
+    v43 = phi [bb2: v38], [bb3: v40]
+    v44 = make_memory_slice v43, 2
+    v45 = slice_load_element v44, 1
+    v46 = memory_slice v19
+    v47 = slice_len v46
+    v48 = insert_value struct0, undef struct0, 0, v32
+    v49 = insert_value struct0, v48, 1, v45
+    v50 = insert_value struct0, v49, 2, v47
+    ret v50
 }
 
 fn @load_storage_struct_array_0(arg0: i256) -> memptr {
@@ -181,24 +183,25 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     v11 = storage_array_data_slot arg0
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v21]
-    v13 = phi [bb0: v11], [bb2: v22]
+    v12 = phi [bb0: 0], [bb2: v22]
+    v13 = phi [bb0: v11], [bb2: v23]
     v14 = lt v12, v0
     jumpi v14, bb2, bb3
   bb3:
     ret v10
   bb2:
     v15 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v16 = sload v13 !metadata(storage=symbolic(v13))
-    memory_object_store_field memorystruct<2>, v15, 0, v16
-    v17 = add v13, 1
-    v18 = sload v17 !metadata(storage=offset(v13, 1))
-    memory_object_store_field memorystruct<2>, v15, 1, v18
-    v19 = memory_slice v10
-    v20 = ptrtoint memptr v15 to i256
-    slice_store_element v19, v12, v20
-    v21 = add v12, 1
-    v22 = add v13, 2
+    v16 = make_memory_slice v15, 2
+    v17 = sload v13 !metadata(storage=symbolic(v13))
+    slice_store_element v16, 0, v17
+    v18 = add v13, 1
+    v19 = sload v18 !metadata(storage=offset(v13, 1))
+    slice_store_element v16, 1, v19
+    v20 = memory_slice v10
+    v21 = ptrtoint memptr v15 to i256
+    slice_store_element v20, v12, v21
+    v22 = add v12, 1
+    v23 = add v13, 2
     jump bb1
 }
 

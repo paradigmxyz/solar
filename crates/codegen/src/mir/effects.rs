@@ -168,14 +168,8 @@ impl InstKind {
             | Self::Fmp
             | Self::SetFmp(..)
             | Self::MemorySlice(..)
-            | Self::MemoryObjectFieldAddr { .. }
-            | Self::MemoryObjectElementAddr { .. }
-            | Self::MemoryObjectLoadField { .. }
-            | Self::MemoryObjectStoreField { .. }
-            | Self::MemoryObjectLoadElement { .. }
             | Self::SliceLoadElement { .. }
             | Self::SliceLoadByte { .. }
-            | Self::MemoryObjectStoreElement { .. }
             | Self::SliceStoreElement { .. }
             | Self::SliceStoreByte { .. }
             | Self::SliceStoreWord { .. }

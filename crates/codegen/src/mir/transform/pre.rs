@@ -31,8 +31,8 @@
 //! hold are inserted-this-run and excluded by rule 1.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
+    BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
+    Module, Terminator, Value, ValueId,
     analysis::{CfgInfo, DominatorTree},
     pass::{MirPass, run_function_pass},
     utils::split_edge,
@@ -114,8 +114,6 @@ enum ExprKey {
     Ne(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     SignExtend(OperandKey, OperandKey),
-    MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
-    MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -539,8 +537,6 @@ impl PartialRedundancyEliminator {
                 | InstKind::Ne(..)
                 | InstKind::Select(_, _, _)
                 | InstKind::SignExtend(_, _)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. }
         )
     }
 
@@ -603,12 +599,6 @@ impl PartialRedundancyEliminator {
                 Some(ExprKey::Select(operand(*a), operand(*b), operand(*c)))
             }
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
-            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
-            }
-            InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                Some(ExprKey::MemoryObjectElementAddr(operand(*object), *layout, operand(*index)))
-            }
             _ => None,
         }
     }

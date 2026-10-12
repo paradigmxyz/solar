@@ -11,8 +11,10 @@ is a late lowering decision.
 SSA values use integers (`iN`), opaque memory pointers (`memptr`), structs, or
 slices. A `memptr` carries a 256-bit memory address without implying validity,
 heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
-values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
-names the object layout itself, as LLVM loads name their type.
+values too, and every access goes through a slice view. A fixed array or struct
+has no length word, so `make_memory_slice v0, 3` views its three words from the
+object itself, and `slice_load_element` and `slice_store_element` reach a field
+or element by index.
 
 A dynamic memory object (`bytes`, `string`, `T[] memory`) is a `memptr` to its
 length word, which assembly can read and rewrite. Code reads it through a

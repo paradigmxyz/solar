@@ -12,33 +12,31 @@
 -     v3 = slice_len v2
 -     v4 = slice_ptr v2
 -     mstore8 v4, v3
--     v5 = memory_object_field_addr memorystruct<2>, arg2, 1
-+     v10 = ptrtoint memptr v0 to i256
-+     v2 = mload v10
-+     v11 = ptrtoint memptr v0 to i256
-+     v4 = add v11, 32
-+     mstore8 v4, v2
-+     v17 = ptrtoint memptr arg2 to i256
-+     v18 = add v17, 32
-+     v5 = inttoptr i256 v18 to memptr
-      v6 = ptrtoint memptr v5 to i256
--     mstore v6, v3
--     v7 = memory_slice arg1
+-     v5 = make_memory_slice arg2, 2
+-     slice_store_element v5, 1, v3
+-     v6 = memory_slice arg1
+-     slice_store_element v6, v3, v3
+-     v7 = make_memory_slice arg3, 4
 -     slice_store_element v7, v3, v3
--     v8 = memory_object_element_addr memoryfixedarray<4, 1>, arg3, v3
-+     mstore v6, v2
++     v8 = ptrtoint memptr v0 to i256
++     v2 = mload v8
++     v9 = ptrtoint memptr v0 to i256
++     v4 = add v9, 32
++     mstore8 v4, v2
++     v10 = ptrtoint memptr arg2 to i256
++     v5 = make_memory_slice v10, 2
++     v11 = add v10, 32
++     mstore v11, v2
 +     v12 = ptrtoint memptr arg1 to i256
 +     v13 = add v12, 32
 +     v14 = mul v2, 32
 +     v15 = add v13, v14
 +     mstore v15, v2
-+     v16 = mul v2, 32
-+     v19 = ptrtoint memptr arg3 to i256
-+     v20 = add v19, v16
-+     v8 = inttoptr i256 v20 to memptr
-      v9 = ptrtoint memptr v8 to i256
--     mstore v9, v3
-+     mstore v9, v2
++     v16 = ptrtoint memptr arg3 to i256
++     v7 = make_memory_slice v16, 4
++     v17 = mul v2, 32
++     v18 = add v16, v17
++     mstore v18, v2
       stop
   }
   

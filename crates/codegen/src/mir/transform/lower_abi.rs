@@ -1179,7 +1179,7 @@ impl LowerAbiCx {
             for index in 1..return_types.len() {
                 let index_value = builder.imm(index as u64);
                 let value = match return_types[index] {
-                    MirType::MemPtr => builder.memory_object_load_element_as(
+                    MirType::MemPtr => builder.memory_load_element_as(
                         base,
                         MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
                         index_value,
@@ -1900,7 +1900,7 @@ impl LowerAbiCx {
                     };
                     builder.switch_to_block(*current);
                     let value = Self::encode_memory_scalar(builder, element, value);
-                    builder.memory_object_store_element(ptr, layout, index, value);
+                    builder.memory_store_element(ptr, layout, index, value);
                 });
                 *current = builder.current_block();
                 ptr
@@ -2126,6 +2126,7 @@ impl LowerAbiCx {
                     storage_fields as u64,
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
+                let view = builder.memory_object_view(ptr, layout);
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
                     let field_head = builder.add_u64_offset(base, offset);
@@ -2139,11 +2140,11 @@ impl LowerAbiCx {
                         options.checked().nested(RevertReason::InvalidStructOffset),
                     );
                     let value = Self::encode_memory_scalar(builder, field, value);
-                    builder.memory_object_store_field(ptr, layout, index as u64, value);
+                    builder.memory_store_field(view, layout, index as u64, value);
                     offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 if carries_base {
-                    builder.memory_object_store_field(ptr, layout, fields.len() as u64, base);
+                    builder.memory_store_field(view, layout, fields.len() as u64, base);
                 }
                 ptr
             }
@@ -2220,7 +2221,7 @@ impl LowerAbiCx {
             options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
         );
         let value = Self::encode_memory_scalar(builder, element, value);
-        builder.memory_object_store_element(
+        builder.memory_store_element(
             ptr,
             crate::mir::MemoryObjectLayout::WORD_ARRAY,
             destination_index,
@@ -2260,6 +2261,7 @@ impl LowerAbiCx {
                 let length = builder.imm(*len);
                 let stride = builder
                     .imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+                let view = builder.memory_object_view(object, layout);
                 builder.counted_loop(length, |builder, index| {
                     let offset = builder.mul(index, stride);
                     let field = builder.add(head, offset);
@@ -2267,7 +2269,7 @@ impl LowerAbiCx {
                     let value = decode(builder, element, field, &mut current);
                     builder.switch_to_block(current);
                     let value = Self::encode_memory_scalar(builder, element, value);
-                    builder.memory_object_store_element(object, layout, index, value);
+                    builder.memory_store_element(view, layout, index, value);
                 });
                 object
             }
@@ -2276,6 +2278,7 @@ impl LowerAbiCx {
                     fields.len() as u64,
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
+                let view = builder.memory_object_view(object, layout);
                 let mut offset = 0;
                 let mut current = builder.current_block();
                 for (index, field) in fields.iter().enumerate() {
@@ -2283,7 +2286,7 @@ impl LowerAbiCx {
                     let value = decode(builder, field, field_head, &mut current);
                     builder.switch_to_block(current);
                     let value = Self::encode_memory_scalar(builder, field, value);
-                    builder.memory_object_store_field(object, layout, index as u64, value);
+                    builder.memory_store_field(view, layout, index as u64, value);
                     offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
                 }
                 object
@@ -2763,11 +2766,6 @@ impl LowerAbiCx {
             }
             let (invalid, propagates) = match &inst.kind {
                 InstKind::SlicePtr(object)
-                | InstKind::MemoryObjectFieldAddr { object, .. }
-                | InstKind::MemoryObjectElementAddr { object, .. }
-                | InstKind::MemoryObjectLoadField { object, .. }
-                | InstKind::MemoryObjectStoreField { object, .. }
-                | InstKind::MemoryObjectStoreElement { object, .. }
                 | InstKind::SliceStoreElement { slice: object, .. }
                 | InstKind::SliceStoreByte { slice: object, .. }
                 | InstKind::SliceStoreWord { slice: object, .. }
@@ -2784,9 +2782,7 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
-                InstKind::MemoryObjectStoreField { value, .. }
-                | InstKind::MemoryObjectStoreElement { value, .. }
-                | InstKind::SliceStoreElement { value, .. }
+                InstKind::SliceStoreElement { value, .. }
                 | InstKind::SliceStoreByte { value, .. }
                 | InstKind::SliceStoreWord { value, .. }
                 | InstKind::MStore(_, value)
@@ -2803,7 +2799,6 @@ impl LowerAbiCx {
                 InstKind::SliceLen(object)
                 | InstKind::SliceLoadByte { slice: object, .. }
                 | InstKind::SliceLoadElement { slice: object, .. }
-                | InstKind::MemoryObjectLoadElement { object, .. }
                     if tainted.contains(*object) =>
                 {
                     (!Self::can_read_calldata_slice_use(&inst.kind, ty), false)
@@ -2932,11 +2927,14 @@ impl LowerAbiCx {
         let mut replacements = FxHashMap::default();
         let mut views = FxHashSet::default();
         for inst in func.instructions() {
-            if let InstKind::MemorySlice(object) = func.inst(inst).kind
+            // view = memory_slice calldata_slice -> calldata_slice
+            // view = make_memory_slice calldata_slice, len -> calldata_slice
+            if let InstKind::MemorySlice(object)
+            | InstKind::MakeSlice { ptr: object, location: SliceLocation::Memory, .. } =
+                func.inst(inst).kind
                 && matches!(func.value_ty(object), Some(MirType::Slice(_)))
                 && let Some(result) = func.inst_result_value(inst)
             {
-                // view = memory_slice calldata_slice -> calldata_slice
                 replacements.insert(result, object);
                 views.insert(inst);
             }
@@ -2956,9 +2954,7 @@ impl LowerAbiCx {
                 matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty)
             }
             InstKind::SliceLoadByte { .. } => matches!(ty, crate::mir::AbiParamType::Bytes),
-            InstKind::SliceLoadElement { .. } | InstKind::MemoryObjectLoadElement { .. } => {
-                Self::is_scalar_array(ty)
-            }
+            InstKind::SliceLoadElement { .. } => Self::is_scalar_array(ty),
             _ => false,
         }
     }
@@ -3022,14 +3018,10 @@ impl LowerAbiCx {
                 | InstKind::SlicePtr(_)
                 | InstKind::SliceLoadWord { .. }
                 | InstKind::SliceLoadByte { .. } => false,
-                InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::SliceLoadElement { .. } => result.is_some_and(|value| {
+                InstKind::SliceLoadElement { .. } => result.is_some_and(|value| {
                     func.value_ty(value)
                         .is_some_and(|ty| matches!(ty, MirType::MemPtr | MirType::Slice(_)))
                 }),
-                InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. } => false,
                 _ => result.is_some(),
             };
             if action {
@@ -3038,13 +3030,7 @@ impl LowerAbiCx {
                 } else {
                     return true;
                 }
-            } else if result.is_none()
-                && !matches!(
-                    inst.kind,
-                    InstKind::MemoryObjectFieldAddr { .. }
-                        | InstKind::MemoryObjectElementAddr { .. }
-                )
-            {
+            } else if result.is_none() {
                 return true;
             }
         }
@@ -3612,6 +3598,11 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
     value
 }
 
+/// The alias root of the fixed array or struct a view covers.
+fn fixed_view_root(func: &Function, view: ValueId) -> Option<ValueId> {
+    func.fixed_view_object(view).map(|object| pointer_alias_root(func, object))
+}
+
 fn lossless_pointer_cast(func: &Function, inst: InstId) -> Option<ValueId> {
     let result = func.inst_result_value(inst).and_then(|value| func.value_ty(value))?;
     match func.inst(inst).kind {
@@ -3625,8 +3616,9 @@ fn lossless_pointer_cast(func: &Function, inst: InstId) -> Option<ValueId> {
         {
             Some(value)
         }
-        // A view reads through the object it was made from.
-        InstKind::MemorySlice(value) => Some(value),
+        // A view reads through the object or pointer it was made from.
+        InstKind::MemorySlice(value)
+        | InstKind::MakeSlice { ptr: value, location: SliceLocation::Memory, .. } => Some(value),
         _ => None,
     }
 }
@@ -3664,12 +3656,6 @@ fn memory_writes_stay_private(
                                 Some(index.checked_mul(EvmMemoryLayout::WORD_SIZE)?),
                             )
                         })
-                    }
-                    InstKind::MemoryObjectStoreField { object, layout, field, .. } => {
-                        aliases.memory_object_field_location(func, inst, object, layout, field)
-                    }
-                    InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
-                        aliases.memory_object_element_location(func, inst, object, layout, index)
                     }
                     _ => None,
                 };
@@ -3727,9 +3713,7 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
                 continue;
             }
             match *kind {
-                InstKind::MemoryObjectStoreField { object: base, value, .. }
-                | InstKind::MemoryObjectStoreElement { object: base, value, .. }
-                | InstKind::SliceStoreElement { slice: base, value, .. } => {
+                InstKind::SliceStoreElement { slice: base, value, .. } => {
                     if pointer_alias_root(func, value) == object {
                         pending.push(pointer_alias_root(func, base));
                     } else if pointer_alias_root(func, base) != object {
@@ -3767,9 +3751,7 @@ fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> b
         match func.inst(inst).kind {
             InstKind::SliceLen(object) | InstKind::SliceLoadByte { slice: object, .. }
                 if pointer_alias_root(func, object) == value => {}
-            InstKind::MemoryObjectStoreField { object, value: stored, .. }
-            | InstKind::MemoryObjectStoreElement { object, value: stored, .. }
-            | InstKind::SliceStoreElement { slice: object, value: stored, .. }
+            InstKind::SliceStoreElement { slice: object, value: stored, .. }
                 if pointer_alias_root(func, stored) == value
                     && pointer_alias_root(func, object) != value
                     && container_keeps_pointer_private(func, object) => {}
@@ -3877,12 +3859,8 @@ fn is_canonical_return_scalar(
     // An element of an array parameter whose words element cleanup proved
     // narrower than the mask is canonical without one.
     if let Value::Inst(inst) = func.value(value)
-        && let InstKind::MemoryObjectLoadElement { object, layout, .. } = func.inst(*inst).kind
-        && matches!(
-            layout,
-            MemoryObjectLayout::DynamicArray { element_words: 1 }
-                | MemoryObjectLayout::FixedArray { element_words: 1, .. }
-        )
+        && let InstKind::SliceLoadElement { slice, .. } = func.inst(*inst).kind
+        && let Some(object) = func.view_object(slice)
         && let Value::Arg(index) = func.value(object)
         && func
             .attributes
@@ -3958,17 +3936,15 @@ fn is_canonical_return_object(
                 }
                 zeroed = true;
             }
-            InstKind::MemoryObjectStoreField { object: base, field, value, .. }
-                if pointer_alias_root(func, *base) == object =>
+            InstKind::SliceStoreElement { slice, index, value }
+                if fixed_view_root(func, *slice) == Some(object) =>
             {
-                if !initializers.contains(&inst) || stores.insert(*field, *value).is_some() {
+                let Some(field) = func.value_u64(*index) else { return false };
+                if !initializers.contains(&inst) || stores.insert(field, *value).is_some() {
                     return false;
                 }
             }
-            InstKind::MemoryObjectStoreField { object: base, value: stored, .. }
-                if pointer_alias_root(func, *stored) == object
-                    && container_keeps_pointer_private(func, *base) => {}
-            InstKind::MemoryObjectStoreElement { object: base, value: stored, .. }
+            InstKind::SliceStoreElement { slice: base, value: stored, .. }
                 if pointer_alias_root(func, *stored) == object
                     && container_keeps_pointer_private(func, *base) => {}
             _ if func
@@ -4026,18 +4002,14 @@ fn is_canonical_return_array(
     let Some(initializers) = allocation_initializers(func, *alloc) else { return false };
     let mut stores = FxHashMap::default();
     for inst in func.instructions() {
-        if let InstKind::MemoryObjectStoreElement { object: base, layout, index, value } =
-            func.inst(inst).kind
-            && pointer_alias_root(func, base) == object
+        if let InstKind::SliceStoreElement { slice, index, value } = func.inst(inst).kind
+            && fixed_view_root(func, slice) == Some(object)
         {
             let Some(index) = func.value_u64(index) else { return false };
-            if layout != expected_layout
-                || !initializers.contains(&inst)
-                || stores.insert(index, value).is_some()
-            {
+            if !initializers.contains(&inst) || stores.insert(index, value).is_some() {
                 return false;
             }
-        } else if let InstKind::MemoryObjectStoreElement { object: base, value: stored, .. } =
+        } else if let InstKind::SliceStoreElement { slice: base, value: stored, .. } =
             func.inst(inst).kind
             && pointer_alias_root(func, stored) == object
             && container_keeps_pointer_private(func, base)
@@ -4163,14 +4135,7 @@ fn canonicalize_return_value(
     input_params: Option<&AbiParamLayout>,
     source: ReturnValueSource,
 ) -> ValueId {
-    let nullable_memory = matches!(
-        builder.func().value(value),
-        Value::Inst(inst)
-            if matches!(
-                builder.func().inst(*inst).kind,
-                InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
-            )
-    );
+    let nullable_memory = builder.func().fixed_view_load(value);
     canonicalize_return_value_inner(builder, ty, value, input_params, source, nullable_memory)
 }
 
@@ -4205,8 +4170,10 @@ fn canonicalize_return_value_inner(
             let (output, layout) =
                 builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
             let non_null = nullable_memory.then(|| memory_object_non_null(builder, value));
+            let source = builder.memory_object_view(value, layout);
+            let target = builder.memory_object_view(output, layout);
             for (index, field_ty) in fields.iter().enumerate() {
-                let mut field_value = builder.memory_object_load_field(value, layout, index as u64);
+                let mut field_value = builder.memory_load_field(source, layout, index as u64);
                 if let Some(non_null) = non_null {
                     field_value = builder.mul(field_value, non_null);
                 }
@@ -4218,7 +4185,7 @@ fn canonicalize_return_value_inner(
                     ReturnValueSource::Memory,
                     true,
                 );
-                builder.memory_object_store_field(output, layout, index as u64, field_value);
+                builder.memory_store_field(target, layout, index as u64, field_value);
             }
             output
         }
@@ -4226,8 +4193,10 @@ fn canonicalize_return_value_inner(
             let (output, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
             let length = builder.imm(*len);
             let non_null = nullable_memory.then(|| memory_object_non_null(builder, value));
+            let source = builder.memory_object_view(value, layout);
+            let target = builder.memory_object_view(output, layout);
             builder.counted_loop(length, |builder, index| {
-                let mut element_value = builder.memory_object_load_element(value, layout, index);
+                let mut element_value = builder.memory_load_element(source, layout, index);
                 if let Some(non_null) = non_null {
                     element_value = builder.mul(element_value, non_null);
                 }
@@ -4239,7 +4208,7 @@ fn canonicalize_return_value_inner(
                     ReturnValueSource::Memory,
                     true,
                 );
-                builder.memory_object_store_element(output, layout, index, element_value);
+                builder.memory_store_element(target, layout, index, element_value);
             });
             output
         }
@@ -4259,7 +4228,7 @@ fn canonicalize_return_value_inner(
             builder.set_memory_len(output, length);
 
             builder.counted_loop(length, |builder, index| {
-                let mut element_value = builder.memory_object_load_element(value, layout, index);
+                let mut element_value = builder.memory_load_element(value, layout, index);
                 if let Some(non_null) = non_null {
                     element_value = builder.mul(element_value, non_null);
                 }
@@ -4271,7 +4240,7 @@ fn canonicalize_return_value_inner(
                     ReturnValueSource::Memory,
                     true,
                 );
-                builder.memory_object_store_element(output, layout, index, element_value);
+                builder.memory_store_element(output, layout, index, element_value);
             });
             output
         }

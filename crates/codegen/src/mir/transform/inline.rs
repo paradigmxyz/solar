@@ -73,7 +73,7 @@ use crate::{
         Value, ValueId,
         analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
-        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        memory::EvmMemoryLayout,
         pass::MirPass,
         utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
@@ -1616,6 +1616,16 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
 }
 
+/// The opcodes that address a slice element: a constant index folds into the address, and the
+/// first element of a view that starts at its object needs none.
+fn slice_element_address(func: &Function, slice: ValueId, index: ValueId) -> &'static [u8] {
+    match func.value_u64(index) {
+        Some(0) if func.memory_slice_object(slice).is_none() => &[],
+        Some(_) => &[op::ADD],
+        None => &[op::MUL, op::ADD],
+    }
+}
+
 /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
 /// emit priced by the target, with the number of MIR instructions the expansion produces.
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
@@ -1651,32 +1661,12 @@ fn estimate_inst_cost(
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
-        InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                Cost::ZERO
-            } else {
-                seq(&[op::ADD])
-            }
+        InstKind::SliceLoadElement { slice, index } => {
+            seq(slice_element_address(func, *slice, *index)).plus(seq(&[op::MLOAD]))
         }
-        InstKind::MemoryObjectElementAddr { .. } => seq(&[op::MUL, op::ADD]),
-        InstKind::MemoryObjectLoadField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                seq(&[op::MLOAD])
-            } else {
-                seq(&[op::ADD, op::MLOAD])
-            }
+        InstKind::SliceStoreElement { slice, index, .. } => {
+            seq(slice_element_address(func, *slice, *index)).plus(seq(&[op::MSTORE]))
         }
-        InstKind::MemoryObjectStoreField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                seq(&[op::MSTORE])
-            } else {
-                seq(&[op::ADD, op::MSTORE])
-            }
-        }
-        InstKind::MemoryObjectLoadElement { .. } => seq(&[op::MUL, op::ADD, op::MLOAD]),
-        InstKind::MemoryObjectStoreElement { .. } => seq(&[op::MUL, op::ADD, op::MSTORE]),
-        InstKind::SliceLoadElement { .. } => seq(&[op::MUL, op::ADD, op::MLOAD]),
-        InstKind::SliceStoreElement { .. } => seq(&[op::MUL, op::ADD, op::MSTORE]),
         InstKind::SliceLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
         InstKind::SliceStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
         InstKind::SliceStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),

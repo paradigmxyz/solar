@@ -831,7 +831,7 @@ fn lower_encode(
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
         // object = alloc bytes allocation_size !metadata(preserves_fmp)
-        // memory_object_store_len object, total
+        // mstore object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc_object(
             allocation_size,
@@ -932,13 +932,11 @@ fn encode_static_impl(
     match ty {
         AbiType::Tuple(fields) => {
             let (child_source, non_null) = source.descend_memory(builder, value);
+            let layout = MemoryObjectLayout::structure(fields.len() as u64);
+            let view = builder.memory_object_view(value, layout);
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let mut field_value = builder.memory_object_load_field(
-                    value,
-                    MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
-                );
+                let mut field_value = builder.memory_load_field(view, layout, index as u64);
                 if let Some(non_null) = non_null {
                     field_value = builder.mul(field_value, non_null);
                 }
@@ -1017,12 +1015,10 @@ fn encode_static_array(
 
     let length = builder.imm(len);
     let stride = builder.imm(element.head_size());
+    let layout = MemoryObjectLayout::word_fixed_array(len);
+    let view = builder.memory_object_view(value, layout);
     builder.counted_loop(length, |builder, index| {
-        let element_value = builder.memory_object_load_element(
-            value,
-            MemoryObjectLayout::word_fixed_array(len),
-            index,
-        );
+        let element_value = builder.memory_load_element(view, layout, index);
         let offset = builder.mul(index, stride);
         let element_head = builder.add(head_addr, offset);
         encode_static_impl(
@@ -1259,13 +1255,11 @@ fn encode_dynamic_body(
         }
         AbiType::Tuple(fields) => {
             let (child_source, non_null) = source.descend_memory(builder, value);
+            let layout = MemoryObjectLayout::structure(fields.len() as u64);
+            let view = builder.memory_object_view(value, layout);
             let mut values = Vec::with_capacity(fields.len());
             for index in 0..fields.len() {
-                let mut field_value = builder.memory_object_load_field(
-                    value,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
-                );
+                let mut field_value = builder.memory_load_field(view, layout, index as u64);
                 if let Some(non_null) = non_null {
                     field_value = builder.mul(field_value, non_null);
                 }
@@ -1286,13 +1280,7 @@ fn effective_slice_location(
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
         Some(MirType::I256 | MirType::MemPtr) => SliceLocation::Memory,
-        _ if matches!(func.value(value), Value::Inst(inst) if matches!(
-            func.inst(*inst).kind,
-            InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
-        )) =>
-        {
-            SliceLocation::Memory
-        }
+        _ if func.fixed_view_load(value) => SliceLocation::Memory,
         _ => declared,
     }
 }
@@ -1716,9 +1704,7 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
         }
         // Reading a fresh object's own length word observes nothing else.
         InstKind::MemorySlice(object) => !literal_word_in_bounds(func, *object, Some(0)),
-        InstKind::MemoryObjectFieldAddr { .. }
-        | InstKind::MemoryObjectElementAddr { .. }
-        | InstKind::MSize => true,
+        InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
             EffectKind::MemoryRead

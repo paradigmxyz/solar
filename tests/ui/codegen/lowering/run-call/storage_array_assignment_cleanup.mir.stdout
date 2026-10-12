@@ -34,11 +34,12 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     jump bb2
   bb2:
     sstore 0, v10 !metadata(storage=slot(0))
+    v18 = memory_slice v0
     jump bb6
   bb6:
-    v18 = phi [bb2: 0], [bb7: v24]
-    v19 = lt v18, v10
-    jumpi v19, bb7, bb8
+    v19 = phi [bb2: 0], [bb7: v24]
+    v20 = lt v19, v10
+    jumpi v20, bb7, bb8
   bb8:
     v25 = alloc memoryarray<1>, exact, zeroed, panic, 64
     mstore v25, 1
@@ -63,11 +64,12 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     jump bb10
   bb10:
     sstore 0, v31 !metadata(storage=slot(0))
+    v39 = memory_slice v25
     jump bb14
   bb14:
-    v39 = phi [bb10: 0], [bb15: v45]
-    v40 = lt v39, v31
-    jumpi v40, bb15, bb16
+    v40 = phi [bb10: 0], [bb15: v45]
+    v41 = lt v40, v31
+    jumpi v41, bb15, bb16
   bb16:
     mstore 0, 0 !metadata(memory=scratch)
     v46 = keccak256 0, 32 !metadata(memory=scratch)
@@ -84,12 +86,11 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     v56 = insert_value struct0, v55, 1, v48
     ret v56
   bb15:
-    v41 = memory_slice v25
-    v42 = slice_load_element v41, v39
+    v42 = slice_load_element v39, v40
     v43 = storage_array_data_slot 0
-    v44 = add v43, v39
+    v44 = add v43, v40
     sstore v44, v42 !metadata(storage=symbolic(v44))
-    v45 = add v39, 1
+    v45 = add v40, 1
     jump bb14
   bb12:
     v36 = storage_array_data_slot 0
@@ -98,12 +99,11 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     v38 = add v34, 1
     jump bb11
   bb7:
-    v20 = memory_slice v0
-    v21 = slice_load_element v20, v18
+    v21 = slice_load_element v18, v19
     v22 = storage_array_data_slot 0
-    v23 = add v22, v18
+    v23 = add v22, v19
     sstore v23, v21 !metadata(storage=symbolic(v23))
-    v24 = add v18, 1
+    v24 = add v19, 1
     jump bb6
   bb4:
     v15 = storage_array_data_slot 0

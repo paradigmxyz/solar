@@ -140,6 +140,16 @@ impl MemoryObjectLayout {
         Self::Struct { fields }
     }
 
+    /// Returns the number of words in a fixed array or struct, which has no length word.
+    #[must_use]
+    pub(crate) fn fixed_words(self) -> Option<u64> {
+        match self {
+            Self::FixedArray { len, element_words } => len.checked_mul(u64::from(element_words)),
+            Self::Struct { fields } => Some(fields),
+            Self::Bytes | Self::DynamicArray { .. } => None,
+        }
+    }
+
     /// Returns the nominal object kind represented by this layout.
     #[must_use]
     pub(crate) const fn kind(self) -> MemoryObjectKind {

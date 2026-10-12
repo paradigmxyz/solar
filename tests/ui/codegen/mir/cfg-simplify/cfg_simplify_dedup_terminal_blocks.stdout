@@ -107,17 +107,19 @@
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
     bb2:
-      v2 = ne arg1, 0
-      jumpi v2, bb3, bb4
+      v3 = ne arg1, 0
+      jumpi v3, bb3, bb4
     bb4:
       stop
     bb3:
-      v3 = memory_object_load_field memorystruct<2>, arg2, 1
-      mstore 0, v3
+      v4 = make_memory_slice arg2, 2
+      v5 = slice_load_element v4, 1
+      mstore 0, v5
       revert 0, 32
     bb1:
-      v1 = memory_object_load_field memorystruct<2>, arg2, 0
-      mstore 0, v1
+      v1 = make_memory_slice arg2, 2
+      v2 = slice_load_element v1, 0
+      mstore 0, v2
       revert 0, 32
   }
   

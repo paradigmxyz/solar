@@ -5,22 +5,22 @@
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_projections{{[( ]}}
 // CHECK: - {{v[0-9]+}} = ptrtoint memptr arg0 to i256
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, 32
-// CHECK: - {{v[0-9]+}} = memory_object_field_addr memorystruct<3>, arg1, 2
-// CHECK: - {{v[0-9]+}} = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
-fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 {
+// CHECK: - {{v[0-9]+}} = make_memory_slice arg1, 3
+// CHECK: - {{v[0-9]+}} = make_memory_slice arg2, 4
+fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr) -> i256 {
   bb0:
     v18 = ptrtoint memptr arg0 to i256
     v4 = add v18, 32
     v19 = ptrtoint memptr arg0 to i256
     v5 = add v19, 32
-    v20 = memory_object_field_addr memorystruct<3>, arg1, 2
-    v6 = ptrtoint memptr v20 to i256
-    v21 = memory_object_field_addr memorystruct<3>, arg1, 2
-    v7 = ptrtoint memptr v21 to i256
-    v22 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
-    v8 = ptrtoint memptr v22 to i256
-    v23 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
-    v9 = ptrtoint memptr v23 to i256
+    v20 = make_memory_slice arg1, 3
+    v6 = slice_ptr v20
+    v21 = make_memory_slice arg1, 3
+    v7 = slice_ptr v21
+    v22 = make_memory_slice arg2, 4
+    v8 = slice_ptr v22
+    v23 = make_memory_slice arg2, 4
+    v9 = slice_ptr v23
     v10 = eq v4, v5
     v11 = eq v6, v7
     v12 = eq v8, v9

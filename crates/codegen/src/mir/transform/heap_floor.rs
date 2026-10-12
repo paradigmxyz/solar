@@ -486,9 +486,7 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
 /// arithmetic, to reach the element, byte, or word it reads or writes.
 fn object_access_index(kind: &InstKind) -> Option<ValueId> {
     match *kind {
-        InstKind::MemoryObjectLoadElement { index, .. }
-        | InstKind::MemoryObjectStoreElement { index, .. }
-        | InstKind::SliceLoadElement { index, .. }
+        InstKind::SliceLoadElement { index, .. }
         | InstKind::SliceStoreElement { index, .. }
         | InstKind::SliceLoadByte { index, .. }
         | InstKind::SliceStoreByte { index, .. } => Some(index),
@@ -510,10 +508,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
                 | InstKind::FrameStore { .. }
                 | InstKind::MemoryZero(..)
                 | InstKind::MemorySlice(..)
-                | InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectStoreField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::MemoryObjectStoreElement { .. }
                 | InstKind::SliceLoadElement { .. }
                 | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceLoadByte { .. }
@@ -672,9 +666,7 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::PtrToInt(..)
         | InstKind::MemorySlice(..)
         | InstKind::SlicePtr(..)
-        | InstKind::MakeSlice { location: SliceLocation::Memory, .. }
-        | InstKind::MemoryObjectFieldAddr { .. }
-        | InstKind::MemoryObjectElementAddr { .. } => true,
+        | InstKind::MakeSlice { location: SliceLocation::Memory, .. } => true,
         InstKind::MLoad(address) => is_slot(func, address),
         _ => instruction.result_ty == Some(MirType::MemPtr),
     }
@@ -695,10 +687,8 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
         InstKind::MemorySlice(object)
         | InstKind::SlicePtr(object)
-        | InstKind::MakeSlice { ptr: object, location: SliceLocation::Memory, .. }
-        | InstKind::MemoryObjectFieldAddr { object, .. } => heap.contains(*object),
-        InstKind::MemoryObjectElementAddr { object, index, .. } => {
-            heap.contains(*object) && func.value_u64(*index).is_some()
+        | InstKind::MakeSlice { ptr: object, location: SliceLocation::Memory, .. } => {
+            heap.contains(*object)
         }
         _ => true,
     }

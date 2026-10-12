@@ -600,10 +600,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // words = count_inline(value)
         // output = bytes(words * 32)
         // copy_inplace_dynamic_value(ty, value, output, 0)
-        let nullable_memory = matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
-            &self.builder.func().inst(*inst).kind,
-            InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
-        ));
+        let nullable_memory = self.builder.func().fixed_view_load(value);
         if !self.inplace_dynamic_shape(ty)
             || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr))
                 && !nullable_memory)
@@ -683,10 +680,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let non_null = self.memory_non_null_mask(value, nullable_memory);
                 let mut total = self.builder.imm(0);
+                let view = self.builder.memory_object_view(value, layout);
                 for (index, &field) in fields.iter().enumerate() {
                     let field = gcx.type_of_item(field.into());
                     let mut field_value =
-                        self.builder.memory_object_load_field(value, layout, index as u64);
+                        self.builder.memory_load_field(view, layout, index as u64);
                     if let Some(non_null) = non_null {
                         field_value = self.builder.mul(field_value, non_null);
                     }
@@ -730,7 +728,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let mut element_value = self.builder.memory_object_load_element(value, layout, index);
+        let mut element_value = self.builder.memory_load_element(value, layout, index);
         if let Some(non_null) = non_null {
             element_value = self.builder.mul(element_value, non_null);
         }
@@ -777,10 +775,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let non_null = self.memory_non_null_mask(value, nullable_memory);
                 let mut offset = offset;
+                let view = self.builder.memory_object_view(value, layout);
                 for (index, &field) in fields.iter().enumerate() {
                     let field = gcx.type_of_item(field.into());
                     let mut field_value =
-                        self.builder.memory_object_load_field(value, layout, index as u64);
+                        self.builder.memory_load_field(view, layout, index as u64);
                     if let Some(non_null) = non_null {
                         field_value = self.builder.mul(field_value, non_null);
                     }
@@ -874,7 +873,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let mut element_value = self.builder.memory_object_load_element(value, layout, index);
+        let mut element_value = self.builder.memory_load_element(value, layout, index);
         if let Some(non_null) = non_null {
             element_value = self.builder.mul(element_value, non_null);
         }

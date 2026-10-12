@@ -389,10 +389,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(MirType::MemPtr) | Some(MirType::Slice(SliceLocation::Memory))
         ) || (matches!(ty, AbiType::Bytes(_) | AbiType::DynamicArray { .. })
             && self.builder.func().value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT))
-            || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(
-                &self.builder.func().inst(*inst).kind,
-                InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
-            ))
+            || self.builder.func().fixed_view_load(value)
         {
             Self::memory_abi_type(ty)
         } else {
@@ -514,7 +511,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 validate_bounds && element_is_dynamic,
             )?;
             let value = this.encode_memory_scalar(element, value);
-            this.builder.memory_object_store_element(object, layout, index, value);
+            this.builder.memory_store_element(object, layout, index, value);
             Some(())
         })?;
         Some(object)
@@ -866,10 +863,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let nested_validate = validate_bounds && element_abi.is_dynamic();
         let length = self.builder.imm(length);
         let element_head_size = self.builder.imm(element_head_size);
+        // view = make_memory_slice object, length
         // for i in 0..length {
         //     head = base + i * element_head_size
-        //     object[i] = decode_at(element, head, base)
+        //     view[i] = decode_at(element, head, base)
         // }
+        let view = self.builder.memory_object_view(object, layout);
         self.counted_loop(length, |this, index| {
             let head_offset = this.builder.mul(index, element_head_size);
             let head = this.builder.add(base, head_offset);
@@ -881,7 +880,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 nested_validate,
             )?;
             let value = this.encode_memory_scalar(element, value);
-            this.builder.memory_object_store_element(object, layout, index, value);
+            this.builder.memory_store_element(view, layout, index, value);
             Some(())
         })?;
         Some(object)
@@ -914,15 +913,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(fields.len().checked_mul(32)? as u64);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         let mut offset = 0u64;
+        // view = make_memory_slice object, fields
         // for field in fields {
-        //     object[field] = decode_at(field, base + field.offset, base)
+        //     view[field] = decode_at(field, base + field.offset, base)
         // }
+        let view = self.builder.memory_object_view(object, layout);
         for (index, field) in fields.iter().copied().enumerate() {
             let head = self.builder.add_u64_offset(base, offset);
             let value =
                 self.materialize_calldata_value_at_inner(field, head, base, span, nested_validate)?;
             let value = self.encode_memory_scalar(field, value);
-            self.builder.memory_object_store_field(object, layout, index as u64, value);
+            self.builder.memory_store_field(view, layout, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }
         Some(object)

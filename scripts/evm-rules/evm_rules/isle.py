@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .expr import MASK, Cond, Expr, Unsupported
-from .memory import MemoryAddresses
 
 ROOT = Path(__file__).resolve().parents[3]
 ISLE = ROOT / "crates/codegen/isle"
@@ -144,7 +143,6 @@ class Context:
             else (ISLE / "mir-to-evm/select.isle").read_text()
         )
         self.fresh_id = 0
-        self.memory = MemoryAddresses(self)
         self.integer_width = None if integer_bits is None else Expr.const(integer_bits)
         self.matching_integer = False
 
@@ -213,22 +211,6 @@ class Context:
             if shapes.get(name) != expected or len(args) != len(expected):
                 raise Unsupported(f"unmodeled or changed call operand schema: {name}")
             return Expr(opcode, tuple(args))
-        if name in MemoryAddresses.SHAPES:
-            # Semantic projections have no single-opcode selector. Check their
-            # schema-generated field names/types before applying the model.
-            declarations = [
-                form[3][1:]
-                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
-                if form[:3] == ("type", "Op", "extern")
-            ]
-            shapes = {
-                "Op." + variant[0]: variant[1:]
-                for variants in declarations
-                for variant in variants
-            }
-            if shapes.get(name) != MemoryAddresses.SHAPES[name]:
-                raise Unsupported(f"unmodeled or changed memory address schema: {name}")
-            return self.memory.operation(name, tuple(args))
         if name in ("Op.Ne", "Op.Zext", "Op.IntToPtr"):
             self.contracts.add(
                 f"{name}: trusted MIR word inequality or bit-preserving scalar cast"
@@ -368,8 +350,6 @@ class Context:
         if name.startswith("Op."):
             return self.operation(name, [self.constructor(a) for a in args])
         values = [self.constructor(a) for a in args]
-        if name == "field_offset":
-            return self.memory.constructor(name, tuple(values))
         if name == "integer_imm" and len(values) == 2:
             if self.integer_width is None or values[0] != self.integer_width:
                 raise Unsupported(

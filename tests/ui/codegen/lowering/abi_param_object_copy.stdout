@@ -34,21 +34,21 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u
     jump bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
+    v9 = memory_slice arg0
     jump bb6
   bb6:
-    v9 = phi [bb2: 0], [bb7: v15]
-    v10 = lt v9, v1
-    jumpi v10, bb7, bb8
+    v10 = phi [bb2: 0], [bb7: v15]
+    v11 = lt v10, v1
+    jumpi v11, bb7, bb8
   bb8:
     icall @store_storage_bytes, 1, arg1
     ret
   bb7:
-    v11 = memory_slice arg0
-    v12 = slice_load_element v11, v9
+    v12 = slice_load_element v9, v10
     v13 = storage_array_data_slot 0
-    v14 = add v13, v9
+    v14 = add v13, v10
     sstore v14, v12 !metadata(storage=symbolic(v14))
-    v15 = add v9, 1
+    v15 = add v10, 1
     jump bb6
   bb4:
     v6 = storage_array_data_slot 0

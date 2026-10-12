@@ -87,19 +87,18 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
   bb10:
     v59 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     mstore v59, 0
-    v60 = memory_slice v23
-    v61 = ptrtoint memptr v59 to i256
-    slice_store_element v60, v25, v61
+    v60 = ptrtoint memptr v59 to i256
+    slice_store_element v52, v25, v60
     jump bb11
   bb11:
-    v62 = phi [bb5: v57], [bb10: v59]
-    v63 = memory_slice v62
-    v64 = slice_len v63
-    v65 = lt v22, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = slice_load_element v63, v22
-    ret v67
+    v61 = phi [bb5: v57], [bb10: v59]
+    v62 = memory_slice v61
+    v63 = slice_len v62
+    v64 = lt v22, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = slice_load_element v62, v22
+    ret v66
   bb7:
     v29 = mul v21, 1
     v30 = eq 1, 0
@@ -147,11 +146,12 @@ fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[u256],
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
-    v2 = lt arg0, 3
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
-    ret v4
+    v2 = make_memory_slice v0, 3
+    v3 = lt arg0, 3
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = slice_load_element v2, arg0
+    ret v5
 }
 
 fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -196,16 +196,16 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v31 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     v32 = ptrtoint memptr v31 to i256
     memory_zero v32, 128
-    v33 = memory_slice v16
-    v34 = ptrtoint memptr v31 to i256
-    slice_store_element v33, arg1, v34
+    v33 = ptrtoint memptr v31 to i256
+    slice_store_element v24, arg1, v33
     jump bb5
   bb5:
-    v35 = phi [bb3: v29], [bb4: v31]
+    v34 = phi [bb3: v29], [bb4: v31]
+    v35 = make_memory_slice v34, 4
     v36 = lt 0, 4
     v37 = eq v36, false
     icall panic_if<0x32>, v37
-    v38 = memory_object_load_element memoryfixedarray<4, 1>, v35, 0
+    v38 = slice_load_element v35, 0
     ret v38
   bb2:
     v19 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)

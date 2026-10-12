@@ -43,6 +43,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let object = self.lower_expr(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
+                // One view serves both the load and the store of a compound assignment.
+                let object = self.builder.memory_object_view(object, layout);
                 let ty = self.cx.gcx.type_of_item(id.into());
                 Some(LValuePlace::MemoryField { object, layout, field: field as u64, ty })
             }
@@ -54,13 +56,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
-                // One view serves both the bounds check and the access.
-                let object = match layout {
-                    MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes => {
-                        self.builder.memory_view(object)
-                    }
-                    _ => object,
-                };
+                // One view serves the bounds check, the load, and the store.
+                let object = self.builder.memory_object_view(object, layout);
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. }
                     | MemoryObjectLayout::FixedArray { .. } => {
@@ -92,8 +89,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, layout, field, ty } => {
-                // value = memory_object_load_field layout, object, field
-                let value = self.builder.memory_object_load_field_as(
+                // view = make_memory_slice object, fields
+                // value = slice_load_element view, field
+                let value = self.builder.memory_load_field_as(
                     object,
                     layout,
                     field,
@@ -102,8 +100,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                // value = memory_object_load_element layout, object, index
-                let value = self.builder.memory_object_load_element_as(
+                // view = make_memory_slice object, len | memory_slice object
+                // value = slice_load_element view, index
+                let value = self.builder.memory_load_element_as(
                     object,
                     layout,
                     index,
@@ -142,12 +141,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
             LValuePlace::MemoryField { object, layout, field, ty } => {
                 let value = self.encode_memory_scalar(ty, value);
-                self.builder.memory_object_store_field(object, layout, field, value);
+                self.builder.memory_store_field(object, layout, field, value);
                 Some(())
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
                 let value = self.encode_memory_scalar(ty, value);
-                self.builder.memory_object_store_element(object, layout, index, value);
+                self.builder.memory_store_element(object, layout, index, value);
                 Some(())
             }
             LValuePlace::MemoryByte { object, index, .. } => {

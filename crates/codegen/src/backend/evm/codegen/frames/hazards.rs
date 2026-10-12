@@ -383,10 +383,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::And(first, second) if aligned_mask(*first) => {
                         derive(*second, visiting, memo)
                     }
-                    InstKind::MemoryObjectFieldAddr { object, .. }
-                    | InstKind::MemoryObjectElementAddr { object, .. } => {
-                        derive(*object, visiting, memo)
-                    }
                     InstKind::Phi(incoming) => {
                         let mut grounded = false;
                         for &(_, incoming) in incoming {
@@ -454,8 +450,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
             InstKind::MemorySlice(_)
-            | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. }
             | InstKind::AbiEncode { .. }
             | InstKind::StorageToMemory { .. }
             | InstKind::MemoryToStorage { .. }

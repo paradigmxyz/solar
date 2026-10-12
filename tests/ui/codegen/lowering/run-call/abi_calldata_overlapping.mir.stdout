@@ -47,44 +47,42 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
   bb4:
     v69 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     mstore v69, 0
-    v70 = memory_slice v21
-    v71 = ptrtoint memptr v69 to i256
-    slice_store_element v70, 0, v71
+    v70 = ptrtoint memptr v69 to i256
+    slice_store_element v62, 0, v70
     jump bb5
   bb5:
-    v72 = phi [bb3: v67], [bb4: v69]
-    v73 = memory_slice v72
-    v74 = slice_len v73
-    v75 = lt 0, v74
-    v76 = eq v75, false
-    icall panic_if<0x32>, v76
-    v77 = slice_load_element v73, 0
-    v78 = memory_slice v21
-    v79 = slice_len v78
-    v80 = lt 1, v79
-    v81 = eq v80, false
-    icall panic_if<0x32>, v81
-    v82 = slice_load_element v78, 1
-    v83 = inttoptr i256 v82 to memptr
-    v84 = eq v82, 0
-    jumpi v84, bb6, bb7
+    v71 = phi [bb3: v67], [bb4: v69]
+    v72 = memory_slice v71
+    v73 = slice_len v72
+    v74 = lt 0, v73
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = slice_load_element v72, 0
+    v77 = memory_slice v21
+    v78 = slice_len v77
+    v79 = lt 1, v78
+    v80 = eq v79, false
+    icall panic_if<0x32>, v80
+    v81 = slice_load_element v77, 1
+    v82 = inttoptr i256 v81 to memptr
+    v83 = eq v81, 0
+    jumpi v83, bb6, bb7
   bb6:
-    v85 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v85, 0
-    v86 = memory_slice v21
-    v87 = ptrtoint memptr v85 to i256
-    slice_store_element v86, 1, v87
+    v84 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v84, 0
+    v85 = ptrtoint memptr v84 to i256
+    slice_store_element v77, 1, v85
     jump bb7
   bb7:
-    v88 = phi [bb5: v83], [bb6: v85]
-    v89 = memory_slice v88
-    v90 = slice_len v89
-    v91 = lt 1, v90
-    v92 = eq v91, false
-    icall panic_if<0x32>, v92
-    v93 = slice_load_element v89, 1
-    v94 = checked_add u256, v77, v93
-    ret v94
+    v86 = phi [bb5: v82], [bb6: v84]
+    v87 = memory_slice v86
+    v88 = slice_len v87
+    v89 = lt 1, v88
+    v90 = eq v89, false
+    icall panic_if<0x32>, v90
+    v91 = slice_load_element v87, 1
+    v92 = checked_add u256, v76, v91
+    ret v92
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24

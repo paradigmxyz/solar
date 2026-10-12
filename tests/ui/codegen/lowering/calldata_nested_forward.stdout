@@ -51,20 +51,20 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     mstore v22, v1
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v75]
+    v23 = phi [bb0: 0], [bb2: v76]
     v24 = lt v23, v1
     jumpi v24, bb2, bb3
   bb3:
-    v76 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
-    v77 = slice_ptr v76
-    v78 = slice_len v76
-    v79 = zext i160 arg1 to i256
-    v80 = extcodesize v79
-    v81 = eq v80, 0
-    icall revert_if<target_contract_has_no_code>, v81
-    v82 = zext i160 arg1 to i256
-    v83 = call v0, v82, 0, v77, v78, 0, 0
-    jumpi v83, bb5, bb4
+    v77 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
+    v78 = slice_ptr v77
+    v79 = slice_len v77
+    v80 = zext i160 arg1 to i256
+    v81 = extcodesize v80
+    v82 = eq v81, 0
+    icall revert_if<target_contract_has_no_code>, v82
+    v83 = zext i160 arg1 to i256
+    v84 = call v0, v83, 0, v78, v79, 0, 0
+    jumpi v84, bb5, bb4
   bb4:
     revert_returndata
   bb5:
@@ -85,54 +85,55 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v36 = eq v35, false
     icall revert_if<invalid_calldata_tail_offset>, v36
     v37 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v38 = calldatasize
-    v39 = sub v38, v31
-    v40 = slt v39, 32
-    icall revert_if<calldata_tail_too_short>, v40
-    v41 = calldataload v31
-    memory_object_store_field memorystruct<2>, v37, 0, v41
-    v42 = add v31, 32
-    v43 = calldatasize
-    v44 = sub v43, v42
-    v45 = slt v44, 32
-    icall revert_if<calldata_tail_too_short>, v45
-    v46 = calldataload v42
-    v47 = add v31, v46
-    v48 = calldatasize
-    v49 = sub v48, v31
-    v50 = sub v49, 31
-    v51 = slt v46, v50
-    v52 = eq v51, false
-    icall revert_if<invalid_calldata_tail_offset>, v52
-    v53 = calldataload v47
-    v54 = gt v53, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v54
-    v55 = mul v53, 1
-    v56 = add v47, 32
-    v57 = calldatasize
-    v58 = sub v57, v55
-    v59 = sgt v56, v58
-    icall revert_if<calldata_tail_too_short>, v59
-    v60 = add v47, 32
-    v61 = make_calldata_slice v60, v53
-    v62 = slice_len v61
-    v63 = add v62, 63
-    v64 = lt v63, v62
-    icall panic_if<0x41>, v64
-    v65 = not 31
-    v66 = and v63, v65
-    v67 = alloc memorybytes, exact, uninitialized, infallible, v66
-    mstore v67, v62
-    v68 = ptrtoint memptr v67 to i256
-    v69 = add v68, 32
-    v70 = slice_len v61
-    v71 = make_memory_slice v69, v70
-    slice_copy v71, 0, v61
-    v72 = ptrtoint memptr v67 to i256
-    memory_object_store_field memorystruct<2>, v37, 1, v72
-    v73 = ptrtoint memptr v37 to i256
-    v74 = memory_slice v22
-    slice_store_element v74, v23, v73
-    v75 = add v23, 1
+    v38 = make_memory_slice v37, 2
+    v39 = calldatasize
+    v40 = sub v39, v31
+    v41 = slt v40, 32
+    icall revert_if<calldata_tail_too_short>, v41
+    v42 = calldataload v31
+    slice_store_element v38, 0, v42
+    v43 = add v31, 32
+    v44 = calldatasize
+    v45 = sub v44, v43
+    v46 = slt v45, 32
+    icall revert_if<calldata_tail_too_short>, v46
+    v47 = calldataload v43
+    v48 = add v31, v47
+    v49 = calldatasize
+    v50 = sub v49, v31
+    v51 = sub v50, 31
+    v52 = slt v47, v51
+    v53 = eq v52, false
+    icall revert_if<invalid_calldata_tail_offset>, v53
+    v54 = calldataload v48
+    v55 = gt v54, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v55
+    v56 = mul v54, 1
+    v57 = add v48, 32
+    v58 = calldatasize
+    v59 = sub v58, v56
+    v60 = sgt v57, v59
+    icall revert_if<calldata_tail_too_short>, v60
+    v61 = add v48, 32
+    v62 = make_calldata_slice v61, v54
+    v63 = slice_len v62
+    v64 = add v63, 63
+    v65 = lt v64, v63
+    icall panic_if<0x41>, v65
+    v66 = not 31
+    v67 = and v64, v66
+    v68 = alloc memorybytes, exact, uninitialized, infallible, v67
+    mstore v68, v63
+    v69 = ptrtoint memptr v68 to i256
+    v70 = add v69, 32
+    v71 = slice_len v62
+    v72 = make_memory_slice v70, v71
+    slice_copy v72, 0, v62
+    v73 = ptrtoint memptr v68 to i256
+    slice_store_element v38, 1, v73
+    v74 = ptrtoint memptr v37 to i256
+    v75 = memory_slice v22
+    slice_store_element v75, v23, v74
+    v76 = add v23, 1
     jump bb1
 }

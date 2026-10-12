@@ -13,7 +13,8 @@ contract ConstructorAbiValidation {
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: zext i1 arg0 to i256
-    // CHECK: memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
+    // CHECK: [[FLAGS:v[0-9]+]] = make_memory_slice arg1, 2
+    // CHECK: slice_load_element [[FLAGS]], 1
     // CHECK: sstore 0,
     constructor(bool flag_, bool[2] memory flags) {
         flag = flag_;

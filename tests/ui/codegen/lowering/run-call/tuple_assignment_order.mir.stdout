@@ -43,38 +43,45 @@ fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[],
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
     v2 = sload 1 !metadata(storage=slot(1))
-    v3 = lt 0, 3
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = lt 1, 3
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = lt 2, 3
+    v3 = make_memory_slice v0, 3
+    v4 = lt 0, 3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = make_memory_slice v0, 3
+    v7 = lt 1, 3
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = lt 0, 3
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 42
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 4
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, v2
-    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
-    v11 = lt 2, 3
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    v14 = lt 1, 3
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = memory_object_load_element memoryfixedarray<3, 1>, v0, 1
-    v17 = lt 0, 3
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    v20 = insert_value struct1, undef struct1, 0, v13
-    v21 = insert_value struct1, v20, 1, v16
-    v22 = insert_value struct1, v21, 2, v19
-    ret v22
+    v9 = make_memory_slice v0, 3
+    v10 = lt 2, 3
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = make_memory_slice v0, 3
+    v13 = lt 0, 3
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    slice_store_element v12, 0, 42
+    slice_store_element v9, 2, 4
+    slice_store_element v6, 1, v2
+    slice_store_element v3, 0, 1
+    v15 = make_memory_slice v0, 3
+    v16 = lt 2, 3
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = slice_load_element v15, 2
+    v19 = make_memory_slice v0, 3
+    v20 = lt 1, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = slice_load_element v19, 1
+    v23 = make_memory_slice v0, 3
+    v24 = lt 0, 3
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = slice_load_element v23, 0
+    v27 = insert_value struct1, undef struct1, 0, v18
+    v28 = insert_value struct1, v27, 1, v22
+    v29 = insert_value struct1, v28, 2, v26
+    ret v29
 }
 
 fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -107,28 +114,32 @@ fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_r
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = icall @nextIndex
-    v3 = lt v2, 2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = icall @nextIndex
-    v6 = lt v5, 2
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v5, 2
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v2, 1
-    v8 = lt 0, 2
+    v3 = make_memory_slice v0, 2
+    v4 = lt v2, 2
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = icall @nextIndex
+    v7 = make_memory_slice v0, 2
+    v8 = lt v6, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v11 = lt 1, 2
+    slice_store_element v7, v6, 2
+    slice_store_element v3, v2, 1
+    v10 = make_memory_slice v0, 2
+    v11 = lt 0, 2
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = insert_value struct1, undef struct1, 0, v10
-    v16 = insert_value struct1, v15, 1, v13
-    v17 = insert_value struct1, v16, 2, v14
-    ret v17
+    v13 = slice_load_element v10, 0
+    v14 = make_memory_slice v0, 2
+    v15 = lt 1, 2
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = slice_load_element v14, 1
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct1, undef struct1, 0, v13
+    v20 = insert_value struct1, v19, 1, v17
+    v21 = insert_value struct1, v20, 2, v18
+    ret v21
 }
 
 fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {

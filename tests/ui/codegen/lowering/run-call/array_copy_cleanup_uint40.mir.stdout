@@ -405,11 +405,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     jump bb2
   bb2:
     sstore 0, v326 !metadata(storage=slot(0))
+    v345 = memory_slice v320
     jump bb6
   bb6:
-    v345 = phi [bb2: 0], [bb7: v362]
-    v346 = lt v345, v326
-    jumpi v346, bb7, bb8
+    v346 = phi [bb2: 0], [bb7: v362]
+    v347 = lt v346, v326
+    jumpi v347, bb7, bb8
   bb8:
     v363 = div v326, 6
     v364 = mod v326, 6
@@ -749,12 +750,11 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     icall panic_if<0x1>, v652
     ret true
   bb7:
-    v347 = memory_slice v320
-    v348 = slice_load_element v347, v345
+    v348 = slice_load_element v345, v346
     v349 = storage_array_data_slot 0
-    v350 = div v345, 6
+    v350 = div v346, 6
     v351 = add v349, v350
-    v352 = mod v345, 6
+    v352 = mod v346, 6
     v353 = mul v352, 5
     v354 = mul v353, 8
     v355 = shl v354, 0xffffffffff
@@ -765,7 +765,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v360 = shl v354, v359
     v361 = or v358, v360
     sstore v351, v361 !metadata(storage=symbolic(v351))
-    v362 = add v345, 1
+    v362 = add v346, 1
     jump bb6
   bb4:
     v331 = storage_array_data_slot 0

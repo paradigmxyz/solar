@@ -22,11 +22,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb2
   bb2:
     sstore 0, v2 !metadata(storage=slot(0))
+    v22 = memory_slice v0
     jump bb6
   bb6:
-    v22 = phi [bb2: 0], [bb7: v40]
-    v23 = lt v22, v2
-    jumpi v23, bb7, bb8
+    v23 = phi [bb2: 0], [bb7: v40]
+    v24 = lt v23, v2
+    jumpi v24, bb7, bb8
   bb8:
     v41 = shr 2, v2
     v42 = and v2, 3
@@ -74,11 +75,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb18
   bb18:
     sstore 1, v83 !metadata(storage=slot(1))
+    v103 = memory_slice v80
     jump bb22
   bb22:
-    v103 = phi [bb18: 0], [bb23: v121]
-    v104 = lt v103, v83
-    jumpi v104, bb23, bb24
+    v104 = phi [bb18: 0], [bb23: v121]
+    v105 = lt v104, v83
+    jumpi v105, bb23, bb24
   bb24:
     v122 = div v83, 3
     v123 = mod v83, 3
@@ -167,12 +169,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v196 = insert_value struct0, v195, 4, v191
     ret v196
   bb23:
-    v105 = memory_slice v80
-    v106 = slice_load_element v105, v103
+    v106 = slice_load_element v103, v104
     v107 = storage_array_data_slot 1
-    v108 = div v103, 3
+    v108 = div v104, 3
     v109 = add v107, v108
-    v110 = mod v103, 3
+    v110 = mod v104, 3
     v111 = mul v110, 10
     v112 = mul v111, 8
     v113 = shl v112, 0xffffffffffffffffffff
@@ -184,7 +185,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v119 = shl v112, v118
     v120 = or v116, v119
     sstore v109, v120 !metadata(storage=symbolic(v109))
-    v121 = add v103, 1
+    v121 = add v104, 1
     jump bb22
   bb20:
     v88 = storage_array_data_slot 1
@@ -234,12 +235,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v79 = checked_add u256, v52, 1
     jump bb11
   bb7:
-    v24 = memory_slice v0
-    v25 = slice_load_element v24, v22
+    v25 = slice_load_element v22, v23
     v26 = storage_array_data_slot 0
-    v27 = div v22, 4
+    v27 = div v23, 4
     v28 = add v26, v27
-    v29 = mod v22, 4
+    v29 = mod v23, 4
     v30 = mul v29, 8
     v31 = mul v30, 8
     v32 = shl v31, 0xffffffffffffffff
@@ -251,7 +251,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v38 = shl v31, v37
     v39 = or v35, v38
     sstore v28, v39 !metadata(storage=symbolic(v28))
-    v40 = add v22, 1
+    v40 = add v23, 1
     jump bb6
   bb4:
     v7 = storage_array_data_slot 0

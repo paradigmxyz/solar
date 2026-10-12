@@ -1,20 +1,20 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_gvn.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_gvn.mir (after egraph) ===
   @module MemoryObjectGvn
-  fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 {
+  fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr) -> i256 {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
       v1 = add v0, 32
 -     v2 = ptrtoint memptr arg0 to i256
 -     v3 = add v2, 32
-      v4 = memory_object_field_addr memorystruct<3>, arg1, 2
-      v5 = ptrtoint memptr v4 to i256
--     v6 = memory_object_field_addr memorystruct<3>, arg1, 2
--     v7 = ptrtoint memptr v6 to i256
-      v8 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
-      v9 = ptrtoint memptr v8 to i256
--     v10 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
--     v11 = ptrtoint memptr v10 to i256
+      v4 = make_memory_slice arg1, 3
+      v5 = slice_ptr v4
+-     v6 = make_memory_slice arg1, 3
+-     v7 = slice_ptr v6
+      v8 = make_memory_slice arg2, 4
+      v9 = slice_ptr v8
+-     v10 = make_memory_slice arg2, 4
+-     v11 = slice_ptr v10
 -     v12 = eq v1, v3
 -     v13 = eq v5, v7
 -     v14 = eq v9, v11

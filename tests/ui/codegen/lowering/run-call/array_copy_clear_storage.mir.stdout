@@ -57,11 +57,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     jump bb2
   bb2:
     sstore 0, v26 !metadata(storage=slot(0))
+    v34 = memory_slice v20
     jump bb6
   bb6:
-    v34 = phi [bb2: 0], [bb7: v40]
-    v35 = lt v34, v26
-    jumpi v35, bb7, bb8
+    v35 = phi [bb2: 0], [bb7: v40]
+    v36 = lt v35, v26
+    jumpi v36, bb7, bb8
   bb8:
     sstore 0, 4 !metadata(storage=slot(0))
     v41 = sload 0 !metadata(storage=slot(0))
@@ -93,12 +94,11 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v62 = sload v61 !metadata(storage=offset(v60, 3))
     ret v62
   bb7:
-    v36 = memory_slice v20
-    v37 = slice_load_element v36, v34
+    v37 = slice_load_element v34, v35
     v38 = storage_array_data_slot 0
-    v39 = add v38, v34
+    v39 = add v38, v35
     sstore v39, v37 !metadata(storage=symbolic(v39))
-    v40 = add v34, 1
+    v40 = add v35, 1
     jump bb6
   bb4:
     v31 = storage_array_data_slot 0

@@ -6,15 +6,6 @@
 // CHECK-LABEL: (after dce)
 @module MemoryObjectSliceProjections
 
-// CHECK-LABEL: fn @fixed_payload(arg0: i256
-// CHECK: ret arg0
-fn @fixed_payload(arg0: memoryslice) -> i256 {
-  bb0:
-    v3 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v1 = ptrtoint memptr v3 to i256
-    ret v1
-}
-
 // CHECK-LABEL: fn @dynamic_payload(arg0: i256
 // CHECK: ret arg0
 fn @dynamic_payload(arg0: memoryslice) -> i256 {
@@ -30,9 +21,7 @@ fn @dynamic_payload(arg0: memoryslice) -> i256 {
 // CHECK: ret [[MEM]]
 fn @memory_field(arg0: memoryslice) -> i256 {
   bb0:
-    v5 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v1 = ptrtoint memptr v5 to i256
-    v2 = mload v1
+    v2 = slice_load_element arg0, 0
     ret v2
 }
 

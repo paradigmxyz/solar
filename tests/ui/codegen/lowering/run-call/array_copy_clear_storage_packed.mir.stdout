@@ -101,11 +101,12 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     jump bb2
   bb2:
     sstore 0, v70 !metadata(storage=slot(0))
+    v89 = memory_slice v64
     jump bb6
   bb6:
-    v89 = phi [bb2: 0], [bb7: v106]
-    v90 = lt v89, v70
-    jumpi v90, bb7, bb8
+    v90 = phi [bb2: 0], [bb7: v106]
+    v91 = lt v90, v70
+    jumpi v91, bb7, bb8
   bb8:
     v107 = shr 1, v70
     v108 = and v70, 1
@@ -186,12 +187,11 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v170 = trunc i256 v169 to i128
     ret v170
   bb7:
-    v91 = memory_slice v64
-    v92 = slice_load_element v91, v89
+    v92 = slice_load_element v89, v90
     v93 = storage_array_data_slot 0
-    v94 = div v89, 2
+    v94 = div v90, 2
     v95 = add v93, v94
-    v96 = mod v89, 2
+    v96 = mod v90, 2
     v97 = mul v96, 16
     v98 = mul v97, 8
     v99 = shl v98, 0xffffffffffffffffffffffffffffffff
@@ -202,7 +202,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v104 = shl v98, v103
     v105 = or v102, v104
     sstore v95, v105 !metadata(storage=symbolic(v95))
-    v106 = add v89, 1
+    v106 = add v90, 1
     jump bb6
   bb4:
     v75 = storage_array_data_slot 0
@@ -324,11 +324,12 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi
     jump bb2
   bb2:
     sstore 1, v70 !metadata(storage=slot(1))
+    v89 = memory_slice v64
     jump bb6
   bb6:
-    v89 = phi [bb2: 0], [bb7: v106]
-    v90 = lt v89, v70
-    jumpi v90, bb7, bb8
+    v90 = phi [bb2: 0], [bb7: v106]
+    v91 = lt v90, v70
+    jumpi v91, bb7, bb8
   bb8:
     v107 = shr 2, v70
     v108 = and v70, 3
@@ -409,12 +410,11 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi
     v170 = trunc i256 v169 to i64
     ret v170
   bb7:
-    v91 = memory_slice v64
-    v92 = slice_load_element v91, v89
+    v92 = slice_load_element v89, v90
     v93 = storage_array_data_slot 1
-    v94 = div v89, 4
+    v94 = div v90, 4
     v95 = add v93, v94
-    v96 = mod v89, 4
+    v96 = mod v90, 4
     v97 = mul v96, 8
     v98 = mul v97, 8
     v99 = shl v98, 0xffffffffffffffff
@@ -425,7 +425,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi
     v104 = shl v98, v103
     v105 = or v102, v104
     sstore v95, v105 !metadata(storage=symbolic(v95))
-    v106 = add v89, 1
+    v106 = add v90, 1
     jump bb6
   bb4:
     v75 = storage_array_data_slot 1
@@ -547,11 +547,12 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     jump bb2
   bb2:
     sstore 2, v70 !metadata(storage=slot(2))
+    v89 = memory_slice v64
     jump bb6
   bb6:
-    v89 = phi [bb2: 0], [bb7: v106]
-    v90 = lt v89, v70
-    jumpi v90, bb7, bb8
+    v90 = phi [bb2: 0], [bb7: v106]
+    v91 = lt v90, v70
+    jumpi v91, bb7, bb8
   bb8:
     v107 = shr 1, v70
     v108 = and v70, 1
@@ -632,12 +633,11 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v170 = trunc i256 v169 to i120
     ret v170
   bb7:
-    v91 = memory_slice v64
-    v92 = slice_load_element v91, v89
+    v92 = slice_load_element v89, v90
     v93 = storage_array_data_slot 2
-    v94 = div v89, 2
+    v94 = div v90, 2
     v95 = add v93, v94
-    v96 = mod v89, 2
+    v96 = mod v90, 2
     v97 = mul v96, 15
     v98 = mul v97, 8
     v99 = shl v98, 0xffffffffffffffffffffffffffffff
@@ -648,7 +648,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v104 = shl v98, v103
     v105 = or v102, v104
     sstore v95, v105 !metadata(storage=symbolic(v95))
-    v106 = add v89, 1
+    v106 = add v90, 1
     jump bb6
   bb4:
     v75 = storage_array_data_slot 2

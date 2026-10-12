@@ -754,14 +754,8 @@ impl Instruction {
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
             InstKind::MemorySlice(..)
-            | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. }
-            | InstKind::MemoryObjectLoadField { .. }
-            | InstKind::MemoryObjectStoreField { .. }
-            | InstKind::MemoryObjectLoadElement { .. }
             | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
-            | InstKind::MemoryObjectStoreElement { .. }
             | InstKind::SliceStoreElement { .. }
             | InstKind::SliceStoreByte { .. }
             | InstKind::SliceStoreWord { .. }
@@ -1148,14 +1142,8 @@ impl InstKind {
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
                 | Self::MemorySlice(..)
-                | Self::MemoryObjectFieldAddr { .. }
-                | Self::MemoryObjectElementAddr { .. }
-                | Self::MemoryObjectLoadField { .. }
-                | Self::MemoryObjectStoreField { .. }
-                | Self::MemoryObjectLoadElement { .. }
                 | Self::SliceLoadElement { .. }
                 | Self::SliceLoadByte { .. }
-                | Self::MemoryObjectStoreElement { .. }
                 | Self::SliceStoreElement { .. }
                 | Self::SliceStoreByte { .. }
                 | Self::SliceStoreWord { .. }

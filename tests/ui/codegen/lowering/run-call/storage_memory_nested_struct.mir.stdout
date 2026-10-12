@@ -244,371 +244,391 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     mstore v189, v172
     jump bb1
   bb1:
-    v190 = phi [bb0: 0], [bb6: v215]
+    v190 = phi [bb0: 0], [bb6: v217]
     v191 = lt v190, v172
     jumpi v191, bb2, bb3
   bb3:
-    v216 = memory_slice v189
-    v217 = slice_len v216
-    v218 = lt 0, v217
-    v219 = eq v218, false
-    icall panic_if<0x32>, v219
-    v220 = slice_load_element v216, 0
-    v221 = inttoptr i256 v220 to memptr
-    v222 = eq v220, 0
-    jumpi v222, bb7, bb8
+    v218 = memory_slice v189
+    v219 = slice_len v218
+    v220 = lt 0, v219
+    v221 = eq v220, false
+    icall panic_if<0x32>, v221
+    v222 = slice_load_element v218, 0
+    v223 = inttoptr i256 v222 to memptr
+    v224 = eq v222, 0
+    jumpi v224, bb7, bb8
   bb7:
-    v223 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v225 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v226 = make_memory_slice v225, 3
     jump bb9
   bb9:
-    v224 = phi [bb7: 0], [bb10: v230]
-    v225 = lt v224, 3
-    jumpi v225, bb10, bb11
+    v227 = phi [bb7: 0], [bb10: v234]
+    v228 = lt v227, 3
+    jumpi v228, bb10, bb11
   bb11:
-    v231 = memory_slice v189
-    v232 = ptrtoint memptr v223 to i256
-    slice_store_element v231, 0, v232
+    v235 = ptrtoint memptr v225 to i256
+    slice_store_element v218, 0, v235
     jump bb8
   bb8:
-    v233 = phi [bb3: v221], [bb11: v223]
-    v234 = lt 1, 3
-    v235 = eq v234, false
-    icall panic_if<0x32>, v235
-    v236 = memory_object_load_element memoryfixedarray<3, 1>, v233, 1
-    v237 = inttoptr i256 v236 to memptr
-    v238 = eq v236, 0
-    jumpi v238, bb12, bb13
+    v236 = phi [bb3: v223], [bb11: v225]
+    v237 = make_memory_slice v236, 3
+    v238 = lt 1, 3
+    v239 = eq v238, false
+    icall panic_if<0x32>, v239
+    v240 = slice_load_element v237, 1
+    v241 = inttoptr i256 v240 to memptr
+    v242 = eq v240, 0
+    jumpi v242, bb12, bb13
   bb12:
-    v239 = icall @default_struct_0
-    v240 = ptrtoint memptr v239 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v233, 1, v240
+    v243 = icall @default_struct_0
+    v244 = ptrtoint memptr v243 to i256
+    slice_store_element v237, 1, v244
     jump bb13
   bb13:
-    v241 = phi [bb8: v237], [bb12: v239]
-    v242 = memory_object_load_field memorystruct<3>, v241, 0
-    v243 = trunc i256 v242 to i8
-    v244 = memory_slice v189
-    v245 = slice_len v244
-    v246 = lt 0, v245
-    v247 = eq v246, false
-    icall panic_if<0x32>, v247
-    v248 = slice_load_element v244, 0
-    v249 = inttoptr i256 v248 to memptr
-    v250 = eq v248, 0
-    jumpi v250, bb14, bb15
+    v245 = phi [bb8: v241], [bb12: v243]
+    v246 = make_memory_slice v245, 3
+    v247 = slice_load_element v246, 0
+    v248 = trunc i256 v247 to i8
+    v249 = memory_slice v189
+    v250 = slice_len v249
+    v251 = lt 0, v250
+    v252 = eq v251, false
+    icall panic_if<0x32>, v252
+    v253 = slice_load_element v249, 0
+    v254 = inttoptr i256 v253 to memptr
+    v255 = eq v253, 0
+    jumpi v255, bb14, bb15
   bb14:
-    v251 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v256 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v257 = make_memory_slice v256, 3
     jump bb16
   bb16:
-    v252 = phi [bb14: 0], [bb17: v258]
-    v253 = lt v252, 3
-    jumpi v253, bb17, bb18
+    v258 = phi [bb14: 0], [bb17: v265]
+    v259 = lt v258, 3
+    jumpi v259, bb17, bb18
   bb18:
-    v259 = memory_slice v189
-    v260 = ptrtoint memptr v251 to i256
-    slice_store_element v259, 0, v260
+    v266 = ptrtoint memptr v256 to i256
+    slice_store_element v249, 0, v266
     jump bb15
   bb15:
-    v261 = phi [bb13: v249], [bb18: v251]
-    v262 = lt 1, 3
-    v263 = eq v262, false
-    icall panic_if<0x32>, v263
-    v264 = memory_object_load_element memoryfixedarray<3, 1>, v261, 1
-    v265 = inttoptr i256 v264 to memptr
-    v266 = eq v264, 0
-    jumpi v266, bb19, bb20
+    v267 = phi [bb13: v254], [bb18: v256]
+    v268 = make_memory_slice v267, 3
+    v269 = lt 1, 3
+    v270 = eq v269, false
+    icall panic_if<0x32>, v270
+    v271 = slice_load_element v268, 1
+    v272 = inttoptr i256 v271 to memptr
+    v273 = eq v271, 0
+    jumpi v273, bb19, bb20
   bb19:
-    v267 = icall @default_struct_0
-    v268 = ptrtoint memptr v267 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v261, 1, v268
+    v274 = icall @default_struct_0
+    v275 = ptrtoint memptr v274 to i256
+    slice_store_element v268, 1, v275
     jump bb20
   bb20:
-    v269 = phi [bb15: v265], [bb19: v267]
-    v270 = memory_object_load_field memorystruct<3>, v269, 1
-    v271 = trunc i256 v270 to i8
-    v272 = checked_add u8, v243, v271
-    v273 = memory_slice v189
-    v274 = slice_len v273
-    v275 = lt 0, v274
-    v276 = eq v275, false
-    icall panic_if<0x32>, v276
-    v277 = slice_load_element v273, 0
-    v278 = inttoptr i256 v277 to memptr
-    v279 = eq v277, 0
-    jumpi v279, bb21, bb22
+    v276 = phi [bb15: v272], [bb19: v274]
+    v277 = make_memory_slice v276, 3
+    v278 = slice_load_element v277, 1
+    v279 = trunc i256 v278 to i8
+    v280 = checked_add u8, v248, v279
+    v281 = memory_slice v189
+    v282 = slice_len v281
+    v283 = lt 0, v282
+    v284 = eq v283, false
+    icall panic_if<0x32>, v284
+    v285 = slice_load_element v281, 0
+    v286 = inttoptr i256 v285 to memptr
+    v287 = eq v285, 0
+    jumpi v287, bb21, bb22
   bb21:
-    v280 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v288 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v289 = make_memory_slice v288, 3
     jump bb23
   bb23:
-    v281 = phi [bb21: 0], [bb24: v287]
-    v282 = lt v281, 3
-    jumpi v282, bb24, bb25
+    v290 = phi [bb21: 0], [bb24: v297]
+    v291 = lt v290, 3
+    jumpi v291, bb24, bb25
   bb25:
-    v288 = memory_slice v189
-    v289 = ptrtoint memptr v280 to i256
-    slice_store_element v288, 0, v289
+    v298 = ptrtoint memptr v288 to i256
+    slice_store_element v281, 0, v298
     jump bb22
   bb22:
-    v290 = phi [bb20: v278], [bb25: v280]
-    v291 = lt 1, 3
-    v292 = eq v291, false
-    icall panic_if<0x32>, v292
-    v293 = memory_object_load_element memoryfixedarray<3, 1>, v290, 1
-    v294 = inttoptr i256 v293 to memptr
-    v295 = eq v293, 0
-    jumpi v295, bb26, bb27
+    v299 = phi [bb20: v286], [bb25: v288]
+    v300 = make_memory_slice v299, 3
+    v301 = lt 1, 3
+    v302 = eq v301, false
+    icall panic_if<0x32>, v302
+    v303 = slice_load_element v300, 1
+    v304 = inttoptr i256 v303 to memptr
+    v305 = eq v303, 0
+    jumpi v305, bb26, bb27
   bb26:
-    v296 = icall @default_struct_0
-    v297 = ptrtoint memptr v296 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v290, 1, v297
+    v306 = icall @default_struct_0
+    v307 = ptrtoint memptr v306 to i256
+    slice_store_element v300, 1, v307
     jump bb27
   bb27:
-    v298 = phi [bb22: v294], [bb26: v296]
-    v299 = memory_object_load_field memorystruct<3>, v298, 2, memptr
-    v300 = memory_slice v299
-    v301 = slice_len v300
-    v302 = lt 0, v301
-    v303 = eq v302, false
-    icall panic_if<0x32>, v303
-    v304 = slice_load_element v300, 0
-    v305 = zext i8 v272 to i256
-    v306 = checked_add u256, v305, v304
-    v307 = memory_slice v189
-    v308 = slice_len v307
-    v309 = lt 1, v308
-    v310 = eq v309, false
-    icall panic_if<0x32>, v310
-    v311 = slice_load_element v307, 1
-    v312 = inttoptr i256 v311 to memptr
-    v313 = eq v311, 0
-    jumpi v313, bb28, bb29
+    v308 = phi [bb22: v304], [bb26: v306]
+    v309 = make_memory_slice v308, 3
+    v310 = slice_load_element v309, 2, memptr
+    v311 = memory_slice v310
+    v312 = slice_len v311
+    v313 = lt 0, v312
+    v314 = eq v313, false
+    icall panic_if<0x32>, v314
+    v315 = slice_load_element v311, 0
+    v316 = zext i8 v280 to i256
+    v317 = checked_add u256, v316, v315
+    v318 = memory_slice v189
+    v319 = slice_len v318
+    v320 = lt 1, v319
+    v321 = eq v320, false
+    icall panic_if<0x32>, v321
+    v322 = slice_load_element v318, 1
+    v323 = inttoptr i256 v322 to memptr
+    v324 = eq v322, 0
+    jumpi v324, bb28, bb29
   bb28:
-    v314 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v325 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v326 = make_memory_slice v325, 3
     jump bb30
   bb30:
-    v315 = phi [bb28: 0], [bb31: v321]
-    v316 = lt v315, 3
-    jumpi v316, bb31, bb32
+    v327 = phi [bb28: 0], [bb31: v334]
+    v328 = lt v327, 3
+    jumpi v328, bb31, bb32
   bb32:
-    v322 = memory_slice v189
-    v323 = ptrtoint memptr v314 to i256
-    slice_store_element v322, 1, v323
+    v335 = ptrtoint memptr v325 to i256
+    slice_store_element v318, 1, v335
     jump bb29
   bb29:
-    v324 = phi [bb27: v312], [bb32: v314]
-    v325 = lt 2, 3
-    v326 = eq v325, false
-    icall panic_if<0x32>, v326
-    v327 = memory_object_load_element memoryfixedarray<3, 1>, v324, 2
-    v328 = inttoptr i256 v327 to memptr
-    v329 = eq v327, 0
-    jumpi v329, bb33, bb34
+    v336 = phi [bb27: v323], [bb32: v325]
+    v337 = make_memory_slice v336, 3
+    v338 = lt 2, 3
+    v339 = eq v338, false
+    icall panic_if<0x32>, v339
+    v340 = slice_load_element v337, 2
+    v341 = inttoptr i256 v340 to memptr
+    v342 = eq v340, 0
+    jumpi v342, bb33, bb34
   bb33:
-    v330 = icall @default_struct_0
-    v331 = ptrtoint memptr v330 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v324, 2, v331
+    v343 = icall @default_struct_0
+    v344 = ptrtoint memptr v343 to i256
+    slice_store_element v337, 2, v344
     jump bb34
   bb34:
-    v332 = phi [bb29: v328], [bb33: v330]
-    v333 = memory_object_load_field memorystruct<3>, v332, 0
-    v334 = trunc i256 v333 to i8
-    v335 = zext i8 v334 to i256
-    v336 = checked_add u256, v306, v335
-    v337 = memory_slice v189
-    v338 = slice_len v337
-    v339 = lt 1, v338
-    v340 = eq v339, false
-    icall panic_if<0x32>, v340
-    v341 = slice_load_element v337, 1
-    v342 = inttoptr i256 v341 to memptr
-    v343 = eq v341, 0
-    jumpi v343, bb35, bb36
+    v345 = phi [bb29: v341], [bb33: v343]
+    v346 = make_memory_slice v345, 3
+    v347 = slice_load_element v346, 0
+    v348 = trunc i256 v347 to i8
+    v349 = zext i8 v348 to i256
+    v350 = checked_add u256, v317, v349
+    v351 = memory_slice v189
+    v352 = slice_len v351
+    v353 = lt 1, v352
+    v354 = eq v353, false
+    icall panic_if<0x32>, v354
+    v355 = slice_load_element v351, 1
+    v356 = inttoptr i256 v355 to memptr
+    v357 = eq v355, 0
+    jumpi v357, bb35, bb36
   bb35:
-    v344 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v358 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v359 = make_memory_slice v358, 3
     jump bb37
   bb37:
-    v345 = phi [bb35: 0], [bb38: v351]
-    v346 = lt v345, 3
-    jumpi v346, bb38, bb39
+    v360 = phi [bb35: 0], [bb38: v367]
+    v361 = lt v360, 3
+    jumpi v361, bb38, bb39
   bb39:
-    v352 = memory_slice v189
-    v353 = ptrtoint memptr v344 to i256
-    slice_store_element v352, 1, v353
+    v368 = ptrtoint memptr v358 to i256
+    slice_store_element v351, 1, v368
     jump bb36
   bb36:
-    v354 = phi [bb34: v342], [bb39: v344]
-    v355 = lt 2, 3
-    v356 = eq v355, false
-    icall panic_if<0x32>, v356
-    v357 = memory_object_load_element memoryfixedarray<3, 1>, v354, 2
-    v358 = inttoptr i256 v357 to memptr
-    v359 = eq v357, 0
-    jumpi v359, bb40, bb41
+    v369 = phi [bb34: v356], [bb39: v358]
+    v370 = make_memory_slice v369, 3
+    v371 = lt 2, 3
+    v372 = eq v371, false
+    icall panic_if<0x32>, v372
+    v373 = slice_load_element v370, 2
+    v374 = inttoptr i256 v373 to memptr
+    v375 = eq v373, 0
+    jumpi v375, bb40, bb41
   bb40:
-    v360 = icall @default_struct_0
-    v361 = ptrtoint memptr v360 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v354, 2, v361
+    v376 = icall @default_struct_0
+    v377 = ptrtoint memptr v376 to i256
+    slice_store_element v370, 2, v377
     jump bb41
   bb41:
-    v362 = phi [bb36: v358], [bb40: v360]
-    v363 = memory_object_load_field memorystruct<3>, v362, 1
-    v364 = trunc i256 v363 to i8
-    v365 = zext i8 v364 to i256
-    v366 = checked_add u256, v336, v365
-    v367 = memory_slice v189
-    v368 = slice_len v367
-    v369 = lt 1, v368
-    v370 = eq v369, false
-    icall panic_if<0x32>, v370
-    v371 = slice_load_element v367, 1
-    v372 = inttoptr i256 v371 to memptr
-    v373 = eq v371, 0
-    jumpi v373, bb42, bb43
+    v378 = phi [bb36: v374], [bb40: v376]
+    v379 = make_memory_slice v378, 3
+    v380 = slice_load_element v379, 1
+    v381 = trunc i256 v380 to i8
+    v382 = zext i8 v381 to i256
+    v383 = checked_add u256, v350, v382
+    v384 = memory_slice v189
+    v385 = slice_len v384
+    v386 = lt 1, v385
+    v387 = eq v386, false
+    icall panic_if<0x32>, v387
+    v388 = slice_load_element v384, 1
+    v389 = inttoptr i256 v388 to memptr
+    v390 = eq v388, 0
+    jumpi v390, bb42, bb43
   bb42:
-    v374 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v391 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v392 = make_memory_slice v391, 3
     jump bb44
   bb44:
-    v375 = phi [bb42: 0], [bb45: v381]
-    v376 = lt v375, 3
-    jumpi v376, bb45, bb46
+    v393 = phi [bb42: 0], [bb45: v400]
+    v394 = lt v393, 3
+    jumpi v394, bb45, bb46
   bb46:
-    v382 = memory_slice v189
-    v383 = ptrtoint memptr v374 to i256
-    slice_store_element v382, 1, v383
+    v401 = ptrtoint memptr v391 to i256
+    slice_store_element v384, 1, v401
     jump bb43
   bb43:
-    v384 = phi [bb41: v372], [bb46: v374]
-    v385 = lt 2, 3
-    v386 = eq v385, false
-    icall panic_if<0x32>, v386
-    v387 = memory_object_load_element memoryfixedarray<3, 1>, v384, 2
-    v388 = inttoptr i256 v387 to memptr
-    v389 = eq v387, 0
-    jumpi v389, bb47, bb48
+    v402 = phi [bb41: v389], [bb46: v391]
+    v403 = make_memory_slice v402, 3
+    v404 = lt 2, 3
+    v405 = eq v404, false
+    icall panic_if<0x32>, v405
+    v406 = slice_load_element v403, 2
+    v407 = inttoptr i256 v406 to memptr
+    v408 = eq v406, 0
+    jumpi v408, bb47, bb48
   bb47:
-    v390 = icall @default_struct_0
-    v391 = ptrtoint memptr v390 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v384, 2, v391
+    v409 = icall @default_struct_0
+    v410 = ptrtoint memptr v409 to i256
+    slice_store_element v403, 2, v410
     jump bb48
   bb48:
-    v392 = phi [bb43: v388], [bb47: v390]
-    v393 = memory_object_load_field memorystruct<3>, v392, 2, memptr
-    v394 = memory_slice v393
-    v395 = slice_len v394
-    v396 = lt 0, v395
-    v397 = eq v396, false
-    icall panic_if<0x32>, v397
-    v398 = slice_load_element v394, 0
-    v399 = checked_add u256, v366, v398
-    ret v399
+    v411 = phi [bb43: v407], [bb47: v409]
+    v412 = make_memory_slice v411, 3
+    v413 = slice_load_element v412, 2, memptr
+    v414 = memory_slice v413
+    v415 = slice_len v414
+    v416 = lt 0, v415
+    v417 = eq v416, false
+    icall panic_if<0x32>, v417
+    v418 = slice_load_element v414, 0
+    v419 = checked_add u256, v383, v418
+    ret v419
   bb45:
-    v377 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v377, 0, 0
-    memory_object_store_field memorystruct<3>, v377, 1, 0
-    v378 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v378, 0
-    v379 = ptrtoint memptr v378 to i256
-    memory_object_store_field memorystruct<3>, v377, 2, v379
-    v380 = ptrtoint memptr v377 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v374, v375, v380
-    v381 = add v375, 1
+    v395 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v396 = make_memory_slice v395, 3
+    slice_store_element v396, 0, 0
+    slice_store_element v396, 1, 0
+    v397 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v397, 0
+    v398 = ptrtoint memptr v397 to i256
+    slice_store_element v396, 2, v398
+    v399 = ptrtoint memptr v395 to i256
+    slice_store_element v392, v393, v399
+    v400 = add v393, 1
     jump bb44
   bb38:
-    v347 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v347, 0, 0
-    memory_object_store_field memorystruct<3>, v347, 1, 0
-    v348 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v348, 0
-    v349 = ptrtoint memptr v348 to i256
-    memory_object_store_field memorystruct<3>, v347, 2, v349
-    v350 = ptrtoint memptr v347 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v344, v345, v350
-    v351 = add v345, 1
+    v362 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v363 = make_memory_slice v362, 3
+    slice_store_element v363, 0, 0
+    slice_store_element v363, 1, 0
+    v364 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v364, 0
+    v365 = ptrtoint memptr v364 to i256
+    slice_store_element v363, 2, v365
+    v366 = ptrtoint memptr v362 to i256
+    slice_store_element v359, v360, v366
+    v367 = add v360, 1
     jump bb37
   bb31:
-    v317 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v317, 0, 0
-    memory_object_store_field memorystruct<3>, v317, 1, 0
-    v318 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v318, 0
-    v319 = ptrtoint memptr v318 to i256
-    memory_object_store_field memorystruct<3>, v317, 2, v319
-    v320 = ptrtoint memptr v317 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v314, v315, v320
-    v321 = add v315, 1
+    v329 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v330 = make_memory_slice v329, 3
+    slice_store_element v330, 0, 0
+    slice_store_element v330, 1, 0
+    v331 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v331, 0
+    v332 = ptrtoint memptr v331 to i256
+    slice_store_element v330, 2, v332
+    v333 = ptrtoint memptr v329 to i256
+    slice_store_element v326, v327, v333
+    v334 = add v327, 1
     jump bb30
   bb24:
-    v283 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v283, 0, 0
-    memory_object_store_field memorystruct<3>, v283, 1, 0
-    v284 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v284, 0
-    v285 = ptrtoint memptr v284 to i256
-    memory_object_store_field memorystruct<3>, v283, 2, v285
-    v286 = ptrtoint memptr v283 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v280, v281, v286
-    v287 = add v281, 1
+    v292 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v293 = make_memory_slice v292, 3
+    slice_store_element v293, 0, 0
+    slice_store_element v293, 1, 0
+    v294 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v294, 0
+    v295 = ptrtoint memptr v294 to i256
+    slice_store_element v293, 2, v295
+    v296 = ptrtoint memptr v292 to i256
+    slice_store_element v289, v290, v296
+    v297 = add v290, 1
     jump bb23
   bb17:
-    v254 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v254, 0, 0
-    memory_object_store_field memorystruct<3>, v254, 1, 0
-    v255 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v255, 0
-    v256 = ptrtoint memptr v255 to i256
-    memory_object_store_field memorystruct<3>, v254, 2, v256
-    v257 = ptrtoint memptr v254 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v251, v252, v257
-    v258 = add v252, 1
+    v260 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v261 = make_memory_slice v260, 3
+    slice_store_element v261, 0, 0
+    slice_store_element v261, 1, 0
+    v262 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v262, 0
+    v263 = ptrtoint memptr v262 to i256
+    slice_store_element v261, 2, v263
+    v264 = ptrtoint memptr v260 to i256
+    slice_store_element v257, v258, v264
+    v265 = add v258, 1
     jump bb16
   bb10:
-    v226 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v226, 0, 0
-    memory_object_store_field memorystruct<3>, v226, 1, 0
-    v227 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v227, 0
-    v228 = ptrtoint memptr v227 to i256
-    memory_object_store_field memorystruct<3>, v226, 2, v228
-    v229 = ptrtoint memptr v226 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v223, v224, v229
-    v230 = add v224, 1
+    v229 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v230 = make_memory_slice v229, 3
+    slice_store_element v230, 0, 0
+    slice_store_element v230, 1, 0
+    v231 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v231, 0
+    v232 = ptrtoint memptr v231 to i256
+    slice_store_element v230, 2, v232
+    v233 = ptrtoint memptr v229 to i256
+    slice_store_element v226, v227, v233
+    v234 = add v227, 1
     jump bb9
   bb2:
     v192 = storage_array_data_slot 0
     v193 = mul v190, 6
     v194 = add v192, v193
     v195 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v196 = make_memory_slice v195, 3
     jump bb4
   bb4:
-    v196 = phi [bb2: 0], [bb5: v212]
-    v197 = lt v196, 3
-    jumpi v197, bb5, bb6
+    v197 = phi [bb2: 0], [bb5: v214]
+    v198 = lt v197, 3
+    jumpi v198, bb5, bb6
   bb6:
-    v213 = ptrtoint memptr v195 to i256
-    v214 = memory_slice v189
-    slice_store_element v214, v190, v213
-    v215 = add v190, 1
+    v215 = ptrtoint memptr v195 to i256
+    v216 = memory_slice v189
+    slice_store_element v216, v190, v215
+    v217 = add v190, 1
     jump bb1
   bb5:
-    v198 = mul v196, 2
-    v199 = add v194, v198
-    v200 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v201 = sload v199 !metadata(storage=symbolic(v199))
-    v202 = trunc i256 v201 to i8
-    v203 = zext i8 v202 to i256
-    memory_object_store_field memorystruct<3>, v200, 0, v203
-    v204 = sload v199 !metadata(storage=symbolic(v199))
-    v205 = shr 8, v204
-    v206 = trunc i256 v205 to i8
-    v207 = zext i8 v206 to i256
-    memory_object_store_field memorystruct<3>, v200, 1, v207
-    v208 = add v199, 1
-    v209 = icall @load_storage_word_array, v208
-    v210 = ptrtoint memptr v209 to i256
-    memory_object_store_field memorystruct<3>, v200, 2, v210
-    v211 = ptrtoint memptr v200 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v195, v196, v211
-    v212 = add v196, 1
+    v199 = mul v197, 2
+    v200 = add v194, v199
+    v201 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v202 = make_memory_slice v201, 3
+    v203 = sload v200 !metadata(storage=symbolic(v200))
+    v204 = trunc i256 v203 to i8
+    v205 = zext i8 v204 to i256
+    slice_store_element v202, 0, v205
+    v206 = sload v200 !metadata(storage=symbolic(v200))
+    v207 = shr 8, v206
+    v208 = trunc i256 v207 to i8
+    v209 = zext i8 v208 to i256
+    slice_store_element v202, 1, v209
+    v210 = add v200, 1
+    v211 = icall @load_storage_word_array, v210
+    v212 = ptrtoint memptr v211 to i256
+    slice_store_element v202, 2, v212
+    v213 = ptrtoint memptr v201 to i256
+    slice_store_element v196, v197, v213
+    v214 = add v197, 1
     jump bb4
 }
 
@@ -621,11 +641,12 @@ fn @load_storage_word_array(arg0: i256) -> memptr {
 fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 0
-    memory_object_store_field memorystruct<3>, v0, 1, 0
-    v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v1, 0
-    v2 = ptrtoint memptr v1 to i256
-    memory_object_store_field memorystruct<3>, v0, 2, v2
+    v1 = make_memory_slice v0, 3
+    slice_store_element v1, 0, 0
+    slice_store_element v1, 1, 0
+    v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v2, 0
+    v3 = ptrtoint memptr v2 to i256
+    slice_store_element v1, 2, v3
     ret v0
 }

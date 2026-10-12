@@ -1,24 +1,23 @@
 //! Lower semantic memory-object and slice operations to physical word operations.
 //!
-//! The selected memory-layout policy supplies the dynamic-object header, field offsets, and
-//! fixed-array strides. Semantic accesses and allocations become raw pointer arithmetic, loads,
-//! stores, and allocation operations. A `memory_slice` view becomes `{object + header, mload
-//! object}`. When every use of a view lowers here, the view becomes only its length load, or
-//! nothing when no use reads the length, and each use recomputes its data address from the
-//! object, so the address does not stay live from the view to its uses. Unreachable blocks are
-//! removed before substitution: their definitions need not obey SSA and can contain cast cycles.
+//! The selected memory-layout policy supplies the dynamic-object header and word size. Slice
+//! accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
+//! operations. A `memory_slice` view becomes `{object + header, mload object}`, and a fixed
+//! array or struct view `make_memory_slice object, len` gets its `memptr` cast to a word. When
+//! every use of a view lowers here, the view becomes only its length load, or nothing when no use
+//! reads the length, and each use recomputes its data address from the object, so the address does
+//! not stay live from the view to its uses. Unreachable blocks are removed before substitution:
+//! their definitions need not obey SSA and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
 //! verifies all backend representation requirements.
-//! An earlier simplification can replace a zero-offset object projection with
-//! its slice operand. Such a function still needs slice-load lowering even if
-//! it no longer contains object operations. Unsupported layouts
-//! and address spaces retain their operations for the subsequent phase checks.
+//! Unsupported layouts and address spaces retain their operations for the
+//! subsequent phase checks.
 
 use crate::mir::{
-    AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstKind,
-    MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Value,
+    AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstKind, MirPhase,
+    MirType, Module, SliceLocation, Value,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::MirPass,
 };
@@ -73,11 +72,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     let needs_lowering = func.arg_indices().any(|index| is_pointer(func.arg_ty(index)))
         || func.return_components().iter().copied().any(is_pointer)
         || func.live_values().any(|value| func.value_ty(value).is_some_and(is_pointer))
-        || func.instructions().any(|inst_id| {
-            let kind = &func.inst(inst_id).kind;
-            kind.is_memory_object_op()
-                || matches!(kind, InstKind::MLoad(object) if func.value_slice_location(*object).is_some())
-        });
+        || func.instructions().any(|inst_id| func.inst(inst_id).kind.is_memory_object_op());
     if !needs_lowering {
         return false;
     }
@@ -136,136 +131,20 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind =
                             InstKind::MakeSlice { ptr, len, location: SliceLocation::Memory };
                     }
+                    InstKind::MakeSlice { ptr, len, location }
+                        if builder.func().value_ty(ptr) == Some(MirType::MemPtr) =>
+                    {
+                        // pointer = ptrtoint object to i256
+                        // view = make_memory_slice pointer, len
+                        let ptr = builder.cast(ptr, MirType::I256);
+                        builder.func_mut().inst_mut(inst).kind =
+                            InstKind::MakeSlice { ptr, len, location };
+                    }
                     InstKind::SlicePtr(slice) if let Some(&object) = views.get(&slice) => {
                         // data = add (ptrtoint object), P::DYNAMIC_HEADER_SIZE
                         let header = builder.cast(object, MirType::I256);
                         let offset = builder.imm(P::DYNAMIC_HEADER_SIZE);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(header, offset);
-                    }
-                    InstKind::MLoad(object) => {
-                        let Some(location) = builder.func().value_slice_location(object) else {
-                            return true;
-                        };
-                        // %source = slice_ptr %object
-                        // %value = mload %source | calldataload %source
-                        let source = builder.slice_ptr(object);
-                        let Some(kind) = slice_load_kind(location, source) else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = kind;
-                    }
-                    InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            return true;
-                        };
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            if location == SliceLocation::Calldata {
-                                let Some(result) = builder.func().inst_result_value(inst) else {
-                                    return true;
-                                };
-                                let mut user = None;
-                                let mut multiple_users = false;
-                                for &candidate in &instructions {
-                                    if !builder.func().inst(candidate).operands().contains(&result)
-                                    {
-                                        continue;
-                                    }
-                                    if user.replace(candidate).is_some() {
-                                        multiple_users = true;
-                                        break;
-                                    }
-                                }
-                                if !multiple_users && let Some(mut user) = user {
-                                    let mut address_value = result;
-                                    let mut cast_result = None;
-                                    if let InstKind::PtrToInt(value, 256) =
-                                        builder.func().inst(user).kind
-                                        && value == result
-                                    {
-                                        address_value =
-                                            builder.func().inst_result_value(user).unwrap();
-                                        cast_result = Some(address_value);
-                                        let mut uses = instructions.iter().copied().filter(|&id| {
-                                            builder
-                                                .func()
-                                                .inst(id)
-                                                .operands()
-                                                .contains(&address_value)
-                                        });
-                                        if let Some(load) = uses.next()
-                                            && uses.next().is_none()
-                                        {
-                                            user = load;
-                                        }
-                                    }
-                                    if matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == address_value)
-                                    {
-                                        // address = slice_ptr calldata_slice + field_offset
-                                        // value = calldataload address
-                                        let base = builder.slice_ptr(object);
-                                        let address = builder.add_u64_offset(base, offset);
-                                        builder.func_mut().inst_mut(user).kind =
-                                            InstKind::CalldataLoad(address);
-                                        if let Some(cast_result) = cast_result {
-                                            replacements.insert(cast_result, address);
-                                        }
-                                        return false;
-                                    }
-                                }
-                            }
-                            if location != SliceLocation::Memory {
-                                return true;
-                            }
-                            let base = builder.slice_ptr(object);
-                            let address = builder.add_u64_offset(base, offset);
-                            // address = inttoptr byte_offset to memptr
-                            let address = builder.cast(address, MirType::MemPtr);
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, address);
-                            }
-                            return false;
-                        }
-                        if offset == 0 {
-                            if let Some(result) = builder.func().inst_result_value(inst) {
-                                replacements.insert(result, object);
-                            }
-                            return false;
-                        }
-                        let offset = builder.imm(offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
-                    }
-                    InstKind::MemoryObjectElementAddr { object, layout, index } => {
-                        // The rewritten `Add` keeps the `MemPtr` result type. This is safe because
-                        // Solidity bounds-checks the index before forming the address.
-                        let Some(offset) = memory_element_offset::<P>(&mut builder, index, layout)
-                        else {
-                            return true;
-                        };
-                        let offset = offset.unwrap_or_else(|| builder.imm(0));
-                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
-                    }
-                    InstKind::MemoryObjectLoadField { object, layout, field } => {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            return true;
-                        };
-                        if let Some(location) = builder.func().value_slice_location(object) {
-                            let base = builder.slice_ptr(object);
-                            let address = builder.add_u64_offset(base, offset);
-                            let Some(kind) = slice_load_kind(location, address) else {
-                                return true;
-                            };
-                            builder.func_mut().inst_mut(inst).kind = kind;
-                            return true;
-                        }
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
-                    }
-                    InstKind::MemoryObjectStoreField { object, layout, field, value } => {
-                        let Some(offset) = P::field_offset(layout, field) else {
-                            return true;
-                        };
-                        let address = builder.add_u64_offset(object, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::SliceLoadElement { slice, index } => {
                         let Some(location) = slice_location(builder.func(), &views, slice) else {
@@ -277,14 +156,6 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             return true;
                         };
                         builder.func_mut().inst_mut(inst).kind = kind;
-                    }
-                    InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                        let Some(address) =
-                            memory_element_address::<P>(&mut builder, object, index, layout)
-                        else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
                     InstKind::SliceLoadByte { slice, index } => {
                         let Some(load) = slice_word_load::<P>(&mut builder, &views, slice, index)
@@ -298,14 +169,6 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             replacements.insert(result, byte);
                         }
                         return false;
-                    }
-                    InstKind::MemoryObjectStoreElement { object, layout, index, value } => {
-                        let Some(address) =
-                            memory_element_address::<P>(&mut builder, object, index, layout)
-                        else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::SliceStoreElement { slice, index, value } => {
                         let address =
@@ -594,7 +457,14 @@ fn slice_data<P: MemoryLayoutPolicy>(
     views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
     slice: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let Some(&object) = views.get(&slice) else { return builder.slice_ptr(slice) };
+    let Some(&object) = views.get(&slice) else {
+        if let Value::Inst(inst) = *builder.func().value(slice)
+            && let InstKind::MakeSlice { ptr, .. } = builder.func().inst(inst).kind
+        {
+            return builder.cast(ptr, MirType::I256);
+        }
+        return builder.slice_ptr(slice);
+    };
     let header = builder.cast(object, MirType::I256);
     builder.add_u64_offset(header, P::DYNAMIC_HEADER_SIZE)
 }
@@ -637,34 +507,6 @@ fn slice_element_address<P: MemoryLayoutPolicy>(
         let stride = builder.imm(P::WORD_SIZE);
         let offset = builder.mul(index, stride);
         builder.add(base, offset)
-    }
-}
-
-fn memory_element_address<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    object: crate::mir::ValueId,
-    index: crate::mir::ValueId,
-    layout: MemoryObjectLayout,
-) -> Option<crate::mir::ValueId> {
-    let offset = memory_element_offset::<P>(builder, index, layout)?;
-    Some(offset.map_or(object, |offset| dynamic_offset_address(builder, object, offset)))
-}
-
-/// Returns a fixed-array element's byte offset from its object, or `None` inside for offset zero.
-fn memory_element_offset<P: MemoryLayoutPolicy>(
-    builder: &mut FunctionBuilder<'_>,
-    index: crate::mir::ValueId,
-    layout: MemoryObjectLayout,
-) -> Option<Option<crate::mir::ValueId>> {
-    let stride = P::element_stride(layout)?;
-    debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
-    if let Some(index) = builder.func().value_u64(index)
-        && let Some(offset) = index.checked_mul(stride)
-    {
-        Some((offset != 0).then(|| builder.imm(offset)))
-    } else {
-        let stride = builder.imm(stride);
-        Some(Some(builder.mul(index, stride)))
     }
 }
 

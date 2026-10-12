@@ -36,11 +36,12 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_object_store_element memoryfixedarray<2, 1>, v2, 0, 1
-    memory_object_store_element memoryfixedarray<2, 1>, v2, 1, 2
-    v3 = insert_value struct0, undef struct0, 0, arg0
-    v4 = insert_value struct0, v3, 1, v2
-    ret v4
+    v3 = make_memory_slice v2, 2
+    slice_store_element v3, 0, 1
+    slice_store_element v3, 1, 2
+    v4 = insert_value struct0, undef struct0, 0, arg0
+    v5 = insert_value struct0, v4, 1, v2
+    ret v5
 }
 
 fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
@@ -259,13 +260,14 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v20 = extract_value struct1, v19, 0
     v21 = extract_value struct1, v19, 1
     v22 = sload v20 !metadata(storage=symbolic(v20))
-    v23 = lt 1, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v21, 1
-    v26 = insert_value struct0, undef struct0, 0, v22
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v23 = make_memory_slice v21, 2
+    v24 = lt 1, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = slice_load_element v23, 1
+    v27 = insert_value struct0, undef struct0, 0, v22
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

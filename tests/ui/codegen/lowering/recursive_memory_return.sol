@@ -19,8 +19,9 @@ contract C {
     // recursive function returning a memory struct
     // CHECK-LABEL: fn @build(
     // CHECK: icall @build,
-    // CHECK: alloc memorystruct<2>
-    // CHECK: memory_object_store_field memorystruct<2>
+    // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: [[FIELDS:v[0-9]+]] = make_memory_slice [[RESULT]], 2
+    // CHECK-NEXT: slice_store_element [[FIELDS]], 0
     // CHECK: ret
     function build(uint256 n) public pure returns (P memory) {
         if (n == 0) return P({x: 0, y: 0});

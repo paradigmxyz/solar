@@ -1008,12 +1008,12 @@ impl<'a> SlotSsaBuilder<'a> {
         true
     }
 
-    /// Earlier slot promotions rewrite store operands. Read the live MStore
+    /// Earlier slot promotions rewrite store operands. Read the live store
     /// rather than its collection-time value; a semantic zero has no explicit
     /// value operand and keeps the scalar zero supplied by SROA.
     fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
         match func.inst(inst).kind {
-            InstKind::MStore(_, value) => value,
+            InstKind::MStore(_, value) | InstKind::SliceStoreElement { value, .. } => value,
             InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
             _ => unreachable!("promoted definition must be a word store or zero fill"),
         }

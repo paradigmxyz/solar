@@ -11,9 +11,7 @@ use super::{OperandViews, canonical_operands, same_value};
 use crate::{
     backend::evm::op,
     mir::{
-        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectLayout, MirType, Op,
-        Value as MirValue, ValueId,
-        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, Value as MirValue, ValueId,
         utils::eval::eval_opcode,
     },
     target::Target,
@@ -621,9 +619,5 @@ impl generated::Context for RuleContext<'_> {
 
     fn has_known_sign_bit(&mut self, value: Value) -> bool {
         has_known_sign_bit(self.func, value)
-    }
-
-    fn field_offset(&mut self, layout: MemoryObjectLayout, field: u64) -> Option<u64> {
-        EvmMemoryLayout::field_offset(layout, field)
     }
 }

@@ -6,30 +6,32 @@ fn @structArray(arg0: i256) -> memptr [selector=0x0f634b74, pure, abi_params=[u2
     mstore v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v6]
+    v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v8 = checked_add u256, arg0, 1
-    memory_object_store_field memorystruct<2>, v7, 0, arg0
-    memory_object_store_field memorystruct<2>, v7, 1, v8
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptrtoint memptr v7 to i256
-    slice_store_element v9, 0, v13
+    v8 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v9 = checked_add u256, arg0, 1
+    v10 = make_memory_slice v8, 2
+    slice_store_element v10, 0, arg0
+    slice_store_element v10, 1, v9
+    v11 = memory_slice v0
+    v12 = slice_len v11
+    v13 = lt 0, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptrtoint memptr v8 to i256
+    slice_store_element v11, 0, v15
     ret v0
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v3, 0, 0
-    memory_object_store_field memorystruct<2>, v3, 1, 0
-    v4 = memory_slice v0
-    v5 = ptrtoint memptr v3 to i256
-    slice_store_element v4, v1, v5
-    v6 = add v1, 1
+    v4 = make_memory_slice v3, 2
+    slice_store_element v4, 0, 0
+    slice_store_element v4, 1, 0
+    v5 = memory_slice v0
+    v6 = ptrtoint memptr v3 to i256
+    slice_store_element v5, v1, v6
+    v7 = add v1, 1
     jump bb1
 }
 

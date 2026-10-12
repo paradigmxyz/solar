@@ -9,9 +9,10 @@ contract AbiNestedReturn {
 
     // CHECK-LABEL: fn @structArray{{[( ]}}
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: alloc memorystruct<2>
-    // CHECK: memory_object_store_field memorystruct<2>, [[PAIR:v[0-9]+]], 0
-    // CHECK: memory_object_store_field memorystruct<2>, [[PAIR]], 1
+    // CHECK: [[PAIR:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: [[FIELDS:v[0-9]+]] = make_memory_slice [[PAIR]], 2
+    // CHECK-NEXT: slice_store_element [[FIELDS]], 0
+    // CHECK-NEXT: slice_store_element [[FIELDS]], 1
     // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[OUT]]
     // CHECK: [[ELEM:v[0-9]+]] = ptrtoint memptr [[PAIR]] to i256
     // CHECK: slice_store_element [[VIEW]], 0, [[ELEM]]

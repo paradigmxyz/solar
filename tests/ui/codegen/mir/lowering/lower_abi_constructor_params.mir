@@ -18,18 +18,22 @@
 // CHECK: + [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
 // CHECK: + [[INNER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[INNER_INDEX]], 2
-// CHECK: + [[INNER_PTR:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
-// CHECK-NEXT: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], [[OUTER_INDEX]], [[INNER_PTR]]
+// CHECK: + [[OUTER_VIEW:v[0-9]+]] = make_memory_slice [[OUTER]], 2
+// CHECK-NEXT: + [[INNER_PTR:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
+// CHECK-NEXT: + slice_store_element [[OUTER_VIEW]], [[OUTER_INDEX]], [[INNER_PTR]]
 // CHECK: + {{v[0-9]+}} = mul [[INNER_INDEX]], 32
 // CHECK: + [[WORD:v[0-9]+]] = mload
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[INNER]], [[INNER_INDEX]], [[WORD]]
+// CHECK-NEXT: + [[INNER_VIEW:v[0-9]+]] = make_memory_slice [[INNER]], 2
+// CHECK-NEXT: + slice_store_element [[INNER_VIEW]], [[INNER_INDEX]], [[WORD]]
 @module LowerAbiConstructorParams
 
 fn @constructor(arg0: memptr, arg1: i256) [abi_params=[array<2, array<2, u256>>, u256]] {
   bb0:
-    v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
+    v4 = make_memory_slice arg0, 2
+    v0 = slice_load_element v4, 1
     v3 = inttoptr i256 v0 to memptr
-    v1 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
+    v5 = make_memory_slice v3, 2
+    v1 = slice_load_element v5, 0
     v2 = add v1, arg1
     mstore 0, v2
     stop

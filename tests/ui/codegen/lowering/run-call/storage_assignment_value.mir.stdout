@@ -42,12 +42,14 @@ fn @assignmentStruct() -> memptr [selector=0x2e58a5e6, abi_params=[], abi_return
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v2 = ptrtoint memptr v1 to i256
-    memory_object_store_field memorystruct<1>, v0, 0, v2
-    v3 = memory_object_load_field memorystruct<1>, v0, 0
-    v4 = inttoptr i256 v3 to memptr
-    icall @store_storage_bytes, 0, v4
-    v5 = load_storage_bytes 0
-    ret v5
+    v3 = make_memory_slice v0, 1
+    slice_store_element v3, 0, v2
+    v4 = make_memory_slice v0, 1
+    v5 = slice_load_element v4, 0
+    v6 = inttoptr i256 v5 to memptr
+    icall @store_storage_bytes, 0, v6
+    v7 = load_storage_bytes 0
+    ret v7
 }
 
 fn @assignmentCalldata(arg0: calldataslice) -> memptr [selector=0x47c196ab, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

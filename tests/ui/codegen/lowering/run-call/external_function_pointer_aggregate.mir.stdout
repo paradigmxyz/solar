@@ -239,33 +239,36 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
 fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = address
-    v2 = zext i160 v1 to i256
-    v3 = shl 32, v2
-    v4 = or v3, 0x7cf5dab0
-    v5 = shl 64, v4
-    memory_object_store_field memorystruct<1>, v0, 0, v5
-    v6 = memory_object_load_field memorystruct<1>, v0, 0
-    v7 = shr 64, v6
-    v8 = and v7, 0xffffffff
-    v9 = shl 224, v8
-    v10 = shr 32, v7
-    v11 = gas
-    v12 = abi_encode [word], selector v9, args 8
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = call v11, v10, 0, v13, v14, 0, 32
-    jumpi v15, bb2, bb1
+    v1 = make_memory_slice v0, 1
+    slice_store_element v1, 0, 0
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl 32, v3
+    v5 = or v4, 0x7cf5dab0
+    v6 = make_memory_slice v0, 1
+    v7 = shl 64, v5
+    slice_store_element v6, 0, v7
+    v8 = make_memory_slice v0, 1
+    v9 = slice_load_element v8, 0
+    v10 = shr 64, v9
+    v11 = and v10, 0xffffffff
+    v12 = shl 224, v11
+    v13 = shr 32, v10
+    v14 = gas
+    v15 = abi_encode [word], selector v12, args 8
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = call v14, v13, 0, v16, v17, 0, 32
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = add 0, 0
+    v22 = mload v21
+    ret v22
 }
 
 fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

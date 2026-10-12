@@ -5,14 +5,16 @@ fn @f() -> memptr [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<
     v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 640
-    v2 = lt 0, 20
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryfixedarray<20, 1>, v0, 0, 42
-    v4 = lt 1, 20
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    memory_object_store_element memoryfixedarray<20, 1>, v0, 1, 43
+    v2 = make_memory_slice v0, 20
+    v3 = lt 0, 20
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    slice_store_element v2, 0, 42
+    v5 = make_memory_slice v0, 20
+    v6 = lt 1, 20
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    slice_store_element v5, 1, 43
     ret v0
 }
 

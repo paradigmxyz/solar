@@ -118,13 +118,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
-        // One view serves both the bounds check and the access.
-        let target = match layout {
-            MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes => {
-                self.builder.memory_view(object)
-            }
-            _ => object,
-        };
+        // One view serves the bounds check and the access.
+        let target = self.builder.memory_object_view(object, layout);
         match layout {
             MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
                 // bounds_check(index, object.length)
@@ -135,9 +130,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_element(target, layout, index);
+                let value = self.builder.memory_load_element(target, layout, index);
                 if self.types.memory_layout(element).is_some() {
-                    return self.materialize_array_element(object, layout, index, element, value);
+                    return self.materialize_array_element(target, layout, index, element, value);
                 }
                 Some(self.normalize_memory_scalar(element, value))
             }

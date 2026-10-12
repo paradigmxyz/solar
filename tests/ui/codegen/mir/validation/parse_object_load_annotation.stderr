@@ -1,4 +1,4 @@
-error: object load annotation must be `memptr`
+error: slice load annotation must be `memptr`
    ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_object_load_annotation.mir:LL:CC
    │
 LL │     ret v0

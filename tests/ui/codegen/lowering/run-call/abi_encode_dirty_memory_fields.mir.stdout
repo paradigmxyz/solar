@@ -5,30 +5,37 @@ fn @dirty() -> memptr [pure] {
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 192
-    memory_object_store_field memorystruct<6>, v0, 0, 1
-    memory_object_store_field memorystruct<6>, v0, 1, 1
-    v2 = lt i8 1, i8 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    memory_object_store_field memorystruct<6>, v0, 2, 1
-    memory_object_store_field memorystruct<6>, v0, 3, 1
-    v4 = sext i8 255 to i256
-    memory_object_store_field memorystruct<6>, v0, 4, v4
-    memory_object_store_field memorystruct<6>, v0, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v5 = ptrtoint memptr v0 to i256
-    mstore v5, 511
-    v6 = ptrtoint memptr v0 to i256
-    v7 = add v6, 32
-    mstore v7, 258
-    v8 = ptrtoint memptr v0 to i256
-    v9 = add v8, 96
-    mstore v9, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v10 = ptrtoint memptr v0 to i256
-    v11 = add v10, 128
-    mstore v11, 254
+    v2 = make_memory_slice v0, 6
+    v3 = make_memory_slice v0, 6
+    slice_store_element v3, 0, 1
+    v4 = make_memory_slice v0, 6
+    slice_store_element v4, 1, 1
+    v5 = lt i8 1, i8 2
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = make_memory_slice v0, 6
+    slice_store_element v7, 2, 1
+    v8 = make_memory_slice v0, 6
+    slice_store_element v8, 3, 1
+    v9 = make_memory_slice v0, 6
+    v10 = sext i8 255 to i256
+    slice_store_element v9, 4, v10
+    v11 = make_memory_slice v0, 6
+    slice_store_element v11, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
     v12 = ptrtoint memptr v0 to i256
-    v13 = add v12, 160
-    mstore v13, 0x1234567800000000000000000000000000000000000000000000000000000000
+    mstore v12, 511
+    v13 = ptrtoint memptr v0 to i256
+    v14 = add v13, 32
+    mstore v14, 258
+    v15 = ptrtoint memptr v0 to i256
+    v16 = add v15, 96
+    mstore v16, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v17 = ptrtoint memptr v0 to i256
+    v18 = add v17, 128
+    mstore v18, 254
+    v19 = ptrtoint memptr v0 to i256
+    v20 = add v19, 160
+    mstore v20, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

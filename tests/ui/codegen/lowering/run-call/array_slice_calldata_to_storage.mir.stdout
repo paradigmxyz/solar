@@ -68,11 +68,12 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     jump bb2
   bb2:
     sstore 0, v44 !metadata(storage=slot(0))
+    v52 = memory_slice v37
     jump bb6
   bb6:
-    v52 = phi [bb2: 0], [bb7: v58]
-    v53 = lt v52, v44
-    jumpi v53, bb7, bb8
+    v53 = phi [bb2: 0], [bb7: v58]
+    v54 = lt v53, v44
+    jumpi v54, bb7, bb8
   bb8:
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = lt 0, v59
@@ -83,12 +84,11 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v64 = sload v63 !metadata(storage=symbolic(v62))
     ret v64
   bb7:
-    v54 = memory_slice v37
-    v55 = slice_load_element v54, v52
+    v55 = slice_load_element v52, v53
     v56 = storage_array_data_slot 0
-    v57 = add v56, v52
+    v57 = add v56, v53
     sstore v57, v55 !metadata(storage=symbolic(v57))
-    v58 = add v52, 1
+    v58 = add v53, 1
     jump bb6
   bb4:
     v49 = storage_array_data_slot 0

@@ -341,7 +341,7 @@ impl PackedEncoder<'_, '_> {
                 // mstore(destination, element)
                 let element_value = match source {
                     PackedArraySource::Memory { layout } => {
-                        self.builder.memory_object_load_element(value, layout, index)
+                        self.builder.memory_load_element(value, layout, index)
                     }
                     PackedArraySource::Slice(location) => {
                         debug_assert_ne!(location, SliceLocation::Returndata);
@@ -377,8 +377,7 @@ impl PackedEncoder<'_, '_> {
                 let nested_length = self.builder.imm(*len);
                 let (nested_value, nested_source) = match source {
                     PackedArraySource::Memory { layout } => {
-                        let nested_value =
-                            self.builder.memory_object_load_element(value, layout, index);
+                        let nested_value = self.builder.memory_load_element(value, layout, index);
                         let nested_layout = MemoryObjectLayout::word_fixed_array(*len);
                         (nested_value, PackedArraySource::Memory { layout: nested_layout })
                     }

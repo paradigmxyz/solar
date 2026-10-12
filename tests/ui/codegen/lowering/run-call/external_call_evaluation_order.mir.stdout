@@ -137,22 +137,25 @@ fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     v0 = alloc memoryfixedarray<257, 1>, exact, uninitialized, infallible, 0x2020 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 0x2020
-    v2 = lt 0, 257
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryfixedarray<257, 1>, v0, 0, 7
-    v4 = lt 256, 257
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    memory_object_store_element memoryfixedarray<257, 1>, v0, 256, 9
-    v6 = icall @dirtyUint8, 256
-    v7 = trunc i256 v6 to i8
-    v8 = zext i8 v7 to i256
-    v9 = lt v8, 257
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryfixedarray<257, 1>, v0, v8
-    ret v11
+    v2 = make_memory_slice v0, 257
+    v3 = lt 0, 257
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    slice_store_element v2, 0, 7
+    v5 = make_memory_slice v0, 257
+    v6 = lt 256, 257
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    slice_store_element v5, 256, 9
+    v8 = icall @dirtyUint8, 256
+    v9 = trunc i256 v8 to i8
+    v10 = zext i8 v9 to i256
+    v11 = make_memory_slice v0, 257
+    v12 = lt v10, 257
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = slice_load_element v11, v10
+    ret v14
 }
 
 fn @mutate() -> i256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

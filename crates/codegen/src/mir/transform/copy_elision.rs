@@ -19,7 +19,7 @@
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -142,17 +142,13 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        let (target, index, data_offset, stride) = match func.inst(inst).kind {
-            InstKind::MemoryObjectStoreElement { layout, object, index, .. } => {
-                (object, index, 0, EvmMemoryLayout::element_stride(layout)?)
-            }
-            InstKind::SliceStoreElement { slice, index, .. } => (
-                func.memory_slice_object(slice)?,
-                index,
-                EvmMemoryLayout::DYNAMIC_HEADER_SIZE,
-                EvmMemoryLayout::WORD_SIZE,
-            ),
-            _ => return None,
+        let InstKind::SliceStoreElement { slice, index, .. } = func.inst(inst).kind else {
+            return None;
+        };
+        // A dynamic object's elements follow its length word; a fixed one's start at it.
+        let (target, data_offset) = match func.memory_slice_object(slice) {
+            Some(object) => (object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE),
+            None => (func.fixed_view_object(slice)?, 0),
         };
         if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
@@ -164,10 +160,8 @@ impl CopyElisionCx {
             && let InstKind::Lt(value, bound) = func.inst(condition).kind
             && value == index
         {
-            let last = func.value_u64(bound)?.checked_sub(1)?;
-            data_offset
-                .checked_add(last.checked_mul(stride)?)?
-                .checked_add(EvmMemoryLayout::WORD_SIZE)
+            let bound = func.value_u64(bound).filter(|&bound| bound > 0)?;
+            data_offset.checked_add(bound.checked_mul(EvmMemoryLayout::WORD_SIZE)?)
         } else {
             None
         }
@@ -206,10 +200,7 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if matches!(
-                    inst.kind,
-                    InstKind::MemoryObjectStoreElement { .. } | InstKind::SliceStoreElement { .. }
-                ) {
+                if matches!(inst.kind, InstKind::SliceStoreElement { .. }) {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
                 inst.visit_operands(|operand| {
@@ -248,11 +239,7 @@ impl CopyElisionCx {
                     | InstKind::IntToPtr(value)
                     | InstKind::MemorySlice(value)
                     | InstKind::SlicePtr(value)
-                    | InstKind::MakeSlice { ptr: value, .. }
-                    | InstKind::MemoryObjectFieldAddr { object: value, .. }
-                    | InstKind::MemoryObjectElementAddr { object: value, .. } => {
-                        derived.contains(value)
-                    }
+                    | InstKind::MakeSlice { ptr: value, .. } => derived.contains(value),
                     _ => false,
                 };
                 if propagates
@@ -292,22 +279,6 @@ impl CopyElisionCx {
                     }
                     InstKind::MemoryZero(addr, _) => {
                         if derived.contains(addr) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectStoreField { object, value, .. } => {
-                        if derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
-                        if derived.contains(index) || derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
                             writes.push(inst_id);
                         }
                     }
@@ -369,8 +340,6 @@ impl CopyElisionCx {
                     | InstKind::MemorySlice(_)
                     | InstKind::SlicePtr(_)
                     | InstKind::MakeSlice { .. }
-                    | InstKind::MemoryObjectFieldAddr { .. }
-                    | InstKind::MemoryObjectElementAddr { .. }
                     | InstKind::Alloc { .. } => {}
                     // Any other use of a derived address is treated as a read.
                     kind => {

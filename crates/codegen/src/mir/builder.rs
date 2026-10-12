@@ -918,52 +918,72 @@ impl<'a> FunctionBuilder<'a> {
         self.keccak256(data, len)
     }
 
-    /// Loads a direct struct field through the semantic object layout.
-    pub(crate) fn memory_object_load_field(
+    /// Returns a word-slice view of a memory object or slice. A fixed array or struct starts at
+    /// its object; a dynamic object's payload follows its length word.
+    pub(crate) fn memory_object_view(
         &mut self,
         object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
+        layout: MemoryObjectLayout,
+    ) -> ValueId {
+        if matches!(self.func.value_ty(object), Some(MirType::Slice(_))) {
+            return object;
+        }
+        let Some(words) = layout.fixed_words() else { return self.memory_slice(object) };
+        // view = make_memory_slice object, words
+        let len = self.imm(words);
+        let location = SliceLocation::Memory;
+        self.emit_inst(
+            InstKind::MakeSlice { ptr: object, len, location },
+            Some(MirType::Slice(location)),
+        )
+    }
+
+    /// Loads a direct struct field.
+    pub(crate) fn memory_load_field(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
         field: u64,
     ) -> ValueId {
-        self.memory_object_load_field_as(object, layout, field, MirType::I256)
+        self.memory_load_field_as(object, layout, field, MirType::I256)
     }
 
     /// Loads a struct field as a `memptr` when `ty` is one, and as a word otherwise.
-    pub(crate) fn memory_object_load_field_as(
+    pub(crate) fn memory_load_field_as(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
         field: u64,
         ty: MirType,
     ) -> ValueId {
-        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
-        // result = memory_object_load_field layout, object, field
-        self.emit_inst(InstKind::MemoryObjectLoadField { object, layout, field }, Some(result))
+        let index = self.imm(field);
+        self.memory_load_element_as(object, layout, index, ty)
     }
 
-    /// Stores a direct struct field through the semantic object layout.
-    pub(crate) fn memory_object_store_field(
+    /// Stores a direct struct field.
+    pub(crate) fn memory_store_field(
         &mut self,
         object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
+        layout: MemoryObjectLayout,
         field: u64,
         value: ValueId,
     ) {
-        self.emit_void_inst(InstKind::MemoryObjectStoreField { object, layout, field, value });
+        let index = self.imm(field);
+        self.memory_store_element(object, layout, index, value);
     }
 
-    /// Loads an array element through the semantic object layout.
-    pub(crate) fn memory_object_load_element(
+    /// Loads an array element.
+    pub(crate) fn memory_load_element(
         &mut self,
         object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
+        layout: MemoryObjectLayout,
         index: ValueId,
     ) -> ValueId {
-        self.memory_object_load_element_as(object, layout, index, MirType::I256)
+        self.memory_load_element_as(object, layout, index, MirType::I256)
     }
 
     /// Loads an array element as a `memptr` when `ty` is one, and as a word otherwise.
-    pub(crate) fn memory_object_load_element_as(
+    pub(crate) fn memory_load_element_as(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
@@ -971,13 +991,9 @@ impl<'a> FunctionBuilder<'a> {
         ty: MirType,
     ) -> ValueId {
         let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
-        if Self::is_slice_layout(self.func, object, layout) {
-            let slice = self.memory_view(object);
-            // result = slice_load_element slice, index
-            return self.emit_inst(InstKind::SliceLoadElement { slice, index }, Some(result));
-        }
-        // result = memory_object_load_element layout, object, index
-        self.emit_inst(InstKind::MemoryObjectLoadElement { object, layout, index }, Some(result))
+        let slice = self.memory_object_view(object, layout);
+        // result = slice_load_element slice, index
+        self.emit_inst(InstKind::SliceLoadElement { slice, index }, Some(result))
     }
 
     /// Loads one byte from a bytes object or slice.
@@ -986,21 +1002,17 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SliceLoadByte { slice, index }, Some(MirType::I256))
     }
 
-    /// Stores an array element through the semantic object layout.
-    pub(crate) fn memory_object_store_element(
+    /// Stores an array element.
+    pub(crate) fn memory_store_element(
         &mut self,
         object: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
+        layout: MemoryObjectLayout,
         index: ValueId,
         value: ValueId,
     ) {
-        if Self::is_slice_layout(self.func, object, layout) {
-            let slice = self.memory_view(object);
-            // slice_store_element slice, index, value
-            self.emit_void_inst(InstKind::SliceStoreElement { slice, index, value });
-            return;
-        }
-        self.emit_void_inst(InstKind::MemoryObjectStoreElement { object, layout, index, value });
+        let slice = self.memory_object_view(object, layout);
+        // slice_store_element slice, index, value
+        self.emit_void_inst(InstKind::SliceStoreElement { slice, index, value });
     }
 
     /// Stores one byte in a bytes object.
@@ -1013,11 +1025,6 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn memory_store_word(&mut self, object: ValueId, offset: ValueId, value: ValueId) {
         let slice = self.memory_view(object);
         self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
-    }
-
-    fn is_slice_layout(func: &Function, object: ValueId, layout: MemoryObjectLayout) -> bool {
-        matches!(layout, MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes)
-            || matches!(func.value_ty(object), Some(MirType::Slice(_)))
     }
 
     /// Loads one word at a byte offset from a memory or calldata slice. Calldata cannot change,

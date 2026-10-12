@@ -3,62 +3,64 @@
 fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = make_memory_slice v0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
-    v2 = lt v1, 2
-    jumpi v2, bb2, bb3
+    v2 = phi [bb0: 0], [bb2: v4]
+    v3 = lt v2, 2
+    jumpi v3, bb2, bb3
   bb3:
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v5 = slice_ptr arg0
-    v6 = slice_len arg0
-    v7 = gt v6, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v7
-    v8 = calldatasize
-    v9 = sub v8, v6
-    v10 = sgt v5, v9
-    icall revert_if<calldata_tail_too_short>, v10
-    v11 = slice_len arg0
-    v12 = add v11, 63
-    v13 = lt v12, v11
-    icall panic_if<0x41>, v13
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    mstore v16, v11
-    v17 = ptrtoint memptr v16 to i256
-    v18 = add v17, 32
-    v19 = slice_len arg0
-    v20 = make_memory_slice v18, v19
-    slice_copy v20, 0, arg0
-    v21 = ptrtoint memptr v16 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v21
-    v22 = slice_ptr arg1
-    v23 = slice_len arg1
-    v24 = gt v23, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v24
-    v25 = calldatasize
-    v26 = sub v25, v23
-    v27 = sgt v22, v26
-    icall revert_if<calldata_tail_too_short>, v27
-    v28 = slice_len arg1
-    v29 = add v28, 63
-    v30 = lt v29, v28
-    icall panic_if<0x41>, v30
-    v31 = not 31
-    v32 = and v29, v31
-    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
-    mstore v33, v28
-    v34 = ptrtoint memptr v33 to i256
-    v35 = add v34, 32
-    v36 = slice_len arg1
-    v37 = make_memory_slice v35, v36
-    slice_copy v37, 0, arg1
-    v38 = ptrtoint memptr v33 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v38
-    ret v4
+    v5 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v6 = make_memory_slice v5, 2
+    v7 = slice_ptr arg0
+    v8 = slice_len arg0
+    v9 = gt v8, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = calldatasize
+    v11 = sub v10, v8
+    v12 = sgt v7, v11
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = slice_len arg0
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    mstore v18, v13
+    v19 = ptrtoint memptr v18 to i256
+    v20 = add v19, 32
+    v21 = slice_len arg0
+    v22 = make_memory_slice v20, v21
+    slice_copy v22, 0, arg0
+    v23 = ptrtoint memptr v18 to i256
+    slice_store_element v6, 0, v23
+    v24 = slice_ptr arg1
+    v25 = slice_len arg1
+    v26 = gt v25, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v26
+    v27 = calldatasize
+    v28 = sub v27, v25
+    v29 = sgt v24, v28
+    icall revert_if<calldata_tail_too_short>, v29
+    v30 = slice_len arg1
+    v31 = add v30, 63
+    v32 = lt v31, v30
+    icall panic_if<0x41>, v32
+    v33 = not 31
+    v34 = and v31, v33
+    v35 = alloc memorybytes, exact, uninitialized, infallible, v34
+    mstore v35, v30
+    v36 = ptrtoint memptr v35 to i256
+    v37 = add v36, 32
+    v38 = slice_len arg1
+    v39 = make_memory_slice v37, v38
+    slice_copy v39, 0, arg1
+    v40 = ptrtoint memptr v35 to i256
+    slice_store_element v6, 1, v40
+    ret v5
   bb2:
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96
-    v3 = add v1, 1
+    slice_store_element v1, v2, 96
+    v4 = add v2, 1
     jump bb1
 }

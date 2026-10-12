@@ -59,21 +59,25 @@ fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i2
     v44 = make_memory_slice v42, v43
     slice_copy v44, 0, arg2
     v45 = ptrtoint memptr v40 to i256
-    memory_object_store_field memorystruct<3>, v0, 0, arg0
-    memory_object_store_field memorystruct<3>, v0, 1, v28
-    memory_object_store_field memorystruct<3>, v0, 2, v45
-    v46 = memory_object_load_field memorystruct<3>, v0, 0
-    v47 = memory_object_load_field memorystruct<3>, v0, 1, memptr
-    v48 = memory_slice v47
-    v49 = slice_len v48
-    v50 = checked_mul u256, v49, 10
-    v51 = checked_add u256, v46, v50
-    v52 = memory_object_load_field memorystruct<3>, v0, 2, memptr
-    v53 = memory_slice v52
-    v54 = slice_len v53
-    v55 = checked_mul u256, v54, 100
-    v56 = checked_add u256, v51, v55
-    ret v56
+    v46 = make_memory_slice v0, 3
+    slice_store_element v46, 0, arg0
+    slice_store_element v46, 1, v28
+    slice_store_element v46, 2, v45
+    v47 = make_memory_slice v0, 3
+    v48 = slice_load_element v47, 0
+    v49 = make_memory_slice v0, 3
+    v50 = slice_load_element v49, 1, memptr
+    v51 = memory_slice v50
+    v52 = slice_len v51
+    v53 = checked_mul u256, v52, 10
+    v54 = checked_add u256, v48, v53
+    v55 = make_memory_slice v0, 3
+    v56 = slice_load_element v55, 2, memptr
+    v57 = memory_slice v56
+    v58 = slice_len v57
+    v59 = checked_mul u256, v58, 100
+    v60 = checked_add u256, v54, v59
+    ret v60
 }
 
 fn @viaDeclaration(arg0: calldataslice) -> i256 [selector=0xcd64a752, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {

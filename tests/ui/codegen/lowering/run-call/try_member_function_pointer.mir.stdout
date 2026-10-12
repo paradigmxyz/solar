@@ -16,15 +16,17 @@ fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word
 fn @file() -> memptr [selector=0x8525855d, view, abi_params=[], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v2 = address
-    v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
-    v5 = or v4, 0x78710d37
-    v6 = shl 64, v5
-    memory_object_store_field memorystruct<1>, v1, 0, v6
-    ret v1
+    v1 = make_memory_slice v0, 1
+    slice_store_element v1, 0, 0
+    v2 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v3 = address
+    v4 = zext i160 v3 to i256
+    v5 = shl 32, v4
+    v6 = or v5, 0x78710d37
+    v7 = shl 64, v6
+    v8 = make_memory_slice v2, 1
+    slice_store_element v8, 0, v7
+    ret v2
 }
 
 fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -35,18 +37,20 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v3 = shl 32, v2
     v4 = or v3, 0xeee97206
     v5 = shl 64, v4
-    memory_object_store_field memorystruct<1>, v0, 0, v5
-    v6 = memory_object_load_field memorystruct<1>, v0, 0
-    v7 = shr 64, v6
-    v8 = and v7, 0xffffffff
-    v9 = shl 224, v8
-    v10 = shr 32, v7
-    v11 = gas
-    v12 = abi_encode [word], selector v9, args arg0
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = call v11, v10, 0, v13, v14, 0, 32
-    jumpi v15, bb1, bb2
+    v6 = make_memory_slice v0, 1
+    slice_store_element v6, 0, v5
+    v7 = make_memory_slice v0, 1
+    v8 = slice_load_element v7, 0
+    v9 = shr 64, v8
+    v10 = and v9, 0xffffffff
+    v11 = shl 224, v10
+    v12 = shr 32, v9
+    v13 = gas
+    v14 = abi_encode [word], selector v11, args arg0
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = call v13, v12, 0, v15, v16, 0, 32
+    jumpi v17, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -55,12 +59,12 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
   bb4:
     ret 1
   bb1:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    ret v21
   bb3:
     ret 0
 }
@@ -86,17 +90,18 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v11 = ptrtoint memptr v5 to i256
     v12 = make_memory_slice v11, 32
     v13 = abi_decode [tuple<function>], v12
-    v14 = memory_object_load_field memorystruct<1>, v13, 0
-    v15 = shr 64, v14
-    v16 = and v15, 0xffffffff
-    v17 = shl 224, v16
-    v18 = shr 32, v15
-    v19 = gas
-    v20 = abi_encode [], selector v17
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = staticcall v19, v18, v21, v22, 0, 32
-    jumpi v23, bb3, bb4
+    v14 = make_memory_slice v13, 1
+    v15 = slice_load_element v14, 0
+    v16 = shr 64, v15
+    v17 = and v16, 0xffffffff
+    v18 = shl 224, v17
+    v19 = shr 32, v16
+    v20 = gas
+    v21 = abi_encode [], selector v18
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = staticcall v20, v19, v22, v23, 0, 32
+    jumpi v24, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -105,12 +110,12 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
   bb6:
     ret 0
   bb3:
-    v24 = returndatasize
-    v25 = lt v24, 32
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    ret v28
   bb5:
     ret 0
 }
