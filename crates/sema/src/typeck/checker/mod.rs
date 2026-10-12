@@ -75,8 +75,8 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// Whether we're checking the length of a fixed-size array type, whose constant evaluation
-    /// reports the operations that fail in it.
+    /// Whether we're checking the length of a fixed-size array type whose constant evaluation
+    /// fails, which already reports the failed operation.
     in_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
@@ -269,7 +269,8 @@ impl<'gcx> TypeChecker<'gcx> {
     /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let prev = std::mem::replace(&mut self.in_array_len, true);
+        let fails = self.gcx.try_eval_const(size).is_err();
+        let prev = std::mem::replace(&mut self.in_array_len, fails);
         let ty = self.check_expr(size);
         self.in_array_len = prev;
         if !ty.is_integer() && !ty.references_error() {
