@@ -1,0 +1,38 @@
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero.sol:LL:CC
+   │
+LL │     uint constant b1 = addmod(3, 4, 0);
+   ╰╴                       ━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero.sol:LL:CC
+   │
+LL │     uint constant b2 = addmod(3, 4, a1);
+   ╰╴                       ━━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero.sol:LL:CC
+   │
+LL │     uint constant b3 = addmod(3, 4, a2 - 1);
+   ╰╴                       ━━━━━━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero.sol:LL:CC
+   │
+LL │     uint constant b1 = mulmod(3, 4, 0);
+   ╰╴                       ━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero.sol:LL:CC
+   │
+LL │     uint constant b2 = mulmod(3, 4, a1);
+   ╰╴                       ━━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero.sol:LL:CC
+   │
+LL │     uint constant b3 = mulmod(3, 4, a2 - 1);
+   ╰╴                       ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

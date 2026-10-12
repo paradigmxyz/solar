@@ -1873,8 +1873,21 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             Builtin::AbiEncodeCall => self.check_abi_encode_call_args(call_span, args.span, exprs),
             Builtin::AbiDecode => Ok(()),
+            // Like solc's static analyzer, reject a constant zero modulus.
+            Builtin::AddMod | Builtin::MulMod => match exprs {
+                [_, _, modulus] if self.is_const_zero(modulus) => {
+                    let msg = "arithmetic modulo zero";
+                    Err(self.dcx().err(msg).code(error_code!(4195)).span(call_span).emit())
+                }
+                _ => Ok(()),
+            },
             _ => Ok(()),
         }
+    }
+
+    /// Returns whether solc's constant evaluator gives the given expression the value zero.
+    fn is_const_zero(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.gcx.try_eval_solc_const(expr).is_ok_and(|value| value.is_zero())
     }
 
     fn check_require_args(
