@@ -247,9 +247,8 @@ resolves the inner declaration first, and constant folding gives assembly the
 same value Solidity sees. The parser also serves formatters and linters, which
 should accept the names.
 
-Coverage: `tests/ui/assembly/reserved_names.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol` and
-`tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
+and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
 
 ## Contract-Level Checks
 
