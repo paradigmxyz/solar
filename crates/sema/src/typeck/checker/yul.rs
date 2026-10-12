@@ -124,7 +124,16 @@ impl<'gcx> TypeChecker<'gcx> {
     ///
     /// This gives up after [`MAX_DEPTH`] constants, since the constant cycle check after type
     /// checking reports longer chains.
-    fn is_constant_recursive(&self, mut id: hir::VariableId) -> bool {
+    fn is_constant_recursive(&mut self, id: hir::VariableId) -> bool {
+        if let Some(&recursive) = self.circular_constants.get(&id) {
+            return recursive;
+        }
+        let recursive = self.follow_constant_values(id);
+        self.circular_constants.insert(id, recursive);
+        recursive
+    }
+
+    fn follow_constant_values(&self, mut id: hir::VariableId) -> bool {
         let mut seen = FxHashSet::default();
         for _ in 0..MAX_DEPTH {
             if !seen.insert(id) {

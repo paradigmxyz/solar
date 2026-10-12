@@ -35,7 +35,13 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             });
     },);
     gcx.set_typeck_results(typeck_results);
-    constant_cycles::check(gcx);
+    // solc's `PostTypeChecker` runs when type checking succeeds, and its own errors do not stop
+    // its constant cycle check.
+    let typeck_ok = gcx.dcx().has_errors().is_ok();
+    check_interface_variables(gcx);
+    if typeck_ok {
+        constant_cycles::check(gcx);
+    }
     control_flow::check(gcx);
     view_pure_checker::check(gcx);
 }
@@ -527,7 +533,6 @@ fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 /// - functions: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L432-L443>
 /// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
 /// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L292-L297>
-/// - variables: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/PostTypeChecker.cpp#L391-L401>
 fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
     if !contract.kind.is_interface() {
@@ -535,73 +540,77 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     }
 
     // Iterate over the items in declaration order to report them in the same order solc does.
-    for &item in contract.items {
-        match item {
-            ItemId::Function(f_id) => {
-                let f = gcx.hir.function(f_id);
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
 
-                // Modifiers are not functions in solc, so they get their own error instead of the
-                // function ones below.
-                if f.kind.is_modifier() {
-                    gcx.dcx()
-                        .err("modifiers cannot be defined or declared in interfaces")
-                        .code(error_code!(6408))
-                        .span(f.span)
-                        .emit();
-                    continue;
-                }
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below.
+        if f.kind.is_modifier() {
+            gcx.dcx()
+                .err("modifiers cannot be defined or declared in interfaces")
+                .code(error_code!(6408))
+                .span(f.span)
+                .emit();
+            continue;
+        }
 
-                // Getters have no declaration of their own in solc, and are always lowered as an
-                // implemented `external` function here; the variable they belong to is rejected
-                // below instead. Yul functions from inline assembly are items too, but they
-                // belong to the function that contains them, which is reported on its own.
-                if f.is_getter() || f.is_yul {
-                    continue;
-                }
+        // Getters have no declaration of their own in solc, and are always lowered as an
+        // implemented `external` function here; the variable they belong to is rejected by
+        // `check_interface_variables` instead. Yul functions from inline assembly are items too,
+        // but they belong to the function that contains them, which is reported on its own.
+        if f.is_getter() || f.is_yul {
+            continue;
+        }
 
-                // `virtual` is implied here, and ends solc's `virtual` chain: see
-                // `check_library_functions` and `check_unimplemented_functions`.
-                if f.marked_virtual {
-                    gcx.dcx()
-                        .warn("interface functions are implicitly `virtual`")
-                        .code(error_code!(5815))
-                        .span(f.span)
-                        .emit();
-                }
+        // `virtual` is implied here, and ends solc's `virtual` chain: see
+        // `check_library_functions` and `check_unimplemented_functions`.
+        if f.marked_virtual {
+            gcx.dcx()
+                .warn("interface functions are implicitly `virtual`")
+                .code(error_code!(5815))
+                .span(f.span)
+                .emit();
+        }
 
-                if f.body.is_some() {
-                    gcx.dcx()
-                        .err("functions in interfaces cannot have an implementation")
-                        .code(error_code!(4726))
-                        .span(f.span)
-                        .emit();
-                }
+        if f.body.is_some() {
+            gcx.dcx()
+                .err("functions in interfaces cannot have an implementation")
+                .code(error_code!(4726))
+                .span(f.span)
+                .emit();
+        }
 
-                if f.is_constructor() {
-                    gcx.dcx()
-                        .err("constructor cannot be defined in interfaces")
-                        .code(error_code!(6482))
-                        .span(f.span)
-                        .emit();
-                } else if f.visibility != Visibility::External {
-                    gcx.dcx()
-                        .err("functions in interfaces must be declared `external`")
-                        .code(error_code!(1560))
-                        .span(f.span)
-                        .emit();
-                }
-            }
-            // Parameters and struct fields are not items, so every variable item declared in an
-            // interface is rejected, `constant` ones included.
-            ItemId::Variable(v_id) => {
-                let v = gcx.hir.variable(v_id);
-                gcx.dcx()
-                    .err("variables cannot be declared in interfaces")
-                    .code(error_code!(8274))
-                    .span(v.span)
-                    .emit();
-            }
-            _ => {}
+        if f.is_constructor() {
+            gcx.dcx()
+                .err("constructor cannot be defined in interfaces")
+                .code(error_code!(6482))
+                .span(f.span)
+                .emit();
+        } else if f.visibility != Visibility::External {
+            gcx.dcx()
+                .err("functions in interfaces must be declared `external`")
+                .code(error_code!(1560))
+                .span(f.span)
+                .emit();
+        }
+    }
+}
+
+/// Rejects variables declared in interfaces.
+///
+/// solc reports this in its `PostTypeChecker`, so it does not hide constant cycle errors.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/PostTypeChecker.cpp#L391-L401>
+fn check_interface_variables(gcx: Gcx<'_>) {
+    for contract in gcx.hir.contracts().filter(|contract| contract.kind.is_interface()) {
+        // Parameters and struct fields are not items, so every variable item declared in an
+        // interface is rejected, `constant` ones included.
+        for v_id in contract.variables() {
+            gcx.dcx()
+                .err("variables cannot be declared in interfaces")
+                .code(error_code!(8274))
+                .span(gcx.hir.variable(v_id).span)
+                .emit();
         }
     }
 }

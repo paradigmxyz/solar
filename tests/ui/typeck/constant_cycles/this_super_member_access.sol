@@ -1,4 +1,3 @@
-//@ check-pass
 // The circular constant check follows member accesses on `this` and `super` without crashing.
 // TODO: solc rejects these reads with error 7615, which we do not report yet.
 

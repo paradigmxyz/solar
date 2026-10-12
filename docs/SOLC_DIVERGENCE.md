@@ -211,23 +211,20 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
-### TYPECK-010: Long constant dependency chains
+### TYPECK-010: Order of constant dependencies across sources
 
-Status: intentional.
+Status: parity debt.
 
-Difference: `solc` reports error 7380 when a depth-first search from one
-constant gets 256 constants deep. Each search skips the constants it already
-finished, so the depth it reaches depends on the order it visits them, and
-`solc` accepts some constants whose longest dependency chain is 256 long or
-more. `solar` reports 7380 for every such chain.
+Difference: when a constant reaches cycles through dependencies declared in
+different sources, error 6161 names the first of them. `solc` orders
+dependencies by AST ID, which follows parse order: the input files by name,
+then each newly imported source. `solar` orders them by declaration after
+sorting sources by imports, so an imported source comes first.
 
-Rationale: `solc` starts a new search from every constant, which takes
-quadratic time. `solar` shares finished constants across searches and records
-their longest chains, which takes linear time and still matches `solc` on
-plain chains.
+Rationale: `solar` does not track which sources were input files, which `solc`
+needs to number its AST.
 
-Coverage: `tests/ui/typeck/constant_cycles/exhausted_skip_path.sol` and
-`tests/ui/typeck/constant_cycles/exhausted_bottom_up.sol`.
+Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
 
 ## Contract-Level Checks
 

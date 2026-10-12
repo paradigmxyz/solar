@@ -81,6 +81,8 @@ struct TypeChecker<'gcx> {
     discarded: FxHashMap<hir::ExprId, Discarded>,
     /// Where the value of the expression being checked is used.
     value_position: ValuePosition,
+    /// Whether each constant read in inline assembly is circular.
+    circular_constants: FxHashMap<hir::VariableId, bool>,
 }
 
 /// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
@@ -158,6 +160,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_yul: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
+            circular_constants: FxHashMap::default(),
         }
     }
 

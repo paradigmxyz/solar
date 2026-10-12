@@ -4,20 +4,20 @@
 //! constant depends on every constant that an identifier or member access in its value resolves
 //! to. Each constant, in declaration order, starts a depth-first search over these dependencies,
 //! visited in declaration order. If the search reaches a cycle, error 6161 names the constant and
-//! the dependency the cycle was reached through, or the constant itself if it is on the cycle. A
-//! search that gets 256 constants deep reports error 7380 and ends the check, like solc's fatal
-//! error.
+//! its dependency that the cycle was reached through. A search that gets 256 constants deep
+//! reports error 7380 and ends the check, like solc's fatal error.
 //!
 //! solc starts each search afresh, which takes quadratic time when many constants share
-//! dependencies. Here later searches skip the constants that earlier ones finished, so the whole
-//! check takes linear time. A finished constant reaches no cycle, so this keeps every 6161 error.
-//! To keep 7380 on long chains, each finished constant records the length of its longest
-//! dependency chain, and a search that reaches it at a depth where that chain would get 256 deep
-//! reports 7380 at the constant there. solc's searches only follow the chains that their
-//! visiting order happens to explore, so we also report 7380 for some graphs that solc accepts.
+//! dependencies. A search can only report an error if its constant reaches a cycle or a chain of
+//! 256 constants, so one linear pass first finds the constants that do, and only those run solc's
+//! search. A constant that no constant references cannot be reached from its dependencies, so
+//! the search through its first dependency does not depend on it, and its result is shared with
+//! the other such constants. Valid programs take linear time; the searches for other erroneous
+//! constants can take quadratic time, as in solc.
 //!
 //! As in solc, this only runs when the type checker reported no errors, so type errors and the
-//! inline assembly error for circular constants (3558) hide these errors.
+//! inline assembly error for circular constants (3558) hide these errors. Errors that solc reports
+//! in its `PostTypeChecker`, such as variables in interfaces (8274), do not.
 
 use crate::{
     hir::{self, ExprKind, Visit},
@@ -26,30 +26,18 @@ use crate::{
 use solar_data_structures::{
     Never,
     cycle::{CycleDetector, CycleDetectorResult},
-    map::FxIndexMap,
+    map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::error_code;
-use std::{cell::Cell, ops::ControlFlow};
+use std::{cell::LazyCell, ops::ControlFlow};
 
 /// The depth at which solc gives up on a dependency chain.
 pub(super) const MAX_DEPTH: usize = 256;
 
-type Graph = FxIndexMap<hir::VariableId, Constant>;
-
-/// A constant that references other constants.
-struct Constant {
-    /// The referenced constants, in declaration order.
-    dependencies: Vec<hir::VariableId>,
-    /// The number of constants on the longest dependency chain from this one, set once its search
-    /// finishes.
-    height: Cell<usize>,
-}
+/// The referenced constants of each constant that references any, in declaration order.
+type Graph = FxIndexMap<hir::VariableId, Vec<hir::VariableId>>;
 
 pub(super) fn check(gcx: Gcx<'_>) {
-    if gcx.dcx().has_errors().is_err() {
-        return;
-    }
-
     let mut graph = Graph::default();
     for (id, var) in gcx.hir.variables_enumerated() {
         if var.is_constant()
@@ -60,18 +48,32 @@ pub(super) fn check(gcx: Gcx<'_>) {
             if !collector.references.is_empty() {
                 collector.references.sort_unstable();
                 collector.references.dedup();
-                let constant =
-                    Constant { dependencies: collector.references, height: Cell::new(0) };
-                graph.insert(id, constant);
+                graph.insert(id, collector.references);
             }
         }
     }
 
-    let mut cd = CycleDetector::new(&graph, visit_dependencies);
-    for &id in graph.keys() {
-        match cd.run_root(id) {
+    let heights = heights(&graph);
+    let referenced = LazyCell::new(|| graph.values().flatten().copied().collect::<FxHashSet<_>>());
+    // The first dependencies of unreferenced constants that a cycle was reached through.
+    let mut cyclic_firsts = FxHashSet::default();
+    for (&id, dependencies) in &graph {
+        if heights[&id] < MAX_DEPTH {
+            continue;
+        }
+        let first = dependencies[0];
+        let unreferenced = !referenced.contains(&id);
+        let result = if unreferenced && cyclic_firsts.contains(&first) {
+            CycleDetectorResult::Cycle(first)
+        } else {
+            CycleDetector::detect(&graph, id, visit_dependencies)
+        };
+        match result {
             CycleDetectorResult::Continue => {}
             CycleDetectorResult::Cycle(via) => {
+                if unreferenced && via == first {
+                    cyclic_firsts.insert(first);
+                }
                 let msg = format!(
                     "the value of the constant `{}` has a cyclic dependency via `{}`",
                     gcx.item_name(id),
@@ -91,11 +93,55 @@ pub(super) fn check(gcx: Gcx<'_>) {
     }
 }
 
+/// A constant on the search stack of [`heights`].
+struct Frame<'a> {
+    id: hir::VariableId,
+    /// The dependencies left to search.
+    dependencies: std::slice::Iter<'a, hir::VariableId>,
+    height: usize,
+}
+
+/// Returns, for every constant in `graph`, the number of constants on its longest dependency
+/// chain, or at least [`MAX_DEPTH`] if it reaches a cycle.
+///
+/// A cycle is a chain without end: a constant on the search stack counts as [`MAX_DEPTH`] high,
+/// so the constants that depend on it come out higher. The search keeps its own stack, since
+/// chains can be arbitrarily long.
+fn heights(graph: &Graph) -> FxHashMap<hir::VariableId, usize> {
+    let mut heights = FxHashMap::default();
+    let mut stack = Vec::<Frame<'_>>::new();
+    for (&root, dependencies) in graph {
+        if heights.contains_key(&root) {
+            continue;
+        }
+        heights.insert(root, MAX_DEPTH);
+        stack.push(Frame { id: root, dependencies: dependencies.iter(), height: 1 });
+        while let Some(frame) = stack.last_mut() {
+            if let Some(&dep) = frame.dependencies.next() {
+                if let Some(&height) = heights.get(&dep) {
+                    frame.height = frame.height.max(height + 1);
+                } else if let Some(dependencies) = graph.get(&dep) {
+                    heights.insert(dep, MAX_DEPTH);
+                    stack.push(Frame { id: dep, dependencies: dependencies.iter(), height: 1 });
+                } else {
+                    frame.height = frame.height.max(2);
+                }
+            } else {
+                let Frame { id, height, .. } = stack.pop().unwrap();
+                heights.insert(id, height);
+                if let Some(parent) = stack.last_mut() {
+                    parent.height = parent.height.max(height + 1);
+                }
+            }
+        }
+    }
+    heights
+}
+
 /// Visits the dependencies of the constant `id`.
 ///
 /// Like solc, a cycle found from the starting constant is reported through the dependency that
-/// reached it, and a constant 256 deep breaks with itself. A finished dependency breaks if its
-/// longest chain reaches that depth.
+/// reached it, and a constant 256 deep breaks with itself.
 fn visit_dependencies(
     graph: &Graph,
     cd: &mut CycleDetector<&Graph, hir::VariableId, hir::VariableId>,
@@ -106,42 +152,15 @@ fn visit_dependencies(
     if depth >= MAX_DEPTH {
         return CycleDetectorResult::Break(id);
     }
-    let Some(constant) = graph.get(&id) else { return CycleDetectorResult::Continue };
-    let mut height = 1;
-    for &dep in &constant.dependencies {
+    let Some(dependencies) = graph.get(&id) else { return CycleDetectorResult::Continue };
+    for &dep in dependencies {
         match cd.run(dep) {
             CycleDetectorResult::Continue => {}
             CycleDetectorResult::Cycle(_) if depth == 1 => return CycleDetectorResult::Cycle(dep),
             r => return r,
         }
-        let dep_height = height_of(graph, dep);
-        if depth + dep_height >= MAX_DEPTH {
-            return CycleDetectorResult::Break(exhausted_from(graph, dep, depth + 1));
-        }
-        height = height.max(dep_height + 1);
     }
-    constant.height.set(height);
     CycleDetectorResult::Continue
-}
-
-/// Returns the number of constants on the longest dependency chain from the finished constant
-/// `id`.
-fn height_of(graph: &Graph, id: hir::VariableId) -> usize {
-    graph.get(&id).map_or(1, |constant| constant.height.get())
-}
-
-/// Returns the first constant at [`MAX_DEPTH`] on the chains from the finished constant `id` at
-/// `depth`.
-fn exhausted_from(graph: &Graph, mut id: hir::VariableId, mut depth: usize) -> hir::VariableId {
-    while depth < MAX_DEPTH {
-        id = *graph[&id]
-            .dependencies
-            .iter()
-            .find(|&&dep| depth + height_of(graph, dep) >= MAX_DEPTH)
-            .unwrap();
-        depth += 1;
-    }
-    id
 }
 
 /// Collects the constants referenced by an expression.
