@@ -192,9 +192,11 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             && let hir::CallArgsKind::Unnamed([arg]) = args.kind
             && let ConstValue::String(namespace_id) = self.try_eval_value(arg)?
         {
-            return Ok(ConstValue::Integer(IntScalar::new(
-                erc7201_slot(namespace_id.as_byte_str()).into(),
-            )));
+            // `erc7201` returns a `uint256`, so arithmetic on the slot is typed.
+            return Ok(ConstValue::Integer(
+                IntScalar::new(erc7201_slot(namespace_id.as_byte_str()).into())
+                    .typed(Some(IntTy::full_width(false))),
+            ));
         }
         Err(EE::UnsupportedExpr.into())
     }
