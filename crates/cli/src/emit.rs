@@ -166,16 +166,15 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         let mut module = ir::Module::parse(gcx.sess, source)?;
         ir::validate(gcx, &module);
         if gcx.dcx().has_errors().is_ok() {
-            if has_disasm_dump(gcx) {
-                dump_evm_ir_input_disassembly(gcx, module)?;
-                return Ok(());
-            }
-
             let name = source.name.display().to_string();
             let _changed = ir::run_pipeline(gcx, &mut module, Some(&name));
             ir::validate(gcx, &module);
             gcx.dcx().has_errors()?;
 
+            // The disassembly shows the bytecode that `--emit` outputs also come from.
+            if has_disasm_dump(gcx) {
+                dump_evm_ir_input_disassembly(gcx, module.clone())?;
+            }
             let value = gcx
                 .sess
                 .opts

@@ -48,16 +48,14 @@ pub(in crate::backend) fn data_layout_is_observable(module: &Module) -> bool {
     passes::data::data_layout_is_observable(module)
 }
 
-/// Lowers an EVM IR module to bytecode, running the EVM IR pipeline and retaining unresolved
+/// Assembles a program, whose EVM IR pipeline already ran, as bytecode that retains its unresolved
 /// library addresses.
 pub fn into_bytecode(gcx: Gcx<'_>, module: Module) -> solar_interface::Result<RelocatableBytecode> {
-    let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
-    let result = assembler.assemble_with_evm_ir(true);
-    gcx.dcx().has_errors()?;
+    let assembled = assemble_legalized(gcx, module)?;
     Ok(RelocatableBytecode {
-        libraries: result.evm_ir.expect("EVM IR capture requested").libraries,
-        bytes: result.bytecode.into(),
-        relocations: result.library_relocations,
+        libraries: assembled.evm_ir.expect("EVM IR capture requested").libraries,
+        bytes: assembled.bytecode.into(),
+        relocations: assembled.library_relocations,
     })
 }
 
@@ -80,7 +78,7 @@ pub fn into_deployable_bytecode(
     module: Module,
 ) -> solar_interface::Result<DeployableBytecode> {
     let name = module.name;
-    let runtime = assemble_legalized(gcx, module)?;
+    let runtime = deployable(gcx, assemble_legalized(gcx, module)?)?;
     let mut deployment = Module::new(name);
     deployment.code_follows = true;
     let runtime_data = deployment.data.push(Data::new(runtime.clone().into(), None));
@@ -102,23 +100,33 @@ pub fn into_deployable_bytecode(
     ];
     block.terminator = Some(Terminator::new(TerminatorKind::Op(op::RETURN)));
     deployment.add_block(block);
-    let deployment = assemble_legalized(gcx, deployment)?;
+    let deployment = deployable(gcx, assemble_legalized(gcx, deployment)?)?;
     Ok(DeployableBytecode { deployment, runtime })
 }
 
 /// Assembles `module` without running the EVM IR pipeline, only legalizing it for the target.
-/// Fails when it pushes a library address, which nothing links, or an immutable, which nothing
-/// sets.
-fn assemble_legalized(gcx: Gcx<'_>, module: Module) -> solar_interface::Result<Vec<u8>> {
+fn assemble_legalized(
+    gcx: Gcx<'_>,
+    module: Module,
+) -> solar_interface::Result<assembler::AssembledCode> {
     let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
     assembler.legalize();
     let assembled = assembler.assemble_linked(
         &EmbeddedBytecodes::default(),
         &mut LibraryTable::default(),
-        false,
+        true,
         false,
     );
     gcx.dcx().has_errors()?;
+    Ok(assembled)
+}
+
+/// Returns the bytecode of an assembled program that deploys as it is. Fails when it pushes a
+/// library address, which nothing links, or an immutable, which nothing sets.
+fn deployable(
+    gcx: Gcx<'_>,
+    assembled: assembler::AssembledCode,
+) -> solar_interface::Result<Vec<u8>> {
     if !assembled.library_relocations.is_empty() {
         let message = "EVM IR input that pushes library addresses has no bytecode to emit";
         return Err(gcx.dcx().err(message).emit());
