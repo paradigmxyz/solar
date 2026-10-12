@@ -1432,15 +1432,10 @@ fn live_word_count(func: &Function, live: &DenseBitSet<ValueId>) -> usize {
         .filter(|&value| match func.value(value) {
             Value::Arg(_) => true,
             // A `memory_slice` view lowers to its length word, so its length takes no other word.
-            Value::Inst(inst) => !is_view_length(func, &func.inst(*inst).kind),
+            Value::Inst(inst) => !func.is_view_length(&func.inst(*inst).kind),
             _ => false,
         })
         .count()
-}
-
-/// Whether `kind` reads the length of a `memory_slice` view, which lowers to the view itself.
-fn is_view_length(func: &Function, kind: &InstKind) -> bool {
-    matches!(*kind, InstKind::SliceLen(view) if func.memory_slice_object(view).is_some())
 }
 
 /// A call followed by bounded physical word operations, with no allocation or frame locals.
@@ -1643,7 +1638,7 @@ fn estimate_inst_cost(
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
     match kind {
         InstKind::MemorySlice(_) => return (Cost::ZERO, 0),
-        _ if is_view_length(func, kind) => return (seq(&[op::MLOAD]), 1),
+        _ if func.is_view_length(kind) => return (seq(&[op::MLOAD]), 1),
         _ => {}
     }
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
@@ -1789,9 +1784,6 @@ fn estimate_inst_cost(
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
         InstKind::CheckedBinary { .. } => Cost::new(30, 20),
         InstKind::AbiEncodePacked { parts, .. } => {
-            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
-        }
-        InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
             Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
         InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),

@@ -85,19 +85,19 @@ fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
 
 fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
   bb0:
-    v15 = icall @decode_calldata_type.9
-    v18 = ptrtoint memptr v15 to i256
-    v1 = mload v18
+    v14 = icall @decode_calldata_type.9
+    v17 = ptrtoint memptr v14 to i256
+    v1 = mload v17
     v3 = gt v1, 0
     jumpi v3, bb2, bb1
   bb1:
     tail_call @revert_stub
   bb2:
-    v20 = add v18, 32
-    mstore8 v20, 1
-    v10 = mload v20
-    v23 = and v10, 255
-    mstore 128, v23
+    v19 = add v17, 32
+    mstore8 v19, 1
+    v9 = mload v19
+    v22 = and v9, 255
+    mstore 128, v22
     returndata 128, 32
 }
 
@@ -291,29 +291,29 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     v10 = ne v6, v2
     jumpi v10, bb1, bb3
   bb3:
-    v31 = mload 64 !metadata(memory=scratch)
-    v11 = inttoptr i256 v31 to memptr !metadata(memory=scratch)
-    v32 = add v31, v4
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v31, v0
-    v23 = add v20, 32
-    v28 = add v31, 32
-    v37 = shl 5, v0
-    v38 = add v28, v37
+    v29 = mload 64 !metadata(memory=scratch)
+    v11 = inttoptr i256 v29 to memptr !metadata(memory=scratch)
+    v30 = add v29, v4
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, v0
+    v22 = add v20, 32
+    v26 = add v29, 32
+    v35 = shl 5, v0
+    v36 = add v26, v35
     jump bb4
   bb4:
-    v33 = phi [bb3: v23], [bb5: v34]
-    v35 = phi [bb3: v28], [bb5: v36]
-    v14 = lt v35, v38
+    v31 = phi [bb3: v26], [bb5: v32]
+    v33 = phi [bb3: v22], [bb5: v34]
+    v14 = lt v31, v36
     jumpi v14, bb5, bb6
   bb6:
     ret v11
   bb5:
     v16 = mload v33
     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v35, v17
+    mstore v31, v17
+    v32 = add v31, 32
     v34 = add v33, 32
-    v36 = add v35, 32
     jump bb4
   bb1:
     mstore 32, 65 !metadata(memory=scratch)

@@ -10,33 +10,29 @@
 -     v3 = slice_ptr v2
 -     v4 = memory_object_field_addr memorystruct<3>, arg1, 2
 +     v20 = ptrtoint memptr arg0 to i256
-+     v0 = mload v20
++     v1 = add v20, 32
 +     v21 = ptrtoint memptr arg0 to i256
-+     v1 = add v21, 32
-+     v22 = ptrtoint memptr arg0 to i256
-+     v2 = mload v22
-+     v23 = ptrtoint memptr arg0 to i256
-+     v3 = add v23, 32
-+     v26 = ptrtoint memptr arg1 to i256
-+     v27 = add v26, 64
-+     v4 = inttoptr i256 v27 to memptr
++     v3 = add v21, 32
++     v24 = ptrtoint memptr arg1 to i256
++     v25 = add v24, 64
++     v4 = inttoptr i256 v25 to memptr
       v5 = ptrtoint memptr v4 to i256
 -     v6 = memory_object_field_addr memorystruct<3>, arg1, 2
-+     v28 = ptrtoint memptr arg1 to i256
-+     v29 = add v28, 64
-+     v6 = inttoptr i256 v29 to memptr
++     v26 = ptrtoint memptr arg1 to i256
++     v27 = add v26, 64
++     v6 = inttoptr i256 v27 to memptr
       v7 = ptrtoint memptr v6 to i256
 -     v8 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
-+     v24 = mul arg3, 64
-+     v30 = ptrtoint memptr arg2 to i256
-+     v31 = add v30, v24
-+     v8 = inttoptr i256 v31 to memptr
++     v22 = mul arg3, 64
++     v28 = ptrtoint memptr arg2 to i256
++     v29 = add v28, v22
++     v8 = inttoptr i256 v29 to memptr
       v9 = ptrtoint memptr v8 to i256
 -     v10 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
-+     v25 = mul arg3, 64
-+     v32 = ptrtoint memptr arg2 to i256
-+     v33 = add v32, v25
-+     v10 = inttoptr i256 v33 to memptr
++     v23 = mul arg3, 64
++     v30 = ptrtoint memptr arg2 to i256
++     v31 = add v30, v23
++     v10 = inttoptr i256 v31 to memptr
       v11 = ptrtoint memptr v10 to i256
       v12 = eq v1, v3
       v13 = eq v5, v7
@@ -145,17 +141,15 @@
 -     v2 = memory_slice v0
 -     v3 = slice_ptr v2
 +     v6 = ptrtoint memptr v0 to i256
-+     v2 = mload v6
-+     v7 = ptrtoint memptr v0 to i256
-+     v3 = add v7, 32
++     v3 = add v6, 32
       mstore v3, 0
       jump bb1
     bb1:
 -     v4 = memory_slice v0
 -     v5 = slice_len v4
 -     ret v5
-+     v8 = ptrtoint memptr v0 to i256
-+     v4 = mload v8
++     v7 = ptrtoint memptr v0 to i256
++     v4 = mload v7
 +     ret v4
   }
   
@@ -270,30 +264,26 @@
   fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 [may_return_memory] {
     bb0:
       v20 = ptrtoint memptr arg0 to i256
-      v0 = mload v20
+      v1 = add v20, 32
       v21 = ptrtoint memptr arg0 to i256
-      v1 = add v21, 32
-      v22 = ptrtoint memptr arg0 to i256
-      v2 = mload v22
-      v23 = ptrtoint memptr arg0 to i256
-      v3 = add v23, 32
+      v3 = add v21, 32
+      v24 = ptrtoint memptr arg1 to i256
+      v25 = add v24, 64
+      v4 = inttoptr i256 v25 to memptr
+      v5 = ptrtoint memptr v4 to i256
       v26 = ptrtoint memptr arg1 to i256
       v27 = add v26, 64
-      v4 = inttoptr i256 v27 to memptr
-      v5 = ptrtoint memptr v4 to i256
-      v28 = ptrtoint memptr arg1 to i256
-      v29 = add v28, 64
-      v6 = inttoptr i256 v29 to memptr
+      v6 = inttoptr i256 v27 to memptr
       v7 = ptrtoint memptr v6 to i256
-      v24 = mul arg3, 64
-      v30 = ptrtoint memptr arg2 to i256
-      v31 = add v30, v24
-      v8 = inttoptr i256 v31 to memptr
+      v22 = mul arg3, 64
+      v28 = ptrtoint memptr arg2 to i256
+      v29 = add v28, v22
+      v8 = inttoptr i256 v29 to memptr
       v9 = ptrtoint memptr v8 to i256
-      v25 = mul arg3, 64
-      v32 = ptrtoint memptr arg2 to i256
-      v33 = add v32, v25
-      v10 = inttoptr i256 v33 to memptr
+      v23 = mul arg3, 64
+      v30 = ptrtoint memptr arg2 to i256
+      v31 = add v30, v23
+      v10 = inttoptr i256 v31 to memptr
       v11 = ptrtoint memptr v10 to i256
       v12 = eq v1, v3
       v13 = eq v5, v7
@@ -373,14 +363,12 @@
       v1 = ptrtoint memptr v0 to i256
       mstore v1, 3
       v6 = ptrtoint memptr v0 to i256
-      v2 = mload v6
-      v7 = ptrtoint memptr v0 to i256
-      v3 = add v7, 32
+      v3 = add v6, 32
       mstore v3, 0
       jump bb1
     bb1:
-      v8 = ptrtoint memptr v0 to i256
-      v4 = mload v8
+      v7 = ptrtoint memptr v0 to i256
+      v4 = mload v7
       ret v4
   }
   
@@ -470,31 +458,26 @@
   fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 [may_return_memory] {
     bb0:
       v20 = ptrtoint memptr arg0 to i256
-      v0 = mload v20
+      v1 = add v20, 32
 -     v21 = ptrtoint memptr arg0 to i256
--     v1 = add v21, 32
--     v22 = ptrtoint memptr arg0 to i256
--     v2 = mload v22
--     v23 = ptrtoint memptr arg0 to i256
--     v3 = add v23, 32
-+     v1 = add v20, 32
-      v26 = ptrtoint memptr arg1 to i256
-      v27 = add v26, 64
-      v4 = inttoptr i256 v27 to memptr
+-     v3 = add v21, 32
+      v24 = ptrtoint memptr arg1 to i256
+      v25 = add v24, 64
+      v4 = inttoptr i256 v25 to memptr
       v5 = ptrtoint memptr v4 to i256
--     v28 = ptrtoint memptr arg1 to i256
--     v29 = add v28, 64
--     v6 = inttoptr i256 v29 to memptr
+-     v26 = ptrtoint memptr arg1 to i256
+-     v27 = add v26, 64
+-     v6 = inttoptr i256 v27 to memptr
 -     v7 = ptrtoint memptr v6 to i256
-      v24 = mul arg3, 64
-      v30 = ptrtoint memptr arg2 to i256
-      v31 = add v30, v24
-      v8 = inttoptr i256 v31 to memptr
+      v22 = mul arg3, 64
+      v28 = ptrtoint memptr arg2 to i256
+      v29 = add v28, v22
+      v8 = inttoptr i256 v29 to memptr
       v9 = ptrtoint memptr v8 to i256
--     v25 = mul arg3, 64
--     v32 = ptrtoint memptr arg2 to i256
--     v33 = add v32, v25
--     v10 = inttoptr i256 v33 to memptr
+-     v23 = mul arg3, 64
+-     v30 = ptrtoint memptr arg2 to i256
+-     v31 = add v30, v23
+-     v10 = inttoptr i256 v31 to memptr
 -     v11 = ptrtoint memptr v10 to i256
 -     v12 = eq v1, v3
 -     v13 = eq v5, v7
@@ -583,15 +566,13 @@
       v1 = ptrtoint memptr v0 to i256
       mstore v1, 3
 -     v6 = ptrtoint memptr v0 to i256
--     v2 = mload v6
--     v7 = ptrtoint memptr v0 to i256
--     v3 = add v7, 32
+-     v3 = add v6, 32
 +     v3 = add v1, 32
       mstore v3, 0
       jump bb1
     bb1:
--     v8 = ptrtoint memptr v0 to i256
--     v4 = mload v8
+-     v7 = ptrtoint memptr v0 to i256
+-     v4 = mload v7
 -     ret v4
 +     ret 3
   }

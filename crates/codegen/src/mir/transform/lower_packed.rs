@@ -4,7 +4,8 @@
 //! computes dynamic lengths only after argument evaluation, then emits copies or nested array
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
 //! bytes and adjacent narrow scalars can share a word store without merging signed high bits.
-//! Encodings made entirely of whole words need no allocation-size rounding. Array loops use
+//! Encodings made entirely of whole words need no allocation-size rounding. As in solc, part
+//! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
 //! Bytes results retain their FMP bump at the encoding point even when their size becomes constant.
 
@@ -28,7 +29,7 @@ pub(super) fn lower_packed(
     hash: bool,
 ) -> ValueId {
     let mut encoder = PackedEncoder { builder };
-    let (pieces, total) = encoder.prepare(parts, !hash);
+    let (pieces, total) = encoder.prepare(parts);
     if hash {
         encoder.hash(pieces, total).expect("validated scratch packed shape")
     } else {
@@ -41,7 +42,7 @@ struct PackedEncoder<'a, 'b> {
 }
 
 impl PackedEncoder<'_, '_> {
-    fn prepare(&mut self, parts: Box<[PackedPart]>, checked: bool) -> (Vec<PackedPiece>, ValueId) {
+    fn prepare(&mut self, parts: Box<[PackedPart]>) -> (Vec<PackedPiece>, ValueId) {
         // pieces = resolve_source_lengths(parts)
         // total = sum(piece lengths)
         let mut total = self.builder.imm(0);
@@ -87,7 +88,7 @@ impl PackedEncoder<'_, '_> {
                     (PackedPiece::Array { value, length, element, source }, bytes)
                 }
             };
-            total = self.add_packed_total(total, length, checked);
+            total = self.add_folded(total, length);
             pieces.push(piece);
         }
         (pieces, total)
@@ -130,7 +131,7 @@ impl PackedEncoder<'_, '_> {
                 self.try_write_packed_word(output, offset, &pieces[index..])
             {
                 let length = self.builder.imm(length);
-                offset = self.builder.checked_add(offset, length);
+                offset = self.add_folded(offset, length);
                 index += consumed;
                 continue;
             }
@@ -144,13 +145,13 @@ impl PackedEncoder<'_, '_> {
                         let value = self.builder.imm(U256::from_be_bytes(padded));
                         self.builder.memory_store_word(output, offset, value);
                         let length = self.builder.imm(chunk.len() as u64);
-                        offset = self.builder.checked_add(offset, length);
+                        offset = self.add_folded(offset, length);
                     }
                 }
                 PackedPiece::Dynamic { source, length } => {
                     // copy(source, output + offset)
                     self.builder.memory_copy_from_slice_at(output, offset, *source);
-                    offset = self.builder.checked_add(offset, *length);
+                    offset = self.add_folded(offset, *length);
                 }
                 PackedPiece::Array { value, length, element, source } => {
                     // offset = copy_packed_array(output, offset, value)
@@ -167,7 +168,7 @@ impl PackedEncoder<'_, '_> {
                     };
                     self.builder.memory_store_word(output, offset, value);
                     let length = self.builder.imm(*length);
-                    offset = self.builder.checked_add(offset, length);
+                    offset = self.add_folded(offset, length);
                 }
             }
             index += 1;
@@ -268,14 +269,14 @@ impl PackedEncoder<'_, '_> {
         Some(self.builder.keccak256(zero, size))
     }
 
-    fn add_packed_total(&mut self, lhs: ValueId, rhs: ValueId, checked: bool) -> ValueId {
+    fn add_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
         if let (Some(lhs), Some(rhs)) =
             (self.builder.func().value_u256(lhs), self.builder.func().value_u256(rhs))
             && let Some(result) = lhs.checked_add(rhs)
         {
             return self.builder.imm(result);
         }
-        if checked { self.builder.checked_add(lhs, rhs) } else { self.builder.add(lhs, rhs) }
+        self.builder.add(lhs, rhs)
     }
 
     fn packed_scratch_offset(&mut self, base: Option<ValueId>, offset: u64) -> ValueId {

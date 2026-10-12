@@ -219,87 +219,85 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v12 = zext i160 v11 to i256
     v13 = shl 32, v12
     v14 = or v13, 0xe255e5f9
-    v15 = memory_slice v0
-    v16 = slice_len v15
-    v17 = lt 1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = shl 64, v14
-    slice_store_element v15, 1, v19
-    v20 = address
-    v21 = zext i160 v20 to i256
-    v22 = shl 32, v21
-    v23 = or v22, 0xec202537
-    v24 = memory_slice v0
-    v25 = slice_len v24
-    v26 = lt 2, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = shl 64, v23
-    slice_store_element v24, 2, v28
+    v15 = slice_len v6
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl 64, v14
+    slice_store_element v6, 1, v18
+    v19 = address
+    v20 = zext i160 v19 to i256
+    v21 = shl 32, v20
+    v22 = or v21, 0xec202537
+    v23 = slice_len v6
+    v24 = lt 2, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl 64, v22
+    slice_store_element v6, 2, v26
     jumpi arg0, bb1, bb2
   bb2:
-    v50 = address
-    v51 = gas
-    v52 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
-    v53 = slice_ptr v52
-    v54 = slice_len v52
-    v55 = zext i160 v50 to i256
-    v56 = call v51, v55, 0, v53, v54, v53, 96
-    jumpi v56, bb7, bb6
+    v48 = address
+    v49 = gas
+    v50 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
+    v51 = slice_ptr v50
+    v52 = slice_len v50
+    v53 = zext i160 v48 to i256
+    v54 = call v49, v53, 0, v51, v52, v51, 96
+    jumpi v54, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v57 = returndatasize
-    v58 = lt v57, 96
-    icall revert_if<tuple_data_too_short>, v58
-    v59 = add v53, 0
+    v55 = returndatasize
+    v56 = lt v55, 96
+    icall revert_if<tuple_data_too_short>, v56
+    v57 = add v51, 0
+    v58 = mload v57
+    v59 = add v51, 32
     v60 = mload v59
-    v61 = add v53, 32
+    v61 = add v51, 64
     v62 = mload v61
-    v63 = add v53, 64
-    v64 = mload v63
-    v65 = insert_value struct0, undef struct0, 0, v60
-    v66 = insert_value struct0, v65, 1, v62
-    v67 = insert_value struct0, v66, 2, v64
-    v68 = extract_value struct0, v67, 0
-    v69 = extract_value struct0, v67, 1
-    v70 = extract_value struct0, v67, 2
+    v63 = insert_value struct0, undef struct0, 0, v58
+    v64 = insert_value struct0, v63, 1, v60
+    v65 = insert_value struct0, v64, 2, v62
+    v66 = extract_value struct0, v65, 0
+    v67 = extract_value struct0, v65, 1
+    v68 = extract_value struct0, v65, 2
     jump bb3
   bb1:
-    v29 = address
-    v30 = gas
-    v31 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = zext i160 v29 to i256
-    v35 = call v30, v34, 0, v32, v33, v32, 96
-    jumpi v35, bb5, bb4
+    v27 = address
+    v28 = gas
+    v29 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = zext i160 v27 to i256
+    v33 = call v28, v32, 0, v30, v31, v30, 96
+    jumpi v33, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v36 = returndatasize
-    v37 = lt v36, 96
-    icall revert_if<tuple_data_too_short>, v37
-    v38 = add v32, 0
+    v34 = returndatasize
+    v35 = lt v34, 96
+    icall revert_if<tuple_data_too_short>, v35
+    v36 = add v30, 0
+    v37 = mload v36
+    v38 = add v30, 32
     v39 = mload v38
-    v40 = add v32, 32
+    v40 = add v30, 64
     v41 = mload v40
-    v42 = add v32, 64
-    v43 = mload v42
-    v44 = insert_value struct0, undef struct0, 0, v39
-    v45 = insert_value struct0, v44, 1, v41
-    v46 = insert_value struct0, v45, 2, v43
-    v47 = extract_value struct0, v46, 0
-    v48 = extract_value struct0, v46, 1
-    v49 = extract_value struct0, v46, 2
+    v42 = insert_value struct0, undef struct0, 0, v37
+    v43 = insert_value struct0, v42, 1, v39
+    v44 = insert_value struct0, v43, 2, v41
+    v45 = extract_value struct0, v44, 0
+    v46 = extract_value struct0, v44, 1
+    v47 = extract_value struct0, v44, 2
     jump bb3
   bb3:
+    v69 = phi [bb5: v45], [bb7: v66]
+    v70 = phi [bb5: v46], [bb7: v67]
     v71 = phi [bb5: v47], [bb7: v68]
-    v72 = phi [bb5: v48], [bb7: v69]
-    v73 = phi [bb5: v49], [bb7: v70]
-    v74 = insert_value struct0, undef struct0, 0, v71
-    v75 = insert_value struct0, v74, 1, v72
-    v76 = insert_value struct0, v75, 2, v73
-    ret v76
+    v72 = insert_value struct0, undef struct0, 0, v69
+    v73 = insert_value struct0, v72, 1, v70
+    v74 = insert_value struct0, v73, 2, v71
+    ret v74
 }

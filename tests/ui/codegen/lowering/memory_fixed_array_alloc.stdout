@@ -113,15 +113,14 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    v13 = memory_slice v4
-    v14 = slice_len v13
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = slice_load_element v13, 0
-    v18 = insert_value struct0, undef struct0, 0, v12
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v13 = slice_len v6
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = slice_load_element v6, 0
+    v17 = insert_value struct0, undef struct0, 0, v12
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
 }
 
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -181,19 +180,18 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     icall panic_if<0x32>, v13
     v14 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
     slice_store_byte v10, 0, v14
-    v15 = memory_slice v8
-    v16 = slice_len v15
-    v17 = lt 0, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = slice_load_byte v15, 0
-    v20 = shl 248, v19
-    v21 = shr 248, v20
-    v22 = trunc i256 v21 to i8
-    v23 = zext i8 v22 to i256
-    v24 = insert_value struct0, undef struct0, 0, v0
-    v25 = insert_value struct0, v24, 1, v23
-    ret v25
+    v15 = slice_len v10
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = slice_load_byte v10, 0
+    v19 = shl 248, v18
+    v20 = shr 248, v19
+    v21 = trunc i256 v20 to i8
+    v22 = zext i8 v21 to i256
+    v23 = insert_value struct0, undef struct0, 0, v0
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }
 
 fn @emptyMemoryReferences() -> i256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

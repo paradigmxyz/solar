@@ -92,7 +92,7 @@ fn @erc7201Reference(arg0: memptr) -> i256 [pure] {
     v3 = keccak256 v1, v2
     v4 = checked_sub u256, v3, 1
     v5 = shl 0, v4
-    v6 = icall concat<bytes32>, v5
+    v6 = abi_encode_packed (bytes32 v5)
     v7 = memory_slice v6
     v8 = slice_ptr v7
     v9 = slice_len v7

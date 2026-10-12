@@ -556,6 +556,20 @@ pub(crate) enum EffectKind {
 }
 
 impl EffectKind {
+    /// Whether the effect at most reads state, so it cannot change memory.
+    #[must_use]
+    pub(crate) const fn is_read_only(self) -> bool {
+        matches!(
+            self,
+            Self::Pure
+                | Self::MemoryRead
+                | Self::StorageRead
+                | Self::TransientRead
+                | Self::EnvironmentRead
+                | Self::ImmutableRead
+        )
+    }
+
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
     pub(crate) const fn name(&self) -> &'static str {
@@ -732,8 +746,7 @@ impl Instruction {
             InstKind::ValidateAbi(..) => Some("ABI validation"),
             InstKind::ICall { function: Callee::Builtin(builtin), .. } => Some(match builtin {
                 Builtin::Check { .. } | Builtin::Require(_) => "conditional check",
-                Builtin::Concat(_)
-                | Builtin::Erc7201
+                Builtin::Erc7201
                 | Builtin::CheckedAddMod
                 | Builtin::CheckedMulMod
                 | Builtin::Sha256
@@ -1173,9 +1186,7 @@ impl InstKind {
                 Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => {
                     EffectKind::Pure
                 }
-                Builtin::Erc7201 | Builtin::Concat(_) | Builtin::ReturndataBytes => {
-                    EffectKind::MemoryWrite
-                }
+                Builtin::Erc7201 | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
                 Builtin::Require(_) => EffectKind::MemoryRead,
                 Builtin::Sha256
                 | Builtin::Ripemd160
@@ -1191,20 +1202,5 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
-    }
-}
-
-/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ConcatPart {
-    Bytes(ValueId),
-    Fixed { value: ValueId, size: super::TypeSize },
-}
-
-impl ConcatPart {
-    pub(crate) fn value(&self) -> ValueId {
-        match *self {
-            Self::Bytes(value) | Self::Fixed { value, .. } => value,
-        }
     }
 }

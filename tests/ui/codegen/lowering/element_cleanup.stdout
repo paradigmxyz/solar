@@ -44,22 +44,20 @@
       icall panic_if<0x32>, v21
       v22 = slice_load_element v18, 1
 -     v23 = trunc i256 v22 to i160
-      v24 = memory_slice v16
-      v25 = slice_len v24
-      v26 = lt 0, v25
-      v27 = eq v26, false
-      icall panic_if<0x32>, v27
--     v28 = zext i160 v23 to i256
--     slice_store_element v24, 0, v28
-+     slice_store_element v24, 0, v22
-      v29 = memory_slice v16
-      v30 = slice_len v29
-      v31 = lt 2, v30
-      v32 = eq v31, false
-      icall panic_if<0x32>, v32
-      v33 = slice_load_element v29, 2
-      v34 = trunc i256 v33 to i160
-      ret v34
+      v24 = slice_len v18
+      v25 = lt 0, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+-     v27 = zext i160 v23 to i256
+-     slice_store_element v18, 0, v27
++     slice_store_element v18, 0, v22
+      v28 = slice_len v18
+      v29 = lt 2, v28
+      v30 = eq v29, false
+      icall panic_if<0x32>, v30
+      v31 = slice_load_element v18, 2
+      v32 = trunc i256 v31 to i160
+      ret v32
   }
   
   fn @last(arg0: memptr, arg1: i256) -> i160 [pure] {
@@ -140,14 +138,13 @@
       v3 = eq v2, false
       icall panic_if<0x32>, v3
       slice_store_element v0, 0, arg1
-      v4 = memory_slice arg0
-      v5 = slice_len v4
-      v6 = lt 1, v5
-      v7 = eq v6, false
-      icall panic_if<0x32>, v7
-      v8 = slice_load_element v4, 1
-      v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-      ret v9
+      v4 = slice_len v0
+      v5 = lt 1, v4
+      v6 = eq v5, false
+      icall panic_if<0x32>, v6
+      v7 = slice_load_element v0, 1
+      v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v8
   }
   
   fn @fresh8(arg0: i256) -> i8 [selector=0x73672dfc, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
@@ -181,22 +178,20 @@
       icall panic_if<0x32>, v21
       v22 = slice_load_element v18, 1
 -     v23 = trunc i256 v22 to i8
-      v24 = memory_slice v16
-      v25 = slice_len v24
-      v26 = lt 0, v25
-      v27 = eq v26, false
-      icall panic_if<0x32>, v27
--     v28 = zext i8 v23 to i256
--     slice_store_element v24, 0, v28
-+     slice_store_element v24, 0, v22
-      v29 = memory_slice v16
-      v30 = slice_len v29
-      v31 = lt 2, v30
-      v32 = eq v31, false
-      icall panic_if<0x32>, v32
-      v33 = slice_load_element v29, 2
-      v34 = trunc i256 v33 to i8
-      ret v34
+      v24 = slice_len v18
+      v25 = lt 0, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+-     v27 = zext i8 v23 to i256
+-     slice_store_element v18, 0, v27
++     slice_store_element v18, 0, v22
+      v28 = slice_len v18
+      v29 = lt 2, v28
+      v30 = eq v29, false
+      icall panic_if<0x32>, v30
+      v31 = slice_load_element v18, 2
+      v32 = trunc i256 v31 to i8
+      ret v32
   }
   
   fn @fresh128(arg0: i256) -> i128 [selector=0xb544e899, pure, abi_params=[u256], abi_returns=[word<u128>], abi_return_params=[u128]] {
@@ -230,22 +225,20 @@
       icall panic_if<0x32>, v21
       v22 = slice_load_element v18, 1
 -     v23 = trunc i256 v22 to i128
-      v24 = memory_slice v16
-      v25 = slice_len v24
-      v26 = lt 0, v25
-      v27 = eq v26, false
-      icall panic_if<0x32>, v27
--     v28 = zext i128 v23 to i256
--     slice_store_element v24, 0, v28
-+     slice_store_element v24, 0, v22
-      v29 = memory_slice v16
-      v30 = slice_len v29
-      v31 = lt 2, v30
-      v32 = eq v31, false
-      icall panic_if<0x32>, v32
-      v33 = slice_load_element v29, 2
-      v34 = trunc i256 v33 to i128
-      ret v34
+      v24 = slice_len v18
+      v25 = lt 0, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+-     v27 = zext i128 v23 to i256
+-     slice_store_element v18, 0, v27
++     slice_store_element v18, 0, v22
+      v28 = slice_len v18
+      v29 = lt 2, v28
+      v30 = eq v29, false
+      icall panic_if<0x32>, v30
+      v31 = slice_load_element v18, 2
+      v32 = trunc i256 v31 to i128
+      ret v32
   }
   
   fn @fresh248(arg0: i256) -> i248 [selector=0x3e8a48f0, pure, abi_params=[u256], abi_returns=[word<u248>], abi_return_params=[u248]] {
@@ -279,21 +272,19 @@
       icall panic_if<0x32>, v21
       v22 = slice_load_element v18, 1
 -     v23 = trunc i256 v22 to i248
-      v24 = memory_slice v16
-      v25 = slice_len v24
-      v26 = lt 0, v25
-      v27 = eq v26, false
-      icall panic_if<0x32>, v27
--     v28 = zext i248 v23 to i256
--     slice_store_element v24, 0, v28
-+     slice_store_element v24, 0, v22
-      v29 = memory_slice v16
-      v30 = slice_len v29
-      v31 = lt 2, v30
-      v32 = eq v31, false
-      icall panic_if<0x32>, v32
-      v33 = slice_load_element v29, 2
-      v34 = trunc i256 v33 to i248
-      ret v34
+      v24 = slice_len v18
+      v25 = lt 0, v24
+      v26 = eq v25, false
+      icall panic_if<0x32>, v26
+-     v27 = zext i248 v23 to i256
+-     slice_store_element v18, 0, v27
++     slice_store_element v18, 0, v22
+      v28 = slice_len v18
+      v29 = lt 2, v28
+      v30 = eq v29, false
+      icall panic_if<0x32>, v30
+      v31 = slice_load_element v18, 2
+      v32 = trunc i256 v31 to i248
+      ret v32
   }
   

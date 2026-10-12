@@ -437,8 +437,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.slice_load_word(payload, zero)
     }
 
-    pub(super) fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
+    pub(super) fn lower_abi_encode_packed(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let exprs = self.variadic_builtin_args(builtin, &args)?;
         let parts = self.lower_packed_parts(exprs)?;
         // output = abi_encode_packed(parts)
         Some(
@@ -502,7 +506,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
-                parts.push(PackedPart::Literal(bytes.as_byte_str().to_vec().into()));
+                let bytes = bytes.as_byte_str();
+                // Adjacent literals pack into one.
+                if let Some(PackedPart::Literal(last)) = parts.last_mut() {
+                    *last = [&last[..], bytes].concat().into();
+                } else {
+                    parts.push(PackedPart::Literal(bytes.to_vec().into()));
+                }
                 continue;
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);

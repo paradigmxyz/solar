@@ -12,7 +12,7 @@
 //! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, Builtin, Callee, ConcatPart, FunctionBuilder, InstKind,
+    AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
     MemoryObjectKind, MemoryObjectLayout, Module, PanicCode, SliceLocation, ValueId,
     pass::{MirPass, run_function_pass},
 };
@@ -229,22 +229,6 @@ impl MirPass for LowerBuiltins {
                             };
                             lower_erc7201(&mut builder, input)
                         }
-                        InstKind::ICall {
-                            function: Callee::Builtin(Builtin::Concat(types)),
-                            args,
-                        } => lower_concat(
-                            &mut builder,
-                            types
-                                .iter()
-                                .zip(args)
-                                .map(|(&ty, value)| match ty {
-                                    crate::mir::ValueLayout::FixedBytes(size) => {
-                                        ConcatPart::Fixed { value, size }
-                                    }
-                                    _ => ConcatPart::Bytes(value),
-                                })
-                                .collect(),
-                        ),
                         InstKind::ICall { function: Callee::Builtin(Builtin::Sha256), args } => {
                             let [input] = *args.as_ref() else {
                                 unreachable!("validated builtin arguments")
@@ -305,8 +289,7 @@ fn is_builtin(kind: &InstKind) -> bool {
             | InstKind::AbiEncodePacked { .. }
             | InstKind::ICall {
                 function: Callee::Builtin(
-                    Builtin::Concat(_)
-                        | Builtin::Sha256
+                    Builtin::Sha256
                         | Builtin::Ripemd160
                         | Builtin::EcRecover
                         | Builtin::Send
@@ -473,50 +456,6 @@ fn precompile_call(
         let zero = builder.imm(0);
         builder.call(gas, address, zero, input, input_size, output, output_size);
     }
-}
-
-fn lower_concat(builder: &mut FunctionBuilder<'_>, parts: Vec<ConcatPart>) -> ValueId {
-    // total = sum(part lengths)
-    // output = alloc_bytes(padded_size(total))
-    // mstore (ptrtoint output), total
-    let mut total = builder.imm(0);
-    let lengths = parts
-        .iter()
-        .map(|part| {
-            let length = match *part {
-                ConcatPart::Bytes(value) => builder.memory_len(value),
-                ConcatPart::Fixed { size, .. } => builder.imm(size.bytes()),
-            };
-            total = builder.add(total, length);
-            length
-        })
-        .collect::<Vec<_>>();
-    let size = builder.padded_size(total);
-    let output = builder.alloc_object(
-        size,
-        MemoryObjectLayout::Bytes,
-        AllocationSemantics::SOLIDITY_UNINITIALIZED,
-    );
-    builder.set_memory_len(output, total);
-    let mut offset = builder.imm(0);
-    for (part, length) in parts.into_iter().zip(lengths) {
-        match part {
-            ConcatPart::Bytes(value) => {
-                // source = make_memory_slice (slice_ptr (memory_slice value)), length
-                // copy(output, offset, source)
-                let pointer = builder.memory_data(value);
-                let source = builder.make_slice(pointer, length, SliceLocation::Memory);
-                builder.memory_copy_from_slice_at(output, offset, source);
-            }
-            ConcatPart::Fixed { value, .. } => {
-                // store_word(output, offset, value)
-                builder.memory_store_word(output, offset, value);
-            }
-        }
-        // offset += length
-        offset = builder.add(offset, length);
-    }
-    output
 }
 
 fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {

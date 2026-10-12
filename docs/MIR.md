@@ -84,8 +84,7 @@ every assignment proves that all stored bits fit the shorter encoding.
 
 The two representation phases and checked backend boundary are implemented.
 Shared instruction effects, checked arithmetic, conditional checks, revert payloads,
-precompiles, and concatenation
-now use the phase boundary. The remaining builtin families are described below.
+and precompiles now use the phase boundary. The remaining builtin families are described below.
 The CFG and aggregate contracts below also describe implemented behavior.
 
 Use two stable MIR representations, `semantic` and `lowered`, followed by the
@@ -146,7 +145,7 @@ HIR lowering should evaluate operands, resolve types and layouts, and emit a
 semantic operation for each runtime builtin. Builtins can stay opaque to
 passes that do not understand their internals while still exposing signatures,
 effects, and constant-folding rules. `ICall` targets distinguish function definitions
-from typed builtins. Concat, require, conditional checks, hashing precompiles,
+from typed builtins. Require, conditional checks, hashing precompiles,
 checked modular arithmetic, ERC-7201, send/transfer, and returndata capture pass
 evaluated values in the ordinary argument list. The builtin identity carries
 only static specialization data; runtime values never live in the callee.
@@ -154,7 +153,7 @@ Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
 
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
-allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
+allocations, checked arithmetic, packed encoding, and precompiles follow this
 approach. `lower-arithmetic` expands checked word operations and exponentiation
 loops. Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
@@ -162,9 +161,10 @@ strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks
 for exits hidden in semantic instructions before using a trip bound to move a load.
 Signed and narrow recurrences remain conservative.
-`lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
-encoding. Packed arguments retain scalar widths and owned array layouts; length
-reads and packing loops run after argument evaluation. Packing checks each array
+`lower-builtins` expands precompile buffers/calls and packed encoding, which also
+implements `bytes.concat` and `string.concat`. Packed arguments retain scalar
+widths and owned array layouts; length reads and packing loops run after
+argument evaluation. Packing checks each array
 extent before entering its loop; the loop bound then proves that element offsets
 need no further overflow checks. Both bytes results and
 scratch hashes share the encoder. Solidity `addmod` and `mulmod` retain their

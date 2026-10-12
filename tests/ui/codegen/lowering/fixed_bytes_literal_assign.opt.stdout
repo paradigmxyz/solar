@@ -11,20 +11,20 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v18 = lt v17, 2
     jumpi v18, bb5, bb3
   bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 2
-    v3 = add v29, 32
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, 64
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, 2
+    v3 = add v27, 32
     mstore v3, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb1:
     mstore8 v3, 45
     jump bb2
   bb2:
-    v27 = mload v3
-    v28 = byte 0, v27
-    v14 = shl 248, v28
+    v25 = mload v3
+    v26 = byte 0, v25
+    v14 = shl 248, v26
     mstore 128, v14
     returndata 128, 32
   bb3:

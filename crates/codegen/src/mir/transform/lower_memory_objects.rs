@@ -3,10 +3,10 @@
 //! The selected memory-layout policy supplies the dynamic-object header, field offsets, and
 //! fixed-array strides. Semantic accesses and allocations become raw pointer arithmetic, loads,
 //! stores, and allocation operations. A `memory_slice` view becomes `{object + header, mload
-//! object}`. When every use of a view lowers here, the view becomes only its length load and each
-//! use recomputes its data address from the object, so the address does not stay live from the
-//! view to its uses. Unreachable blocks are removed before substitution: their definitions need
-//! not obey SSA and can contain cast cycles.
+//! object}`. When every use of a view lowers here, the view becomes only its length load, or
+//! nothing when no use reads the length, and each use recomputes its data address from the
+//! object, so the address does not stay live from the view to its uses. Unreachable blocks are
+//! removed before substitution: their definitions need not obey SSA and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -23,7 +23,10 @@ use crate::mir::{
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -81,7 +84,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
 
     // unreachable definitions -> removed blocks and phi inputs
     let _ = super::cfg_simplify::remove_unreachable_blocks(func);
-    let views = local_views(func);
+    let (views, length_reads) = local_views(func);
     let mut replacements = FxHashMap::default();
     let blocks = func.blocks.indices();
 
@@ -105,14 +108,16 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
-                    // A view whose uses all lower here becomes its length load; each use
-                    // recomputes its data address from the object.
+                    // A view whose uses all lower here becomes its length load, or nothing when
+                    // no use reads the length; each use recomputes its data address from the
+                    // object.
                     InstKind::MemorySlice(object)
-                        if builder
-                            .func()
-                            .inst_result_value(inst)
-                            .is_some_and(|view| views.contains_key(&view)) =>
+                        if let Some(view) = builder.func().inst_result_value(inst)
+                            && views.contains_key(&view) =>
                     {
+                        if !length_reads.contains(&view) {
+                            return false;
+                        }
                         // header = ptrtoint object to i256
                         // view = mload header
                         let header = builder.cast(object, MirType::I256);
@@ -517,8 +522,11 @@ fn memory_slice_parts<P: MemoryLayoutPolicy>(
     (data, len)
 }
 
-/// Returns the `memory_slice` views whose every use lowers in this pass, by their objects.
-fn local_views(func: &Function) -> FxHashMap<crate::mir::ValueId, crate::mir::ValueId> {
+/// Returns the `memory_slice` views whose every use lowers in this pass, by their objects, and
+/// the views whose length some use reads.
+fn local_views(
+    func: &Function,
+) -> (FxHashMap<crate::mir::ValueId, crate::mir::ValueId>, FxHashSet<crate::mir::ValueId>) {
     let mut views: FxHashMap<_, _> = func
         .instructions()
         .filter_map(|inst| match func.inst(inst).kind {
@@ -526,8 +534,12 @@ fn local_views(func: &Function) -> FxHashMap<crate::mir::ValueId, crate::mir::Va
             _ => None,
         })
         .collect();
+    let mut length_reads = FxHashSet::default();
     for inst in func.instructions() {
         let kind = &func.inst(inst).kind;
+        if let InstKind::SliceLen(view) | InstKind::SliceCopy { source: view, .. } = *kind {
+            length_reads.insert(view);
+        }
         let local = matches!(
             kind,
             InstKind::SliceLen(_)
@@ -553,7 +565,7 @@ fn local_views(func: &Function) -> FxHashMap<crate::mir::ValueId, crate::mir::Va
             });
         }
     }
-    views
+    (views, length_reads)
 }
 
 fn slice_location(

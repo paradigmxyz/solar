@@ -102,28 +102,25 @@ fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     icall panic_if<0x32>, v18
     v19 = slice_load_element v15, 0
     v20 = checked_add u256, v14, v19
-    v21 = memory_slice v2
-    v22 = slice_len v21
-    v23 = lt 1, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = slice_load_element v21, 1
-    v26 = checked_add u256, v20, v25
-    v27 = memory_slice v2
-    v28 = slice_len v27
-    v29 = lt 2, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = slice_load_element v27, 2
-    v32 = checked_add u256, v26, v31
-    v33 = memory_slice v2
-    v34 = slice_len v33
-    v35 = lt 3, v34
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = slice_load_element v33, 3
-    v38 = checked_add u256, v32, v37
-    ret v38
+    v21 = slice_len v15
+    v22 = lt 1, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = slice_load_element v15, 1
+    v25 = checked_add u256, v20, v24
+    v26 = slice_len v15
+    v27 = lt 2, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = slice_load_element v15, 2
+    v30 = checked_add u256, v25, v29
+    v31 = slice_len v15
+    v32 = lt 3, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = slice_load_element v15, 3
+    v35 = checked_add u256, v30, v34
+    ret v35
   bb3:
     v8 = checked_add u256, v3, 1
     v9 = checked_add u256, v3, 1

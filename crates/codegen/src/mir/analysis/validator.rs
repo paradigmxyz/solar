@@ -1043,7 +1043,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes | Builtin::Concat(_) => Some(MirType::MemPtr),
+                            Builtin::ReturndataBytes => Some(MirType::MemPtr),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1057,13 +1057,6 @@ impl<'a> Validator<'a> {
                                 .get(1)
                                 .and_then(|&value| func.value_u64(value))
                                 .is_some_and(|length| (1..=32).contains(&length)),
-                            Builtin::Concat(types) => types.iter().all(|ty| {
-                                matches!(
-                                    ty,
-                                    crate::mir::ValueLayout::MemoryObject(MemoryObjectKind::Bytes)
-                                        | crate::mir::ValueLayout::FixedBytes(_)
-                                )
-                            }),
                             _ => true,
                         };
                         metadata_valid

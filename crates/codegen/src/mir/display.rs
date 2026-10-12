@@ -625,7 +625,6 @@ fn display_inst_kind<'a>(
                 Builtin::Send => write!(f, "send<>")?,
                 Builtin::Transfer => write!(f, "transfer<>")?,
                 Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
-                Builtin::Concat(types) => write!(f, "concat<{}>", types.iter().format(", "))?,
                 Builtin::Check { is_zero, failure } => {
                     let name = match failure {
                         super::RevertKind::Panic(_) => "panic_if",

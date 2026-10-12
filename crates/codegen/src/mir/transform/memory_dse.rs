@@ -434,11 +434,18 @@ impl MemoryStoreEliminator {
 
         scratch.view_lengths.clear();
         let block_ids = func.blocks.indices();
-        let has_precise_reads = func
-            .instructions()
-            .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
+        // Views are worth tracking only while a `slice_len` still reads one.
+        let (mut has_precise_reads, mut reads_view_lengths) = (false, false);
+        for inst_id in func.instructions() {
+            let kind = &func.inst(inst_id).kind;
+            has_precise_reads |= Self::constant_range_read(kind).is_some();
+            reads_view_lengths |= func.is_view_length(kind);
+            if has_precise_reads && reads_view_lengths {
+                break;
+            }
+        }
         for block_id in block_ids {
-            self.process_block(func, block_id, has_precise_reads, scratch);
+            self.process_block(func, block_id, has_precise_reads, reads_view_lengths, scratch);
             self.alias().clear_cached_addresses();
         }
         self.forward_view_lengths(func, scratch);
@@ -797,6 +804,7 @@ impl MemoryStoreEliminator {
         func: &mut Function,
         block_id: BlockId,
         precise_reads: bool,
+        reads_view_lengths: bool,
         scratch: &mut BlockScratch,
     ) {
         let mut mstores = 0;
@@ -819,7 +827,8 @@ impl MemoryStoreEliminator {
                 | InstKind::Alloc { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. } => memory_writes += 1,
-                InstKind::MLoad(_) | InstKind::MemorySlice(_) => has_load = true,
+                InstKind::MLoad(_) => has_load = true,
+                InstKind::MemorySlice(_) if reads_view_lengths => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
                     .alias()

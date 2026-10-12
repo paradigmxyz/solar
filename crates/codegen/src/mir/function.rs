@@ -201,6 +201,12 @@ impl Function {
         }
     }
 
+    /// Whether `kind` reads the length of a `memory_slice` view.
+    #[must_use]
+    pub(crate) fn is_view_length(&self, kind: &InstKind) -> bool {
+        matches!(*kind, InstKind::SliceLen(view) if self.memory_slice_object(view).is_some())
+    }
+
     /// Returns the object and length of a store to an object's length word:
     /// `mstore (ptrtoint object), len`.
     #[must_use]

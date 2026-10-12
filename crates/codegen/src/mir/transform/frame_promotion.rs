@@ -232,7 +232,7 @@ impl FrameSlotPromoter {
         self.stats = FramePromotionStats::default();
         self.summaries.clear();
 
-        if Self::has_global_observation_barrier(func) {
+        if !Self::may_promote(func) {
             return self.stats;
         }
 
@@ -259,13 +259,22 @@ impl FrameSlotPromoter {
         self.stats
     }
 
-    /// `msize` observes the memory extent, which removing local-slot traffic
-    /// changes, so it stays a barrier. `gas()` is deliberately NOT one: exact
-    /// gas is never a semantic guarantee, and barring it blocked promotion in
-    /// every forwarding proxy, whose `delegatecall(gas(), ...)` is exactly the
-    /// construct that scribbles compiler locals and needs them off memory.
-    fn has_global_observation_barrier(func: &Function) -> bool {
-        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize))
+    /// Only internal-frame slots and the external entry's locals promote, and both need a
+    /// frame. `msize` observes the memory extent, which removing local-slot traffic changes, so
+    /// it stays a barrier. `gas()` is deliberately NOT one: exact gas is never a semantic
+    /// guarantee, and barring it blocked promotion in every forwarding proxy, whose
+    /// `delegatecall(gas(), ...)` is exactly the construct that scribbles compiler locals and
+    /// needs them off memory.
+    fn may_promote(func: &Function) -> bool {
+        let mut has_frame = func.internal_frame_size != 0;
+        for inst_id in func.instructions() {
+            match func.inst(inst_id).kind {
+                InstKind::MSize => return false,
+                InstKind::InternalFrameAddr(_) => has_frame = true,
+                _ => {}
+            }
+        }
+        has_frame
     }
 
     fn collect_promotable_slots(

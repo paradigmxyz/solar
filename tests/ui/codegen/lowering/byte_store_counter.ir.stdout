@@ -222,15 +222,16 @@ bb60 [loop]:
   add
   dup 8
   mload
-  dup 2
+  dup 1
+  dup 3
   lt
   iszero
   push bb63
   jumpi
-  swap 1
-  dup 5
+  swap 2
+  dup 6
   mstore8
-  swap 1
+  swap 2
   push 15
   and
   push 0x30313233343536373839616263646566
@@ -238,12 +239,10 @@ bb60 [loop]:
   shl
   swap 1
   byte
-  swap 1
+  swap 2
   push 1
   add
-  dup 7
-  mload
-  gt
+  lt
   iszero
   push bb63
   jumpi

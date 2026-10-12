@@ -745,13 +745,12 @@ fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_para
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     slice_store_element v3, 0, v2
-    v7 = memory_slice v0
-    v8 = slice_len v7
-    v9 = lt 0, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = slice_load_element v7, 0
-    ret v11
+    v7 = slice_len v3
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = slice_load_element v3, 0
+    ret v10
 }
 
 fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

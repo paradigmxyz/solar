@@ -254,26 +254,26 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v11 = shr 5, v10
     v12 = add v7, 63
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v36 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v36 to memptr !metadata(memory=scratch)
-    v37 = add v36, v15
-    v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    jumpi v40, bb9, bb8
+    v34 = mload 64 !metadata(memory=scratch)
+    v16 = inttoptr i256 v34 to memptr !metadata(memory=scratch)
+    v35 = add v34, v15
+    v36 = lt v35, v34
+    v37 = gt v35, 0xffffffffffffffff
+    v38 = or v36, v37
+    jumpi v38, bb9, bb8
   bb8:
-    mstore 64, v37 !metadata(memory=scratch)
-    mstore v36, v7
+    mstore 64, v35 !metadata(memory=scratch)
+    mstore v34, v7
     jumpi v3, bb4, bb3
   bb3:
     v18 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v31 = add v36, 32
-    mstore v31, v18
+    v30 = add v34, 32
+    mstore v30, v18
     jump bb5
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     v28 = keccak256 0, 32 !metadata(memory=scratch)
-    v34 = add v36, 32
+    v32 = add v34, 32
     jump bb6
   bb6:
     v21 = phi [bb4: 0], [bb7: v27]
@@ -285,8 +285,8 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v23 = add v28, v21
     v24 = sload v23 !metadata(storage=symbolic(v23))
     v25 = shl 5, v21
-    v35 = add v34, v25
-    mstore v35, v24
+    v33 = add v32, v25
+    mstore v33, v24
     v27 = add v21, 1
     jump bb6
   bb9:

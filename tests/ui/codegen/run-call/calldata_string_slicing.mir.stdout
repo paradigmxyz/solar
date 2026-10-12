@@ -12,62 +12,18 @@ fn @slice(arg0: calldataslice, arg1: i256) -> memptr [selector=0x8b150516, pure,
     v6 = sub arg1, 0
     v7 = add v0, 0
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = slice_len v8
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    icall panic_if<0x41>, v17
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    v21 = ptrtoint memptr v20 to i256
-    mstore v21, v15
-    v22 = ptrtoint memptr v20 to i256
-    v23 = add v22, 32
-    v24 = slice_len v8
-    v25 = make_memory_slice v23, v24
-    slice_copy v25, 0, v8
-    v26 = slice_ptr arg0
-    v27 = slice_len arg0
-    v28 = gt v27, v27
-    v29 = lt v27, arg1
-    v30 = or v28, v29
-    v31 = zext i1 v30 to i256
-    icall revert_if<empty>, v30
-    v32 = sub v27, arg1
-    v33 = add v26, arg1
-    v34 = make_calldata_slice v33, v32
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = calldatasize
-    v39 = sub v38, v36
-    v40 = sgt v35, v39
-    icall revert_if<calldata_tail_too_short>, v40
-    v41 = slice_len v34
-    v42 = add v41, 63
-    v43 = lt v42, v41
-    icall panic_if<0x41>, v43
-    v44 = not 31
-    v45 = and v42, v44
-    v46 = alloc memorybytes, exact, uninitialized, infallible, v45
-    v47 = ptrtoint memptr v46 to i256
-    mstore v47, v41
-    v48 = ptrtoint memptr v46 to i256
-    v49 = add v48, 32
-    v50 = slice_len v34
-    v51 = make_memory_slice v49, v50
-    slice_copy v51, 0, v34
-    v52 = icall concat<memorybytes, memorybytes>, v20, v46
-    ret v52
+    v9 = slice_ptr arg0
+    v10 = slice_len arg0
+    v11 = gt v10, v10
+    v12 = lt v10, arg1
+    v13 = or v11, v12
+    v14 = zext i1 v13 to i256
+    icall revert_if<empty>, v13
+    v15 = sub v10, arg1
+    v16 = add v9, arg1
+    v17 = make_calldata_slice v16, v15
+    v18 = abi_encode_packed (bytes v8, bytes v17)
+    ret v18
 }
 
 fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xdfcfbb62, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

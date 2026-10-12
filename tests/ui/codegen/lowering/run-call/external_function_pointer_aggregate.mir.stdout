@@ -24,16 +24,15 @@ fn @combine(arg0: memptr, arg1: memptr) -> struct0 [selector=0x3488ea15, pure, a
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = slice_load_element v0, 0
-    v5 = memory_slice arg0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_element v5, 1
-    v10 = checked_add u256, v4, v9
-    v11 = insert_value struct0, undef struct0, 0, v10
-    v12 = insert_value struct0, v11, 1, arg1
-    ret v12
+    v5 = slice_len v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = slice_load_element v0, 1
+    v9 = checked_add u256, v4, v8
+    v10 = insert_value struct0, undef struct0, 0, v9
+    v11 = insert_value struct0, v10, 1, arg1
+    ret v11
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
@@ -117,37 +116,36 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     slice_store_element v7, 0, 4
-    v11 = memory_slice v5
-    v12 = slice_len v11
-    v13 = lt 1, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    slice_store_element v11, 1, 3
-    v15 = and v4, 0xffffffff
-    v16 = shl 224, v15
-    v17 = shr 32, v4
-    v18 = gas
-    v19 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v20 = ptrtoint memptr v19 to i256
-    mstore v20, 2
-    v21 = ptrtoint memptr v19 to i256
-    v22 = add v21, 32
-    mstore v22, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v23 = abi_encode [memory_array<word>, memory_bytes], selector v16, args v5, v19
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = staticcall v18, v17, v24, v25, 0, 0
-    jumpi v26, bb2, bb1
+    v11 = slice_len v7
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    slice_store_element v7, 1, 3
+    v14 = and v4, 0xffffffff
+    v15 = shl 224, v14
+    v16 = shr 32, v4
+    v17 = gas
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v19 = ptrtoint memptr v18 to i256
+    mstore v19, 2
+    v20 = ptrtoint memptr v18 to i256
+    v21 = add v20, 32
+    mstore v21, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v22 = abi_encode [memory_array<word>, memory_bytes], selector v15, args v5, v18
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v17, v16, v23, v24, 0, 0
+    jumpi v25, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v27 = icall returndata_bytes<>
-    v28 = abi_decode [u256, bytes], v27
-    v29 = extract_value struct0, v28, 0
-    v30 = extract_value struct0, v28, 1
-    v31 = insert_value struct0, undef struct0, 0, v29
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    v26 = icall returndata_bytes<>
+    v27 = abi_decode [u256, bytes], v26
+    v28 = extract_value struct0, v27, 0
+    v29 = extract_value struct0, v27, 1
+    v30 = insert_value struct0, undef struct0, 0, v28
+    v31 = insert_value struct0, v30, 1, v29
+    ret v31
 }
 
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -291,63 +289,61 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v12 = zext i160 v11 to i256
     v13 = shl 32, v12
     v14 = or v13, 0x7cf5dab0
-    v15 = memory_slice v0
-    v16 = slice_len v15
-    v17 = lt 1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = shl 64, v14
-    slice_store_element v15, 1, v19
-    v20 = memory_slice v0
-    v21 = slice_len v20
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = slice_load_element v20, 0
-    v25 = shr 64, v24
-    v26 = and v25, 0xffffffff
-    v27 = shl 224, v26
-    v28 = shr 32, v25
-    v29 = gas
-    v30 = abi_encode [word], selector v27, args 3
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = call v29, v28, 0, v31, v32, 0, 32
-    jumpi v33, bb2, bb1
+    v15 = slice_len v6
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl 64, v14
+    slice_store_element v6, 1, v18
+    v19 = slice_len v6
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = slice_load_element v6, 0
+    v23 = shr 64, v22
+    v24 = and v23, 0xffffffff
+    v25 = shl 224, v24
+    v26 = shr 32, v23
+    v27 = gas
+    v28 = abi_encode [word], selector v25, args 3
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = call v27, v26, 0, v29, v30, 0, 32
+    jumpi v31, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = memory_slice v0
-    v39 = slice_len v38
-    v40 = lt 1, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = slice_load_element v38, 1
-    v43 = shr 64, v42
-    v44 = and v43, 0xffffffff
-    v45 = shl 224, v44
-    v46 = shr 32, v43
-    v47 = gas
-    v48 = abi_encode [word], selector v45, args 4
-    v49 = slice_ptr v48
-    v50 = slice_len v48
-    v51 = call v47, v46, 0, v49, v50, 0, 32
-    jumpi v51, bb4, bb3
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = memory_slice v0
+    v37 = slice_len v36
+    v38 = lt 1, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = slice_load_element v36, 1
+    v41 = shr 64, v40
+    v42 = and v41, 0xffffffff
+    v43 = shl 224, v42
+    v44 = shr 32, v41
+    v45 = gas
+    v46 = abi_encode [word], selector v43, args 4
+    v47 = slice_ptr v46
+    v48 = slice_len v46
+    v49 = call v45, v44, 0, v47, v48, 0, 32
+    jumpi v49, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v52 = returndatasize
-    v53 = lt v52, 32
-    icall revert_if<tuple_data_too_short>, v53
-    v54 = add 0, 0
-    v55 = mload v54
-    v56 = checked_add u256, v37, v55
-    ret v56
+    v50 = returndatasize
+    v51 = lt v50, 32
+    icall revert_if<tuple_data_too_short>, v51
+    v52 = add 0, 0
+    v53 = mload v52
+    v54 = checked_add u256, v35, v53
+    ret v54
 }
 
 fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {

@@ -139,27 +139,25 @@ fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[wo
     slice_store_element v4, 0, v8
     v9 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
     v10 = trunc i256 v9 to i120
-    v11 = memory_slice v0
-    v12 = slice_len v11
-    v13 = lt 1, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = zext i120 v10 to i256
-    slice_store_element v11, 1, v15
-    v16 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
-    v17 = trunc i256 v16 to i120
-    v18 = memory_slice v0
-    v19 = slice_len v18
-    v20 = lt 2, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = zext i120 v17 to i256
-    slice_store_element v18, 2, v22
-    v23 = abi_encode [memory_array<word<u120>>], scratch, args v0
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = keccak256 v24, v25
-    ret v26
+    v11 = slice_len v4
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = zext i120 v10 to i256
+    slice_store_element v4, 1, v14
+    v15 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v16 = trunc i256 v15 to i120
+    v17 = slice_len v4
+    v18 = lt 2, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = zext i120 v16 to i256
+    slice_store_element v4, 2, v20
+    v21 = abi_encode [memory_array<word<u120>>], scratch, args v0
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = keccak256 v22, v23
+    ret v24
 }
 
 fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

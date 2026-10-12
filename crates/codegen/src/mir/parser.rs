@@ -2151,20 +2151,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
             // Calls and creation.
             sym::icall => {
-                let function = if self.parser.eat_keyword(sym::concat) {
-                    self.parser.expect(TokenKind::Lt)?;
-                    let mut types = Vec::new();
-                    if !self.parser.eat(TokenKind::Gt) {
-                        loop {
-                            types.push(self.parse_value_layout()?);
-                            if self.parser.eat(TokenKind::Gt) {
-                                break;
-                            }
-                            self.parser.expect(TokenKind::Comma)?;
-                        }
-                    }
-                    super::Callee::Builtin(super::Builtin::Concat(types.into()))
-                } else if self.parser.check_keyword(sym::panic_if)
+                let function = if self.parser.check_keyword(sym::panic_if)
                     || self.parser.check_keyword(sym::panic_if_zero)
                     || self.parser.check_keyword(sym::revert_if)
                     || self.parser.check_keyword(sym::revert_if_zero)
@@ -2226,7 +2213,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(
                         super::Builtin::Require(_) | super::Builtin::Check { .. },
                     ) => None,
-                    super::Callee::Builtin(super::Builtin::Concat(_)) => Some(MirType::MemPtr),
                     super::Callee::Builtin(super::Builtin::Transfer) => None,
                     super::Callee::Builtin(super::Builtin::ReturndataBytes) => {
                         Some(MirType::MemPtr)

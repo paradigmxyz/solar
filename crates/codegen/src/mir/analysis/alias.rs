@@ -1292,8 +1292,7 @@ impl AliasAnalysis {
             | InstKind::ICall {
                 function:
                     Callee::Builtin(
-                        Builtin::Concat(_)
-                        | Builtin::Sha256
+                        Builtin::Sha256
                         | Builtin::Ripemd160
                         | Builtin::EcRecover
                         | Builtin::ReturndataBytes,

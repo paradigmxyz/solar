@@ -117,7 +117,6 @@ impl InstKind {
                 function:
                     Callee::Builtin(
                         Builtin::Erc7201
-                        | Builtin::Concat(_)
                         | Builtin::Sha256
                         | Builtin::Ripemd160
                         | Builtin::EcRecover,
@@ -298,10 +297,7 @@ impl InstKind {
                     | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
-                    | Self::ICall {
-                        function: Callee::Builtin(Builtin::Concat(_) | Builtin::ReturndataBytes),
-                        ..
-                    }
+                    | Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
             ),
         }
     }

@@ -56,13 +56,12 @@ fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_r
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     slice_store_element v2, 1, 42
-    v6 = memory_slice v0
-    v7 = slice_len v6
-    v8 = lt 1, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = slice_load_element v6, 1
-    ret v10
+    v6 = slice_len v2
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = slice_load_element v2, 1
+    ret v9
 }
 
 fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -105,28 +104,27 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     icall panic_if<0x32>, v27
     v28 = ptrtoint memptr v22 to i256
     slice_store_element v24, 0, v28
-    v29 = memory_slice v0
-    v30 = slice_len v29
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = slice_load_element v29, 0
-    v34 = inttoptr i256 v33 to memptr
-    v35 = eq v33, 0
-    jumpi v35, bb4, bb5
+    v29 = slice_len v24
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = slice_load_element v24, 0
+    v33 = inttoptr i256 v32 to memptr
+    v34 = eq v32, 0
+    jumpi v34, bb4, bb5
   bb4:
-    v36 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v37 = ptrtoint memptr v36 to i256
-    mstore v37, 0
-    v38 = memory_slice v0
-    v39 = ptrtoint memptr v36 to i256
-    slice_store_element v38, 0, v39
+    v35 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v36 = ptrtoint memptr v35 to i256
+    mstore v36, 0
+    v37 = memory_slice v0
+    v38 = ptrtoint memptr v35 to i256
+    slice_store_element v37, 0, v38
     jump bb5
   bb5:
-    v40 = phi [bb3: v34], [bb4: v36]
-    v41 = memory_slice v40
-    v42 = slice_len v41
-    ret v42
+    v39 = phi [bb3: v33], [bb4: v35]
+    v40 = memory_slice v39
+    v41 = slice_len v40
+    ret v41
   bb2:
     v4 = memory_slice v0
     slice_store_element v4, v2, 96

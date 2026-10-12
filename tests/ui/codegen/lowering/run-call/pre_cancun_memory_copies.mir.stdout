@@ -11,25 +11,23 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     slice_store_element v2, 0, 1
-    v6 = memory_slice v0
-    v7 = slice_len v6
-    v8 = lt 1, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    slice_store_element v6, 1, 2
-    v10 = memory_slice v0
-    v11 = slice_len v10
-    v12 = lt 2, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    slice_store_element v10, 2, 3
-    v14 = abi_encode [memory_array<word>], scratch, args v0
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = keccak256 v15, v16
-    v18 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
-    v19 = eq v17, v18
-    ret v19
+    v6 = slice_len v2
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    slice_store_element v2, 1, 2
+    v9 = slice_len v2
+    v10 = lt 2, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    slice_store_element v2, 2, 3
+    v12 = abi_encode [memory_array<word>], scratch, args v0
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = keccak256 v13, v14
+    v16 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
+    v17 = eq v15, v16
+    ret v17
 }
 
 fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -117,7 +115,7 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
     v7 = ptrtoint memptr v5 to i256
     v8 = add v7, 32
     mstore v8, 0x2223000000000000000000000000000000000000000000000000000000000000
-    v9 = icall concat<memorybytes, memorybytes>, v0, v5
+    v9 = abi_encode_packed (bytes v0, bytes v5)
     v10 = memory_slice v9
     v11 = slice_len v10
     v12 = eq v11, 35
@@ -175,7 +173,7 @@ fn @recycled() -> i1 [selector=0xa163996f, pure, abi_params=[], abi_returns=[wor
     v8 = ptrtoint memptr v2 to i256
     v9 = add v8, 32
     mstore 64, v9 !metadata(memory=scratch)
-    v10 = icall concat<memorybytes>, v2
+    v10 = abi_encode_packed (bytes v2, data hex"")
     v11 = ptrtoint memptr v10 to i256
     v12 = add v11, 64
     v13 = mload v12
@@ -194,18 +192,16 @@ fn @fresh() -> memptr [selector=0xb466b76f, pure, abi_params=[], abi_returns=[me
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     slice_store_element v2, 0, 1
-    v6 = memory_slice v0
-    v7 = slice_len v6
-    v8 = lt 1, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    slice_store_element v6, 1, 2
-    v10 = memory_slice v0
-    v11 = slice_len v10
-    v12 = lt 2, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    slice_store_element v10, 2, 3
+    v6 = slice_len v2
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    slice_store_element v2, 1, 2
+    v9 = slice_len v2
+    v10 = lt 2, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    slice_store_element v2, 2, 3
     ret v0
 }
 

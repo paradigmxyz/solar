@@ -104,12 +104,11 @@ fn @sumMemory(arg0: memptr) -> i256 [selector=0x13201b5d, pure, abi_params=[arra
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = slice_load_element v0, 0
-    v5 = memory_slice arg0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_element v5, 1
-    v10 = checked_add u256, v4, v9
-    ret v10
+    v5 = slice_len v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = slice_load_element v0, 1
+    v9 = checked_add u256, v4, v8
+    ret v9
 }

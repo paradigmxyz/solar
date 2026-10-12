@@ -609,7 +609,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let selector = self.lower_selector_word(&selector[0])?;
                 self.lower_abi_encode_builtin_args(rest, Some(selector))
             }
-            Builtin::AbiEncodePacked => self.lower_abi_encode_packed(args),
+            Builtin::AbiEncodePacked => self.lower_abi_encode_packed(builtin, args),
             Builtin::AbiEncodeWithSignature => self.lower_abi_encode_with_signature(args),
             Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
             Builtin::Blockhash | Builtin::Blobhash => {
@@ -634,8 +634,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
             Builtin::EcRecover => self.lower_ecrecover_call(args),
+            // `bytes.concat` and `string.concat` are packed encodings of their arguments.
             Builtin::StringConcat | Builtin::BytesConcat => {
-                self.lower_concat_builtin_call(builtin, args)
+                self.lower_abi_encode_packed(builtin, args)
             }
             Builtin::UdvtWrap => {
                 let value = self.builtin_args::<1>(builtin, &args)?.first()?;
@@ -698,66 +699,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::Erc7201, [value]),
             Some(MirType::I256),
         ))
-    }
-
-    fn lower_concat_builtin_call(
-        &mut self,
-        builtin: Builtin,
-        args: hir::CallArgs<'_>,
-    ) -> Option<ValueId> {
-        let exprs = self.variadic_builtin_args(builtin, &args)?;
-        let mut all_literals = Some(Vec::new());
-        let mut parts = Vec::with_capacity(exprs.len());
-        for expr in exprs {
-            let ty = self.cx.gcx.type_of_expr(expr.id)?;
-            match ty.peel_refs().kind {
-                TyKind::StringLiteral(..)
-                | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
-                | TyKind::Slice(_) => {
-                    if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
-                        && let LitKind::Str(_, bytes, _) = &lit.kind
-                    {
-                        let bytes = bytes.as_byte_str().to_vec();
-                        if let Some(all_literals) = &mut all_literals {
-                            all_literals.extend_from_slice(&bytes);
-                        }
-                        for chunk in bytes.chunks(32) {
-                            let value = self.lower_string_literal_word(chunk);
-                            parts.push(ConcatPart::Fixed {
-                                value,
-                                size: TypeSize::new_int_bits(chunk.len() as u16 * 8),
-                            });
-                        }
-                        continue;
-                    }
-                    all_literals = None;
-                    let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                    let value = self.lower_typed_expr(expr, memory_ty)?;
-                    let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
-                    parts.push(ConcatPart::Bytes(value));
-                }
-                TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
-                    all_literals = None;
-                    let value = self.lower_expr(expr)?;
-                    parts.push(ConcatPart::Fixed { value, size });
-                }
-                _ => return self.cx.report_unsupported(expr.span, "concat argument"),
-            }
-        }
-
-        if let Some(bytes) = all_literals {
-            // output = bytes(concat(literals))
-            return Self::build_bytes_literal(
-                self.cx.gcx,
-                self.cx.module,
-                &mut self.builder,
-                &bytes,
-                AllocationSemantics::SOLIDITY_UNINITIALIZED,
-            );
-        }
-
-        // output = icall concat, parts
-        Some(self.builder.emit_inst(InstKind::concat(parts), Some(MirType::MemPtr)))
     }
 
     fn lower_yul_unit_builtin_call(

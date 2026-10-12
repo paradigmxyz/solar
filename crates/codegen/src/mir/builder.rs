@@ -478,13 +478,6 @@ impl<'a> FunctionBuilder<'a> {
         self.mask_padded_size(rounded)
     }
 
-    /// Returns the Solidity-compatible padded size for `bytes.concat`.
-    pub(crate) fn padded_size(&mut self, length: ValueId) -> ValueId {
-        let padding = self.imm(63);
-        let rounded = self.add(length, padding);
-        self.mask_padded_size(rounded)
-    }
-
     /// Rounds `rounded` down to a multiple of 32.
     pub(crate) fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         let mask = self.imm(31);
@@ -876,10 +869,39 @@ impl<'a> FunctionBuilder<'a> {
         (object, layout)
     }
 
-    /// Reads a dynamic memory object's header into a view of its payload.
+    /// Reads a dynamic memory object's header into a view of its payload. A semantic builder,
+    /// which only appends to a function it builds, reuses a view of the object made shortly
+    /// before in this block when nothing since can have changed its header.
     pub(crate) fn memory_slice(&mut self, object: ValueId) -> ValueId {
+        if self.semantic
+            && let Some(view) = self.recent_view(object)
+        {
+            return view;
+        }
         // view = memory_slice object
         self.emit_inst(InstKind::MemorySlice(object), Some(MirType::Slice(SliceLocation::Memory)))
+    }
+
+    /// Finds a `memory_slice` of `object` among the last instructions of the current block with
+    /// no possible memory write after it, other than stores into the object's own payload.
+    fn recent_view(&self, object: ValueId) -> Option<ValueId> {
+        const WINDOW: usize = 32;
+        for &inst in self.func.blocks[self.current_block].instructions.iter().rev().take(WINDOW) {
+            let kind = &self.func.inst(inst).kind;
+            match *kind {
+                InstKind::MemorySlice(viewed) if viewed == object => {
+                    return self.func.inst_result_value(inst);
+                }
+                // A store into the object's payload leaves its header word.
+                InstKind::SliceStoreElement { slice, .. }
+                | InstKind::SliceStoreByte { slice, .. }
+                | InstKind::SliceStoreWord { slice, .. }
+                    if self.func.memory_slice_object(slice) == Some(object) => {}
+                _ if !kind.effect_kind().is_read_only() => return None,
+                _ => {}
+            }
+        }
+        None
     }
 
     /// Returns a slice view of a dynamic value: slices as they are, memory objects through

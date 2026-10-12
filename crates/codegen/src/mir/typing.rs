@@ -151,7 +151,6 @@ pub(super) fn callee_types(
         Builtin::EcRecover => smallvec![MirType::I256; 4],
         Builtin::CheckedAddMod | Builtin::CheckedMulMod => smallvec![MirType::I256; 3],
         Builtin::ReturndataBytes => smallvec![],
-        Builtin::Concat(types) => types.iter().map(|ty| ty.mir_type()).collect(),
     })
 }
 
