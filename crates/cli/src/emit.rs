@@ -191,9 +191,58 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
                     module.to_text(),
                 )?;
             }
+            emit_evm_ir_input_artifacts(gcx, &name, module)?;
         }
     }
     Ok(())
+}
+
+/// Assembles an EVM IR input program when `--emit` asks for contract outputs, and emits them as
+/// for a contract named after the file and the module. The program is runtime code: its creation
+/// code only deploys it, and it declares no ABI.
+fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> Result {
+    let sess = gcx.sess;
+    let [mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime] = [false; 4];
+    for &output in &sess.opts.emit {
+        match output {
+            CompilerOutput::Abi => emit_abi = true,
+            CompilerOutput::Hashes => emit_hashes = true,
+            CompilerOutput::Bin => emit_bin = true,
+            CompilerOutput::BinRuntime => emit_bin_runtime = true,
+            output if output.is_codegen() => {
+                let message = format!("`--emit={output}` is not supported for EVM IR input");
+                return Err(sess.dcx.err(message).emit());
+            }
+            _ => {}
+        }
+    }
+    if !(emit_abi || emit_hashes || emit_bin || emit_bin_runtime) {
+        return Ok(());
+    }
+    let name = format!("{}:{}", file.replace('\\', "/"), module.name());
+    let bytecode = if emit_bin || emit_bin_runtime {
+        Some(module.into_deployable_bytecode(gcx)?)
+    } else {
+        None
+    };
+    let mut output =
+        CombinedJson { version: solar_config::version::SEMVER_VERSION, ..Default::default() };
+    let contract = output.contracts.entry(name).or_default();
+    if emit_abi {
+        contract.abi = Some(&[]);
+    }
+    if emit_hashes {
+        contract.hashes = Some(Hashes::new());
+    }
+    if let Some(bytecode) = bytecode {
+        if emit_bin {
+            contract.bin = Some(MaybeHexBytecode::new(bytecode.deployment.into(), &[]));
+        }
+        if emit_bin_runtime {
+            contract.bin_runtime = Some(MaybeHexBytecode::new(bytecode.runtime.into(), &[]));
+        }
+    }
+    write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
 }
 
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {

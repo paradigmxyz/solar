@@ -141,6 +141,42 @@ impl Module {
         })
     }
 
+    /// Assembles this program, whose EVM IR pipeline already ran, as runtime bytecode, together
+    /// with creation bytecode that deploys it unchanged.
+    ///
+    /// Nothing links library addresses into the result, so a program that pushes one is an
+    /// error; immutables keep their zero placeholders.
+    pub fn into_deployable_bytecode(
+        self,
+        gcx: solar_sema::Gcx<'_>,
+    ) -> solar_interface::Result<DeployableBytecode> {
+        let name = self.name;
+        let runtime = assemble_legalized(gcx, self)?;
+        let mut deployment = Self::new(name);
+        deployment.code_follows = true;
+        let runtime_data = deployment.data.push(Data::new(runtime.clone().into(), None));
+        let mut block = Block::new(0);
+        // push len(runtime)
+        // dup 1
+        // push_data runtime
+        // push 0
+        // codecopy
+        // push 0
+        // return
+        block.instructions = vec![
+            Instruction::push_value(U256::from(runtime.len())),
+            Instruction::stack_op(StackOp::Dup(1)),
+            Instruction::push_data(DataRef::new(runtime_data, 0)),
+            Instruction::push_value(U256::ZERO),
+            Instruction::opcode(op::CODECOPY),
+            Instruction::push_value(U256::ZERO),
+        ];
+        block.terminator = Some(Terminator::new(TerminatorKind::Op(op::RETURN)));
+        deployment.add_block(block);
+        let deployment = assemble_legalized(gcx, deployment)?;
+        Ok(DeployableBytecode { deployment, runtime })
+    }
+
     /// Parses textual EVM IR.
     pub fn parse(
         sess: &solar_interface::Session,
@@ -974,4 +1010,35 @@ impl StackEffect {
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     let (inputs, outputs) = kind.stack_io()?;
     Some(StackEffect::new(inputs, outputs))
+}
+
+/// Creation and runtime bytecode assembled from one EVM IR program.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DeployableBytecode {
+    /// Creation bytecode, which returns the runtime bytecode.
+    pub deployment: Vec<u8>,
+    /// Runtime bytecode.
+    pub runtime: Vec<u8>,
+}
+
+/// Assembles `module` without running the EVM IR pipeline, only legalizing it for the target.
+/// Fails when it pushes a library address, which nothing links.
+fn assemble_legalized(
+    gcx: solar_sema::Gcx<'_>,
+    module: Module,
+) -> solar_interface::Result<Vec<u8>> {
+    let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
+    assembler.legalize();
+    let assembled = assembler.assemble_linked(
+        &EmbeddedBytecodes::default(),
+        &mut LibraryTable::default(),
+        false,
+        false,
+    );
+    gcx.dcx().has_errors()?;
+    if !assembled.library_relocations.is_empty() {
+        let message = "EVM IR input that pushes library addresses has no bytecode to emit";
+        return Err(gcx.dcx().err(message).emit());
+    }
+    Ok(assembled.bytecode)
 }

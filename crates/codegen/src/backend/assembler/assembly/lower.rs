@@ -34,18 +34,29 @@ impl Assembler<'_> {
     ) -> Option<ir::Module> {
         let (mut program, labels) = self.finish_evm_ir()?;
         let scheduled = capture_scheduled.then(|| program.clone());
-        let failed = !self.run_pipeline(&mut program);
+        let failed = !self.run_pipeline(&mut program, true);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
         scheduled
     }
 
-    /// Runs the EVM IR pipeline and legalization, returning whether neither reported an error.
-    fn run_pipeline(&mut self, program: &mut ir::Module) -> bool {
+    /// Legalizes the emitted program for the target without the EVM IR pipeline, which already
+    /// ran on it, and keeps the result for [`Self::prepare_linked`].
+    pub(in crate::backend) fn legalize(&mut self) {
+        let Some((mut program, labels)) = self.finish_evm_ir() else { return };
+        let failed = !self.run_pipeline(&mut program, false);
+        self.optimized = Some(OptimizedProgram { program, labels, failed });
+    }
+
+    /// Runs the EVM IR pipeline when `passes` is set, then legalization, returning whether neither
+    /// reported an error.
+    fn run_pipeline(&mut self, program: &mut ir::Module, passes: bool) -> bool {
         let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
-        let _changed = ir::run_pipeline(self.gcx, program, None);
+        if passes {
+            let _changed = ir::run_pipeline(self.gcx, program, None);
+        }
         if !succeeded() {
             return false;
         }
