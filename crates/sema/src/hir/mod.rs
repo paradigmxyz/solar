@@ -979,13 +979,8 @@ pub struct Modifier<'hir> {
     pub id: ItemId,
     /// The arguments to the modifier or base class call.
     pub args: CallArgs<'hir>,
-}
-
-impl Modifier<'_> {
-    /// Returns `true` if the call names its target through a contract, as in `B.m`.
-    pub fn is_qualified(&self) -> bool {
-        self.span.lo() != self.name_span.lo()
-    }
+    /// Whether the call names its target through a contract, as in `B.m`.
+    pub qualified: bool,
 }
 
 /// A resolved `using for` directive.
