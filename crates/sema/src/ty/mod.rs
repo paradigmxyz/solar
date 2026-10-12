@@ -7,7 +7,6 @@ use crate::{
     typeck::override_checker::OverrideProxy,
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
-use either::Either;
 use solar_ast::{
     DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
 };
@@ -1935,51 +1934,58 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     use solar_data_structures::cycle::*;
 
-    let r = CycleDetector::detect(gcx, id, |gcx, cd, id| {
+    type Cx<'gcx> = (Gcx<'gcx>, bool);
+
+    /// Follows the struct references in the fields of `id`. With `direct`, follows only the
+    /// references that are not behind a dynamic array, mapping, or function type, like solc.
+    fn visit<'gcx>(
+        (gcx, direct): Cx<'gcx>,
+        cd: &mut CycleDetector<Cx<'gcx>, hir::StructId, ErrorGuaranteed>,
+        id: hir::StructId,
+    ) -> CycleDetectorResult<ErrorGuaranteed, hir::StructId> {
         let s = gcx.hir.strukt(id);
 
         if cd.depth() >= 256 {
             let guar = gcx.dcx().emit_err(s.span, "struct is too deeply nested");
-            return CycleDetectorResult::Break(Either::Left(guar));
+            return CycleDetectorResult::Break(guar);
         }
 
         for &field_id in s.fields {
             let field = gcx.hir.variable(field_id);
-            let mut check = |ty: &hir::Type<'_>, dynamic: bool| {
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
-                    match cd.run(other) {
-                        CycleDetectorResult::Continue => {}
-                        CycleDetectorResult::Cycle(_) if dynamic => {
-                            return CycleDetectorResult::Break(Either::Right(()));
-                        }
-                        r => return r,
-                    }
-                }
-                CycleDetectorResult::Continue
+            let mut check = |ty: &hir::Type<'_>| match ty.kind {
+                hir::TypeKind::Custom(hir::ItemId::Struct(other)) => cd.run(other),
+                _ => CycleDetectorResult::Continue,
             };
-            let mut dynamic = false;
-            let mut ty = &field.ty;
-            while let hir::TypeKind::Array(array) = ty.kind {
-                if array.size.is_none() {
-                    dynamic = true;
+            if direct {
+                let mut ty = &field.ty;
+                while let hir::TypeKind::Array(array) = ty.kind
+                    && array.size.is_some()
+                {
+                    ty = &array.element;
                 }
-                ty = &array.element;
-            }
-            cdr_try!(check(ty, dynamic));
-            if let ControlFlow::Break(r) = field.ty.visit(&gcx.hir, &mut |ty| check(ty, true).to_controlflow()) {
+                cdr_try!(check(ty));
+            } else if let ControlFlow::Break(r) =
+                field.ty.visit(&gcx.hir, &mut |ty| check(ty).to_controlflow())
+            {
                 return r;
             }
         }
 
         CycleDetectorResult::Continue
-    });
-    match r {
+    }
+
+    match CycleDetector::detect((gcx, false), id, visit) {
         CycleDetectorResult::Continue => Recursiveness::None,
-        CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
-        CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
-        CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-            gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition")
-        ),
+        CycleDetectorResult::Break(guar) => Recursiveness::Infinite(guar),
+        // A direct cycle makes the struct infinitely sized even when an indirect cycle also
+        // exists, so check all direct edges instead of only the cycle found above.
+        CycleDetectorResult::Cycle(_) => match CycleDetector::detect((gcx, true), id, visit) {
+            CycleDetectorResult::Continue => Recursiveness::Recursive,
+            CycleDetectorResult::Break(guar) => Recursiveness::Infinite(guar),
+            CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
+                gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition"),
+            ),
+        },
     }
 }
 
