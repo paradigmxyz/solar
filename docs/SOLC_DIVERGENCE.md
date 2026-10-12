@@ -431,9 +431,9 @@ No intentional divergences documented yet.
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
 
-### CODEGEN-011: Module conditionals with side-effecting conditions
+### CODEGEN-012: Module conditionals with side-effecting conditions
 
-- ID: CODEGEN-011
+- ID: CODEGEN-012
 - Status: parity debt
 - Difference: `solc` evaluates the condition of a conditional that selects a
   module, as in `(f() ? M : M).x`, before it reads the member. We accept such
