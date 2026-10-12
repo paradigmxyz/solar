@@ -1,0 +1,14 @@
+error[3448]: types containing mappings cannot be event parameter types
+   ╭▸ ROOT/tests/ui/typeck/events/event_param_type_outside_storage.sol:LL:CC
+   │
+LL │     event e(uint indexed a, mapping(uint => uint) indexed b, bool indexed c, uint indexed d, uint indexed e) anonymous;
+   ╰╴                            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8598]: more than 4 indexed arguments for anonymous event
+   ╭▸ ROOT/tests/ui/typeck/events/event_param_type_outside_storage.sol:LL:CC
+   │
+LL │     event e(uint indexed a, mapping(uint => uint) indexed b, bool indexed c, uint indexed d, uint indexed e) anonymous;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
