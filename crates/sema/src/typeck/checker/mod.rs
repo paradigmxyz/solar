@@ -1,5 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
+    eval::EvalErrorKind,
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -230,7 +231,22 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
             return;
         }
-        let Ok(value) = self.gcx.eval_const(slot) else { return };
+        let value = match self.gcx.try_eval_const(slot) {
+            Ok(value) => value,
+            Err(err) if matches!(err.kind, EvalErrorKind::FractionalValue) => {
+                self.dcx()
+                    .err("base slot of storage layout must evaluate to an integer")
+                    .code(error_code!(1763))
+                    .span(slot.span)
+                    .span_label(err.span, "fractional values are not supported")
+                    .emit();
+                return;
+            }
+            Err(err) => {
+                self.gcx.emit_const_eval_error(slot, err);
+                return;
+            }
+        };
         let Some(base_slot) = value.as_u256() else {
             self.dcx()
                 .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")

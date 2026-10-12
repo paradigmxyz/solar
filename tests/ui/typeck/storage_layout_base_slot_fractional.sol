@@ -2,6 +2,6 @@
 // support fractional values yet, so it rejects them instead of truncating to another slot.
 
 contract WideFraction layout at 2**300 / 3 * 3 / 2**299 { uint x; } //~ ERROR: cannot apply builtin operator `/`
-contract Fraction layout at 7 / 3 * 3 { uint x; } //~ ERROR: failed to evaluate constant: fractional values are not supported
+contract Fraction layout at 7 / 3 * 3 { uint x; } //~ ERROR: base slot of storage layout must evaluate to an integer
 contract WideExact layout at 2**300 / 2**299 { uint x; }
 contract Exact layout at 12 / 3 * 3 { uint x; }
