@@ -560,7 +560,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.try_set_not_lvalue(reason);
                 }
                 let ty = self.type_of_res(res);
-                if self.in_yul {
+                if self.in_yul && !ty.references_error() {
                     match self.check_yul_external_ident(res, ty, expr.span) {
                         Ok(true) => return self.gcx.types.uint(256),
                         Ok(false) => {}
