@@ -211,7 +211,19 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
-### TYPECK-010: Decoding arrays of zero-size elements
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
+
+### TYPECK-015: Decoding arrays of zero-size elements
 
 Status: intentional.
 
@@ -225,18 +237,6 @@ Rationale: no decoder exists for these types in `solc`, so report them during
 type checking instead of crashing or making up an encoding.
 
 Coverage: `tests/ui/typeck/abi_decode_zero_size_elements.sol`.
-
-### TYPECK-011: Module-typed conditionals
-
-Status: intentional.
-
-Difference: `solar` rejects conditionals whose branches are modules, such as
-`(c ? M : M).x`, which `solc` accepts.
-
-Rationale: codegen resolves module members statically and would drop the
-condition, and real code does not use the construct.
-
-Coverage: `tests/ui/typeck/module_conditional.sol`.
 
 ## Contract-Level Checks
 
