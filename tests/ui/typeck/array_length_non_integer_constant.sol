@@ -5,6 +5,6 @@ contract C {
     uint256[T] t; //~ ERROR: unsupported expression
 
     function f() external pure {
-        abi.decode("", (uint256[S])); //~ ERROR: unsupported literal
+        abi.decode("", (uint256[S])); //~ ERROR: `bytesN` constants are not integers
     }
 }

@@ -10,12 +10,6 @@ error: failed to evaluate constant: `bytesN` constants are not integers
 LL │     uint256[S] s;
    ╰╴            ━ evaluation of constant value failed here
 
-error: failed to evaluate constant: unsupported expression
-   ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
-   │
-LL │     uint256[T] t;
-   ╰╴            ━ evaluation of constant value failed here
-
 error: failed to evaluate constant: `bytesN` constants are not integers
    ╭▸ ROOT/tests/ui/typeck/array_length_fixed_bytes_constant.sol:LL:CC
    │
@@ -28,5 +22,5 @@ error: failed to evaluate constant: `bytesN` constants are not integers
 LL │         abi.decode("", (uint256[B]));
    ╰╴                                ━ evaluation of constant value failed here
 
-error: aborting due to 5 previous errors
+error: aborting due to 4 previous errors
 
