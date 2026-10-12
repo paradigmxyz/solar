@@ -1,10 +1,10 @@
 name: Cyclops audit
 
 on:
-  pull_request_target: # zizmor: ignore[dangerous-triggers] Publishes authorized audit events without checking out PR code.
-    types: [synchronize, reopened, ready_for_review]
   pull_request:
     types: [labeled, opened, synchronize, reopened, ready_for_review]
+  pull_request_target: # zizmor: ignore[dangerous-triggers] Audits conflicting same-repo pushes without checking out PR code.
+    types: [opened, synchronize, reopened, ready_for_review]
   issue_comment:
     types: [created]
 
@@ -12,19 +12,21 @@ permissions: {}
 
 jobs:
   audit:
-    if: contains(fromJSON('["pull_request","pull_request_target"]'), github.event_name) && github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      contains(fromJSON('["pull_request","pull_request_target"]'), github.event_name) &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       id-token: write
       contents: read
       pull-requests: read
       statuses: write
-    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@ff385914926ea9e9d9647597b9cc501fb7b6d69a
+    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@252d87d9636b94551796b4b8a5cb4e27b8916cf6 # 2026-10-12T22-06-06Z-252d87d9
     with:
-      audit-on-command: true
       required-labels: |
         cyclops
         agentic-audit
       audit-on-push: true
+      audit-on-command: true
     secrets:
       EVENTS_KEY: ${{ secrets.EVENTS_KEY }}
       EVENTS_CERT: ${{ secrets.EVENTS_CERT }}
@@ -45,7 +47,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/pr-audit-comment@ff385914926ea9e9d9647597b9cc501fb7b6d69a
+      - uses: tempoxyz/gh-actions/actions/pr-audit-comment@252d87d9636b94551796b4b8a5cb4e27b8916cf6 # 2026-10-12T22-06-06Z-252d87d9
         with:
           command-regex: '^(?:@decofe\s+)?(?:cyclops\s+audit|derek\s+audit)\b'
           permission-check-mode: association
