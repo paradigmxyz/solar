@@ -554,7 +554,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Ident(resolutions) => {
-                let res = self.resolve_value(expr, resolutions);
+                let mut res = self.resolve_value(expr, resolutions);
+                if !self.in_yul {
+                    res = self.reject_modifier_ref(res, expr.span);
+                }
                 self.check_res_evm_version(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
@@ -2465,6 +2468,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 hir::Res::Err(self.dcx().emit_err(callee.span, msg))
             }
         };
+        let res = self.reject_modifier_ref(res, callee.span);
         self.check_res_evm_version(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
@@ -3280,6 +3284,18 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         if resolutions.len() > 1 {
             self.results.resolved_exprs.insert(expr.id, res);
+        }
+        res
+    }
+
+    /// Rejects a modifier referenced by an expression, since only modifier invocations in
+    /// function headers can name one.
+    fn reject_modifier_ref(&self, res: hir::Res, span: Span) -> hir::Res {
+        if let Some(id) = res.as_function()
+            && self.gcx.hir.function(id).kind.is_modifier()
+        {
+            let msg = "modifier can only be referenced in function headers";
+            return hir::Res::Err(self.dcx().err(msg).code(error_code!(3112)).span(span).emit());
         }
         res
     }
