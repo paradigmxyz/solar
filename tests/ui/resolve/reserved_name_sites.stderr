@@ -58,18 +58,6 @@ error[3726]: the name `super` is reserved
 LL │     struct S { uint super; }
    ╰╴                    ━━━━━
 
-error[3726]: the name `this` is reserved
-   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
-   │
-LL │     enum E { this, _ }
-   ╰╴             ━━━━
-
-error[3726]: the name `_` is reserved
-   ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
-   │
-LL │     enum E { this, _ }
-   ╰╴                   ━
-
 error[3726]: the name `_` is reserved
    ╭▸ ROOT/tests/ui/resolve/reserved_name_sites.sol:LL:CC
    │
@@ -106,5 +94,5 @@ error[3726]: the name `_` is reserved
 LL │         uint256 _ = 34;
    ╰╴                ━
 
-error: aborting due to 17 previous errors; 1 warning emitted
+error: aborting due to 15 previous errors; 1 warning emitted
 

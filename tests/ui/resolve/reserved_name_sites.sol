@@ -1,6 +1,4 @@
 contract C {
-    enum E { this, _ } //~ ERROR: the name `this` is reserved
-    //~^ ERROR: the name `_` is reserved
     struct S { uint super; } //~ ERROR: the name `super` is reserved
     event Ev(uint this); //~ ERROR: the name `this` is reserved
     error Er(uint _); //~ ERROR: the name `_` is reserved

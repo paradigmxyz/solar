@@ -26,20 +26,3 @@ contract C {
 }
 
 contract C {} //~ ERROR: already declared
-
-contract FunctionEvent {
-    function dup() public {}
-    event dup(); //~ ERROR: already declared
-}
-
-contract EventFunction {
-    event dup();
-    function dup() public {} //~ ERROR: already declared
-}
-
-contract VariableEvent {
-    uint x;
-    event x(); //~ ERROR: already declared
-    uint public y;
-    event y(); //~ ERROR: already declared
-}

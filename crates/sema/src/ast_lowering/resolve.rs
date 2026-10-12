@@ -9,7 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    diagnostics::{DiagCtxt, DiagId, ErrorGuaranteed},
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, sym,
 };
 use std::fmt;
@@ -322,14 +322,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 Some(hir::ItemId::Struct(id)),
                 hir::VarKind::Struct,
             );
-        }
-
-        // Enum variants are resolved as members, so they are declared only to check their names.
-        for id in self.hir.enumm_ids() {
-            let enumm = self.hir.enumm(id);
-            let variants = enumm.variants;
-            init_cx!(enumm);
-            self.declare_variables(variants);
         }
 
         for id in self.hir.error_ids() {
@@ -1114,7 +1106,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let functions = self.collect_yul_function_decls(stmts);
         for &(function, id) in &functions {
-            let _ = self.declare_yul(function.name, Res::Item(hir::ItemId::Function(id)));
+            self.declare_yul_function(function, id);
         }
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
@@ -1135,6 +1127,16 @@ impl<'gcx> ResolveContext<'gcx> {
             functions.push((function, id));
         }
         functions
+    }
+
+    fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        let res = Res::Item(hir::ItemId::Function(id));
+        let _ = self.scopes.current_scope().declare_res(
+            self.lcx.sess,
+            &self.lcx.hir,
+            function.name,
+            res,
+        );
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
@@ -1183,7 +1185,8 @@ impl<'gcx> ResolveContext<'gcx> {
             kind,
         );
         let id = self.hir.variables.push(var);
-        let _ = self.declare_yul(name, Res::Item(hir::ItemId::Variable(id)));
+        let res = Res::Item(hir::ItemId::Variable(id));
+        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         id
     }
 
@@ -1282,24 +1285,10 @@ impl<'gcx> ResolveContext<'gcx> {
             hir::VarKind::Statement,
         );
         let id = self.hir.variables.push(var);
-        (id, self.declare_yul(name, Res::Item(hir::ItemId::Variable(id))))
-    }
-
-    /// Declares `name => res` in the current Yul scope. Like solc's `ScopeFiller`, report a
-    /// conflict at `name` rather than at the later declaration, since functions are declared
-    /// before the other statements of their block.
-    fn declare_yul(&mut self, name: Ident, res: Res) -> Result<(), ErrorGuaranteed> {
-        let decl = Declaration { res, span: name.span };
-        self.scopes.current_scope().try_declare(&self.lcx.hir, name.name, decl).map_err(
-            |conflict| {
-                let code = if let Res::Item(hir::ItemId::Function(_)) = res {
-                    error_code!(6052)
-                } else {
-                    error_code!(1395)
-                };
-                report_conflict(&self.lcx.hir, self.lcx.sess, name.name, decl, conflict, code)
-            },
-        )
+        let res = Res::Item(hir::ItemId::Variable(id));
+        let result =
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        (id, result)
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -2027,7 +2016,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 }))
             }
             ast::TypeKind::Mapping(mapping) => {
-                self.check_mapping_names(ty.span, mapping);
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
                     key_name: mapping.key_name,
@@ -2045,32 +2033,6 @@ impl<'gcx> ResolveContext<'gcx> {
             },
         };
         hir::Type { kind, span: ty.span }
-    }
-
-    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
-    /// innermost mapping reuses as its value name.
-    ///
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
-    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
-        let Some(key_name) = mapping.key_name else { return };
-        let check = |name: Option<Ident>| {
-            if let Some(name) = name
-                && name.name == key_name.name
-            {
-                self.dcx()
-                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
-                    .code(error_code!(1809))
-                    .span(span)
-                    .span_note(name.span, "the name is reused here")
-                    .emit();
-            }
-        };
-        let mut inner = mapping;
-        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
-            check(child.key_name);
-            inner = child;
-        }
-        check(inner.value_name);
     }
 
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
@@ -2533,6 +2495,19 @@ impl Declarations {
         self.declarations.entry(name).or_default().push(decl, true);
     }
 
+    /// Declares `Ident { name, span } => kind` by converting it to
+    /// `name => Declaration { kind, span }`.
+    #[inline]
+    pub(crate) fn declare_res(
+        &mut self,
+        sess: &Session,
+        hir: &hir::Hir<'_>,
+        name: Ident,
+        res: Res,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.declare(sess, hir, name.name, Declaration { res, span: name.span })
+    }
+
     pub(crate) fn declare(
         &mut self,
         sess: &Session,
@@ -2542,12 +2517,11 @@ impl Declarations {
     ) -> Result<(), ErrorGuaranteed> {
         self.try_declare(hir, name, decl).map_err(|conflict| {
             // Like solc, report the declaration that comes later in the source.
-            let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
-                (conflict, decl)
+            if conflict.span.lo() > decl.span.lo() {
+                report_conflict(hir, sess, name, conflict, decl)
             } else {
-                (decl, conflict)
-            };
-            report_conflict(hir, sess, name, later, earlier, error_code!(2333))
+                report_conflict(hir, sess, name, decl, conflict)
+            }
         })
     }
 
@@ -2606,16 +2580,18 @@ impl Declarations {
 
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
         if matches!(decl.res, Item(Function(_) | Event(_))) {
-            let function = decl.res.as_function();
-            if function.is_some_and(|id| !hir.function(id).kind.is_ordinary()) {
-                return Some(declarations[0]);
+            let mut getter = None;
+            if let Item(Function(id)) = decl.res {
+                getter = Some(id);
+                let f = hir.function(id);
+                if !f.kind.is_ordinary() {
+                    return Some(declarations[0]);
+                }
             }
-            // A function goes only with functions and with the variable it is the getter of; an
-            // event goes only with events.
-            let same_kind = |decl2: &Declaration| match (function, decl2.res) {
-                (Some(id), Item(Variable(v))) => hir.variable(v).getter == Some(id),
-                (Some(_), Item(Function(f))) => hir.function(f).kind.is_ordinary(),
-                (_, k) => k.matches(&decl.res),
+            let same_kind = |decl2: &Declaration| match decl2.res {
+                Item(Variable(v)) => hir.variable(v).getter == getter,
+                Item(Function(f)) => hir.function(f).kind.is_ordinary(),
+                ref k => k.matches(&decl.res),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
         } else if declarations == [decl] {
@@ -2656,12 +2632,10 @@ pub(super) fn report_conflict(
     name: Symbol,
     decl: Declaration,
     mut previous: Declaration,
-    code: DiagId,
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
-    let mut err =
-        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
+    let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res

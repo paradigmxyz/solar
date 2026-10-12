@@ -9,7 +9,6 @@
 
 use super::Res;
 use crate::hir;
-use solar_interface::error_code;
 
 impl super::LoweringContext<'_> {
     #[instrument(level = "debug", skip_all)]
@@ -78,12 +77,7 @@ impl super::LoweringContext<'_> {
                                 }
 
                                 super::resolve::report_conflict(
-                                    &self.hir,
-                                    self.sess,
-                                    name,
-                                    conflict,
-                                    decl,
-                                    error_code!(9097),
+                                    &self.hir, self.sess, name, conflict, decl,
                                 );
                             }
                         }
