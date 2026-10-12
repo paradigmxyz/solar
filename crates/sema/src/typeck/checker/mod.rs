@@ -2329,12 +2329,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty = self.gcx.types.address_payable;
             }
             if !valid_abi_decodable_type(ty, self.gcx) {
-                let guar = self.dcx().emit_err_label(
-                    type_expr.span,
-                    "decoding type not supported",
-                    type_expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                );
+                let guar = self
+                    .dcx()
+                    .err("decoding type not supported")
+                    .code(error_code!(9611))
+                    .span(type_expr.span)
+                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
