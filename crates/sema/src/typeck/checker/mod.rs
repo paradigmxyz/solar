@@ -424,15 +424,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             }
                         }
                         // Like solc, the operator does not apply to literals it gives no value.
-                        Err(err)
-                            if !self.in_array_len
-                                && matches!(
-                                    err.kind,
-                                    EvalErrorKind::DivisionByZero
-                                        | EvalErrorKind::ShiftTooLarge
-                                        | EvalErrorKind::ExponentTooLarge
-                                ) =>
-                        {
+                        Err(err) if !self.in_array_len && err.kind.is_undefined_literal_op() => {
                             let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op, false);
                             return self.gcx.mk_ty_err(diag.note(err.kind.msg()).emit());
                         }
@@ -440,11 +432,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 }
 
-                let ty = self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false);
-                if !ty.references_error() && !self.in_array_len {
-                    self.check_division_by_zero(expr, lhs_e, rhs_e, op.kind);
-                }
-                ty
+                self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(wrapped_callee, ref args) => {
                 let (callee, opts) = wrapped_callee.split_call_options();
@@ -931,7 +919,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if valid_unop(ty, op.kind) {
                     if let TyKind::IntLiteral(..) = ty.kind
-                        && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                        && let Ok(value) = self.gcx.try_eval_const(expr)
+                        && let Some(lit_ty) = self.int_literal_ty(value)
                     {
                         return lit_ty;
                     }
@@ -1118,15 +1107,9 @@ impl<'gcx> TypeChecker<'gcx> {
         from.can_copy_to_storage_value(to, self.gcx)
     }
 
-    /// Tries to evaluate an expression made up of int literals.
-    ///
-    /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
-    /// This is used to preserve literal type through literal expressions.
-    fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        self.int_literal_ty(self.gcx.try_eval_const(expr).ok()?)
-    }
-
     /// Returns the IntLiteral type of the given literal value, if it fits in one.
+    ///
+    /// This is used to preserve literal type through literal expressions.
     fn int_literal_ty(&self, value: &IntScalar) -> Option<Ty<'gcx>> {
         let compatible_fixed_bytes = value.is_zero().then_some(TypeSize::ZERO);
         self.gcx.mk_ty_int_literal_with_fixed_bytes(
@@ -1185,31 +1168,6 @@ impl<'gcx> TypeChecker<'gcx> {
             .span(op.span)
             .span_label(lhs_e.span, lhs.display(self.gcx).to_string())
             .span_label(rhs_e.span, rhs.display(self.gcx).to_string())
-    }
-
-    /// Reports a constant division or modulo by zero, like solc's static analyzer.
-    ///
-    /// The left operand must be constant too, as solc only reports it for constant operands.
-    fn check_division_by_zero(
-        &self,
-        expr: &'gcx hir::Expr<'gcx>,
-        lhs: &'gcx hir::Expr<'gcx>,
-        rhs: &'gcx hir::Expr<'gcx>,
-        op: hir::BinOpKind,
-    ) {
-        let msg = match op {
-            hir::BinOpKind::Div => "division by zero",
-            hir::BinOpKind::Rem => "modulo zero",
-            _ => return,
-        };
-        if self.gcx.try_eval_solc_const(lhs).is_ok() && self.is_const_zero(rhs) {
-            self.dcx().err(msg).code(error_code!(1211)).span(expr.span).emit();
-        }
-    }
-
-    /// Returns whether solc's constant evaluator gives the given expression the value zero.
-    fn is_const_zero(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        self.gcx.try_eval_solc_const(expr).is_ok_and(|value| value.is_zero())
     }
 
     fn check_user_unop(
@@ -1948,14 +1906,6 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             Builtin::AbiEncodeCall => self.check_abi_encode_call_args(call_span, args.span, exprs),
             Builtin::AbiDecode => Ok(()),
-            // Like solc's static analyzer, reject a constant zero modulus.
-            Builtin::AddMod | Builtin::MulMod => match exprs {
-                [_, _, modulus] if self.is_const_zero(modulus) => {
-                    let msg = "arithmetic modulo zero";
-                    Err(self.dcx().err(msg).code(error_code!(4195)).span(call_span).emit())
-                }
-                _ => Ok(()),
-            },
             _ => Ok(()),
         }
     }

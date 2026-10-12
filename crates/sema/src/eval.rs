@@ -91,15 +91,6 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
     }
-
-    /// Evaluates the given expression like solc's constant evaluator, without caching the result
-    /// or emitting diagnostics.
-    ///
-    /// Unlike [`try_eval_const_value`](Self::try_eval_const_value), this does not fold
-    /// conditionals. Checks that solc runs on constant operands use it to report the same code.
-    pub(crate) fn try_eval_solc_const(self, expr: &hir::Expr<'_>) -> EvalResult {
-        ConstantEvaluator { gcx: self, depth: 0, fold_ternaries: false }.try_eval_value(expr)
-    }
 }
 
 pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
@@ -114,15 +105,13 @@ pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
 struct ConstantEvaluator<'gcx> {
     gcx: Gcx<'gcx>,
     depth: usize,
-    /// Whether to fold conditionals, which solc's constant evaluator does not.
-    fold_ternaries: bool,
 }
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, depth: 0, fold_ternaries: true }
+        Self { gcx, depth: 0 }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -180,7 +169,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
-            hir::ExprKind::Ternary(cond, t, f) if self.fold_ternaries => {
+            hir::ExprKind::Ternary(cond, t, f) => {
                 let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
                     return Err(EE::UnsupportedExpr.into());
                 };
@@ -648,7 +637,7 @@ impl IntScalar {
                 }
             }
             // Powers of `0`, `1` and `-1` are exact for any exponent.
-            Pow if !r.is_zero() && !self.is_zero() && !self.data.magnitude().is_one() => {
+            Pow if !self.is_zero() && !self.data.magnitude().is_one() => {
                 let exp = u32::try_from(r.data.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
                 if self.data.bits() * u64::from(exp) > LITERAL_PRECISION_BITS {
                     return Err(EE::ExponentTooLarge);
@@ -775,6 +764,11 @@ impl EvalErrorKind {
             Self::NonConstantVar => "only constant variables are allowed",
             Self::AlreadyEmitted(_) => unreachable!(),
         }
+    }
+
+    /// Returns `true` if solc gives the literal operation that failed with this error no value.
+    pub(crate) fn is_undefined_literal_op(&self) -> bool {
+        matches!(self, Self::DivisionByZero | Self::ShiftTooLarge | Self::ExponentTooLarge)
     }
 }
 
