@@ -430,3 +430,22 @@ No intentional divergences documented yet.
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
+
+### CODEGEN-011: ABI coder v1 is not supported
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
+  encoders and decoders for that source unit. `solar` warns that ABI coder v1
+  is not supported and always generates ABI coder v2 code. Calldata decoding
+  validates and cleans arguments like v2, so malformed input that v1 accepts,
+  such as a `bool` argument of `2` or an array that runs past the end of
+  calldata, reverts. The type checker also does not apply v1's restrictions,
+  so v1 source units may use structs and nested dynamic arrays at ABI
+  boundaries, which `solc` rejects.
+- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
+  accepts the same way. A second coder would only change how malformed input
+  fails and which types compile.
+- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol`,
+  `tests/ui/codegen/lowering/run-call/abi_calldata_v1_validation.sol`, and
+  `tests/ui/parser/pragma_valid.sol`.
