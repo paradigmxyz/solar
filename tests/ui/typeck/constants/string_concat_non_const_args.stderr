@@ -1,0 +1,14 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/string_concat_non_const_args.sol:LL:CC
+   │
+LL │     string public constant abName = string.concat("aaaa", "bbbb", name);
+   ╰╴                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/string_concat_non_const_args.sol:LL:CC
+   │
+LL │     string public constant abgetName = string.concat("aaaa", "bbbb",getName());
+   ╰╴                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
