@@ -1691,8 +1691,7 @@ fn estimate_inst_cost(
         InstKind::SliceLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
         InstKind::SliceStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
         InstKind::SliceStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
-        InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
-        InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
+        InstKind::SliceLoadWord { .. } => seq(&[op::MLOAD]),
         InstKind::SliceCopy { .. } => seq(&[op::MCOPY]),
         InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
         InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
@@ -1795,21 +1794,20 @@ fn estimate_inst_cost(
         InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
             Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
-        InstKind::Keccak256Bytes(_) => {
-            seq(&[op::DUP1, op::MLOAD, op::SWAP1, op::ADD, op::KECCAK256])
-        }
         InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::MappingSlotMemory(..) => seq(&[
-            op::MLOAD,
-            op::ADD,
-            op::MSTORE,
-            op::MLOAD,
-            op::ADD,
-            op::MSTORE,
-            op::ADD,
-            op::KECCAK256,
-        ]),
-        InstKind::MappingSlotCalldata(..) => seq(&[
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MemPtr) => {
+            seq(&[
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::ADD,
+                op::KECCAK256,
+            ])
+        }
+        InstKind::MappingSlotBytes(..) => seq(&[
             op::CALLDATALOAD,
             op::ADD,
             op::MSTORE,
@@ -1858,8 +1856,8 @@ fn estimate_inst_cost(
         | InstKind::SlicePtr(_)
         | InstKind::SliceLen(_) => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
-        InstKind::MappingSlotMemory(..) => 8,
-        InstKind::MappingSlotCalldata(..) => 9,
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MemPtr) => 8,
+        InstKind::MappingSlotBytes(..) => 9,
         InstKind::StorageArrayElementSlot { .. } => 4,
         InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
         _ => 1,

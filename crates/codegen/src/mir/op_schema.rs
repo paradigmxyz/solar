@@ -1817,7 +1817,7 @@ define_mir_ops! {
     },
     /// Load one word at a byte offset from a memory slice.
     #[mir_op(
-        mnemonic = "memory_slice_load_word",
+        mnemonic = "slice_load_word",
         result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
@@ -1826,26 +1826,8 @@ define_mir_ops! {
         category = Some("memory-object")
     )]
     #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256]))]
-    MemorySliceLoadWord {
+    SliceLoadWord {
         /// Memory slice.
-        slice: ValueId,
-        /// Runtime byte offset from the slice start.
-        offset: ValueId,
-    },
-    /// Load one word at a byte offset from a calldata slice. Calldata cannot change, so unlike
-    /// a memory read this load can move freely.
-    #[mir_op(
-        mnemonic = "calldata_slice_load_word",
-        result = I256,
-        phases = PhaseSet::SEMANTIC,
-        effect = EnvironmentRead,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Calldata), MirType::I256]))]
-    CalldataSliceLoadWord {
-        /// Calldata slice.
         slice: ValueId,
         /// Runtime byte offset from the slice start.
         offset: ValueId,
@@ -2640,25 +2622,6 @@ define_mir_ops! {
     #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Keccak256(offset: ValueId, size: ValueId),
-    /// Keccak256 hash of a `memorybytes` object's contents:
-    /// `keccak256_bytes(object)`.
-    ///
-    /// Consumes the object reference directly, so the optimizer sees one
-    /// whole-object read instead of separate length and data-pointer
-    /// projections. `lower-memory-objects` expands it into those projections
-    /// and a physical `keccak256`.
-    #[mir_op(
-        mnemonic = "keccak256_bytes",
-        result = I256,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryRead,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[builder(keccak256_bytes)]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
-    Keccak256Bytes(object: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
@@ -2674,24 +2637,13 @@ define_mir_ops! {
     #[builder(mapping_slot)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MappingSlot(key: ValueId, slot: ValueId),
-    /// Hash a `[length][data...]` memory value and its parent mapping slot.
-    #[mir_op(
-        mnemonic = "mapping_slot_memory",
-        result = I256,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = false,
-        category = Some("storage slot")
-    )]
-    #[builder(mapping_slot_memory)]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
-    MappingSlotMemory(key: ValueId, slot: ValueId),
-    /// Hash a dynamically-sized calldata value and its parent mapping slot.
+    /// Hash a `bytes` or `string` mapping key, a memory object or a calldata slice, and its
+    /// parent mapping slot.
     ///
-    /// Late lowering writes scratch memory; effect analysis tracks that footprint.
+    /// Late lowering copies the key and the slot to free memory; effect analysis tracks that
+    /// footprint.
     #[mir_op(
-        mnemonic = "mapping_slot_calldata",
+        mnemonic = "mapping_slot_bytes",
         result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
@@ -2699,9 +2651,9 @@ define_mir_ops! {
         side_effects = false,
         category = Some("storage slot")
     )]
-    #[builder(mapping_slot_calldata)]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Calldata), MirType::I256]))]
-    MappingSlotCalldata(key: ValueId, slot: ValueId),
+    #[builder(mapping_slot_bytes)]
+    #[operand_types(func => Some(smallvec![typing::bytes_key(func, *key), MirType::I256]))]
+    MappingSlotBytes(key: ValueId, slot: ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.

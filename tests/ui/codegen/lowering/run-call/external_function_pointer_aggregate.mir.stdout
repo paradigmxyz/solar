@@ -374,9 +374,12 @@ fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_pa
     v15 = slice_len arg0
     v16 = make_memory_slice v14, v15
     slice_copy v16, 0, arg0
-    v17 = keccak256_bytes v11
-    v18 = eq v17, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    ret v18
+    v17 = memory_slice v11
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = keccak256 v18, v19
+    v21 = eq v20, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
+    ret v21
 }
 
 fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

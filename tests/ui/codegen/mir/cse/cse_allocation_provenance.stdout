@@ -92,7 +92,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = mapping_slot_memory arg2, arg1
+      v2 = mapping_slot_bytes arg2, arg1
       v3 = alloc raw, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
       mstore v4, arg1
@@ -106,7 +106,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = mapping_slot_calldata arg2, arg1
+      v2 = mapping_slot_bytes arg2, arg1
       v3 = alloc raw, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
       mstore v4, arg1

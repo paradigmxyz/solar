@@ -826,15 +826,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 | TyKind::StringLiteral(..)
         );
         if is_dynamic {
-            if self.builder.func().value_slice_location(key) == Some(SliceLocation::Calldata) {
-                self.builder.mapping_slot_calldata(key, slot)
-            } else {
-                self.builder.mapping_slot_memory(key, slot)
-            }
-        } else {
-            let key = self.encode_memory_scalar(key_ty, key);
-            self.builder.mapping_slot(key, slot)
+            return self.builder.mapping_slot_bytes(key, slot);
         }
+        let key = self.encode_memory_scalar(key_ty, key);
+        self.builder.mapping_slot(key, slot)
     }
 
     pub(super) fn storage_array_element_access(

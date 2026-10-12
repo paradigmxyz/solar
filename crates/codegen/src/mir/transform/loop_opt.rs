@@ -503,8 +503,7 @@ impl LoopOptimizer {
             | InstKind::MemoryObjectLoadElement { .. }
             | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::Keccak256Bytes(_)
+            | InstKind::SliceLoadWord { .. }
             | InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
@@ -517,8 +516,7 @@ impl LoopOptimizer {
                     );
             }
             InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::MappingSlotBytes(_, _)
             | InstKind::StorageArrayDataSlot(_)
             | InstKind::StorageArrayElementSlot { .. } => return false,
             InstKind::SLoad(slot) => {
@@ -674,8 +672,7 @@ impl LoopOptimizer {
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
             InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotMemory(_, _)
-            | InstKind::MappingSlotCalldata(_, _)
+            | InstKind::MappingSlotBytes(_, _)
             | InstKind::StorageArrayDataSlot(_)
             | InstKind::StorageArrayElementSlot { .. } => 30,
             InstKind::Exp(_, _) => 10,
@@ -1090,12 +1087,16 @@ impl LoopOptimizer {
                     | InstKind::TStore(addr, _)
                     | InstKind::CalldataLoad(addr)
                     | InstKind::Keccak256(addr, _)
-                    | InstKind::MappingSlotMemory(addr, _)
                     | InstKind::CalldataCopy(addr, _, _)
                     | InstKind::DataCopy(_, addr, _)
                     | InstKind::CodeCopy(addr, _, _)
                     | InstKind::ReturnDataCopy(addr, _, _)
                     | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),
+                    InstKind::MappingSlotBytes(key, _)
+                        if func.value_ty(*key) == Some(MirType::MemPtr) =>
+                    {
+                        address_operands.push(*key);
+                    }
                     InstKind::MCopy(dst, src, _) => {
                         address_operands.push(*dst);
                         address_operands.push(*src);

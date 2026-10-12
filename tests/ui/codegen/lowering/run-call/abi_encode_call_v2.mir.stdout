@@ -189,78 +189,87 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v152 = slice_len v136
     v153 = make_memory_slice v151, v152
     slice_copy v153, 0, v136
-    v154 = keccak256_bytes v148
-    v155 = eq v154, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
-    v156 = eq v155, false
-    icall panic_if<0x1>, v156
-    v157 = slice_ptr arg0
-    v158 = add v157, 96
-    v159 = calldatasize
-    v160 = sub v159, v158
-    v161 = slt v160, 32
-    icall revert_if<calldata_tail_too_short>, v161
-    v162 = calldataload v158
-    v163 = add v157, v162
-    v164 = calldatasize
-    v165 = sub v164, v157
-    v166 = sub v165, 31
-    v167 = slt v162, v166
-    v168 = eq v167, false
-    icall revert_if<invalid_calldata_tail_offset>, v168
-    v169 = calldataload v163
-    v170 = gt v169, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v170
-    v171 = mul v169, 1
-    v172 = add v163, 32
-    v173 = calldatasize
-    v174 = sub v173, v171
-    v175 = sgt v172, v174
-    icall revert_if<calldata_tail_too_short>, v175
-    v176 = add v163, 32
-    v177 = make_calldata_slice v176, v169
-    v178 = slice_ptr v177
-    v179 = slice_len v177
-    v180 = gt v179, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v180
-    v181 = calldatasize
-    v182 = sub v181, v179
-    v183 = sgt v178, v182
-    icall revert_if<calldata_tail_too_short>, v183
-    v184 = slice_len v177
-    v185 = add v184, 63
-    v186 = lt v185, v184
-    icall panic_if<0x41>, v186
-    v187 = not 31
-    v188 = and v185, v187
-    v189 = alloc memorybytes, exact, uninitialized, infallible, v188
-    v190 = ptrtoint memptr v189 to i256
-    mstore v190, v184
-    v191 = ptrtoint memptr v189 to i256
-    v192 = add v191, 32
-    v193 = slice_len v177
-    v194 = make_memory_slice v192, v193
-    slice_copy v194, 0, v177
-    v195 = keccak256_bytes v189
-    v196 = eq v195, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
-    v197 = eq v196, false
-    icall panic_if<0x1>, v197
-    v198 = slice_ptr arg0
-    v199 = add v198, 128
-    v200 = calldataload v199
-    v201 = lt v200, 3
-    v202 = eq v201, false
-    icall revert_if<empty>, v202
-    v203 = trunc i256 v200 to i8
-    v204 = eq v203, i8 1
-    v205 = eq v204, false
-    icall panic_if<0x1>, v205
-    v206 = eq arg1, 5
-    v207 = eq v206, false
-    icall panic_if<0x1>, v207
-    v208 = keccak256_bytes arg2
-    v209 = eq v208, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
-    v210 = eq v209, false
-    icall panic_if<0x1>, v210
+    v154 = memory_slice v148
+    v155 = slice_ptr v154
+    v156 = slice_len v154
+    v157 = keccak256 v155, v156
+    v158 = eq v157, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
+    v159 = eq v158, false
+    icall panic_if<0x1>, v159
+    v160 = slice_ptr arg0
+    v161 = add v160, 96
+    v162 = calldatasize
+    v163 = sub v162, v161
+    v164 = slt v163, 32
+    icall revert_if<calldata_tail_too_short>, v164
+    v165 = calldataload v161
+    v166 = add v160, v165
+    v167 = calldatasize
+    v168 = sub v167, v160
+    v169 = sub v168, 31
+    v170 = slt v165, v169
+    v171 = eq v170, false
+    icall revert_if<invalid_calldata_tail_offset>, v171
+    v172 = calldataload v166
+    v173 = gt v172, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v173
+    v174 = mul v172, 1
+    v175 = add v166, 32
+    v176 = calldatasize
+    v177 = sub v176, v174
+    v178 = sgt v175, v177
+    icall revert_if<calldata_tail_too_short>, v178
+    v179 = add v166, 32
+    v180 = make_calldata_slice v179, v172
+    v181 = slice_ptr v180
+    v182 = slice_len v180
+    v183 = gt v182, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v183
+    v184 = calldatasize
+    v185 = sub v184, v182
+    v186 = sgt v181, v185
+    icall revert_if<calldata_tail_too_short>, v186
+    v187 = slice_len v180
+    v188 = add v187, 63
+    v189 = lt v188, v187
+    icall panic_if<0x41>, v189
+    v190 = not 31
+    v191 = and v188, v190
+    v192 = alloc memorybytes, exact, uninitialized, infallible, v191
+    v193 = ptrtoint memptr v192 to i256
+    mstore v193, v187
+    v194 = ptrtoint memptr v192 to i256
+    v195 = add v194, 32
+    v196 = slice_len v180
+    v197 = make_memory_slice v195, v196
+    slice_copy v197, 0, v180
+    v198 = memory_slice v192
+    v199 = slice_ptr v198
+    v200 = slice_len v198
+    v201 = keccak256 v199, v200
+    v202 = eq v201, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
+    v203 = eq v202, false
+    icall panic_if<0x1>, v203
+    v204 = slice_ptr arg0
+    v205 = add v204, 128
+    v206 = calldataload v205
+    v207 = lt v206, 3
+    v208 = eq v207, false
+    icall revert_if<empty>, v208
+    v209 = trunc i256 v206 to i8
+    v210 = eq v209, i8 1
+    v211 = eq v210, false
+    icall panic_if<0x1>, v211
+    v212 = eq arg1, 5
+    v213 = eq v212, false
+    icall panic_if<0x1>, v213
+    v214 = memory_slice arg2
+    v215 = slice_ptr v214
+    v216 = slice_len v214
+    v217 = keccak256 v215, v216
+    v218 = eq v217, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
+    v219 = eq v218, false
+    icall panic_if<0x1>, v219
     ret
 }
 

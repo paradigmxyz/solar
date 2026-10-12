@@ -15,7 +15,7 @@ contract EventIndexedAggregate {
 
     // CHECK-LABEL: fn @emitDynamicArray{{[( ]}}
     // CHECK-DAG: abi_encode_packed (array<word> memoryarray<1> arg0)
-    // CHECK-DAG: keccak256_bytes
+    // CHECK-DAG: keccak256
     // CHECK-DAG: log2
     function emitDynamicArray(uint256[] memory values) external {
         emit IndexedDynamicArray(values);

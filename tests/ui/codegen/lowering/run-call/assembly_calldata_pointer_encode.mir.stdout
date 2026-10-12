@@ -85,8 +85,11 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v22 = slice_len v6
     v23 = make_memory_slice v21, v22
     slice_copy v23, 0, v6
-    v24 = keccak256_bytes v12
-    ret v24
+    v24 = memory_slice v12
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = keccak256 v25, v26
+    ret v27
 }
 
 fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

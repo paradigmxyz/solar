@@ -26,7 +26,7 @@ contract StorageBytesElements {
 
     // CHECK-LABEL: fn @hashB{{[( ]}}
     // CHECK: load_storage_bytes 0
-    // CHECK: keccak256_bytes {{v[0-9]+}}
+    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function hashB() public view returns (bytes32) {
         return keccak256(b);
     }

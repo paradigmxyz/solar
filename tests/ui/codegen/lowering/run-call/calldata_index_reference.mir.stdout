@@ -135,14 +135,16 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = slice_ptr v23
-    v30 = calldata_slice_load_word v23, 1
-    v31 = byte 0, v30
-    v32 = shl 248, v31
-    v33 = shr 248, v32
-    v34 = trunc i256 v33 to i8
-    v35 = zext i8 v34 to i256
-    v36 = insert_value struct0, undef struct0, 0, v24
-    v37 = insert_value struct0, v36, 1, v25
-    v38 = insert_value struct0, v37, 2, v35
-    ret v38
+    v30 = slice_ptr v23
+    v31 = add v30, 1
+    v32 = calldataload v31
+    v33 = byte 0, v32
+    v34 = shl 248, v33
+    v35 = shr 248, v34
+    v36 = trunc i256 v35 to i8
+    v37 = zext i8 v36 to i256
+    v38 = insert_value struct0, undef struct0, 0, v24
+    v39 = insert_value struct0, v38, 1, v25
+    v40 = insert_value struct0, v39, 2, v37
+    ret v40
 }

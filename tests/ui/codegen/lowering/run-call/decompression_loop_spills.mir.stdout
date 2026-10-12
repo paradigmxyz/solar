@@ -160,8 +160,11 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v21 = alloc memorybytes, exact, zeroed, panic, v20
     v22 = ptrtoint memptr v21 to i256
     mstore v22, 256
-    v23 = keccak256_bytes v21
-    v24 = eq v18, v23
-    icall require<short_string>, v24, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    v23 = memory_slice v21
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = keccak256 v24, v25
+    v27 = eq v18, v26
+    icall require<short_string>, v27, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

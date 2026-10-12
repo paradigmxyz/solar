@@ -58,51 +58,69 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], ab
     v32 = shl 224, v31
     v33 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
     v34 = abi_encode [word, memory_bytes], object, selector v32, args 1, v33
-    v35 = keccak256_bytes v2
-    v36 = keccak256_bytes v21
-    v37 = eq v35, v36
-    jumpi v37, bb1, bb2
+    v35 = memory_slice v2
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = keccak256 v36, v37
+    v39 = memory_slice v21
+    v40 = slice_ptr v39
+    v41 = slice_len v39
+    v42 = keccak256 v40, v41
+    v43 = eq v38, v42
+    jumpi v43, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v38 = or i8 0, i8 1
+    v44 = or i8 0, i8 1
     jump bb3
   bb3:
-    v39 = phi [bb1: v38], [bb2: i8 0]
-    v40 = keccak256_bytes v2
-    v41 = keccak256_bytes v29
-    v42 = eq v40, v41
-    jumpi v42, bb4, bb5
+    v45 = phi [bb1: v44], [bb2: i8 0]
+    v46 = memory_slice v2
+    v47 = slice_ptr v46
+    v48 = slice_len v46
+    v49 = keccak256 v47, v48
+    v50 = memory_slice v29
+    v51 = slice_ptr v50
+    v52 = slice_len v50
+    v53 = keccak256 v51, v52
+    v54 = eq v49, v53
+    jumpi v54, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v43 = or v39, i8 2
+    v55 = or v45, i8 2
     jump bb6
   bb6:
-    v44 = phi [bb4: v43], [bb5: v39]
-    v45 = keccak256_bytes v2
-    v46 = keccak256_bytes v34
-    v47 = eq v45, v46
-    jumpi v47, bb7, bb8
+    v56 = phi [bb4: v55], [bb5: v45]
+    v57 = memory_slice v2
+    v58 = slice_ptr v57
+    v59 = slice_len v57
+    v60 = keccak256 v58, v59
+    v61 = memory_slice v34
+    v62 = slice_ptr v61
+    v63 = slice_len v61
+    v64 = keccak256 v62, v63
+    v65 = eq v60, v64
+    jumpi v65, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v48 = or v44, i8 4
+    v66 = or v56, i8 4
     jump bb9
   bb9:
-    v49 = phi [bb7: v48], [bb8: v44]
-    v50 = sload 0 !metadata(storage=slot(0))
-    v51 = trunc i256 v50 to i8
-    v52 = ne v51, i8 0
-    jumpi v52, bb10, bb11
+    v67 = phi [bb7: v66], [bb8: v56]
+    v68 = sload 0 !metadata(storage=slot(0))
+    v69 = trunc i256 v68 to i8
+    v70 = ne v69, i8 0
+    jumpi v70, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v53 = or v49, i8 8
+    v71 = or v67, i8 8
     jump bb12
   bb12:
-    v54 = phi [bb10: v53], [bb11: v49]
-    ret v54
+    v72 = phi [bb10: v71], [bb11: v67]
+    ret v72
 }
 
 fn @storageEncoded() -> memptr [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

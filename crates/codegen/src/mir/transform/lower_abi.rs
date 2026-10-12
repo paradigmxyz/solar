@@ -2819,13 +2819,8 @@ impl LowerAbiCx {
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
                 | InstKind::FrameStore { .. } => (true, false),
-                InstKind::MappingSlotMemory(key, _)
-                    if tainted.contains(*key) && Self::can_encode_calldata_slice(ty) =>
-                {
-                    (false, false)
-                }
-                InstKind::MappingSlotMemory(..) | InstKind::MappingSlotCalldata(..) => {
-                    (true, false)
+                InstKind::MappingSlotBytes(key, _) => {
+                    (!(tainted.contains(*key) && Self::can_encode_calldata_slice(ty)), false)
                 }
                 InstKind::ICall { function: Callee::Function(function), args, .. }
                     if args.iter().enumerate().any(|(index, value)| {
@@ -2850,7 +2845,7 @@ impl LowerAbiCx {
                 | InstKind::Sub(..)
                 | InstKind::MLoad(_)
                 | InstKind::Keccak256(..)
-                | InstKind::MemorySliceLoadWord { .. } => (true, false),
+                | InstKind::SliceLoadWord { .. } => (true, false),
                 InstKind::Phi(incoming) if Self::is_scalar_array(ty) => {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         return false;
@@ -3025,8 +3020,7 @@ impl LowerAbiCx {
                 }
                 InstKind::SliceLen(_)
                 | InstKind::SlicePtr(_)
-                | InstKind::MemorySliceLoadWord { .. }
-                | InstKind::CalldataSliceLoadWord { .. }
+                | InstKind::SliceLoadWord { .. }
                 | InstKind::SliceLoadByte { .. } => false,
                 InstKind::MemoryObjectLoadField { .. }
                 | InstKind::MemoryObjectLoadElement { .. }

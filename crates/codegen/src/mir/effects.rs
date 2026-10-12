@@ -180,8 +180,7 @@ impl InstKind {
             | Self::SliceStoreElement { .. }
             | Self::SliceStoreByte { .. }
             | Self::SliceStoreWord { .. }
-            | Self::MemorySliceLoadWord { .. }
-            | Self::CalldataSliceLoadWord { .. }
+            | Self::SliceLoadWord { .. }
             | Self::SliceCopy { .. }
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }
@@ -234,10 +233,8 @@ impl InstKind {
             | Self::BlobBaseFee
             | Self::BlobHash(..)
             | Self::Keccak256(..)
-            | Self::Keccak256Bytes(..)
             | Self::MappingSlot(..)
-            | Self::MappingSlotMemory(..)
-            | Self::MappingSlotCalldata(..)
+            | Self::MappingSlotBytes(..)
             | Self::StorageArrayDataSlot(..)
             | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }

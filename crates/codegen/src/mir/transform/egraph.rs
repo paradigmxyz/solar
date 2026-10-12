@@ -213,7 +213,7 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
         }
         for &inst in &block.instructions {
             match &func.inst(inst).kind {
-                InstKind::MappingSlotMemory(key, _) => {
+                InstKind::MappingSlotBytes(key, _) => {
                     if !matches!(func.value(*key), Value::Arg(index)
                         if func.params[*index] == MirType::MemPtr
                             && abi_params.types.get(index.index()) == Some(&AbiParamType::Bytes))
@@ -505,7 +505,7 @@ impl<'a> Builder<'a> {
         }
         if !(is_node(&inst.kind)
             || (self.fresh_mapping_arguments
-                && matches!(inst.kind, InstKind::MappingSlotMemory(..))))
+                && matches!(inst.kind, InstKind::MappingSlotBytes(..))))
         {
             let mut kind = inst.kind.clone();
             kind.visit_operands_mut(|value| *value = self.resolve(*value));

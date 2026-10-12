@@ -188,20 +188,32 @@ fn @nullArrayElementsEncodeAsEmpty() -> i1 [selector=0x71417b4d, pure, abi_param
     v16 = not 0
     mstore 0, v16 !metadata(memory=scratch)
     v17 = abi_encode [memory_array<memory_array<word>>], object, args v9
-    v18 = keccak256_bytes v6
-    v19 = keccak256_bytes v8
-    v20 = eq v18, v19
-    jumpi v20, bb7, bb8
+    v18 = memory_slice v6
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = keccak256 v19, v20
+    v22 = memory_slice v8
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = keccak256 v23, v24
+    v26 = eq v21, v25
+    jumpi v26, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v21 = keccak256_bytes v15
-    v22 = keccak256_bytes v17
-    v23 = eq v21, v22
+    v27 = memory_slice v15
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = keccak256 v28, v29
+    v31 = memory_slice v17
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = keccak256 v32, v33
+    v35 = eq v30, v34
     jump bb9
   bb9:
-    v24 = phi [bb7: v23], [bb8: false]
-    ret v24
+    v36 = phi [bb7: v35], [bb8: false]
+    ret v36
   bb5:
     v13 = memory_slice v9
     slice_store_element v13, v11, 96

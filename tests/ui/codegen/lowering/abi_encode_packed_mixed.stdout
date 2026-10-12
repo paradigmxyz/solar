@@ -25,8 +25,11 @@ fn @materialized(arg0: i16, arg1: memptr, arg2: i1) -> memptr [selector=0x16cbcf
 fn @hashArray(arg0: memptr) -> i256 [selector=0x42233547, pure, abi_params=[array<_, bytes32>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
-    v1 = keccak256_bytes v0
-    ret v1
+    v1 = memory_slice v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = keccak256 v2, v3
+    ret v4
 }
 
 fn @signedStaticRun(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {

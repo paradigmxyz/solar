@@ -10,8 +10,8 @@
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, RequireKind, SliceLocation,
-    StorageAlias, Terminator, Value, ValueId,
+    ImmutableId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, RequireKind,
+    SliceLocation, StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
 use smallvec::SmallVec;
@@ -944,9 +944,7 @@ impl AliasAnalysis {
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
             | InstKind::MemoryObjectLoadField { .. } => false,
-            InstKind::MLoad(address)
-            | InstKind::MappingSlotMemory(address, _)
-            | InstKind::MemorySlice(address) => operand != *address,
+            InstKind::MLoad(address) | InstKind::MemorySlice(address) => operand != *address,
             InstKind::MemoryObjectLoadElement { object, .. }
             | InstKind::SliceLoadElement { slice: object, .. }
             | InstKind::SliceLoadByte { slice: object, .. } => operand != *object,
@@ -964,7 +962,7 @@ impl AliasAnalysis {
             | InstKind::SliceStoreWord { slice, offset: index, value } => {
                 operand != *slice && operand != *index && operand != *value
             }
-            InstKind::MemorySliceLoadWord { slice, offset } | InstKind::CalldataSliceLoadWord { slice, offset } => {
+            InstKind::SliceLoadWord { slice, offset } => {
                 operand != *slice && operand != *offset
             }
             InstKind::SliceCopy { destination, offset, source } => {
@@ -980,7 +978,6 @@ impl AliasAnalysis {
             | InstKind::CodeCopy(dest, _, _)
             | InstKind::ReturnDataCopy(dest, _, _)
             | InstKind::Keccak256(dest, _)
-            | InstKind::Keccak256Bytes(dest)
             | InstKind::Log0(dest, _) => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
             InstKind::Log1(address, _, _)
@@ -1202,14 +1199,14 @@ impl AliasAnalysis {
             // Calldata slices read no memory.
             InstKind::SliceLoadElement { slice, index }
             | InstKind::SliceLoadByte { slice, index }
-            | InstKind::MemorySliceLoadWord { slice, offset: index }
+            | InstKind::SliceLoadWord { slice, offset: index }
                 if func.value_slice_location(slice) == Some(SliceLocation::Memory) =>
             {
                 let offset = match kind {
                     InstKind::SliceLoadElement { .. } => func
                         .value_u64(index)
                         .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE)),
-                    InstKind::MemorySliceLoadWord { .. } => func.value_u64(index),
+                    InstKind::SliceLoadWord { .. } => func.value_u64(index),
                     _ => None,
                 };
                 if let Some(location) = self.slice_data_location(func, inst_id, slice, offset) {
@@ -1406,21 +1403,16 @@ impl AliasAnalysis {
             InstKind::Keccak256(address, size) | InstKind::Log0(address, size) => {
                 read_memory(&mut effects, address, SizeOperand::Value(size));
             }
-            InstKind::Keccak256Bytes(object) => {
-                read_memory(&mut effects, object, SizeOperand::Unknown);
-            }
             InstKind::Log1(address, size, _)
             | InstKind::Log2(address, size, _, _)
             | InstKind::Log3(address, size, _, _, _)
             | InstKind::Log4(address, size, _, _, _, _) => {
                 read_memory(&mut effects, address, SizeOperand::Value(size));
             }
-            InstKind::MappingSlotMemory(address, _) => {
-                read_memory(&mut effects, address, SizeOperand::Unknown);
-                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
-                effects.write_any(AddressSpace::Memory);
-            }
-            InstKind::MappingSlotCalldata(..) => {
+            InstKind::MappingSlotBytes(key, _) => {
+                if func.value_ty(key) == Some(MirType::MemPtr) {
+                    read_memory(&mut effects, key, SizeOperand::Unknown);
+                }
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
                 effects.write_any(AddressSpace::Memory);
             }
@@ -2049,9 +2041,7 @@ impl AliasAnalysis {
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
         match func.inst(inst).kind {
-            InstKind::SetFmp(_)
-            | InstKind::MappingSlotMemory(..)
-            | InstKind::MappingSlotCalldata(..) => true,
+            InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),

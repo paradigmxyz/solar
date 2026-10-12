@@ -125,12 +125,15 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
   bb2:
     jump bb3
   bb1:
-    v13 = keccak256_bytes v9
-    v14 = eq v13, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
+    v13 = memory_slice v9
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = keccak256 v14, v15
+    v17 = eq v16, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
     jump bb3
   bb3:
-    v15 = phi [bb1: v14], [bb2: false]
-    ret v15
+    v18 = phi [bb1: v17], [bb2: false]
+    ret v18
 }
 
 fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

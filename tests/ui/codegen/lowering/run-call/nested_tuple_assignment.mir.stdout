@@ -143,15 +143,16 @@ fn @slicePair(arg0: i1, arg1: calldataslice, arg2: calldataslice) -> struct2 [se
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = slice_ptr v1
-    v7 = calldata_slice_load_word v1, 0
-    v8 = byte 0, v7
-    v9 = shl 248, v8
-    v10 = shr 248, v9
-    v11 = trunc i256 v10 to i8
-    v12 = zext i8 v11 to i256
-    v13 = insert_value struct2, undef struct2, 0, v12
-    v14 = insert_value struct2, v13, 1, v2
-    ret v14
+    v7 = slice_ptr v1
+    v8 = calldataload v7
+    v9 = byte 0, v8
+    v10 = shl 248, v9
+    v11 = shr 248, v10
+    v12 = trunc i256 v11 to i8
+    v13 = zext i8 v12 to i256
+    v14 = insert_value struct2, undef struct2, 0, v13
+    v15 = insert_value struct2, v14, 1, v2
+    ret v15
 }
 
 fn @smallSigned() -> i8 [pure] {

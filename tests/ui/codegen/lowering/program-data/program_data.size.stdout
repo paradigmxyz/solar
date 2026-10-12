@@ -120,33 +120,33 @@ fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
 fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroData.body
-    v4 = ptrtoint memptr v0 to i256
-    v5 = mload v4
-    v6 = add v4, 32
-    v1 = keccak256 v6, v5
-    mstore 128, v1
+    v7 = ptrtoint memptr v0 to i256
+    v1 = mload v7
+    v2 = add v7, 32
+    v4 = keccak256 v2, v1
+    mstore 128, v4
     returndata 128, 32
 }
 
 fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroWord.body
-    v4 = ptrtoint memptr v0 to i256
-    v5 = mload v4
-    v6 = add v4, 32
-    v1 = keccak256 v6, v5
-    mstore 128, v1
+    v7 = ptrtoint memptr v0 to i256
+    v1 = mload v7
+    v2 = add v7, 32
+    v4 = keccak256 v2, v1
+    mstore 128, v4
     returndata 128, 32
 }
 
 fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
   bb0:
     v0 = icall @splatData.body
-    v4 = ptrtoint memptr v0 to i256
-    v5 = mload v4
-    v6 = add v4, 32
-    v1 = keccak256 v6, v5
-    mstore 128, v1
+    v7 = ptrtoint memptr v0 to i256
+    v1 = mload v7
+    v2 = add v7, 32
+    v4 = keccak256 v2, v1
+    mstore 128, v4
     returndata 128, 32
 }
 

@@ -23,33 +23,51 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_bytes v0
-    v2 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v3 = keccak256_bytes v2
-    v4 = eq v1, v3
-    jumpi v4, bb1, bb2
+    v1 = memory_slice v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = keccak256 v2, v3
+    v5 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
+    v6 = memory_slice v5
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = keccak256 v7, v8
+    v10 = eq v4, v9
+    jumpi v10, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v6 = keccak256_bytes v5
-    v7 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v8 = keccak256_bytes v7
-    v9 = eq v6, v8
+    v11 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
+    v12 = memory_slice v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = keccak256 v13, v14
+    v16 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
+    v17 = memory_slice v16
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = keccak256 v18, v19
+    v21 = eq v15, v20
     jump bb3
   bb3:
-    v10 = phi [bb1: v9], [bb2: false]
-    jumpi v10, bb4, bb5
+    v22 = phi [bb1: v21], [bb2: false]
+    jumpi v22, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v11 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v12 = keccak256_bytes v11
-    v13 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v14 = keccak256_bytes v13
-    v15 = eq v12, v14
+    v23 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v24 = memory_slice v23
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = keccak256 v25, v26
+    v28 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v29 = memory_slice v28
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = keccak256 v30, v31
+    v33 = eq v27, v32
     jump bb6
   bb6:
-    v16 = phi [bb4: v15], [bb5: false]
-    ret v16
+    v34 = phi [bb4: v33], [bb5: false]
+    ret v34
 }

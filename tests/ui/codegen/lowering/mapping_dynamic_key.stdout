@@ -2,7 +2,7 @@
 @module MappingDynamicKey
 fn @lookup(arg0: calldataslice) -> i160 [selector=0xf67187ac, view, abi_params=[bytes], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
-    v0 = mapping_slot_calldata arg0, 0
+    v0 = mapping_slot_bytes arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = trunc i256 v1 to i160
     ret v2
@@ -10,7 +10,7 @@ fn @lookup(arg0: calldataslice) -> i160 [selector=0xf67187ac, view, abi_params=[
 
 fn @set(arg0: memptr, arg1: i160) [selector=0xa815ff15, abi_params=[bytes, address], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = mapping_slot_memory arg0, 0
+    v0 = mapping_slot_bytes arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = not 0xffffffffffffffffffffffffffffffffffffffff
     v3 = and v1, v2
@@ -23,7 +23,7 @@ fn @set(arg0: memptr, arg1: i160) [selector=0xa815ff15, abi_params=[bytes, addre
 
 fn @get(arg0: memptr) -> i160 [selector=0x693ec85e, view, abi_params=[bytes], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
-    v0 = mapping_slot_memory arg0, 0
+    v0 = mapping_slot_bytes arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = trunc i256 v1 to i160
     ret v2
@@ -33,14 +33,14 @@ fn @get(arg0: memptr) -> i160 [selector=0x693ec85e, view, abi_params=[bytes], ab
 @module MappingDynamicKeyPaths
 fn @flat(arg0: calldataslice) -> i256 [selector=0x0b893d9c, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mapping_slot_calldata arg0, 0
+    v0 = mapping_slot_bytes arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
 fn @nestedFirst(arg0: calldataslice, arg1: i160) -> i256 [selector=0xe8f9d84d, view, abi_params=[bytes, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mapping_slot_calldata arg0, 1
+    v0 = mapping_slot_bytes arg0, 1
     v1 = zext i160 arg1 to i256
     v2 = mapping_slot v1, v0
     v3 = sload v2 !metadata(storage=symbolic(v2))
@@ -51,7 +51,7 @@ fn @nestedSecond(arg0: i160, arg1: calldataslice) -> i256 [selector=0xf7453cb9, 
   bb0:
     v0 = zext i160 arg0 to i256
     v1 = mapping_slot v0, 2
-    v2 = mapping_slot_calldata arg1, v1
+    v2 = mapping_slot_bytes arg1, v1
     v3 = sload v2 !metadata(storage=symbolic(v2))
     ret v3
 }
@@ -70,7 +70,7 @@ fn @setLit(arg0: i256) [selector=0x3fffd95e, abi_params=[u256], abi_returns=[], 
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 32
     mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v4 = mapping_slot_memory v0, 0
+    v4 = mapping_slot_bytes v0, 0
     sstore v4, arg0 !metadata(storage=symbolic(v4))
     ret
 }
@@ -85,14 +85,14 @@ fn @setLitLong(arg0: i256) [selector=0x7490efc0, abi_params=[u256], abi_returns=
     mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
     v4 = add v2, 64
     mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
-    v5 = mapping_slot_memory v0, 0
+    v5 = mapping_slot_bytes v0, 0
     sstore v5, arg0 !metadata(storage=symbolic(v5))
     ret
 }
 
 fn @setNestedFirst(arg0: memptr, arg1: i160, arg2: i256) [selector=0xf7d7b4f3, abi_params=[bytes, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = mapping_slot_memory arg0, 1
+    v0 = mapping_slot_bytes arg0, 1
     v1 = zext i160 arg1 to i256
     v2 = mapping_slot v1, v0
     sstore v2, arg2 !metadata(storage=symbolic(v2))
@@ -101,7 +101,7 @@ fn @setNestedFirst(arg0: memptr, arg1: i160, arg2: i256) [selector=0xf7d7b4f3, a
 
 fn @getNestedFirst(arg0: memptr, arg1: i160) -> i256 [selector=0x95cfa550, view, abi_params=[bytes, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mapping_slot_memory arg0, 1
+    v0 = mapping_slot_bytes arg0, 1
     v1 = zext i160 arg1 to i256
     v2 = mapping_slot v1, v0
     v3 = sload v2 !metadata(storage=symbolic(v2))
@@ -112,7 +112,7 @@ fn @setNestedSecond(arg0: i160, arg1: memptr, arg2: i256) [selector=0xf589e254, 
   bb0:
     v0 = zext i160 arg0 to i256
     v1 = mapping_slot v0, 2
-    v2 = mapping_slot_memory arg1, v1
+    v2 = mapping_slot_bytes arg1, v1
     sstore v2, arg2 !metadata(storage=symbolic(v2))
     ret
 }
@@ -126,14 +126,14 @@ fn @setSkey(arg0: memptr) [selector=0x7be4f4f1, abi_params=[bytes], abi_returns=
 fn @setViaStorageKey(arg0: i256) [selector=0x2bd4b749, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = load_storage_bytes 3
-    v1 = mapping_slot_memory v0, 0
+    v1 = mapping_slot_bytes v0, 0
     sstore v1, arg0 !metadata(storage=symbolic(v1))
     ret
 }
 
 fn @setThenAlloc(arg0: calldataslice, arg1: i256) -> i256 [selector=0x8fc72899, abi_params=[bytes, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mapping_slot_calldata arg0, 0
+    v0 = mapping_slot_bytes arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
     v1 = not 31
     v2 = and 95, v1

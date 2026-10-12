@@ -242,25 +242,28 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v13 = memory_slice v12
     v14 = slice_ptr v13
     v15 = slice_len v13
-    v16 = memory_slice_load_word v13, 0
+    v16 = slice_load_word v13, 0
     v17 = shr 224, v16
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15
   bb4:
-    v18 = keccak256_bytes v12
-    v19 = number
-    v20 = checked_add u256, v19, 11
-    v21 = timestamp
-    v22 = checked_add u256, v21, 22
-    v23 = chainid
-    v24 = checked_add u256, v23, 33
-    v25 = abi_encode [word, word, word], scratch, args v20, v22, v24
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = keccak256 v26, v27
-    v29 = eq v18, v28
-    ret v29
+    v18 = memory_slice v12
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = keccak256 v19, v20
+    v22 = number
+    v23 = checked_add u256, v22, 11
+    v24 = timestamp
+    v25 = checked_add u256, v24, 22
+    v26 = chainid
+    v27 = checked_add u256, v26, 33
+    v28 = abi_encode [word, word, word], scratch, args v23, v25, v27
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = keccak256 v29, v30
+    v32 = eq v21, v31
+    ret v32
   bb1:
     ret false
   bb3:
@@ -344,24 +347,30 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v11 = memory_slice v10
     v12 = slice_ptr v11
     v13 = slice_len v11
-    v14 = memory_slice_load_word v11, 0
+    v14 = slice_load_word v11, 0
     v15 = shr 224, v14
     jumpi true, bb4, bb5
   bb5:
     revert v12, v13
   bb4:
-    v16 = keccak256_bytes v10
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v18 = ptrtoint memptr v17 to i256
-    mstore v18, 4
-    v19 = ptrtoint memptr v17 to i256
-    v20 = add v19, 32
-    mstore v20, 0
-    v21 = ptrtoint memptr v17 to i256
-    v22 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v17
-    v23 = keccak256_bytes v22
-    v24 = eq v16, v23
-    ret v24
+    v16 = memory_slice v10
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = keccak256 v17, v18
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, 4
+    v22 = ptrtoint memptr v20 to i256
+    v23 = add v22, 32
+    mstore v23, 0
+    v24 = ptrtoint memptr v20 to i256
+    v25 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v20
+    v26 = memory_slice v25
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = keccak256 v27, v28
+    v30 = eq v19, v29
+    ret v30
   bb1:
     ret false
   bb3:

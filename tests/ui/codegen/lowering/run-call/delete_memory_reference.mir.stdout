@@ -49,7 +49,7 @@ fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_retur
     v8 = memory_slice v0
     v9 = slice_len v8
     v10 = memory_slice v0
-    v11 = memory_slice_load_word v10, 0
+    v11 = slice_load_word v10, 0
     v12 = slice_len v10
     v13 = lt v12, 2
     v14 = sub 2, v12

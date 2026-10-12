@@ -53,8 +53,11 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
 fn @hashB() -> i256 [selector=0xdf45d88e, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = load_storage_bytes 0
-    v1 = keccak256_bytes v0
-    ret v1
+    v1 = memory_slice v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = keccak256 v2, v3
+    ret v4
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memptr) {

@@ -94,9 +94,12 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v19 = add v18, v17
     mstore v19, 0
     datacopy CodeTarget_runtime_code_1, v16, v11
-    v20 = keccak256_bytes v13
-    v21 = zext i160 v9 to i256
-    v22 = extcodehash v21
-    v23 = eq v20, v22
-    ret v23
+    v20 = memory_slice v13
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = keccak256 v21, v22
+    v24 = zext i160 v9 to i256
+    v25 = extcodehash v24
+    v26 = eq v23, v25
+    ret v26
 }

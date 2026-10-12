@@ -201,7 +201,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v58 = eq v57, false
     icall panic_if<0x1>, v58
     v59 = memory_slice v36
-    v60 = memory_slice_load_word v59, 0
+    v60 = slice_load_word v59, 0
     v61 = slice_len v59
     v62 = lt v61, 4
     v63 = sub 4, v61
@@ -210,7 +210,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v66 = select v62, v65, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v67 = and v60, v66
     v68 = memory_slice v43
-    v69 = memory_slice_load_word v68, 0
+    v69 = slice_load_word v68, 0
     v70 = slice_len v68
     v71 = lt v70, 4
     v72 = sub 4, v70
@@ -222,7 +222,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v78 = eq v77, false
     icall panic_if<0x1>, v78
     v79 = memory_slice v36
-    v80 = memory_slice_load_word v79, 0
+    v80 = slice_load_word v79, 0
     v81 = slice_len v79
     v82 = lt v81, 4
     v83 = sub 4, v81
@@ -231,7 +231,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v86 = select v82, v85, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v87 = and v80, v86
     v88 = memory_slice v46
-    v89 = memory_slice_load_word v88, 0
+    v89 = slice_load_word v88, 0
     v90 = slice_len v88
     v91 = lt v90, 4
     v92 = sub 4, v90
@@ -243,7 +243,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v98 = eq v97, false
     icall panic_if<0x1>, v98
     v99 = memory_slice v36
-    v100 = memory_slice_load_word v99, 0
+    v100 = slice_load_word v99, 0
     v101 = slice_len v99
     v102 = lt v101, 4
     v103 = sub 4, v101
@@ -257,7 +257,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v111 = eq v110, false
     icall panic_if<0x1>, v111
     v112 = memory_slice v36
-    v113 = memory_slice_load_word v112, 0
+    v113 = slice_load_word v112, 0
     v114 = slice_len v112
     v115 = lt v114, 4
     v116 = sub 4, v114

@@ -25,7 +25,8 @@ contract AbiEncodePackedMixed {
 
     // CHECK-LABEL: fn @hashArray{{[( ]}}
     // CHECK: [[BYTES:v[0-9]+]] = abi_encode_packed (array<word> memoryarray<1> arg0)
-    // CHECK: keccak256_bytes [[BYTES]]
+    // CHECK: memory_slice [[BYTES]]
+    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function hashArray(bytes32[] memory values) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(values));
     }

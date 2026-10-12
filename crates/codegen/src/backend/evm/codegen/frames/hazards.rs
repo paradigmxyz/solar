@@ -459,8 +459,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::AbiEncode { .. }
             | InstKind::StorageToMemory { .. }
             | InstKind::MemoryToStorage { .. }
-            | InstKind::Keccak256Bytes(_)
-            | InstKind::MappingSlotMemory(_, _) => true,
+            | InstKind::MappingSlotBytes(_, _) => true,
             _ => false,
         }) {
             return true;

@@ -749,8 +749,7 @@ impl Instruction {
             | InstKind::MemoryToStorage { .. }
             | InstKind::ClearStorage { .. } => Some("aggregate"),
             InstKind::MappingSlot(..)
-            | InstKind::MappingSlotMemory(..)
-            | InstKind::MappingSlotCalldata(..)
+            | InstKind::MappingSlotBytes(..)
             | InstKind::StorageArrayDataSlot(..)
             | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
@@ -767,10 +766,8 @@ impl Instruction {
             | InstKind::SliceStoreElement { .. }
             | InstKind::SliceStoreByte { .. }
             | InstKind::SliceStoreWord { .. }
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::CalldataSliceLoadWord { .. }
-            | InstKind::SliceCopy { .. }
-            | InstKind::Keccak256Bytes(..) => Some("memory-object"),
+            | InstKind::SliceLoadWord { .. }
+            | InstKind::SliceCopy { .. } => Some("memory-object"),
             InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
@@ -1163,10 +1160,8 @@ impl InstKind {
                 | Self::SliceStoreElement { .. }
                 | Self::SliceStoreByte { .. }
                 | Self::SliceStoreWord { .. }
-                | Self::MemorySliceLoadWord { .. }
-                | Self::CalldataSliceLoadWord { .. }
+                | Self::SliceLoadWord { .. }
                 | Self::SliceCopy { .. }
-                | Self::Keccak256Bytes(_)
         )
     }
 

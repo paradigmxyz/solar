@@ -37,8 +37,7 @@ impl MirPass for LowerMappingSlots {
                 matches!(
                     func.inst(inst_id).kind,
                     InstKind::MappingSlot(_, _)
-                        | InstKind::MappingSlotMemory(_, _)
-                        | InstKind::MappingSlotCalldata(_, _)
+                        | InstKind::MappingSlotBytes(_, _)
                         | InstKind::StorageArrayDataSlot(_)
                         | InstKind::StorageArrayElementSlot { .. }
                 )
@@ -58,21 +57,9 @@ impl MirPass for LowerMappingSlots {
                         InstKind::MappingSlot(key, slot) => {
                             lower_word_mapping_slot(&mut builder, key, slot)
                         }
-                        InstKind::MappingSlotMemory(key, slot) => {
-                            let location = match builder.func().value_ty(key) {
-                                Some(crate::mir::MirType::Slice(SliceLocation::Calldata)) => {
-                                    SliceLocation::Calldata
-                                }
-                                _ => SliceLocation::Memory,
-                            };
-                            lower_slice_mapping_slot(&mut builder, location, key, slot)
+                        InstKind::MappingSlotBytes(key, slot) => {
+                            lower_bytes_mapping_slot(&mut builder, key, slot)
                         }
-                        InstKind::MappingSlotCalldata(key, slot) => lower_slice_mapping_slot(
-                            &mut builder,
-                            SliceLocation::Calldata,
-                            key,
-                            slot,
-                        ),
                         InstKind::StorageArrayDataSlot(slot) => {
                             lower_storage_array_data_slot(&mut builder, slot)
                         }
@@ -149,28 +136,23 @@ fn lower_word_mapping_slot(
     builder.keccak256(zero, size)
 }
 
-fn lower_slice_mapping_slot(
+/// Hash a `bytes` key, from memory or calldata, and its slot in free memory.
+fn lower_bytes_mapping_slot(
     builder: &mut FunctionBuilder<'_>,
-    location: SliceLocation,
     value: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    // length = slice_len(value)
+    // length = len(value)
     // scratch = fmp
-    // copy(scratch, slice_ptr(value), length)
+    // copy(scratch, data(value), length)
     // mstore(scratch + length, slot)
     // result = keccak256(scratch, length + 32)
-    let len = match location {
-        SliceLocation::Memory => builder.memory_len(value),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
-    };
+    let location = builder.func().value_slice_location(value).unwrap_or(SliceLocation::Memory);
+    let len = builder.memory_len(value);
     let word_size = builder.imm(32);
     let payload_size = builder.add(len, word_size);
     let scratch = builder.fmp();
-    let source = match location {
-        SliceLocation::Memory => builder.memory_data(value),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
-    };
+    let source = builder.memory_data(value);
     builder.copy_slice_data(location, scratch, source, len);
     let slot_address = builder.add(scratch, len);
     builder.mstore(slot_address, slot);

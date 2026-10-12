@@ -9,20 +9,20 @@ fn @u32(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v19]
+    v0 = phi [bb0: arg1], [bb3: v21]
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v20]
-    v3 = phi [bb0: 0], [bb3: v21]
+    v2 = phi [bb0: 0], [bb3: v22]
+    v3 = phi [bb0: 0], [bb3: v23]
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = lt v2, 4
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v22 = trunc i256 v3 to i32
-    v23 = insert_value struct0, undef struct0, 0, v22
-    v24 = insert_value struct0, v23, 1, v0
-    ret v24
+    v24 = trunc i256 v3 to i32
+    v25 = insert_value struct0, undef struct0, 0, v24
+    v26 = insert_value struct0, v25, 1, v0
+    ret v26
   bb4:
     v6 = trunc i256 v3 to i32
     v7 = shl i32 8, v6
@@ -31,20 +31,22 @@ fn @u32(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = slice_ptr v1
-    v12 = calldata_slice_load_word v1, v0
-    v13 = byte 0, v12
-    v14 = shl 248, v13
-    v15 = shr 248, v14
-    v16 = trunc i256 v15 to i8
-    v17 = zext i8 v16 to i32
-    v18 = or v7, v17
-    v19 = checked_add u256, v0, 1
+    v12 = slice_ptr v1
+    v13 = add v12, v0
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    v18 = trunc i256 v17 to i8
+    v19 = zext i8 v18 to i32
+    v20 = or v7, v19
+    v21 = checked_add u256, v0, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v2, 1
-    v21 = zext i32 v18 to i256
+    v22 = checked_add u256, v2, 1
+    v23 = zext i32 v20 to i256
     jump bb1
 }
 
@@ -53,19 +55,19 @@ fn @u16(arg0: calldataslice, arg1: i256) -> struct1 [pure] {
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v20]
-    v2 = phi [bb0: 0], [bb3: v21]
+    v1 = phi [bb0: 0], [bb3: v22]
+    v2 = phi [bb0: 0], [bb3: v23]
     v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = phi [bb0: arg1], [bb3: v19]
+    v4 = phi [bb0: arg1], [bb3: v21]
     v5 = lt v1, 2
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v22 = trunc i256 v2 to i16
-    v23 = insert_value struct1, undef struct1, 0, v22
-    v24 = insert_value struct1, v23, 1, v4
-    ret v24
+    v24 = trunc i256 v2 to i16
+    v25 = insert_value struct1, undef struct1, 0, v24
+    v26 = insert_value struct1, v25, 1, v4
+    ret v26
   bb4:
     v6 = trunc i256 v2 to i16
     v7 = shl i16 8, v6
@@ -74,20 +76,22 @@ fn @u16(arg0: calldataslice, arg1: i256) -> struct1 [pure] {
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = slice_ptr v0
-    v12 = calldata_slice_load_word v0, v4
-    v13 = byte 0, v12
-    v14 = shl 248, v13
-    v15 = shr 248, v14
-    v16 = trunc i256 v15 to i8
-    v17 = zext i8 v16 to i16
-    v18 = or v7, v17
-    v19 = checked_add u256, v4, 1
+    v12 = slice_ptr v0
+    v13 = add v12, v4
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    v18 = trunc i256 v17 to i8
+    v19 = zext i8 v18 to i16
+    v20 = or v7, v19
+    v21 = checked_add u256, v4, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v1, 1
-    v21 = zext i16 v18 to i256
+    v22 = checked_add u256, v1, 1
+    v23 = zext i16 v20 to i256
     jump bb1
 }
 

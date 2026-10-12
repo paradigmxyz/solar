@@ -94,14 +94,20 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     jumpi v70, bb2, bb3
   bb3:
     v81 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v68)
-    v82 = keccak256_bytes v81
-    v83 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
-    v84 = keccak256_bytes v83
-    v85 = keccak256_packed (u160 i160 0x1234)
-    v86 = insert_value struct0, undef struct0, 0, v82
-    v87 = insert_value struct0, v86, 1, v84
-    v88 = insert_value struct0, v87, 2, v85
-    ret v88
+    v82 = memory_slice v81
+    v83 = slice_ptr v82
+    v84 = slice_len v82
+    v85 = keccak256 v83, v84
+    v86 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
+    v87 = memory_slice v86
+    v88 = slice_ptr v87
+    v89 = slice_len v87
+    v90 = keccak256 v88, v89
+    v91 = keccak256_packed (u160 i160 0x1234)
+    v92 = insert_value struct0, undef struct0, 0, v85
+    v93 = insert_value struct0, v92, 1, v90
+    v94 = insert_value struct0, v93, 2, v91
+    ret v94
   bb2:
     v71 = div v69, 2
     v72 = add 0, v71

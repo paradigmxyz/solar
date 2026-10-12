@@ -27,17 +27,17 @@
   fn @memory(arg0: i256) -> i256 {
     bb0:
       v0 = inttoptr i256 arg0 to memptr
-      v1 = mapping_slot_memory v0, 9
+      v1 = mapping_slot_bytes v0, 9
       mstore arg0, 1
-      v2 = mapping_slot_memory v0, 9
+      v2 = mapping_slot_bytes v0, 9
       v3 = add v1, v2
       ret v3
   }
   
   fn @calldata(arg0: calldataslice) -> i256 {
     bb0:
-      v0 = mapping_slot_calldata arg0, 11
-      v1 = mapping_slot_calldata arg0, 11
+      v0 = mapping_slot_bytes arg0, 11
+      v1 = mapping_slot_bytes arg0, 11
       v2 = add v0, v1
       ret v2
   }
@@ -94,7 +94,7 @@
   fn @memory(arg0: i256) -> i256 {
     bb0:
       v0 = inttoptr i256 arg0 to memptr
--     v1 = mapping_slot_memory v0, 9
+-     v1 = mapping_slot_bytes v0, 9
 +     v4 = memory_slice v0
 +     v5 = slice_len v4
 +     v6 = add v5, 32
@@ -108,7 +108,7 @@
 +     v12 = ptrtoint memptr v7 to i256
 +     v13 = keccak256 v12, v6
       mstore arg0, 1
--     v2 = mapping_slot_memory v0, 9
+-     v2 = mapping_slot_bytes v0, 9
 -     v3 = add v1, v2
 +     v14 = memory_slice v0
 +     v15 = slice_len v14
@@ -128,8 +128,8 @@
   
   fn @calldata(arg0: calldataslice) -> i256 {
     bb0:
--     v0 = mapping_slot_calldata arg0, 11
--     v1 = mapping_slot_calldata arg0, 11
+-     v0 = mapping_slot_bytes arg0, 11
+-     v1 = mapping_slot_bytes arg0, 11
 -     v2 = add v0, v1
 +     v3 = slice_len arg0
 +     v4 = add v3, 32

@@ -601,7 +601,7 @@ fn @revert_above_pointer(arg0: i256) [selector=0x12345689] {
 // word stays there for it, and the slot is clamped only for the allocation after it.
 // CHECK-LABEL: {{^[ +].*}}fn @hash_low_object{{[( ]}}
 // CHECK: mstore 64, {{v[0-9]+}}
-// CHECK: keccak256_bytes memptr 32
+// CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
@@ -613,7 +613,10 @@ fn @hash_low_object() -> i256 [selector=0x1234568a] {
     v0 = calldataload 4
     mstore 64, v0
     mstore 32, 32
-    v1 = keccak256_bytes memptr 32
+    v3 = memory_slice memptr 32
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v1 = keccak256 v4, v5
     v2 = alloc memorybytes, exact, zeroed, panic, 64
     ret v1
 }

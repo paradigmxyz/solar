@@ -23,8 +23,11 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u256, u256]] {
     v4 = alloc memorybytes, exact, zeroed, panic, v3
     v5 = ptrtoint memptr v4 to i256
     mstore v5, arg0
-    v6 = keccak256_bytes v4
-    sstore 0, v6 !metadata(storage=slot(0))
+    v6 = memory_slice v4
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = keccak256 v7, v8
+    sstore 0, v9 !metadata(storage=slot(0))
     sstore 1, arg1 !metadata(storage=slot(1))
     ret
 }

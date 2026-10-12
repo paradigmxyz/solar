@@ -35,10 +35,9 @@
   
   fn @calldata_field(arg0: calldataslice) -> i256 {
     bb0:
--     v0 = calldata_slice_load_word arg0, 0
-+     v1 = slice_ptr arg0
-+     v0 = calldataload v1
-      ret v0
+      v0 = slice_ptr arg0
+      v1 = calldataload v0
+      ret v1
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-slices) ===
@@ -78,10 +77,10 @@
 - fn @calldata_field(arg0: calldataslice) -> i256 {
 + fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v1 = slice_ptr arg0
--     v0 = calldataload v1
-+     v0 = calldataload arg0
-      ret v0
+-     v0 = slice_ptr arg0
+-     v1 = calldataload v0
++     v1 = calldataload arg0
+      ret v1
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before egraph) ===
@@ -114,8 +113,8 @@
   
   fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = calldataload arg0
-      ret v0
+      v1 = calldataload arg0
+      ret v1
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before dce) ===
@@ -142,7 +141,7 @@
   
   fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = calldataload arg0
-      ret v0
+      v1 = calldataload arg0
+      ret v1
   }
   

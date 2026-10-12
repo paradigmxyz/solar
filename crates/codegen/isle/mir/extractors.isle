@@ -195,11 +195,8 @@
 (decl slicestoreword (Value Value Value) Value)
 (extractor (slicestoreword slice offset value) (inst (Op.SliceStoreWord slice offset value)))
 
-(decl memorysliceloadword (Value Value) Value)
-(extractor (memorysliceloadword slice offset) (inst (Op.MemorySliceLoadWord slice offset)))
-
-(decl calldatasliceloadword (Value Value) Value)
-(extractor (calldatasliceloadword slice offset) (inst (Op.CalldataSliceLoadWord slice offset)))
+(decl sliceloadword (Value Value) Value)
+(extractor (sliceloadword slice offset) (inst (Op.SliceLoadWord slice offset)))
 
 (decl slicecopy (Value Value Value) Value)
 (extractor (slicecopy destination offset source) (inst (Op.SliceCopy destination offset source)))
@@ -363,17 +360,11 @@
 (decl keccak256 (Value Value) Value)
 (extractor (keccak256 offset size) (inst (Op.Keccak256 offset size)))
 
-(decl keccak256bytes (Value) Value)
-(extractor (keccak256bytes object) (inst (Op.Keccak256Bytes object)))
-
 (decl mappingslot (Value Value) Value)
 (extractor (mappingslot key slot) (inst (Op.MappingSlot key slot)))
 
-(decl mappingslotmemory (Value Value) Value)
-(extractor (mappingslotmemory key slot) (inst (Op.MappingSlotMemory key slot)))
-
-(decl mappingslotcalldata (Value Value) Value)
-(extractor (mappingslotcalldata key slot) (inst (Op.MappingSlotCalldata key slot)))
+(decl mappingslotbytes (Value Value) Value)
+(extractor (mappingslotbytes key slot) (inst (Op.MappingSlotBytes key slot)))
 
 (decl storagearraydataslot (Value) Value)
 (extractor (storagearraydataslot slot) (inst (Op.StorageArrayDataSlot slot)))

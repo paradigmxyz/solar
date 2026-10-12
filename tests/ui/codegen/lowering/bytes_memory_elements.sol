@@ -14,7 +14,8 @@ contract BytesMemoryElements {
     // CHECK: mstore [[HEAD]], 96
     // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
     // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
-    // CHECK: keccak256_bytes [[BUF]]
+    // CHECK: memory_slice [[BUF]]
+    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function alloc() external pure returns (bytes32) {
         bytes memory buf = new bytes(96);
         buf[5] = 0xAA;
@@ -27,7 +28,8 @@ contract BytesMemoryElements {
     // CHECK: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // CHECK: mstore [[HEAD]], 10
     // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
-    // CHECK: keccak256_bytes [[BUF]]
+    // CHECK: memory_slice [[BUF]]
+    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function literal() external pure returns (bytes32) {
         bytes memory buf = hex"00010203040506070809";
         buf[5] = 0xAA;

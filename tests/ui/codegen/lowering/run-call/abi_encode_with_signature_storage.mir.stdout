@@ -3,11 +3,14 @@
 fn @pointer() -> memptr [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
-    v1 = keccak256_bytes v0
-    v2 = shr 224, v1
-    v3 = shl 224, v2
-    v4 = abi_encode [word], object, selector v3, args 7
-    ret v4
+    v1 = memory_slice v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = keccak256 v2, v3
+    v5 = shr 224, v4
+    v6 = shl 224, v5
+    v7 = abi_encode [word], object, selector v6, args 7
+    ret v7
 }
 
 fn @ternary(arg0: i1) -> memptr [selector=0xee58c378, view, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -20,11 +23,14 @@ fn @ternary(arg0: i1) -> memptr [selector=0xee58c378, view, abi_params=[bool], a
   bb3:
     v0 = phi [bb1: 0], [bb2: 1]
     v1 = icall @load_storage_bytes, v0
-    v2 = keccak256_bytes v1
-    v3 = shr 224, v2
-    v4 = shl 224, v3
-    v5 = abi_encode [word], object, selector v4, args 7
-    ret v5
+    v2 = memory_slice v1
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = keccak256 v3, v4
+    v6 = shr 224, v5
+    v7 = shl 224, v6
+    v8 = abi_encode [word], object, selector v7, args 7
+    ret v8
 }
 
 fn @load_storage_bytes(arg0: i256) -> memptr {

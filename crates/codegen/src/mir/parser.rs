@@ -1838,13 +1838,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 operands!(slice, offset, value);
                 (InstKind::SliceStoreWord { slice, offset, value }, None)
             }
-            sym::memory_slice_load_word => {
+            sym::slice_load_word => {
                 operands!(slice, offset);
-                (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::I256))
-            }
-            sym::calldata_slice_load_word => {
-                operands!(slice, offset);
-                (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::I256))
+                (InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
             }
             sym::slice_copy => {
                 operands!(destination, offset, source);
@@ -2134,14 +2130,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 (InstKind::AddressCall { kind, address, input, gas, value }, Some(MirType::I1))
             }
-            sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::I256),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::I256),
-            sym::mapping_slot_memory => {
-                inst!(MappingSlotMemory(key, slot))
-            }
-            sym::mapping_slot_calldata => {
-                inst!(MappingSlotCalldata(key, slot))
-            }
+            sym::mapping_slot_bytes => inst!(MappingSlotBytes(key, slot) => MirType::I256),
             sym::storage_array_data_slot => {
                 inst!(StorageArrayDataSlot(slot))
             }

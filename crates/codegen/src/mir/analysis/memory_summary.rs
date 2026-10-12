@@ -718,8 +718,7 @@ fn local_summary(
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
-                InstKind::MemorySliceLoadWord { slice, offset }
-                | InstKind::CalldataSliceLoadWord { slice, offset } => {
+                InstKind::SliceLoadWord { slice, offset } => {
                     capture_sources(&mut summary, func, sources, *slice);
                     capture_sources(&mut summary, func, sources, *offset);
                 }
@@ -882,11 +881,9 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp
-        | InstKind::SetFmp(_)
-        | InstKind::MSize
-        | InstKind::MappingSlotMemory(..)
-        | InstKind::MappingSlotCalldata(..) => true,
+        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
+            true
+        }
         InstKind::MLoad(address) | InstKind::MStore(address, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
@@ -896,9 +893,7 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::SetFmp(_)
-        | InstKind::MappingSlotMemory(..)
-        | InstKind::MappingSlotCalldata(..) => true,
+        InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
         InstKind::MStore(address, value) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
@@ -1101,8 +1096,7 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
             | InstKind::MemorySlice(_)
-            | InstKind::MemorySliceLoadWord { .. }
-            | InstKind::CalldataSliceLoadWord { .. }
+            | InstKind::SliceLoadWord { .. }
             | InstKind::SliceLen(_)
     )
 }

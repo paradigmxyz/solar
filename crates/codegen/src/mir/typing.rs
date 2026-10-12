@@ -65,6 +65,13 @@ pub(super) fn slice_type(func: &Function, value: ValueId) -> MirType {
     }
 }
 
+pub(super) fn bytes_key(func: &Function, value: ValueId) -> MirType {
+    match func.value_ty(value) {
+        Some(ty @ MirType::Slice(SliceLocation::Calldata)) => ty,
+        _ => MirType::MemPtr,
+    }
+}
+
 pub(super) fn read_object(func: &Function, value: ValueId) -> MirType {
     match func.value_ty(value) {
         Some(ty @ MirType::Slice(SliceLocation::Memory | SliceLocation::Calldata)) => ty,

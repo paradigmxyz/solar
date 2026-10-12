@@ -252,6 +252,11 @@ impl<'a> FunctionBuilder<'a> {
         self.add(base, offset)
     }
 
+    /// Adds a byte offset to an address, skipping a constant zero offset.
+    pub(crate) fn add_offset(&mut self, base: ValueId, offset: ValueId) -> ValueId {
+        if self.func.value_u64(offset) == Some(0) { base } else { self.add(base, offset) }
+    }
+
     /// Reverts with Solidity's `Panic(uint256)` payload.
     pub(crate) fn panic(&mut self, code: PanicCode) {
         if self.semantic {
@@ -911,6 +916,26 @@ impl<'a> FunctionBuilder<'a> {
         self.add_u64_offset(header, EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
     }
 
+    /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
+    /// first copied to free memory.
+    pub(crate) fn keccak256_bytes(&mut self, value: ValueId) -> ValueId {
+        let view = self.memory_view(value);
+        let source = self.slice_ptr(view);
+        let len = self.slice_len(view);
+        let data = match self.func.value_slice_location(view) {
+            Some(location @ (SliceLocation::Calldata | SliceLocation::Returndata)) => {
+                // data = fmp
+                // copy_slice_data data, source, len
+                let data = self.fmp();
+                self.copy_slice_data(location, data, source, len);
+                data
+            }
+            _ => source,
+        };
+        // hash = keccak256 data, len
+        self.keccak256(data, len)
+    }
+
     /// Loads a direct struct field through the semantic object layout.
     pub(crate) fn memory_object_load_field(
         &mut self,
@@ -1013,14 +1038,16 @@ impl<'a> FunctionBuilder<'a> {
             || matches!(func.value_ty(object), Some(MirType::Slice(_)))
     }
 
-    /// Loads one word at a byte offset from a memory or calldata slice.
+    /// Loads one word at a byte offset from a memory or calldata slice. Calldata cannot change,
+    /// so a calldata slice reads its word directly.
     pub(crate) fn slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
-        let kind = if self.func.value_slice_location(slice) == Some(SliceLocation::Calldata) {
-            InstKind::CalldataSliceLoadWord { slice, offset }
-        } else {
-            InstKind::MemorySliceLoadWord { slice, offset }
-        };
-        self.emit_inst(kind, Some(MirType::I256))
+        if self.func.value_slice_location(slice) == Some(SliceLocation::Calldata) {
+            // word = calldataload (add (slice_ptr slice), offset)
+            let data = self.slice_ptr(slice);
+            let address = self.add_offset(data, offset);
+            return self.calldataload(address);
+        }
+        self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
     }
 
     /// Copies a slice into a dynamic memory object's payload.
