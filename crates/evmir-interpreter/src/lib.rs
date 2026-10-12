@@ -370,6 +370,37 @@ bb0:
     }
 
     #[test]
+    fn library_addresses_in_data_are_unknown() {
+        let module = |len: u32| {
+            format!(
+                "@module test
+@libraries
+  L_0: \"a.sol:L\"
+@data
+  0: hex\"110000000000000000000000000000000000000000\" library_relocations [1: L_0]
+bb0:
+  push {len}
+  push_data 0
+  push 0
+  codecopy
+  push 32
+  push 0
+  return
+"
+            )
+        };
+        // The byte before the address is final.
+        let execution = transact(&module(1), &[], &mut Zero, Options::default()).unwrap();
+        let mut expected = vec![0; 32];
+        expected[0] = 0x11;
+        assert_eq!(execution.outcome, Outcome::Success(expected));
+        // Linking writes the address.
+        let execution = transact(&module(2), &[], &mut Zero, Options::default()).unwrap();
+        let reason = "copies a library address, which linking sets".to_owned();
+        assert_eq!(execution.outcome, Outcome::Unsupported(reason));
+    }
+
+    #[test]
     fn unsupported_operations() {
         let unsupported = |body: &str| match run(body, &[]).outcome {
             Outcome::Unsupported(reason) => reason,

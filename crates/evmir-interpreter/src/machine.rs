@@ -51,10 +51,10 @@
 //! word. Memory ends at [`MEMORY_LIMIT`], past which the EVM runs out of gas under any block gas
 //! limit. Exceeding either ends the run with [`Outcome::Limit`]. What the interpreter does not
 //! model ends it with [`Outcome::Unsupported`]: calls, contract creation, `selfdestruct`, `gas`,
-//! `pc`, `extcodecopy`, immutables, library addresses, the bytes of code and of embedded contract
-//! code, a jump to an address that no pushed block has, and an indexed jump outside its table.
-//! The interpreter relies on no verification: it checks the stack as it runs, so a module the
-//! parser accepts never makes it panic.
+//! `pc`, `extcodecopy`, immutables, library addresses, whether pushed or linked into data, the
+//! bytes of code and of embedded contract code, a jump to an address that no pushed block has, and
+//! an indexed jump outside its table. The interpreter relies on no verification: it checks the
+//! stack as it runs, so a module the parser accepts never makes it panic.
 
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
@@ -86,6 +86,9 @@ pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
 /// far past any code, so that no other read reaches it. Each entry gets [`DEFERRED_DATA_SPAN`]
 /// bytes, more than any linked data holds.
 const DEFERRED_DATA: u64 = 1 << 40;
+
+/// The bytes of an address, which linking writes into data where a library relocation points.
+const ADDRESS_BYTES: u64 = 20;
 
 /// The bytes a run reserves for each entry of embedded contract code.
 const DEFERRED_DATA_SPAN: u64 = 1 << 32;
@@ -303,6 +306,8 @@ struct CodeImage {
     data: IndexVec<DataId, u64>,
     /// The known data, in address order from `code_end`.
     bytes: Vec<u8>,
+    /// The ranges of the data that linking fills with library addresses, whose bytes are unknown.
+    linked: Vec<Range<u64>>,
     /// The end of the embedded contract code, which starts at [`DEFERRED_DATA`].
     deferred_end: u64,
 }
@@ -324,13 +329,19 @@ impl CodeImage {
             code_end,
             data: index_vec![0; module.data.len()],
             bytes: Vec::new(),
+            linked: Vec::new(),
             deferred_end: DEFERRED_DATA,
         };
         for id in order {
-            image.data[id] = match &module.data[id].bytes {
+            let data = &module.data[id];
+            image.data[id] = match &data.bytes {
                 DataBytes::Known(bytes) => {
                     let address = code_end + image.bytes.len() as u64;
                     image.bytes.extend_from_slice(bytes);
+                    image.linked.extend(data.library_relocations.iter().map(|relocation| {
+                        let start = address + relocation.offset as u64;
+                        start..start + ADDRESS_BYTES
+                    }));
                     address
                 }
                 DataBytes::Deferred(_) => {
@@ -379,6 +390,10 @@ impl CodeImage {
         let Some(start) = offset.checked_sub(self.code_end) else {
             return Err(unsupported("copies code bytes, which only assembly decides"));
         };
+        let end = offset.saturating_add(out.len() as u64);
+        if self.linked.iter().any(|linked| linked.start < end && offset < linked.end) {
+            return Err(unsupported("copies a library address, which linking sets"));
+        }
         copy_padded(&self.bytes, U256::from(start), out);
         Ok(())
     }
