@@ -1162,7 +1162,6 @@ impl<'gcx> TypeChecker<'gcx> {
             rhs.display(self.gcx),
         );
         let code = if assign { error_code!(7366) } else { error_code!(2271) };
-        let code = if assign { error_code!(7366) } else { error_code!(2271) };
         self.dcx()
             .err(msg)
             .code(code)
