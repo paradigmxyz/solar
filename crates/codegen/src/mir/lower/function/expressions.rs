@@ -304,16 +304,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, initializer) {
             return Some(value);
         }
-        // Exact literal arithmetic can grow a `bytesN` value past the EVM word; lower the
-        // initializer instead, as `lower_expr` does for such values.
-        if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer)
-            && !matches!(value, ConstValue::Integer(value) if value.bit_len() > 256)
-        {
+        if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                ConstValue::Integer(value) => {
-                    Some(self.lower_const_integer(ty, value.as_evm_word()))
-                }
+                // Exact literal arithmetic can grow a `bytesN` value past the EVM word; lower the
+                // initializer instead, as `lower_expr` does for such values.
+                ConstValue::Integer(value) => match value.as_evm_word() {
+                    Some(word) => Some(self.lower_const_integer(ty, word)),
+                    None => self.lower_expr(initializer),
+                },
                 ConstValue::String(value) => {
                     let bytes = value.as_byte_str_in(self.cx.gcx.sess);
                     if matches!(
