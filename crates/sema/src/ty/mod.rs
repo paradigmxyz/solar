@@ -1937,7 +1937,8 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     type Cx<'gcx> = (Gcx<'gcx>, bool);
 
     /// Follows the struct references in the fields of `id`. With `direct`, follows only the
-    /// references that are not behind a dynamic array, mapping, or function type, like solc.
+    /// references that are not behind a dynamic array, mapping, or function type, and limits the
+    /// depth, like solc.
     fn visit<'gcx>(
         (gcx, direct): Cx<'gcx>,
         cd: &mut CycleDetector<Cx<'gcx>, hir::StructId, ErrorGuaranteed>,
@@ -1945,8 +1946,13 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     ) -> CycleDetectorResult<ErrorGuaranteed, hir::StructId> {
         let s = gcx.hir.strukt(id);
 
-        if cd.depth() >= 256 {
-            let guar = gcx.dcx().emit_err(s.span, "struct is too deeply nested");
+        if direct && cd.depth() >= 256 {
+            let guar = gcx
+                .dcx()
+                .err("struct is too deeply nested")
+                .code(error_code!(5651))
+                .span(s.span)
+                .emit();
             return CycleDetectorResult::Break(guar);
         }
 
@@ -1974,18 +1980,22 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         CycleDetectorResult::Continue
     }
 
-    match CycleDetector::detect((gcx, false), id, visit) {
-        CycleDetectorResult::Continue => Recursiveness::None,
-        CycleDetectorResult::Break(guar) => Recursiveness::Infinite(guar),
-        // A direct cycle makes the struct infinitely sized even when an indirect cycle also
-        // exists, so check all direct edges instead of only the cycle found above.
-        CycleDetectorResult::Cycle(_) => match CycleDetector::detect((gcx, true), id, visit) {
-            CycleDetectorResult::Continue => Recursiveness::Recursive,
-            CycleDetectorResult::Break(guar) => Recursiveness::Infinite(guar),
-            CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-                gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition"),
-            ),
+    // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists,
+    // so look for direct cycles before any cycle.
+    match CycleDetector::detect((gcx, true), id, visit) {
+        CycleDetectorResult::Continue => match CycleDetector::detect((gcx, false), id, visit) {
+            CycleDetectorResult::Continue => Recursiveness::None,
+            _ => Recursiveness::Recursive,
         },
+        CycleDetectorResult::Break(guar) => Recursiveness::Infinite(guar),
+        // Report at `id`, like solc, so that each struct reports at most once.
+        CycleDetectorResult::Cycle(_) => Recursiveness::Infinite(
+            gcx.dcx()
+                .err("recursive struct definition")
+                .code(error_code!(2046))
+                .span(gcx.item_span(id))
+                .emit(),
+        ),
     }
 }
 
