@@ -971,7 +971,7 @@ impl<'gcx> Gcx<'gcx> {
                     kind,
                     parameters: self.mk_item_tys(f.parameters),
                     returns: self.mk_item_tys(f.returns),
-                    state_mutability: fn_state_mutability(kind, f.state_mutability),
+                    state_mutability: f.state_mutability,
                     function_id: None,
                     attached: false,
                 });

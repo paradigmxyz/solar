@@ -2043,19 +2043,29 @@ impl<'gcx> ResolveContext<'gcx> {
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
                 };
-                match f.visibility {
-                    Some(vis)
-                        if matches!(*vis, ast::Visibility::Private | ast::Visibility::Public) =>
-                    {
-                        hir::TypeKind::Err(
-                            self.dcx()
-                                .err("invalid visibility, can only be `external` or `internal`")
-                                .code(error_code!(6012))
-                                .span(vis.span)
-                                .emit(),
-                        )
-                    }
-                    _ => hir::TypeKind::Function(self.arena.alloc(function)),
+                if let Some(vis) = f.visibility
+                    && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
+                {
+                    hir::TypeKind::Err(
+                        self.dcx()
+                            .err("invalid visibility, can only be `external` or `internal`")
+                            .code(error_code!(6012))
+                            .span(vis.span)
+                            .emit(),
+                    )
+                } else if let Some(state_mutability) = f.state_mutability
+                    && *state_mutability == ast::StateMutability::Payable
+                    && visibility == ast::Visibility::Internal
+                {
+                    hir::TypeKind::Err(
+                        self.dcx()
+                            .err("only external function types can be payable")
+                            .code(error_code!(7415))
+                            .span(state_mutability.span)
+                            .emit(),
+                    )
+                } else {
+                    hir::TypeKind::Function(self.arena.alloc(function))
                 }
             }
             ast::TypeKind::Mapping(mapping) => {
