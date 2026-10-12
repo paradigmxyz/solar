@@ -1,6 +1,7 @@
 //@ check-pass
 // The circular constant check follows member accesses on `this` and `super` without crashing.
-// TODO: solc rejects these reads with error 7615, which we do not report yet.
+// TODO: solc rejects these reads with error 7615, which we do not report yet. Unlike a getter's
+// selector, these selectors are compile-time constants, so error 8349 does not apply.
 
 contract A {
     function g() public virtual {}
