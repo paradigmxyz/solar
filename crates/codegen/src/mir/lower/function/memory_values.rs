@@ -381,7 +381,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
-        let layout = self.types.memory_layout(ty)?;
+        let Some(layout) = self.types.memory_layout(ty) else {
+            return self.oversized_default_object(ty);
+        };
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
@@ -393,8 +395,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));
         }
 
+        let Some(size) = Self::default_object_size(layout) else {
+            return self.oversized_default_object(ty);
+        };
         // object = alloc(default_layout)
-        let size = self.builder.imm(Self::default_object_size(layout)?);
+        let size = self.builder.imm(size);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if preserve_fmp {
             let Value::Inst(alloc) = *self.builder.func().value(object) else {
@@ -477,5 +482,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             MemoryObjectLayout::Struct { fields } => fields.checked_mul(32),
         }
+    }
+
+    /// Reverts with `Panic(0x41)`, as solc's allocator does, when a static array is too large to
+    /// allocate. Sema bounds memory variables, but not the fields of a struct array element.
+    fn oversized_default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
+        if !matches!(ty.peel_refs().kind, TyKind::Array(..)) {
+            return None;
+        }
+        // panic_if true, MemoryAllocationOverflow
+        let always = self.builder.imm_bool(true);
+        self.builder.panic_if(always, PanicCode::MemoryAllocationOverflow);
+        Some(self.builder.imm(U256::ZERO))
     }
 }
