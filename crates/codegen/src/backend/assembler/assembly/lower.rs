@@ -296,11 +296,17 @@ fn lower_evm_ir_once(
             }
         }
     }
+    // An observable layout keeps every data entry in place; otherwise only referenced data goes.
+    let emitted_data = if data_layout_is_observable {
+        module.data.indices().collect::<Vec<_>>()
+    } else {
+        referenced_data.iter().collect()
+    };
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
     let ends_with_terminal = program.instructions.last().is_some_and(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
-    if !referenced_data.is_empty() && !ends_with_terminal {
+    if !emitted_data.is_empty() && !ends_with_terminal {
         let spans = module
             .blocks
             .last()
@@ -318,14 +324,8 @@ fn lower_evm_ir_once(
     }
     program.data.clone_from(&module.data);
     program.set_source_span(None);
-    if data_layout_is_observable {
-        for data in module.data.indices() {
-            program.append_data(data);
-        }
-    } else {
-        for data in referenced_data.iter() {
-            program.append_data(data);
-        }
+    for data in emitted_data {
+        program.append_data(data);
     }
     program
 }
