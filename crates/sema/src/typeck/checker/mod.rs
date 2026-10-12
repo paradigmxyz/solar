@@ -3311,13 +3311,17 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
+        self.type_of_res_in(res, self.contract)
+    }
+
+    /// Returns the type of `res` as seen from `contract`, which gives `this` and `super` their
+    /// types.
+    fn type_of_res_in(&self, res: hir::Res, contract: Option<hir::ContractId>) -> Ty<'gcx> {
         match res {
-            hir::Res::Builtin(Builtin::This) => self
-                .contract
+            hir::Res::Builtin(Builtin::This) => contract
                 .map(|contract| self.gcx.type_of_item(contract.into()))
                 .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
-            hir::Res::Builtin(Builtin::Super) => self
-                .contract
+            hir::Res::Builtin(Builtin::Super) => contract
                 .map(|contract| {
                     self.gcx.mk_ty(TyKind::Type(self.gcx.mk_ty(TyKind::Super(contract))))
                 })

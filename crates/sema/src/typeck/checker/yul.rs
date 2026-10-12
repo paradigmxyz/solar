@@ -127,7 +127,7 @@ impl<'gcx> TypeChecker<'gcx> {
             let var = self.gcx.hir.variable(id);
             let Some(next) = var
                 .initializer
-                .and_then(|init| self.referenced_res(init, var))
+                .and_then(|init| self.resolve_in_scope(init, var)?.1)
                 .and_then(|res| res.as_variable())
                 .filter(|&next| self.gcx.hir.variable(next).is_constant())
             else {
@@ -138,18 +138,26 @@ impl<'gcx> TypeChecker<'gcx> {
         true
     }
 
-    /// Resolves an identifier or a member access in the scope of the variable `scope`.
-    fn referenced_res(&self, expr: &hir::Expr<'_>, scope: &hir::Variable<'_>) -> Option<hir::Res> {
+    /// Resolves an identifier or a member access in the scope of the variable `scope` to its type
+    /// and resolution.
+    fn resolve_in_scope(
+        &self,
+        expr: &hir::Expr<'_>,
+        scope: &hir::Variable<'_>,
+    ) -> Option<(Ty<'gcx>, Option<hir::Res>)> {
         match expr.kind {
-            hir::ExprKind::Ident(&[res]) => Some(res),
+            hir::ExprKind::Ident(&[res]) => {
+                Some((self.type_of_res_in(res, scope.contract), Some(res)))
+            }
             hir::ExprKind::Member(base, member) => {
-                let base_ty = self.gcx.type_of_res(self.referenced_res(base, scope)?);
+                let (base_ty, _) = self.resolve_in_scope(base, scope)?;
                 let members = self
                     .gcx
                     .members_of(base_ty, scope.source, scope.contract)
                     .filter(|m| m.name == member.name)
                     .collect::<SmallVec<[_; 4]>>();
-                self.select_member_access(&members).ok()?.res
+                let member = self.select_member_access(&members).ok()?;
+                Some((member.ty, member.res))
             }
             _ => None,
         }
