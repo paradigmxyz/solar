@@ -262,11 +262,12 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks the length expression of a fixed-size array type.
     ///
     /// Any integer expression is accepted, whatever its declared signedness and width. Only the
-    /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
+    /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it and reports sizes
+    /// that fail to evaluate.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let ty = self.check_expr(size);
-        if !ty.is_integer() && !ty.references_error() {
+        if !ty.is_integer() && !ty.references_error() && self.gcx.try_eval_const(size).is_ok() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
         ty
