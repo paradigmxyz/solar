@@ -1,0 +1,14 @@
+error: invalid true type
+   ╭▸ ROOT/tests/ui/typeck/module_conditional.sol:LL:CC
+   │
+LL │         return (c ? M : M).x;
+   ╰╴                    ━
+
+error: invalid false type
+   ╭▸ ROOT/tests/ui/typeck/module_conditional.sol:LL:CC
+   │
+LL │         return (c ? M : M).x;
+   ╰╴                        ━
+
+error: aborting due to 2 previous errors
+
