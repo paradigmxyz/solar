@@ -256,7 +256,7 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
-### TYPECK-013: Deep constant dependency chains
+### TYPECK-014: Deep constant dependency chains
 
 Status: intentional.
 

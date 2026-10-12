@@ -1,5 +1,5 @@
 // solc rejects this 257-deep chain from its cyclic_dependency_check_on_consts_exhausted.sol with
-// 7380; see TYPECK-013 in docs/SOLC_DIVERGENCE.md.
+// 7380; see TYPECK-014 in docs/SOLC_DIVERGENCE.md.
 contract A {}
 contract Main {
     A constant B = C;
