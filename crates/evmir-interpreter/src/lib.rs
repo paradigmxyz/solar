@@ -414,6 +414,16 @@ bb0:
         let module = "@module test\nbb0:\n  push 0\n  tload\n  stop\n";
         let execution = transact(module, &[], &mut Zero, options(EvmVersion::Shanghai)).unwrap();
         assert_eq!(execution.outcome, Outcome::Halt(Halt::UndefinedOpcode(0x5c)));
+        // So are the extended stack opcodes a stack operation past the 16th word needs.
+        let module = format!(
+            "@module test\nbb0:\n{}  dup 17\n  push 0\n  sstore\n  stop\n",
+            "  push 1\n".repeat(17)
+        );
+        let execution = transact(&module, &[], &mut Zero, options(EvmVersion::Shanghai)).unwrap();
+        assert_eq!(execution.outcome, Outcome::Halt(Halt::UndefinedOpcode(0xe6)));
+        let execution = transact(&module, &[], &mut Zero, options(EvmVersion::Amsterdam)).unwrap();
+        assert_eq!(execution.outcome, Outcome::Success(Vec::new()));
+        assert_eq!(execution.storage, [(U256::ZERO, U256::ONE)]);
     }
 
     #[test]

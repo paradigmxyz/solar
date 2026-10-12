@@ -24,7 +24,9 @@
 //!
 //! Before Constantinople, legalization expands shifts into arithmetic with the same results, so
 //! shifts run on every target. Before Byzantium, it turns `revert` into `invalid`, so a revert
-//! halts there. Any other opcode the target lacks halts as undefined, as it does in the EVM.
+//! halts there. Any other opcode the target lacks halts as undefined, as it does in the EVM, and
+//! so does a stack operation that only the target's missing `DUPN`, `SWAPN`, or `EXCHANGE` could
+//! encode.
 //!
 //! # Code layout
 //!
@@ -538,6 +540,11 @@ impl<'m> Run<'_, 'm, '_> {
     ) -> Result<(), Outcome> {
         if !stack_op.is_valid() {
             return Err(unsupported("a stack operation no opcode encodes"));
+        }
+        // Past the 16th word, only the extended stack opcodes reach, which older targets lack.
+        if stack_op.lowering(self.machine.evm_version).is_none() {
+            self.trace(block, Site::Instruction(inst), &[], None);
+            return Err(Outcome::Halt(Halt::UndefinedOpcode(stack_op.ir_opcode())));
         }
         let depth = self.stack.len();
         if depth < stack_op.required_depth() {
