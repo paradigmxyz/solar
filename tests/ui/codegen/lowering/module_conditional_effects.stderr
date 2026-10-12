@@ -1,0 +1,106 @@
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         ((flag = true) ? M : M).D;
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         s = (bump() ? M : M).S(9);
+   │              ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │ …     try (bump() ? M : M).L.ext(1) returns (uint256 r) {
+   │            ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │ …     return abi.encodeCall((bump() ? M : M).D.g, ());
+   │                              ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │ …     return abi.decode(abi.encode(uint256(5)), ((bump() ? M : M).S)).a;
+   │                                                   ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return address((bump() ? M : M).L);
+   │                         ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (guard(x) ? M : M).S(x).a;
+   │                 ━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         (bump() ? M : M).B.owner = who;
+   │          ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (bump() ? M : M).B.fp();
+   │                 ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (a == U.wrap(0) ? M : M).K;
+   │                 ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (COMPUTED ? M : M).K;
+   │                 ━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (1 / x > 0 ? M : M).K;
+   │                 ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (c ? (bump() ? M : M) : M).K;
+   │                      ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: aborting due to 13 previous errors
+

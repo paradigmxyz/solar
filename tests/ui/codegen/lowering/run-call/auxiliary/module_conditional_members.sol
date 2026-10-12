@@ -1,4 +1,4 @@
-import "./module_ternary_receiver_effects_nested.sol" as N;
+import "./module_conditional_members_nested.sol" as N;
 
 contract D {
     function g() external pure returns (uint256) {

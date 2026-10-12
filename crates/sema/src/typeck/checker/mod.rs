@@ -809,7 +809,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 // TODO: Does mobile need to return None?
                 let true_ty = self.check_expr_with_noexpect(true_, expected).mobile(self.gcx);
                 let false_ty = self.check_expr_with_noexpect(false_, expected).mobile(self.gcx);
-                match (true_ty, false_ty) {
+                let ty = match (true_ty, false_ty) {
                     (Some(true_ty), Some(false_ty)) => {
                         true_ty.common_type(false_ty, self.gcx).unwrap_or_else(|| {
                             self.gcx.mk_ty_err(
@@ -831,7 +831,13 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
                         true_ty.or(false_ty).unwrap_or_else(|| self.gcx.mk_ty_err(guar.unwrap()))
                     }
+                };
+                if let TyKind::Module(_) = ty.kind
+                    && !self.is_effect_free(cond)
+                {
+                    self.results.unsupported_module_conditionals.push(expr.span);
                 }
+                ty
             }
             hir::ExprKind::Tuple(exprs) => {
                 let gcx = self.gcx;
@@ -3387,6 +3393,36 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn ty_is_udvt(ty: Ty<'gcx>) -> bool {
         matches!(ty.peel_refs().kind, TyKind::Udvt(..))
+    }
+
+    /// Returns whether evaluating `expr` cannot write state, call a function, or revert.
+    ///
+    /// Codegen resolves members of a module conditional such as `(c ? M : M).f` statically and
+    /// never evaluates `c`, so it rejects conditionals whose condition fails this check. The check
+    /// is conservative: it accepts literals, names, `!`, comparisons, and logical operators.
+    fn is_effect_free(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        match &expr.kind {
+            hir::ExprKind::Lit(_) => true,
+            hir::ExprKind::Ident(_) => expr.as_variable().is_none_or(|id| {
+                let variable = self.gcx.hir.variable(id);
+                !variable.is_constant()
+                    || variable.initializer.is_some_and(|init| {
+                        matches!(init.peel_parens().kind, hir::ExprKind::Lit(_))
+                    })
+            }),
+            hir::ExprKind::Tuple([Some(inner)]) => self.is_effect_free(inner),
+            hir::ExprKind::Unary(op, inner) if op.kind == hir::UnOpKind::Not => {
+                self.is_effect_free(inner)
+            }
+            hir::ExprKind::Binary(lhs, op, rhs)
+                if (op.kind.is_cmp()
+                    || matches!(op.kind, hir::BinOpKind::And | hir::BinOpKind::Or))
+                    && !self.results.user_operators.contains_key(&expr.id) =>
+            {
+                self.is_effect_free(lhs) && self.is_effect_free(rhs)
+            }
+            _ => false,
+        }
     }
 }
 

@@ -430,3 +430,23 @@ No intentional divergences documented yet.
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
+
+### CODEGEN-011: Module conditionals with side-effecting conditions
+
+- ID: CODEGEN-011
+- Status: parity debt
+- Difference: `solc` evaluates the condition of a conditional that selects a
+  module, as in `(f() ? M : M).x`, before it reads the member. We accept such
+  code in analysis, but codegen rejects it unless the condition is a literal,
+  a variable, a constant with a literal value, or a `!`, comparison, `&&`, or
+  `||` of these without user-defined operators. Accepted conditions are
+  never evaluated. The check covers every function in the compilation, even
+  one that no requested contract reaches.
+- Rationale: Codegen resolves members reached through a module statically, on
+  many separate paths: calls, constants, struct constructors, conversions,
+  selectors, `abi` type operands, `try` targets, and storage access. Evaluating
+  the condition on every path would leave each new path one omission away from
+  dropping or repeating its side effects.
+- Coverage: `tests/ui/codegen/lowering/module_conditional_effects.sol`, which
+  includes `test/libsolidity/semanticTests/expressions/module_from_ternary_expression.sol`,
+  and `tests/ui/codegen/lowering/run-call/module_conditional_members.sol`.

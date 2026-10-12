@@ -1,0 +1,171 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/auxiliary/module_conditional_members.sol:D ===
+@module D
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 7
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/auxiliary/module_conditional_members.sol:L ===
+@module L
+@library
+
+// === ROOT/tests/ui/codegen/lowering/run-call/module_conditional_members.sol:C ===
+@module C
+fn @call(arg0: i1) -> i256 [selector=0xb463fbfc, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @f, 1
+    ret v0
+}
+
+fn @libraryCall(arg0: i1) -> i256 [selector=0x7b94df76, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @h, 3
+    ret v0
+}
+
+fn @moduleConstant() -> i256 [selector=0x6bfc25f2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 5
+}
+
+fn @libraryConstant(arg0: i256) -> i256 [selector=0x7ca13476, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 11
+}
+
+fn @nestedModuleConstant(arg0: i1, arg1: i256) -> i256 [selector=0x6c67157a, pure, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 13
+}
+
+fn @structConstructor() -> i256 [selector=0x9b40f93f, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 9
+    v1 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v1
+}
+
+fn @conversion(arg0: i1) -> i160 [selector=0xa0794478, pure, abi_params=[bool], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    ret i160 0x1234
+}
+
+fn @enumValue() -> i256 [selector=0x4d625dc0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 2
+}
+
+fn @wrap(arg0: i1) -> i256 [selector=0x04e8dbef, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 3
+}
+
+fn @functionValue(arg0: i1) -> i256 [selector=0xbfa69561, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @internal_dispatcher_p_u256_r_u256, 2, 4
+    ret v0
+}
+
+fn @functionSelector(arg0: i1) -> i256 [selector=0xc35ffbdf, pure, abi_params=[bool], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    ret 0xe2179b8e00000000000000000000000000000000000000000000000000000000
+}
+
+fn @errorSelector(arg0: i1) -> i256 [selector=0x4fc62bf0, pure, abi_params=[bool], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    ret 0x2ff06700000000000000000000000000000000000000000000000000000000
+}
+
+fn @eventSelector(arg0: i1) -> i256 [selector=0x6bd1a8a7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret 0xb30c6e011c2816674a43c08a53579e48c30e2158e65c09ae36edd17363863f98
+}
+
+fn @statements(arg0: i1) -> i256 [selector=0x7dd90d80, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    jumpi arg0, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    jumpi arg0, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb9
+  bb9:
+    jumpi arg0, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    jump bb12
+  bb12:
+    ret 1
+}
+
+fn @nested(arg0: i1, arg1: i1) -> i256 [selector=0xf96b683e, pure, abi_params=[bool, bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    ret 13
+}
+
+fn @requireError(arg0: i1) [selector=0x3c104699, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<custom_error [word]>, false, 0x2ff06700000000000000000000000000000000000000000000000000000000, 4
+    ret
+}
+
+fn @requireConstantMessage(arg0: i1) [selector=0xade26924, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<short_string>, false, 5, 0x73686f7274000000000000000000000000000000000000000000000000000000
+    ret
+}
+
+fn @f(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    ret v0
+}
+
+fn @h(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_mul u256, arg0, 2
+    ret v0
+}
+
+fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @f, arg1
+    ret v1
+}
