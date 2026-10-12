@@ -16,7 +16,7 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-    int constant signedTwo = 7 / 3; //~ ERROR: mismatched types
+    int constant signedTwo = 7 / 3;
     int constant signedNegTwo = (-7) / 3;
 
     int8 constant maxInt8 = 127;
@@ -36,9 +36,9 @@ contract C {
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d5(uint[signedTwo] memory) public {} //~ ERROR: failed to evaluate constant: fractional values are not supported
-    function d6(uint[-signedNegTwo] memory) public {} //~ ERROR: failed to evaluate constant: fractional values are not supported
-    function d7(uint[signedNegTwo] memory) public {} //~ ERROR: failed to evaluate constant: fractional values are not supported
+    function d5(uint[signedTwo] memory) public {}
+    function d6(uint[-signedNegTwo] memory) public {}
+    function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
     function d8(uint[maxInt8] memory) public {}
     function d9(uint[maxUint8] memory) public {}
     function d10(uint[-(minInt8 + 1)] memory) public {}

@@ -43,30 +43,9 @@ error: failed to evaluate constant: arithmetic overflow
 LL │     function d4(uint[1 << 4294967295] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: fractional values are not supported
+error: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
-LL │     int constant signedTwo = 7 / 3;
-   │                              ───── evaluation of constant value failed here
-   ‡
-LL │     function d5(uint[signedTwo] memory) public {}
-   ╰╴                     ━━━━━━━━━
-
-error: failed to evaluate constant: fractional values are not supported
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
-LL │     int constant signedNegTwo = (-7) / 3;
-   │                                 ──────── evaluation of constant value failed here
-   ‡
-LL │     function d6(uint[-signedNegTwo] memory) public {}
-   ╰╴                     ━━━━━━━━━━━━━
-
-error: failed to evaluate constant: fractional values are not supported
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
-LL │     int constant signedNegTwo = (-7) / 3;
-   │                                 ──────── evaluation of constant value failed here
-   ‡
 LL │     function d7(uint[signedNegTwo] memory) public {}
    ╰╴                     ━━━━━━━━━━━━
 
@@ -197,12 +176,6 @@ LL │     uint[bigLiteral + 1] public tooBig1;
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
-LL │     int constant signedTwo = 7 / 3;
-   ╰╴                             ━━━━━ expected `int256`, found `uint8`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
 LL │     function j(uint["lol"] memory) public {}
    ╰╴                    ━━━━━ expected `uint256`, found `utf8_string_literal[3]`
 
@@ -212,5 +185,5 @@ error: cannot assign to a constant variable
 LL │     function k(uint[--x] memory) public {}
    ╰╴                      ━
 
-error: aborting due to 32 previous errors
+error: aborting due to 29 previous errors
 

@@ -637,11 +637,6 @@ impl IntScalar {
                 if r.data.is_zero() {
                     return Err(EE::DivisionByZero);
                 }
-                // solc divides literals exactly, so truncating a fractional quotient here would
-                // give a different value.
-                if self.ty.is_none() && r.ty.is_none() && !(&self.data % &r.data).is_zero() {
-                    return Err(EE::FractionalValue);
-                }
                 Self::checked(self.data / r.data)?
             }
             Rem => {
@@ -717,7 +712,6 @@ pub enum EvalErrorKind {
     LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
-    FractionalValue,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
@@ -736,10 +730,9 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
-            Self::LiteralTooLarge => "literal is too large for the type of the other operand",
+            Self::LiteralTooLarge => "literal is too large for any integer type",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
-            Self::FractionalValue => "fractional values are not supported",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",

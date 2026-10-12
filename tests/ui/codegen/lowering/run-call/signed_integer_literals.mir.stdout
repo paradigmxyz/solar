@@ -68,8 +68,7 @@ fn @positiveRemainder() -> i256 [selector=0x018baf05, pure, abi_params=[], abi_r
 
 fn @largePositiveDivision() -> i256 [selector=0x01ad88db, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = checked_div u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
-    ret v0
+    ret 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
 fn @largePositiveRightShift(arg0: i256) -> i256 [selector=0xba4becb8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

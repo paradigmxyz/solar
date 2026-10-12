@@ -1,6 +1,5 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::EvalErrorKind,
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -21,7 +20,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -226,22 +225,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
             return;
         }
-        let value = match self.gcx.try_eval_const(slot) {
-            Ok(value) => value,
-            Err(err) if matches!(err.kind, EvalErrorKind::FractionalValue) => {
-                self.dcx()
-                    .err("base slot of storage layout must evaluate to an integer")
-                    .code(error_code!(1763))
-                    .span(slot.span)
-                    .span_label(err.span, "fractional values are not supported")
-                    .emit();
-                return;
-            }
-            Err(err) => {
-                self.gcx.emit_const_eval_error(slot, err);
-                return;
-            }
-        };
+        let Ok(value) = self.gcx.eval_const(slot) else { return };
         let Some(base_slot) = value.as_u256() else {
             self.dcx()
                 .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
@@ -875,15 +859,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() {
-                            empty_err(self, expr.span)
-                        } else if exprs.len() > 1
-                            && let Err(guar) = self.check_literal_fits(expr, ty, error_code!(3390))
-                        {
-                            self.gcx.mk_ty_err(guar)
-                        } else {
-                            ty
-                        }
+                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
                     } else if self.in_lvalue() {
                         self.gcx.types.unit
                     } else {
@@ -1128,25 +1104,6 @@ impl<'gcx> TypeChecker<'gcx> {
         )
     }
 
-    /// Rejects an integer literal too large for any integer type where solc needs its mobile
-    /// type, reporting it with the given code.
-    fn check_literal_fits(
-        &self,
-        expr: &'gcx hir::Expr<'gcx>,
-        ty: Ty<'gcx>,
-        code: DiagId,
-    ) -> Result<(), ErrorGuaranteed> {
-        if !is_literal_too_large(ty) {
-            return Ok(());
-        }
-        Err(self
-            .dcx()
-            .err("literal is too large for any integer type")
-            .code(code)
-            .span(expr.span)
-            .emit())
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn check_binop(
         &mut self,
@@ -1170,15 +1127,11 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             return ty;
         }
-        // The constant evaluator also finds literals without a mobile type, so both share one
-        // report.
-        if let Some(literal) =
-            [(lhs_e, lhs, rhs), (rhs_e, rhs, lhs)].into_iter().find_map(|(e, ty, other)| {
-                let other = other.peel_refs();
-                (literal_lacks_mobile_type(ty, other) && other.is_integer()).then_some(e)
-            })
-        {
-            return self.gcx.mk_ty_err(self.gcx.literal_too_large(literal.span));
+        for (e, ty, other) in [(lhs_e, lhs, rhs), (rhs_e, rhs, lhs)] {
+            let other = other.peel_refs();
+            if literal_lacks_mobile_type(ty, other) && other.is_integer() {
+                return self.gcx.mk_ty_err(self.gcx.literal_too_large(e.span));
+            }
         }
 
         let msg = format!(
@@ -2062,10 +2015,6 @@ impl<'gcx> TypeChecker<'gcx> {
         let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
-            if let Err(guar) = self.check_literal_fits(expr, ty, error_code!(8009)) {
-                result = Err(guar);
-                continue;
-            }
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
@@ -3729,9 +3678,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
-                let ty = self.check_expr(expr);
-                let _ = self.check_literal_fits(expr, ty, error_code!(3757));
-                return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
@@ -4127,7 +4073,7 @@ fn binop_common_type<'gcx>(
 
 /// Returns `true` if `ty` is an integer literal too large for any integer type.
 fn is_literal_too_large(ty: Ty<'_>) -> bool {
-    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if bits > TypeSize::MAX)
+    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if TypeSize::try_new_literal_bits(bits).is_none())
 }
 
 /// Returns `true` if `ty` is an integer literal too large for any integer type next to a typed
