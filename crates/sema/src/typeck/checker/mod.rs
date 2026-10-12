@@ -3399,10 +3399,21 @@ impl<'gcx> TypeChecker<'gcx> {
     ///
     /// Codegen resolves members of a module conditional such as `(c ? M : M).f` statically and
     /// never evaluates `c`, so it rejects conditionals whose condition fails this check. The check
-    /// is conservative: it accepts literals, names, `!`, comparisons, and logical operators.
+    /// is conservative: it accepts literals, names not of enum type, `!`, comparisons, and logical
+    /// operators.
     fn is_effect_free(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         match &expr.kind {
             hir::ExprKind::Lit(_) => true,
+            // Reading an out-of-range enum value panics.
+            hir::ExprKind::Ident(_)
+                if self
+                    .results
+                    .expr_types
+                    .get(&expr.id)
+                    .is_some_and(|ty| matches!(ty.kind, TyKind::Enum(_))) =>
+            {
+                false
+            }
             hir::ExprKind::Ident(_) => expr.as_variable().is_none_or(|id| {
                 let variable = self.gcx.hir.variable(id);
                 !variable.is_constant()

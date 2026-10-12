@@ -102,5 +102,21 @@ LL │         return (c ? (bump() ? M : M) : M).K;
    │
    ╰ help: assign the condition to a local variable first
 
-error: aborting due to 13 previous errors
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (e == f ? M : M).S(9).a;
+   │                 ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: module conditionals whose condition may have side effects are not supported
+   ╭▸ ROOT/tests/ui/codegen/lowering/module_conditional_effects.sol:LL:CC
+   │
+LL │         return (x != y ? M : M).S(9).a;
+   │                 ━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the condition to a local variable first
+
+error: aborting due to 15 previous errors
 

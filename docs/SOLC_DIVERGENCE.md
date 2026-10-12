@@ -438,10 +438,11 @@ No intentional divergences documented yet.
 - Difference: `solc` evaluates the condition of a conditional that selects a
   module, as in `(f() ? M : M).x`, before it reads the member. We accept such
   code in analysis, but codegen rejects it unless the condition is a literal,
-  a variable, a constant with a literal value, or a `!`, comparison, `&&`, or
-  `||` of these without user-defined operators. Accepted conditions are
-  never evaluated. The check covers every function in the compilation, even
-  one that no requested contract reaches.
+  a variable not of enum type, a constant with a literal value, or a `!`,
+  comparison, `&&`, or `||` of these without user-defined operators. Enum
+  reads fail the check because an out-of-range value panics. Accepted
+  conditions are never evaluated. The check covers every function in the
+  compilation, even one that no requested contract reaches.
 - Rationale: Codegen resolves members reached through a module statically, on
   many separate paths: calls, constants, struct constructors, conversions,
   selectors, `abi` type operands, `try` targets, and storage access. Evaluating

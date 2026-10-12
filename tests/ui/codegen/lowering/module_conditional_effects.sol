@@ -11,9 +11,13 @@ function eq(U a, U b) pure returns (bool) {
 }
 
 contract C is M.B {
+    enum E { A, B }
+
     bool constant COMPUTED = 1 < 2;
     uint256 n;
     M.S s;
+    E e;
+    E f;
 
     function bump() internal returns (bool) {
         n++;
@@ -86,5 +90,17 @@ contract C is M.B {
 
     function nested(bool c) public returns (uint256) {
         return (c ? (bump() ? M : M) : M).K; //~ ERROR: module conditionals whose condition may have side effects are not supported
+    }
+
+    function storageEnum() public view returns (uint256) {
+        return (e == f ? M : M).S(9).a; //~ ERROR: module conditionals whose condition may have side effects are not supported
+    }
+
+    function localEnum(E x) public pure returns (uint256) {
+        E y;
+        assembly {
+            y := 5
+        }
+        return (x != y ? M : M).S(9).a; //~ ERROR: module conditionals whose condition may have side effects are not supported
     }
 }
