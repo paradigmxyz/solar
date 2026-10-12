@@ -153,17 +153,6 @@ impl super::LoweringContext<'_> {
                 scope
             })
             .collect();
-
-        // Like solc, keep `this` and `super` out of the contract scope so that members can shadow
-        // them.
-        self.resolver.contract_builtin_scopes = self
-            .hir
-            .contracts()
-            .map(|contract| {
-                let super_ = (!contract.kind.is_library()).then_some(Builtin::Super);
-                crate::builtins::declarations(std::iter::once(Builtin::This).chain(super_))
-            })
-            .collect();
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -310,7 +299,7 @@ impl<'gcx> ResolveContext<'gcx> {
         contract: Option<hir::ContractId>,
         function: Option<hir::FunctionId>,
     ) {
-        self.scopes.init(source, contract);
+        self.scopes.init(&self.lcx.hir, source, contract);
         self.function_id = function;
     }
 
@@ -586,13 +575,13 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_base_args(&mut self) {
         for c_id in self.hir.contract_ids() {
-            let contract = self.hir.contract(c_id);
+            let &hir::Contract { source, kind, .. } = self.hir.contract(c_id);
 
             // Initialize without contract scope, but with the contract's `this` and `super`, to
             // allow builtins to be accessible in base constructor arguments while keeping state
             // variables inaccessible.
-            self.init(contract.source, None, None);
-            self.scopes.builtins = Some(c_id);
+            self.init(source, None, None);
+            self.scopes.builtins = Some(kind);
 
             // Lower the base modifiers.
             self.resolve_base_args_inner(c_id);
@@ -2220,9 +2209,13 @@ pub(crate) struct SymbolResolver<'gcx> {
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
-    /// `this` and `super` of each contract, looked up after the source scope.
+    /// `this` and `super`, looked up in contracts after the source scope. Like solc, keeping
+    /// them out of the contract scope lets members shadow them.
     #[debug(ignore)]
-    contract_builtin_scopes: IndexVec<hir::ContractId, Declarations>,
+    contract_builtin_scope: Declarations,
+    /// `this`, looked up in libraries after the source scope.
+    #[debug(ignore)]
+    library_builtin_scope: Declarations,
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
@@ -2236,7 +2229,8 @@ impl<'gcx> SymbolResolver<'gcx> {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
-            contract_builtin_scopes: IndexVec::new(),
+            contract_builtin_scope: crate::builtins::declarations([Builtin::This, Builtin::Super]),
+            library_builtin_scope: crate::builtins::declarations([Builtin::This]),
             global_builtin_scope,
             builtin_members_scopes,
         }
@@ -2244,12 +2238,13 @@ impl<'gcx> SymbolResolver<'gcx> {
 
     pub(crate) fn source_path_resolutions(
         &self,
+        hir: &hir::Hir<'_>,
         segments: &[Ident],
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> Option<Vec<Vec<Res>>> {
         let mut scopes = SymbolResolverScopes::new();
-        scopes.init(source, contract);
+        scopes.init(hir, source, contract);
         let mut resolutions = Vec::with_capacity(segments.len());
         self.resolve_paths_with(ast::PathSlice::from_slice(segments), &scopes, |decls| {
             resolutions.push(decls.iter().map(|decl| decl.res).collect());
@@ -2369,8 +2364,8 @@ impl<'gcx> SymbolResolver<'gcx> {
 pub(super) struct SymbolResolverScopes {
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
-    /// The contract whose `this` and `super` are in scope; usually `contract`.
-    builtins: Option<hir::ContractId>,
+    /// The kind of the contract whose `this` and `super` are in scope; usually `contract`'s.
+    builtins: Option<hir::ContractKind>,
     scopes: Vec<Declarations>,
     /// Pool of declarations that can be reused.
     pool: Vec<Declarations>,
@@ -2382,11 +2377,16 @@ impl SymbolResolverScopes {
         Self { source: None, contract: None, builtins: None, scopes: Vec::new(), pool: Vec::new() }
     }
 
-    fn init(&mut self, source: hir::SourceId, contract: Option<hir::ContractId>) {
+    fn init(
+        &mut self,
+        hir: &hir::Hir<'_>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) {
         self.clear();
         self.source = Some(source);
         self.contract = contract;
-        self.builtins = contract;
+        self.builtins = contract.map(|id| hir.contract(id).kind);
     }
 
     fn clear(&mut self) {
@@ -2414,7 +2414,13 @@ impl SymbolResolverScopes {
             .map(|id| &resolver.contract_scopes[id])
             .into_iter()
             .chain(self.source.map(|id| &resolver.source_scopes[id]))
-            .chain(self.builtins.map(|id| &resolver.contract_builtin_scopes[id]))
+            .chain(self.builtins.map(|kind| {
+                if kind.is_library() {
+                    &resolver.library_builtin_scope
+                } else {
+                    &resolver.contract_builtin_scope
+                }
+            }))
             .chain(std::iter::once(&resolver.global_builtin_scope))
     }
 

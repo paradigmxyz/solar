@@ -667,7 +667,7 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> Option<Vec<Vec<hir::Res>>> {
-        self.symbol_resolver.source_path_resolutions(segments, source, contract)
+        self.symbol_resolver.source_path_resolutions(&self.hir, segments, source, contract)
     }
 
     /// Iterates declarations in an existing contract scope.
