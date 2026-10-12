@@ -21,6 +21,7 @@ cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
+cargo run -p solar-evmir-interp -- f.evmir # Run EVM IR in the EVM IR interpreter
 ```
 
 Filter UI tests with `cargo uitest <path-substring>` or

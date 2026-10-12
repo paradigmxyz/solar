@@ -1,0 +1,14 @@
+{"contracts":{"src/Other.sol:Other":{"bin-runtime":"00"},"src/Probe.sol:Probe":{"bin-runtime":"6007"}},"version":"0.2.0"}
+// === src/Probe.sol:Probe (scheduled runtime) ===
+@module Probe_runtime
+bb0:
+  push 7
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// === src/Other.sol:Other (scheduled runtime) ===
+@module Other_runtime
+bb0:
+  stop
