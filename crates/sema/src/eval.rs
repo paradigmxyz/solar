@@ -155,7 +155,11 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.
                 Ok(match value {
-                    ConstValue::Integer(value) => {
+                    ConstValue::Integer(mut value) => {
+                        value.fixed_bytes = matches!(
+                            v.ty.kind,
+                            hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))
+                        );
                         ConstValue::Integer(value.typed(IntTy::from_hir_ty(&v.ty)))
                     }
                     value => value,
@@ -259,6 +263,7 @@ impl ConstValue {
     /// Applies the given unary operation to this value.
     pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         Ok(match (self, op) {
+            (Self::Integer(value), _) if value.fixed_bytes => return Err(EE::UnsupportedUnaryOp),
             (Self::Integer(value), op) => Self::Integer(value.unop(op)?),
             (Self::Bool(value), hir::UnOpKind::Not) => Self::Bool(!value),
             (Self::Bool(_) | Self::String(_), _) => return Err(EE::UnsupportedUnaryOp),
@@ -269,6 +274,9 @@ impl ConstValue {
     pub fn binop(self, rhs: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         use hir::BinOpKind::*;
         Ok(match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) if lhs.fixed_bytes || rhs.fixed_bytes => {
+                return Err(EE::UnsupportedBinaryOp);
+            }
             (Self::Integer(lhs), Self::Integer(rhs)) => match op {
                 Lt => Self::Bool(lhs.data < rhs.data),
                 Le => Self::Bool(lhs.data <= rhs.data),
@@ -386,12 +394,18 @@ pub struct IntScalar {
     /// type; as soon as a typed constant takes part in the expression, arithmetic is checked
     /// against the declared type instead of yielding the mathematical result.
     ty: Option<IntTy>,
+    /// Whether the value was read from a `bytesN` constant, which keeps its bytes right-aligned.
+    ///
+    /// There is no `bytesN` arithmetic here: exact integer math would keep the bits that a shift
+    /// moves out, and comparing values of different widths needs them left-aligned, so such a
+    /// value takes part in no operation.
+    fixed_bytes: bool,
 }
 
 impl IntScalar {
     /// Creates a new non-negative integer value.
     pub fn new(data: U256) -> Self {
-        Self { data: Self::bigint_from_u256(data), ty: None }
+        Self { data: Self::bigint_from_u256(data), ty: None, fixed_bytes: false }
     }
 
     /// Creates a new integer value from a boolean.
@@ -459,7 +473,7 @@ impl IntScalar {
         if Self::bits(&data) > MAX_INTERMEDIATE_BITS {
             return Err(EE::ArithmeticOverflow);
         }
-        Ok(Self { data, ty: None })
+        Ok(Self { data, ty: None, fixed_bytes: false })
     }
 
     /// Attaches the declared type of the constant this value was read from.
