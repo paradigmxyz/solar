@@ -1,5 +1,5 @@
 // The longest chain from `C0` visits every constant, but solc's search from `C0` follows the
-// skips to `C{i + 2}` first and never gets 256 deep, so solc accepts this. See TYPECK-009 in
+// skips to `C{i + 2}` first and never gets 256 deep, so solc accepts this. See TYPECK-010 in
 // docs/SOLC_DIVERGENCE.md.
 contract C {
     uint constant C255 = 1; //~ ERROR: variable definition exhausting cyclic dependency validator

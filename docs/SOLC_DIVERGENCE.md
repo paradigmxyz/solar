@@ -211,7 +211,7 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
-### TYPECK-009: Long constant dependency chains
+### TYPECK-010: Long constant dependency chains
 
 Status: intentional.
 
