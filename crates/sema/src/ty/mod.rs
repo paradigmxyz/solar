@@ -949,7 +949,7 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
-        self.type_of_hir_ty_with(ty, crate::eval::eval_array_len)
+        self.type_of_hir_ty_with(ty, false)
     }
 
     /// Computes the [`Ty`] of the given [`hir::Type`] in expression position, such as `uint[0]` in
@@ -957,23 +957,26 @@ impl<'gcx> Gcx<'gcx> {
     ///
     /// Unlike array type names, array type expressions may have zero length.
     pub fn type_of_hir_ty_expr(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
-        self.type_of_hir_ty_with(ty, crate::eval::eval_array_expr_len)
+        self.type_of_hir_ty_with(ty, true)
     }
 
-    fn type_of_hir_ty_with(
-        self,
-        ty: &hir::Type<'_>,
-        eval_array_len: fn(Self, &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed>,
-    ) -> Ty<'gcx> {
+    fn type_of_hir_ty_with(self, ty: &hir::Type<'_>, allow_zero_len: bool) -> Ty<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
-                let elem = self.type_of_hir_ty_with(&array.element, eval_array_len);
+                let elem = self.type_of_hir_ty_with(&array.element, allow_zero_len);
                 match array.size {
-                    Some(size) => match eval_array_len(self, size) {
-                        Ok(size) => TyKind::Array(elem, size),
-                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
-                    },
+                    Some(size) => {
+                        let eval = if allow_zero_len {
+                            crate::eval::eval_array_expr_len
+                        } else {
+                            crate::eval::eval_array_len
+                        };
+                        match eval(self, size) {
+                            Ok(size) => TyKind::Array(elem, size),
+                            Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
+                        }
+                    }
                     None => TyKind::DynArray(elem),
                 }
             }
@@ -993,8 +996,8 @@ impl<'gcx> Gcx<'gcx> {
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
-                let key = self.type_of_hir_ty_with(&mapping.key, eval_array_len);
-                let value = self.type_of_hir_ty_with(&mapping.value, eval_array_len);
+                let key = self.type_of_hir_ty_with(&mapping.key, allow_zero_len);
+                let value = self.type_of_hir_ty_with(&mapping.value, allow_zero_len);
                 TyKind::Mapping(key, value)
             }
             hir::TypeKind::Custom(item) => return self.type_of_item_simple(item, ty.span),

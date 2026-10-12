@@ -3888,12 +3888,16 @@ fn valid_abi_decodable_type<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
 /// Returns `true` if `ty` contains an array whose elements encode to zero bytes, such as
 /// `uint[0][]`. solc's decoder asserts a nonzero element stride on these, so it crashes on them.
 fn has_zero_size_array_element<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
-    let (TyKind::Array(element, _) | TyKind::DynArray(element)) = ty.peel_refs().kind else {
-        return false;
-    };
-    let zero_size = !element.is_dynamically_encoded(gcx)
-        && matches!(element.peel_refs().kind, TyKind::Array(_, len) if len.is_zero());
-    zero_size || has_zero_size_array_element(element, gcx)
+    ty.visit(&mut |ty| match ty.kind {
+        TyKind::Array(element, _) | TyKind::DynArray(element)
+            if matches!(element.peel_refs().kind, TyKind::Array(_, len) if len.is_zero())
+                && !element.is_dynamically_encoded(gcx) =>
+        {
+            ControlFlow::Break(())
+        }
+        _ => ControlFlow::Continue(()),
+    })
+    .is_break()
 }
 
 fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {

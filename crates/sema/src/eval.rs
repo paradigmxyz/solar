@@ -35,10 +35,8 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
     }
 }
 
-/// Evaluates the index of an array type expression, such as `T[0]` in expression position,
-/// emitting an error diagnostic if it fails.
-///
-/// Unlike array type names, array type expressions may have zero length.
+/// Evaluates the length of an array type expression, such as `T[0]` in expression position,
+/// emitting an error diagnostic if it fails. Unlike that of a type name, it may be zero.
 pub fn eval_array_expr_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
     let int = gcx.eval_const(size)?;
     int.as_u256().ok_or_else(|| gcx.dcx().emit_err(size.span, "array length cannot be negative"))
