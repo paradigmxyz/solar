@@ -30,7 +30,7 @@ LL │     function pubRet() public pure returns (S[134217727][] memory s) {}
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
-error: type too large for memory
+error[1534]: type too large for memory
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
 LL │     function pubNested(uint256[2][67108864] memory s) public pure {
