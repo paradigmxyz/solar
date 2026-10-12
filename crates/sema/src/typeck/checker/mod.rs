@@ -1250,6 +1250,15 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if matches!(args.kind, hir::CallArgsKind::Named(_)) {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("type conversions cannot take named arguments")
+                    .code(error_code!(5153))
+                    .span(span)
+                    .emit(),
+            );
+        }
         if from.references_error() {
             return from;
         }
