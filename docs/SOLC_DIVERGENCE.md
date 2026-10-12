@@ -239,7 +239,7 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
-### TYPECK-013: Fractional literal quotients in constant expressions
+### TYPECK-017: Fractional literal quotients in constant expressions
 
 Status: parity debt.
 
