@@ -1,4 +1,5 @@
 // Struct members are sized one by one, and a struct array element counts one word per member.
+// ABI heads are bounded as a whole, so `S` fits in memory but not in an ABI encoding.
 contract C {
     struct S {
         uint256[67108864] a;
@@ -19,9 +20,9 @@ contract C {
     }
 
     function decode(bytes memory data) public pure {
-        abi.decode(data, (S));
-        abi.decode(data, (S[2]));
-        abi.decode(data, (T[3]));
+        abi.decode(data, (S)); //~ ERROR: type too large to ABI-decode
+        abi.decode(data, (S[2])); //~ ERROR: type too large to ABI-decode
+        abi.decode(data, (T[3])); //~ ERROR: type too large to ABI-decode
         abi.decode(data, (T)); //~ ERROR: type too large for memory
         abi.decode(data, (U)); //~ ERROR: type too large for memory
     }
@@ -35,7 +36,7 @@ contract C {
         s; t; m; u; n;
     }
 
-    function cd(S calldata s, Many[8388608] calldata m) external pure {
+    function cd(S calldata s, Many[8388608] calldata m) external pure { //~ ERROR: type too large for calldata
         s; m;
     }
 

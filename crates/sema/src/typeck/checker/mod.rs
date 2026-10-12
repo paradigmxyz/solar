@@ -2017,7 +2017,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 )));
                 continue;
             }
-            result = result.and(self.check_array_copy_size(ty, expr.span));
+            // Packed encoding has no heads.
+            result = result.and(self.check_array_copy_size(ty, expr.span).and_then(|()| {
+                let msg = "type too large to ABI-encode";
+                if is_packed { Ok(()) } else { self.check_abi_heads(ty, expr.span, msg, None) }
+            }));
             if !valid_abi_encodable_arg(ty, self.gcx) {
                 result = result.and(Err(self
                     .dcx()
@@ -2332,7 +2336,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
-            if let Err(guar) = self.check_ty_size(ty, type_expr.span, error_code!(6118)) {
+            let msg = "type too large to ABI-decode";
+            if let Err(guar) =
+                self.check_ty_size(ty, type_expr.span, error_code!(6118)).and_then(|()| {
+                    self.check_abi_heads(ty, type_expr.span, msg, Some(error_code!(6118)))
+                })
+            {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -2986,63 +2995,82 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
-    /// Checks a variable's type against the size limit of its location and, for a parameter that
-    /// crosses the ABI, of calldata, as solc's variable declaration check.
+    /// Checks a variable's type against the size limit of its location, as solc's variable
+    /// declaration check, and each head of its ABI encoding when it crosses the ABI.
     fn check_var_ty_size(
         &self,
         var: &hir::Variable<'_>,
         ty: Ty<'gcx>,
     ) -> Result<(), ErrorGuaranteed> {
         self.check_ty_size(ty, var.ty.span, error_code!(1534))?;
-        if self.is_public_callable_param(var) && ty.interface_type_error(false, self.gcx).is_none()
-        {
-            self.check_ty_size_at(ty, DataLocation::Calldata, var.ty.span, error_code!(1534))?;
+        if self.crosses_abi(var, ty) {
+            let msg = "type too large for calldata";
+            self.check_abi_heads(ty, var.ty.span, msg, Some(error_code!(1534)))?;
         }
         Ok(())
     }
 
-    /// Returns whether `var` is a parameter of a public function, event or error, or of a
-    /// constructor of a non-abstract contract, as solc's `isPublicCallableParameter` and
-    /// `isConstructorParameter`. External functions are not included.
-    fn is_public_callable_param(&self, var: &hir::Variable<'_>) -> bool {
-        match var.kind {
-            hir::VarKind::Event | hir::VarKind::Error => true,
-            hir::VarKind::FunctionParam => {
-                var.parent.and_then(|parent| parent.as_function()).is_some_and(|f| {
-                    let f = self.gcx.hir.function(f);
-                    if f.is_constructor() {
-                        !f.contract.is_some_and(|c| self.gcx.hir.contract(c).is_abstract())
-                    } else {
-                        f.visibility == hir::Visibility::Public
-                    }
-                })
-            }
-            _ => false,
+    /// Checks that each head of `ty`'s ABI encoding stays below the 32-bit size limit.
+    fn check_abi_heads(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty()) {
+            return Ok(());
         }
+        let mut err = self
+            .dcx()
+            .err(msg)
+            .span(span)
+            .note("each head of an ABI encoding must be smaller than 2^32 - 1 bytes");
+        if let Some(code) = code {
+            err = err.code(code);
+        }
+        Err(err.emit())
+    }
+
+    /// Returns whether `var`'s value is ABI-encoded: a calldata variable, a parameter of an event,
+    /// an error or a non-abstract contract's constructor, or a parameter or return of a public or
+    /// external function or function type. Library storage pointers cross the ABI as slots.
+    fn crosses_abi(&self, var: &hir::Variable<'_>, ty: Ty<'gcx>) -> bool {
+        if ty.encodes_as_slot() {
+            return false;
+        }
+        let crosses = ty.is_ref_at(DataLocation::Calldata)
+            || match var.kind {
+                hir::VarKind::Event | hir::VarKind::Error => true,
+                hir::VarKind::FunctionTyParam(vis) | hir::VarKind::FunctionTyReturn(vis) => {
+                    vis >= hir::Visibility::Public
+                }
+                hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn => {
+                    var.parent.and_then(|parent| parent.as_function()).is_some_and(|f| {
+                        let f = self.gcx.hir.function(f);
+                        if f.is_constructor() {
+                            !f.contract.is_some_and(|c| self.gcx.hir.contract(c).is_abstract())
+                        } else {
+                            f.is_part_of_external_interface()
+                        }
+                    })
+                }
+                _ => false,
+            };
+        crosses && ty.interface_type_error(false, self.gcx).is_none()
     }
 
     /// Checks that a memory or calldata type's static arrays stay below the 32-bit size limit.
     fn check_ty_size(&self, ty: Ty<'gcx>, span: Span, code: DiagId) -> Result<(), ErrorGuaranteed> {
-        match ty.loc() {
-            Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) => {
-                self.check_ty_size_at(ty, loc, span, code)
-            }
-            _ => Ok(()),
-        }
+        let Some(loc) = self.ty_exceeded_location(ty) else { return Ok(()) };
+        Err(self.dcx().err(format!("type too large for {loc}")).code(code).span(span).emit())
     }
 
-    /// Checks that `ty`'s static arrays stay below the 32-bit size limit of `loc`.
-    fn check_ty_size_at(
-        &self,
-        ty: Ty<'gcx>,
-        loc: DataLocation,
-        span: Span,
-        code: DiagId,
-    ) -> Result<(), ErrorGuaranteed> {
-        if self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty()) {
-            return Ok(());
-        }
-        Err(self.dcx().err(format!("type too large for {loc}")).code(code).span(span).emit())
+    /// Returns the location of a memory or calldata type whose static arrays exceed its 32-bit
+    /// size limit.
+    fn ty_exceeded_location(&self, ty: Ty<'gcx>) -> Option<DataLocation> {
+        let loc @ (DataLocation::Memory | DataLocation::Calldata) = ty.loc()? else { return None };
+        (!self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())).then_some(loc)
     }
 
     /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
@@ -3079,6 +3107,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             // A failed member fails the whole type, so a struct seen before has passed or is
             // still being checked; skipping it also cuts direct cycles.
+            // NOTE: an `Infinite` check would do, but some mixed cycles are classified `Recursive`.
             TyKind::Struct(id) => {
                 !visited.insert(id)
                     || self
@@ -3086,6 +3115,37 @@ impl<'gcx> TypeChecker<'gcx> {
                         .struct_field_types(id)
                         .iter()
                         .all(|&field| self.ty_fits_location(field, loc, visited))
+            }
+            _ => true,
+        }
+    }
+
+    /// Returns whether each head in `ty`'s ABI encoding, including the heads in the tails of its
+    /// dynamic parts, stays below the 32-bit size limit.
+    ///
+    /// This is stricter than solc, which bounds only arrays: a struct's head sums its members, and
+    /// the backend computes head sizes in 64 bits. See TYPECK-013 in `docs/SOLC_DIVERGENCE.md`.
+    fn ty_abi_heads_fit(&self, ty: Ty<'gcx>, visited: &mut GrowableBitSet<hir::StructId>) -> bool {
+        if let Some(size) = ty.abi_static_size(self.gcx) {
+            return size < u32::MAX;
+        }
+        match ty.peel_refs().kind {
+            // The element is dynamically encoded too, so each one takes a word in the head.
+            TyKind::Array(elem, len) => {
+                len.saturating_mul(U256::from(32)) < u32::MAX
+                    && self.ty_abi_heads_fit(elem, visited)
+            }
+            TyKind::DynArray(elem) => self.ty_abi_heads_fit(elem, visited),
+            // As in `ty_fits_location`, a struct seen before has passed or is still being checked.
+            TyKind::Struct(id) => {
+                if !visited.insert(id) {
+                    return true;
+                }
+                let fields = self.gcx.struct_field_types(id);
+                let head = fields.iter().fold(U256::ZERO, |size, &field| {
+                    size.saturating_add(self.ty_calldata_head_size(field))
+                });
+                head < u32::MAX && fields.iter().all(|&field| self.ty_abi_heads_fit(field, visited))
             }
             _ => true,
         }
@@ -3102,18 +3162,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Returns the size of `ty` in the head of a calldata encoding, as solc's `calldataHeadSize`.
     fn ty_calldata_head_size(&self, ty: Ty<'gcx>) -> U256 {
-        if ty.is_dynamically_encoded(self.gcx) {
-            return U256::from(32);
-        }
-        match ty.peel_refs().kind {
-            TyKind::Array(elem, len) => len.saturating_mul(self.ty_calldata_head_size(elem)),
-            TyKind::Struct(id) => {
-                self.gcx.struct_field_types(id).iter().fold(U256::ZERO, |size, &field| {
-                    size.saturating_add(self.ty_calldata_head_size(field))
-                })
-            }
-            _ => U256::from(32),
-        }
+        ty.abi_static_size(self.gcx).unwrap_or(U256::from(32))
     }
 
     fn check_array_copy_conversion(
@@ -3128,6 +3177,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         } else if actual.is_ref_at(DataLocation::Storage)
             && !expected.is_ref_at(DataLocation::Storage)
+            && self.ty_exceeded_location(expected).is_none()
         {
             self.check_array_copy_size(actual, span)?;
         }
