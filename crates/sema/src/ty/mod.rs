@@ -93,8 +93,6 @@ pub struct TypeckResults<'gcx> {
     /// The user-defined operator function a binary/unary operator expression
     /// resolves to, keyed by the operator expression's id.
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
-    /// Module conditionals whose condition may have effects, which codegen cannot lower.
-    pub(crate) unsupported_module_conditionals: Vec<Span>,
 }
 
 /// The target selected for a call callee expression.
@@ -714,12 +712,6 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn user_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.typeck_results.get()?.user_operator(id)
-    }
-
-    /// Returns the spans of module conditionals, such as `(f() ? M : M).x`, whose condition
-    /// may have effects that codegen cannot lower.
-    pub fn unsupported_module_conditionals(self) -> &'gcx [Span] {
-        self.0.typeck_results.get().map_or(&[], |results| &results.unsupported_module_conditionals)
     }
 
     /// Returns whether sparse type-checker results are available for codegen queries.

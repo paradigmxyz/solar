@@ -130,8 +130,6 @@ fn merge_typeck_results<'gcx>(
     for (id, function) in new_results.user_operators {
         results.user_operators.insert(id, function);
     }
-
-    results.unsupported_module_conditionals.extend(new_results.unsupported_module_conditionals);
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {

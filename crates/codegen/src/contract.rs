@@ -173,16 +173,6 @@ pub fn generate_contract_bytecodes(
     // The bytecode of a failed compilation is withheld, and lowering reports the
     // construct that analysis already rejected as a second, misleading error.
     gcx.dcx().has_errors()?;
-    // Lowering resolves members of a module conditional statically and never evaluates its
-    // condition.
-    for &span in gcx.unsupported_module_conditionals() {
-        gcx.dcx()
-            .err("module conditionals whose condition may have side effects are not supported")
-            .span(span)
-            .help("assign the condition to a local variable first")
-            .emit();
-    }
-    gcx.dcx().has_errors()?;
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,

@@ -211,6 +211,18 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: none.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
@@ -430,24 +442,3 @@ No intentional divergences documented yet.
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
-
-### CODEGEN-012: Module conditionals with side-effecting conditions
-
-- ID: CODEGEN-012
-- Status: parity debt
-- Difference: `solc` evaluates the condition of a conditional that selects a
-  module, as in `(f() ? M : M).x`, before it reads the member. We accept such
-  code in analysis, but codegen rejects it unless the condition is a literal,
-  a variable not of enum type, a constant with a literal value, or a `!`,
-  comparison, `&&`, or `||` of these without user-defined operators. Enum
-  reads fail the check because an out-of-range value panics. Accepted
-  conditions are never evaluated. The check covers every function in the
-  compilation, even one that no requested contract reaches.
-- Rationale: Codegen resolves members reached through a module statically, on
-  many separate paths: calls, constants, struct constructors, conversions,
-  selectors, `abi` type operands, `try` targets, and storage access. Evaluating
-  the condition on every path would leave each new path one omission away from
-  dropping or repeating its side effects.
-- Coverage: `tests/ui/codegen/lowering/module_conditional_effects.sol`, which
-  includes `test/libsolidity/semanticTests/expressions/module_from_ternary_expression.sol`,
-  and `tests/ui/codegen/lowering/run-call/module_conditional_members.sol`.
