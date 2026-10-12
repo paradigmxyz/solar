@@ -114,12 +114,9 @@ impl super::LoweringContext<'_> {
                                         .filename_for_diagnostics(&source.file.name)
                                 );
                                 let guar = self.sess.dcx.emit_err(import.span, msg);
-                                let _ = source_scope.declare_res(
-                                    self.sess,
-                                    &self.hir,
-                                    name,
-                                    Res::Err(guar),
-                                );
+                                let decl = Declaration { res: Res::Err(guar), span: name.span };
+                                let _ = source_scope
+                                    .declare_checked(self.sess, &self.hir, name.name, decl);
                             }
                         }
                     }
@@ -1117,7 +1114,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let functions = self.collect_yul_function_decls(stmts);
         for &(function, id) in &functions {
-            self.declare_yul_function(function, id);
+            let _ = self.declare_yul(function.name, Res::Item(hir::ItemId::Function(id)));
         }
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
@@ -1138,16 +1135,6 @@ impl<'gcx> ResolveContext<'gcx> {
             functions.push((function, id));
         }
         functions
-    }
-
-    fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        let res = Res::Item(hir::ItemId::Function(id));
-        let _ = self.scopes.current_scope().declare_res(
-            self.lcx.sess,
-            &self.lcx.hir,
-            function.name,
-            res,
-        );
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
@@ -1196,8 +1183,7 @@ impl<'gcx> ResolveContext<'gcx> {
             kind,
         );
         let id = self.hir.variables.push(var);
-        let res = Res::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        let _ = self.declare_yul(name, Res::Item(hir::ItemId::Variable(id)));
         id
     }
 
@@ -1296,10 +1282,24 @@ impl<'gcx> ResolveContext<'gcx> {
             hir::VarKind::Statement,
         );
         let id = self.hir.variables.push(var);
-        let res = Res::Item(hir::ItemId::Variable(id));
-        let result =
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        (id, result)
+        (id, self.declare_yul(name, Res::Item(hir::ItemId::Variable(id))))
+    }
+
+    /// Declares `name => res` in the current Yul scope. Like solc's `ScopeFiller`, report a
+    /// conflict at `name` rather than at the later declaration, since functions are declared
+    /// before the other statements of their block.
+    fn declare_yul(&mut self, name: Ident, res: Res) -> Result<(), ErrorGuaranteed> {
+        let decl = Declaration { res, span: name.span };
+        self.scopes.current_scope().try_declare(&self.lcx.hir, name.name, decl).map_err(
+            |conflict| {
+                let code = if let Res::Item(hir::ItemId::Function(_)) = res {
+                    error_code!(6052)
+                } else {
+                    error_code!(1395)
+                };
+                report_conflict(&self.lcx.hir, self.lcx.sess, name.name, decl, conflict, code)
+            },
+        )
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -2072,6 +2072,7 @@ impl<'gcx> ResolveContext<'gcx> {
         }
         check(inner.value_name);
     }
+
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
         match self.resolve_path_as(path, "item") {
             Ok(id) => hir::TypeKind::Custom(id),
@@ -2532,19 +2533,6 @@ impl Declarations {
         self.declarations.entry(name).or_default().push(decl, true);
     }
 
-    /// Declares `Ident { name, span } => kind` by converting it to
-    /// `name => Declaration { kind, span }`.
-    #[inline]
-    pub(crate) fn declare_res(
-        &mut self,
-        sess: &Session,
-        hir: &hir::Hir<'_>,
-        name: Ident,
-        res: Res,
-    ) -> Result<(), ErrorGuaranteed> {
-        self.declare(sess, hir, name.name, Declaration { res, span: name.span })
-    }
-
     pub(crate) fn declare(
         &mut self,
         sess: &Session,
@@ -2564,7 +2552,7 @@ impl Declarations {
     }
 
     /// Declares `name => decl` like [`declare`](Self::declare), and also reports a reserved
-    /// name like solc's `registerDeclaration`. Yul declarations skip this check.
+    /// name like solc's `registerDeclaration`.
     pub(crate) fn declare_checked(
         &mut self,
         sess: &Session,
