@@ -3002,10 +3002,7 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks a variable's type against the size limit of its location and, when it crosses the
     /// ABI, each head of its encoding.
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
-        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
-            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
-            && size >= u32::MAX
-        {
+        if let Some(loc) = self.ty_exceeded_location(ty) {
             self.dcx()
                 .err(format!("type too large for {loc}"))
                 .code(error_code!(1534))
@@ -3022,33 +3019,63 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
-        match ty.kind {
-            TyKind::Array(elem, len) => {
-                let elem_size = if elem.is_dynamically_sized() {
-                    U256::from(32)
+    /// Returns the location of a memory or calldata type whose static arrays exceed its 32-bit
+    /// size limit.
+    fn ty_exceeded_location(&self, ty: Ty<'gcx>) -> Option<DataLocation> {
+        let loc @ (DataLocation::Memory | DataLocation::Calldata) = ty.loc()? else { return None };
+        (!self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())).then_some(loc)
+    }
+
+    /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
+    /// solc's `validForLocation`.
+    ///
+    /// An array's size counts its nested static arrays, but a struct is never sized as a whole:
+    /// its reference members are checked one by one.
+    fn ty_fits_location(
+        &self,
+        ty: Ty<'gcx>,
+        loc: DataLocation,
+        visited: &mut GrowableBitSet<hir::StructId>,
+    ) -> bool {
+        match ty.peel_refs().kind {
+            // Only an array element that is an array itself is checked on its own.
+            TyKind::Array(elem, _) | TyKind::DynArray(elem)
+                if elem.peel_refs().is_array() && !self.ty_fits_location(elem, loc, visited) =>
+            {
+                false
+            }
+            TyKind::Array(_, len) => {
+                let size = if loc == DataLocation::Memory {
+                    self.ty_memory_static_size(ty)
                 } else {
-                    self.ty_memory_static_size(elem)?
+                    // solc's `calldataHeadSize`: a dynamically encoded element takes one word.
+                    ty.abi_static_size(self.gcx)
+                        .unwrap_or_else(|| len.saturating_mul(U256::from(32)))
                 };
-                len.checked_mul(elem_size)
+                size < u32::MAX
             }
+            // A failed member fails the whole type, so a struct seen before has passed or is
+            // still being checked; skipping it also cuts direct cycles.
+            // NOTE: an `Infinite` check would do, but some mixed cycles are classified `Recursive`.
             TyKind::Struct(id) => {
-                if self.gcx.struct_recursiveness(id).is_recursive() {
-                    return None;
-                }
-                let mut size = U256::ZERO;
-                for &field_ty in self.gcx.struct_field_types(id) {
-                    let field_size = if field_ty.is_dynamically_sized() {
-                        U256::from(32)
-                    } else {
-                        self.ty_memory_static_size(field_ty)?
-                    };
-                    size = size.checked_add(field_size)?;
-                }
-                Some(size)
+                !visited.insert(id)
+                    || self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .all(|&field| self.ty_fits_location(field, loc, visited))
             }
-            TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
-            _ => Some(U256::from(32)),
+            _ => true,
+        }
+    }
+
+    /// Returns the memory size of `ty` as solc's `validForLocation` counts it: nested static array
+    /// lengths times the element's `memoryDataSize`, which is one word per struct member.
+    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> U256 {
+        match ty.peel_refs().kind {
+            TyKind::Array(elem, len) => len.saturating_mul(self.ty_memory_static_size(elem)),
+            TyKind::Struct(id) => U256::from(32 * self.gcx.struct_field_types(id).len()),
+            _ => U256::from(32),
         }
     }
 
@@ -3161,6 +3188,9 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         } else if actual.is_ref_at(DataLocation::Storage)
             && !expected.is_ref_at(DataLocation::Storage)
+            && self.has_oversized_array(actual, &mut GrowableBitSet::new_empty())
+            // The variable check already reports a target too large for its location.
+            && self.ty_exceeded_location(expected).is_none()
         {
             self.check_array_copy_size(actual, span)?;
         }
