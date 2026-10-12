@@ -1,0 +1,8 @@
+error[3448]: types containing mappings cannot be event parameter types
+   ╭▸ ROOT/tests/ui/typeck/events/mapping_parameter.sol:LL:CC
+   │
+LL │     event E (mapping (uint => uint) [2]);
+   ╰╴             ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

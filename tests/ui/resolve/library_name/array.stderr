@@ -1,0 +1,8 @@
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/resolve/library_name/array.sol:LL:CC
+   │
+LL │         L[] memory x;
+   ╰╴        ━
+
+error: aborting due to 1 previous error
+
