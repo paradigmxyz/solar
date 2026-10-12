@@ -1981,6 +1981,14 @@ impl<'gcx> TypeChecker<'gcx> {
             };
         }
 
+        if let hir::ExprKind::Tuple([Some(inner)]) = expr.kind {
+            let result = self.check_require_message_or_error(inner);
+            if let Some(&ty) = self.results.expr_types.get(&inner.id) {
+                self.register_ty(expr, ty);
+            }
+            return result;
+        }
+
         let Some((callee, args, opts)) = expr.as_call() else {
             let actual = self.check_expr_once(expr);
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
@@ -4070,7 +4078,6 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
-        | TyKind::Struct(_)
         | TyKind::Enum(_)
         | TyKind::Error(..)
         | TyKind::Event(..) => {
@@ -4102,6 +4109,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
+        | TyKind::Struct(_)
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)
