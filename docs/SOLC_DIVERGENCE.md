@@ -221,7 +221,7 @@ Difference: `solar` rejects conditionals whose branches are modules, such as
 Rationale: codegen resolves module members statically and would drop the
 condition, and real code does not use the construct.
 
-Coverage: none.
+Coverage: `tests/ui/typeck/module_conditional.sol`.
 
 ## Contract-Level Checks
 
