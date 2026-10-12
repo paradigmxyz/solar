@@ -262,8 +262,7 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks the length expression of a fixed-size array type.
     ///
     /// Any integer expression is accepted, whatever its declared signedness and width. Only the
-    /// evaluated value matters, and [`crate::eval::eval_array_len`] or
-    /// [`crate::eval::eval_array_expr_len`] checks it.
+    /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let ty = self.check_expr(size);
@@ -590,21 +589,13 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
                     result_ty
-                } else if let TyKind::Type(mut elem_ty) = ty.kind {
+                } else if let TyKind::Type(elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
-                    if let TyKind::Contract(id) = elem_ty.kind
-                        && self.gcx.hir.contract(id).kind.is_library()
-                    {
-                        let msg = "index access for library types is not possible";
-                        let guar =
-                            self.dcx().err(msg).code(error_code!(2876)).span(expr.span).emit();
-                        elem_ty = self.gcx.mk_ty_err(guar);
-                    }
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| crate::eval::eval_array_expr_len(self.gcx, index));
+                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index, true));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -3889,23 +3880,8 @@ fn valid_abi_decodable_type<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
         | TyKind::Meta(_)
         | TyKind::Variadic
         | TyKind::Tuple(_) => false,
-        _ => ty.can_be_exported(gcx) && !has_zero_size_array_element(ty, gcx),
+        _ => ty.can_be_exported(gcx),
     }
-}
-
-/// Returns `true` if `ty` contains an array whose elements encode to zero bytes, such as
-/// `uint[0][]`. solc's decoder asserts a nonzero element stride on these, so it crashes on them.
-fn has_zero_size_array_element<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
-    ty.visit(&mut |ty| match ty.kind {
-        TyKind::Array(element, _) | TyKind::DynArray(element)
-            if matches!(element.peel_refs().kind, TyKind::Array(_, len) if len.is_zero())
-                && !element.is_dynamically_encoded(gcx) =>
-        {
-            ControlFlow::Break(())
-        }
-        _ => ControlFlow::Continue(()),
-    })
-    .is_break()
 }
 
 fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {

@@ -966,17 +966,10 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let elem = self.type_of_hir_ty_with(&array.element, allow_zero_len);
                 match array.size {
-                    Some(size) => {
-                        let eval = if allow_zero_len {
-                            crate::eval::eval_array_expr_len
-                        } else {
-                            crate::eval::eval_array_len
-                        };
-                        match eval(self, size) {
-                            Ok(size) => TyKind::Array(elem, size),
-                            Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
-                        }
-                    }
+                    Some(size) => match crate::eval::eval_array_len(self, size, allow_zero_len) {
+                        Ok(size) => TyKind::Array(elem, size),
+                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
+                    },
                     None => TyKind::DynArray(elem),
                 }
             }
@@ -1963,14 +1956,29 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         }
 
         for &field_id in s.fields {
-            let ty = &gcx.hir.variable(field_id).ty;
-            let r = visit_stored_structs(ty, false, &mut |other, dynamic| match cd.run(other) {
-                CycleDetectorResult::Cycle(_) if dynamic => {
-                    ControlFlow::Break(CycleDetectorResult::Break(Either::Right(())))
+            let field = gcx.hir.variable(field_id);
+            let mut check = |ty: &hir::Type<'_>, dynamic: bool| {
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
+                    match cd.run(other) {
+                        CycleDetectorResult::Continue => {}
+                        CycleDetectorResult::Cycle(_) if dynamic => {
+                            return CycleDetectorResult::Break(Either::Right(()));
+                        }
+                        r => return r,
+                    }
                 }
-                r => r.to_controlflow(),
-            });
-            if let ControlFlow::Break(r) = r {
+                CycleDetectorResult::Continue
+            };
+            let mut dynamic = false;
+            let mut ty = &field.ty;
+            while let hir::TypeKind::Array(array) = ty.kind {
+                if array.size.is_none() {
+                    dynamic = true;
+                }
+                ty = &array.element;
+            }
+            cdr_try!(check(ty, dynamic));
+            if let ControlFlow::Break(r) = field.ty.visit(&gcx.hir, &mut |ty| check(ty, true).to_controlflow()) {
                 return r;
             }
         }
@@ -2179,29 +2187,6 @@ fn is_value_ns(id: hir::ItemId) -> bool {
             | hir::ItemId::Error(_)
             | hir::ItemId::Event(_)
     )
-}
-
-/// Calls `f` on each struct stored in a value of type `ty`, with whether a dynamic array or a
-/// mapping sits between the value and the struct.
-///
-/// Function types do not store their parameter types, so a struct reached only through one is not
-/// recursive, as in solc's `DeclarationTypeChecker`.
-fn visit_stored_structs<T>(
-    ty: &hir::Type<'_>,
-    dynamic: bool,
-    f: &mut impl FnMut(hir::StructId, bool) -> ControlFlow<T>,
-) -> ControlFlow<T> {
-    match ty.kind {
-        hir::TypeKind::Custom(hir::ItemId::Struct(id)) => f(id, dynamic),
-        hir::TypeKind::Array(array) => {
-            visit_stored_structs(&array.element, dynamic || array.size.is_none(), f)
-        }
-        hir::TypeKind::Mapping(mapping) => {
-            visit_stored_structs(&mapping.key, true, f)?;
-            visit_stored_structs(&mapping.value, true, f)
-        }
-        _ => ControlFlow::Continue(()),
-    }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
