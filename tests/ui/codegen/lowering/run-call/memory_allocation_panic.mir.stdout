@@ -53,12 +53,13 @@ fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_r
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     slice_store_element v1, 1, 42
-    v5 = slice_len v1
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = slice_load_element v1, 1
-    ret v8
+    v5 = memory_slice v0
+    v6 = slice_len v5
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = slice_load_element v5, 1
+    ret v9
 }
 
 fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -99,26 +100,27 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     icall panic_if<0x32>, v25
     v26 = ptrtoint memptr v21 to i256
     slice_store_element v22, 0, v26
-    v27 = slice_len v22
-    v28 = lt 0, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = slice_load_element v22, 0
-    v31 = inttoptr i256 v30 to memptr
-    v32 = eq v30, 0
-    jumpi v32, bb4, bb5
+    v27 = memory_slice v0
+    v28 = slice_len v27
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = slice_load_element v27, 0
+    v32 = inttoptr i256 v31 to memptr
+    v33 = eq v31, 0
+    jumpi v33, bb4, bb5
   bb4:
-    v33 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v33, 0
-    v34 = memory_slice v0
-    v35 = ptrtoint memptr v33 to i256
-    slice_store_element v34, 0, v35
+    v34 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    mstore v34, 0
+    v35 = memory_slice v0
+    v36 = ptrtoint memptr v34 to i256
+    slice_store_element v35, 0, v36
     jump bb5
   bb5:
-    v36 = phi [bb3: v31], [bb4: v33]
-    v37 = memory_slice v36
-    v38 = slice_len v37
-    ret v38
+    v37 = phi [bb3: v32], [bb4: v34]
+    v38 = memory_slice v37
+    v39 = slice_len v38
+    ret v39
   bb2:
     v3 = memory_slice v0
     slice_store_element v3, v1, 96

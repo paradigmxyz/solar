@@ -219,9 +219,9 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
-    /// Number of expressions independent of memory and other state that the dominator-scoped
-    /// pass eliminated, which call for another fixpoint round only through phi sinking.
-    eliminated_path_insensitive: usize,
+    /// Number of eliminations the rest of the dominator-scoped pass already sees, which call
+    /// for another fixpoint round only through phi sinking.
+    eliminated_settled: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
@@ -476,7 +476,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.eliminated_path_insensitive = 0;
+        self.eliminated_settled = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         let removed = mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
@@ -488,16 +488,16 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let (before, merged) = (self.eliminated_count, self.eliminated_path_insensitive);
+            let (before, merged) = (self.eliminated_count, self.eliminated_settled);
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            if self.eliminated_count - self.eliminated_path_insensitive != before - merged {
+            if self.eliminated_count - self.eliminated_settled != before - merged {
                 continue;
             }
-            // Later instructions of the dominator-scoped pass read its merged state-independent
-            // expressions through its replacements, but phi sinking ran before the merges. Rerun
-            // only it, and keep going if it sinks.
-            if self.eliminated_path_insensitive == merged {
+            // Later instructions of the dominator-scoped pass read its settled merges through its
+            // replacements, but phi sinking ran before the merges. Rerun only it, and keep going
+            // if it sinks.
+            if self.eliminated_settled == merged {
                 break;
             }
             let sunk = self.eliminated_count;
@@ -706,8 +706,7 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
-                    self.eliminated_path_insensitive +=
-                        usize::from(!Self::is_path_sensitive_expr(key));
+                    self.eliminated_settled += usize::from(Self::settles_in_walk(key));
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -919,6 +918,13 @@ impl CommonSubexprEliminator {
             }
         }
         (summaries, side_effects)
+    }
+
+    /// Whether merging `key` changes nothing the rest of the dominator-scoped pass has already
+    /// summarized: a state-independent expression, or a view, whose replacement reads the
+    /// same object's header.
+    fn settles_in_walk(key: &ExprKey) -> bool {
+        !Self::is_path_sensitive_expr(key) || matches!(key, ExprKey::MemorySlice(_))
     }
 
     /// Whether a side effect can ever invalidate `key`.

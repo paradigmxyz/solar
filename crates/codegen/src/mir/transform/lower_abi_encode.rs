@@ -671,7 +671,7 @@ fn encode_dynamic_return_in_place(
 
     // object: [length, payload...]
     // => [32, length, payload...]
-    let destination = builder.add_u64_offset(source, 32);
+    let destination = builder.memory_data_at(*object, 32);
     let copy_size = if is_array { bytes } else { length };
     builder.mcopy(destination, source, copy_size);
     let offset = builder.imm(32);
@@ -753,11 +753,11 @@ fn lower_encode(
             }
             let total = builder.imm(total_size);
             builder.set_memory_len(object, total);
-            let buffer = builder.memory_data(object);
             if let Some(selector) = selector {
+                let buffer = builder.memory_data(object);
                 builder.mstore(buffer, selector);
             }
-            let dest = offset_ptr(builder, buffer, selector_size);
+            let dest = builder.memory_data_at(object, selector_size);
             encode_tuple(builder, args, &layout.types, dest, helpers);
             return object;
         }
@@ -820,15 +820,12 @@ fn lower_encode(
     // Source objects already live below the free-memory pointer. Encode into
     // the untouched range, then reserve the exact output in one pass.
     let allocation_base = builder.fmp();
-    let buffer = if mode == AbiEncodeMode::Bytes {
-        offset_ptr(builder, allocation_base, 32)
-    } else {
-        allocation_base
-    };
+    let header_size = if mode == AbiEncodeMode::Bytes { 32 } else { 0 };
     if let Some(selector) = selector {
+        let buffer = offset_ptr(builder, allocation_base, header_size);
         builder.mstore(buffer, selector);
     }
-    let dest = offset_ptr(builder, buffer, selector_size);
+    let dest = offset_ptr(builder, allocation_base, header_size + selector_size);
     let encoded_size = encode_tuple(builder, args, &layout.types, dest, helpers);
     let selector_size = builder.imm(selector_size);
     let total = builder.add(encoded_size, selector_size);

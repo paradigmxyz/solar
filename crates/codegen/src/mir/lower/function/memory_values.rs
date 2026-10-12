@@ -1,7 +1,10 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::{CodeKind, ContractCode, QualifiedName};
+use crate::{
+    link::{CodeKind, ContractCode, QualifiedName},
+    mir::lower::data::{DataDest, copy_data_to_memory},
+};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -256,16 +259,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         bytes: &[u8],
         semantics: AllocationSemantics,
     ) -> Option<ValueId> {
-        let (object, data, padded_size) = Self::alloc_const_bytes(builder, bytes.len(), semantics)?;
-        super::super::data::copy_data_to_memory(
-            gcx,
-            module,
-            builder,
-            data,
-            bytes,
-            padded_size,
-            None,
-        );
+        let (object, padded_size) = Self::alloc_const_bytes(builder, bytes.len(), semantics)?;
+        // header = ptrtoint object to i256
+        // copy data to header + 32
+        let header = builder.cast(object, MirType::I256);
+        let data = DataDest { base: header, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
+        copy_data_to_memory(gcx, module, builder, data, bytes, padded_size, None);
         Some(object)
     }
 
@@ -299,8 +298,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = bytes(size, len) !preserves_fmp
         let len = builder.data_size(code, 0, false);
         let size = builder.data_size(code, 2 * word - 1, true);
-        let (object, data) =
-            Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL);
+        let object = Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL);
+        let data = builder.memory_data(object);
         // The last data word starts one length word before the padded length. Empty code
         // has no data words, and this clears the length word, which is also zero.
         // mstore object + data_size(code(C), 31, aligned), 0
@@ -317,12 +316,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builder: &mut FunctionBuilder<'_>,
         len: usize,
         semantics: AllocationSemantics,
-    ) -> Option<(ValueId, ValueId, usize)> {
+    ) -> Option<(ValueId, usize)> {
         let words = u64::try_from(len.div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
         let length = builder.imm(u64::try_from(len).ok()?);
-        let (object, data) = Self::alloc_bytes_object(builder, size, length, semantics);
-        Some((object, data, usize::try_from(words.checked_mul(32)?).ok()?))
+        let object = Self::alloc_bytes_object(builder, size, length, semantics);
+        Some((object, usize::try_from(words.checked_mul(32)?).ok()?))
     }
 
     /// Allocates a bytes object of `size` bytes, including its length word, holding `len` bytes.
@@ -331,18 +330,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         size: ValueId,
         len: ValueId,
         semantics: AllocationSemantics,
-    ) -> (ValueId, ValueId) {
+    ) -> ValueId {
         // object = bytes(size) !preserves_fmp
         // mstore object, len
-        // data = slice_ptr (memory_slice object)
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")
         };
         builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
         builder.set_memory_len(object, len);
-        let data = builder.memory_data(object);
-        (object, data)
+        object
     }
 
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {

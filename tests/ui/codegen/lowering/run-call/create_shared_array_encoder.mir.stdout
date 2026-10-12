@@ -91,120 +91,122 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     slice_store_element v1, 0, 0x1234
-    v5 = slice_len v1
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    slice_store_element v1, 1, 0x5678
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v8, 2
-    v9 = memory_slice v8
-    v10 = slice_len v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    slice_store_element v9, 0, 100
-    v13 = slice_len v9
-    v14 = lt 1, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    slice_store_element v9, 1, 200
-    v16 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v0, v8, 17
-    v17 = slice_len v16
-    v18 = datasize Child_creation_code_0
-    v19 = add v18, v17
-    v20 = lt v19, v18
-    icall panic_if<0x41>, v20
-    v21 = add v19, 31
-    v22 = lt v21, v19
+    v5 = memory_slice v0
+    v6 = slice_len v5
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    slice_store_element v5, 1, 0x5678
+    v9 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    mstore v9, 2
+    v10 = memory_slice v9
+    v11 = slice_len v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    slice_store_element v10, 0, 100
+    v14 = memory_slice v9
+    v15 = slice_len v14
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    slice_store_element v14, 1, 200
+    v18 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v0, v9, 17
+    v19 = slice_len v18
+    v20 = datasize Child_creation_code_0
+    v21 = add v20, v19
+    v22 = lt v21, v20
     icall panic_if<0x41>, v22
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc raw, exact, uninitialized, infallible, v24
-    v26 = ptrtoint memptr v25 to i256
-    datacopy Child_creation_code_0, v26, v18
-    v27 = slice_ptr v16
-    v28 = ptrtoint memptr v25 to i256
-    v29 = add v28, v18
-    mcopy v29, v27, v17 !metadata(memory=heap)
-    v30 = ptrtoint memptr v25 to i256
-    v31 = create 0, v30, v19
-    v32 = ne v31, i160 0
-    jumpi v32, bb2, bb1
+    v23 = add v21, 31
+    v24 = lt v23, v21
+    icall panic_if<0x41>, v24
+    v25 = not 31
+    v26 = and v23, v25
+    v27 = alloc raw, exact, uninitialized, infallible, v26
+    v28 = ptrtoint memptr v27 to i256
+    datacopy Child_creation_code_0, v28, v20
+    v29 = slice_ptr v18
+    v30 = ptrtoint memptr v27 to i256
+    v31 = add v30, v20
+    mcopy v31, v29, v19 !metadata(memory=heap)
+    v32 = ptrtoint memptr v27 to i256
+    v33 = create 0, v32, v21
+    v34 = ne v33, i160 0
+    jumpi v34, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v33 = gas
-    v34 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = zext i160 v31 to i256
-    v38 = staticcall v33, v37, v35, v36, 0, 32
-    jumpi v38, bb4, bb3
+    v35 = gas
+    v36 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = zext i160 v33 to i256
+    v40 = staticcall v35, v39, v37, v38, 0, 32
+    jumpi v40, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v39 = returndatasize
-    v40 = lt v39, 32
-    icall revert_if<tuple_data_too_short>, v40
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = gas
-    v44 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
-    v45 = slice_ptr v44
-    v46 = slice_len v44
-    v47 = zext i160 v31 to i256
-    v48 = staticcall v43, v47, v45, v46, 0, 32
-    jumpi v48, bb6, bb5
+    v41 = returndatasize
+    v42 = lt v41, 32
+    icall revert_if<tuple_data_too_short>, v42
+    v43 = add 0, 0
+    v44 = mload v43
+    v45 = gas
+    v46 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
+    v47 = slice_ptr v46
+    v48 = slice_len v46
+    v49 = zext i160 v33 to i256
+    v50 = staticcall v45, v49, v47, v48, 0, 32
+    jumpi v50, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v49 = returndatasize
-    v50 = lt v49, 32
-    icall revert_if<tuple_data_too_short>, v50
-    v51 = add 0, 0
-    v52 = mload v51
-    v53 = gas
-    v54 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
-    v55 = slice_ptr v54
-    v56 = slice_len v54
-    v57 = zext i160 v31 to i256
-    v58 = staticcall v53, v57, v55, v56, 0, 32
-    jumpi v58, bb8, bb7
+    v51 = returndatasize
+    v52 = lt v51, 32
+    icall revert_if<tuple_data_too_short>, v52
+    v53 = add 0, 0
+    v54 = mload v53
+    v55 = gas
+    v56 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
+    v57 = slice_ptr v56
+    v58 = slice_len v56
+    v59 = zext i160 v33 to i256
+    v60 = staticcall v55, v59, v57, v58, 0, 32
+    jumpi v60, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v59 = returndatasize
-    v60 = lt v59, 32
-    icall revert_if<tuple_data_too_short>, v60
-    v61 = add 0, 0
-    v62 = mload v61
-    v63 = gas
-    v64 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
-    v65 = slice_ptr v64
-    v66 = slice_len v64
-    v67 = zext i160 v31 to i256
-    v68 = staticcall v63, v67, v65, v66, 0, 32
-    jumpi v68, bb10, bb9
+    v61 = returndatasize
+    v62 = lt v61, 32
+    icall revert_if<tuple_data_too_short>, v62
+    v63 = add 0, 0
+    v64 = mload v63
+    v65 = gas
+    v66 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
+    v67 = slice_ptr v66
+    v68 = slice_len v66
+    v69 = zext i160 v33 to i256
+    v70 = staticcall v65, v69, v67, v68, 0, 32
+    jumpi v70, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v69 = returndatasize
-    v70 = lt v69, 32
-    icall revert_if<tuple_data_too_short>, v70
-    v71 = add 0, 0
-    v72 = mload v71
-    v73 = shr 160, v72
-    v74 = eq v73, 0
-    v75 = eq v74, false
-    icall revert_if<empty>, v75
-    v76 = trunc i256 v72 to i160
-    v77 = zext i160 v76 to i256
-    v78 = insert_value struct0, undef struct0, 0, v42
-    v79 = insert_value struct0, v78, 1, v52
-    v80 = insert_value struct0, v79, 2, v62
-    v81 = insert_value struct0, v80, 3, v77
-    ret v81
+    v71 = returndatasize
+    v72 = lt v71, 32
+    icall revert_if<tuple_data_too_short>, v72
+    v73 = add 0, 0
+    v74 = mload v73
+    v75 = shr 160, v74
+    v76 = eq v75, 0
+    v77 = eq v76, false
+    icall revert_if<empty>, v77
+    v78 = trunc i256 v74 to i160
+    v79 = zext i160 v78 to i256
+    v80 = insert_value struct0, undef struct0, 0, v44
+    v81 = insert_value struct0, v80, 1, v54
+    v82 = insert_value struct0, v81, 2, v64
+    v83 = insert_value struct0, v82, 3, v79
+    ret v83
 }
 
 fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
@@ -217,106 +219,107 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     slice_store_element v1, 0, 1
-    v5 = slice_len v1
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    slice_store_element v1, 1, 2
-    v8 = icall @one, i160 153
-    v9 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v8, v0, 5
-    v10 = slice_len v9
-    v11 = datasize Child_creation_code_0
-    v12 = add v11, v10
-    v13 = lt v12, v11
-    icall panic_if<0x41>, v13
-    v14 = add v12, 31
-    v15 = lt v14, v12
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc raw, exact, uninitialized, infallible, v17
-    v19 = ptrtoint memptr v18 to i256
-    datacopy Child_creation_code_0, v19, v11
-    v20 = slice_ptr v9
-    v21 = ptrtoint memptr v18 to i256
-    v22 = add v21, v11
-    mcopy v22, v20, v10 !metadata(memory=heap)
-    v23 = ptrtoint memptr v18 to i256
-    v24 = create 0, v23, v12
-    v25 = ne v24, i160 0
-    jumpi v25, bb2, bb1
+    v5 = memory_slice v0
+    v6 = slice_len v5
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    slice_store_element v5, 1, 2
+    v9 = icall @one, i160 153
+    v10 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v9, v0, 5
+    v11 = slice_len v10
+    v12 = datasize Child_creation_code_0
+    v13 = add v12, v11
+    v14 = lt v13, v12
+    icall panic_if<0x41>, v14
+    v15 = add v13, 31
+    v16 = lt v15, v13
+    icall panic_if<0x41>, v16
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc raw, exact, uninitialized, infallible, v18
+    v20 = ptrtoint memptr v19 to i256
+    datacopy Child_creation_code_0, v20, v12
+    v21 = slice_ptr v10
+    v22 = ptrtoint memptr v19 to i256
+    v23 = add v22, v12
+    mcopy v23, v21, v11 !metadata(memory=heap)
+    v24 = ptrtoint memptr v19 to i256
+    v25 = create 0, v24, v13
+    v26 = ne v25, i160 0
+    jumpi v26, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v26 = gas
-    v27 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = zext i160 v24 to i256
-    v31 = staticcall v26, v30, v28, v29, 0, 32
-    jumpi v31, bb4, bb3
+    v27 = gas
+    v28 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = zext i160 v25 to i256
+    v32 = staticcall v27, v31, v29, v30, 0, 32
+    jumpi v32, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v32 = returndatasize
-    v33 = lt v32, 32
-    icall revert_if<tuple_data_too_short>, v33
-    v34 = add 0, 0
-    v35 = mload v34
-    v36 = gas
-    v37 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = zext i160 v24 to i256
-    v41 = staticcall v36, v40, v38, v39, 0, 32
-    jumpi v41, bb6, bb5
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = gas
+    v38 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = zext i160 v25 to i256
+    v42 = staticcall v37, v41, v39, v40, 0, 32
+    jumpi v42, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v42 = returndatasize
-    v43 = lt v42, 32
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = gas
-    v47 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
-    v48 = slice_ptr v47
-    v49 = slice_len v47
-    v50 = zext i160 v24 to i256
-    v51 = staticcall v46, v50, v48, v49, 0, 32
-    jumpi v51, bb8, bb7
+    v43 = returndatasize
+    v44 = lt v43, 32
+    icall revert_if<tuple_data_too_short>, v44
+    v45 = add 0, 0
+    v46 = mload v45
+    v47 = gas
+    v48 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
+    v49 = slice_ptr v48
+    v50 = slice_len v48
+    v51 = zext i160 v25 to i256
+    v52 = staticcall v47, v51, v49, v50, 0, 32
+    jumpi v52, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v52 = returndatasize
-    v53 = lt v52, 32
-    icall revert_if<tuple_data_too_short>, v53
-    v54 = add 0, 0
-    v55 = mload v54
-    v56 = gas
-    v57 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
-    v58 = slice_ptr v57
-    v59 = slice_len v57
-    v60 = zext i160 v24 to i256
-    v61 = staticcall v56, v60, v58, v59, 0, 32
-    jumpi v61, bb10, bb9
+    v53 = returndatasize
+    v54 = lt v53, 32
+    icall revert_if<tuple_data_too_short>, v54
+    v55 = add 0, 0
+    v56 = mload v55
+    v57 = gas
+    v58 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
+    v59 = slice_ptr v58
+    v60 = slice_len v58
+    v61 = zext i160 v25 to i256
+    v62 = staticcall v57, v61, v59, v60, 0, 32
+    jumpi v62, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v62 = returndatasize
-    v63 = lt v62, 32
-    icall revert_if<tuple_data_too_short>, v63
-    v64 = add 0, 0
-    v65 = mload v64
-    v66 = shr 160, v65
-    v67 = eq v66, 0
-    v68 = eq v67, false
-    icall revert_if<empty>, v68
-    v69 = trunc i256 v65 to i160
-    v70 = zext i160 v69 to i256
-    v71 = insert_value struct0, undef struct0, 0, v35
-    v72 = insert_value struct0, v71, 1, v45
-    v73 = insert_value struct0, v72, 2, v55
-    v74 = insert_value struct0, v73, 3, v70
-    ret v74
+    v63 = returndatasize
+    v64 = lt v63, 32
+    icall revert_if<tuple_data_too_short>, v64
+    v65 = add 0, 0
+    v66 = mload v65
+    v67 = shr 160, v66
+    v68 = eq v67, 0
+    v69 = eq v68, false
+    icall revert_if<empty>, v69
+    v70 = trunc i256 v66 to i160
+    v71 = zext i160 v70 to i256
+    v72 = insert_value struct0, undef struct0, 0, v36
+    v73 = insert_value struct0, v72, 1, v46
+    v74 = insert_value struct0, v73, 2, v56
+    v75 = insert_value struct0, v74, 3, v71
+    ret v75
 }

@@ -32,21 +32,21 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     v60 = mload 64 !metadata(memory=scratch)
     v36 = add v60, 32
     mstore v60, 32
-    v42 = add v6, 31
-    v43 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = add v36, 32
-    v45 = add v36, v43
-    mstore v45, 0
+    v41 = add v6, 31
+    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v36, 32
+    v44 = add v36, v42
+    mstore v44, 0
     mstore v36, v6
-    v47 = add v44, v43
-    calldatacopy v44, v7, v6
-    v49 = sub v47, v60
-    v51 = add v49, 31
-    v53 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = add v43, v42
+    calldatacopy v43, v7, v6
+    v48 = sub v46, v60
+    v50 = add v48, 31
+    v52 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v61 = mload 64 !metadata(memory=scratch)
-    v62 = add v61, v53
+    v62 = add v61, v52
     mstore 64, v62 !metadata(memory=scratch)
-    returndata v61, v49
+    returndata v61, v48
   bb1:
     revert 0, 0
 }
@@ -83,21 +83,21 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     v60 = mload 64 !metadata(memory=scratch)
     v36 = add v60, 32
     mstore v60, 32
-    v42 = add v6, 31
-    v43 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = add v36, 32
-    v45 = add v36, v43
-    mstore v45, 0
+    v41 = add v6, 31
+    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v36, 32
+    v44 = add v36, v42
+    mstore v44, 0
     mstore v36, v6
-    v47 = add v44, v43
-    calldatacopy v44, v7, v6
-    v49 = sub v47, v60
-    v51 = add v49, 31
-    v53 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = add v43, v42
+    calldatacopy v43, v7, v6
+    v48 = sub v46, v60
+    v50 = add v48, 31
+    v52 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v61 = mload 64 !metadata(memory=scratch)
-    v62 = add v61, v53
+    v62 = add v61, v52
     mstore 64, v62 !metadata(memory=scratch)
-    returndata v61, v49
+    returndata v61, v48
   bb1:
     revert 0, 0
 }

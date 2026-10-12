@@ -42,7 +42,6 @@ fn @data() -> memptr {
     v3 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptrtoint memptr v3 to i256
-    v5 = add v4, 32
     ret v3
 }
 

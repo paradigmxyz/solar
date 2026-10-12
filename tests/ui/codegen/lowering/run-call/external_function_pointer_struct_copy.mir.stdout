@@ -111,87 +111,89 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v11 = zext i160 v10 to i256
     v12 = shl 32, v11
     v13 = or v12, 0xc5337ed4
-    v14 = slice_len v5
-    v15 = lt 1, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = shl 64, v13
-    slice_store_element v5, 1, v17
-    v18 = address
-    v19 = zext i160 v18 to i256
-    v20 = shl 32, v19
-    v21 = or v20, 0xafb0db5f
-    v22 = slice_len v5
-    v23 = lt 2, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = shl 64, v21
-    slice_store_element v5, 2, v25
-    v26 = sload 0 !metadata(storage=slot(0))
-    v27 = trunc i256 v26 to i160
-    v28 = gas
-    v29 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = zext i160 v27 to i256
-    v33 = staticcall v28, v32, v30, v31, 0, 0
-    jumpi v33, bb2, bb1
+    v14 = memory_slice v0
+    v15 = slice_len v14
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl 64, v13
+    slice_store_element v14, 1, v18
+    v19 = address
+    v20 = zext i160 v19 to i256
+    v21 = shl 32, v20
+    v22 = or v21, 0xafb0db5f
+    v23 = memory_slice v0
+    v24 = slice_len v23
+    v25 = lt 2, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = shl 64, v22
+    slice_store_element v23, 2, v27
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = trunc i256 v28 to i160
+    v30 = gas
+    v31 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = zext i160 v29 to i256
+    v35 = staticcall v30, v34, v32, v33, 0, 0
+    jumpi v35, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v34 = icall returndata_bytes<>
-    v35 = abi_decode [tuple<array<_, function>>], v34
-    v36 = memory_object_load_field memorystruct<1>, v35, 0, memptr
-    v37 = memory_slice v36
-    v38 = slice_len v37
-    v39 = eq v38, 3
-    v40 = eq v39, false
-    icall revert_if<empty>, v40
-    v41 = memory_object_load_field memorystruct<1>, v35, 0, memptr
-    v42 = memory_slice v41
-    v43 = slice_len v42
-    v44 = lt 0, v43
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = slice_load_element v42, 0
-    v47 = shr 64, v46
-    v48 = address
-    v49 = zext i160 v48 to i256
-    v50 = shl 32, v49
-    v51 = or v50, 0xd24c5a36
-    v52 = eq v47, v51
-    v53 = eq v52, false
-    icall revert_if<empty>, v53
-    v54 = memory_object_load_field memorystruct<1>, v35, 0, memptr
-    v55 = memory_slice v54
-    v56 = slice_len v55
-    v57 = lt 1, v56
-    v58 = eq v57, false
-    icall panic_if<0x32>, v58
-    v59 = slice_load_element v55, 1
-    v60 = shr 64, v59
-    v61 = address
-    v62 = zext i160 v61 to i256
-    v63 = shl 32, v62
-    v64 = or v63, 0xc5337ed4
-    v65 = eq v60, v64
-    v66 = eq v65, false
-    icall revert_if<empty>, v66
-    v67 = memory_object_load_field memorystruct<1>, v35, 0, memptr
-    v68 = memory_slice v67
-    v69 = slice_len v68
-    v70 = lt 2, v69
-    v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = slice_load_element v68, 2
-    v73 = shr 64, v72
-    v74 = address
-    v75 = zext i160 v74 to i256
-    v76 = shl 32, v75
-    v77 = or v76, 0xafb0db5f
-    v78 = eq v73, v77
-    v79 = eq v78, false
-    icall revert_if<empty>, v79
+    v36 = icall returndata_bytes<>
+    v37 = abi_decode [tuple<array<_, function>>], v36
+    v38 = memory_object_load_field memorystruct<1>, v37, 0, memptr
+    v39 = memory_slice v38
+    v40 = slice_len v39
+    v41 = eq v40, 3
+    v42 = eq v41, false
+    icall revert_if<empty>, v42
+    v43 = memory_object_load_field memorystruct<1>, v37, 0, memptr
+    v44 = memory_slice v43
+    v45 = slice_len v44
+    v46 = lt 0, v45
+    v47 = eq v46, false
+    icall panic_if<0x32>, v47
+    v48 = slice_load_element v44, 0
+    v49 = shr 64, v48
+    v50 = address
+    v51 = zext i160 v50 to i256
+    v52 = shl 32, v51
+    v53 = or v52, 0xd24c5a36
+    v54 = eq v49, v53
+    v55 = eq v54, false
+    icall revert_if<empty>, v55
+    v56 = memory_object_load_field memorystruct<1>, v37, 0, memptr
+    v57 = memory_slice v56
+    v58 = slice_len v57
+    v59 = lt 1, v58
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = slice_load_element v57, 1
+    v62 = shr 64, v61
+    v63 = address
+    v64 = zext i160 v63 to i256
+    v65 = shl 32, v64
+    v66 = or v65, 0xc5337ed4
+    v67 = eq v62, v66
+    v68 = eq v67, false
+    icall revert_if<empty>, v68
+    v69 = memory_object_load_field memorystruct<1>, v37, 0, memptr
+    v70 = memory_slice v69
+    v71 = slice_len v70
+    v72 = lt 2, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = slice_load_element v70, 2
+    v75 = shr 64, v74
+    v76 = address
+    v77 = zext i160 v76 to i256
+    v78 = shl 32, v77
+    v79 = or v78, 0xafb0db5f
+    v80 = eq v75, v79
+    v81 = eq v80, false
+    icall revert_if<empty>, v81
     ret true
 }
 

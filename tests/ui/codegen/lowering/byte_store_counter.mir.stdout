@@ -32,7 +32,7 @@ fn @encodeImpl(arg0: memptr) -> memptr [pure] {
   bb1:
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = phi [bb0: v7], [bb3: v9]
-    v10 = phi [bb0: 0], [bb3: v45]
+    v10 = phi [bb0: 0], [bb3: v46]
     v11 = memory_slice v8
     v12 = slice_len v11
     v13 = lt v10, v12
@@ -74,17 +74,18 @@ fn @encodeImpl(arg0: memptr) -> memptr [pure] {
     v38 = shl 248, v37
     v39 = checked_mul u256, 2, v10
     v40 = checked_add u256, v39, 1
-    v41 = slice_len v29
-    v42 = lt v40, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = byte 0, v38
-    slice_store_byte v29, v40, v44
+    v41 = memory_slice v9
+    v42 = slice_len v41
+    v43 = lt v40, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = byte 0, v38
+    slice_store_byte v41, v40, v45
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v45 = checked_add u256, v10, 1
+    v46 = checked_add u256, v10, 1
     jump bb1
 }
 

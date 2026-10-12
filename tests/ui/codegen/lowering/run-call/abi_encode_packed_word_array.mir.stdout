@@ -15,20 +15,22 @@ fn @pack() -> struct0 [selector=0xef082838, pure, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v5
     slice_store_element v2, 0, v1
     v6 = shl 0, 2
-    v7 = slice_len v2
-    v8 = lt 1, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    slice_store_element v2, 1, v6
-    v10 = abi_encode_packed (array<word> memoryarray<1> v0)
-    v11 = memory_slice v10
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = keccak256 v12, v13
-    v15 = slice_len v11
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v7 = memory_slice v0
+    v8 = slice_len v7
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    slice_store_element v7, 1, v6
+    v11 = abi_encode_packed (array<word> memoryarray<1> v0)
+    v12 = memory_slice v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = keccak256 v13, v14
+    v16 = memory_slice v11
+    v17 = slice_len v16
+    v18 = insert_value struct0, undef struct0, 0, v15
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
 }
 
 fn @cleanDirtyMemory() -> i256 [selector=0x4585502b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

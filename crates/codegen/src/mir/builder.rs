@@ -234,27 +234,11 @@ impl<'a> FunctionBuilder<'a> {
     /// Adds a constant byte offset, folding zero offsets.
     pub(crate) fn add_u64_offset(&mut self, base: ValueId, offset: u64) -> ValueId {
         if offset == 0 {
-            return base;
+            base
+        } else {
+            let offset = self.imm(offset);
+            self.add(base, offset)
         }
-        // An offset into a dynamic object's payload is addressed from the object itself.
-        // add (add (ptrtoint object), header), offset => add (ptrtoint object), header + offset
-        if let Value::Inst(inst) = self.func.value(base)
-            && let InstKind::Add(root, header) = self.func.inst(*inst).kind
-            && self.func.value_u64(header) == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
-            && let Value::Inst(cast) = self.func.value(root)
-            && matches!(self.func.inst(*cast).kind, InstKind::PtrToInt(_, 256))
-            && let Some(total) = offset.checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
-        {
-            let total = self.imm(total);
-            return self.add(root, total);
-        }
-        let offset = self.imm(offset);
-        self.add(base, offset)
-    }
-
-    /// Adds a byte offset to an address, skipping a constant zero offset.
-    pub(crate) fn add_offset(&mut self, base: ValueId, offset: ValueId) -> ValueId {
-        if self.func.value_u64(offset) == Some(0) { base } else { self.add(base, offset) }
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload.
@@ -575,13 +559,6 @@ impl<'a> FunctionBuilder<'a> {
             };
             kind.visit_operands_mut(|value| *value = self.cast(*value, ty));
         }
-        // Only semantic construction addresses memory through a `memptr`. A pass builds the word
-        // form `lower-memory-objects` would make of it, so each address has one stack value.
-        if !self.semantic
-            && let InstKind::MLoad(address) | InstKind::MStore(address, _) = kind
-        {
-            *address = self.cast(*address, MirType::I256);
-        }
         let Some(types) = kind.operand_types(self.func) else { return };
         let mut types = types.into_iter();
         // operand = cast operand to its declared parameter type
@@ -876,39 +853,10 @@ impl<'a> FunctionBuilder<'a> {
         (object, layout)
     }
 
-    /// Reads a dynamic memory object's header into a view of its payload. A semantic builder,
-    /// which only appends to a function it builds, reuses a view of the object made shortly
-    /// before in this block when nothing since can have changed its header.
+    /// Reads a dynamic memory object's header into a view of its payload.
     pub(crate) fn memory_slice(&mut self, object: ValueId) -> ValueId {
-        if self.semantic
-            && let Some(view) = self.recent_view(object)
-        {
-            return view;
-        }
         // view = memory_slice object
         self.emit_inst(InstKind::MemorySlice(object), Some(MirType::Slice(SliceLocation::Memory)))
-    }
-
-    /// Finds a `memory_slice` of `object` among the last instructions of the current block with
-    /// no possible memory write after it, other than stores into the object's own payload.
-    fn recent_view(&self, object: ValueId) -> Option<ValueId> {
-        const WINDOW: usize = 32;
-        for &inst in self.func.blocks[self.current_block].instructions.iter().rev().take(WINDOW) {
-            let kind = &self.func.inst(inst).kind;
-            match *kind {
-                InstKind::MemorySlice(viewed) if viewed == object => {
-                    return self.func.inst_result_value(inst);
-                }
-                // A store into the object's payload leaves its header word.
-                InstKind::SliceStoreElement { slice, .. }
-                | InstKind::SliceStoreByte { slice, .. }
-                | InstKind::SliceStoreWord { slice, .. }
-                    if self.func.memory_slice_object(slice) == Some(object) => {}
-                _ if !kind.effect_kind().is_read_only() => return None,
-                _ => {}
-            }
-        }
-        None
     }
 
     /// Returns a slice view of a dynamic value: slices as they are, memory objects through
@@ -935,12 +883,19 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Returns the payload address of a dynamic memory object or memory slice.
     pub(crate) fn memory_data(&mut self, value: ValueId) -> ValueId {
+        self.memory_data_at(value, 0)
+    }
+
+    /// Returns the address `offset` bytes into the payload of a dynamic memory object or memory
+    /// slice.
+    pub(crate) fn memory_data_at(&mut self, value: ValueId, offset: u64) -> ValueId {
         if matches!(self.func.value_ty(value), Some(MirType::Slice(_))) {
-            return self.slice_ptr(value);
+            let data = self.slice_ptr(value);
+            return self.add_u64_offset(data, offset);
         }
-        // data = add (ptrtoint value), DYNAMIC_HEADER_SIZE
+        // data = add (ptrtoint value), DYNAMIC_HEADER_SIZE + offset
         let header = self.cast(value, MirType::I256);
-        self.add_u64_offset(header, EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
+        self.add_u64_offset(header, EvmMemoryLayout::DYNAMIC_HEADER_SIZE.saturating_add(offset))
     }
 
     /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
@@ -1071,7 +1026,7 @@ impl<'a> FunctionBuilder<'a> {
         if self.func.value_slice_location(slice) == Some(SliceLocation::Calldata) {
             // word = calldataload (add (slice_ptr slice), offset)
             let data = self.slice_ptr(slice);
-            let address = self.add_offset(data, offset);
+            let address = self.add(data, offset);
             return self.calldataload(address);
         }
         self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))

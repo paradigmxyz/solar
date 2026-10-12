@@ -333,10 +333,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {
         // payload = data[4:]
         // message = abi_decode(bytes, payload)
-        let data_ptr = self.builder.memory_data(data);
         let data_len = self.builder.memory_len(data);
         let four = self.builder.imm(4);
-        let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
+        let payload_ptr = self.builder.memory_data_at(data, 4);
         let payload_len = self.builder.sub(data_len, four);
         let payload = self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
         let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
@@ -429,9 +428,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let data_ptr = self.builder.memory_data(data);
         let zero = self.builder.imm(U256::ZERO);
-        let payload_ptr = self.builder.add_u64_offset(data_ptr, 4);
+        let payload_ptr = self.builder.memory_data_at(data, 4);
         let word_size = self.builder.imm(32);
         let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
         self.builder.slice_load_word(payload, zero)

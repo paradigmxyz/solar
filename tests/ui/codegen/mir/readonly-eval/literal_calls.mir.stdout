@@ -86,9 +86,8 @@ fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     mstore v0, 0
     v1 = ptrtoint memptr v0 to i256
-    v2 = add v1, 32
-    v3 = icall @readWord, v0
-    ret v3
+    v2 = icall @readWord, v0
+    ret v2
 }
 
 fn @readWord(arg0: memptr) -> i256 [pure] {

@@ -415,7 +415,7 @@ fn lower_ecrecover(
         builder.memory_store_word(input, offset, value);
     }
     // The final zeroed word lies beyond the four input words and is safe on failure too.
-    let output = builder.add_u64_offset(pointer, 128);
+    let output = builder.memory_data_at(input, 128);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);

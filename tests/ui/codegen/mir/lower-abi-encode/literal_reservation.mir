@@ -6,8 +6,8 @@
 // CHECK-LABEL: (after dce)
 // CHECK: fn @encode
 // CHECK: [[BUFFER_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 256{{$}}
+// CHECK: mstore [[BUFFER_PTR]], 0x12345678
 // CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
-// CHECK: mstore [[BUFFER]], 0x12345678
 // CHECK: make_memory_slice [[BUFFER]], 228
 // CHECK-NOT: preserves_fmp
 fn @encode(arg0: i256) -> memoryslice {

@@ -191,9 +191,8 @@ fn @lowLevel() -> i1 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     mstore v1, 0
     v2 = ptrtoint memptr v1 to i256
-    v3 = add v2, 32
-    v4 = address_call i160 0, v1, gas v0
-    ret v4
+    v3 = address_call i160 0, v1, gas v0
+    ret v3
 }
 
 fn @selfCall() -> i1 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

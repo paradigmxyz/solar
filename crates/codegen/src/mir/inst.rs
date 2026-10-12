@@ -556,20 +556,6 @@ pub(crate) enum EffectKind {
 }
 
 impl EffectKind {
-    /// Whether the effect at most reads state, so it cannot change memory.
-    #[must_use]
-    pub(crate) const fn is_read_only(self) -> bool {
-        matches!(
-            self,
-            Self::Pure
-                | Self::MemoryRead
-                | Self::StorageRead
-                | Self::TransientRead
-                | Self::EnvironmentRead
-                | Self::ImmutableRead
-        )
-    }
-
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
     pub(crate) const fn name(&self) -> &'static str {

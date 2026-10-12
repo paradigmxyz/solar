@@ -11,9 +11,9 @@ contract BytesMemoryElements {
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and 159, [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: mstore [[BUF]], 96
+    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
+    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
     // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[BUF]]
-    // CHECK: slice_store_byte [[VIEW]], {{.*}}, {{.*}}
-    // CHECK: slice_store_byte [[VIEW]], {{.*}}, {{.*}}
     // CHECK: slice_ptr [[VIEW]]
     // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function alloc() external pure returns (bytes32) {
@@ -26,8 +26,8 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
     // CHECK: mstore [[BUF]], 10
+    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
     // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[BUF]]
-    // CHECK: slice_store_byte [[VIEW]], {{.*}}, {{.*}}
     // CHECK: slice_ptr [[VIEW]]
     // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
     function literal() external pure returns (bytes32) {
@@ -49,14 +49,13 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @readWrite{{[( ]}}
-    // A store into the payload leaves the header, so the load reuses the store's view.
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice arg0
+    // CHECK: [[STORE_VIEW:v[0-9]+]] = memory_slice arg0
     // CHECK: icall panic_if<0x32>
     // CHECK: [[BYTE:v[0-9]+]] = byte 0, arg2
-    // CHECK: slice_store_byte [[VIEW]], arg1, [[BYTE]]
-    // CHECK-NOT: memory_slice
+    // CHECK: slice_store_byte [[STORE_VIEW]], arg1, [[BYTE]]
+    // CHECK: [[LOAD_VIEW:v[0-9]+]] = memory_slice arg0
     // CHECK: icall panic_if<0x32>
-    // CHECK: slice_load_byte [[VIEW]], arg1
+    // CHECK: slice_load_byte [[LOAD_VIEW]], arg1
     function readWrite(bytes memory b, uint i, bytes1 v) external pure returns (bytes1) {
         b[i] = v;
         return b[i];

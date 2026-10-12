@@ -31,14 +31,13 @@
 +     v8 = not 31 !metadata(span=30..40, modifier_depth=3)
 +     v9 = and 63, v8 !metadata(span=30..40, modifier_depth=3)
 +     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(span=30..40, modifier_depth=3)
-+     v11 = ptrtoint memptr v10 to i256 !metadata(span=30..40, modifier_depth=3)
-+     mstore v11, 0 !metadata(span=30..40, modifier_depth=3)
-+     v12 = make_returndata_slice 0, 0 !metadata(span=30..40, modifier_depth=3)
-+     v13 = ptrtoint memptr v10 to i256 !metadata(span=30..40, modifier_depth=3)
-+     v14 = add v13, 32 !metadata(span=30..40, modifier_depth=3)
-+     v15 = slice_len v12 !metadata(span=30..40, modifier_depth=3)
-+     v16 = make_memory_slice v14, v15 !metadata(span=30..40, modifier_depth=3)
-+     slice_copy v16, 0, v12 !metadata(span=30..40, modifier_depth=3)
++     mstore v10, 0 !metadata(span=30..40, modifier_depth=3)
++     v11 = make_returndata_slice 0, 0 !metadata(span=30..40, modifier_depth=3)
++     v12 = ptrtoint memptr v10 to i256 !metadata(span=30..40, modifier_depth=3)
++     v13 = add v12, 32 !metadata(span=30..40, modifier_depth=3)
++     v14 = slice_len v11 !metadata(span=30..40, modifier_depth=3)
++     v15 = make_memory_slice v13, v14 !metadata(span=30..40, modifier_depth=3)
++     slice_copy v15, 0, v11 !metadata(span=30..40, modifier_depth=3)
 +     ret v10
   }
   

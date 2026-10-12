@@ -808,27 +808,26 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     v12 = ptrtoint memptr v11 to i256
-+     mstore v12, v1
-+     v13 = storage_array_data_slot arg0
++     mstore v11, v1
++     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v14 = phi [bb3: 0], [bb5: v24]
-+     v15 = lt v14, v1
-+     jumpi v15, bb5, bb6
++     v13 = phi [bb3: 0], [bb5: v23]
++     v14 = lt v13, v1
++     jumpi v14, bb5, bb6
 +   bb6:
 +     ret v11
 +   bb5:
-+     v16 = div v14, 1
-+     v17 = add v13, v16
-+     v18 = sload v17 !metadata(storage=symbolic(v17))
-+     v19 = mod v14, 1
-+     v20 = mul v19, 160
-+     v21 = shr v20, v18
-+     v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
-+     v23 = memory_slice v11
-+     slice_store_element v23, v14, v22
-+     v24 = add v14, 1
++     v15 = div v13, 1
++     v16 = add v12, v15
++     v17 = sload v16 !metadata(storage=symbolic(v16))
++     v18 = mod v13, 1
++     v19 = mul v18, 160
++     v20 = shr v19, v17
++     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
++     v22 = memory_slice v11
++     slice_store_element v22, v13, v21
++     v23 = add v13, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -861,14 +860,13 @@
 +     jumpi v12, bb1, bb3
 +   bb3:
 +     v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
-+     v14 = ptrtoint memptr v13 to i256
-+     mstore v14, v3
-+     v15 = storage_array_data_slot arg0
++     mstore v13, v3
++     v14 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v16 = phi [bb3: 0], [bb5: v26]
-+     v17 = lt v16, v3
-+     jumpi v17, bb5, bb6
++     v15 = phi [bb3: 0], [bb5: v25]
++     v16 = lt v15, v3
++     jumpi v16, bb5, bb6
 +   bb6:
 +     v1 = memory_slice v13
       v2 = slice_ptr v1
@@ -876,16 +874,16 @@
 -     ret v0
 +     ret v13
 +   bb5:
-+     v18 = div v16, 1
-+     v19 = add v15, v18
-+     v20 = sload v19 !metadata(storage=symbolic(v19))
-+     v21 = mod v16, 1
-+     v22 = mul v21, 160
-+     v23 = shr v22, v20
-+     v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-+     v25 = memory_slice v13
-+     slice_store_element v25, v16, v24
-+     v26 = add v16, 1
++     v17 = div v15, 1
++     v18 = add v14, v17
++     v19 = sload v18 !metadata(storage=symbolic(v18))
++     v20 = mod v15, 1
++     v21 = mul v20, 160
++     v22 = shr v21, v19
++     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
++     v24 = memory_slice v13
++     slice_store_element v24, v15, v23
++     v25 = add v15, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1568,27 +1566,26 @@
       jumpi v10, bb1, bb3
     bb3:
       v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-      v12 = ptrtoint memptr v11 to i256
-      mstore v12, v1
-      v13 = storage_array_data_slot arg0
+      mstore v11, v1
+      v12 = storage_array_data_slot arg0
       jump bb4
     bb4:
-      v14 = phi [bb3: 0], [bb5: v24]
-      v15 = lt v14, v1
-      jumpi v15, bb5, bb6
+      v13 = phi [bb3: 0], [bb5: v23]
+      v14 = lt v13, v1
+      jumpi v14, bb5, bb6
     bb6:
       ret v11
     bb5:
-      v16 = div v14, 1
-      v17 = add v13, v16
-      v18 = sload v17 !metadata(storage=symbolic(v17))
-      v19 = mod v14, 1
-      v20 = mul v19, 160
-      v21 = shr v20, v18
-      v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
-      v23 = memory_slice v11
-      slice_store_element v23, v14, v22
-      v24 = add v14, 1
+      v15 = div v13, 1
+      v16 = add v12, v15
+      v17 = sload v16 !metadata(storage=symbolic(v16))
+      v18 = mod v13, 1
+      v19 = mul v18, 160
+      v20 = shr v19, v17
+      v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
+      v22 = memory_slice v11
+      slice_store_element v22, v13, v21
+      v23 = add v13, 1
       jump bb4
     bb1:
       mstore 32, 65 !metadata(memory=scratch)
@@ -1624,30 +1621,29 @@
       jumpi v12, bb1, bb3
     bb3:
       v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
-      v14 = ptrtoint memptr v13 to i256
-      mstore v14, v3
-      v15 = storage_array_data_slot arg0
+      mstore v13, v3
+      v14 = storage_array_data_slot arg0
       jump bb4
     bb4:
-      v16 = phi [bb3: 0], [bb5: v26]
-      v17 = lt v16, v3
-      jumpi v17, bb5, bb6
+      v15 = phi [bb3: 0], [bb5: v25]
+      v16 = lt v15, v3
+      jumpi v16, bb5, bb6
     bb6:
       v1 = memory_slice v13
       v2 = slice_ptr v1
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v13
     bb5:
-      v18 = div v16, 1
-      v19 = add v15, v18
-      v20 = sload v19 !metadata(storage=symbolic(v19))
-      v21 = mod v16, 1
-      v22 = mul v21, 160
-      v23 = shr v22, v20
-      v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-      v25 = memory_slice v13
-      slice_store_element v25, v16, v24
-      v26 = add v16, 1
+      v17 = div v15, 1
+      v18 = add v14, v17
+      v19 = sload v18 !metadata(storage=symbolic(v18))
+      v20 = mod v15, 1
+      v21 = mul v20, 160
+      v22 = shr v21, v19
+      v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+      v24 = memory_slice v13
+      slice_store_element v24, v15, v23
+      v25 = add v15, 1
       jump bb4
     bb1:
       mstore 32, 65 !metadata(memory=scratch)
@@ -1721,62 +1717,60 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, v4
-+     v12 = ptrtoint memptr v11 to i256
-+     mstore v12, v1
++     mstore v11, v1
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb11: v47]
-+     v14 = lt v13, v1
-+     jumpi v14, bb5, bb6
++     v12 = phi [bb3: 0], [bb11: v45]
++     v13 = lt v12, v1
++     jumpi v13, bb5, bb6
 +   bb6:
 +     ret v11
 +   bb5:
-+     v15 = memory_slice arg0
-+     v16 = slice_load_element v15, v13
-+     v17 = inttoptr i256 v16 to memptr
-+     v18 = memory_slice v17
-+     v19 = slice_len v18
-+     v20 = eq v16, 0
-+     v21 = eq v20, false
-+     v22 = zext i1 v21 to i256
-+     v23 = mul v19, v22
-+     v24 = add v23, 1
-+     v25 = lt v24, v23
-+     jumpi v25, bb1, bb7
++     v14 = memory_slice arg0
++     v15 = slice_load_element v14, v12
++     v16 = inttoptr i256 v15 to memptr
++     v17 = memory_slice v16
++     v18 = slice_len v17
++     v19 = eq v15, 0
++     v20 = eq v19, false
++     v21 = zext i1 v20 to i256
++     v22 = mul v18, v21
++     v23 = add v22, 1
++     v24 = lt v23, v22
++     jumpi v24, bb1, bb7
 +   bb7:
-+     v26 = mul v24, 32
-+     v27 = eq 32, 0
-+     v28 = div v26, 32
-+     v29 = eq v28, v24
-+     v30 = or v27, v29
-+     v31 = zext i1 v30 to i256
-+     v32 = eq v31, 0
-+     jumpi v32, bb1, bb8
++     v25 = mul v23, 32
++     v26 = eq 32, 0
++     v27 = div v25, 32
++     v28 = eq v27, v23
++     v29 = or v26, v28
++     v30 = zext i1 v29 to i256
++     v31 = eq v30, 0
++     jumpi v31, bb1, bb8
 +   bb8:
-+     v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
-+     v34 = ptrtoint memptr v33 to i256
-+     mstore v34, v23
++     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
++     mstore v32, v22
 +     jump bb9
 +   bb9:
-+     v35 = phi [bb8: 0], [bb10: v44]
-+     v36 = lt v35, v23
-+     jumpi v36, bb10, bb11
++     v33 = phi [bb8: 0], [bb10: v42]
++     v34 = lt v33, v22
++     jumpi v34, bb10, bb11
 +   bb11:
-+     v45 = memory_slice v11
-+     v46 = ptrtoint memptr v33 to i256
-+     slice_store_element v45, v13, v46
-+     v47 = add v13, 1
++     v43 = memory_slice v11
++     v44 = ptrtoint memptr v32 to i256
++     slice_store_element v43, v12, v44
++     v45 = add v12, 1
 +     jump bb4
 +   bb10:
-+     v37 = inttoptr i256 v16 to memptr
-+     v38 = memory_slice v37
-+     v39 = slice_load_element v38, v35
-+     v40 = zext i1 v21 to i256
-+     v41 = mul v39, v40
-+     v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffff
-+     v43 = memory_slice v33
-+     slice_store_element v43, v35, v42
-+     v44 = add v35, 1
++     v35 = inttoptr i256 v15 to memptr
++     v36 = memory_slice v35
++     v37 = slice_load_element v36, v33
++     v38 = zext i1 v20 to i256
++     v39 = mul v37, v38
++     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffff
++     v41 = memory_slice v32
++     slice_store_element v41, v33, v40
++     v42 = add v33, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1802,22 +1796,21 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, v4
-+     v12 = ptrtoint memptr v11 to i256
-+     mstore v12, v1
++     mstore v11, v1
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb5: v19]
-+     v14 = lt v13, v1
-+     jumpi v14, bb5, bb6
++     v12 = phi [bb3: 0], [bb5: v18]
++     v13 = lt v12, v1
++     jumpi v13, bb5, bb6
 +   bb6:
 +     ret v11
 +   bb5:
-+     v15 = memory_slice arg0
-+     v16 = slice_load_element v15, v13
-+     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-+     v18 = memory_slice v11
-+     slice_store_element v18, v13, v17
-+     v19 = add v13, 1
++     v14 = memory_slice arg0
++     v15 = slice_load_element v14, v12
++     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
++     v17 = memory_slice v11
++     slice_store_element v17, v12, v16
++     v18 = add v12, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)

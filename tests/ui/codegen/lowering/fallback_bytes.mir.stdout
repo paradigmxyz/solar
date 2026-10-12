@@ -13,12 +13,13 @@ fn @invoke(arg0: memptr) -> struct0 [selector=0xa6514259, abi_params=[bytes], ab
     icall revert_if<empty>, v4
     v5 = memory_slice v3
     v6 = slice_len v5
-    v7 = slice_ptr v5
-    v8 = slice_len v5
-    v9 = keccak256 v7, v8
-    v10 = insert_value struct0, undef struct0, 0, v6
-    v11 = insert_value struct0, v10, 1, v9
-    ret v11
+    v7 = memory_slice v3
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = keccak256 v8, v9
+    v11 = insert_value struct0, undef struct0, 0, v6
+    v12 = insert_value struct0, v11, 1, v10
+    ret v12
 }
 
 fn @fallback(arg0: calldataslice) -> memptr [fallback] {

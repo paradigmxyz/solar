@@ -13,8 +13,7 @@ fn @read(arg0: memptr, arg1: i256) -> i256 [selector=0x12345678, abi_params=[arr
 // CHECK: + fn @read_words()
 // CHECK: + {{v[0-9]+}} = calldataload
 // CHECK: + [[ARR:v[0-9]+]] = alloc memoryarray<1>
-// CHECK: + [[HDR:v[0-9]+]] = ptrtoint memptr [[ARR]] to i256
-// CHECK: + mstore [[HDR]],
+// CHECK: + mstore [[ARR]],
 // CHECK: + [[VIEW:v[0-9]+]] = make_memory_slice
 // CHECK-NEXT: + slice_copy [[VIEW]], 0,
 // CHECK: + memory_object_store_field memorystruct<3>

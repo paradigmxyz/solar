@@ -32,12 +32,26 @@ pub(crate) fn data_copy_is_profitable(
     if optimization.is_gas() { runtime_gas_saving > 0 && byte_saving >= 0 } else { byte_saving > 0 }
 }
 
+/// A destination address as a base plus a constant offset, so each word store addresses the
+/// base directly rather than through another addition.
+#[derive(Clone, Copy)]
+pub(super) struct DataDest {
+    pub(super) base: ValueId,
+    pub(super) offset: u64,
+}
+
+impl DataDest {
+    fn at(self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+        builder.add_u64_offset(self.base, self.offset.saturating_add(offset))
+    }
+}
+
 /// Copies constant data and clears its padding through `padded_size`.
 pub(super) fn copy_data_to_memory(
     gcx: Gcx<'_>,
     module: &mut Module,
     builder: &mut FunctionBuilder<'_>,
-    dest: ValueId,
+    dest: DataDest,
     data: &[u8],
     padded_size: usize,
     name: Option<Symbol>,
@@ -52,7 +66,8 @@ pub(super) fn copy_data_to_memory(
     }
     if data.iter().all(|&byte| byte == 0) {
         let size = builder.imm(padded_size as u64);
-        builder.memory_zero(dest, size);
+        let start = dest.at(builder, 0);
+        builder.memory_zero(start, size);
         return;
     }
     let separate_tail = (name.is_some() || gcx.sess.opts.optimization.is_size())
@@ -76,13 +91,14 @@ pub(super) fn copy_data_to_memory(
     if separate_tail {
         let word_size = EvmMemoryLayout::WORD_SIZE as usize;
         let tail_offset = data.len() / word_size * word_size;
-        let tail = builder.add_u64_offset(dest, tail_offset as u64);
+        let tail = dest.at(builder, tail_offset as u64);
         let zero = builder.imm(0);
         builder.mstore(tail, zero);
     }
     let size = builder.imm(data.len() as u64);
     let data = module.intern_data(data, name);
-    builder.data_copy(data, dest, size);
+    let start = dest.at(builder, 0);
+    builder.data_copy(data, start, size);
 }
 
 fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -> bool {
@@ -126,11 +142,11 @@ fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -
 }
 
 /// Stores data as words for short values and word-level constant pooling.
-pub(super) fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: ValueId, data: &[u8]) {
+fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: DataDest, data: &[u8]) {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     for (index, chunk) in data.chunks(word_size).enumerate() {
         let value = builder.imm(U256::from_be_bytes(padded_data_word(chunk)));
-        let address = builder.add_u64_offset(dest, (index * word_size) as u64);
+        let address = dest.at(builder, (index * word_size) as u64);
         builder.mstore(address, value);
     }
 }
@@ -139,7 +155,7 @@ pub(super) fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: ValueId,
 fn copy_splat_to_memory(
     gcx: Gcx<'_>,
     builder: &mut FunctionBuilder<'_>,
-    dest: ValueId,
+    dest: DataDest,
     data: &[u8],
     clear_tail: bool,
 ) -> bool {
@@ -153,23 +169,24 @@ fn copy_splat_to_memory(
 
     if clear_tail {
         let tail_offset = data.len() / word_size * word_size;
-        let tail = builder.add_u64_offset(dest, tail_offset as u64);
+        let tail = dest.at(builder, tail_offset as u64);
         let zero = builder.imm(0);
         builder.mstore(tail, zero);
     }
     let value = builder.imm(U256::from_be_bytes(padded_data_word(&data[..word_size])));
-    builder.mstore(dest, value);
+    let start = dest.at(builder, 0);
+    builder.mstore(start, value);
     let mut filled = word_size;
     if data.len() >= word_size * 2 {
-        let target = builder.add_u64_offset(dest, word_size as u64);
+        let target = dest.at(builder, word_size as u64);
         builder.mstore(target, value);
         filled += word_size;
     }
     while filled < data.len() {
         let chunk = filled.min(data.len() - filled);
-        let target = builder.add_u64_offset(dest, filled as u64);
+        let target = dest.at(builder, filled as u64);
         let size = builder.imm(chunk as u64);
-        builder.mcopy(target, dest, size);
+        builder.mcopy(target, start, size);
         filled += chunk;
     }
     true

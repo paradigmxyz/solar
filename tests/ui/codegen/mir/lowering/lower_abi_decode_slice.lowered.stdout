@@ -12,7 +12,7 @@
 +     v5 = slt v3, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = mload v1
++     v6 = mload v2
 +     ret v6
 +   bb1:
 +     revert 0, 0
@@ -59,7 +59,7 @@
 +     v5 = slt v3, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = mload v1
++     v6 = mload v2
 +     v7 = add v1, v6
 +     v8 = add v7, 32
 +     v9 = gt v6, 0xffffffffffffffff
@@ -77,18 +77,17 @@
 +     v17 = not 31
 +     v18 = and v15, v17
 +     v19 = alloc memorybytes, exact, uninitialized, panic, v18
-+     v20 = ptrtoint memptr v19 to i256
-+     mstore v20, v13
-+     v21 = sub v4, v14
-+     v22 = gt v13, v21
-+     jumpi v22, bb1, bb6
++     mstore v19, v13
++     v20 = sub v4, v14
++     v21 = gt v13, v20
++     jumpi v21, bb1, bb6
 +   bb6:
-+     v23 = make_memory_slice v14, v13
-+     v24 = ptrtoint memptr v19 to i256
-+     v25 = add v24, 32
-+     v26 = slice_len v23
-+     v27 = make_memory_slice v25, v26
-+     slice_copy v27, 0, v23
++     v22 = make_memory_slice v14, v13
++     v23 = ptrtoint memptr v19 to i256
++     v24 = add v23, 32
++     v25 = slice_len v22
++     v26 = make_memory_slice v24, v25
++     slice_copy v26, 0, v22
 +     ret v19
 +   bb4:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -106,13 +105,12 @@
 +     jumpi v2, bb1, bb2
 +   bb2:
 +     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-+     v4 = ptrtoint memptr arg0 to i256
-+     v5 = mload v4
-+     memory_object_store_field memorystruct<2>, v3, 0, v5
-+     v6 = ptrtoint memptr arg0 to i256
-+     v7 = add v6, 32
-+     v8 = mload v7
-+     memory_object_store_field memorystruct<2>, v3, 1, v8
++     v4 = mload arg0
++     memory_object_store_field memorystruct<2>, v3, 0, v4
++     v5 = ptrtoint memptr arg0 to i256
++     v6 = add v5, 32
++     v7 = mload v6
++     memory_object_store_field memorystruct<2>, v3, 1, v7
 +     ret v3
 +   bb1:
 +     revert 0, 0

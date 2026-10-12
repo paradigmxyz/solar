@@ -21,10 +21,9 @@ fn @fresh_array() -> memptr {
 // CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
-// CHECK: + [[DESTINATION:v[0-9]+]] = add [[DATA_WORD]], 64
+// CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
 // CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
-// CHECK: + [[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OBJECT]]
-// CHECK: + mstore [[POINTER]], 32
+// CHECK: + mstore [[OBJECT]], 32
 // CHECK: + mstore [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
 // CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
@@ -76,10 +75,9 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[LAST:v[0-9]+]] = add [[SOURCE]],
 // CHECK: + mstore [[LAST]], 0
-// CHECK: + [[DESTINATION:v[0-9]+]] = add [[DATA_WORD]], 64
+// CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
 // CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
-// CHECK: + [[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OBJECT]]
-// CHECK: + mstore [[POINTER]], 32
+// CHECK: + mstore [[OBJECT]], 32
 fn @terminal_bytes(arg0: i256) {
   bb0:
     v0 = icall @fresh_bytes_wrapper, arg0

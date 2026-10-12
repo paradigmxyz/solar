@@ -190,57 +190,58 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     slice_store_element v1, 0, 0xf52
-    v5 = slice_len v1
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    slice_store_element v1, 1, 6
-    v8 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
-    v9 = slice_len v8
-    v10 = datasize CheckpointTarget_creation_code_0
-    v11 = add v10, v9
-    v12 = lt v11, v10
-    icall panic_if<0x41>, v12
-    v13 = add v11, 31
-    v14 = lt v13, v11
-    icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc raw, exact, uninitialized, infallible, v16
-    v18 = ptrtoint memptr v17 to i256
-    datacopy CheckpointTarget_creation_code_0, v18, v10
-    v19 = slice_ptr v8
-    v20 = ptrtoint memptr v17 to i256
-    v21 = add v20, v10
-    mcopy v21, v19, v9 !metadata(memory=heap)
-    v22 = ptrtoint memptr v17 to i256
-    v23 = create 0, v22, v11
-    v24 = ne v23, i160 0
-    jumpi v24, bb2, bb1
+    v5 = memory_slice v0
+    v6 = slice_len v5
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    slice_store_element v5, 1, 6
+    v9 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
+    v10 = slice_len v9
+    v11 = datasize CheckpointTarget_creation_code_0
+    v12 = add v11, v10
+    v13 = lt v12, v11
+    icall panic_if<0x41>, v13
+    v14 = add v12, 31
+    v15 = lt v14, v12
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc raw, exact, uninitialized, infallible, v17
+    v19 = ptrtoint memptr v18 to i256
+    datacopy CheckpointTarget_creation_code_0, v19, v11
+    v20 = slice_ptr v9
+    v21 = ptrtoint memptr v18 to i256
+    v22 = add v21, v11
+    mcopy v22, v20, v10 !metadata(memory=heap)
+    v23 = ptrtoint memptr v18 to i256
+    v24 = create 0, v23, v12
+    v25 = ne v24, i160 0
+    jumpi v25, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v25 = gas
-    v26 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = zext i160 v23 to i256
-    v30 = staticcall v25, v29, v27, v28, 0, 32
-    jumpi v30, bb4, bb3
+    v26 = gas
+    v27 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = zext i160 v24 to i256
+    v31 = staticcall v26, v30, v28, v29, 0, 32
+    jumpi v31, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = shr 96, v34
-    v36 = eq v35, 0
-    v37 = eq v36, false
-    icall revert_if<empty>, v37
-    v38 = trunc i256 v34 to i96
-    ret v38
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = shr 96, v35
+    v37 = eq v36, 0
+    v38 = eq v37, false
+    icall revert_if<empty>, v38
+    v39 = trunc i256 v35 to i96
+    ret v39
 }
 
 fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {

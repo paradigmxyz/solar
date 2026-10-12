@@ -55,12 +55,12 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v18 = phi [bb4: v17], [bb5: false]
     jumpi v18, bb7, bb8
   bb8:
-    v27 = eq v15, 0x4e487b71
-    v28 = lt v13, 36
-    v29 = eq v28, false
-    v30 = and v27, v29
-    v31 = zext i1 v30 to i256
-    jumpi v30, bb9, bb10
+    v26 = eq v15, 0x4e487b71
+    v27 = lt v13, 36
+    v28 = eq v27, false
+    v29 = and v26, v28
+    v30 = zext i1 v29 to i256
+    jumpi v29, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
@@ -68,21 +68,19 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
   bb11:
     jump bb3
   bb9:
-    v32 = ptrtoint memptr v10 to i256
-    v33 = add v32, 32
-    v34 = add v32, 36
-    v35 = make_memory_slice v34, 32
-    v36 = slice_load_word v35, 0
+    v31 = ptrtoint memptr v10 to i256
+    v32 = add v31, 36
+    v33 = make_memory_slice v32, 32
+    v34 = slice_load_word v33, 0
     jump bb3
   bb7:
-    v19 = ptrtoint memptr v10 to i256
-    v20 = add v19, 32
-    v21 = memory_slice v10
-    v22 = slice_len v21
-    v23 = add v19, 36
-    v24 = sub v22, 4
-    v25 = make_memory_slice v23, v24
-    v26 = abi_decode [bytes], v25
+    v19 = memory_slice v10
+    v20 = slice_len v19
+    v21 = ptrtoint memptr v10 to i256
+    v22 = add v21, 36
+    v23 = sub v20, 4
+    v24 = make_memory_slice v22, v23
+    v25 = abi_decode [bytes], v24
     jump bb3
   bb1:
     v6 = returndatasize
@@ -92,8 +90,8 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v9 = mload v8
     jump bb3
   bb3:
-    v37 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v37
+    v35 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v35
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

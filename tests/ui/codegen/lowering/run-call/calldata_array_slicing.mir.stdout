@@ -308,8 +308,9 @@ fn @chainedBytesIndex(arg0: calldataslice) -> i256 [selector=0x96fa77f1, pure, a
     icall panic_if<0x32>, v20
     v21 = slice_ptr v17
     v22 = slice_ptr v17
-    v23 = calldataload v22
-    v24 = byte 0, v23
-    v25 = shl 248, v24
-    ret v25
+    v23 = add v22, 0
+    v24 = calldataload v23
+    v25 = byte 0, v24
+    v26 = shl 248, v25
+    ret v26
 }

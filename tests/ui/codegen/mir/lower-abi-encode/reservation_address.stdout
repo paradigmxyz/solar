@@ -13,31 +13,30 @@
 +     v6 = add v5, 32
 +     v7 = ptrtoint memptr v4 to i256
 +     v8 = sub v6, v7
-+     v9 = ptrtoint memptr v4 to i256
-+     mstore v9, v8
-+     v10 = slice_len v0
-+     v11 = not 31
-+     v12 = add 0, 31
-+     v13 = and v12, v11
-+     v14 = add v6, 32
-+     v15 = add v6, v13
-+     mstore v15, 0
++     mstore v4, v8
++     v9 = slice_len v0
++     v10 = not 31
++     v11 = add 0, 31
++     v12 = and v11, v10
++     v13 = add v6, 32
++     v14 = add v6, v12
++     mstore v14, 0
 +     mstore v6, 0
-+     v16 = slice_ptr v0
-+     v17 = add v14, v13
-+     calldatacopy v14, 0, 0
-+     v18 = ptrtoint memptr v4 to i256
-+     v19 = sub v17, v18
-+     v20 = add v19, 0
-+     v21 = add v20, 31
-+     v22 = not 31
-+     v23 = and v21, v22
-+     v24 = alloc raw, exact, uninitialized, infallible, v23 !metadata(preserves_fmp)
-+     v25 = ptrtoint memptr v24 to i256
-+     v26 = make_memory_slice v25, v20
-+     v2 = slice_ptr v26
-+     v3 = slice_len v26
-+     returndata v25, v20
++     v15 = slice_ptr v0
++     v16 = add v13, v12
++     calldatacopy v13, 0, 0
++     v17 = ptrtoint memptr v4 to i256
++     v18 = sub v16, v17
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = ptrtoint memptr v23 to i256
++     v25 = make_memory_slice v24, v19
++     v2 = slice_ptr v25
++     v3 = slice_len v25
++     returndata v24, v19
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before egraph) ===
@@ -51,36 +50,35 @@
       v6 = add v5, 32
 -     v7 = ptrtoint memptr v4 to i256
 -     v8 = sub v6, v7
--     v9 = ptrtoint memptr v4 to i256
--     mstore v9, v8
-+     mstore v5, 32
-      v10 = slice_len v0
--     v11 = not 31
--     v12 = add 0, 31
--     v13 = and v12, v11
-      v14 = add v6, 32
--     v15 = add v6, v13
--     mstore v15, 0
+-     mstore v4, v8
++     mstore v4, 32
+      v9 = slice_len v0
+-     v10 = not 31
+-     v11 = add 0, 31
+-     v12 = and v11, v10
+      v13 = add v6, 32
+-     v14 = add v6, v12
+-     mstore v14, 0
       mstore v6, 0
 +     mstore v6, 0
-      v16 = slice_ptr v0
--     v17 = add v14, v13
--     calldatacopy v14, 0, 0
--     v18 = ptrtoint memptr v4 to i256
--     v19 = sub v17, v18
--     v20 = add v19, 0
--     v21 = add v20, 31
--     v22 = not 31
--     v23 = and v21, v22
--     v24 = alloc raw, exact, uninitialized, infallible, v23 !metadata(preserves_fmp)
-+     v24 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      v25 = ptrtoint memptr v24 to i256
--     v26 = make_memory_slice v25, v20
-+     v26 = make_memory_slice v25, 64
-      v2 = slice_ptr v26
-      v3 = slice_len v26
--     returndata v25, v20
-+     returndata v25, 64
+      v15 = slice_ptr v0
+-     v16 = add v13, v12
+-     calldatacopy v13, 0, 0
+-     v17 = ptrtoint memptr v4 to i256
+-     v18 = sub v16, v17
+-     v19 = add v18, 0
+-     v20 = add v19, 31
+-     v21 = not 31
+-     v22 = and v20, v21
+-     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v23 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v24 = ptrtoint memptr v23 to i256
+-     v25 = make_memory_slice v24, v19
++     v25 = make_memory_slice v24, 64
+      v2 = slice_ptr v25
+      v3 = slice_len v25
+-     returndata v24, v19
++     returndata v24, 64
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before dce) ===
@@ -92,18 +90,18 @@
       v4 = fmp
       v5 = ptrtoint memptr v4 to i256
       v6 = add v5, 32
-      mstore v5, 32
--     v10 = slice_len v0
--     v14 = add v6, 32
+      mstore v4, 32
+-     v9 = slice_len v0
+-     v13 = add v6, 32
       mstore v6, 0
       mstore v6, 0
--     v16 = slice_ptr v0
-      v24 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      v25 = ptrtoint memptr v24 to i256
--     v26 = make_memory_slice v25, 64
--     v2 = slice_ptr v26
--     v3 = slice_len v26
-      returndata v25, 64
+-     v15 = slice_ptr v0
+      v23 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v24 = ptrtoint memptr v23 to i256
+-     v25 = make_memory_slice v24, 64
+-     v2 = slice_ptr v25
+-     v3 = slice_len v25
+      returndata v24, 64
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before defer-alloc) ===
@@ -114,11 +112,11 @@
       v4 = fmp
       v5 = ptrtoint memptr v4 to i256
       v6 = add v5, 32
-      mstore v5, 32
+      mstore v4, 32
       mstore v6, 0
       mstore v6, 0
-      v24 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      v25 = ptrtoint memptr v24 to i256
-      returndata v25, 64
+      v23 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v24 = ptrtoint memptr v23 to i256
+      returndata v24, 64
   }
   
