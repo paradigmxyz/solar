@@ -1847,10 +1847,16 @@ impl LowerAbiCx {
                 Self::decode_source_scalar(builder, ty, base, current, options)
             }
             crate::mir::AbiParamType::FixedArray { element, len } => {
-                let head_size = ty.data_head_size();
                 if !head_checked || is_dynamic {
-                    let reason = Self::aggregate_short_reason(ty, to_calldata);
-                    Self::guard_input_range(builder, base, head_size, input_end, current, reason);
+                    if *len == 0 {
+                        Self::guard_array_start(builder, base, input_end, current);
+                    } else {
+                        let head_size = ty.data_head_size();
+                        let reason = Self::aggregate_short_reason(ty, to_calldata);
+                        Self::guard_input_range(
+                            builder, base, head_size, input_end, current, reason,
+                        );
+                    }
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm(*len);
@@ -2651,6 +2657,21 @@ impl LowerAbiCx {
         *current = builder.revert_if(invalid, reason);
     }
 
+    /// Checks that a word starts at `start`, the start of an empty array.
+    ///
+    /// solc's array decoder requires a word at the start of every array it decodes to memory.
+    /// For other arrays the element bounds checks cover that word, but an empty array has none.
+    fn guard_array_start(
+        builder: &mut FunctionBuilder<'_>,
+        start: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) {
+        // if 32 > input_end - start { revert }
+        let reason = RevertReason::InvalidCalldataArrayOffset;
+        Self::guard_input_range(builder, start, 32, input_end, current, reason);
+    }
+
     fn checked_add(
         builder: &mut FunctionBuilder<'_>,
         lhs: ValueId,
@@ -3149,6 +3170,9 @@ fn decode_memory_tuple(
     let mut head_offset = 0_u64;
     for ty in &layout.types {
         let head = builder.add_u64_offset(base, head_offset);
+        if is_static_empty_array(ty) {
+            LowerAbiCx::guard_array_start(builder, head, input_end, &mut current);
+        }
         let value = if static_layout {
             LowerAbiCx::decode_static_memory_argument(
                 builder,
@@ -3180,10 +3204,18 @@ fn decode_memory_tuple(
 }
 
 /// Returns whether a shared decoder of a memory slice takes only the slice's base, which holds for
-/// static layouts: they read the head alone, so the caller checks the length, which is usually the
-/// constant head size, and the check folds away.
+/// static layouts without empty arrays: they read the head alone, so the caller checks the length,
+/// which is usually the constant head size, and the check folds away.
 fn passes_slice_base(data_ty: MirType, layout: &AbiParamLayout) -> bool {
-    matches!(data_ty, MirType::Slice(_)) && !layout.types.iter().any(AbiParamType::is_dynamic)
+    matches!(data_ty, MirType::Slice(_))
+        && !layout.types.iter().any(|ty| ty.is_dynamic() || is_static_empty_array(ty))
+}
+
+/// Returns whether `ty` is a statically encoded empty array, such as `uint256[0]`. Its head is
+/// empty, but decoding it still checks the word at its start; see
+/// [`LowerAbiCx::guard_array_start`].
+fn is_static_empty_array(ty: &AbiParamType) -> bool {
+    matches!(ty, AbiParamType::FixedArray { len: 0, .. }) && !ty.is_dynamic()
 }
 
 /// Returns the base and length of an ABI decode's input, a bytes object or a memory slice.
