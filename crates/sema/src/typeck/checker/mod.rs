@@ -267,7 +267,6 @@ impl<'gcx> TypeChecker<'gcx> {
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let ty = self.check_expr(size);
-        // `eval_array_len` already reports sizes that fail to evaluate.
         if !ty.is_integer() && !ty.references_error() && self.gcx.try_eval_const(size).is_ok() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
