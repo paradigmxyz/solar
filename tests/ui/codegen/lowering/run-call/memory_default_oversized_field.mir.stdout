@@ -5,7 +5,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb4: v5]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
@@ -15,14 +15,14 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     v8 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v9 = inttoptr i256 v8 to memptr
     v10 = eq v8, 0
-    jumpi v10, bb4, bb5
-  bb4:
+    jumpi v10, bb5, bb6
+  bb5:
     v11 = icall @default_struct_0
     v12 = ptrtoint memptr v11 to i256
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v12
-    jump bb5
-  bb5:
-    v13 = phi [bb3: v9], [bb4: v11]
+    jump bb6
+  bb6:
+    v13 = phi [bb3: v9], [bb5: v11]
     v14 = memory_object_load_field memorystruct<1>, v13, 0, memptr
     v15 = lt 2, 0x1000000000000000
     v16 = eq v15, false
@@ -32,6 +32,8 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
   bb2:
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
+    invalid
+  bb4:
     memory_object_store_field memorystruct<1>, v3, 0, 0
     v4 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryfixedarray<1, 1>, v0, v1, v4
@@ -45,7 +47,7 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb4: v5]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
@@ -56,14 +58,14 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     v9 = memory_object_load_element memoryarray<1>, v0, 0
     v10 = inttoptr i256 v9 to memptr
     v11 = eq v9, 0
-    jumpi v11, bb4, bb5
-  bb4:
+    jumpi v11, bb5, bb6
+  bb5:
     v12 = icall @default_struct_0
     v13 = ptrtoint memptr v12 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v13
-    jump bb5
-  bb5:
-    v14 = phi [bb3: v10], [bb4: v12]
+    jump bb6
+  bb6:
+    v14 = phi [bb3: v10], [bb5: v12]
     v15 = memory_object_load_field memorystruct<1>, v14, 0, memptr
     v16 = lt 2, 0x1000000000000000
     v17 = eq v16, false
@@ -73,6 +75,8 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
   bb2:
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
+    invalid
+  bb4:
     memory_object_store_field memorystruct<1>, v3, 0, 0
     v4 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v4
@@ -84,6 +88,8 @@ fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     icall panic_if<0x41>, true
+    invalid
+  bb1:
     memory_object_store_field memorystruct<1>, v0, 0, 0
     ret v0
 }

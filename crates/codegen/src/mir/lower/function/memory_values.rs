@@ -490,9 +490,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !matches!(ty.peel_refs().kind, TyKind::Array(..)) {
             return None;
         }
-        // panic_if true, MemoryAllocationOverflow
-        let always = self.builder.imm_bool(true);
-        self.builder.panic_if(always, PanicCode::MemoryAllocationOverflow);
+        // panic(MemoryAllocationOverflow)
+        // unreachable:
+        //   object = 0
+        self.builder.panic(PanicCode::MemoryAllocationOverflow);
+        let unreachable = self.builder.create_block();
+        self.builder.switch_to_block(unreachable);
         Some(self.builder.imm(U256::ZERO))
     }
 }
