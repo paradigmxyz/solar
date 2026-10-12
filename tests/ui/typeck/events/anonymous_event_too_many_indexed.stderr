@@ -1,0 +1,8 @@
+error[8598]: more than 4 indexed arguments for anonymous event
+   ╭▸ ROOT/tests/ui/typeck/events/anonymous_event_too_many_indexed.sol:LL:CC
+   │
+LL │     event e(uint indexed a, bytes3 indexed b, bool indexed c, uint indexed d, uint indexed e) anonymous;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

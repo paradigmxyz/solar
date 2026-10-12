@@ -1,0 +1,8 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/abi_encode_call_non_const_args.sol:LL:CC
+   │
+LL │     bytes constant fCallA = abi.encodeCall(A.f, (getA()));
+   ╰╴                            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

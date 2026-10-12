@@ -26,6 +26,7 @@ use solar_interface::{
 };
 use std::ops::ControlFlow;
 
+mod pure;
 mod yul;
 
 #[derive(Clone, Copy)]
@@ -672,6 +673,19 @@ impl<'gcx> TypeChecker<'gcx> {
                                     .emit(),
                             );
                         }
+                        // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/StaticAnalyzer.cpp#L240-L251>
+                        if matches!(member.res, Some(hir::Res::Builtin(Builtin::MsgData)))
+                            && self
+                                .function
+                                .is_some_and(|f| self.gcx.hir.function(f).kind.is_receive())
+                        {
+                            self.dcx()
+                                .err("`msg.data` cannot be used inside of a `receive` function")
+                                .code(error_code!(7139))
+                                .span(expr.span)
+                                .note("`receive` is only called with empty calldata")
+                                .emit();
+                        }
                         self.register_resolved_member(expr, member);
                         member.ty
                     }
@@ -767,10 +781,6 @@ impl<'gcx> TypeChecker<'gcx> {
                         if ty.has_mapping(self.gcx) {
                             self.gcx.mk_ty_err(
                                 self.dcx().emit_err(hir_ty.span, "cannot instantiate mappings"),
-                            )
-                        } else if ty.contains_library(self.gcx) {
-                            self.gcx.mk_ty_err(
-                                self.dcx().emit_err(hir_ty.span, "invalid use of a library name"),
                             )
                         } else {
                             let ty = ty.with_loc(self.gcx, DataLocation::Memory);
@@ -1919,6 +1929,14 @@ impl<'gcx> TypeChecker<'gcx> {
             };
         }
 
+        if let hir::ExprKind::Tuple([Some(inner)]) = expr.kind {
+            let result = self.check_require_message_or_error(inner);
+            if let Some(&ty) = self.results.expr_types.get(&inner.id) {
+                self.register_ty(expr, ty);
+            }
+            return result;
+        }
+
         let Some((callee, args, opts)) = expr.as_call() else {
             let actual = self.check_expr_once(expr);
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
@@ -2912,6 +2930,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.expect_ty(init, ty)
                 };
+                if var.is_constant() && !ty.references_error() && !self.is_pure(init) {
+                    self.dcx()
+                        .err("initial value for constant variable has to be compile-time constant")
+                        .code(error_code!(8349))
+                        .span(init.span)
+                        .emit();
+                }
             }
         }
 
@@ -3984,7 +4009,6 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
-        | TyKind::Struct(_)
         | TyKind::Enum(_)
         | TyKind::Error(..)
         | TyKind::Event(..) => {
@@ -4016,6 +4040,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
+        | TyKind::Struct(_)
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)
