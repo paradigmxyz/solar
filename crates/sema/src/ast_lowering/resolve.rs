@@ -80,8 +80,7 @@ impl super::LoweringContext<'_> {
                                     // Re-span to the import statement.
                                     let mut decl = *decl;
                                     decl.span = import_item.span;
-                                    let _ = source_scope
-                                        .declare_checked(self.sess, &self.hir, name, decl);
+                                    let _ = source_scope.declare(self.sess, &self.hir, name, decl);
                                 }
                             }
                         } else {
@@ -103,8 +102,8 @@ impl super::LoweringContext<'_> {
                                 for mut decl in resolved.iter().copied() {
                                     // Re-span to the import name.
                                     decl.span = name.span;
-                                    let _ = source_scope
-                                        .declare_checked(self.sess, &self.hir, name.name, decl);
+                                    let _ =
+                                        source_scope.declare(self.sess, &self.hir, name.name, decl);
                                 }
                             } else {
                                 let msg = format!(
@@ -114,9 +113,12 @@ impl super::LoweringContext<'_> {
                                         .filename_for_diagnostics(&source.file.name)
                                 );
                                 let guar = self.sess.dcx.emit_err(import.span, msg);
-                                let decl = Declaration { res: Res::Err(guar), span: name.span };
-                                let _ = source_scope
-                                    .declare_checked(self.sess, &self.hir, name.name, decl);
+                                let _ = source_scope.declare_res(
+                                    self.sess,
+                                    &self.hir,
+                                    name,
+                                    Res::Err(guar),
+                                );
                             }
                         }
                     }
@@ -1705,7 +1707,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn declare_variable(&mut self, id: hir::VariableId) -> Result<(), ErrorGuaranteed> {
         let Some(name) = self.hir.variables[id].name else { return Ok(()) };
         let res = Res::Item(hir::ItemId::Variable(id));
-        self.lcx.declare_kind_in(self.scopes.current_scope(), name, res)
+        self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.
@@ -2070,7 +2072,7 @@ impl super::LoweringContext<'_> {
         name: Ident,
         decl: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        self.declare_in(scope, name.name, Declaration { res: decl, span: name.span })
+        scope.declare_res(self.sess, &self.hir, name, decl)
     }
 
     fn declare_in(
@@ -2079,7 +2081,7 @@ impl super::LoweringContext<'_> {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
-        scope.declare_checked(self.sess, &self.hir, name, decl)
+        scope.declare(self.sess, &self.hir, name, decl)
     }
 }
 
@@ -2505,6 +2507,8 @@ impl Declarations {
         self.declare(sess, hir, name.name, Declaration { res, span: name.span })
     }
 
+    /// Declares `name => decl`, reporting conflicts and reserved names like solc's
+    /// `registerDeclaration`.
     pub(crate) fn declare(
         &mut self,
         sess: &Session,
@@ -2512,6 +2516,7 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
+        check_reserved_name(sess, hir, name, decl);
         self.try_declare(hir, name, decl).map_err(|conflict| {
             // Like solc, report the declaration that comes later in the source.
             if conflict.span.lo() > decl.span.lo() {
@@ -2520,19 +2525,6 @@ impl Declarations {
                 report_conflict(hir, sess, name, decl, conflict)
             }
         })
-    }
-
-    /// Declares `name => decl` like [`declare`](Self::declare), and also reports a reserved
-    /// name like solc's `registerDeclaration`.
-    pub(crate) fn declare_checked(
-        &mut self,
-        sess: &Session,
-        hir: &hir::Hir<'_>,
-        name: Symbol,
-        decl: Declaration,
-    ) -> Result<(), ErrorGuaranteed> {
-        check_reserved_name(sess, hir, name, decl);
-        self.declare(sess, hir, name, decl)
     }
 
     pub(crate) fn try_declare(
@@ -2653,17 +2645,14 @@ pub(super) fn report_conflict(
 
 /// Reports a declaration named `_`, `super`, or `this`.
 ///
-/// Like solc, events and public or external contract functions may still use these names.
+/// Like solc, events and public or external functions may still use these names.
 fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: Declaration) {
     if !matches!(name, sym::underscore | sym::super_ | sym::this) {
         return;
     }
     let allowed = match decl.res {
         Res::Item(hir::ItemId::Event(_)) | Res::Err(_) => true,
-        Res::Item(hir::ItemId::Function(id)) => {
-            let f = hir.function(id);
-            f.is_part_of_external_interface() && !f.is_free()
-        }
+        Res::Item(hir::ItemId::Function(id)) => hir.function(id).is_part_of_external_interface(),
         _ => false,
     };
     if !allowed {
