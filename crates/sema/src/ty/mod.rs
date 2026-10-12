@@ -8,7 +8,9 @@ use crate::{
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
+use solar_ast::{
+    DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
+};
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -2160,6 +2162,22 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .code(error_code!(1834))
             .span(var.span)
             .emit();
+    }
+
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    if var.is_constant()
+        && !ty.is_value_type()
+        && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
+        && !ty.references_error()
+    {
+        let guar = gcx
+            .dcx()
+            .err("only constants of value type and byte array type are implemented")
+            .code(error_code!(9259))
+            .span(var.span)
+            .emit();
+        return gcx.mk_ty_err(guar);
     }
 
     ty.with_loc_if_ref(gcx, ty_loc)
