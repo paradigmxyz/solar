@@ -2564,25 +2564,26 @@ impl Declarations {
         }
 
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
-        if matches!(decl.res, Item(Function(_) | Event(_))) {
-            let mut getter = None;
-            if let Item(Function(id)) = decl.res {
-                getter = Some(id);
-                let f = hir.function(id);
-                if !f.kind.is_ordinary() {
+        match decl.res {
+            Item(Function(id)) => {
+                if !hir.function(id).is_ordinary() {
                     return Some(declarations[0]);
                 }
+                // A function goes only with functions and with the variable it is the getter of.
+                declarations
+                    .iter()
+                    .find(|decl2| match decl2.res {
+                        Item(Variable(v)) => hir.variable(v).getter != Some(id),
+                        Item(Function(f)) => !hir.function(f).is_ordinary(),
+                        _ => true,
+                    })
+                    .copied()
             }
-            let same_kind = |decl2: &Declaration| match decl2.res {
-                Item(Variable(v)) => hir.variable(v).getter == getter,
-                Item(Function(f)) => hir.function(f).kind.is_ordinary(),
-                ref k => k.matches(&decl.res),
-            };
-            declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
-        } else if declarations == [decl] {
-            None
-        } else {
-            Some(declarations[0])
+            Item(Event(_)) => {
+                declarations.iter().find(|decl2| !matches!(decl2.res, Item(Event(_)))).copied()
+            }
+            _ if declarations == [decl] => None,
+            _ => Some(declarations[0]),
         }
     }
 }

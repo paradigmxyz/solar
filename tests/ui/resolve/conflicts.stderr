@@ -46,5 +46,53 @@ note: previous declaration declared here
 LL │     error Er2(uint);
    ╰╴          ━━━
 
-error: aborting due to 4 previous errors
+error: identifier `dup` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event dup();
+   │           ━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     function dup() public {}
+   ╰╴             ━━━
+
+error: identifier `dup` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     function dup() public {}
+   │              ━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event dup();
+   ╰╴          ━━━
+
+error: identifier `x` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event x();
+   │           ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     uint x;
+   ╰╴         ━
+
+error: identifier `y` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event y();
+   │           ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     uint public y;
+   ╰╴                ━
+
+error: aborting due to 8 previous errors
 
