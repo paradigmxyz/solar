@@ -211,6 +211,18 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
