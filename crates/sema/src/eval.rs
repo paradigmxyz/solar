@@ -149,22 +149,23 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                let value = self
-                    .try_eval_value(v.initializer.expect("constant variable has no initializer"))?;
+                let initializer = v.initializer.expect("constant variable has no initializer");
+                // Fold `bytesN` constants only from string literals, which are already
+                // left-aligned. Integers do not model the width that `bytesN` conversions,
+                // shifts and bit operations depend on; solc folds neither.
+                if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_)))
+                    && !matches!(
+                        initializer.peel_parens().kind,
+                        hir::ExprKind::Lit(hir::Lit { kind: LitKind::Str(..), .. })
+                    )
+                {
+                    return Err(EE::FixedBytesConstant.into());
+                }
+                let value = self.try_eval_value(initializer)?;
                 // The constant's declared type carries over into the surrounding expression, so
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.
                 Ok(match value {
-                    // Like solc, do not fold `bytesN` values: their conversions, shifts and bit
-                    // operations depend on the width, which integers do not model.
-                    ConstValue::Integer(_)
-                        if matches!(
-                            v.ty.kind,
-                            hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))
-                        ) =>
-                    {
-                        return Err(EE::UnsupportedExpr.into());
-                    }
                     ConstValue::Integer(value) => {
                         ConstValue::Integer(value.typed(IntTy::from_hir_ty(&v.ty)))
                     }
@@ -709,6 +710,7 @@ pub enum EvalErrorKind {
     UnsupportedBinaryOp,
     UnsupportedExpr,
     NonConstantVar,
+    FixedBytesConstant,
     AlreadyEmitted(ErrorGuaranteed),
 }
 use EvalErrorKind as EE;
@@ -730,6 +732,7 @@ impl EvalErrorKind {
             Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",
             Self::NonConstantVar => "only constant variables are allowed",
+            Self::FixedBytesConstant => "`bytesN` constants are not integers",
             Self::AlreadyEmitted(_) => unreachable!(),
         }
     }

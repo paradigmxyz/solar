@@ -129,13 +129,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            TyKind::Elementary(_) => {
-                self.cx.gcx.try_eval_const_value(expr).is_ok()
-                    || self
-                        .cx
-                        .gcx
-                        .resolved_variable(expr.peel_parens())
-                        .is_some_and(|id| self.cx.gcx.hir.variable(id).is_constant())
+            // `bytesN` constants do not fold, but reading them cannot observe storage.
+            TyKind::Elementary(elem) => {
+                let gcx = self.cx.gcx;
+                gcx.try_eval_const_value(expr).is_ok()
+                    || matches!(elem, ElementaryType::FixedBytes(_))
+                        && gcx
+                            .resolved_variable(expr.peel_parens())
+                            .is_some_and(|id| gcx.hir.variable(id).is_constant())
             }
             _ => false,
         }
@@ -210,7 +211,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let constant = match self.cx.gcx.try_eval_const_value(expr) {
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
                     Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
+                        value.as_u256().map(|value| self.builder.imm(value))
                     }
                     _ => None,
                 };

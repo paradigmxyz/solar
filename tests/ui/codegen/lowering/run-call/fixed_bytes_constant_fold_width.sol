@@ -2,6 +2,7 @@
 //@ run-call: crossWidthLocal => 0x0700
 //@ run-call: crossWidthConstant => 0x0700
 //@ run-call: crossWidthStructField => 0x0700
+//@ run-call: crossWidthAssembly => 0x0700
 //@ run-call: shiftRoundTrip => 0x00
 //@ run-call: shiftRoundTripConstant => 0x00
 //@ run-call: bitNotShift => 0x0f
@@ -32,6 +33,12 @@ contract FixedBytesConstantFoldWidth {
     function crossWidthStructField() external returns (bytes2) {
         s = S(B2, 1);
         return s.a;
+    }
+
+    function crossWidthAssembly() external pure returns (bytes2 r) {
+        assembly {
+            r := B2
+        }
     }
 
     function shiftRoundTrip() external pure returns (bytes1) {

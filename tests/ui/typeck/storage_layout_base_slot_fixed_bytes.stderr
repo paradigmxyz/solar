@@ -1,0 +1,14 @@
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fixed_bytes.sol:LL:CC
+   │
+LL │ contract Constant layout at L {}
+   ╰╴                            ━
+
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fixed_bytes.sol:LL:CC
+   │
+LL │ contract Shifted layout at B >> 1 {}
+   ╰╴                           ━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -24,7 +24,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         match &lit.kind {
             LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
-            LitKind::Number(value) => Some(self.lower_const_integer(ty, *value)),
+            LitKind::Number(value) => {
+                let shift =
+                    operators::fixed_bytes_width(ty).map_or(0, |bytes| usize::from(32 - bytes) * 8);
+                // value << (32 - N) * 8
+                Some(self.builder.imm(*value << shift))
+            }
             _ => None,
         }
     }
@@ -307,9 +312,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                ConstValue::Integer(value) => {
-                    Some(self.lower_const_integer(ty, value.as_evm_word()))
-                }
+                ConstValue::Integer(value) => Some(self.builder.imm(value.as_evm_word())),
                 ConstValue::String(value) => {
                     let bytes = value.as_byte_str_in(self.cx.gcx.sess);
                     if matches!(
@@ -324,12 +327,5 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         self.lower_expr(initializer)
-    }
-
-    /// Lowers the constant integer `value` of type `ty`, left-aligning `bytesN` values.
-    pub(super) fn lower_const_integer(&mut self, ty: Ty<'gcx>, value: U256) -> ValueId {
-        let shift = operators::fixed_bytes_width(ty).map_or(0, |bytes| usize::from(32 - bytes) * 8);
-        // value << (32 - N) * 8
-        self.builder.imm(value << shift)
     }
 }

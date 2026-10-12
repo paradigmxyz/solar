@@ -26,6 +26,11 @@ fn @crossWidthStructField() -> i256 [selector=0x3ed4a0f0, abi_params=[], abi_ret
     ret v8
 }
 
+fn @crossWidthAssembly() -> i256 [selector=0xb9761af7, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
 fn @shiftRoundTrip() -> i256 [selector=0xabb727a8, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = shl 8, 0x700000000000000000000000000000000000000000000000000000000000000
