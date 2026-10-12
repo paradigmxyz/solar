@@ -129,7 +129,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            TyKind::Elementary(_) => self.cx.gcx.try_eval_const_value(expr).is_ok(),
+            TyKind::Elementary(_) => {
+                self.cx.gcx.try_eval_const_value(expr).is_ok()
+                    || self
+                        .cx
+                        .gcx
+                        .resolved_variable(expr.peel_parens())
+                        .is_some_and(|id| self.cx.gcx.hir.variable(id).is_constant())
+            }
             _ => false,
         }
     }

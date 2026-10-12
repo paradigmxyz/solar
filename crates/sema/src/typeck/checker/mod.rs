@@ -13,14 +13,14 @@ use solar_ast::{
 use solar_data_structures::{
     Never,
     bit_set::{DenseBitSet, GrowableBitSet},
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxIndexSet},
     pluralize,
     smallvec::SmallVec,
 };
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -231,8 +231,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         }
         // solc's constant evaluator does not support conditionals, while ours folds them.
-        let mut finder = ConditionalFinder { hir: &self.gcx.hir, constants: Default::default() };
-        if let ControlFlow::Break(conditional) = finder.visit_expr(slot) {
+        if let Some(conditional) = ConditionalFinder::find(&self.gcx.hir, slot) {
             self.dcx()
                 .err("base slot of storage layout cannot be evaluated at compile time")
                 .code(error_code!(1505))
@@ -874,7 +873,15 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
+                        if ty.is_unit() {
+                            empty_err(self, expr.span)
+                        } else if exprs.len() > 1
+                            && let Err(guar) = self.check_literal_fits(expr, ty, error_code!(3390))
+                        {
+                            self.gcx.mk_ty_err(guar)
+                        } else {
+                            ty
+                        }
                     } else if self.in_lvalue() {
                         self.gcx.types.unit
                     } else {
@@ -1117,6 +1124,25 @@ impl<'gcx> TypeChecker<'gcx> {
             result.bit_len(),
             compatible_fixed_bytes,
         )
+    }
+
+    /// Rejects an integer literal too large for any integer type where solc needs its mobile
+    /// type, reporting it with the given code.
+    fn check_literal_fits(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        ty: Ty<'gcx>,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if !is_literal_too_large(ty) {
+            return Ok(());
+        }
+        Err(self
+            .dcx()
+            .err("literal is too large for any integer type")
+            .code(code)
+            .span(expr.span)
+            .emit())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2019,6 +2045,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
+            if let Err(guar) = self.check_literal_fits(expr, ty, error_code!(8009)) {
+                result = Err(guar);
+                continue;
+            }
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
@@ -3685,6 +3715,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
+                let ty = self.check_expr(expr);
+                let _ = self.check_literal_fits(expr, ty, error_code!(3757));
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
@@ -4082,6 +4115,11 @@ fn binop_common_type<'gcx>(
     }
 }
 
+/// Returns `true` if `ty` is an integer literal too large for any integer type.
+fn is_literal_too_large(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if bits > TypeSize::MAX)
+}
+
 fn valid_shift<'gcx>(
     gcx: Gcx<'gcx>,
     ty: Ty<'gcx>,
@@ -4123,7 +4161,27 @@ fn valid_meta_type(ty: Ty<'_>) -> bool {
 /// it reads.
 struct ConditionalFinder<'gcx> {
     hir: &'gcx hir::Hir<'gcx>,
-    constants: FxHashSet<hir::VariableId>,
+    /// The constants read so far, whose initializers are scanned in this order.
+    constants: FxIndexSet<hir::VariableId>,
+}
+
+impl<'gcx> ConditionalFinder<'gcx> {
+    /// Returns the span of the first conditional found.
+    ///
+    /// Initializers are scanned from a worklist rather than recursively, so a long chain of
+    /// constants cannot exhaust the stack.
+    fn find(hir: &'gcx hir::Hir<'gcx>, mut expr: &'gcx hir::Expr<'gcx>) -> Option<Span> {
+        let mut finder = Self { hir, constants: Default::default() };
+        let mut next = 0;
+        loop {
+            if let ControlFlow::Break(span) = finder.visit_expr(expr) {
+                return Some(span);
+            }
+            let &id = finder.constants.get_index(next)?;
+            expr = hir.variable(id).initializer?;
+            next += 1;
+        }
+    }
 }
 
 impl<'gcx> Visit<'gcx> for ConditionalFinder<'gcx> {
@@ -4140,10 +4198,9 @@ impl<'gcx> Visit<'gcx> for ConditionalFinder<'gcx> {
                 if let Some(id) = res.iter().find_map(hir::Res::as_variable)
                     && let var = self.hir.variable(id)
                     && var.is_constant()
-                    && let Some(init) = var.initializer
-                    && self.constants.insert(id)
+                    && var.initializer.is_some()
                 {
-                    self.visit_expr(init)?;
+                    self.constants.insert(id);
                 }
             }
             _ => {}

@@ -155,6 +155,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.
                 Ok(match value {
+                    // Like solc, do not fold `bytesN` values: their conversions, shifts and bit
+                    // operations depend on the width, which integers do not model.
+                    ConstValue::Integer(_)
+                        if matches!(
+                            v.ty.kind,
+                            hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))
+                        ) =>
+                    {
+                        return Err(EE::UnsupportedExpr.into());
+                    }
                     ConstValue::Integer(value) => {
                         ConstValue::Integer(value.typed(IntTy::from_hir_ty(&v.ty)))
                     }
@@ -620,6 +630,11 @@ impl IntScalar {
                 if r.data.is_zero() {
                     return Err(EE::DivisionByZero);
                 }
+                // solc divides literals exactly, so truncating a fractional quotient here would
+                // give a different value.
+                if self.ty.is_none() && r.ty.is_none() && !(&self.data % &r.data).is_zero() {
+                    return Err(EE::FractionalValue);
+                }
                 Self::checked(self.data / r.data)?
             }
             Rem => {
@@ -695,6 +710,7 @@ pub enum EvalErrorKind {
     LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
+    FractionalValue,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
@@ -716,6 +732,7 @@ impl EvalErrorKind {
             Self::LiteralTooLarge => "literal is too large for the type of the other operand",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
+            Self::FractionalValue => "fractional values are not supported",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",

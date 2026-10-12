@@ -1,0 +1,18 @@
+error: cannot apply builtin operator `/` to `int_literal[301]` and `int_literal[2]`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fractional.sol:LL:CC
+   │
+LL │ contract WideFraction layout at 2**300 / 3 * 3 / 2**299 { uint x; }
+   │                                 ┬───── ━ ─ int_literal[2]
+   │                                 │
+   ╰╴                                int_literal[301]
+
+error: failed to evaluate constant: fractional values are not supported
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fractional.sol:LL:CC
+   │
+LL │ contract Fraction layout at 7 / 3 * 3 { uint x; }
+   │                             ┬────━━━━
+   │                             │
+   ╰╴                            evaluation of constant value failed here
+
+error: aborting due to 2 previous errors
+

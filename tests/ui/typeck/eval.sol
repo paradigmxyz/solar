@@ -16,8 +16,8 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-    int constant signedTwo = 7 / 3;
-    int constant signedNegTwo = (-7) / 3;
+    int constant signedTwo = 6 / 3;
+    int constant signedNegTwo = (-6) / 3;
 
     int8 constant maxInt8 = 127;
     int8 constant minInt8 = -128;
