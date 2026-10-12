@@ -1,0 +1,38 @@
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
+   │
+LL │     constructor(S[134217727] memory s) {
+   ╰╴                ━━━━━━━━━━━━
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
+   │
+LL │     function pubMem(S[134217727] memory s) public pure {
+   ╰╴                    ━━━━━━━━━━━━
+
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
+   │
+LL │     function pubNested(uint256[2][67108864] memory s) public pure {
+   ╰╴                       ━━━━━━━━━━━━━━━━━━━━
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
+   │
+LL │     event E(S[134217727] s);
+   ╰╴            ━━━━━━━━━━━━
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
+   │
+LL │     error Err(S[134217727] s);
+   ╰╴              ━━━━━━━━━━━━
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
+   │
+LL │     function pubLib(S[134217727] memory s) public pure {
+   ╰╴                    ━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

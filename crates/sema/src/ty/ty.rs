@@ -604,8 +604,10 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
         let this = self.peel_refs();
         match this.kind {
+            // A struct on any cycle stops here, so the recursion ends on infinite structs too.
             TyKind::Struct(id) => {
-                this.is_recursive(gcx)
+                gcx.struct_recursiveness(id).is_recursive()
+                    || this.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),

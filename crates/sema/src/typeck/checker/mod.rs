@@ -3,8 +3,8 @@ use crate::{
     eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
-        CallableParamSource, Gcx, Recursiveness, ResolvedCallee, Ty, TyConvertError, TyFn,
-        TyFnKind, TyKind, TypeckResults,
+        CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
+        TypeckResults,
     },
 };
 use alloy_primitives::U256;
@@ -2901,7 +2901,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
-        let _ = self.check_ty_size(ty, var.ty.span, error_code!(1534));
+        let _ = self.check_var_ty_size(var, ty);
 
         if var.data_location == Some(DataLocation::Transient)
             && self.gcx.sess.opts.evm_version < EvmVersion::Cancun
@@ -2986,19 +2986,63 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
-    /// Checks that a memory or calldata type's static arrays stay below the 32-bit size limit.
-    fn check_ty_size(&self, ty: Ty<'gcx>, span: Span, code: DiagId) -> Result<(), ErrorGuaranteed> {
-        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
-            && !self.ty_fits_location(ty, loc)
+    /// Checks a variable's type against the size limit of its location and, for a parameter that
+    /// crosses the ABI, of calldata, as solc's variable declaration check.
+    fn check_var_ty_size(
+        &self,
+        var: &hir::Variable<'_>,
+        ty: Ty<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.check_ty_size(ty, var.ty.span, error_code!(1534))?;
+        if self.is_public_callable_param(var) && ty.interface_type_error(false, self.gcx).is_none()
         {
-            return Err(self
-                .dcx()
-                .err(format!("type too large for {loc}"))
-                .code(code)
-                .span(span)
-                .emit());
+            self.check_ty_size_at(ty, DataLocation::Calldata, var.ty.span, error_code!(1534))?;
         }
         Ok(())
+    }
+
+    /// Returns whether `var` is a parameter of a public function, event or error, or of a
+    /// constructor of a non-abstract contract, as solc's `isPublicCallableParameter` and
+    /// `isConstructorParameter`. External functions are not included.
+    fn is_public_callable_param(&self, var: &hir::Variable<'_>) -> bool {
+        match var.kind {
+            hir::VarKind::Event | hir::VarKind::Error => true,
+            hir::VarKind::FunctionParam => {
+                var.parent.and_then(|parent| parent.as_function()).is_some_and(|f| {
+                    let f = self.gcx.hir.function(f);
+                    if f.is_constructor() {
+                        !f.contract.is_some_and(|c| self.gcx.hir.contract(c).is_abstract())
+                    } else {
+                        f.visibility == hir::Visibility::Public
+                    }
+                })
+            }
+            _ => false,
+        }
+    }
+
+    /// Checks that a memory or calldata type's static arrays stay below the 32-bit size limit.
+    fn check_ty_size(&self, ty: Ty<'gcx>, span: Span, code: DiagId) -> Result<(), ErrorGuaranteed> {
+        match ty.loc() {
+            Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) => {
+                self.check_ty_size_at(ty, loc, span, code)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Checks that `ty`'s static arrays stay below the 32-bit size limit of `loc`.
+    fn check_ty_size_at(
+        &self,
+        ty: Ty<'gcx>,
+        loc: DataLocation,
+        span: Span,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty()) {
+            return Ok(());
+        }
+        Err(self.dcx().err(format!("type too large for {loc}")).code(code).span(span).emit())
     }
 
     /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
@@ -3006,10 +3050,15 @@ impl<'gcx> TypeChecker<'gcx> {
     ///
     /// An array's size counts its nested static arrays, but a struct is never sized as a whole:
     /// its reference members are checked one by one.
-    fn ty_fits_location(&self, ty: Ty<'gcx>, loc: DataLocation) -> bool {
+    fn ty_fits_location(
+        &self,
+        ty: Ty<'gcx>,
+        loc: DataLocation,
+        visited: &mut GrowableBitSet<hir::StructId>,
+    ) -> bool {
         match ty.peel_refs().kind {
             TyKind::Array(elem, len) => {
-                if elem.peel_refs().is_array() && !self.ty_fits_location(elem, loc) {
+                if elem.peel_refs().is_array() && !self.ty_fits_location(elem, loc, visited) {
                     return false;
                 }
                 let size = if loc == DataLocation::Memory {
@@ -3026,15 +3075,17 @@ impl<'gcx> TypeChecker<'gcx> {
                 size < u32::MAX
             }
             TyKind::DynArray(elem) => {
-                !elem.peel_refs().is_array() || self.ty_fits_location(elem, loc)
+                !elem.peel_refs().is_array() || self.ty_fits_location(elem, loc, visited)
             }
+            // A failed member fails the whole type, so a struct seen before has passed or is
+            // still being checked; skipping it also cuts direct cycles.
             TyKind::Struct(id) => {
-                matches!(self.gcx.struct_recursiveness(id), Recursiveness::Infinite(_))
+                !visited.insert(id)
                     || self
                         .gcx
                         .struct_field_types(id)
                         .iter()
-                        .all(|&field| self.ty_fits_location(field, loc))
+                        .all(|&field| self.ty_fits_location(field, loc, visited))
             }
             _ => true,
         }
