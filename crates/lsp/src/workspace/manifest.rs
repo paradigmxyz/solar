@@ -33,7 +33,7 @@ impl ProjectManifest {
         metrics: &mut WorkspaceIndexMetrics,
         foundry_config: &mut FoundryConfigContext<'_>,
     ) -> io::Result<Option<ManifestDiscoveryResult>> {
-        // Keep naked roots shallow, but recurse once a Foundry project boundary is known.
+        // Recurse through admitted directories, updating indexing boundaries at each project.
         let manifest = find_in_parent_dirs(path, "foundry.toml");
         let (workspace_root, (source_roots, import_only_roots)) = match &manifest {
             Some(manifest) => (
@@ -66,7 +66,6 @@ impl ProjectManifest {
                 .find_in_child_dirs(
                     entries,
                     ManifestTraversal {
-                        within_project,
                         workspace_root: &workspace_root,
                         traversal_root: path,
                         watch_root: path,
@@ -205,7 +204,6 @@ struct ManifestDiscovery<'a, 'config> {
 
 #[derive(Clone, Copy)]
 struct ManifestTraversal<'a> {
-    within_project: bool,
     workspace_root: &'a Path,
     traversal_root: &'a Path,
     watch_root: &'a Path,
@@ -228,7 +226,6 @@ impl ManifestDiscovery<'_, '_> {
         traversal: ManifestTraversal<'_>,
     ) -> ManifestTreeState {
         let ManifestTraversal {
-            within_project,
             workspace_root,
             traversal_root,
             watch_root,
@@ -236,15 +233,25 @@ impl ManifestDiscovery<'_, '_> {
             import_only_roots,
             corridor_only,
         } = traversal;
+        let watch_root_start = self.watch_roots.len();
         let mut partitioned = false;
-        for entry in entities.filter_map(Result::ok) {
+        for entry in entities {
             if self.cancellation.is_cancelled() {
                 return ManifestTreeState::Cancelled;
             }
+            let Ok(entry) = entry else {
+                partitioned = true;
+                continue;
+            };
             self.metrics.visited += 1;
-            let Ok(file_type) = entry.file_type() else { continue };
+            let Ok(file_type) = entry.file_type() else {
+                partitioned = true;
+                continue;
+            };
             let path = entry.path();
             if !file_type.is_dir() {
+                // Do not recursively watch paths we did not inspect, including symlinks.
+                partitioned |= !file_type.is_file();
                 continue;
             }
             let source_root = source_roots
@@ -282,13 +289,9 @@ impl ManifestDiscovery<'_, '_> {
             if is_project {
                 self.manifests.push(manifest.clone());
             }
-            let mut child_state = ManifestTreeState::Clean;
-            if (within_project || is_project)
-                && let Ok(children) = read_dir(&path)
-            {
+            let child_state = if let Ok(children) = read_dir(&path) {
                 let nested_index_roots;
                 let nested = ManifestTraversal {
-                    within_project: true,
                     watch_root: &path,
                     corridor_only: source_corridor,
                     ..traversal
@@ -306,14 +309,11 @@ impl ManifestDiscovery<'_, '_> {
                 } else {
                     nested
                 };
-                child_state = self.find_in_child_dirs(children, nested);
-            } else if within_project || is_project {
+                self.find_in_child_dirs(children, nested)
+            } else {
                 self.watch_roots.push(SourceWatchRoot::shallow(path.as_path()));
-                child_state = ManifestTreeState::Partitioned;
-            } else if !source_corridor {
-                // Naked roots intentionally stop at the first directory layer.
-                child_state = ManifestTreeState::Partitioned;
-            }
+                ManifestTreeState::Partitioned
+            };
             match child_state {
                 ManifestTreeState::Clean => {}
                 ManifestTreeState::Partitioned => partitioned = true,
@@ -326,6 +326,8 @@ impl ManifestDiscovery<'_, '_> {
         let root = if partitioned {
             SourceWatchRoot::shallow(watch_root)
         } else {
+            // A clean subtree needs only its outermost recursive watch.
+            self.watch_roots.truncate(watch_root_start);
             SourceWatchRoot::recursive(watch_root)
         };
         self.watch_roots.push(root);
@@ -371,6 +373,9 @@ mod tests {
         FoundryWorkspaceConfig, test_support::TestProject, workspace::index_policy::IndexingOptions,
     };
 
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+
     fn discover(
         project: &TestProject,
         root: &str,
@@ -405,15 +410,25 @@ mod tests {
             //- /nested/foundry.toml
             "#;
         for (fixture, root, expected) in [
-            // Naked roots stay shallow.
+            // Naked roots recurse through admitted directories and skip heavy directories.
             (
                 r#"
                 //- /child/foundry.toml
 
-                //- /container/deep/foundry.toml
+                //- /packages/contracts/foundry.toml
+
+                //- /apps/web/contracts/foundry.toml
+
+                //- /node_modules/dependency/foundry.toml
+
+                //- /.hidden/project/foundry.toml
                 "#,
                 "/",
-                &["/child/foundry.toml"][..],
+                &[
+                    "/apps/web/contracts/foundry.toml",
+                    "/child/foundry.toml",
+                    "/packages/contracts/foundry.toml",
+                ][..],
             ),
             // Root projects recurse but skip heavy directories.
             (
@@ -610,6 +625,126 @@ mod tests {
                 &mut FoundryConfigContext::new(None, &configs),
             ),
             (vec![project.path("/workspace/host-src")], vec![project.path("/workspace/host-lib")],)
+        );
+    }
+
+    #[test]
+    fn naked_discovery_compacts_watches_at_arbitrary_depths() {
+        for depth in [1, 2, 3, 16, 64] {
+            let project = TestProject::new();
+            let nested = format!("/{}foundry.toml", "d/".repeat(depth));
+            project.write_file(&nested, "");
+            let paths = [project.root().to_path_buf()];
+            let mut metrics = WorkspaceIndexMetrics::default();
+            let (found, watches, markers) = ProjectManifest::discover_all_with_watch_roots(
+                &paths,
+                &paths,
+                &WorkspaceIndexPolicy::default(),
+                &IndexingCancellation::default(),
+                &mut metrics,
+                &mut FoundryConfigContext::new(None, &[]),
+            )
+            .unwrap();
+
+            assert_eq!(found, manifests(&project, &[&nested]), "depth {depth}");
+            assert_eq!(watches, [SourceWatchRoot::recursive(project.root())], "depth {depth}");
+            assert!(markers.is_empty());
+            assert_eq!(metrics.visited, depth + 1);
+            assert_eq!(metrics.pruned, 0);
+        }
+    }
+
+    #[test]
+    fn naked_discovery_prunes_large_excluded_trees() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /packages/domain/app/foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            libs = ["vendor"]
+
+            //- /packages/domain/repository/.git
+            gitdir: elsewhere
+
+            //- /packages/domain/clean/one/two/.keep
+            "#,
+        );
+        let paths = [project.root().to_path_buf()];
+        let policy = WorkspaceIndexPolicy::new(IndexingOptions {
+            exclude: vec!["packages/domain/generated/**".into()],
+            ..Default::default()
+        });
+        for count in [1, 128] {
+            for root in [
+                "/node_modules",
+                "/packages/domain/.hidden",
+                "/packages/domain/generated",
+                "/packages/domain/repository",
+                "/packages/domain/app/vendor",
+            ] {
+                for index in 0..count {
+                    project.write_file(&format!("{root}/{index}/deep/foundry.toml"), "");
+                }
+            }
+            let mut metrics = WorkspaceIndexMetrics::default();
+            let (found, watches, markers) = ProjectManifest::discover_all_with_watch_roots(
+                &paths,
+                &paths,
+                &policy,
+                &IndexingCancellation::default(),
+                &mut metrics,
+                &mut FoundryConfigContext::new(None, &[]),
+            )
+            .unwrap();
+
+            assert_eq!(found, manifests(&project, &["/packages/domain/app/foundry.toml"]));
+            assert_eq!(
+                watches,
+                [
+                    SourceWatchRoot::shallow(project.root()),
+                    SourceWatchRoot::shallow(&project.path("/packages")),
+                    SourceWatchRoot::shallow(&project.path("/packages/domain")),
+                    SourceWatchRoot::shallow(&project.path("/packages/domain/app")),
+                    SourceWatchRoot::recursive(&project.path("/packages/domain/clean")),
+                ]
+            );
+            assert_eq!(markers, [project.path("/packages/domain/repository")]);
+            assert_eq!(metrics.visited, 13);
+            assert_eq!(metrics.pruned, 5);
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn naked_discovery_does_not_follow_or_recursively_watch_symlinks() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /nested/deep/app/foundry.toml
+            "#,
+        );
+        let external = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            "#,
+        );
+        symlink(external.root(), project.path("/nested/deep/external")).unwrap();
+        symlink(project.root(), project.path("/nested/deep/app/cycle")).unwrap();
+        let paths = [project.root().to_path_buf()];
+        let (found, watches, _) = ProjectManifest::discover_all_with_watch_roots(
+            &paths,
+            &paths,
+            &WorkspaceIndexPolicy::default(),
+            &IndexingCancellation::default(),
+            &mut WorkspaceIndexMetrics::default(),
+            &mut FoundryConfigContext::new(None, &[]),
+        )
+        .unwrap();
+
+        assert_eq!(found, manifests(&project, &["/nested/deep/app/foundry.toml"]));
+        assert_eq!(
+            watches,
+            ["/", "/nested", "/nested/deep", "/nested/deep/app"]
+                .map(|path| SourceWatchRoot::shallow(&project.path(path)))
         );
     }
 }
