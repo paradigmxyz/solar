@@ -241,7 +241,20 @@ Coverage: `tests/ui/typeck/module_conditional.sol`.
 
 ## Contract-Level Checks
 
-No intentional divergences documented yet.
+### CONTRACT-001: Conditionals in storage layout base slots
+
+Status: intentional.
+
+Difference: `solar` accepts conditionals in the base slot of a storage layout
+specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
+`solc` rejects them with error 1505 because its constant evaluator does not
+support conditionals.
+
+Rationale: our constant evaluator folds conditionals, so the base slot has a
+well-defined value.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
+`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
