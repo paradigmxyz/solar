@@ -1,0 +1,32 @@
+error[6118]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (T));
+   ╰╴                          ━
+
+error[6118]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         abi.decode(data, (U));
+   ╰╴                          ━
+
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         U memory u;
+   ╰╴        ━
+
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │         Many[33554432] memory n;
+   ╰╴        ━━━━━━━━━━━━━━
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/struct_member_sizes.sol:LL:CC
+   │
+LL │     function cdTooLarge(Many[33554432] calldata m) external pure {
+   ╰╴                        ━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

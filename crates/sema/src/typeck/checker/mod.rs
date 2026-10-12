@@ -3,8 +3,8 @@ use crate::{
     eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
-        CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
-        TypeckResults,
+        CallableParamSource, Gcx, Recursiveness, ResolvedCallee, Ty, TyConvertError, TyFn,
+        TyFnKind, TyKind, TypeckResults,
     },
 };
 use alloy_primitives::U256;
@@ -2969,11 +2969,10 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
-    /// Checks that a memory or calldata type's static size stays below the 32-bit limit.
+    /// Checks that a memory or calldata type's static arrays stay below the 32-bit size limit.
     fn check_ty_size(&self, ty: Ty<'gcx>, span: Span, code: DiagId) -> Result<(), ErrorGuaranteed> {
         if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
-            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
-            && size >= u32::MAX
+            && !self.ty_fits_location(ty, loc)
         {
             return Err(self
                 .dcx()
@@ -2985,33 +2984,67 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(())
     }
 
-    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
-        match ty.kind {
+    /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
+    /// solc's `validForLocation`.
+    ///
+    /// An array's size counts its nested static arrays, but a struct is never sized as a whole:
+    /// its reference members are checked one by one.
+    fn ty_fits_location(&self, ty: Ty<'gcx>, loc: DataLocation) -> bool {
+        match ty.peel_refs().kind {
             TyKind::Array(elem, len) => {
-                let elem_size = if elem.is_dynamically_sized() {
-                    U256::from(32)
+                if elem.peel_refs().is_array() && !self.ty_fits_location(elem, loc) {
+                    return false;
+                }
+                let size = if loc == DataLocation::Memory {
+                    let mut size = len;
+                    let mut elem = elem.peel_refs();
+                    while let TyKind::Array(inner, len) = elem.kind {
+                        size = size.saturating_mul(len);
+                        elem = inner.peel_refs();
+                    }
+                    size.saturating_mul(self.ty_memory_data_size(elem))
                 } else {
-                    self.ty_memory_static_size(elem)?
+                    len.saturating_mul(self.ty_calldata_head_size(elem))
                 };
-                Some(len.saturating_mul(elem_size))
+                size < u32::MAX
+            }
+            TyKind::DynArray(elem) => {
+                !elem.peel_refs().is_array() || self.ty_fits_location(elem, loc)
             }
             TyKind::Struct(id) => {
-                if self.gcx.struct_recursiveness(id).is_recursive() {
-                    return None;
-                }
-                let mut size = U256::ZERO;
-                for &field_ty in self.gcx.struct_field_types(id) {
-                    let field_size = if field_ty.is_dynamically_sized() {
-                        U256::from(32)
-                    } else {
-                        self.ty_memory_static_size(field_ty)?
-                    };
-                    size = size.saturating_add(field_size);
-                }
-                Some(size)
+                matches!(self.gcx.struct_recursiveness(id), Recursiveness::Infinite(_))
+                    || self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .all(|&field| self.ty_fits_location(field, loc))
             }
-            TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
-            _ => Some(U256::from(32)),
+            _ => true,
+        }
+    }
+
+    /// Returns the size of a memory array element that is not itself a static array, as solc's
+    /// `memoryDataSize`: a struct holds one word per member.
+    fn ty_memory_data_size(&self, ty: Ty<'gcx>) -> U256 {
+        match ty.kind {
+            TyKind::Struct(id) => U256::from(32 * self.gcx.struct_field_types(id).len()),
+            _ => U256::from(32),
+        }
+    }
+
+    /// Returns the size of `ty` in the head of a calldata encoding, as solc's `calldataHeadSize`.
+    fn ty_calldata_head_size(&self, ty: Ty<'gcx>) -> U256 {
+        if ty.is_dynamically_encoded(self.gcx) {
+            return U256::from(32);
+        }
+        match ty.peel_refs().kind {
+            TyKind::Array(elem, len) => len.saturating_mul(self.ty_calldata_head_size(elem)),
+            TyKind::Struct(id) => {
+                self.gcx.struct_field_types(id).iter().fold(U256::ZERO, |size, &field| {
+                    size.saturating_add(self.ty_calldata_head_size(field))
+                })
+            }
+            _ => U256::from(32),
         }
     }
 
