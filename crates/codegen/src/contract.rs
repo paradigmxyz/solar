@@ -313,7 +313,7 @@ impl ContractGraph {
         // Final assembly links embedded bytecode by source-qualified name.
         let mut names = FxHashMap::default();
         for dependency in dependencies.iter() {
-            let name = QualifiedName::of_contract(gcx, dependency);
+            let name = crate::link::qualified_name(gcx, dependency);
             if let Some(other) = names.insert(name, dependency) {
                 return Err(gcx
                     .dcx()
@@ -542,7 +542,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                         libraries,
                     },
                 };
-                (QualifiedName::of_contract(gcx, dependency), bytecodes)
+                (crate::link::qualified_name(gcx, dependency), bytecodes)
             })
             .collect::<EmbeddedBytecodes>();
         assert_eq!(

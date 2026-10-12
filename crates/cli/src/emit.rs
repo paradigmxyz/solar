@@ -221,7 +221,7 @@ fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> 
     }
     let name = format!("{}:{}", file.replace('\\', "/"), module.name());
     let bytecode = if emit_bin || emit_bin_runtime {
-        Some(module.into_deployable_bytecode(gcx)?)
+        Some(ir::into_deployable_bytecode(gcx, module)?)
     } else {
         None
     };
@@ -248,7 +248,7 @@ fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> 
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let name = module.name();
-    let bytecode = module.into_bytecode(gcx)?;
+    let bytecode = ir::into_bytecode(gcx, module)?;
     let mut writer = console_writer(gcx.sess.opts.color);
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")

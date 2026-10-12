@@ -1,7 +1,7 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::{CodeKind, ContractCode, QualifiedName};
+use crate::link::{CodeKind, ContractCode};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -288,7 +288,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
-        let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
+        let code = ContractCode { contract: crate::link::qualified_name(gcx, contract_id), kind };
         Some(self.cx.module.intern_contract_code(code, data_name))
     }
 

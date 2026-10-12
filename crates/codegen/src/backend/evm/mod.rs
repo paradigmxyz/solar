@@ -31,7 +31,7 @@ pub mod ir;
 
 mod layout;
 
-pub mod op;
+pub use solar_evmir::op;
 
 /// Returns the encoded size and runtime gas of one program-data copy site.
 pub(crate) fn data_copy_cost(evm_version: EvmVersion, size: usize) -> (usize, usize) {
@@ -52,4 +52,17 @@ pub(crate) fn data_copy_is_profitable(
 ) -> bool {
     Target::with(EvmVersion::default(), optimization, Target::DEFAULT_EXPECTED_EXECUTIONS)
         .improves(runtime_gas_saving, byte_saving)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evm_isle_prelude_matches_table() {
+        snapbox::assert_data_eq!(
+            op::isle_prelude(),
+            snapbox::file!["../../../isle/evm-ir/prelude.isle"]
+        );
+    }
 }

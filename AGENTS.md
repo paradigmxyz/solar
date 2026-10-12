@@ -46,6 +46,9 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   `backend/evm/codegen/` (instruction selection, stack scheduling),
   `backend/evm/ir/passes/` (EVM IR passes), `backend/assembler/`, `target.rs`
   (cost model).
+- `crates/evmir`: the EVM IR data model, text format, and verifier (`ir/`),
+  the opcode table and word semantics (`op.rs`, `op/word.rs`), the gas
+  schedule (`gas.rs`), and program data shared with MIR (`link.rs`).
 - `crates/interface`: sources, spans, diagnostics, symbols.
   `crates/data-structures`: index types, bitsets, arena helpers.
   `crates/config`: options and `-Z` flags (`opts.rs`; bless
@@ -97,7 +100,7 @@ and type/module rules to the phase verifier, and test them under
 ### Operation Schema and ISLE Rules
 
 Declare MIR operations only in `crates/codegen/src/mir/op_schema.rs` and EVM
-opcodes only in `backend/evm/op.rs`; never add a parallel `match` that
+opcodes only in `crates/evmir/src/op.rs`; never add a parallel `match` that
 classifies operations elsewhere. Write rewrite rules in ISLE under
 `crates/codegen/isle/`, and never hand-edit the generated `prelude.isle` or
 `extractors.isle`; regenerate them with

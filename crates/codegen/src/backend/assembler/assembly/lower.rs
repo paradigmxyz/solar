@@ -68,7 +68,7 @@ impl Assembler<'_> {
         if !succeeded() {
             return false;
         }
-        ir::verify::Verifier::new(self.gcx).verify_after_legalization(program);
+        ir::verifier(self.gcx).verify_after_legalization(program);
         succeeded()
     }
 
@@ -178,7 +178,7 @@ pub(in crate::backend) fn lower_evm_ir(
         assembler.gcx.sess.opts.evm_version,
         assembler.gcx.sess.opts.optimization.is_size(),
     );
-    let data_layout_is_observable = module.data_layout_is_observable();
+    let data_layout_is_observable = ir::data_layout_is_observable(module);
     for _ in 0..=32 {
         let program = lower_evm_ir_once(
             assembler,

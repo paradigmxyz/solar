@@ -50,7 +50,10 @@
 //! The interpreter relies on no verification: it checks the stack as it runs, so a module the
 //! parser accepts never makes it panic.
 
-use super::{BlockId, Instruction, Module, Terminator, TerminatorKind, display};
+use super::{
+    BlockId, Instruction, Module, Terminator, TerminatorKind, display_instruction_operation,
+    display_terminator_operation,
+};
 use crate::{
     backend::evm::{
         codegen::MAX_STACK_DEPTH,
@@ -804,10 +807,10 @@ impl<'m> Run<'_, 'm, '_> {
         let mut line = format!("bb{}: ", module.blocks[block].label);
         let _ = match site {
             Site::Instruction(inst) => {
-                write!(line, "{}", display::display_instruction_operation(module, inst))
+                write!(line, "{}", display_instruction_operation(module, inst))
             }
             Site::Terminator(terminator) => {
-                write!(line, "{}", display::display_terminator_operation(module, terminator))
+                write!(line, "{}", display_terminator_operation(module, terminator))
             }
         };
         if !operands.is_empty() {

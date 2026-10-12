@@ -4578,6 +4578,7 @@ dependencies = [
  "solar-ast",
  "solar-config",
  "solar-data-structures",
+ "solar-evmir",
  "solar-interface",
  "solar-parse",
  "solar-sema",
@@ -4597,6 +4598,7 @@ dependencies = [
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
+ "solar-evmir",
  "solar-interface",
  "solar-lint",
  "solar-macros",
@@ -4631,6 +4633,20 @@ dependencies = [
  "rayon",
  "rustc-hash",
  "smallvec",
+]
+
+[[package]]
+name = "solar-evmir"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-config",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-parse",
 ]
 
 [[package]]

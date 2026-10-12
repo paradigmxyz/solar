@@ -1,7 +1,10 @@
 //! EVM IR text formatting.
 
 use super::*;
-use crate::backend::evm::op;
+use crate::{
+    link::{display_data_ref, display_data_size, display_declarations},
+    op,
+};
 use solar_data_structures::fmt::FmtIteratorExt;
 
 impl Module {
@@ -9,7 +12,7 @@ impl Module {
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
-            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
+            write!(f, "{}", display_declarations(&self.libraries, &self.data))?;
             write!(
                 f,
                 "{}",
@@ -63,8 +66,8 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
     })
 }
 
-/// Displays an instruction without its metadata.
-pub(super) fn display_instruction_operation<'a>(
+/// Displays an instruction of `module` as EVM IR text prints it, without its metadata.
+pub fn display_instruction_operation<'a>(
     module: &'a Module,
     inst: &'a Instruction,
 ) -> impl fmt::Display + 'a {
@@ -93,8 +96,8 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
     })
 }
 
-/// Displays a terminator without its metadata.
-pub(super) fn display_terminator_operation<'a>(
+/// Displays a terminator of `module` as EVM IR text prints it, without its metadata.
+pub fn display_terminator_operation<'a>(
     module: &'a Module,
     term: &'a Terminator,
 ) -> impl fmt::Display + 'a {
@@ -202,11 +205,11 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
         PushValue::Data(data) => write!(
             f,
             "{}",
-            crate::utils::display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
+            display_data_ref(module.data[data.id].name, data.id.index(), data.offset)
         ),
         PushValue::DataSize(size) => {
             let name = module.data[size.data].name;
-            write!(f, "{}", crate::utils::display_data_size(name, *size))
+            write!(f, "{}", display_data_size(name, *size))
         }
     })
 }

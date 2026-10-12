@@ -38,6 +38,7 @@ solar-ast.workspace = true
 solar-config.workspace = true
 solar-codegen.workspace = true
 solar-data-structures.workspace = true
+solar-evmir.workspace = true
 solar-interface.workspace = true
 solar-lint.workspace = true
 solar-macros.workspace = true

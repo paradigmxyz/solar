@@ -64,7 +64,7 @@ ISLE sources are grouped by compiler layer:
 
 `isle/mir/prelude.isle` declares the generated operation view, and
 `isle/mir/extractors.isle` adds value-definition extractors for MIR simplification.
-The opcode table in `src/backend/evm/op.rs` generates the constants in
+The opcode table in `solar-evmir` (`crates/evmir/src/op.rs`) generates the constants in
 `isle/evm-ir/prelude.isle`. `isle/mir-to-evm/select.isle` uses the two vocabularies to select
 single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.

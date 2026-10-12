@@ -10,7 +10,7 @@ operation (the text parser uses it for every operation built from value
 operands alone), and a `FunctionBuilder` method per variant marked
 `#[builder(name)]` or `#[builder(name, void)]`. Write custom text syntax or a
 custom builder only for an attribute the generic forms cannot express.
-Declare EVM opcodes the same way in `backend/evm/op.rs`, with traits and
+Declare EVM opcodes the same way in `crates/evmir/src/op.rs`, with traits and
 availability per row; `op_table.snap` snapshots the table. Add operations to
 these tables only; never add a parallel `match` that classifies them.
 
@@ -112,11 +112,12 @@ schedule; the pass never prices or matches instructions itself.
 ## Target Cost Model
 
 The target cost model in `crates/codegen/src/target.rs` prices every choice
-between equivalent code shapes. Each opcode row in `backend/evm/op.rs` has a
-`gas(tier)` column. `GasTier::gas` resolves a tier to the selected EVM
-version's static gas across the fork schedule (EIP-150, EIP-1884, EIP-2929,
-and later repricings), `dynamic_gas` gives the per-word or per-byte part, and
-`op_table.snap` snapshots the resolved schedule. `GasTier::fixed_gas` serves
+between equivalent code shapes. Each opcode row in `crates/evmir/src/op.rs` has
+a `gas(tier)` column, and `crates/evmir/src/gas.rs` holds the schedule:
+`GasTier::gas` resolves a tier to the selected EVM version's static gas across
+the fork schedule (EIP-150, EIP-1884, EIP-2929, and later repricings),
+`dynamic_gas` gives the per-word or per-byte part, and `op_table.snap`
+snapshots the resolved schedule. `GasTier::fixed_gas` serves
 version-independent tiers in constants.
 
 `Target::new(gcx)` builds the model from the session's EVM version,
