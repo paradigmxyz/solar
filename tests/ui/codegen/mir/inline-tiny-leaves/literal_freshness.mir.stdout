@@ -91,42 +91,38 @@ fn @encoded(arg0: i256) -> memptr [selector=0xdbafcb80, pure, abi_params=[u256],
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    mstore v2, 0
     v3 = ptrtoint memptr v2 to i256
-    mstore v3, 0
-    v4 = ptrtoint memptr v2 to i256
-    v5 = add v4, 32
-    v6 = abi_encode [memory_bytes, word, memory_bytes], object, selector v0, args v1, arg0, v2
-    ret v6
+    v4 = add v3, 32
+    v5 = abi_encode [memory_bytes, word, memory_bytes], object, selector v0, args v1, arg0, v2
+    ret v5
 }
 
 fn @literal() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v0, 1
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 1
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = add v1, 32
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @empty() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    mstore v0, 0
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 0
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
+    v2 = add v1, 32
     ret v0
 }
 
 fn @encodedWord() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v0, 1
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 1
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    mstore v3, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v2 = add v1, 32
+    mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

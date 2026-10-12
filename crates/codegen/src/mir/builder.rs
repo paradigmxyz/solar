@@ -575,6 +575,13 @@ impl<'a> FunctionBuilder<'a> {
             };
             kind.visit_operands_mut(|value| *value = self.cast(*value, ty));
         }
+        // Only semantic construction addresses memory through a `memptr`. A pass builds the word
+        // form `lower-memory-objects` would make of it, so each address has one stack value.
+        if !self.semantic
+            && let InstKind::MLoad(address) | InstKind::MStore(address, _) = kind
+        {
+            *address = self.cast(*address, MirType::I256);
+        }
         let Some(types) = kind.operand_types(self.func) else { return };
         let mut types = types.into_iter();
         // operand = cast operand to its declared parameter type
@@ -922,10 +929,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Writes the length word of a fresh dynamic memory object.
     pub(crate) fn set_memory_len(&mut self, object: ValueId, len: ValueId) {
-        // header = ptrtoint object to i256
-        // mstore header, len
-        let header = self.cast(object, MirType::I256);
-        self.mstore(header, len);
+        // mstore object, len
+        self.mstore(object, len);
     }
 
     /// Returns the payload address of a dynamic memory object or memory slice.

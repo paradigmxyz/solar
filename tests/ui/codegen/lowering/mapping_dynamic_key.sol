@@ -116,8 +116,7 @@ contract MappingDynamicKeyPaths {
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sstore [[SLOT]], arg1
     // CHECK: [[OUT:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic,
-    // CHECK: [[OUT_PTR:v[0-9]+]] = ptrtoint memptr [[OUT]] to i256
-    // CHECK: mstore [[OUT_PTR]], 32
+    // CHECK: mstore [[OUT]], 32
     function setThenAlloc(string calldata k, uint256 v) public returns (uint256) {
         flat[k] = v;
         bytes memory out = new bytes(32);

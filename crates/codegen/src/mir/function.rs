@@ -208,12 +208,14 @@ impl Function {
     }
 
     /// Returns the object and length of a store to an object's length word:
-    /// `mstore (ptrtoint object), len`.
+    /// `mstore object, len`, also through a pointer cast.
     #[must_use]
     pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
         let InstKind::MStore(address, len) = self.inst(inst).kind else { return None };
         match self.object_address(address) {
-            Some((object, 0)) if object != address => Some((object, len)),
+            Some((object, 0)) if self.value_ty(object) == Some(MirType::MemPtr) => {
+                Some((object, len))
+            }
             _ => None,
         }
     }

@@ -1465,7 +1465,8 @@ define_mir_ops! {
     Ne(a: ValueId, b: ValueId),
 
     // Memory operations
-    /// Load from memory: `mload(offset)`
+    /// Load from memory: `mload(offset)`. Like an LLVM load from `ptr`, the address may be a
+    /// `memptr`; lowering casts it at the opcode boundary.
     #[mir_op(
         mnemonic = "mload",
         result = I256,
@@ -1477,9 +1478,9 @@ define_mir_ops! {
     )]
     #[builder(mload)]
     #[raw_memory(Read(offset, 32))]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *offset)]))]
     MLoad(offset: ValueId),
-    /// Store to memory: `mstore(offset, value)`
+    /// Store to memory: `mstore(offset, value)`. The address may be a `memptr`, as for `mload`.
     #[mir_op(
         mnemonic = "mstore",
         result = None,
@@ -1491,7 +1492,7 @@ define_mir_ops! {
     )]
     #[builder(mstore, void)]
     #[raw_memory(Write(offset, 32))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *offset), MirType::I256]))]
     MStore(offset: ValueId, value: ValueId),
     /// Store a single byte: `mstore8(offset, value)`
     #[mir_op(

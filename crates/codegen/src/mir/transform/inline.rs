@@ -536,14 +536,8 @@ impl MirInliner {
         .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
-        // Specialize dispatcher calls before helper-local inlining introduces phis. A single-use
-        // callee takes its own single-use callees first, so the nested bodies reach the caller
-        // together and get simplified as one, whatever the caller's growth budget allows.
-        let mut caller_ids = if self.mode == InlineMode::SingleUse {
-            call_graph.callees_first()
-        } else {
-            module.functions.indices().collect::<Vec<_>>()
-        };
+        // Specialize dispatcher calls before helper-local inlining introduces phis.
+        let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
         caller_ids.sort_by_key(|caller| {
             summaries.get(caller).is_some_and(|summary| {
                 summary.is_function_pointer_dispatcher && summary.has_function_selector

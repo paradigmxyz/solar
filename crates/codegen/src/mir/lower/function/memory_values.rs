@@ -333,7 +333,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
     ) -> (ValueId, ValueId) {
         // object = bytes(size) !preserves_fmp
-        // mstore (ptrtoint object), len
+        // mstore object, len
         // data = slice_ptr (memory_slice object)
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {

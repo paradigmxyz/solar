@@ -194,13 +194,13 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v81 = add v80, v63
     mstore 64, v81 !metadata(memory=scratch)
     mstore v80, v50
-    v67 = add v80, 32
-    calldatacopy v67, v51, v50
-    v73 = keccak256 v67, v50
+    v66 = add v80, 32
+    calldatacopy v66, v51, v50
+    v72 = keccak256 v66, v50
     jump bb2
   bb2:
-    v74 = phi [bb6: 0], [bb9: v73]
-    ret v74
+    v73 = phi [bb6: 0], [bb9: v72]
+    ret v73
   bb3:
     revert 0, 0
 }

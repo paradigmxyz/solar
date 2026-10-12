@@ -49,29 +49,28 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
 fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 1
-    v2 = icall @dirty
-    v3 = memory_slice v0
-    v4 = slice_len v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = lt v2, 3
-    v8 = eq v7, false
-    icall panic_if<0x21>, v8
-    slice_store_element v3, 0, v2
-    v9 = slice_len v3
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = slice_load_element v3, 0
-    v13 = lt v12, 3
-    v14 = eq v13, false
-    icall panic_if<0x21>, v14
-    v15 = trunc i256 v12 to i8
-    v16 = lt v15, i8 3
-    v17 = eq v16, false
-    icall panic_if<0x21>, v17
-    ret v15
+    mstore v0, 1
+    v1 = icall @dirty
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = lt v1, 3
+    v7 = eq v6, false
+    icall panic_if<0x21>, v7
+    slice_store_element v2, 0, v1
+    v8 = slice_len v2
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = slice_load_element v2, 0
+    v12 = lt v11, 3
+    v13 = eq v12, false
+    icall panic_if<0x21>, v13
+    v14 = trunc i256 v11 to i8
+    v15 = lt v14, i8 3
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    ret v14
 }

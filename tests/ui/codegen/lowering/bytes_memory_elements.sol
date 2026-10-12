@@ -10,8 +10,7 @@ contract BytesMemoryElements {
     // CHECK: [[MASK:v[0-9]+]] = not 31
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and 159, [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
-    // CHECK: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // CHECK: mstore [[HEAD]], 96
+    // CHECK: mstore [[BUF]], 96
     // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[BUF]]
     // CHECK: slice_store_byte [[VIEW]], {{.*}}, {{.*}}
     // CHECK: slice_store_byte [[VIEW]], {{.*}}, {{.*}}
@@ -26,8 +25,7 @@ contract BytesMemoryElements {
 
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
-    // CHECK: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // CHECK: mstore [[HEAD]], 10
+    // CHECK: mstore [[BUF]], 10
     // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[BUF]]
     // CHECK: slice_store_byte [[VIEW]], {{.*}}, {{.*}}
     // CHECK: slice_ptr [[VIEW]]
@@ -44,8 +42,7 @@ contract BytesMemoryElements {
     // CHECK: [[MASK:v[0-9]+]] = not 31
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and [[PADDED]], [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
-    // CHECK: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // CHECK: mstore [[HEAD]], arg0
+    // CHECK: mstore [[BUF]], arg0
     function allocDynamic(uint n) external pure returns (uint) {
         bytes memory buf = new bytes(n);
         return buf.length;

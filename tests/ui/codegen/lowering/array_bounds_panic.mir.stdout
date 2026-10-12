@@ -66,15 +66,14 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    v17 = ptrtoint memptr v16 to i256
-    mstore v17, arg0
-    v18 = memory_slice v16
-    v19 = slice_len v18
-    v20 = lt arg1, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = slice_load_element v18, arg1
-    ret v22
+    mstore v16, arg0
+    v17 = memory_slice v16
+    v18 = slice_len v17
+    v19 = lt arg1, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = slice_load_element v17, arg1
+    ret v21
 }
 
 fn @stDyn(arg0: i256) -> i256 [selector=0x392580ee, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

@@ -12,8 +12,7 @@ contract RuntimeCode {
     // CHECK: [[LEN:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0
     // CHECK: [[SIZE:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 63, aligned
     // CHECK: [[OBJECT:v[0-9]+]] = alloc memorybytes, {{.*}}, [[SIZE]]
-    // CHECK: [[HEAD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
-    // CHECK-NEXT: mstore [[HEAD]], [[LEN]]
+    // CHECK: mstore [[OBJECT]], [[LEN]]
     // CHECK: [[DATA_BASE:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[DATA_BASE]], 32
     // CHECK: [[TAIL:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 31, aligned

@@ -498,25 +498,25 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
 
 fn @default_struct_1() -> memptr [may_return_memory] {
   bb0:
-    v28 = mload 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v28 to memptr !metadata(memory=scratch)
-    v29 = add v28, 256
-    mstore 64, v29
-    v25 = add v28, 64
-    mstore v25, 0
-    v19 = add v28, 128
-    mstore v19, 0
-    v12 = add v28, 96
-    mstore v12, v19
-    mstore v28, v25
-    v27 = add v28, 160
-    mstore v27, 0
-    v23 = add v28, 224
+    v26 = mload 64 !metadata(memory=scratch)
+    v0 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
+    v27 = add v26, 256
+    mstore 64, v27
+    v23 = add v26, 64
     mstore v23, 0
-    v14 = add v28, 192
-    mstore v14, v23
-    v16 = add v28, 32
-    mstore v16, v27
+    v17 = add v26, 128
+    mstore v17, 0
+    v10 = add v26, 96
+    mstore v10, v17
+    mstore v26, v23
+    v25 = add v26, 160
+    mstore v25, 0
+    v21 = add v26, 224
+    mstore v21, 0
+    v12 = add v26, 192
+    mstore v12, v21
+    v14 = add v26, 32
+    mstore v14, v25
     ret v0
 }
 

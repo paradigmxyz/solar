@@ -37,13 +37,12 @@ fn @bytesChain(arg0: calldataslice) -> memptr [selector=0x2007c472, pure, abi_pa
     v27 = not 31
     v28 = and v25, v27
     v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    mstore v29, v24
     v30 = ptrtoint memptr v29 to i256
-    mstore v30, v24
-    v31 = ptrtoint memptr v29 to i256
-    v32 = add v31, 32
-    v33 = slice_len v17
-    v34 = make_memory_slice v32, v33
-    slice_copy v34, 0, v17
+    v31 = add v30, 32
+    v32 = slice_len v17
+    v33 = make_memory_slice v31, v32
+    slice_copy v33, 0, v17
     ret v29
 }
 

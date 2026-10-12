@@ -685,8 +685,16 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
         builder.switch_to_block(block);
         for id in instructions {
             let inst = builder.func().inst(id).clone();
+            // `mload` and `mstore` accept a `memptr` address, which `scalar_types_match` allows;
+            // cast it too, so every use of the object's address shares one stack value.
+            let pointer_address = matches!(
+                inst.kind,
+                InstKind::MLoad(address) | InstKind::MStore(address, _)
+                    if builder.func().value_ty(address) == Some(MirType::MemPtr)
+            );
             if inst.kind.evm_opcode().is_some()
-                && !inst.kind.scalar_types_match(builder.func(), inst.result_ty)
+                && (pointer_address
+                    || !inst.kind.scalar_types_match(builder.func(), inst.result_ty))
             {
                 builder.set_debug_context(&inst.metadata);
                 let mut kind = inst.kind;

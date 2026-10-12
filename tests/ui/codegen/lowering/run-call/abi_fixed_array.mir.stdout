@@ -156,18 +156,17 @@ fn @readNestedList(arg0: memptr) -> i256 [selector=0x2fc71376, pure, abi_params=
     jumpi v10, bb1, bb2
   bb1:
     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v12 = ptrtoint memptr v11 to i256
-    mstore v12, 0
-    v13 = memory_slice v3
-    v14 = ptrtoint memptr v11 to i256
-    slice_store_element v13, 0, v14
+    mstore v11, 0
+    v12 = memory_slice v3
+    v13 = ptrtoint memptr v11 to i256
+    slice_store_element v12, 0, v13
     jump bb2
   bb2:
-    v15 = phi [bb0: v9], [bb1: v11]
-    v16 = memory_slice v15
-    v17 = slice_len v16
-    v18 = checked_add u256, v2, v17
-    ret v18
+    v14 = phi [bb0: v9], [bb1: v11]
+    v15 = memory_slice v14
+    v16 = slice_len v15
+    v17 = checked_add u256, v2, v16
+    ret v17
 }
 
 fn @readEnumPair(arg0: memptr) -> i256 [selector=0xaea50307, pure, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -229,36 +228,34 @@ fn @readNestedBytes(arg0: memptr) -> i256 [selector=0x8516eaf9, pure, abi_params
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc memorybytes, exact, uninitialized, infallible, 32
+    mstore v6, 0
     v7 = ptrtoint memptr v6 to i256
-    mstore v7, 0
-    v8 = ptrtoint memptr v6 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v8
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v7
     jump bb2
   bb2:
-    v9 = phi [bb0: v4], [bb1: v6]
-    v10 = memory_slice v9
-    v11 = slice_len v10
-    v12 = memory_object_load_field memorystruct<1>, arg0, 0, memptr
-    v13 = lt 1, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = memory_object_load_element memoryfixedarray<2, 1>, v12, 1
-    v16 = inttoptr i256 v15 to memptr
-    v17 = eq v15, 0
-    jumpi v17, bb3, bb4
+    v8 = phi [bb0: v4], [bb1: v6]
+    v9 = memory_slice v8
+    v10 = slice_len v9
+    v11 = memory_object_load_field memorystruct<1>, arg0, 0, memptr
+    v12 = lt 1, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, 1
+    v15 = inttoptr i256 v14 to memptr
+    v16 = eq v14, 0
+    jumpi v16, bb3, bb4
   bb3:
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
-    v19 = ptrtoint memptr v18 to i256
-    mstore v19, 0
-    v20 = ptrtoint memptr v18 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v12, 1, v20
+    v17 = alloc memorybytes, exact, uninitialized, infallible, 32
+    mstore v17, 0
+    v18 = ptrtoint memptr v17 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v11, 1, v18
     jump bb4
   bb4:
-    v21 = phi [bb2: v16], [bb3: v18]
-    v22 = memory_slice v21
-    v23 = slice_len v22
-    v24 = checked_add u256, v11, v23
-    ret v24
+    v19 = phi [bb2: v15], [bb3: v17]
+    v20 = memory_slice v19
+    v21 = slice_len v20
+    v22 = checked_add u256, v10, v21
+    ret v22
 }
 
 fn @readMixed(arg0: i8, arg1: memptr) -> i256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word], abi_return_params=[u256]] {

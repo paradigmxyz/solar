@@ -101,26 +101,25 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     icall panic_if<0x32>, v3
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
     v4 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 1
-    v6 = memory_slice v4
-    v7 = slice_len v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    slice_store_element v6, 0, 9
-    v10 = lt 2, 3
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    v13 = slice_len v6
-    v14 = lt 0, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = slice_load_element v6, 0
-    v17 = insert_value struct0, undef struct0, 0, v12
-    v18 = insert_value struct0, v17, 1, v16
-    ret v18
+    mstore v4, 1
+    v5 = memory_slice v4
+    v6 = slice_len v5
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    slice_store_element v5, 0, 9
+    v9 = lt 2, 3
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    v12 = slice_len v5
+    v13 = lt 0, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = slice_load_element v5, 0
+    v16 = insert_value struct0, undef struct0, 0, v11
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -171,27 +170,26 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v6 = not 31
     v7 = and 95, v6
     v8 = alloc memorybytes, exact, zeroed, panic, v7
-    v9 = ptrtoint memptr v8 to i256
-    mstore v9, 32
-    v10 = memory_slice v8
-    v11 = slice_len v10
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
-    slice_store_byte v10, 0, v14
-    v15 = slice_len v10
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = slice_load_byte v10, 0
-    v19 = shl 248, v18
-    v20 = shr 248, v19
-    v21 = trunc i256 v20 to i8
-    v22 = zext i8 v21 to i256
-    v23 = insert_value struct0, undef struct0, 0, v0
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    mstore v8, 32
+    v9 = memory_slice v8
+    v10 = slice_len v9
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v9, 0, v13
+    v14 = slice_len v9
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = slice_load_byte v9, 0
+    v18 = shl 248, v17
+    v19 = shr 248, v18
+    v20 = trunc i256 v19 to i8
+    v21 = zext i8 v20 to i256
+    v22 = insert_value struct0, undef struct0, 0, v0
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
 }
 
 fn @emptyMemoryReferences() -> i256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -234,21 +232,19 @@ fn @emptyWideNamedStruct() -> memptr [selector=0x27d08cee, pure, abi_params=[], 
 fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 1
-    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v2, 0, 96
-    memory_object_store_field memorystruct<2>, v2, 1, 96
-    v3 = ptrtoint memptr v0 to i256
-    memory_object_store_field memorystruct<2>, v2, 0, v3
-    v4 = not 31
-    v5 = and 64, v4
-    v6 = alloc memorybytes, exact, zeroed, panic, v5
-    v7 = ptrtoint memptr v6 to i256
-    mstore v7, 1
-    v8 = ptrtoint memptr v6 to i256
-    memory_object_store_field memorystruct<2>, v2, 1, v8
-    ret v2
+    mstore v0, 1
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v1, 0, 96
+    memory_object_store_field memorystruct<2>, v1, 1, 96
+    v2 = ptrtoint memptr v0 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, v2
+    v3 = not 31
+    v4 = and 64, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    mstore v5, 1
+    v6 = ptrtoint memptr v5 to i256
+    memory_object_store_field memorystruct<2>, v1, 1, v6
+    ret v1
 }
 
 fn @deleteRebind() -> struct2 [selector=0x81e51eb1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

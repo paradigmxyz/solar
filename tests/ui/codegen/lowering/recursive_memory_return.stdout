@@ -49,33 +49,32 @@ fn @mkArr(arg0: i256) -> memptr [selector=0xfb67dbf3, pure, abi_params=[u256], a
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    v17 = ptrtoint memptr v16 to i256
-    mstore v17, arg0
+    mstore v16, arg0
     jump bb1
   bb1:
-    v18 = phi [bb0: arg0], [bb3: v18]
-    v19 = phi [bb0: v16], [bb3: v19]
-    v20 = phi [bb0: memptr 96], [bb3: v20]
-    v21 = phi [bb0: 0], [bb3: v28]
-    v22 = lt v21, v18
-    jumpi v22, bb4, bb5
+    v17 = phi [bb0: arg0], [bb3: v17]
+    v18 = phi [bb0: v16], [bb3: v18]
+    v19 = phi [bb0: memptr 96], [bb3: v19]
+    v20 = phi [bb0: 0], [bb3: v27]
+    v21 = lt v20, v17
+    jumpi v21, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v19
+    ret v18
   bb4:
-    v23 = checked_mul u256, v21, 10
-    v24 = memory_slice v19
-    v25 = slice_len v24
-    v26 = lt v21, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    slice_store_element v24, v21, v23
+    v22 = checked_mul u256, v20, 10
+    v23 = memory_slice v18
+    v24 = slice_len v23
+    v25 = lt v20, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    slice_store_element v23, v20, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v28 = checked_add u256, v21, 1
+    v27 = checked_add u256, v20, 1
     jump bb1
 }
 
@@ -124,8 +123,7 @@ fn @squares(arg0: i256) -> memptr [selector=0x1d1d15d4, pure, abi_params=[u256],
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    v17 = ptrtoint memptr v16 to i256
-    mstore v17, arg0
-    v18 = icall @fillImpl, v16, 0
-    ret v18
+    mstore v16, arg0
+    v17 = icall @fillImpl, v16, 0
+    ret v17
 }

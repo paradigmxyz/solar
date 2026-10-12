@@ -25,11 +25,9 @@ contract NestedCalldataForward {
 
     // CHECK-LABEL: fn @forwardStructs{{[( ]}}
     // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: [[ARR_HEAD:v[0-9]+]] = ptrtoint memptr [[ARR]] to i256
-    // CHECK: mstore [[ARR_HEAD]], {{v[0-9]+}}
+    // CHECK: mstore [[ARR]], {{v[0-9]+}}
     // CHECK-DAG: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK-DAG: [[BYTES_HEAD:v[0-9]+]] = ptrtoint memptr [[BYTES]] to i256
-    // CHECK-DAG: mstore [[BYTES_HEAD]], {{v[0-9]+}}
+    // CHECK-DAG: mstore [[BYTES]], {{v[0-9]+}}
     // CHECK-DAG: abi_encode [memory_array<tuple<word, memory_bytes>>]
     // CHECK: [[ARR_VIEW:v[0-9]+]] = memory_slice [[ARR]]
     // CHECK: slice_store_element [[ARR_VIEW]], {{v[0-9]+}}, {{v[0-9]+}}

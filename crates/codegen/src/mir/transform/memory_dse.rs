@@ -413,6 +413,7 @@ impl MemoryStoreEliminator {
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
+        scratch.view_lengths.clear();
 
         // Both store elimination and store-to-load forwarding need at least
         // one memory write to act on; functions without any skip the whole
@@ -432,7 +433,6 @@ impl MemoryStoreEliminator {
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
-        scratch.view_lengths.clear();
         let block_ids = func.blocks.indices();
         // Views are worth tracking only while a `slice_len` still reads one.
         let (mut has_precise_reads, mut reads_view_lengths) = (false, false);
@@ -448,7 +448,6 @@ impl MemoryStoreEliminator {
             self.process_block(func, block_id, has_precise_reads, reads_view_lengths, scratch);
             self.alias().clear_cached_addresses();
         }
-        self.forward_view_lengths(func, scratch);
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
         self.remove_dead_memory_stores(func);
@@ -678,7 +677,8 @@ impl MemoryStoreEliminator {
             }
             total += eliminated;
         }
-        total
+        // Forwarded lengths enable no store elimination, so they need no further round.
+        total + self.forward_view_lengths(func, &mut scratch)
     }
 
     fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
@@ -1413,10 +1413,10 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
 
-    /// Replaces each `slice_len` of a view whose stored length is known.
-    fn forward_view_lengths(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
+    /// Replaces each `slice_len` of a view whose stored length is known, returning how many.
+    fn forward_view_lengths(&self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         if scratch.view_lengths.is_empty() {
-            return;
+            return 0;
         }
         scratch.replacements.clear();
         scratch.dead.clear();
@@ -1430,14 +1430,14 @@ impl MemoryStoreEliminator {
                 scratch.dead.insert(inst_id);
             }
         }
-        if scratch.dead.is_empty() {
-            return;
+        let forwarded = scratch.dead.count();
+        if forwarded != 0 {
+            func.replace_uses_canonicalized(&scratch.replacements);
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|&id| !scratch.dead.contains(id));
+            }
         }
-        func.replace_uses_canonicalized(&scratch.replacements);
-        self.eliminated_count += scratch.dead.count();
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !scratch.dead.contains(id));
-        }
+        forwarded
     }
 
     fn mem_addr_key(&self, func: &Function, value: ValueId, size: u64) -> Option<MemAddrKey> {

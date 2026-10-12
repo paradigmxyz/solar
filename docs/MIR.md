@@ -21,8 +21,9 @@ payload pointer and length, and `slice_len`, `slice_load_element`,
 `slice_store_byte`, `slice_copy`, and the other slice operations work on views,
 calldata, and returndata alike. A view captures the length when it is made, so
 lowering builds one at each use rather than carrying the length in SSA across
-calls or assembly. A fresh object's length is a plain `mstore` to the
-`ptrtoint` of its pointer.
+calls or assembly. A fresh object's length is a plain `mstore` to its pointer:
+like an LLVM load or store from `ptr`, `mload` and `mstore` accept a `memptr`
+address, and `lower-memory-objects` casts it to a word at the opcode boundary.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.

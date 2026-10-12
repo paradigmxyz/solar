@@ -71,11 +71,9 @@ contract StorageStringBase {
 contract StorageStringDerived is StorageStringBase {
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: [[STR:v[0-9]+]] = alloc memorybytes
-    // CHECK-NEXT: [[LEN_PTR:v[0-9]+]] = ptrtoint memptr [[STR]] to i256
-    // CHECK-NEXT: mstore [[LEN_PTR]], 9
+    // CHECK: mstore [[STR]], 9
     // CHECK: [[STR:v[0-9]+]] = alloc memorybytes
-    // CHECK-NEXT: [[LEN_PTR:v[0-9]+]] = ptrtoint memptr [[STR]] to i256
-    // CHECK-NEXT: mstore [[LEN_PTR]], 4
+    // CHECK: mstore [[STR]], 4
     // CHECK: icall @store_storage_bytes, 0,
     // CHECK: icall @store_storage_bytes, 1,
     // CHECK-LABEL: fn @name{{[( ]}}
@@ -87,11 +85,9 @@ contract StorageStringDerived is StorageStringBase {
 
 // CHECK-LABEL: fn @constructor{{[( ]}}
 // CHECK: [[STR:v[0-9]+]] = alloc memorybytes
-// CHECK-NEXT: [[LEN_PTR:v[0-9]+]] = ptrtoint memptr [[STR]] to i256
-// CHECK-NEXT: mstore [[LEN_PTR]], 17
+// CHECK: mstore [[STR]], 17
 // CHECK: [[STR:v[0-9]+]] = alloc memorybytes
-// CHECK-NEXT: [[LEN_PTR:v[0-9]+]] = ptrtoint memptr [[STR]] to i256
-// CHECK-NEXT: mstore [[LEN_PTR]], 3
+// CHECK: mstore [[STR]], 3
 // CHECK: icall @store_storage_bytes, 0,
 // CHECK: icall @store_storage_bytes, 1,
 contract StorageStringImplicitDerived is StorageStringBase("Base Literal Name", "BLN") {}

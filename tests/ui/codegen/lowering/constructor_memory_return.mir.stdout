@@ -17,11 +17,10 @@ fn @constructor() [constructor] {
 fn @version() -> memptr [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v0, 1
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 1
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = add v1, 32
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -33,15 +32,14 @@ fn @consume(arg0: memptr) -> memptr [pure] {
 fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v0, 5
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 5
-    v2 = ptrtoint memptr v0 to i256
-    v3 = add v2, 32
-    mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v4 = icall @consume, v0
-    v5 = memory_slice v4
-    v6 = slice_len v5
-    ret v6
+    v2 = add v1, 32
+    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v3 = icall @consume, v0
+    v4 = memory_slice v3
+    v5 = slice_len v4
+    ret v5
 }
 
 fn @makePair(arg0: i256) -> memptr [pure] {

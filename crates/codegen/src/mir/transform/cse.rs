@@ -219,9 +219,9 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
-    /// Number of casts the dominator-scoped pass eliminated, which call for another fixpoint
-    /// round only through phi sinking.
-    eliminated_casts: usize,
+    /// Number of expressions independent of memory and other state that the dominator-scoped
+    /// pass eliminated, which call for another fixpoint round only through phi sinking.
+    eliminated_path_insensitive: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
@@ -476,7 +476,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.eliminated_casts = 0;
+        self.eliminated_path_insensitive = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         let removed = mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
@@ -488,16 +488,16 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let (before, casts) = (self.eliminated_count, self.eliminated_casts);
+            let (before, merged) = (self.eliminated_count, self.eliminated_path_insensitive);
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            if self.eliminated_count - self.eliminated_casts != before - casts {
+            if self.eliminated_count - self.eliminated_path_insensitive != before - merged {
                 continue;
             }
-            // Later instructions of the dominator-scoped pass read its merged casts through its
-            // replacements, but phi sinking ran before the merges. Rerun only it, and keep going
-            // if it sinks.
-            if self.eliminated_casts == casts {
+            // Later instructions of the dominator-scoped pass read its merged state-independent
+            // expressions through its replacements, but phi sinking ran before the merges. Rerun
+            // only it, and keep going if it sinks.
+            if self.eliminated_path_insensitive == merged {
                 break;
             }
             let sunk = self.eliminated_count;
@@ -706,7 +706,8 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
-                    self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
+                    self.eliminated_path_insensitive +=
+                        usize::from(!Self::is_path_sensitive_expr(key));
                     continue;
                 }
                 if kind.has_side_effects() {

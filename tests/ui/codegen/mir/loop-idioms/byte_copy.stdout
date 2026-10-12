@@ -110,18 +110,18 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     v27 = calldatasize
     calldatacopy v21, v27, 64
     mstore v21, 7
-    v7 = mload v0
-    v13 = add v7, 1
-    v14 = eq v13, 0
-    jumpi v14, bb2, bb3
+    v6 = mload v0
+    v12 = add v6, 1
+    v13 = eq v12, 0
+    jumpi v13, bb2, bb3
   bb3:
-    v15 = add v13, 7
-    v16 = lt v15, v13
-    v18 = lt v15, 7
-    v28 = or v16, v18
+    v14 = add v12, 7
+    v15 = lt v14, v12
+    v17 = lt v14, 7
+    v28 = or v15, v17
     jumpi v28, bb2, bb1
   bb1:
-    mstore 128, v13
+    mstore 128, v12
     returndata 128, 32
   bb2:
     mstore 32, 17 !metadata(memory=scratch)
@@ -157,37 +157,37 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     v62 = calldatasize
     calldatacopy v55, v62, 128
     mstore v55, 65
-    v8 = mload v49
-    v10 = gt v8, 0
-    jumpi v10, bb5, bb4
+    v6 = mload v49
+    v8 = gt v6, 0
+    jumpi v8, bb5, bb4
   bb5:
-    v43 = add v49, 32
-    mstore8 v43, 65
-    v26 = add v55, 32
+    v41 = add v49, 32
+    mstore8 v41, 65
+    v24 = add v55, 32
     jump bb1
   bb1:
-    v13 = phi [bb5: 0], [bb3: v28]
-    v17 = lt v13, 65
-    jumpi v17, bb3, bb2
+    v11 = phi [bb5: 0], [bb3: v26]
+    v15 = lt v11, 65
+    jumpi v15, bb3, bb2
   bb2:
-    v29 = mload v55
-    v31 = gt v29, 64
-    jumpi v31, bb6, bb4
+    v27 = mload v55
+    v29 = gt v27, 64
+    jumpi v29, bb6, bb4
   bb4:
     tail_call @revert_stub
   bb6:
-    v46 = add v26, 64
-    v47 = mload v46
-    v48 = byte 0, v47
-    mstore 128, v48
+    v44 = add v24, 64
+    v45 = mload v44
+    v46 = byte 0, v45
+    mstore 128, v46
     returndata 128, 32
   bb3:
-    v22 = add v43, v13
-    v23 = mload v22
-    v24 = byte 0, v23
-    v27 = add v26, v13
-    mstore8 v27, v24
-    v28 = add v13, 1
+    v20 = add v41, v11
+    v21 = mload v20
+    v22 = byte 0, v21
+    v25 = add v24, v11
+    mstore8 v25, v22
+    v26 = add v11, 1
     jump bb1
   bb8:
     mstore 32, 65 !metadata(memory=scratch)
@@ -294,19 +294,19 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
 
 fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, pure] {
   bb0:
-    v60 = ptrtoint memptr arg0 to i256
-    v0 = mload v60
-    v52 = sub v0, arg2
+    v58 = ptrtoint memptr arg0 to i256
+    v0 = mload v58
+    v50 = sub v0, arg2
     v2 = gt arg2, v0
-    v53 = zext i1 v2 to i256
-    v54 = mul v53, v52
-    v55 = add arg2, v54
-    v56 = sub v0, arg1
+    v51 = zext i1 v2 to i256
+    v52 = mul v51, v50
+    v53 = add arg2, v52
+    v54 = sub v0, arg1
     v8 = gt arg1, v0
-    v57 = zext i1 v8 to i256
-    v58 = mul v57, v56
-    v59 = add arg1, v58
-    v12 = lt v59, v55
+    v55 = zext i1 v8 to i256
+    v56 = mul v55, v54
+    v57 = add arg1, v56
+    v12 = lt v57, v53
     jumpi v12, bb2, bb1
   bb1:
     v77 = mload 64 !metadata(memory=scratch)
@@ -316,15 +316,15 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     mstore v77, 0
     ret v14
   bb2:
-    v46 = sub v55, v59
-    v19 = add v46, 63
-    v20 = lt v19, v46
-    jumpi v20, bb6, bb7
+    v44 = sub v53, v57
+    v18 = add v44, 63
+    v19 = lt v18, v44
+    jumpi v19, bb6, bb7
   bb7:
-    v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v71 = mload 64 !metadata(memory=scratch)
-    v23 = inttoptr i256 v71 to memptr !metadata(memory=scratch)
-    v72 = add v71, v22
+    v22 = inttoptr i256 v71 to memptr !metadata(memory=scratch)
+    v72 = add v71, v21
     v73 = lt v72, v71
     v74 = gt v72, 0xffffffffffffffff
     v75 = or v73, v74
@@ -332,35 +332,35 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
   bb12:
     mstore 64, v72 !metadata(memory=scratch)
     v79 = calldatasize
-    calldatacopy v71, v79, v22
-    mstore v71, v46
-    v63 = add v60, 32
+    calldatacopy v71, v79, v21
+    mstore v71, v44
+    v61 = add v58, 32
     jump bb3
   bb3:
-    v29 = phi [bb12: 0], [bb9: v50]
-    v30 = mload v71
-    v32 = lt v29, v30
-    jumpi v32, bb5, bb4
+    v27 = phi [bb12: 0], [bb9: v48]
+    v28 = mload v71
+    v30 = lt v27, v28
+    jumpi v30, bb5, bb4
   bb4:
-    ret v23
+    ret v22
   bb5:
-    v48 = add v59, v29
-    v49 = lt v48, v59
-    jumpi v49, bb10, bb11
+    v46 = add v57, v27
+    v47 = lt v46, v57
+    jumpi v47, bb10, bb11
   bb11:
-    v34 = mload v60
-    v36 = lt v48, v34
-    jumpi v36, bb9, bb8
+    v32 = mload v58
+    v34 = lt v46, v32
+    jumpi v34, bb9, bb8
   bb8:
     tail_call @revert_stub
   bb9:
-    v64 = add v63, v48
-    v65 = mload v64
-    v66 = byte 0, v65
-    v68 = add v71, 32
-    v69 = add v68, v29
-    mstore8 v69, v66
-    v50 = add v29, 1
+    v62 = add v61, v46
+    v63 = mload v62
+    v64 = byte 0, v63
+    v66 = add v71, 32
+    v67 = add v66, v27
+    mstore8 v67, v64
+    v48 = add v27, 1
     jump bb3
   bb10:
     mstore 32, 17 !metadata(memory=scratch)

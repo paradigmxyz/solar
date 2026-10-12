@@ -45,30 +45,29 @@ fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_return
 fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    v1 = ptrtoint memptr v0 to i256
-    mstore v1, 2
-    v2 = memory_slice v0
-    v3 = slice_len v2
-    v4 = lt 0, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    slice_store_element v2, 0, 3
-    v6 = slice_len v2
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    slice_store_element v2, 1, 4
-    v9 = ptrtoint memptr v0 to i256
-    v10 = add v9, 32
-    mstore v10, 0xff03
-    v11 = ptrtoint memptr v0 to i256
-    v12 = add v11, 64
-    mstore v12, 260
-    v13 = abi_encode [memory_array<word<u8>>], scratch, args v0
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = keccak256 v14, v15
-    ret v16
+    mstore v0, 2
+    v1 = memory_slice v0
+    v2 = slice_len v1
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    slice_store_element v1, 0, 3
+    v5 = slice_len v1
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    slice_store_element v1, 1, 4
+    v8 = ptrtoint memptr v0 to i256
+    v9 = add v8, 32
+    mstore v9, 0xff03
+    v10 = ptrtoint memptr v0 to i256
+    v11 = add v10, 64
+    mstore v11, 260
+    v12 = abi_encode [memory_array<word<u8>>], scratch, args v0
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = keccak256 v13, v14
+    ret v15
 }
 
 fn @encodeBadEnum() -> memptr [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

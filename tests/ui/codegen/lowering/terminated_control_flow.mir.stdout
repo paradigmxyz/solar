@@ -358,19 +358,18 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v18 = slice_len v16
     v19 = keccak256 v17, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v20, 4
     v21 = ptrtoint memptr v20 to i256
-    mstore v21, 4
-    v22 = ptrtoint memptr v20 to i256
-    v23 = add v22, 32
-    mstore v23, 0
-    v24 = ptrtoint memptr v20 to i256
-    v25 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v20
-    v26 = memory_slice v25
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = keccak256 v27, v28
-    v30 = eq v19, v29
-    ret v30
+    v22 = add v21, 32
+    mstore v22, 0
+    v23 = ptrtoint memptr v20 to i256
+    v24 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v20
+    v25 = memory_slice v24
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = keccak256 v26, v27
+    v29 = eq v19, v28
+    ret v29
   bb1:
     ret false
   bb3:

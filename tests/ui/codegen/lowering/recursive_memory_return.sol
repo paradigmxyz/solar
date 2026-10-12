@@ -30,9 +30,8 @@ contract C {
 
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
-    // CHECK: alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: [[ARRAY_PTR:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
-    // CHECK-NEXT: mstore [[ARRAY_PTR]], arg0
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK-NEXT: mstore [[ARRAY]], arg0
     // CHECK: ret
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
         uint256[] memory r = new uint256[](n);

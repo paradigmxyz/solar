@@ -152,8 +152,7 @@ contract NamedReturnAndDelete {
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
     // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK-NEXT: [[BYTES_PTR:v[0-9]+]] = ptrtoint memptr [[BYTES]] to i256
-    // CHECK-NEXT: mstore [[BYTES_PTR]], 1
+    // CHECK: mstore [[BYTES]], 1
     function fullyInitializedNamedStruct()
         public
         pure

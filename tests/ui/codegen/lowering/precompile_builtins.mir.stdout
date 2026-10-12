@@ -204,11 +204,11 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     v28 = calldatasize
     calldatacopy v20, v28, 64
     mstore v20, 32
-    v12 = add v20, 32
-    v13 = gas
-    v14 = staticcall v13, 2, 0, 0, v12, 32
-    v16 = mload v12
-    mstore 128, v16
+    v11 = add v20, 32
+    v12 = gas
+    v13 = staticcall v12, 2, 0, 0, v11, 32
+    v15 = mload v11
+    mstore 128, v15
     returndata 128, 32
   bb2:
     mstore 32, 65 !metadata(memory=scratch)
@@ -233,12 +233,12 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
     v29 = calldatasize
     calldatacopy v21, v29, 64
     mstore v21, 32
-    v12 = add v21, 32
-    v13 = gas
-    v14 = staticcall v13, 3, 0, 0, v12, 32
-    v16 = mload v12
-    v17 = shl 96, v16
-    mstore 128, v17
+    v11 = add v21, 32
+    v12 = gas
+    v13 = staticcall v12, 3, 0, 0, v11, 32
+    v15 = mload v11
+    v16 = shl 96, v15
+    mstore 128, v16
     returndata 128, 32
   bb2:
     mstore 32, 65 !metadata(memory=scratch)
@@ -253,8 +253,8 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
     v6 = add v5, 64
     mstore 64, v6 !metadata(memory=scratch)
     mstore v5, arg1
-    v4 = add v5, 32
-    mstore v4, arg0
+    v3 = add v5, 32
+    mstore v3, arg0
     ret v0
 }
 
