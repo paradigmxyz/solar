@@ -1,0 +1,8 @@
+error[7249]: more than 3 indexed arguments for event
+   ╭▸ ROOT/tests/ui/typeck/events/event_too_many_indexed.sol:LL:CC
+   │
+LL │     event e(uint indexed a, bytes3 indexed b, bool indexed c, uint indexed d);
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
