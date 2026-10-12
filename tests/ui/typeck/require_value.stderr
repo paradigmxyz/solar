@@ -1,0 +1,14 @@
+error: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/require_value.sol:LL:CC
+   │
+LL │         function(bool) pure x = require;
+   ╰╴                                ━━━━━━━
+
+error: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/require_value.sol:LL:CC
+   │
+LL │         return abi.encode(require);
+   ╰╴                          ━━━━━━━
+
+error: aborting due to 2 previous errors
+

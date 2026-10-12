@@ -3287,6 +3287,8 @@ impl<'gcx> TypeChecker<'gcx> {
     fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
         match res {
             [] => unreachable!("no candidates for overload resolution"),
+            // One builtin stands for all overloads of `require`, and only a call picks one.
+            [hir::Res::Builtin(Builtin::Require)] => return Err(OverloadError::NotFound),
             &[res] => return Ok(res),
             _ => {}
         }
