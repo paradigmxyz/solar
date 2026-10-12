@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalError, EvalErrorKind},
+    eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -231,8 +231,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Ok(ConstValue::Bool(_))
-            | Err(EvalError { kind: EvalErrorKind::FixedBytesConstant, .. }) => {
+            Ok(ConstValue::Bool(_)) => {
                 self.dcx()
                     .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
             }
@@ -267,14 +266,8 @@ impl<'gcx> TypeChecker<'gcx> {
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let ty = self.check_expr(size);
-        // `eval_array_len` already reports `bytesN` constants.
-        if !ty.is_integer()
-            && !ty.references_error()
-            && !matches!(
-                self.gcx.try_eval_const(size),
-                Err(EvalError { kind: EvalErrorKind::FixedBytesConstant, .. })
-            )
-        {
+        // `eval_array_len` already reports sizes that fail to evaluate.
+        if !ty.is_integer() && !ty.references_error() && self.gcx.try_eval_const(size).is_ok() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
         ty

@@ -149,19 +149,13 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                let initializer = v.initializer.expect("constant variable has no initializer");
-                // Fold `bytesN` constants only from string literals, which are already
-                // left-aligned. Integers do not model the width that `bytesN` conversions,
-                // shifts and bit operations depend on; solc folds neither.
-                if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_)))
-                    && !matches!(
-                        initializer.peel_parens().kind,
-                        hir::ExprKind::Lit(hir::Lit { kind: LitKind::Str(..), .. })
-                    )
-                {
+                // Like solc, do not fold `bytesN` constants: integers do not model the width
+                // that their conversions, shifts and bit operations depend on.
+                if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
                     return Err(EE::FixedBytesConstant.into());
                 }
-                let value = self.try_eval_value(initializer)?;
+                let value = self
+                    .try_eval_value(v.initializer.expect("constant variable has no initializer"))?;
                 // The constant's declared type carries over into the surrounding expression, so
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.

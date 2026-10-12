@@ -129,14 +129,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            // `bytesN` constants do not fold, but reading them cannot observe storage.
-            TyKind::Elementary(elem) => {
+            // Reading a constant cannot observe storage, even when it does not fold.
+            TyKind::Elementary(_) => {
                 let gcx = self.cx.gcx;
                 gcx.try_eval_const_value(expr).is_ok()
-                    || matches!(elem, ElementaryType::FixedBytes(_))
-                        && gcx
-                            .resolved_variable(expr.peel_parens())
-                            .is_some_and(|id| gcx.hir.variable(id).is_constant())
+                    || gcx
+                        .resolved_variable(expr.peel_parens())
+                        .is_some_and(|id| gcx.hir.variable(id).is_constant())
             }
             _ => false,
         }

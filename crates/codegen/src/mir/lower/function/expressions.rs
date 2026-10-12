@@ -16,19 +16,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
+        let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind else {
             return None;
-        }
+        };
         let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind else {
             return None;
         };
         match &lit.kind {
             LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
+            // value << (32 - N) * 8
             LitKind::Number(value) => {
-                let shift =
-                    operators::fixed_bytes_width(ty).map_or(0, |bytes| usize::from(32 - bytes) * 8);
-                // value << (32 - N) * 8
-                Some(self.builder.imm(*value << shift))
+                Some(self.builder.imm(*value << (usize::from(32 - size.bytes()) * 8)))
             }
             _ => None,
         }
@@ -313,17 +311,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 ConstValue::Integer(value) => Some(self.builder.imm(value.as_evm_word())),
-                ConstValue::String(value) => {
-                    let bytes = value.as_byte_str_in(self.cx.gcx.sess);
-                    if matches!(
-                        ty.peel_refs().kind,
-                        TyKind::Elementary(ElementaryType::FixedBytes(_))
-                    ) {
-                        Some(self.lower_string_literal_word(bytes))
-                    } else {
-                        self.lower_shared_bytes_literal(*value)
-                    }
-                }
+                ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
             };
         }
         self.lower_expr(initializer)
