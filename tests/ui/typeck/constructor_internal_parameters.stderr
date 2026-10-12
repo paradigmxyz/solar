@@ -1,0 +1,50 @@
+warning[2462]: visibility for constructor is ignored
+   ╭▸ ROOT/tests/ui/typeck/constructor_internal_parameters.sol:LL:CC
+   │
+LL │     constructor (S[2] storage) public {}
+   │                                ━━━━━━
+   │
+   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient
+
+error[4103]: types containing internal function pointers cannot be constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/constructor_internal_parameters.sol:LL:CC
+   │
+LL │     constructor(function() internal) {}
+   │                 ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: make the contract `abstract` to avoid this problem
+
+error[3644]: this parameter has a type that can only be used internally
+   ╭▸ ROOT/tests/ui/typeck/constructor_internal_parameters.sol:LL:CC
+   │
+LL │     constructor(uint[] storage a) {}
+   │                 ━━━━━━━━━━━━━━━━
+   │
+   ╰ help: make the contract `abstract` to avoid this problem
+
+error[3644]: this parameter has a type that can only be used internally
+   ╭▸ ROOT/tests/ui/typeck/constructor_internal_parameters.sol:LL:CC
+   │
+LL │     constructor (S[2] storage) public {}
+   │                  ━━━━━━━━━━━━
+   │
+   ╰ help: make the contract `abstract` to avoid this problem
+
+error[3644]: this parameter has a type that can only be used internally
+   ╭▸ ROOT/tests/ui/typeck/constructor_internal_parameters.sol:LL:CC
+   │
+LL │     constructor (mapping (uint => uint) [] storage) { }
+   │                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: make the contract `abstract` to avoid this problem
+
+error[4103]: recursive types cannot be constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/constructor_internal_parameters.sol:LL:CC
+   │
+LL │     constructor(Recursive memory r) {}
+   │                 ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: make the contract `abstract` to avoid this problem
+
+error: aborting due to 5 previous errors; 1 warning emitted
+

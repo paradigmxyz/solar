@@ -1,0 +1,15 @@
+error[4883]: error signature hash collision
+   ╭▸ ROOT/tests/ui/typeck/errors/hash_collision.sol:LL:CC
+   │
+LL │     error tgeo();
+   │           ━━━━
+   ╰╴
+note: other error is here
+   ╭▸ ROOT/tests/ui/typeck/errors/hash_collision.sol:LL:CC
+   │
+LL │     error gsf();
+   │     ━━━━━━━━━━━━
+   ╰ note: the error signatures `tgeo()` and `gsf()` produce the same 4-byte selector `0x67e43e43`
+
+error: aborting due to 1 previous error
+

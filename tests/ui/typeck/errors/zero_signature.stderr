@@ -1,0 +1,18 @@
+error[2855]: the selector `0x00000000` is reserved
+   ╭▸ ROOT/tests/ui/typeck/errors/zero_signature.sol:LL:CC
+   │
+LL │ error buyAndFree22457070633(uint256);
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: rename the error to avoid the collision
+
+error[2855]: the selector `0x00000000` is reserved
+   ╭▸ ROOT/tests/ui/typeck/errors/zero_signature.sol:LL:CC
+   │
+LL │     error buyAndFree22457070633(uint256);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: rename the error to avoid the collision
+
+error: aborting due to 2 previous errors
+

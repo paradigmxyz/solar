@@ -1,0 +1,230 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ bytes32 constant blockhGlobal = blockhash(1);
+   ╰╴                                ━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ bytes32 constant blobhGlobal = blobhash(1);
+   ╰╴                               ━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant bfGlobal = block.basefee;
+   ╰╴                         ━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant blobbfGlobal = block.blobbasefee;
+   ╰╴                             ━━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant chainIdGlobal = block.chainid;
+   ╰╴                              ━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ address constant coinbaseGlobal = block.coinbase;
+   ╰╴                                  ━━━━━━━━━━━━━━
+
+warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant diffGlobal = block.difficulty;
+   ╰╴                           ━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant diffGlobal = block.difficulty;
+   ╰╴                           ━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant gaslimitGlobal = block.gaslimit;
+   ╰╴                               ━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant numberGlobal = block.number;
+   ╰╴                             ━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant prevrandaoGlobal = block.prevrandao;
+   ╰╴                                 ━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant timestampGlobal = block.timestamp;
+   ╰╴                                ━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant gGlobal = gasleft();
+   ╰╴                        ━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ bytes constant dataGlobal = msg.data;
+   ╰╴                            ━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ address constant senderGlobal = msg.sender;
+   ╰╴                                ━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ bytes4 constant sigGlobal = msg.sig;
+   ╰╴                            ━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant valueGlobal = msg.value;
+   ╰╴                            ━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ uint constant gaspriceGlobal = tx.gasprice;
+   ╰╴                               ━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │ address constant originGlobal = tx.origin;
+   ╰╴                                ━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     bytes32 constant blockh = blockhash(1);
+   ╰╴                              ━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     bytes32 constant blobh = blobhash(1);
+   ╰╴                             ━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant bf = block.basefee;
+   ╰╴                       ━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant blobbf = block.blobbasefee;
+   ╰╴                           ━━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant chainId = block.chainid;
+   ╰╴                            ━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     address constant coinbase = block.coinbase;
+   ╰╴                                ━━━━━━━━━━━━━━
+
+warning[8417]: since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant diff = block.difficulty;
+   ╰╴                         ━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant diff = block.difficulty;
+   ╰╴                         ━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant gaslimit = block.gaslimit;
+   ╰╴                             ━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant number = block.number;
+   ╰╴                           ━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant prevrandao = block.prevrandao;
+   ╰╴                               ━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant timestamp = block.timestamp;
+   ╰╴                              ━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant g = gasleft();
+   ╰╴                      ━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     bytes constant data = msg.data;
+   ╰╴                          ━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     address constant sender = msg.sender;
+   ╰╴                              ━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     bytes4 constant sig = msg.sig;
+   ╰╴                          ━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant value = msg.value;
+   ╰╴                          ━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     uint constant gasprice = tx.gasprice;
+   ╰╴                             ━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/block_tx_msg_property.sol:LL:CC
+   │
+LL │     address constant origin = tx.origin;
+   ╰╴                              ━━━━━━━━━
+
+error: aborting due to 36 previous errors; 2 warnings emitted
+
