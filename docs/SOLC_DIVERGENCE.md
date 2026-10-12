@@ -239,7 +239,7 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
-### TYPECK-012: Inline assembly names and constants
+### TYPECK-013: Inline assembly names and constants
 
 Status: intentional.
 
@@ -255,8 +255,7 @@ Difference: `solar` accepts inline assembly that `solc` rejects:
   `dup1` or `datasize` (`solc` error 5017);
 - a Yul variable inside a Yul function that shares its name with a Solidity
   local, such as `function g() -> x` in a function that returns `x` (`solc`
-  error 6578). `solar` still reports 6578 when the name would only resolve to
-  the Solidity local.
+  error 6578).
 
 Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
 resolves the inner declaration first, and constant folding gives assembly the

@@ -2,7 +2,7 @@
 //@ run-call: references => 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45, 0x6162630000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000001234, true, 0x971217b7
 
 // Assembly reads value-type constants whose values are not number literals. solc rejects these
-// reads with error 7615; see TYPECK-012 in docs/SOLC_DIVERGENCE.md.
+// reads with error 7615; see TYPECK-013 in docs/SOLC_DIVERGENCE.md.
 contract AssemblyConstantExpressions {
     uint256 constant three = 3;
     uint256 constant converted = uint256(7);

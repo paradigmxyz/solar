@@ -4,7 +4,7 @@ use crate::{
     ty::{Ty, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, error_code, kw, sym};
+use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
     pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
@@ -65,10 +65,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
-                .err("only direct number constants are supported in inline assembly")
-                .code(error_code!(7615))
-                .span(span)
-                .emit());
+                .emit_err(span, "only direct number constants are supported in inline assembly"));
         }
 
         if var.is_state_variable() && !var.is_constant() {
@@ -121,12 +118,8 @@ impl<'gcx> TypeChecker<'gcx> {
             Assignment(YulMemberAssignmentError),
         }
 
-        let (ty, res) = self.check_yul_member_base(expr);
-        if ty.references_error() {
-            return ty;
-        }
-
-        let inner = || -> Result<(), ErrorKind> {
+        let mut inner = || -> Result<(), ErrorKind> {
+            let (ty, res) = self.check_yul_member_base(expr);
             let Some(res) = res else { return Err(ErrorKind::NonVariable) };
             let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
                 return Err(ErrorKind::NonVariable);

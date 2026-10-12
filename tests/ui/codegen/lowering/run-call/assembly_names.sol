@@ -3,7 +3,7 @@
 //@ run-call: shadowedOuterNames => 10
 //@ run-call: reservedNames => 6
 
-// solc rejects these Yul declarations with errors 3859, 4113, 5017 and 6578; see TYPECK-012 in
+// solc rejects these Yul declarations with errors 3859, 4113, 5017 and 6578; see TYPECK-013 in
 // docs/SOLC_DIVERGENCE.md.
 contract AssemblyNames {
     uint256 s;

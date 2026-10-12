@@ -1509,28 +1509,18 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn resolve_yul_paths(&self, name: Ident) -> Result<&[Declaration], ErrorGuaranteed> {
         let function_scope = self.yul_function_scope;
-        let mut skipped_solidity_local = false;
         for (index, scope) in self.scopes.scopes.iter().enumerate().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
             if function_scope.is_some_and(|function_scope| index < function_scope)
                 && decls.iter().all(|decl| decl.res.as_variable().is_some())
             {
-                skipped_solidity_local |= self.yul_root_scope.is_some_and(|root| index < root);
                 continue;
             }
             return Ok(decls);
         }
-        self.resolver.resolve_name_non_local(name, &self.scopes).map_err(|err| {
-            if skipped_solidity_local {
-                self.dcx()
-                    .err("cannot access local Solidity variables from inside an inline assembly function")
-                    .code(error_code!(6578))
-                    .span(name.span)
-                    .emit()
-            } else {
-                self.resolver.emit_resolver_error()(err)
-            }
-        })
+        self.resolver
+            .resolve_name_non_local(name, &self.scopes)
+            .map_err(self.resolver.emit_resolver_error())
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
