@@ -450,7 +450,6 @@ impl<'gcx> ResolveContext<'gcx> {
                         name_span: modifier.name.last().span,
                         id,
                         args,
-                        qualified: modifier.name.get_ident().is_none(),
                     });
                 }
                 self.arena.alloc_smallvec(modifiers)
@@ -622,7 +621,6 @@ impl<'gcx> ResolveContext<'gcx> {
                     name_span: ast_base.name.last().span,
                     id: base_id.into(),
                     args: self.lower_call_args(&ast_base.arguments),
-                    qualified: ast_base.name.get_ident().is_none(),
                 }
             }),
         );

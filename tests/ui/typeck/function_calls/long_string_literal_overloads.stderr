@@ -1,10 +1,10 @@
-error[6675]: member `toEthSignedMessageHash` not unique on type `type(library MessageHashUtils)`
+error: member `toEthSignedMessageHash` not unique on type `type(library MessageHashUtils)`
    ╭▸ ROOT/tests/ui/typeck/function_calls/long_string_literal_overloads.sol:LL:CC
    │
 LL │ …     MessageHashUtils.toEthSignedMessageHash("abcdefghijklmnopqrstuvwxyz012345");
    ╰╴                       ━━━━━━━━━━━━━━━━━━━━━━
 
-error[4487]: no unique declarations found
+error: no unique declarations found
    ╭▸ ROOT/tests/ui/typeck/function_calls/long_string_literal_overloads.sol:LL:CC
    │
 LL │         hash("abcdefghijklmnopqrstuvwxyz012345");

@@ -1,8 +1,0 @@
-error[2144]: no matching declarations found
-   ╭▸ ROOT/tests/ui/typeck/require_value.sol:LL:CC
-   │
-LL │         function(bool) pure x = require;
-   ╰╴                                ━━━━━━━
-
-error: aborting due to 1 previous error
-

@@ -28,7 +28,7 @@ error: unresolved symbol `Er`
 LL │         revert C.Er();
    ╰╴                 ━━
 
-error[4487]: no unique declarations found
+error: no unique declarations found
    ╭▸ ROOT/tests/ui/resolve/emit_qualified_inherited.sol:LL:CC
    │
 LL │         emit E(x, b);

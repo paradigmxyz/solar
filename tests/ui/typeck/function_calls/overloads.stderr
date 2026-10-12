@@ -1,10 +1,10 @@
-error[4487]: no unique declarations found
+error: no unique declarations found
    ╭▸ ROOT/tests/ui/typeck/function_calls/overloads.sol:LL:CC
    │
 LL │         ambiguousPick(value);
    ╰╴        ━━━━━━━━━━━━━
 
-error[9322]: no matching declarations found
+error: no matching declarations found
    ╭▸ ROOT/tests/ui/typeck/function_calls/overloads.sol:LL:CC
    │
 LL │         pick(value);

@@ -216,7 +216,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 name_span: constructor.span,
                 id: hir::ItemId::Contract(base_id),
                 args,
-                qualified: false,
             };
             self.lower_base_constructor(&modifier, constructor_id, constructor)?;
         }
