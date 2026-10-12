@@ -2,11 +2,9 @@ use super::TypeChecker;
 use crate::{
     hir,
     ty::{Ty, TyKind},
-    typeck::constant_cycles::MAX_DEPTH,
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_data_structures::map::FxHashSet;
-use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, error_code, kw, sym};
+use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
     pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
@@ -64,15 +62,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit_err(span, "assembly access to immutable variables is not supported"));
         }
 
-        if var.is_constant() && self.is_constant_recursive(var_id) {
-            return Err(self
-                .dcx()
-                .err("constant variable is circular")
-                .code(error_code!(3558))
-                .span(span)
-                .emit());
-        }
-
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
@@ -113,34 +102,6 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         Ok(true)
-    }
-
-    /// Returns whether following the value of the constant `id` through the constants it names
-    /// reaches a cycle.
-    ///
-    /// Like solc's `isConstantVariableRecursive`, this only follows values that name another
-    /// constant, without looking through parentheses. Unlike solc, it does not follow member
-    /// accesses yet.
-    ///
-    /// This gives up after [`MAX_DEPTH`] constants, since the constant cycle check after type
-    /// checking reports longer chains.
-    fn is_constant_recursive(&self, mut id: hir::VariableId) -> bool {
-        let mut seen = FxHashSet::default();
-        for _ in 0..MAX_DEPTH {
-            if !seen.insert(id) {
-                return true;
-            }
-            if let Some(init) = self.gcx.hir.variable(id).initializer
-                && let hir::ExprKind::Ident(&[res]) = init.kind
-                && let Some(next) = res.as_variable()
-                && self.gcx.hir.variable(next).is_constant()
-            {
-                id = next;
-            } else {
-                return false;
-            }
-        }
-        false
     }
 
     pub(super) fn check_yul_member(

@@ -8,8 +8,8 @@
 //! the cycle. A search that gets 256 constants deep reports error 7380 and ends the check, like
 //! solc's fatal error.
 //!
-//! As in solc, this only runs when the type checker reported no errors, so type errors and the
-//! inline assembly error for circular constants (3558) hide these errors.
+//! As in solc, this only runs when the type checker reported no errors, so type errors hide these
+//! errors.
 
 use crate::{
     hir::{self, ExprKind, Visit},
@@ -24,7 +24,7 @@ use solar_interface::error_code;
 use std::ops::ControlFlow;
 
 /// The depth at which solc gives up on a dependency chain.
-pub(super) const MAX_DEPTH: usize = 256;
+const MAX_DEPTH: usize = 256;
 
 pub(super) fn check(gcx: Gcx<'_>) {
     if gcx.dcx().has_errors().is_err() {

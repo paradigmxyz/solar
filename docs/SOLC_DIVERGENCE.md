@@ -211,6 +211,23 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-010: Circular constants read in inline assembly
+
+Status: intentional.
+
+Difference: when inline assembly reads a constant whose value depends on
+itself, `solc` reports error 3558 at the read. `solar` reports error 6161 at
+each constant whose value reaches the cycle, as it does for constants that
+assembly does not read.
+
+Rationale: during type checking only bare identifiers are resolved, so a 3558
+check there would miss cycles through member accesses such as `M.c` and repeat
+the cycle search that runs after type checking. Both errors stop compilation.
+
+Coverage: `tests/ui/typeck/constant_cycles/circular_constant_access_err.sol`,
+`tests/ui/typeck/constant_cycles/circular_constant_access_module_err.sol` and
+`tests/ui/typeck/constant_cycles/circular_module_access_err.sol`.
+
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.
