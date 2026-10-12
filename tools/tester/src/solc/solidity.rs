@@ -92,6 +92,12 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // We allow named modifier and base-constructor arguments, which solc rejects.
         | "inherited_constructor_named_parameters"
         | "named_parameters_invocation"
+
+        // Fixed-point types are rejected during parsing.
+        | "all_value_types"
+        | "fixed_point_add"
+        | "fixed_point_compound_add"
+        | "free_function_4"
     ) {
         return Err("manually skipped");
     };

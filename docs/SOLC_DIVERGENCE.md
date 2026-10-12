@@ -83,6 +83,28 @@ Rationale: the AST stores number literals as 256-bit values.
 
 Coverage: `tests/ui/parser/big_literal.sol`.
 
+### PARSE-003: Fixed-point types
+
+Status: intentional.
+
+Difference: solc accepts `fixed`, `ufixed`, `fixedMxN` and `ufixedMxN` types in
+declarations, conversions, operators, the ABI and storage layouts, and fails
+only when code generation reaches a fixed-point operation. It also compares
+fractional literals, such as `0.3 < 0.5`, through their fixed-point mobile
+types. Solar rejects every fixed-point type during parsing and rejects every
+comparison of a fractional literal. Valid fixed-point type names stay keywords,
+like in solc.
+
+Rationale: solc cannot generate code for fixed-point operations, so we do not
+represent fixed-point types.
+
+Coverage: `tests/ui/parser/fixed_point_type.sol`,
+`tests/ui/parser/fixed_point_type_default.sol`,
+`tests/ui/parser/fixed_mxn_types.sol`,
+`tests/ui/parser/fixed_mxn_declaration_names.sol`, and
+`tests/ui/typeck/rational_literal_operators.sol`; the upstream fixtures that use
+fixed-point types are excluded from solc parity testing.
+
 ## AST Validation
 
 No intentional divergences documented yet.
@@ -225,26 +247,7 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
-### TYPECK-009: Comparisons of fractional literals
-
-Status: intentional.
-
-Difference: solc compares fractional literals through their fixed-point mobile
-types. It accepts `0.3 < 0.5` and `1000.5 < 1`, rejects `0.5 < 0.25` because
-the two mobile types have no common type, and then fails code generation for
-every comparison it accepts ("Not yet implemented - FixedPointType." or, through
-the IR pipeline, "Fixed point types not implemented."). Solar accepts every
-comparison of two fractions and evaluates it at compile time, and rejects every
-comparison of a fraction with an integer.
-
-Rationale: we do not support fixed-point types, and literal arithmetic is
-exact, so a comparison of two fractions is a constant.
-
-Coverage: `tests/ui/typeck/rational_literal_operators.sol`,
-`tests/ui/codegen/lowering/run-call/rational_literal_arithmetic.sol`, and
-`tests/ui/codegen/lowering/run-call/constant_integer_value.sol`.
-
-### TYPECK-010: Constant initializers that are not compile-time constants
+### TYPECK-009: Constant initializers that are not compile-time constants
 
 Status: parity debt.
 

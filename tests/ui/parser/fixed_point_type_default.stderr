@@ -1,0 +1,8 @@
+error: fixed-point types are not supported
+   ╭▸ ROOT/tests/ui/parser/fixed_point_type_default.sol:LL:CC
+   │
+LL │     mapping(address => fixed) m;
+   ╰╴                       ━━━━━
+
+error: aborting due to 1 previous error
+

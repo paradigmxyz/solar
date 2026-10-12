@@ -10,7 +10,6 @@
 //@ run-call: maxIntermediate => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: decimals => 1000000000000000000
 //@ run-call: negation => -1
-//@ run-call: comparison => true, false, true
 //@ run-call: typedDivision => 2, -2
 //@ run-call: discarded => 1
 
@@ -60,10 +59,6 @@ contract RationalLiteralArithmetic {
 
     function negation() external pure returns (int256) {
         return -(0.25 * 4);
-    }
-
-    function comparison() external pure returns (bool, bool, bool) {
-        return (0.3 < 0.5, 0.25 == 0.75, -0.5 <= -1 / 2);
     }
 
     // Typed constants keep integer division.

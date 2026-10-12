@@ -1138,14 +1138,10 @@ fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {
     match ty.peel_refs().kind {
         TyKind::Udvt(inner, _) => arithmetic_kind(inner),
         TyKind::Elementary(elementary) => match elementary {
-            solar_sema::hir::ElementaryType::UInt(size)
-            | solar_sema::hir::ElementaryType::UFixed(size, _) => {
+            solar_sema::hir::ElementaryType::UInt(size) => {
                 Some(ArithmeticKind::Unsigned(size.bits()))
             }
-            solar_sema::hir::ElementaryType::Int(size)
-            | solar_sema::hir::ElementaryType::Fixed(size, _) => {
-                Some(ArithmeticKind::Signed(size.bits()))
-            }
+            solar_sema::hir::ElementaryType::Int(size) => Some(ArithmeticKind::Signed(size.bits())),
             _ => None,
         },
         _ => None,

@@ -935,11 +935,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 solar_sema::hir::ElementaryType::Bool => (1, false),
                 solar_sema::hir::ElementaryType::Address(_) => (20, false),
                 solar_sema::hir::ElementaryType::Int(size)
-                | solar_sema::hir::ElementaryType::UInt(size)
-                | solar_sema::hir::ElementaryType::Fixed(size, _)
-                | solar_sema::hir::ElementaryType::UFixed(size, _) => {
-                    (u64::from(size.bytes()), false)
-                }
+                | solar_sema::hir::ElementaryType::UInt(size) => (u64::from(size.bytes()), false),
                 solar_sema::hir::ElementaryType::FixedBytes(size) => {
                     (u64::from(size.bytes()), true)
                 }

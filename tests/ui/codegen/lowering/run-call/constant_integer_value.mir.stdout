@@ -52,11 +52,6 @@ fn @fraction() -> i256 [selector=0xd8894bb5, pure, abi_params=[], abi_returns=[w
     ret 1
 }
 
-fn @fractionCompare() -> i1 [selector=0xdf414a28, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    ret true
-}
-
 fn @typedDivision() -> i256 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 0

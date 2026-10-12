@@ -7,13 +7,13 @@
 
 contract SignedExponent {
     function f() public {
-        fixed g = 2 ** -2.2; //~ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+        int g = 2 ** -2.2; //~ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
     }
 }
 
 contract UnsignedExponent {
     function f() public {
-        ufixed b = 3 ** 2.5; //~ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+        uint b = 3 ** 2.5; //~ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
     }
 }
 
@@ -62,9 +62,9 @@ contract Operators {
         x ** 0.5; //~ ERROR: cannot apply builtin operator `**` to `uint256` and `rational_literal`
         x << 0.5; //~ ERROR: cannot apply builtin operator `<<` to `uint256` and `rational_literal`
         0.5 && true; //~ ERROR: cannot apply builtin operator `&&` to `rational_literal` and `bool`
-        0.3 < 0.5;
-        0.5 == 0.5;
-        0.5 != 0.7;
+        0.3 < 0.5; //~ ERROR: cannot apply builtin operator `<` to `rational_literal` and `rational_literal`
+        0.5 == 0.5; //~ ERROR: cannot apply builtin operator `==` to `rational_literal` and `rational_literal`
+        0.5 != 0.7; //~ ERROR: cannot apply builtin operator `!=` to `rational_literal` and `rational_literal`
         0.5 < 1; //~ ERROR: cannot apply builtin operator `<` to `rational_literal` and `int_literal[1]`
         1 >= 0.5; //~ ERROR: cannot apply builtin operator `>=` to `int_literal[1]` and `rational_literal`
         0.5 == x; //~ ERROR: cannot apply builtin operator `==` to `rational_literal` and `uint256`

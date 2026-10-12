@@ -1,8 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/rational_literal_arithmetic.sol:RationalLiteralArithmetic ===
 @module RationalLiteralArithmetic
 @types
-  struct0: {i1, i1, i1}
-  struct1: {i256, i256}
+  struct0: {i256, i256}
 
 fn @thirds() -> i256 [selector=0x700de8d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -59,21 +58,13 @@ fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[w
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
-fn @comparison() -> struct0 [selector=0xaae103ad, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
-  bb0:
-    v0 = insert_value struct0, undef struct0, 0, true
-    v1 = insert_value struct0, v0, 1, false
-    v2 = insert_value struct0, v1, 2, true
-    ret v2
-}
-
-fn @typedDivision() -> struct1 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
+fn @typedDivision() -> struct0 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
   bb0:
     v0 = checked_div i256, 7, 3
     v1 = checked_sub i256, 0, 7
     v2 = checked_div i256, v1, 3
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v2
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v2
     ret v4
 }
 

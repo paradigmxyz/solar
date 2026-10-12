@@ -1,18 +1,18 @@
 error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
-LL │         fixed g = 2 ** -2.2;
-   │                   ┬ ━━ ──── rational_literal
-   │                   │
-   ╰╴                  int_literal[2]
+LL │         int g = 2 ** -2.2;
+   │                 ┬ ━━ ──── rational_literal
+   │                 │
+   ╰╴                int_literal[2]
 
 error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
-LL │         ufixed b = 3 ** 2.5;
-   │                    ┬ ━━ ─── rational_literal
-   │                    │
-   ╰╴                   int_literal[2]
+LL │         uint b = 3 ** 2.5;
+   │                  ┬ ━━ ─── rational_literal
+   │                  │
+   ╰╴                 int_literal[2]
 
 error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
@@ -162,6 +162,30 @@ LL │         0.5 && true;
    │         │
    ╰╴        rational_literal
 
+error: cannot apply builtin operator `<` to `rational_literal` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.3 < 0.5;
+   │         ┬── ━ ─── rational_literal
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `==` to `rational_literal` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 == 0.5;
+   │         ┬── ━━ ─── rational_literal
+   │         │
+   ╰╴        rational_literal
+
+error: cannot apply builtin operator `!=` to `rational_literal` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 != 0.7;
+   │         ┬── ━━ ─── rational_literal
+   │         │
+   ╰╴        rational_literal
+
 error: cannot apply builtin operator `<` to `rational_literal` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
@@ -186,5 +210,5 @@ LL │         0.5 == x;
    │         │
    ╰╴        rational_literal
 
-error: aborting due to 24 previous errors
+error: aborting due to 27 previous errors
 

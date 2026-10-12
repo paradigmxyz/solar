@@ -5,7 +5,6 @@
 //@ run-call: ConstantIntegerValue::decimal => 300000000000000000
 //@ run-call: ConstantIntegerValue::negativeExponent => 5
 //@ run-call: ConstantIntegerValue::fraction => 1
-//@ run-call: ConstantIntegerValue::fractionCompare => true
 //@ run-call: ConstantIntegerValue::typedDivision => 0
 //@ run-call: ConstantIntegerValue::zeroNegativePower => 0
 
@@ -67,6 +66,5 @@ contract ConstantIntegerValue {
     function decimal() external pure returns (uint) { return 0.3 * 10**18; }
     function negativeExponent() external pure returns (uint) { return 50 * 10**8 * 10**-9; }
     function fraction() external pure returns (uint) { return (1 / 2) * 2; }
-    function fractionCompare() external pure returns (bool) { return 0.3 < 0.5; }
     function typedDivision() external pure returns (uint) { return HALF; }
 }

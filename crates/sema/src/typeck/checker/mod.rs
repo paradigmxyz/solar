@@ -4041,11 +4041,6 @@ fn binop_common_type<'gcx>(
 
             (other == ty && matches!(op, Eq | Ne | And | Or)).then_some(ty)
         }
-        // Arithmetic on fractions is literal arithmetic. solc compares fractions through their
-        // fixed-point mobile types, which we do not support, so we allow comparing two fractions
-        // and evaluate the result.
-        TyKind::RationalLiteral => (op.is_cmp() && other == ty).then_some(ty),
-
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
         | TyKind::Struct(_)
@@ -4074,10 +4069,11 @@ fn binop_common_type<'gcx>(
             ty.common_type(other, gcx)
         }
 
-        TyKind::Elementary(hir::ElementaryType::String)
+        // Arithmetic on fractions is literal arithmetic. solc compares fractions through their
+        // fixed-point mobile types, which we do not support.
+        TyKind::RationalLiteral
+        | TyKind::Elementary(hir::ElementaryType::String)
         | TyKind::Elementary(hir::ElementaryType::Bytes)
-        | TyKind::Elementary(hir::ElementaryType::Fixed(..))
-        | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
         | TyKind::DynArray(_)
