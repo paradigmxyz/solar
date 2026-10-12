@@ -82,10 +82,6 @@ struct TypeChecker<'gcx> {
     discarded: FxHashMap<hir::ExprId, Discarded>,
     /// Where the value of the expression being checked is used.
     value_position: ValuePosition,
-    /// The error the evaluator reported for the array length being checked.
-    ///
-    /// It already covers the length's operators, so they are not reported again.
-    array_len_err: Option<ErrorGuaranteed>,
 }
 
 /// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
@@ -163,7 +159,6 @@ impl<'gcx> TypeChecker<'gcx> {
             in_yul: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
-            array_len_err: None,
         }
     }
 
@@ -616,8 +611,9 @@ impl<'gcx> TypeChecker<'gcx> {
                     // `elem_ty` array type expression.
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
-                        let len =
-                            index_ty.error_reported().and_then(|()| self.gcx.array_len(index));
+                        let len = index_ty
+                            .error_reported()
+                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -1174,8 +1170,15 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             return ty;
         }
-        if let Some(guar) = self.array_len_err {
-            return self.gcx.mk_ty_err(guar);
+        // The constant evaluator also finds literals without a mobile type, so both share one
+        // report.
+        if let Some(literal) =
+            [(lhs_e, lhs, rhs), (rhs_e, rhs, lhs)].into_iter().find_map(|(e, ty, other)| {
+                let other = other.peel_refs();
+                (literal_lacks_mobile_type(ty, other) && other.is_integer()).then_some(e)
+            })
+        {
+            return self.gcx.mk_ty_err(self.gcx.literal_too_large(literal.span));
         }
 
         let msg = format!(
@@ -3584,10 +3587,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
                 if let Some(size) = array.size {
-                    let err = self.gcx.array_len(size).err();
-                    let prev = std::mem::replace(&mut self.array_len_err, err);
                     let _ = self.check_array_size(size);
-                    self.array_len_err = prev;
                 }
                 return self.visit_ty(&array.element);
             }
@@ -4026,11 +4026,7 @@ fn binop_common_type<'gcx>(
 
     let ty = ty.peel_refs();
     let other = other.peel_refs();
-    // Like solc, a literal next to a typed operand needs a mobile type.
-    let is_literal = |ty: Ty<'_>| matches!(ty.kind, TyKind::IntLiteral(..));
-    if is_literal(ty) != is_literal(other)
-        && [ty, other].into_iter().any(|ty| is_literal(ty) && ty.mobile(gcx).is_none())
-    {
+    if literal_lacks_mobile_type(ty, other) || literal_lacks_mobile_type(other, ty) {
         return None;
     }
     match ty.kind {
@@ -4132,6 +4128,12 @@ fn binop_common_type<'gcx>(
 /// Returns `true` if `ty` is an integer literal too large for any integer type.
 fn is_literal_too_large(ty: Ty<'_>) -> bool {
     matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if bits > TypeSize::MAX)
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type next to a typed
+/// operand `other`. Like solc, such a binary operation needs the literal's mobile type.
+fn literal_lacks_mobile_type(ty: Ty<'_>, other: Ty<'_>) -> bool {
+    is_literal_too_large(ty) && !matches!(other.kind, TyKind::IntLiteral(..))
 }
 
 fn valid_shift<'gcx>(

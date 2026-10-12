@@ -947,7 +947,7 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match self.array_len(size) {
+                    Some(size) => match crate::eval::eval_array_len(self, size) {
                         Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
@@ -1996,12 +1996,16 @@ fn internal_function_members_in_context(
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
 }
 
-/// Evaluates the given array length expression, emitting an error diagnostic if it fails.
-pub(crate) fn array_len(
-    gcx: _,
-    size: &hir::Expr<'_>
-) cached_by(hir::ExprId, size.id) -> Result<U256, ErrorGuaranteed> {
-    crate::eval::eval_array_len(gcx, size)
+/// Reports a literal operand at `span` that is too large for any integer type, next to a typed
+/// operand.
+///
+/// The type checker and the constant evaluator both find these, so they share one report.
+pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
+    gcx.dcx()
+        .err("literal is too large for any integer type")
+        .span(span)
+        .note("the other operand is typed, so the literal must fit an integer type")
+        .emit()
 }
 
 } // cached!

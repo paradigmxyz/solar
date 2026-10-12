@@ -86,6 +86,7 @@ impl<'gcx> Gcx<'gcx> {
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
+            EE::LiteralTooLarge => self.literal_too_large(err.span),
             _ => {
                 let msg = format!("failed to evaluate constant: {}", err.kind.msg());
                 let label = "evaluation of constant value failed here";
@@ -136,10 +137,19 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         match expr.kind {
             // hir::ExprKind::Array(_) => unimplemented!(),
             // hir::ExprKind::Assign(_, _, _) => unimplemented!(),
-            hir::ExprKind::Binary(l, bin_op, r) => {
-                let l = self.try_eval_value(l)?;
-                let r = self.try_eval_value(r)?;
-                l.binop(r, bin_op.kind).map_err(Into::into)
+            hir::ExprKind::Binary(l_expr, bin_op, r_expr) => {
+                let l = self.try_eval_value(l_expr)?;
+                let r = self.try_eval_value(r_expr)?;
+                // Only an untyped literal next to a typed operand can be too large.
+                let literal = if matches!(&l, ConstValue::Integer(l) if l.ty.is_none()) {
+                    l_expr
+                } else {
+                    r_expr
+                };
+                l.binop(r, bin_op.kind).map_err(|kind| match kind {
+                    EE::LiteralTooLarge => kind.spanned(literal.span),
+                    kind => kind.into(),
+                })
             }
             hir::ExprKind::Call(callee, ref args) => self.eval_call(callee, args),
             // hir::ExprKind::Delete(_) => unimplemented!(),
