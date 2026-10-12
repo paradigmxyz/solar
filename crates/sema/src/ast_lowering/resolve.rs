@@ -1542,6 +1542,14 @@ impl<'gcx> ResolveContext<'gcx> {
             if function_scope.is_some_and(|function_scope| index < function_scope)
                 && decls.iter().all(|decl| decl.res.as_variable().is_some())
             {
+                if self.yul_root_scope.is_some_and(|root| index < root) {
+                    return Err(self
+                        .dcx()
+                        .err("cannot access local Solidity variables from inside an inline assembly function")
+                        .code(error_code!(6578))
+                        .span(name.span)
+                        .emit());
+                }
                 continue;
             }
             return Ok(decls);
