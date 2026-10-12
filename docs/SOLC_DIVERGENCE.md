@@ -211,6 +211,21 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-009: Decoding arrays of zero-size elements
+
+Status: intentional.
+
+Difference: `abi.decode` accepts empty array types such as `uint[0]`, but
+`solar` rejects decode targets that contain an array whose elements encode to
+zero bytes, such as `uint[0][]` or `uint[0][2]`. Solc 0.8.37 type-checks these
+targets, then fails an assertion on the zero element stride while generating
+the decoder, with both code generators.
+
+Rationale: no decoder exists for these types in `solc`, so report them during
+type checking instead of crashing or making up an encoding.
+
+Coverage: `tests/ui/typeck/abi_decode_zero_size_elements.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

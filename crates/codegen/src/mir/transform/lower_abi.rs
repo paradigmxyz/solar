@@ -1847,7 +1847,8 @@ impl LowerAbiCx {
                 Self::decode_source_scalar(builder, ty, base, current, options)
             }
             crate::mir::AbiParamType::FixedArray { element, len } => {
-                let head_size = ty.data_head_size();
+                // solc's array decoder checks the first word even of an empty array.
+                let head_size = ty.data_head_size().max(32);
                 if !head_checked || is_dynamic {
                     let reason = Self::aggregate_short_reason(ty, to_calldata);
                     Self::guard_input_range(builder, base, head_size, input_end, current, reason);
@@ -3149,6 +3150,12 @@ fn decode_memory_tuple(
     let mut head_offset = 0_u64;
     for ty in &layout.types {
         let head = builder.add_u64_offset(base, head_offset);
+        if reads_empty_head(ty) {
+            // solc's array decoder checks the first word even of an empty array.
+            // if 32 > input_end - head { revert }
+            let reason = RevertReason::InvalidCalldataArrayOffset;
+            LowerAbiCx::guard_input_range(builder, head, 32, input_end, &mut current, reason);
+        }
         let value = if static_layout {
             LowerAbiCx::decode_static_memory_argument(
                 builder,
@@ -3183,7 +3190,14 @@ fn decode_memory_tuple(
 /// static layouts: they read the head alone, so the caller checks the length, which is usually the
 /// constant head size, and the check folds away.
 fn passes_slice_base(data_ty: MirType, layout: &AbiParamLayout) -> bool {
-    matches!(data_ty, MirType::Slice(_)) && !layout.types.iter().any(AbiParamType::is_dynamic)
+    matches!(data_ty, MirType::Slice(_))
+        && !layout.types.iter().any(|ty| ty.is_dynamic() || reads_empty_head(ty))
+}
+
+/// Returns whether decoding `ty` reads a word past its empty head, which holds for statically
+/// encoded empty arrays such as `uint256[0]`: solc's array decoder checks their first word.
+fn reads_empty_head(ty: &AbiParamType) -> bool {
+    matches!(ty, AbiParamType::FixedArray { .. }) && ty.checked_head_size() == Some(0)
 }
 
 /// Returns the base and length of an ABI decode's input, a bytes object or a memory slice.
