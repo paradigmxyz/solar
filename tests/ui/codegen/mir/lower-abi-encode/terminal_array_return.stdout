@@ -26,7 +26,7 @@
 +     v11 = ptrtoint memptr v0 to i256
 +     v12 = add v11, 32
 +     v13 = shl 5, v10
-+     v14 = add v12, 32
++     v14 = add v11, 64
 +     mcopy v14, v12, v13
 +     v15 = ptrtoint memptr v0 to i256
 +     mstore v15, 32
@@ -115,7 +115,7 @@
 +     v15 = and v13, v14
 +     v16 = add v12, v15
 +     mstore v16, 0
-+     v17 = add v12, 32
++     v17 = add v11, 64
 +     mcopy v17, v12, v10
 +     v18 = ptrtoint memptr v0 to i256
 +     mstore v18, 32

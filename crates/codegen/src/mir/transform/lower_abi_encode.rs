@@ -1386,8 +1386,8 @@ fn encode_memory_array_elements(
 
     let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
-    let next_source = builder.add(source, word);
     let next_head = builder.add(element_head, element_head_size);
+    let next_source = builder.add(source, word);
     let backedge = builder.current_block();
     builder.jump(cond);
     builder.add_phi_incoming(remaining, backedge, next_remaining);

@@ -22,7 +22,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore v27, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
     v30 = add v6, 96
     mstore v30, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v11 = add v6, 128
+    v11 = add v32, 160
     v12 = gas
     v13 = staticcall v12, 1, v6, 128, v11, 32
     v15 = mload v11
@@ -56,7 +56,7 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore v26, 0
     v29 = add v5, 96
     mstore v29, 0
-    v10 = add v5, 128
+    v10 = add v31, 160
     v11 = gas
     v12 = staticcall v11, 1, v5, 128, v10, 32
     v14 = mload v10
@@ -189,6 +189,35 @@ fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
 
 fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
   bb0:
+    v26 = mload 64 !metadata(memory=scratch)
+    v27 = add v26, 32
+    mstore 64, v27 !metadata(memory=scratch)
+    mstore v26, 0
+    v20 = mload 64 !metadata(memory=scratch)
+    v21 = add v20, 64
+    v22 = lt v21, v20
+    v23 = gt v21, 0xffffffffffffffff
+    v24 = or v22, v23
+    jumpi v24, bb2, bb1
+  bb1:
+    mstore 64, v21 !metadata(memory=scratch)
+    v28 = calldatasize
+    calldatacopy v20, v28, 64
+    mstore v20, 32
+    v12 = add v20, 32
+    v13 = gas
+    v14 = staticcall v13, 2, 0, 0, v12, 32
+    v16 = mload v12
+    mstore 128, v16
+    returndata 128, 32
+  bb2:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
+  bb0:
     v27 = mload 64 !metadata(memory=scratch)
     v28 = add v27, 32
     mstore 64, v28 !metadata(memory=scratch)
@@ -205,35 +234,6 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     calldatacopy v21, v29, 64
     mstore v21, 32
     v12 = add v21, 32
-    v13 = gas
-    v14 = staticcall v13, 2, 0, 0, v12, 32
-    v16 = mload v12
-    mstore 128, v16
-    returndata 128, 32
-  bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
-  bb0:
-    v28 = mload 64 !metadata(memory=scratch)
-    v29 = add v28, 32
-    mstore 64, v29 !metadata(memory=scratch)
-    mstore v28, 0
-    v22 = mload 64 !metadata(memory=scratch)
-    v23 = add v22, 64
-    v24 = lt v23, v22
-    v25 = gt v23, 0xffffffffffffffff
-    v26 = or v24, v25
-    jumpi v26, bb2, bb1
-  bb1:
-    mstore 64, v23 !metadata(memory=scratch)
-    v30 = calldatasize
-    calldatacopy v22, v30, 64
-    mstore v22, 32
-    v12 = add v22, 32
     v13 = gas
     v14 = staticcall v13, 3, 0, 0, v12, 32
     v16 = mload v12

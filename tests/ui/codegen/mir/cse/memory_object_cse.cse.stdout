@@ -38,10 +38,11 @@
       v4 = ptrtoint memptr arg0 to i256
       mstore v4, 9
       v5 = memory_slice arg0
-      v6 = slice_len v5
+-     v6 = slice_len v5
 -     v7 = add v1, v3
+-     v8 = add v7, v6
 +     v7 = add v1, v1
-      v8 = add v7, v6
++     v8 = add v7, 9
       ret v8
   }
   
@@ -107,8 +108,8 @@
     bb1:
 -     v4 = memory_slice v0
 -     v5 = slice_len v4
-+     v5 = slice_len v2
-      ret v5
+-     ret v5
++     ret 3
   }
   
   fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
@@ -117,8 +118,9 @@
       mstore v0, 3
       mstore v0, arg1
       v1 = memory_slice arg0
-      v2 = slice_len v1
-      ret v2
+-     v2 = slice_len v1
+-     ret v2
++     ret arg1
   }
   
   fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {

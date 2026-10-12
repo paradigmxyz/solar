@@ -12,7 +12,7 @@ fn @constructor() [constructor] {
     v4 = ptrtoint memptr v2 to i256
     v5 = add v4, 32
     mstore v5, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v6 = add v5, 32
+    v6 = add v4, 64
     mstore v6, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v7 = mapping_slot_memory v2, 1
     sstore v7, 11 !metadata(storage=symbolic(v7))
@@ -79,7 +79,7 @@ fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_ret
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 32
     mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v4 = add v3, 32
+    v4 = add v2, 64
     mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v5 = mapping_slot_memory v0, 1
     v6 = sload v5 !metadata(storage=symbolic(v5))

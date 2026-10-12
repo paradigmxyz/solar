@@ -21,7 +21,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v8 = ptrtoint memptr v6 to i256
     v9 = add v8, 32
     mstore v9, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    v10 = add v9, 32
+    v10 = add v8, 64
     mstore v10, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
     v11 = memory_slice v0
     v12 = slice_len v11

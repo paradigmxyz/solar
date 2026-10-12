@@ -11,7 +11,7 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
     v12 = mul v6, v11
     v14 = add v21, 32
     v15 = shl 5, v12
-    v16 = add v14, 32
+    v16 = add v21, 64
     mcopy v16, v14, v15
     mstore v21, 32
     mstore v14, v12

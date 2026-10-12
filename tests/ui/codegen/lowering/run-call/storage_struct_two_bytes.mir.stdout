@@ -17,9 +17,9 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v4 = ptrtoint memptr v2 to i256
     v5 = add v4, 32
     mstore v5, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v6 = add v5, 32
+    v6 = add v4, 64
     mstore v6, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v7 = add v5, 64
+    v7 = add v4, 96
     mstore v7, 0x3132333435363738390000000000000000000000000000000000000000000000
     v8 = ptrtoint memptr v2 to i256
     memory_object_store_field memorystruct<4>, v0, 3, v8
@@ -86,9 +86,9 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     v9 = ptrtoint memptr v7 to i256
     v10 = add v9, 32
     mstore v10, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v11 = add v10, 32
+    v11 = add v9, 64
     mstore v11, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v12 = add v10, 64
+    v12 = add v9, 96
     mstore v12, 0x3132333435363738390000000000000000000000000000000000000000000000
     v13 = ptrtoint memptr v7 to i256
     memory_object_store_field memorystruct<4>, v0, 1, v13

@@ -83,7 +83,7 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v21 = add v20, 32
     v22 = memory_slice v11
     v23 = slice_len v22
-    v24 = add v21, 4
+    v24 = add v20, 36
     v25 = sub v23, 4
     v26 = make_memory_slice v24, v25
     v27 = abi_decode [bytes], v26

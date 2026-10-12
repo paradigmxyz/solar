@@ -234,11 +234,22 @@ impl<'a> FunctionBuilder<'a> {
     /// Adds a constant byte offset, folding zero offsets.
     pub(crate) fn add_u64_offset(&mut self, base: ValueId, offset: u64) -> ValueId {
         if offset == 0 {
-            base
-        } else {
-            let offset = self.imm(offset);
-            self.add(base, offset)
+            return base;
         }
+        // An offset into a dynamic object's payload is addressed from the object itself.
+        // add (add (ptrtoint object), header), offset => add (ptrtoint object), header + offset
+        if let Value::Inst(inst) = self.func.value(base)
+            && let InstKind::Add(root, header) = self.func.inst(*inst).kind
+            && self.func.value_u64(header) == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
+            && let Value::Inst(cast) = self.func.value(root)
+            && matches!(self.func.inst(*cast).kind, InstKind::PtrToInt(_, 256))
+            && let Some(total) = offset.checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
+        {
+            let total = self.imm(total);
+            return self.add(root, total);
+        }
+        let offset = self.imm(offset);
+        self.add(base, offset)
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload.

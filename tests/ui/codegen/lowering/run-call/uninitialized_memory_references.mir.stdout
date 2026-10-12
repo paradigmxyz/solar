@@ -232,7 +232,7 @@ fn @literal_bytes_0() -> memptr {
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 32
     mstore v3, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v4 = add v3, 32
+    v4 = add v2, 64
     mstore v4, 0x1122000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

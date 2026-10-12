@@ -132,7 +132,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v8 = ptrtoint memptr v6 to i256
     v9 = add v8, 32
     mstore v9, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
-    v10 = add v9, 32
+    v10 = add v8, 64
     mstore v10, 0x8a09ff40000
     v11 = memory_slice v0
     v12 = slice_len v11

@@ -11,7 +11,7 @@ fn @dynBytes() -> memptr [selector=0x7271bb2c, pure, abi_params=[], abi_returns=
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 32
     mstore v3, 0x3031323334353637383961626364656630313233343536373839616263646566
-    v4 = add v3, 32
+    v4 = add v2, 64
     mstore v4, 0x3031000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

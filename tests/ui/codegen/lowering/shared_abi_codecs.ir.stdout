@@ -562,8 +562,8 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
   bb1:
     v12 = phi [bb0: v7], [bb2: v30]
     v13 = phi [bb0: v10], [bb2: v29]
-    v14 = phi [bb0: v8], [bb2: v32]
-    v15 = phi [bb0: v11], [bb2: v31]
+    v14 = phi [bb0: v8], [bb2: v31]
+    v15 = phi [bb0: v11], [bb2: v32]
     v16 = gt v12, 0
     jumpi v16, bb2, bb3
   bb3:
@@ -584,8 +584,8 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v28 = add v17, 32
     mcopy v27, v28, v26 !metadata(memory=heap, disjoint)
     v30 = sub v12, 1
-    v31 = add v15, 32
-    v32 = add v14, 32
+    v31 = add v14, 32
+    v32 = add v15, 32
     jump bb1
 }
 

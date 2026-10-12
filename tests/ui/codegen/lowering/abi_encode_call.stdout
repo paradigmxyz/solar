@@ -18,7 +18,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     mstore v47, 68
     v13 = add v47, 32
     mstore v13, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v14 = add v13, 4
+    v14 = add v47, 36
     mstore v14, arg0
     v15 = add v14, 32
     mstore v15, arg1
@@ -65,13 +65,13 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v17, bb4, bb1
   bb4:
     v0 = gas
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 128
-    mstore 64, v31 !metadata(memory=scratch)
-    mstore v30, 68
-    v26 = add v30, 32
+    v29 = mload 64 !metadata(memory=scratch)
+    v30 = add v29, 128
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, 68
+    v26 = add v29, 32
     mstore v26, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v27 = add v26, 4
+    v27 = add v29, 36
     mstore v27, arg1
     v28 = add v27, 32
     mstore v28, arg2

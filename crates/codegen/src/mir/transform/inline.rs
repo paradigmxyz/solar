@@ -536,8 +536,14 @@ impl MirInliner {
         .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
-        // Specialize dispatcher calls before helper-local inlining introduces phis.
-        let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
+        // Specialize dispatcher calls before helper-local inlining introduces phis. A single-use
+        // callee takes its own single-use callees first, so the nested bodies reach the caller
+        // together and get simplified as one, whatever the caller's growth budget allows.
+        let mut caller_ids = if self.mode == InlineMode::SingleUse {
+            call_graph.callees_first()
+        } else {
+            module.functions.indices().collect::<Vec<_>>()
+        };
         caller_ids.sort_by_key(|caller| {
             summaries.get(caller).is_some_and(|summary| {
                 summary.is_function_pointer_dispatcher && summary.has_function_selector
@@ -1211,7 +1217,7 @@ fn summarize_function(
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
+            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, func, kind);
             summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
@@ -1426,11 +1432,15 @@ fn live_word_count(func: &Function, live: &DenseBitSet<ValueId>) -> usize {
         .filter(|&value| match func.value(value) {
             Value::Arg(_) => true,
             // A `memory_slice` view lowers to its length word, so its length takes no other word.
-            Value::Inst(inst) => !matches!(func.inst(*inst).kind,
-                InstKind::SliceLen(view) if func.memory_slice_object(view).is_some()),
+            Value::Inst(inst) => !is_view_length(func, &func.inst(*inst).kind),
             _ => false,
         })
         .count()
+}
+
+/// Whether `kind` reads the length of a `memory_slice` view, which lowers to the view itself.
+fn is_view_length(func: &Function, kind: &InstKind) -> bool {
+    matches!(*kind, InstKind::SliceLen(view) if func.memory_slice_object(view).is_some())
 }
 
 /// A call followed by bounded physical word operations, with no allocation or frame locals.
@@ -1620,11 +1630,22 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
 /// emit priced by the target, with the number of MIR instructions the expansion produces.
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
-/// left out throughout, as they are for those.
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, usize) {
+/// left out throughout, as they are for those. A `memory_slice` view costs only the length load,
+/// charged where the length is read; its data address is recomputed from the object at each use.
+fn estimate_inst_cost(
+    gcx: Gcx<'_>,
+    module: &Module,
+    func: &Function,
+    kind: &InstKind,
+) -> (Cost, usize) {
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
+    match kind {
+        InstKind::MemorySlice(_) => return (Cost::ZERO, 0),
+        _ if is_view_length(func, kind) => return (seq(&[op::MLOAD]), 1),
+        _ => {}
+    }
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
         let op = kind.op();
         if select::opcode_lowering(&op).is_some() {
@@ -1673,7 +1694,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
         InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
         InstKind::SliceCopy { .. } => seq(&[op::MCOPY]),
-        InstKind::MemorySlice(_) | InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
+        InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
         InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
         // Bump the free-memory pointer past the allocation.
         InstKind::Alloc { .. } => seq(&[op::MLOAD, op::ADD, op::MSTORE]),

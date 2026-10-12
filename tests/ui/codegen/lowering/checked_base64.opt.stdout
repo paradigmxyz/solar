@@ -24,7 +24,7 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v15, v18
     mstore v19, 0
-    v20 = add v15, 32
+    v20 = add v25, 64
     mcopy v20, v15, v13
     mstore v25, 32
     mstore v15, v13
@@ -46,7 +46,7 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v17, v20
     mstore v21, 0
-    v22 = add v17, 32
+    v22 = add v27, 64
     mcopy v22, v17, v15
     mstore v27, 32
     mstore v17, v15
@@ -68,7 +68,7 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v17, v20
     mstore v21, 0
-    v22 = add v17, 32
+    v22 = add v27, 64
     mcopy v22, v17, v15
     mstore v27, 32
     mstore v17, v15
@@ -90,7 +90,7 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v15, v18
     mstore v19, 0
-    v20 = add v15, 32
+    v20 = add v25, 64
     mcopy v20, v15, v13
     mstore v25, 32
     mstore v15, v13

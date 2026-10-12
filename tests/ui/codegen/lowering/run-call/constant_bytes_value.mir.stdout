@@ -8,7 +8,7 @@ fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[wor
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 32
     mstore v3, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
-    v4 = add v3, 32
+    v4 = add v2, 64
     mstore v4, 0x102030405060708000000000000000000000000000000000000000000000000
     v5 = memory_slice v0
     v6 = slice_len v5
@@ -23,7 +23,7 @@ fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 32
     mstore v3, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
-    v4 = add v3, 32
+    v4 = add v2, 64
     mstore v4, 0x102030405060708000000000000000000000000000000000000000000000000
     v5 = ptrtoint memptr v0 to i256
     v6 = add v5, 32

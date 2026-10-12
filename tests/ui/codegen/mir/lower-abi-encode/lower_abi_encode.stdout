@@ -26,7 +26,7 @@
 +     v3 = ptrtoint memptr v1 to i256
 +     v4 = add v3, 32
 +     mstore v4, arg0
-+     v5 = add v4, 32
++     v5 = add v3, 64
 +     mstore v5, arg1
 +     ret v1
   }
@@ -41,7 +41,7 @@
 +     v3 = ptrtoint memptr v1 to i256
 +     v4 = add v3, 32
 +     mstore v4, 0x1234567800000000000000000000000000000000000000000000000000000000
-+     v5 = add v4, 4
++     v5 = add v3, 36
 +     mstore v5, arg0
 +     ret v1
   }
@@ -120,8 +120,8 @@
 +   bb1:
 +     v19 = phi [bb0: v13], [bb2: v37]
 +     v20 = phi [bb0: v16], [bb2: v36]
-+     v21 = phi [bb0: v14], [bb2: v39]
-+     v22 = phi [bb0: v18], [bb2: v38]
++     v21 = phi [bb0: v14], [bb2: v38]
++     v22 = phi [bb0: v18], [bb2: v39]
 +     v23 = gt v19, 0
 +     jumpi v23, bb2, bb3
 +   bb3:
@@ -153,8 +153,8 @@
 +     v36 = add v34, v33
 +     mcopy v34, v35, v33 !metadata(memory=heap, disjoint)
 +     v37 = sub v19, 1
-+     v38 = add v22, 32
-+     v39 = add v21, 32
++     v38 = add v21, 32
++     v39 = add v22, 32
 +     jump bb1
   }
   
@@ -176,8 +176,8 @@
 +   bb1:
 +     v10 = phi [bb0: 2], [bb2: v20]
 +     v11 = phi [bb0: v8], [bb2: v19]
-+     v12 = phi [bb0: v3], [bb2: v22]
-+     v13 = phi [bb0: v9], [bb2: v21]
++     v12 = phi [bb0: v3], [bb2: v21]
++     v13 = phi [bb0: v9], [bb2: v22]
 +     v14 = gt v10, 0
 +     jumpi v14, bb2, bb3
 +   bb3:
@@ -199,8 +199,8 @@
 +     v18 = icall @encode_abi_array, v15, v17
 +     v19 = add v11, v18
 +     v20 = sub v10, 1
-+     v21 = add v13, 32
-+     v22 = add v12, 32
++     v21 = add v12, 32
++     v22 = add v13, 32
 +     jump bb1
   }
   

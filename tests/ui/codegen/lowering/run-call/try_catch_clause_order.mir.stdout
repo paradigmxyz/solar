@@ -72,7 +72,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
   bb9:
     v33 = ptrtoint memptr v11 to i256
     v34 = add v33, 32
-    v35 = add v34, 4
+    v35 = add v33, 36
     v36 = make_memory_slice v35, 32
     v37 = memory_slice_load_word v36, 0
     ret 300
@@ -81,7 +81,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v21 = add v20, 32
     v22 = memory_slice v11
     v23 = slice_len v22
-    v24 = add v21, 4
+    v24 = add v20, 36
     v25 = sub v23, 4
     v26 = make_memory_slice v24, v25
     v27 = abi_decode [bytes], v26
@@ -140,7 +140,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
   bb9:
     v33 = ptrtoint memptr v11 to i256
     v34 = add v33, 32
-    v35 = add v34, 4
+    v35 = add v33, 36
     v36 = make_memory_slice v35, 32
     v37 = memory_slice_load_word v36, 0
     ret 300
@@ -149,7 +149,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v21 = add v20, 32
     v22 = memory_slice v11
     v23 = slice_len v22
-    v24 = add v21, 4
+    v24 = add v20, 36
     v25 = sub v23, 4
     v26 = make_memory_slice v24, v25
     v27 = abi_decode [bytes], v26
@@ -197,7 +197,7 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
   bb4:
     v22 = ptrtoint memptr v11 to i256
     v23 = add v22, 32
-    v24 = add v23, 4
+    v24 = add v22, 36
     v25 = make_memory_slice v24, 32
     v26 = memory_slice_load_word v25, 0
     ret 300

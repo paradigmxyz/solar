@@ -30,7 +30,7 @@ fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[u256], abi
     v4 = ptrtoint memptr v2 to i256
     v5 = add v4, 32
     mstore v5, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
-    v6 = add v5, 32
+    v6 = add v4, 64
     mstore v6, 0x2062697473000000000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
     v7 = trunc i256 arg0 to i8
@@ -47,7 +47,7 @@ fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], a
     v4 = ptrtoint memptr v2 to i256
     v5 = add v4, 32
     mstore v5, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
-    v6 = add v5, 32
+    v6 = add v4, 64
     mstore v6, 0x3220626974730000000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
     v7 = trunc i256 arg0 to i32
@@ -64,7 +64,7 @@ fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[u256],
     v4 = ptrtoint memptr v2 to i256
     v5 = add v4, 32
     mstore v5, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
-    v6 = add v5, 32
+    v6 = add v4, 64
     mstore v6, 0x3238206269747300000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
     v7 = trunc i256 arg0 to i128

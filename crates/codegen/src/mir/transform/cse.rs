@@ -738,6 +738,16 @@ impl CommonSubexprEliminator {
                         );
                     }
                 }
+                // A view keeps the length word it read, so a known word is its length:
+                // slice_len (memory_slice object) => stored or loaded length
+                if let Some((ExprKey::MemorySlice(location), view)) = &candidate
+                    && !gas_observed
+                    && let Some(&length) = cache.get(&ExprKey::MLoad(*location))
+                    && func.value_ty(length) == Some(MirType::I256)
+                {
+                    let view = Self::operand_key(func, *view, ctx.replacements);
+                    cache.insert(ExprKey::SliceLen(view), length);
+                }
                 if let Some((key, result)) = candidate {
                     cache.insert(key, result);
                 }

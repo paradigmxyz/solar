@@ -2,13 +2,8 @@
 //@filecheck:
 @module MemoryObjectMemoryDse
 
-// A length read goes through a `memory_slice` view, which memory DSE does
-// not forward a stored header word into.
 // CHECK-LABEL: {{^[ +].*}}fn @forward_length{{[( ]}}
-// CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, 39
-// CHECK: {{^[ +].*}}[[S:v[0-9]+]] = memory_slice arg0
-// CHECK: {{^[ +].*}}[[L:v[0-9]+]] = slice_len [[S]]
-// CHECK: {{^[ +].*}}ret [[L]]
+// CHECK: + ret 39
 fn @forward_length(arg0: memptr) -> i256 {
   bb0:
     v0 = ptrtoint memptr arg0 to i256

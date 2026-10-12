@@ -4,7 +4,10 @@
 //! later full-word `mstore` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
 //! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory. Across a unique predecessor
+//! no intervening operation can mutate memory. A `memory_slice` view made after
+//! such a store keeps the stored length, so every `slice_len` of the view, in
+//! any block, becomes that length; this covers views LICM hoists into a loop
+//! preheader after CSE has run. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
 //! observations act as barriers to memory elimination. Allocation-based keys require
@@ -376,6 +379,9 @@ struct BlockScratch {
     stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
+    /// The stored length each `memory_slice` view read where it was made. A view keeps that
+    /// length, so the fact holds in every block the view reaches.
+    view_lengths: FxHashMap<ValueId, ValueId>,
 }
 
 impl BlockScratch {
@@ -386,7 +392,16 @@ impl BlockScratch {
             stored_words: SlotMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
+            view_lengths: FxHashMap::default(),
         }
+    }
+
+    /// Applies this block's replacements, also to the view lengths recorded so far.
+    fn replace_uses(&mut self, func: &mut Function) {
+        for length in self.view_lengths.values_mut() {
+            *length = mir_utils::resolve_replacement(*length, &self.replacements);
+        }
+        func.replace_uses_canonicalized(&self.replacements);
     }
 }
 
@@ -417,6 +432,7 @@ impl MemoryStoreEliminator {
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
+        scratch.view_lengths.clear();
         let block_ids = func.blocks.indices();
         let has_precise_reads = func
             .instructions()
@@ -425,6 +441,7 @@ impl MemoryStoreEliminator {
             self.process_block(func, block_id, has_precise_reads, scratch);
             self.alias().clear_cached_addresses();
         }
+        self.forward_view_lengths(func, scratch);
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
         self.remove_dead_memory_stores(func);
@@ -1232,7 +1249,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        func.replace_uses_canonicalized(&scratch.replacements);
+        scratch.replace_uses(func);
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
 
@@ -1290,6 +1307,14 @@ impl MemoryStoreEliminator {
         for &inst_id in &func.blocks[block_id].instructions {
             let inst = func.inst(inst_id);
             match &inst.kind {
+                InstKind::MemorySlice(object) => {
+                    if let Some(key) = self.memory_object_length_key(func, inst_id, *object)
+                        && let Some(&length) = scratch.stored_values.get(key)
+                        && let Some(view) = func.inst_result_value(inst_id)
+                    {
+                        scratch.view_lengths.insert(view, length);
+                    }
+                }
                 InstKind::MStore(addr, value) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         if !self.remove_overlapping_write_range(
@@ -1374,9 +1399,36 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        func.replace_uses_canonicalized(&scratch.replacements);
+        scratch.replace_uses(func);
         self.eliminated_count += scratch.dead.count();
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
+    }
+
+    /// Replaces each `slice_len` of a view whose stored length is known.
+    fn forward_view_lengths(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
+        if scratch.view_lengths.is_empty() {
+            return;
+        }
+        scratch.replacements.clear();
+        scratch.dead.clear();
+        for inst_id in func.instructions() {
+            // slice_len (memory_slice object) => the stored length
+            if let InstKind::SliceLen(view) = func.inst(inst_id).kind
+                && let Some(&length) = scratch.view_lengths.get(&view)
+                && let Some(result) = func.inst_result_value(inst_id)
+            {
+                scratch.replacements.insert(result, length);
+                scratch.dead.insert(inst_id);
+            }
+        }
+        if scratch.dead.is_empty() {
+            return;
+        }
+        func.replace_uses_canonicalized(&scratch.replacements);
+        self.eliminated_count += scratch.dead.count();
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|&id| !scratch.dead.contains(id));
+        }
     }
 
     fn mem_addr_key(&self, func: &Function, value: ValueId, size: u64) -> Option<MemAddrKey> {

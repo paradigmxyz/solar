@@ -19,7 +19,7 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v15, v18
     mstore v19, 0
-    v20 = add v15, 32
+    v20 = add v25, 64
     mcopy v20, v15, v13
     mstore v25, 32
     mstore v15, v13
@@ -99,29 +99,29 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 1
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 64
-    v26 = lt v25, v24
-    v27 = gt v25, 0xffffffffffffffff
-    v28 = or v26, v27
-    jumpi v28, bb5, bb4
+    v21 = mload 64 !metadata(memory=scratch)
+    v22 = add v21, 64
+    v23 = lt v22, v21
+    v24 = gt v22, 0xffffffffffffffff
+    v25 = or v23, v24
+    jumpi v25, bb5, bb4
   bb4:
-    mstore 64, v25 !metadata(memory=scratch)
-    v30 = calldatasize
-    calldatacopy v24, v30, 64
-    mstore v24, 7
+    mstore 64, v22 !metadata(memory=scratch)
+    v27 = calldatasize
+    calldatacopy v21, v27, 64
+    mstore v21, 7
     v7 = mload v0
-    v15 = add v7, 1
-    v16 = eq v15, 0
-    jumpi v16, bb2, bb3
+    v13 = add v7, 1
+    v14 = eq v13, 0
+    jumpi v14, bb2, bb3
   bb3:
-    v17 = add v15, 7
-    v18 = lt v17, v15
-    v20 = lt v17, 7
-    v31 = or v18, v20
-    jumpi v31, bb2, bb1
+    v15 = add v13, 7
+    v16 = lt v15, v13
+    v18 = lt v15, 7
+    v28 = or v16, v18
+    jumpi v28, bb2, bb1
   bb1:
-    mstore 128, v15
+    mstore 128, v13
     returndata 128, 32
   bb2:
     mstore 32, 17 !metadata(memory=scratch)
@@ -275,7 +275,7 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = add v40, v43
     mstore v44, 0
-    v45 = add v40, 32
+    v45 = add v50, 64
     mcopy v45, v40, v38
     mstore v50, 32
     mstore v40, v38

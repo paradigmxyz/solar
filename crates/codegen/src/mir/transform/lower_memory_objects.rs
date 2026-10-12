@@ -404,8 +404,10 @@ fn coalesce_constant_allocations(func: &mut Function) {
 
             let mut allocations = Vec::new();
             allocations.push((inst_id, first, false));
+            // The member each address belongs to, and whether it is an integer cast of the
+            // member, which only addresses its header word.
             let mut owners = IndexVec::from_vec(vec![None; func.num_values()]);
-            owners[first.result] = Some(0);
+            owners[first.result] = Some((0, false));
             let mut scan = position + 1;
             while scan < instructions.len() {
                 let next_id = instructions[scan];
@@ -415,37 +417,31 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     }
                     let index = allocations.len();
                     allocations.push((next_id, allocation, false));
-                    owners[allocation.result] = Some(index);
+                    owners[allocation.result] = Some((index, false));
                     scan += 1;
                     continue;
                 }
 
-                let result = func.inst_result_value(next_id);
-                let derived_owner = match &func.inst(next_id).kind {
-                    InstKind::Add(lhs, rhs) if func.value_u64(*rhs).is_some() => owners[*lhs],
-                    InstKind::Add(lhs, rhs) if func.value_u64(*lhs).is_some() => owners[*rhs],
-                    InstKind::PtrToInt(base, 256) => owners[*base],
-                    _ => None,
-                };
-                let store_owner = match &func.inst(next_id).kind {
+                let member =
+                    |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
+                let derived = match func.inst(next_id).kind {
                     InstKind::MStore(address, _) | InstKind::MStore8(address, _) => {
-                        owners[*address]
+                        let Some((owner, _)) = owners[address] else { break };
+                        allocations[owner].2 = true;
+                        scan += 1;
+                        continue;
                     }
+                    InstKind::Add(lhs, rhs) if func.value_u64(rhs).is_some() => member(lhs),
+                    InstKind::Add(lhs, rhs) if func.value_u64(lhs).is_some() => member(rhs),
+                    InstKind::PtrToInt(base, 256) => member(base).map(|(owner, _)| (owner, true)),
                     _ => None,
                 };
-                if let Some(owner) = store_owner {
-                    allocations[owner].2 = true;
-                }
-                if let Some(owner) = derived_owner
-                    && let Some(result) = result
-                {
-                    owners[result] = Some(owner);
-                }
-                if store_owner.is_some() || derived_owner.is_some() {
-                    scan += 1;
-                    continue;
-                }
-                break;
+                let (Some(derived), Some(result)) = (derived, func.inst_result_value(next_id))
+                else {
+                    break;
+                };
+                owners[result] = Some(derived);
+                scan += 1;
             }
 
             if allocations.len() < 2 || allocations.iter().any(|(_, _, stored)| !stored) {

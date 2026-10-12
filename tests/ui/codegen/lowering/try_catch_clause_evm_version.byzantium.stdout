@@ -70,7 +70,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
   bb9:
     v32 = ptrtoint memptr v10 to i256
     v33 = add v32, 32
-    v34 = add v33, 4
+    v34 = add v32, 36
     v35 = make_memory_slice v34, 32
     v36 = memory_slice_load_word v35, 0
     jump bb3
@@ -79,7 +79,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v20 = add v19, 32
     v21 = memory_slice v10
     v22 = slice_len v21
-    v23 = add v20, 4
+    v23 = add v19, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25

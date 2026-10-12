@@ -79,7 +79,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb4:
     v22 = ptrtoint memptr v11 to i256
     v23 = add v22, 32
-    v24 = add v23, 4
+    v24 = add v22, 36
     v25 = make_memory_slice v24, 32
     v26 = memory_slice_load_word v25, 0
     ret v26
@@ -122,7 +122,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb4:
     v22 = ptrtoint memptr v11 to i256
     v23 = add v22, 32
-    v24 = add v23, 4
+    v24 = add v22, 36
     v25 = make_memory_slice v24, 32
     v26 = memory_slice_load_word v25, 0
     ret v26

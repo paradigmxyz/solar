@@ -213,7 +213,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v22 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v23 = add v19, v22
     mstore v23, 0
-    v24 = add v19, 32
+    v24 = add v30, 64
     mcopy v24, v19, v17
     mstore v30, 32
     mstore v19, v17

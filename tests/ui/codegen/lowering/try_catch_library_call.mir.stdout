@@ -75,7 +75,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v20 = add v19, 32
     v21 = memory_slice v10
     v22 = slice_len v21
-    v23 = add v20, 4
+    v23 = add v19, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
@@ -124,7 +124,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v20 = add v19, 32
     v21 = memory_slice v10
     v22 = slice_len v21
-    v23 = add v20, 4
+    v23 = add v19, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
@@ -173,7 +173,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v20 = add v19, 32
     v21 = memory_slice v10
     v22 = slice_len v21
-    v23 = add v20, 4
+    v23 = add v19, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25

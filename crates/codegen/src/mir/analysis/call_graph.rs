@@ -128,6 +128,34 @@ impl CallGraphInfo {
         reachable
     }
 
+    /// Returns every function with each one after the functions it calls, apart from cycles;
+    /// unrelated functions keep their index order.
+    #[must_use]
+    pub(crate) fn callees_first(&self) -> Vec<FunctionId> {
+        let count = self.reachable_from_entries.domain_size();
+        let mut visited = DenseBitSet::new_empty(count);
+        let mut order = Vec::with_capacity(count);
+        // Each frame holds a function and its callees still to visit.
+        let mut stack = Vec::new();
+        for root in (0..count).map(FunctionId::new) {
+            if !visited.insert(root) {
+                continue;
+            }
+            stack.push((root, self.callees(root)));
+            while let Some((func, callees)) = stack.last_mut() {
+                if let Some(callee) = callees.next() {
+                    if visited.insert(callee) {
+                        stack.push((callee, self.callees(callee)));
+                    }
+                } else {
+                    order.push(*func);
+                    stack.pop();
+                }
+            }
+        }
+        order
+    }
+
     /// Collects direct call targets, including tail calls, without building graph analyses.
     pub(crate) fn collect_internal_callees(
         func: &Function,
