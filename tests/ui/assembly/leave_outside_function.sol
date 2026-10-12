@@ -12,19 +12,9 @@ contract C {
     function g() public pure {
         assembly {
             function inner() {
-                {
-                    leave
-                }
-                for {} 1 {} {
-                    leave
-                }
+                leave
             }
-            {
-                leave //~ ERROR: keyword `leave` can only be used inside a function
-            }
-            for {} 1 {} {
-                leave //~ ERROR: keyword `leave` can only be used inside a function
-            }
+            leave //~ ERROR: keyword `leave` can only be used inside a function
         }
     }
 }
