@@ -1,0 +1,26 @@
+error[7139]: `msg.data` cannot be used inside of a `receive` function
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │     receive() external payable { msg.data; }
+   │                                  ━━━━━━━━
+   │
+   ╰ note: `receive` is only called with empty calldata
+
+error[7139]: `msg.data` cannot be used inside of a `receive` function
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │         uint256 length = msg.data.length;
+   │                          ━━━━━━━━
+   │
+   ╰ note: `receive` is only called with empty calldata
+
+error[7139]: `msg.data` cannot be used inside of a `receive` function
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │         bytes calldata data = msg.data[0:0];
+   │                               ━━━━━━━━
+   │
+   ╰ note: `receive` is only called with empty calldata
+
+error: aborting due to 3 previous errors
+
