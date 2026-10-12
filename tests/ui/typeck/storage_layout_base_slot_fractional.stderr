@@ -1,0 +1,10 @@
+error[1763]: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fractional.sol:LL:CC
+   │
+LL │ contract Fraction layout at 7 / 3 * 3 { uint x; }
+   │                             ┬────━━━━
+   │                             │
+   ╰╴                            fractional values are not supported
+
+error: aborting due to 1 previous error
+

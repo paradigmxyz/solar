@@ -1,0 +1,26 @@
+error: fractional literal quotients are not supported
+   ╭▸ ROOT/tests/ui/typeck/fractional_literal_quotient.sol:LL:CC
+   │
+LL │     uint constant HALF = 7 / 2;
+   │                          ━━━━━
+   │
+   ╰ note: solc divides number literals exactly, so truncating would give a different value
+
+error: fractional literal quotients are not supported
+   ╭▸ ROOT/tests/ui/typeck/fractional_literal_quotient.sol:LL:CC
+   │
+LL │         return 7 / 2 * 100;
+   │                ━━━━━
+   │
+   ╰ note: solc divides number literals exactly, so truncating would give a different value
+
+error: fractional literal quotients are not supported
+   ╭▸ ROOT/tests/ui/typeck/fractional_literal_quotient.sol:LL:CC
+   │
+LL │         return -(7 / 2) * 2;
+   │                  ━━━━━
+   │
+   ╰ note: solc divides number literals exactly, so truncating would give a different value
+
+error: aborting due to 3 previous errors
+

@@ -239,6 +239,24 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
+### TYPECK-017: Fractional literal quotients in constant expressions
+
+Status: parity debt.
+
+Difference: `solc` divides number literals exactly, so `7 / 3 * 3` evaluates
+to 7 and `7 / 2 * 100` to 350. `solar` rejects a quotient of two literals that
+is not an integer wherever it appears, and a storage layout base slot reports
+it as error 1763.
+
+Rationale: the compiler has no rational literals yet. Rejecting the quotient
+is better than truncating it to a different value. Fractional literal support
+([#1752](https://github.com/paradigmxyz/solar/pull/1752)) will evaluate these
+exactly.
+
+Coverage: `tests/ui/typeck/eval.sol`,
+`tests/ui/typeck/fractional_literal_quotient.sol` and
+`tests/ui/typeck/storage_layout_base_slot_fractional.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

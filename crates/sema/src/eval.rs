@@ -82,6 +82,7 @@ impl<'gcx> Gcx<'gcx> {
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
+            EE::FractionalValue => self.fractional_quotient(err.span),
             _ => {
                 let msg = format!("failed to evaluate constant: {}", err.kind.msg());
                 let label = "evaluation of constant value failed here";
@@ -620,6 +621,11 @@ impl IntScalar {
                 if r.data.is_zero() {
                     return Err(EE::DivisionByZero);
                 }
+                // solc divides literals exactly, so truncating a fractional quotient here would
+                // give a different value.
+                if self.ty.is_none() && r.ty.is_none() && !(&self.data % &r.data).is_zero() {
+                    return Err(EE::FractionalValue);
+                }
                 Self::checked(self.data / r.data)?
             }
             Rem => {
@@ -694,6 +700,7 @@ pub enum EvalErrorKind {
     LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
+    FractionalValue,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
@@ -715,6 +722,7 @@ impl EvalErrorKind {
             Self::LiteralTooLarge => "literal is too large for the type of the other operand",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
+            Self::FractionalValue => "fractional values are not supported",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",
