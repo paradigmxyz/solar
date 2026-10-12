@@ -589,8 +589,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
                     result_ty
-                } else if let TyKind::Type(elem_ty) = ty.kind {
+                } else if let TyKind::Type(mut elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
+                    if let TyKind::Contract(id) = elem_ty.kind
+                        && self.gcx.hir.contract(id).kind.is_library()
+                    {
+                        let msg = "index access for library types is not possible";
+                        let guar =
+                            self.dcx().err(msg).code(error_code!(2876)).span(expr.span).emit();
+                        elem_ty = self.gcx.mk_ty_err(guar);
+                    }
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty

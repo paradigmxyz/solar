@@ -1,0 +1,8 @@
+error[2876]: index access for library types is not possible
+   ╭▸ ROOT/tests/ui/typeck/library_index_access.sol:LL:CC
+   │
+LL │         C[0];
+   ╰╴        ━━━━
+
+error: aborting due to 1 previous error
+
