@@ -137,16 +137,4 @@ impl<Cx: Copy, T: Copy + Eq + std::hash::Hash, B> CycleDetector<Cx, T, B> {
     pub fn depth(&self) -> usize {
         self.depth as usize
     }
-
-    /// Runs the cycle detector on a new starting vertex, after any earlier result.
-    ///
-    /// Vertices that earlier runs finished are skipped. They reach no cycle, so searching from
-    /// every vertex this way takes linear time overall.
-    #[inline]
-    pub fn run_root(&mut self, vertex: T) -> CycleDetectorResult<B, T> {
-        self.first_cycle_vertex = None;
-        self.depth = 0;
-        self.processing.clear();
-        self.run(vertex)
-    }
 }

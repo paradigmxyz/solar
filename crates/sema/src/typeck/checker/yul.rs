@@ -5,7 +5,7 @@ use crate::{
     typeck::constant_cycles::MAX_DEPTH,
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
+use solar_data_structures::map::FxHashSet;
 use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, error_code, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
@@ -118,9 +118,9 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Returns whether following the value of the constant `id` through the constants it names
     /// reaches a cycle.
     ///
-    /// Like solc's `isConstantVariableRecursive`, this only follows values that are an identifier
-    /// or a member access. Other sources may not be type checked yet, so member accesses are
-    /// resolved here.
+    /// Like solc's `isConstantVariableRecursive`, this only follows values that name another
+    /// constant, without looking through parentheses. Unlike solc, it does not follow member
+    /// accesses yet.
     ///
     /// This gives up after [`MAX_DEPTH`] constants, since the constant cycle check after type
     /// checking reports longer chains.
@@ -130,43 +130,17 @@ impl<'gcx> TypeChecker<'gcx> {
             if !seen.insert(id) {
                 return true;
             }
-            let var = self.gcx.hir.variable(id);
-            let Some(next) = var
-                .initializer
-                .and_then(|init| self.resolve_in_scope(init, var)?.1)
-                .and_then(|res| res.as_variable())
-                .filter(|&next| self.gcx.hir.variable(next).is_constant())
-            else {
+            if let Some(init) = self.gcx.hir.variable(id).initializer
+                && let hir::ExprKind::Ident(&[res]) = init.kind
+                && let Some(next) = res.as_variable()
+                && self.gcx.hir.variable(next).is_constant()
+            {
+                id = next;
+            } else {
                 return false;
-            };
-            id = next;
+            }
         }
         false
-    }
-
-    /// Resolves an identifier or a member access in the scope of the variable `scope` to its type
-    /// and resolution.
-    fn resolve_in_scope(
-        &self,
-        expr: &hir::Expr<'_>,
-        scope: &hir::Variable<'_>,
-    ) -> Option<(Ty<'gcx>, Option<hir::Res>)> {
-        match expr.kind {
-            hir::ExprKind::Ident(&[res]) => {
-                Some((self.type_of_res_in(res, scope.contract), Some(res)))
-            }
-            hir::ExprKind::Member(base, member) => {
-                let (base_ty, _) = self.resolve_in_scope(base, scope)?;
-                let members = self
-                    .gcx
-                    .members_of(base_ty, scope.source, scope.contract)
-                    .filter(|m| m.name == member.name)
-                    .collect::<SmallVec<[_; 4]>>();
-                let member = self.select_member_access(&members).ok()?;
-                Some((member.ty, member.res))
-            }
-            _ => None,
-        }
     }
 
     pub(super) fn check_yul_member(
