@@ -71,7 +71,11 @@ replacement on the right:
 
 `cargo check -p solar-codegen` checks rule types and overlaps. Add pass UI
 tests per the [test layout](../AGENTS.md#codegen--mir-pass-tests); rules that
-affect execution also need runtime or differential tests. The offline
+affect execution also need runtime or differential tests. A `run-call` in a
+`.evmir` test is both: the runner checks the call's result in an EVM and runs
+the call on the test's own text in the EVM IR interpreter, which must agree with
+the bytecode the pass's output assembles to (see the
+[tester guide](../tools/tester/README.md#evm-ir-interpreter-check)). The offline
 word-rule checker, its Lean model and proofs, and their tests live in
 `scripts/evm-rules/` (see its [guide](../scripts/evm-rules/README.md) for
 commands and coverage limits). The checker must reject unsupported semantics,

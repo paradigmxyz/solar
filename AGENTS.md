@@ -165,6 +165,8 @@ deliberate omissions. A one-line restatement of the name is not enough.
     `tests/ui/codegen/mir/lowering/`.
   - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
     name).
+  - EVM IR checked against the EVM IR interpreter with `run-call`:
+    `tests/ui/codegen/evm-ir/interp/`.
   - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
     `validation/`.
 - Keep `.stdout`/`.stderr` expectations beside their source.
@@ -203,7 +205,9 @@ Other directives: `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   failure. See the [tester guide](tools/tester/README.md#runtime-directives)
   for settings. Use them for one isolated call; use `tests/foundry/`
   (`cargo tq foundry`) for multiple transactions, state, actors, events,
-  cheatcodes, or complex setup.
+  cheatcodes, or complex setup. `.evmir` tests also run each call through the
+  EVM IR interpreter and name the function by signature and outputs, as in
+  `add(uint256,uint256)(uint256) 2, 3 => 5`.
 - `//@ filecheck: ARGS` runs LLVM FileCheck on the `.stdout` with `ARGS`.
 
 Use FileCheck when full snapshots are too brittle or the test checks order,
