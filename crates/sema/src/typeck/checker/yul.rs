@@ -112,10 +112,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         member: Ident,
     ) -> Ty<'gcx> {
-        if let hir::ExprKind::Err(guar) = expr.kind {
-            return self.gcx.mk_ty_err(guar);
-        }
-
         enum ErrorKind {
             NonVariable,
             Immutable,
@@ -125,8 +121,12 @@ impl<'gcx> TypeChecker<'gcx> {
             Assignment(YulMemberAssignmentError),
         }
 
-        let mut inner = || -> Result<(), ErrorKind> {
-            let (ty, res) = self.check_yul_member_base(expr);
+        let (ty, res) = self.check_yul_member_base(expr);
+        if ty.references_error() {
+            return ty;
+        }
+
+        let inner = || -> Result<(), ErrorKind> {
             let Some(res) = res else { return Err(ErrorKind::NonVariable) };
             let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
                 return Err(ErrorKind::NonVariable);

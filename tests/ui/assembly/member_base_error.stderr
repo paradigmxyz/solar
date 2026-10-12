@@ -1,0 +1,14 @@
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
+   │
+LL │         Missing storage ptr;
+   ╰╴        ━━━━━━━
+
+error: unresolved symbol `missing`
+   ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
+   │
+LL │             pop(missing.slot)
+   ╰╴                ━━━━━━━
+
+error: aborting due to 2 previous errors
+
