@@ -263,18 +263,6 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
-### TYPECK-011: Module-typed conditionals
-
-Status: intentional.
-
-Difference: `solar` rejects conditionals whose branches are modules, such as
-`(c ? M : M).x`, which `solc` accepts.
-
-Rationale: codegen resolves module members statically and would drop the
-condition, and real code does not use the construct.
-
-Coverage: `tests/ui/typeck/module_conditional.sol`.
-
 ### TYPECK-009: Constant initializers that are not compile-time constants
 
 Status: parity debt.
@@ -288,6 +276,18 @@ Rationale: the check is not implemented yet. Codegen does not treat such
 constants as free of side effects.
 
 Coverage: none yet.
+
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
 
 ## Contract-Level Checks
 
