@@ -5,8 +5,8 @@
 //! to. Each constant, in declaration order, gets its own depth-first search over these
 //! dependencies, visited in declaration order. If the search reaches a cycle, error 6161 names the
 //! constant and the dependency the cycle was reached through, or the constant itself if it is on
-//! the cycle. A search that gets 256 constants deep reports error 7380 and ends the check, like
-//! solc's fatal error.
+//! the cycle. A search that gets [`MAX_DEPTH`] constants deep reports error 7380 and ends the
+//! check.
 //!
 //! As in solc, this only runs when the type checker reported no errors, so type errors hide these
 //! errors.
@@ -23,8 +23,11 @@ use solar_data_structures::{
 use solar_interface::error_code;
 use std::ops::ControlFlow;
 
-/// The depth at which solc gives up on a dependency chain.
-const MAX_DEPTH: usize = 256;
+/// The depth at which the search gives up on a dependency chain.
+///
+/// This search and codegen both recurse once per constant in a chain. The bound keeps codegen in a
+/// debug build within the default compiler thread stack.
+const MAX_DEPTH: usize = 2048;
 
 pub(super) fn check(gcx: Gcx<'_>) {
     if gcx.dcx().has_errors().is_err() {
@@ -48,7 +51,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
 
     for &id in dependencies.keys() {
         // Like solc, a cycle found from the starting constant is reported through the dependency
-        // that reached it, and a constant 256 deep breaks with itself.
+        // that reached it. A constant `MAX_DEPTH` deep breaks with itself.
         let result = CycleDetector::detect(&dependencies, id, |dependencies, cd, id| {
             // `run` returns without unwinding the depth, so read it first.
             let depth = cd.depth();

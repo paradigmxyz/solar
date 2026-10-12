@@ -240,6 +240,20 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
+### TYPECK-013: Deep constant dependency chains
+
+Status: intentional.
+
+Difference: `solc` reports error 7380 when its cyclic constant check follows a
+chain of 256 constants. `solar` reports it only at 2048 constants, so it
+accepts and compiles deeper acyclic chains.
+
+Rationale: the 256 limit is arbitrary, since `solar` compiles longer chains.
+Codegen recurses once per constant in a chain, and the 2048 limit keeps a debug
+build within the default compiler thread stack.
+
+Coverage: `tests/ui/typeck/constant_cycles/deep_chain.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
