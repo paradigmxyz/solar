@@ -5,7 +5,7 @@ uint constant rec2 = rec1;
 
 uint constant bigLiteral = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
-uint constant fails = 0 / 0;
+uint constant fails = 0 / 0; //~ ERROR: division by zero
 
 contract C {
     uint constant zero = x - x;

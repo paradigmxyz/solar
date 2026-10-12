@@ -75,6 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
+    /// Whether we're checking the length of a fixed-size array type whose constant evaluation
+    /// fails, which already reports the failed operation.
+    in_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
     /// Only populated before Byzantium, where a dynamically encoded external return value is
@@ -157,6 +160,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
+            in_array_len: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
         }
@@ -265,7 +269,10 @@ impl<'gcx> TypeChecker<'gcx> {
     /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let fails = self.gcx.try_eval_const(size).is_err();
+        let prev = std::mem::replace(&mut self.in_array_len, fails);
         let ty = self.check_expr(size);
+        self.in_array_len = prev;
         if !ty.is_integer() && !ty.references_error() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
@@ -414,7 +421,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     return lit_ty;
                 }
 
-                self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
+                let ty = self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false);
+                if !ty.references_error() && !self.in_array_len {
+                    self.check_division_by_zero(expr.span, lhs_e, rhs_e, op.kind);
+                }
+                ty
             }
             hir::ExprKind::Call(wrapped_callee, ref args) => {
                 let (callee, opts) = wrapped_callee.split_call_options();
@@ -1882,6 +1893,26 @@ impl<'gcx> TypeChecker<'gcx> {
                 _ => Ok(()),
             },
             _ => Ok(()),
+        }
+    }
+
+    /// Reports a constant division or modulo by zero, like solc's static analyzer.
+    ///
+    /// The left operand must be constant too, as solc only reports it for constant operands.
+    fn check_division_by_zero(
+        &self,
+        span: Span,
+        lhs: &'gcx hir::Expr<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
+        op: hir::BinOpKind,
+    ) {
+        let msg = match op {
+            hir::BinOpKind::Div => "division by zero",
+            hir::BinOpKind::Rem => "modulo zero",
+            _ => return,
+        };
+        if self.is_const_zero(rhs) && self.gcx.try_eval_solc_const(lhs).is_ok() {
+            self.dcx().err(msg).code(error_code!(1211)).span(span).emit();
         }
     }
 
