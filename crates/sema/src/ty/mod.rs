@@ -8,7 +8,9 @@ use crate::{
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
+use solar_ast::{
+    DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
+};
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -1769,27 +1771,10 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 result = Err(guar);
                 continue;
             }
-            if !ty.can_be_exported(gcx) {
-                // Library storage pointers cross the ABI as slots, so recursive
-                // structs and mappings are allowed. Their members must still have
-                // interface types: internal function pointers are never exported.
-                let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
-                if library_storage && !ty.has_internal_function(gcx) {
-                    continue;
-                }
-
+            let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+            if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
                 let kind = f.description();
-                // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
-                // recursive struct is rejected before its members are inspected for mappings.
-                let msg = if !library_storage && ty.is_recursive(gcx) {
-                    format!("recursive types cannot be parameter or return types of public {kind}s")
-                } else if !library_storage && ty.has_mapping(gcx) {
-                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.has_internal_function(gcx) {
-                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
-                } else {
-                    format!("this type cannot be parameter or return type of a public {kind}")
-                };
+                let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
                 let span = gcx.hir.variable(var_id).ty.span;
                 result = Err(gcx.dcx().emit_err(span, msg));
             }
@@ -2168,6 +2153,22 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .code(error_code!(1834))
             .span(var.span)
             .emit();
+    }
+
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    if var.is_constant()
+        && !ty.is_value_type()
+        && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
+        && !ty.references_error()
+    {
+        let guar = gcx
+            .dcx()
+            .err("only constants of value type and byte array type are implemented")
+            .code(error_code!(9259))
+            .span(var.span)
+            .emit();
+        return gcx.mk_ty_err(guar);
     }
 
     ty.with_loc_if_ref(gcx, ty_loc)

@@ -311,17 +311,6 @@ impl<'gcx> Ty<'gcx> {
         self.is_reference_type() || self.has_mapping(gcx)
     }
 
-    /// Returns `true` if this type contains a library contract type.
-    pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
-        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
-            TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => {
-                ControlFlow::Break(())
-            }
-            _ => ControlFlow::Continue(()),
-        })
-        .is_break()
-    }
-
     /// Returns `true` if this type contains a non-public (internal/private) function type.
     pub fn has_internal_function(self, gcx: Gcx<'gcx>) -> bool {
         self.visit_with_structs(gcx, &mut |ty| {
@@ -353,6 +342,30 @@ impl<'gcx> Ty<'gcx> {
             || self.has_mapping(gcx)
             || self.has_internal_function(gcx)
             || self.references_error())
+    }
+
+    /// Returns why this type has no interface type, as the subject of an error message, or `None`
+    /// if it has one.
+    ///
+    /// Library storage pointers cross the ABI as slots, so `library_storage` allows recursive
+    /// structs and mappings. Their members must still have interface types: internal function
+    /// pointers are never exported. Recursiveness comes first, as in solc's
+    /// `StructType::interfaceType`: a recursive struct is rejected before its members are
+    /// inspected for mappings.
+    pub fn interface_type_error(
+        self,
+        library_storage: bool,
+        gcx: Gcx<'gcx>,
+    ) -> Option<&'static str> {
+        if !library_storage && self.is_recursive(gcx) {
+            Some("recursive types")
+        } else if !library_storage && self.has_mapping(gcx) {
+            Some("types containing mappings")
+        } else if self.has_internal_function(gcx) {
+            Some("types containing internal function pointers")
+        } else {
+            None
+        }
     }
 
     /// Returns the parameter types of the type.
