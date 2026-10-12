@@ -39,7 +39,11 @@
 //! layout, such as by returning, storing, or hashing an address, or by copying past a data entry
 //! into whatever follows it, gets another result on another layout:
 //! [`transact`](crate::transact) runs every transaction on two layouts and reports a difference as
-//! unsupported.
+//! unsupported. One layout gives each block a byte from address zero, and the other starts the
+//! blocks past 1 MiB, longer than any contract a block's gas can deploy, yet short enough for a
+//! copy of the code size to fit in memory. Comparing the code size or an address with a constant
+//! between the two layouts' values therefore also gets two results, unless the assembled code is
+//! shorter than one byte per block.
 //!
 //! # Limits
 //!
@@ -230,8 +234,10 @@ impl Layout {
     /// Blocks at consecutive addresses from zero, and data in declaration order.
     pub(crate) const COMPACT: Self = Self { first_block: 0, block_stride: 1, reverse_data: false };
 
-    /// Blocks spread out from an odd address, and data in reverse declaration order.
-    pub(crate) const MOVED: Self = Self { first_block: 0x2a1, block_stride: 3, reverse_data: true };
+    /// Blocks spread out from an odd address past 1 MiB, so the code is longer than any deployable
+    /// contract's, and data in reverse declaration order.
+    pub(crate) const MOVED: Self =
+        Self { first_block: (1 << 20) + 0x2a1, block_stride: 3, reverse_data: true };
 }
 
 /// Runs the transactions of one EVM IR module.

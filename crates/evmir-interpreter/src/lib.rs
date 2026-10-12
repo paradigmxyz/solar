@@ -427,6 +427,19 @@ bb0:
     }
 
     #[test]
+    fn code_size_comparisons_are_unsupported() {
+        // The assembled code is longer than 700 bytes, which neither layout may assume.
+        let module = format!(
+            "@module test\nbb0:\n{}  push 700\n  codesize\n  gt\n  push 0\n  mstore\n  push 32\n  push 0\n  return\n",
+            "  push 0x1111111111111111111111111111111111111111111111111111111111111111\n  pop\n"
+                .repeat(22)
+        );
+        let execution = transact(&module, &[], &mut Zero, Options::default()).unwrap();
+        let reason = "a result that depends on the code layout".to_owned();
+        assert_eq!(execution.outcome, Outcome::Unsupported(reason));
+    }
+
+    #[test]
     fn dumps() {
         let dump = "{\"contracts\":{}}
 // === a.sol:A (scheduled runtime) ===
