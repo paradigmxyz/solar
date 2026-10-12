@@ -743,7 +743,6 @@ $1 $2 $3 $4 $5:
 balance Method
 $6:
 data Method
-gas Method
 sender Method
 sig Method
 value Method

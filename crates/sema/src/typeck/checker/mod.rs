@@ -659,18 +659,6 @@ impl<'gcx> TypeChecker<'gcx> {
                     .collect::<SmallVec<[_; 4]>>();
 
                 let ty = match self.select_member_access(&possible_members) {
-                    Ok(member)
-                        if matches!(member.res, Some(hir::Res::Builtin(Builtin::MsgGas))) =>
-                    {
-                        return self.gcx.mk_ty_err(
-                            self.dcx()
-                                .err("`msg.gas` has been removed")
-                                .code(error_code!(1400))
-                                .span(expr.span)
-                                .help("use `gasleft()` instead")
-                                .emit(),
-                        );
-                    }
                     Ok(member) => {
                         if matches!(
                             member.res,
@@ -689,6 +677,18 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
                         self.register_resolved_member(expr, member);
                         member.ty
+                    }
+                    Err(MemberAccessError::NotFound)
+                        if matches!(receiver_ty.kind, TyKind::BuiltinModule(Builtin::Msg))
+                            && ident.name == kw::Gas =>
+                    {
+                        let err = self
+                            .dcx()
+                            .err("`msg.gas` has been removed")
+                            .code(error_code!(1400))
+                            .span(expr.span)
+                            .help("use `gasleft()` instead");
+                        self.gcx.mk_ty_err(err.emit())
                     }
                     Err(MemberAccessError::NotFound) => {
                         let msg = format!(
