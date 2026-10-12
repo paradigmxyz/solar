@@ -72,7 +72,8 @@ pub struct DeployableBytecode {
 /// creation bytecode that deploys it unchanged.
 ///
 /// Nothing links library addresses into the result, and the creation code sets no immutables, so
-/// a program that pushes either is an error.
+/// a program that pushes either is an error. Bytecode past the target's size limits gets the same
+/// warnings as a Solidity contract's.
 pub fn into_deployable_bytecode(
     gcx: Gcx<'_>,
     module: Module,
@@ -101,6 +102,7 @@ pub fn into_deployable_bytecode(
     block.terminator = Some(Terminator::new(TerminatorKind::Op(op::RETURN)));
     deployment.add_block(block);
     let deployment = deployable(gcx, assemble_legalized(gcx, deployment)?)?;
+    crate::contract::warn_code_size_limits(gcx, None, deployment.len(), runtime.len());
     Ok(DeployableBytecode { deployment, runtime })
 }
 

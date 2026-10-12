@@ -559,52 +559,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             None => EvmArtifact::default(),
         };
         let capture_mir = captures.mir.contains(contract_id);
-        if let Some(limit) = gcx.sess.opts.evm_version.runtime_code_size_limit()
-            && artifact.runtime.len() > limit
-        {
-            let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
-                EvmVersion::Amsterdam
-            } else {
-                EvmVersion::SpuriousDragon
-            };
-            gcx.dcx()
-                .warn(format!(
-                    "contract code size is {} bytes and exceeds {} bytes",
-                    artifact.runtime.len(),
-                    limit
-                ))
-                .code(error_code!(5574))
-                .span(gcx.hir.contract(contract_id).span)
-                .note(format!("the limit was introduced in {fork}"))
-                .note("this contract may not be deployable on Mainnet")
-                .help(
-                    "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
-                )
-                .emit();
-        }
-        if let Some(limit) = gcx.sess.opts.evm_version.initcode_size_limit()
-            && artifact.deployment.len() > limit
-        {
-            let fork = if gcx.sess.opts.evm_version >= EvmVersion::Amsterdam {
-                EvmVersion::Amsterdam
-            } else {
-                EvmVersion::Shanghai
-            };
-            gcx.dcx()
-                .warn(format!(
-                    "contract initcode size is {} bytes and exceeds {} bytes",
-                    artifact.deployment.len(),
-                    limit
-                ))
-                .code(error_code!(3860))
-                .span(gcx.hir.contract(contract_id).span)
-                .note(format!("the limit was introduced in {fork}"))
-                .note("this contract may not be deployable on Mainnet")
-                .help(
-                    "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries",
-                )
-                .emit();
-        }
+        warn_code_size_limits(
+            gcx,
+            Some(contract_id),
+            artifact.deployment.len(),
+            artifact.runtime.len(),
+        );
         let immutable_references = artifact
             .immutable_references
             .iter()
@@ -676,4 +636,49 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
 fn dumps_scheduled_evm_ir(gcx: Gcx<'_>) -> bool {
     let dump = gcx.sess.opts.unstable.dump.as_ref();
     dump.is_some_and(|dump| dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled))
+}
+
+/// Warns, with solc's codes, when bytecode exceeds the size limits of the target EVM version:
+/// EIP-170's on deployed code and EIP-3860's on initcode. `contract` is the Solidity contract the
+/// bytecode compiles, if any; the warnings then point at it and suggest how to shrink it.
+pub(crate) fn warn_code_size_limits(
+    gcx: Gcx<'_>,
+    contract: Option<ContractId>,
+    deployment: usize,
+    runtime: usize,
+) {
+    const HELP: &str = "consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries";
+    let evm_version = gcx.sess.opts.evm_version;
+    let amsterdam = evm_version >= EvmVersion::Amsterdam;
+    let span = contract.map(|id| gcx.hir.contract(id).span);
+    if let Some(limit) = evm_version.runtime_code_size_limit()
+        && runtime > limit
+    {
+        let fork = if amsterdam { EvmVersion::Amsterdam } else { EvmVersion::SpuriousDragon };
+        let mut diag = gcx
+            .dcx()
+            .warn(format!("contract code size is {runtime} bytes and exceeds {limit} bytes"))
+            .code(error_code!(5574))
+            .note(format!("the limit was introduced in {fork}"))
+            .note("this contract may not be deployable on Mainnet");
+        if let Some(span) = span {
+            diag = diag.span(span).help(HELP);
+        }
+        diag.emit();
+    }
+    if let Some(limit) = evm_version.initcode_size_limit()
+        && deployment > limit
+    {
+        let fork = if amsterdam { EvmVersion::Amsterdam } else { EvmVersion::Shanghai };
+        let mut diag = gcx
+            .dcx()
+            .warn(format!("contract initcode size is {deployment} bytes and exceeds {limit} bytes"))
+            .code(error_code!(3860))
+            .note(format!("the limit was introduced in {fork}"))
+            .note("this contract may not be deployable on Mainnet");
+        if let Some(span) = span {
+            diag = diag.span(span).help(HELP);
+        }
+        diag.emit();
+    }
 }
