@@ -58,6 +58,17 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
 
 fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
+        write!(f, "{}", display_instruction_operation(module, inst))?;
+        write!(f, "{}", display_metadata(&inst.metadata))
+    })
+}
+
+/// Displays an instruction without its metadata.
+pub(super) fn display_instruction_operation<'a>(
+    module: &'a Module,
+    inst: &'a Instruction,
+) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
         match inst.as_stack_op() {
             Some(op::StackOp::Dup(n)) => write!(f, "dup {n}")?,
             Some(op::StackOp::Swap(n)) => write!(f, "swap {n}")?,
@@ -71,11 +82,22 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
         if let Some(size) = inst.immutable_type_size() {
             write!(f, ", {}", size.bytes())?;
         }
-        write!(f, "{}", display_metadata(&inst.metadata))
+        Ok(())
     })
 }
 
 fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        write!(f, "{}", display_terminator_operation(module, term))?;
+        write!(f, "{}", display_metadata(&term.metadata))
+    })
+}
+
+/// Displays a terminator without its metadata.
+pub(super) fn display_terminator_operation<'a>(
+    module: &'a Module,
+    term: &'a Terminator,
+) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         match &term.kind {
             TerminatorKind::Jump(target) => {
@@ -109,7 +131,7 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                 }
             }
         }
-        write!(f, "{}", display_metadata(&term.metadata))
+        Ok(())
     })
 }
 

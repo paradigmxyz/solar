@@ -29,6 +29,7 @@ pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 pub(in crate::backend) mod builder;
 mod display;
+pub(in crate::backend) mod interp;
 mod parse;
 mod passes;
 pub(crate) use passes::compact_pushes;

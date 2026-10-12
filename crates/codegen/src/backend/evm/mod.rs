@@ -25,6 +25,8 @@ pub use debug_info::{
 mod disasm;
 pub use disasm::{disassemble, disassemble_standard_json};
 
+pub mod interpret;
+
 pub mod ir;
 
 mod layout;
