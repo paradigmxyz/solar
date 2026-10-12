@@ -1,0 +1,32 @@
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/abi_decode_zero_size_elements.sol:LL:CC
+   │
+LL │         abi.decode(d, (uint[0][]));
+   ╰╴                       ━━━━━━━━━ found `uint256[0][] memory`
+
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/abi_decode_zero_size_elements.sol:LL:CC
+   │
+LL │         abi.decode(d, (uint[0][2]));
+   ╰╴                       ━━━━━━━━━━ found `uint256[0][2] memory`
+
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/abi_decode_zero_size_elements.sol:LL:CC
+   │
+LL │         abi.decode(d, (uint[2][0][]));
+   ╰╴                       ━━━━━━━━━━━━ found `uint256[2][0][] memory`
+
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/abi_decode_zero_size_elements.sol:LL:CC
+   │
+LL │         abi.decode(d, (uint[0][2][3]));
+   ╰╴                       ━━━━━━━━━━━━━ found `uint256[0][2][3] memory`
+
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/abi_decode_zero_size_elements.sol:LL:CC
+   │
+LL │         abi.decode(d, (C[0][]));
+   ╰╴                       ━━━━━━ found `contract C[0][] memory`
+
+error: aborting due to 5 previous errors
+
