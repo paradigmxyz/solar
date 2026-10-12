@@ -945,7 +945,7 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match crate::eval::eval_array_len(self, size) {
+                    Some(size) => match self.array_len(size) {
                         Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
@@ -2009,6 +2009,14 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
+
+/// Evaluates the given array length expression, emitting an error diagnostic if it fails.
+pub(crate) fn array_len(
+    gcx: _,
+    size: &hir::Expr<'_>
+) cached_by(hir::ExprId, size.id) -> Result<U256, ErrorGuaranteed> {
+    crate::eval::eval_array_len(gcx, size)
 }
 
 } // cached!

@@ -80,6 +80,10 @@ struct TypeChecker<'gcx> {
     discarded: FxHashMap<hir::ExprId, Discarded>,
     /// Where the value of the expression being checked is used.
     value_position: ValuePosition,
+    /// The error the evaluator reported for the array length being checked.
+    ///
+    /// It already covers the length's operators, so they are not reported again.
+    array_len_err: Option<ErrorGuaranteed>,
 }
 
 /// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
@@ -157,6 +161,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_yul: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
+            array_len_err: None,
         }
     }
 
@@ -605,9 +610,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     // `elem_ty` array type expression.
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
-                        let len = index_ty
-                            .error_reported()
-                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
+                        let len =
+                            index_ty.error_reported().and_then(|()| self.gcx.array_len(index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -1127,6 +1131,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.results.user_operators.insert(expr_id, function);
             }
             return ty;
+        }
+        if let Some(guar) = self.array_len_err {
+            return self.gcx.mk_ty_err(guar);
         }
 
         let msg = format!(
@@ -3516,7 +3523,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
                 if let Some(size) = array.size {
+                    let err = self.gcx.array_len(size).err();
+                    let prev = std::mem::replace(&mut self.array_len_err, err);
                     let _ = self.check_array_size(size);
+                    self.array_len_err = prev;
                 }
                 return self.visit_ty(&array.element);
             }

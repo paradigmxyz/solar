@@ -6,8 +6,6 @@
 // solc rejects it as "Literal too large" and the runtime expression yields 0.
 // The same check applies to every other binary operator, where the literal
 // reaches the operation through its mobile type as well.
-// The type checker rejects the same operations, so each also reports an
-// operator error.
 contract C {
     uint256 constant ONE = 1;
     uint8 constant S8 = 8;
@@ -18,19 +16,12 @@ contract C {
 
     function lengths() public pure {
         uint256[(1 << 256) >> ONE] memory shr; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         uint256[(1 << 256) ** ONE] memory pow; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         uint256[(0 - (1 << 256)) >> ONE] memory negativeShr; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         uint256[ONE << (1 << 256)] memory shlAmount; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         uint256[(1 << 256) + S8] memory add; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         uint256[(1 << 256) - S8] memory sub; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         uint256[(1 << 256) / S8] memory div; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        //~^ ERROR: cannot apply builtin operator
         shr;
         pow;
         negativeShr;
