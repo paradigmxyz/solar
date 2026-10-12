@@ -264,8 +264,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                         let msg = visibility_error(visibility, flags.visibilities());
                         self.dcx().emit_err(span, msg);
-                        // Set to the first valid visibility, if any.
-                        v = flags.visibilities().into_iter().flatten().next();
+                        // Recover with the only valid visibility, if there is exactly one.
+                        v = flags.intersection(FunctionFlags::VISIBILITY).into_visibility();
                     }
                     header.visibility = v.map(|v| Spanned { span, data: v });
                 }

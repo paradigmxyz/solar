@@ -193,6 +193,14 @@ impl super::LoweringContext<'_> {
                     self.dcx().emit_err(name.span(), msg);
                     continue;
                 }
+                if self.hir.contract(base_id).kind.is_library() {
+                    self.dcx()
+                        .err("libraries cannot be inherited from")
+                        .code(error_code!(2571))
+                        .span(name.span())
+                        .emit();
+                    continue;
+                }
                 bases.push(base_id);
                 base_indices.push(index as u32);
             }
@@ -1926,7 +1934,13 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
                 exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref().unspan())),
             )),
-            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
+            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(match &ty.kind {
+                // `type(L)` is the one type position that accepts a library name.
+                ast::TypeKind::Custom(path) => {
+                    hir::Type { kind: self.lower_type_path(path), span: ty.span }
+                }
+                _ => self.lower_type(ty),
+            }),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
             ast::ExprKind::Err(guar) => hir::ExprKind::Err(*guar),
@@ -2032,9 +2046,13 @@ impl<'gcx> ResolveContext<'gcx> {
                     value_name: mapping.value_name,
                 }))
             }
-            ast::TypeKind::Custom(path) => match self.resolve_path_as(path, "item") {
-                Ok(id) => hir::TypeKind::Custom(id),
-                Err(guar) => hir::TypeKind::Err(guar),
+            ast::TypeKind::Custom(path) => match self.lower_type_path(path) {
+                hir::TypeKind::Custom(hir::ItemId::Contract(id))
+                    if self.hir.contract(id).kind.is_library() =>
+                {
+                    hir::TypeKind::Err(self.report_library_name(path.span()))
+                }
+                kind => kind,
             },
         };
         hir::Type { kind, span: ty.span }
@@ -2065,6 +2083,12 @@ impl<'gcx> ResolveContext<'gcx> {
         }
         check(inner.value_name);
     }
+    fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
+        match self.resolve_path_as(path, "item") {
+            Ok(id) => hir::TypeKind::Custom(id),
+            Err(guar) => hir::TypeKind::Err(guar),
+        }
+    }
 
     #[inline]
     fn next_id<I: Idx>(&self) -> I {
@@ -2093,6 +2117,10 @@ impl<'gcx> ResolveContext<'gcx> {
             let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract") else {
                 continue;
             };
+            if self.hir.contract(id).kind.is_library() {
+                self.report_library_name(path.span());
+                continue;
+            }
 
             // A free function with an override specifier, with or without a contract list, is
             // reported by `typeck::check_free_function`.
@@ -2117,6 +2145,11 @@ impl<'gcx> ResolveContext<'gcx> {
         }
 
         self.arena.alloc_smallvec(overrides)
+    }
+
+    /// Reports a library name used as a type or in an override list.
+    fn report_library_name(&self, span: Span) -> ErrorGuaranteed {
+        self.dcx().err("invalid use of a library name").code(error_code!(1130)).span(span).emit()
     }
 }
 

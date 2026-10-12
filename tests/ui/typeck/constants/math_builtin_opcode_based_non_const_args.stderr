@@ -1,0 +1,20 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/math_builtin_opcode_based_non_const_args.sol:LL:CC
+   │
+LL │     uint256 constant amod = addmod(1, 8, k);
+   ╰╴                            ━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/math_builtin_opcode_based_non_const_args.sol:LL:CC
+   │
+LL │     uint256 constant mmod = mulmod(1, 8, k);
+   ╰╴                            ━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/math_builtin_opcode_based_non_const_args.sol:LL:CC
+   │
+LL │     bytes32 constant keccak = keccak256(data);
+   ╰╴                              ━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

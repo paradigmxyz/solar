@@ -22,17 +22,35 @@ error: data locations are not allowed here
 LL │ S[] memory constant d0 = [];
    ╰╴    ━━━━━━
 
-error: mismatched types
+error[9259]: only constants of value type and byte array type are implemented
    ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    │
 LL │ uint[] memory constant b0 = [];
-   ╰╴                            ━━ expected `uint256[] memory`, found `uint256[0] memory`
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: mismatched types
+error[9259]: only constants of value type and byte array type are implemented
+   ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
+   │
+LL │ S memory constant c0 = S(0);
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9259]: only constants of value type and byte array type are implemented
    ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    │
 LL │ S[] memory constant d0 = [];
-   ╰╴                         ━━ expected `struct S[] memory`, found `struct S[0] memory`
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 6 previous errors
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
+   │
+LL │ uint[] memory constant b0 = [];
+   ╰╴                            ━━
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
+   │
+LL │ S[] memory constant d0 = [];
+   ╰╴                         ━━
+
+error: aborting due to 9 previous errors
 
