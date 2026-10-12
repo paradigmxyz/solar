@@ -416,7 +416,12 @@ fn has_mir_dump(gcx: Gcx<'_>) -> bool {
 
 fn has_evm_ir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
-        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::EvmIr | DumpKind::EvmIrRuntime))
+        dump.kinds.iter().any(|kind| {
+            matches!(
+                kind,
+                DumpKind::EvmIr | DumpKind::EvmIrRuntime | DumpKind::EvmIrRuntimeScheduled
+            )
+        })
     })
 }
 
@@ -593,6 +598,14 @@ fn write_evm_ir_dump_contract(
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         if let Some(runtime_evm_ir) = &artifact.runtime_evm_ir {
             write_highlighted(writer, runtime_evm_ir.to_text().to_string(), Syntax::Ir)
+                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
+    }
+    if dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled) {
+        writeln!(writer, "// === {name} (scheduled runtime) ===")
+            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        if let Some(scheduled_evm_ir) = &artifact.runtime_scheduled_evm_ir {
+            write_highlighted(writer, scheduled_evm_ir.to_text().to_string(), Syntax::Ir)
                 .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
     }

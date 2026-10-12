@@ -16,16 +16,27 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 impl Assembler<'_> {
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
     /// [`Self::prepare_linked`].
+    pub(in crate::backend) fn optimize(&mut self) {
+        let _scheduled = self.optimize_capturing(false);
+    }
+
+    /// Runs [`Self::optimize`], first returning a copy of the program as stack scheduling emitted
+    /// it when `capture_scheduled` is set.
     #[tracing::instrument(
         name = "evm_ir_pipeline",
         level = "debug",
         skip_all,
         fields(program = %self.program.name()),
     )]
-    pub(in crate::backend) fn optimize(&mut self) {
-        let Some((mut program, labels)) = self.finish_evm_ir() else { return };
+    pub(in crate::backend) fn optimize_capturing(
+        &mut self,
+        capture_scheduled: bool,
+    ) -> Option<ir::Module> {
+        let (mut program, labels) = self.finish_evm_ir()?;
+        let scheduled = capture_scheduled.then(|| program.clone());
         let failed = !self.run_pipeline(&mut program);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
+        scheduled
     }
 
     /// Runs the EVM IR pipeline and legalization, returning whether neither reported an error.

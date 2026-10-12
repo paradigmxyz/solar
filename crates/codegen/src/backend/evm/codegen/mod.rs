@@ -153,6 +153,7 @@ pub struct EvmCodegen<'gcx> {
     switch_gas_code_growth_remaining: usize,
     capture_mir: bool,
     capture_evm_ir: bool,
+    capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
 }
 
@@ -199,6 +200,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             switch_gas_code_growth_remaining,
             capture_mir: false,
             capture_evm_ir: false,
+            capture_scheduled_evm_ir: false,
             capture_debug_info: false,
         }
     }
@@ -308,6 +310,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.capture_evm_ir = capture;
     }
 
+    /// Controls whether generated artifacts include runtime EVM IR as stack scheduling emitted it,
+    /// before the EVM IR pipeline.
+    pub fn set_capture_scheduled_evm_ir(&mut self, capture: bool) {
+        self.capture_scheduled_evm_ir = capture;
+    }
+
     /// Controls whether generated artifacts include final instruction locations.
     pub fn set_capture_debug_info(&mut self, capture: bool) {
         self.capture_debug_info = capture;
@@ -334,6 +342,8 @@ enum Body {
 /// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
 struct PendingRuntime {
     call_graph: CallGraphInfo,
+    /// The runtime EVM IR as stack scheduling emitted it, when captured.
+    scheduled_evm_ir: Option<ir::Module>,
 }
 
 /// The artifact produced by the EVM backend.
@@ -355,6 +365,8 @@ pub struct EvmArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Runtime EVM IR as stack scheduling emitted it, before the EVM IR pipeline.
+    pub runtime_scheduled_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.

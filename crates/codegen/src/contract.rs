@@ -12,7 +12,7 @@ use crate::{
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::{DumpKind, EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -53,6 +53,8 @@ pub struct ContractArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Runtime EVM IR as stack scheduling emitted it, before the EVM IR pipeline.
+    pub runtime_scheduled_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
@@ -486,6 +488,9 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             let mut codegen = Box::new(EvmCodegen::new(gcx));
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+            codegen.set_capture_scheduled_evm_ir(
+                captures.evm_ir.contains(contract_id) && dumps_scheduled_evm_ir(gcx),
+            );
             codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
             let scheduled = codegen.schedule_module(&mut module);
             gcx.dcx().has_errors()?;
@@ -626,6 +631,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             mir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
+            runtime_scheduled_evm_ir: artifact.runtime_scheduled_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,
             runtime_debug_info: artifact.runtime_debug_info,
         })
@@ -664,4 +670,10 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
     if let Some(data) = data.filter(|data| !data.is_empty()) {
         module.append_runtime_data(data.clone(), None);
     }
+}
+
+/// Returns whether the session dumps runtime EVM IR as stack scheduling emits it.
+fn dumps_scheduled_evm_ir(gcx: Gcx<'_>) -> bool {
+    let dump = gcx.sess.opts.unstable.dump.as_ref();
+    dump.is_some_and(|dump| dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled))
 }
