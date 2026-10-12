@@ -22,7 +22,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Session, Span, Symbol,
     config::CompilerStage,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code,
     source_map::{FileName, SourceFile},
     sym,
@@ -1522,6 +1522,11 @@ impl<'gcx> Gcx<'gcx> {
         }
         self.alloc(dependencies)
     }
+
+    /// Builds the error for a literal at `span` that is too large for any integer type.
+    pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        self.dcx().err("literal is too large for any integer type").span(span)
+    }
 }
 
 fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
@@ -2001,9 +2006,7 @@ fn internal_function_members_in_context(
 ///
 /// The type checker and the constant evaluator both find these, so they share one report.
 pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
-    gcx.dcx()
-        .err("literal is too large for any integer type")
-        .span(span)
+    gcx.literal_too_large_err(span)
         .note("the other operand is typed, so the literal must fit an integer type")
         .emit()
 }
