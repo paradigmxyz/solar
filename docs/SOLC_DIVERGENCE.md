@@ -211,6 +211,24 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-009: Long constant dependency chains
+
+Status: intentional.
+
+Difference: `solc` reports error 7380 when a depth-first search from one
+constant gets 256 constants deep. Each search skips the constants it already
+finished, so the depth it reaches depends on the order it visits them, and
+`solc` accepts some constants whose longest dependency chain is 256 long or
+more. `solar` reports 7380 for every such chain.
+
+Rationale: `solc` starts a new search from every constant, which takes
+quadratic time. `solar` shares finished constants across searches and records
+their longest chains, which takes linear time and still matches `solc` on
+plain chains.
+
+Coverage: `tests/ui/typeck/constant_cycles/exhausted_skip_path.sol` and
+`tests/ui/typeck/constant_cycles/exhausted_bottom_up.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

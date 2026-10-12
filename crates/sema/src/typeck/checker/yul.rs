@@ -2,9 +2,10 @@ use super::TypeChecker;
 use crate::{
     hir,
     ty::{Ty, TyKind},
+    typeck::constant_cycles::MAX_DEPTH,
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_data_structures::smallvec::SmallVec;
+use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, error_code, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
@@ -120,10 +121,15 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Like solc's `isConstantVariableRecursive`, this only follows values that are an identifier
     /// or a member access. Other sources may not be type checked yet, so member accesses are
     /// resolved here.
+    ///
+    /// This gives up after [`MAX_DEPTH`] constants, since the constant cycle check after type
+    /// checking reports longer chains.
     fn is_constant_recursive(&self, mut id: hir::VariableId) -> bool {
-        let mut seen = SmallVec::<[_; 8]>::new();
-        while !seen.contains(&id) {
-            seen.push(id);
+        let mut seen = FxHashSet::default();
+        for _ in 0..MAX_DEPTH {
+            if !seen.insert(id) {
+                return true;
+            }
             let var = self.gcx.hir.variable(id);
             let Some(next) = var
                 .initializer
@@ -135,7 +141,7 @@ impl<'gcx> TypeChecker<'gcx> {
             };
             id = next;
         }
-        true
+        false
     }
 
     /// Resolves an identifier or a member access in the scope of the variable `scope` to its type
