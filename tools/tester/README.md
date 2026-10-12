@@ -40,7 +40,7 @@ run a zero-argument `setUp()` if the contract defines one.
 ## EVM IR interpreter check
 
 With `SOLAR_RUN_CALL_EVM_IR` set, every `run-call` and `run-call-fail` directive
-also runs through the EVM IR interpreter (`solar_codegen::backend::evm::interpret`)
+also runs through the EVM IR interpreter (`solar_evmir_interpreter`)
 on the runtime EVM IR of the called contract as stack scheduling emitted it,
 before the EVM IR pipeline, which the runner obtains by compiling the test again
 with `-Zdump=evm-ir-runtime-scheduled`. The interpreter starts from the storage,

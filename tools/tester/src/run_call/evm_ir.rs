@@ -2,7 +2,7 @@
 //! always in a test written in EVM IR.
 //!
 //! The test runner executes a call in an EVM as usual, then runs the same call through
-//! `solar_codegen::backend::evm::interpret`, with the storage, balances, and code the EVM held just
+//! `solar_evmir_interpreter`, with the storage, balances, and code the EVM held just
 //! before the call. A Solidity test is compiled again with `-Zdump=evm-ir-runtime-scheduled`, and
 //! the call runs on the called contract's runtime EVM IR as stack scheduling emitted it, before the
 //! EVM IR pipeline. A test written in EVM IR runs its calls on its own text. Either way the EVM ran
@@ -27,11 +27,9 @@ use evm2::{
     evm::AccountInfo,
     interpreter::InstrStop,
 };
-use solar_codegen::backend::evm::{
-    interpret::{self, Halt, Host, Outcome},
-    op,
-};
 use solar_config::EvmVersion;
+use solar_evmir::op;
+use solar_evmir_interpreter::{self as interpret, Halt, Host, Outcome};
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},

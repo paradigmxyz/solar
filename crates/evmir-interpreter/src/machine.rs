@@ -36,8 +36,8 @@
 //! jump must land on a block whose address the program pushes. A program that reveals the
 //! layout, such as by returning, storing, or hashing an address, or by copying past a data entry
 //! into whatever follows it, gets another result on another layout:
-//! [`interpret::transact`](crate::backend::evm::interpret::transact) runs every transaction on two
-//! layouts and reports a difference as unsupported.
+//! [`transact`](crate::transact) runs every transaction on two layouts and reports a difference as
+//! unsupported.
 //!
 //! # Limits
 //!
@@ -50,18 +50,6 @@
 //! The interpreter relies on no verification: it checks the stack as it runs, so a module the
 //! parser accepts never makes it panic.
 
-use super::{
-    BlockId, Instruction, Module, Terminator, TerminatorKind, display_instruction_operation,
-    display_terminator_operation,
-};
-use crate::{
-    backend::evm::{
-        codegen::MAX_STACK_DEPTH,
-        op::{self, StackOp, WORD_BYTES},
-    },
-    link::{DataBytes, DataId},
-    mir::utils::eval::eval_opcode,
-};
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
@@ -69,6 +57,14 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
+};
+use solar_evmir::{
+    ir::{
+        BlockId, Instruction, Module, Terminator, TerminatorKind, display_instruction_operation,
+        display_terminator_operation,
+    },
+    link::{DataBytes, DataId},
+    op::{self, MAX_STACK_DEPTH, StackOp, WORD_BYTES, eval_opcode},
 };
 use std::{
     borrow::Cow,

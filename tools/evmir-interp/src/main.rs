@@ -11,11 +11,11 @@ use alloy_json_abi::Function;
 use alloy_primitives::{U256, hex};
 use clap::Parser;
 use serde_json::{Map, Value as Json, json};
-use solar_codegen::backend::evm::{
-    interpret::{self, DumpedModule, Execution, HOST_READS, Host, Options, Outcome},
-    op,
-};
 use solar_config::EvmVersion;
+use solar_evmir::op;
+use solar_evmir_interpreter::{
+    self as interpret, DumpedModule, Execution, HOST_READS, Host, Options, Outcome,
+};
 use std::{
     collections::HashMap,
     fs::File,

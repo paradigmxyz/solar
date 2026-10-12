@@ -1,6 +1,6 @@
 [package]
 name = "solar-evmir-interp"
-description = "Runs EVM IR in the compiler's EVM IR interpreter"
+description = "Runs EVM IR in the Solar compiler's EVM IR interpreter"
 homepage = "https://github.com/paradigmxyz/solar/tree/main/tools/evmir-interp"
 publish = false
 
@@ -22,8 +22,9 @@ alloy-json-abi.workspace = true
 alloy-primitives.workspace = true
 clap = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-solar-codegen.workspace = true
 solar-config = { workspace = true, features = ["clap"] }
+solar-evmir.workspace = true
+solar-evmir-interpreter.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true

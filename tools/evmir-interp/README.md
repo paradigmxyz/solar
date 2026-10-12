@@ -1,7 +1,7 @@
 # solar-evmir-interp
 
 Runs EVM IR in the compiler's EVM IR interpreter, which the UI test runner checks `run-call`
-directives against. The library side is `solar_codegen::backend::evm::interpret`.
+directives against. The library side is the `solar-evmir-interpreter` crate.
 
 The input is one EVM IR module, such as a fixture under `tests/ui/codegen/evm-ir/`, or the output
 of `solar -Zdump=evm-ir-runtime-scheduled`, which prints the runtime EVM IR of each contract as

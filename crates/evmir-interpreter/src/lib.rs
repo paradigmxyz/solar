@@ -1,35 +1,20 @@
-//! Runs EVM IR through the EVM IR interpreter.
-//!
-//! [`transact`] runs a transaction on the program of one EVM IR module: it enters the program's
-//! first block with the transaction's calldata, an empty stack, and zeroed memory, and asks a
-//! [`Host`] for what the program reads from its context, such as the caller or a storage slot's
-//! value before the transaction. It takes the module as text: a `.evmir` file, or a module of the
-//! runtime EVM IR the compiler dumps, as scheduled with `-Zdump=evm-ir-runtime-scheduled` or as
-//! assembled with `-Zdump=evm-ir-runtime`. [`parse_dump`] splits such a dump into its modules, and
-//! [`Options::trace`] receives a line for every operation a run executes.
-//!
-//! The UI test runner executes every `run-call` directive in an EVM. With `SOLAR_RUN_CALL_EVM_IR`
-//! set, it also runs the call through [`transact`] on the runtime EVM IR the compiler scheduled
-//! for that bytecode, before the EVM IR pipeline, and a test written in EVM IR checks each call on
-//! its own text. The EVM runs that program after the pipeline and assembly, so a disagreement is a
-//! bug in an EVM IR pass, the assembler, or the interpreter. The `solar-evmir-interp` tool runs
-//! EVM IR from the command line.
-//!
-//! The interpreter models one contract: calls, contract creation, `gas`, immutables, and library
-//! addresses end a run as unsupported. EVM IR leaves code addresses to the assembler, so the
-//! interpreter places blocks and data itself, and runs each transaction again with them moved: a
-//! result that changes with them is unsupported, since the bytecode sees other addresses.
+#![doc = include_str!("../README.md")]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
+    html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
+)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 
-use super::ir::{
-    Module,
-    interp::{self, Effects, HOST_OPCODES, Layout, Limit, Machine},
-};
 use alloy_primitives::U256;
+use machine::{Effects, HOST_OPCODES, Layout, Limit, Machine};
 use solar_config::EvmVersion;
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::ir::Module;
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 
-pub use super::ir::interp::{Halt, Host, Log};
+mod machine;
+pub use machine::{Halt, Host, Log};
 
 /// The opcodes whose values a run asks its [`Host`] for, such as `CALLER` and `TIMESTAMP`.
 pub const HOST_READS: &[u8] = &HOST_OPCODES;
@@ -108,7 +93,7 @@ pub fn transact(
         let moved = machine.transact(calldata, host, Layout::MOVED, options.fuel, None);
         if moved != execution {
             let reason = "a result that depends on the code layout".into();
-            return execution_from(interp::Outcome::Unsupported(reason), Effects::default());
+            return execution_from(machine::Outcome::Unsupported(reason), Effects::default());
         }
         execution_from(execution.outcome, execution.effects)
     })
@@ -177,17 +162,17 @@ fn with_module(
 }
 
 /// Converts what a run did into what the interpreter reports.
-fn execution_from(outcome: interp::Outcome, effects: Effects) -> Result<Execution, String> {
+fn execution_from(outcome: machine::Outcome, effects: Effects) -> Result<Execution, String> {
     let outcome = match outcome {
-        interp::Outcome::Return(data) => Outcome::Success(data),
-        interp::Outcome::Stop => Outcome::Success(Vec::new()),
-        interp::Outcome::Revert(data) => Outcome::Revert(data),
-        interp::Outcome::Halt(halt) => Outcome::Halt(halt),
-        interp::Outcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),
-        interp::Outcome::Limit(Limit::Memory) => {
+        machine::Outcome::Return(data) => Outcome::Success(data),
+        machine::Outcome::Stop => Outcome::Success(Vec::new()),
+        machine::Outcome::Revert(data) => Outcome::Revert(data),
+        machine::Outcome::Halt(halt) => Outcome::Halt(halt),
+        machine::Outcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),
+        machine::Outcome::Limit(Limit::Memory) => {
             Outcome::Unsupported("reaches past 16 MiB of memory".into())
         }
-        interp::Outcome::Unsupported(what) => Outcome::Unsupported(what.into_owned()),
+        machine::Outcome::Unsupported(what) => Outcome::Unsupported(what.into_owned()),
     };
     let sorted = |slots: FxHashMap<U256, U256>| {
         let mut slots = slots.into_iter().collect::<Vec<_>>();

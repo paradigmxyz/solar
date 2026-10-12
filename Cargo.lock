@@ -4659,8 +4659,22 @@ dependencies = [
  "clap",
  "serde_json",
  "snapbox",
- "solar-codegen",
  "solar-config",
+ "solar-evmir",
+ "solar-evmir-interpreter",
+]
+
+[[package]]
+name = "solar-evmir-interpreter"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "smallvec",
+ "snapbox",
+ "solar-config",
+ "solar-data-structures",
+ "solar-evmir",
+ "solar-interface",
 ]
 
 [[package]]
@@ -4831,8 +4845,9 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "solar-codegen",
  "solar-config",
+ "solar-evmir",
+ "solar-evmir-interpreter",
  "strum 0.28.0",
  "tempfile",
  "toml_edit",

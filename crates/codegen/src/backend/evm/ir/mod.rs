@@ -17,7 +17,6 @@ use solar_sema::Gcx;
 pub use solar_evmir::ir::*;
 
 pub(in crate::backend) mod builder;
-pub(in crate::backend) mod interp;
 mod passes;
 pub(crate) use passes::compact_pushes;
 
