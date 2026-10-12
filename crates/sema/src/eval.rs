@@ -155,6 +155,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.
                 Ok(match value {
+                    // Like solc, do not fold `bytesN` values: their conversions, shifts and bit
+                    // operations depend on the width, which integers do not model.
+                    ConstValue::Integer(_)
+                        if matches!(
+                            v.ty.kind,
+                            hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))
+                        ) =>
+                    {
+                        return Err(EE::UnsupportedExpr.into());
+                    }
                     ConstValue::Integer(value) => {
                         ConstValue::Integer(value.typed(IntTy::from_hir_ty(&v.ty)))
                     }
