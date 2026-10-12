@@ -1,6 +1,7 @@
 // Each head in an ABI encoding, including the heads in the tails of dynamic parts, must stay below
 // 2^32 - 1 bytes, since the backend lays out each head word by word. Unlike solc, a struct's head
-// counts all its members together.
+// counts all its members together. The oversized types sit in dynamic arrays so that they pass the
+// memory size check.
 contract C {
     struct S1 {
         uint256[134217727] a;
@@ -17,32 +18,28 @@ contract C {
     S2 stored;
     uint256[2 ** 40] big;
 
-    event E(S2 s); //~ ERROR: type too large for calldata
-    error Err(S2 s); //~ ERROR: type too large for calldata
+    event E(S2[] s); //~ ERROR: type too large for calldata
+    error Err(S2[] s); //~ ERROR: type too large for calldata
 
     function fits(S1 calldata s) external pure {
         s;
     }
 
-    function calldataParam(S2 calldata s) external pure { //~ ERROR: type too large for calldata
+    function calldataParam(S2[] calldata s) external pure { //~ ERROR: type too large for calldata
         s;
     }
 
-    function memoryParam(S2 memory s) external pure { //~ ERROR: type too large for calldata
+    function memoryParam(S2[] memory s) external pure { //~ ERROR: type too large for calldata
         s;
     }
 
-    function publicReturn() public pure returns (S2 memory s) {} //~ ERROR: type too large for calldata
+    function publicReturn() public pure returns (S2[] memory s) {} //~ ERROR: type too large for calldata
 
-    function dynamicTail(Dyn memory d) public pure { //~ ERROR: type too large for calldata
+    function dynamicTail(Dyn[] memory d) public pure { //~ ERROR: type too large for calldata
         d;
     }
 
-    function dynamicArray(S2[] memory s) public pure { //~ ERROR: type too large for calldata
-        s;
-    }
-
-    function internalParam(S2 memory s) internal pure returns (bytes memory) {
+    function internalParam(S2[] memory s) internal pure returns (bytes memory) {
         return abi.encode(s); //~ ERROR: type too large to ABI-encode
     }
 

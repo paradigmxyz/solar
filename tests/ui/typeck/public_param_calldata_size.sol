@@ -3,7 +3,8 @@
 // types, and parameters and returns of public and external functions. A struct element counts
 // its static array members in full. This is stricter than solc, which checks only constructor
 // and public callable parameters against calldata. Library storage parameters cross the ABI as
-// slots and are not checked.
+// slots and are not checked. The oversized types sit in dynamic arrays so that they pass the
+// memory size check.
 contract C {
     struct S {
         uint256[2] a;
@@ -12,23 +13,23 @@ contract C {
         uint256 a;
     }
 
-    constructor(S[134217727] memory s) { //~ ERROR: type too large for calldata
+    constructor(S[134217727][] memory s) { //~ ERROR: type too large for calldata
         s;
     }
 
-    function pubMem(S[134217727] memory s) public pure { //~ ERROR: type too large for calldata
+    function pubMem(S[134217727][] memory s) public pure { //~ ERROR: type too large for calldata
         s;
     }
 
-    function extMem(S[134217727] memory s) external pure { //~ ERROR: type too large for calldata
+    function extMem(S[134217727][] memory s) external pure { //~ ERROR: type too large for calldata
         s;
     }
 
-    function intMem(S[134217727] memory s) internal pure {
+    function intMem(S[134217727][] memory s) internal pure {
         s;
     }
 
-    function pubRet() public pure returns (S[134217727] memory s) {} //~ ERROR: type too large for calldata
+    function pubRet() public pure returns (S[134217727][] memory s) {} //~ ERROR: type too large for calldata
 
     function pubOk(One[134217727] memory s) public pure {
         s;
@@ -38,11 +39,11 @@ contract C {
         s;
     }
 
-    function fnParam(function(S[134217727] memory) external f) public pure { //~ ERROR: type too large for calldata
+    function fnParam(function(S[134217727][] memory) external f) public pure { //~ ERROR: type too large for calldata
         f;
     }
 
-    function fnParamInternal(function(S[134217727] memory) internal f) internal pure {
+    function fnParamInternal(function(S[134217727][] memory) internal f) internal pure {
         f;
     }
 }
@@ -52,8 +53,8 @@ contract D {
         uint256[2] a;
     }
 
-    event E(S[134217727] s); //~ ERROR: type too large for calldata
-    error Err(S[134217727] s); //~ ERROR: type too large for calldata
+    event E(S[134217727][] s); //~ ERROR: type too large for calldata
+    error Err(S[134217727][] s); //~ ERROR: type too large for calldata
 }
 
 abstract contract A {
@@ -61,7 +62,7 @@ abstract contract A {
         uint256[2] a;
     }
 
-    constructor(S[134217727] memory s) {
+    constructor(S[134217727][] memory s) {
         s;
     }
 }
@@ -77,7 +78,7 @@ library L {
         uint256[2] a;
     }
 
-    function pubLib(S[134217727] memory s) public pure { //~ ERROR: type too large for calldata
+    function pubLib(S[134217727][] memory s) public pure { //~ ERROR: type too large for calldata
         s;
     }
 

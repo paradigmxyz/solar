@@ -1,36 +1,36 @@
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     constructor(S[134217727] memory s) {
-   │                 ━━━━━━━━━━━━
+LL │     constructor(S[134217727][] memory s) {
+   │                 ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     function pubMem(S[134217727] memory s) public pure {
-   │                     ━━━━━━━━━━━━
+LL │     function pubMem(S[134217727][] memory s) public pure {
+   │                     ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     function extMem(S[134217727] memory s) external pure {
-   │                     ━━━━━━━━━━━━
+LL │     function extMem(S[134217727][] memory s) external pure {
+   │                     ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     function pubRet() public pure returns (S[134217727] memory s) {}
-   │                                            ━━━━━━━━━━━━
+LL │     function pubRet() public pure returns (S[134217727][] memory s) {}
+   │                                            ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
-error[1534]: type too large for memory
+error: type too large for memory
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
 LL │     function pubNested(uint256[2][67108864] memory s) public pure {
@@ -39,32 +39,32 @@ LL │     function pubNested(uint256[2][67108864] memory s) public pure {
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     function fnParam(function(S[134217727] memory) external f) public pure {
-   │                               ━━━━━━━━━━━━
+LL │     function fnParam(function(S[134217727][] memory) external f) public pure {
+   │                               ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     event E(S[134217727] s);
-   │             ━━━━━━━━━━━━
+LL │     event E(S[134217727][] s);
+   │             ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     error Err(S[134217727] s);
-   │               ━━━━━━━━━━━━
+LL │     error Err(S[134217727][] s);
+   │               ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
 error[1534]: type too large for calldata
    ╭▸ ROOT/tests/ui/typeck/public_param_calldata_size.sol:LL:CC
    │
-LL │     function pubLib(S[134217727] memory s) public pure {
-   │                     ━━━━━━━━━━━━
+LL │     function pubLib(S[134217727][] memory s) public pure {
+   │                     ━━━━━━━━━━━━━━
    │
    ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
 
