@@ -39,11 +39,12 @@
 //! layout, such as by returning, storing, or hashing an address, or by copying past a data entry
 //! into whatever follows it, gets another result on another layout:
 //! [`transact`](crate::transact) runs every transaction on two layouts and reports a difference as
-//! unsupported. One layout gives each block a byte from address zero, and the other starts the
-//! blocks past 1 MiB, longer than any contract a block's gas can deploy, yet short enough for a
-//! copy of the code size to fit in memory. Comparing the code size or an address with a constant
-//! between the two layouts' values therefore also gets two results, unless the assembled code is
-//! shorter than one byte per block.
+//! unsupported. One layout ends the code after a single byte, the least a program that reads its
+//! code size has, so its blocks share addresses with the data, which only jumps tell apart. The
+//! other starts the blocks past 1 MiB, longer than any contract a block's gas can deploy, yet short
+//! enough for a copy of the code size to fit in memory. The two code sizes bound the assembled one,
+//! unless the assembled code is longer than 1 MiB, so comparing the code size with a constant that
+//! the assembled code size could fall on either side of also gets two results.
 //!
 //! # Limits
 //!
@@ -228,19 +229,27 @@ pub(crate) struct Layout {
     first_block: u64,
     /// The distance between the addresses of consecutive blocks.
     block_stride: u64,
+    /// Where the code ends and the data starts, unless one byte past the last block's address.
+    code_end: Option<u64>,
     /// Whether the data goes in reverse declaration order, the data that ends the runtime program
     /// aside.
     reverse_data: bool,
 }
 
 impl Layout {
-    /// Blocks at consecutive addresses from zero, and data in declaration order.
-    pub(crate) const COMPACT: Self = Self { first_block: 0, block_stride: 1, reverse_data: false };
+    /// A single byte of code, the least a program that reads its code size has, blocks at
+    /// consecutive addresses from zero, and data in declaration order.
+    pub(crate) const COMPACT: Self =
+        Self { first_block: 0, block_stride: 1, code_end: Some(1), reverse_data: false };
 
     /// Blocks spread out from an odd address past 1 MiB, so the code is longer than any deployable
     /// contract's, and data in reverse declaration order.
-    pub(crate) const MOVED: Self =
-        Self { first_block: (1 << 20) + 0x2a1, block_stride: 3, reverse_data: true };
+    pub(crate) const MOVED: Self = Self {
+        first_block: (1 << 20) + 0x2a1,
+        block_stride: 3,
+        code_end: None,
+        reverse_data: true,
+    };
 }
 
 /// Runs the transactions of one EVM IR module.
@@ -316,7 +325,8 @@ impl CodeImage {
     fn new(module: &Module, layout: Layout) -> Self {
         let blocks = module.blocks.len();
         // One byte past the last block's address, which its code occupies.
-        let code_end = layout.first_block + blocks as u64 * layout.block_stride + 1;
+        let code_end =
+            layout.code_end.unwrap_or(layout.first_block + blocks as u64 * layout.block_stride + 1);
         let ends_runtime = |id: &DataId| module.data[*id].emit_in_runtime;
         let mut order = module.data.indices().filter(|id| !ends_runtime(id)).collect::<Vec<_>>();
         if layout.reverse_data {

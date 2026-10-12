@@ -467,6 +467,15 @@ bb0:
         );
         let execution = transact(&module, &[], &mut Zero, Options::default()).unwrap();
         let reason = "a result that depends on the code layout".to_owned();
+        assert_eq!(execution.outcome, Outcome::Unsupported(reason.clone()));
+
+        // Empty blocks assemble to no code, so the code can be shorter than the block count.
+        let blocks = (0..700).map(|block| format!("bb{block}:\n  jump bb{}\n", block + 1));
+        let module = format!(
+            "@module test\n{}bb700:\n  push 700\n  codesize\n  lt\n  push 0\n  mstore\n  push 32\n  push 0\n  return\n",
+            blocks.collect::<String>()
+        );
+        let execution = transact(&module, &[], &mut Zero, Options::default()).unwrap();
         assert_eq!(execution.outcome, Outcome::Unsupported(reason));
     }
 
