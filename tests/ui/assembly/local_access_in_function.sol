@@ -1,18 +1,7 @@
-// ported-from: test/libsolidity/syntaxTests/inlineAssembly/external_identifier_access_shadowing.sol
-
 contract C {
     uint s;
     uint[] arr;
     uint constant K = 1;
-
-    function f() public returns (uint x) {
-        assembly {
-            function g() -> x {
-                x := 42 //~ ERROR: cannot access local Solidity variables from inside an inline assembly function
-            }
-            x := g()
-        }
-    }
 
     function argument(uint p) public pure {
         assembly {

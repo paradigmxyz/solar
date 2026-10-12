@@ -1301,7 +1301,6 @@ impl<'gcx> ResolveContext<'gcx> {
         &mut self,
         name: Ident,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
-        self.check_yul_variable_shadowing(name);
         let var = self.mk_yul_var(
             self.function_id,
             name.span,
@@ -1314,32 +1313,6 @@ impl<'gcx> ResolveContext<'gcx> {
         let result =
             self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         (id, result)
-    }
-
-    /// Reports a Yul `let` variable that shadows a Solidity declaration.
-    fn check_yul_variable_shadowing(&self, name: Ident) {
-        let Some(decls) = self
-            .resolve_solidity_local(name)
-            .or_else(|| self.resolver.resolve_name_non_local(name, &self.scopes).ok())
-        else {
-            return;
-        };
-        // solc does not declare globals that the target EVM lacks, such as `blobhash`.
-        let target = self.lcx.sess.opts.evm_version;
-        if decls.iter().all(|decl| {
-            matches!(decl.res, Res::Builtin(builtin) if builtin.required_evm_version(target).is_some())
-        }) {
-            return;
-        }
-        let mut diag = self
-            .dcx()
-            .err("this declaration shadows a declaration outside the inline assembly block")
-            .code(error_code!(3859))
-            .span(name.span);
-        for decl in decls.iter().filter(|decl| !decl.span.is_dummy()) {
-            diag = diag.span_note(decl.span, "the shadowed declaration is here");
-        }
-        diag.emit();
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -1564,37 +1537,28 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn resolve_yul_paths(&self, name: Ident) -> Result<&[Declaration], ErrorGuaranteed> {
         let function_scope = self.yul_function_scope;
-        // Like solc, check Solidity locals before Yul scoping, so Yul function variables do not
-        // hide the error.
-        if function_scope.is_some()
-            && let Some(decls) = self.resolve_solidity_local(name)
-            && decls.iter().any(|decl| decl.res.as_variable().is_some())
-        {
-            return Err(self
-                .dcx()
-                .err("cannot access local Solidity variables from inside an inline assembly function")
-                .code(error_code!(6578))
-                .span(name.span)
-                .emit());
-        }
+        let mut skipped_solidity_local = false;
         for (index, scope) in self.scopes.scopes.iter().enumerate().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
             if function_scope.is_some_and(|function_scope| index < function_scope)
                 && decls.iter().all(|decl| decl.res.as_variable().is_some())
             {
+                skipped_solidity_local |= self.yul_root_scope.is_some_and(|root| index < root);
                 continue;
             }
             return Ok(decls);
         }
-        self.resolver
-            .resolve_name_non_local(name, &self.scopes)
-            .map_err(self.resolver.emit_resolver_error())
-    }
-
-    /// Resolves `name` in the Solidity local scopes around the current inline assembly block.
-    fn resolve_solidity_local(&self, name: Ident) -> Option<&[Declaration]> {
-        let yul_root_scope = self.yul_root_scope.expect("not in inline assembly");
-        self.scopes.scopes[..yul_root_scope].iter().rev().find_map(|scope| scope.resolve(name))
+        self.resolver.resolve_name_non_local(name, &self.scopes).map_err(|err| {
+            if skipped_solidity_local {
+                self.dcx()
+                    .err("cannot access local Solidity variables from inside an inline assembly function")
+                    .code(error_code!(6578))
+                    .span(name.span)
+                    .emit()
+            } else {
+                self.resolver.emit_resolver_error()(err)
+            }
+        })
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {

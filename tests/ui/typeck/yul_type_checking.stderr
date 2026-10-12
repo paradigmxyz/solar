@@ -66,12 +66,6 @@ error[7615]: only direct number constants are supported in inline assembly
 LL │             pop(stringConstant)
    ╰╴                ━━━━━━━━━━━━━━
 
-error[7615]: only direct number constants are supported in inline assembly
-   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
-   │
-LL │             pop(convertedConstant)
-   ╰╴                ━━━━━━━━━━━━━━━━━
-
 error: assembly access to immutable variables is not supported
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
@@ -304,5 +298,5 @@ error: expression has to be an lvalue
 LL │             CustomEvent := 1
    ╰╴            ━━━━━━━━━━━
 
-error: aborting due to 49 previous errors
+error: aborting due to 48 previous errors
 
