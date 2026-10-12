@@ -1,0 +1,56 @@
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encode(assert);
+   ╰╴                   ━━━━━━ found `function (bool) pure`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encode(gasleft);
+   ╰╴                   ━━━━━━━ found `function () view returns (uint256)`
+
+error[2056]: `encodePacked` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encodePacked(keccak256);
+   ╰╴                         ━━━━━━━━━ found `function (bytes memory) pure returns (bytes32)`
+
+error[2056]: `encodeWithSelector` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encodeWithSelector(0x12345678, blockhash);
+   ╰╴                                           ━━━━━━━━━ found `function (uint256) view returns (bytes32)`
+
+error[2056]: `encodeWithSignature` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encodeWithSignature("x()", ecrecover);
+   ╰╴                                       ━━━━━━━━━ found `function (bytes32,uint8,bytes32,bytes32) pure returns (address)`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encode(i);
+   ╰╴                   ━ found `function ()`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encode(C.f);
+   ╰╴                   ━━━ found `function ()`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encode(L.g);
+   ╰╴                   ━━━ found `function ()`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_types.sol:LL:CC
+   │
+LL │         abi.encode(address(this).call);
+   ╰╴                   ━━━━━━━━━━━━━━━━━━ found `function (bytes memory) payable returns (bool,bytes memory)`
+
+error: aborting due to 9 previous errors
+

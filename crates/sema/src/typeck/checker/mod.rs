@@ -2027,12 +2027,13 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             result = result.and(self.check_array_copy_size(ty, expr.span));
             if !valid_abi_encodable_arg(ty, self.gcx) {
-                result = result.and(Err(self.dcx().emit_err_label(
-                    expr.span,
-                    format!("`{}` argument cannot be ABI-encoded", builtin.name()),
-                    expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                )));
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!("`{}` argument cannot be ABI-encoded", builtin.name()))
+                    .code(error_code!(2056))
+                    .span(expr.span)
+                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit()));
             }
         }
         result
@@ -3891,6 +3892,7 @@ fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
     match ty.kind {
         TyKind::Tuple([ty]) => valid_abi_encodable_arg(*ty, gcx),
         TyKind::Tuple(_) => false,
+        TyKind::Fn(f) if !f.is_external() => false,
         TyKind::Error(..)
         | TyKind::Event(..)
         | TyKind::Module(..)
