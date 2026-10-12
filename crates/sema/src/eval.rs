@@ -25,20 +25,13 @@ pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
 }
 
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
-///
-/// Array type names must have a nonzero length, but array type expressions, such as `T[0]` in
-/// `abi.decode(data, (T[0]))`, may be empty; pass `allow_zero` for those.
-pub fn eval_array_len(
-    gcx: Gcx<'_>,
-    size: &hir::Expr<'_>,
-    allow_zero: bool,
-) -> Result<U256, ErrorGuaranteed> {
+pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
     let int = gcx.eval_const(size)?;
     let Some(int) = int.as_u256() else {
         let msg = "array length cannot be negative";
         return Err(gcx.dcx().emit_err(size.span, msg));
     };
-    if int.is_zero() && !allow_zero {
+    if int.is_zero() {
         let msg = "array length must be greater than zero";
         Err(gcx.dcx().emit_err(size.span, msg))
     } else {

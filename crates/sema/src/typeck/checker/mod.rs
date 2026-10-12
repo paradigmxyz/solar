@@ -603,7 +603,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index, true));
+                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -889,7 +889,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
-                self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty_expr(ty)))
+                self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
                 // For integer literal negation and bitwise negation, don't propagate the expected
