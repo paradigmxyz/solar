@@ -3006,7 +3006,11 @@ impl<'gcx> TypeChecker<'gcx> {
             && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
             && size >= u32::MAX
         {
-            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+            self.dcx()
+                .err(format!("type too large for {loc}"))
+                .code(error_code!(1534))
+                .span(var.ty.span)
+                .emit();
         } else if !self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty())
             && self.crosses_abi(var, ty)
         {
