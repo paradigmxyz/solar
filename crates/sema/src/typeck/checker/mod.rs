@@ -3952,6 +3952,13 @@ fn binop_common_type<'gcx>(
 
     let ty = ty.peel_refs();
     let other = other.peel_refs();
+    // Like solc, a literal next to a typed operand needs a mobile type.
+    let is_literal = |ty: Ty<'_>| matches!(ty.kind, TyKind::IntLiteral(..));
+    if is_literal(ty) != is_literal(other)
+        && [ty, other].into_iter().any(|ty| is_literal(ty) && ty.mobile(gcx).is_none())
+    {
+        return None;
+    }
     match ty.kind {
         TyKind::Elementary(hir::ElementaryType::Int(_))
         | TyKind::Elementary(hir::ElementaryType::UInt(_))

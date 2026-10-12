@@ -10,9 +10,6 @@ const RECURSION_LIMIT: usize = 64;
 // Literal arithmetic is exact like solc's rational numbers, which limit the
 // precision of every intermediate value to 4096 bits.
 const MAX_INTERMEDIATE_BITS: u64 = 4096;
-// Final values may use one bit beyond the EVM word so that `2**256` reaches the
-// callers' range checks; wider values report an overflow.
-const MAX_RESULT_BITS: u64 = TypeSize::MAX as u64 + 1;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -95,13 +92,7 @@ impl<'gcx> Gcx<'gcx> {
 }
 
 pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
-    let value = ConstantEvaluator::new(gcx).try_eval_value(expr)?;
-    if let ConstValue::Integer(int) = &value
-        && int.bit_len() > MAX_RESULT_BITS
-    {
-        return Err(EE::ArithmeticOverflow.spanned(expr.span));
-    }
-    Ok(value)
+    ConstantEvaluator::new(gcx).try_eval_value(expr)
 }
 
 /// Evaluates Solidity constant expressions.
@@ -451,7 +442,7 @@ impl IntScalar {
             return value;
         }
         let magnitude = U256::try_from_le_slice(&self.data.magnitude().to_bytes_le())
-            .expect("constant evaluator keeps integers within 256 bits");
+            .expect("callers only fold integers that fit in 256 bits");
         U256::ZERO.wrapping_sub(magnitude)
     }
 

@@ -26,3 +26,4 @@ contract MaxValue layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
 contract IntermediateOperationOutOfRange layout at (2**256 + 1) * 2 - 2**256 - 3 {}
 contract NegativeIntermediateOperations layout at (2**2 - 2**3) * (2**5 - 2**8) {}
+contract WideIntermediates layout at (2**256 + 1) + (0 - 1) - 2**256 { uint x; }

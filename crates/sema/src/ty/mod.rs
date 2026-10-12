@@ -511,15 +511,8 @@ impl<'gcx> Gcx<'gcx> {
         bits: u64,
         compatible_fixed_bytes: Option<TypeSize>,
     ) -> Option<Ty<'gcx>> {
-        let bits = bits.max(1);
-        if bits > TypeSize::MAX as u64 {
-            return None;
-        }
-        Some(self.mk_ty(TyKind::IntLiteral(
-            negative,
-            TypeSize::new_literal_bits(bits as u16),
-            compatible_fixed_bytes,
-        )))
+        let bits = u16::try_from(bits.max(1)).ok()?;
+        Some(self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes)))
     }
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
