@@ -2338,6 +2338,16 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
+            if self.ty_too_large(ty) {
+                let guar = self
+                    .dcx()
+                    .err("type too large for memory")
+                    .code(error_code!(6118))
+                    .span(type_expr.span)
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
             tys.push(ty);
         }
         self.gcx.mk_tys(&tys)
@@ -2990,8 +3000,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
         if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
-            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
-            && size >= u32::MAX
+            && self.ty_too_large(ty)
         {
             self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
         }
@@ -3025,6 +3034,11 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
             _ => Some(U256::from(32)),
         }
+    }
+
+    /// Returns whether a type's static size reaches the 32-bit limit of memory and calldata.
+    fn ty_too_large(&self, ty: Ty<'gcx>) -> bool {
+        self.ty_memory_static_size(ty).is_some_and(|size| size >= u32::MAX)
     }
 
     fn check_array_copy_conversion(
