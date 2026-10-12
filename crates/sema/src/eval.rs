@@ -632,7 +632,8 @@ impl IntScalar {
     ///
     /// The shift amount or exponent must fit in 32 bits, and a left shift or power must fit in
     /// `LITERAL_PRECISION_BITS`. Values within these bounds but wider than
-    /// `MAX_INTERMEDIATE_BITS` are valid in solc and still fail as an overflow here.
+    /// `MAX_INTERMEDIATE_BITS` are valid in solc, but their evaluation fails with an overflow,
+    /// which the type checker does not report.
     fn check_literal_bounds(&self, r: &Self, op: hir::BinOpKind) -> Result<(), EE> {
         use hir::BinOpKind::*;
         match op {
