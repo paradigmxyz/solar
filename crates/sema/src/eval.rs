@@ -134,7 +134,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         if let Err(e) = &mut res
             && e.span.is_dummy()
         {
-            e.span = expr.peel_parens().span;
+            e.span = expr.span;
         }
         self.depth = self.depth.checked_sub(1).unwrap();
         res

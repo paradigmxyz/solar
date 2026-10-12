@@ -71,9 +71,9 @@ error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d14(uint[(maxInt8 + 1) - 1] memory) public {}
-   │                       ━┬──────────━━━━━
-   │                        │
-   ╰╴                       evaluation of constant value failed here
+   │                       ┬────────────━━━━
+   │                       │
+   ╰╴                      evaluation of constant value failed here
 
 error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC

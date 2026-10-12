@@ -75,9 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// The length of the fixed-size array type being checked, whose constant evaluation reports
-    /// the first operation that fails in it.
-    array_len: Option<&'gcx hir::Expr<'gcx>>,
+    /// Whether we're checking the length of a fixed-size array type, whose constant evaluation
+    /// reports the operations that fail in it.
+    in_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
     /// Only populated before Byzantium, where a dynamically encoded external return value is
@@ -160,7 +160,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
-            array_len: None,
+            in_array_len: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
         }
@@ -269,20 +269,13 @@ impl<'gcx> TypeChecker<'gcx> {
     /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let array_len = self.array_len.replace(size);
+        let prev = std::mem::replace(&mut self.in_array_len, true);
         let ty = self.check_expr(size);
-        self.array_len = array_len;
+        self.in_array_len = prev;
         if !ty.is_integer() && !ty.references_error() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
         ty
-    }
-
-    /// Returns whether constant evaluation of the enclosing array length fails at the given
-    /// expression, in which case it reports the error.
-    fn array_len_fails_at(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        self.array_len
-            .is_some_and(|len| self.gcx.try_eval_const(len).is_err_and(|err| err.span == expr.span))
     }
 
     #[track_caller]
@@ -431,7 +424,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
                         // Like solc, the operator does not apply to literals it gives no value.
                         Err(err)
-                            if !self.array_len_fails_at(expr)
+                            if !self.in_array_len
                                 && matches!(
                                     err.kind,
                                     EvalErrorKind::DivisionByZero
@@ -447,7 +440,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let ty = self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false);
-                if !ty.references_error() {
+                if !ty.references_error() && !self.in_array_len {
                     self.check_division_by_zero(expr, lhs_e, rhs_e, op.kind);
                 }
                 ty
@@ -1208,10 +1201,7 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::BinOpKind::Rem => "modulo zero",
             _ => return,
         };
-        if self.is_const_zero(rhs)
-            && self.gcx.try_eval_solc_const(lhs).is_ok()
-            && !self.array_len_fails_at(expr)
-        {
+        if self.gcx.try_eval_solc_const(lhs).is_ok() && self.is_const_zero(rhs) {
             self.dcx().err(msg).code(error_code!(1211)).span(expr.span).emit();
         }
     }
