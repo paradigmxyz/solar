@@ -31,6 +31,18 @@ fn @crossWidthAssembly() -> i256 [selector=0xb9761af7, pure, abi_params=[], abi_
     ret 0x700000000000000000000000000000000000000000000000000000000000000
 }
 
+fn @crossWidthCompare() -> i1 [selector=0xe7368e98, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x700000000000000000000000000000000000000000000000000000000000000, 0x700000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @crossWidthCompareConstant() -> i1 [selector=0xf6148df3, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x700000000000000000000000000000000000000000000000000000000000000, 0x700000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
 fn @shiftRoundTrip() -> i256 [selector=0xabb727a8, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = shl 8, 0x700000000000000000000000000000000000000000000000000000000000000

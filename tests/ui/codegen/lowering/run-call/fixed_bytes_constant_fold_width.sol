@@ -3,6 +3,8 @@
 //@ run-call: crossWidthConstant => 0x0700
 //@ run-call: crossWidthStructField => 0x0700
 //@ run-call: crossWidthAssembly => 0x0700
+//@ run-call: crossWidthCompare => true
+//@ run-call: crossWidthCompareConstant => true
 //@ run-call: shiftRoundTrip => 0x00
 //@ run-call: shiftRoundTripConstant => 0x00
 //@ run-call: bitNotShift => 0x0f
@@ -16,6 +18,8 @@ contract FixedBytesConstantFoldWidth {
 
     bytes1 constant B1 = 0x07;
     bytes2 constant B2 = B1;
+    bytes2 constant W2 = 0x0700;
+    bool constant CROSS_WIDTH_EQ = B1 == W2;
     bytes1 constant ROUND_TRIP = (B1 << 8) >> 8;
     bytes1 constant NOT_SHIFT = ~B1 >> 4;
 
@@ -39,6 +43,15 @@ contract FixedBytesConstantFoldWidth {
         assembly {
             r := B2
         }
+    }
+
+    function crossWidthCompare() external pure returns (bool) {
+        bool value = B1 == W2;
+        return value;
+    }
+
+    function crossWidthCompareConstant() external pure returns (bool) {
+        return CROSS_WIDTH_EQ;
     }
 
     function shiftRoundTrip() external pure returns (bytes1) {
