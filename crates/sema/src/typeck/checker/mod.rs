@@ -1477,10 +1477,12 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(())
     }
 
-    /// Checks a `try` statement, as in solc's `TypeChecker::endVisit(TryStatement)`.
+    /// Checks a `try` statement.
     ///
     /// Must run after the called expression has been checked: every clause is checked against
     /// the callee's type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L967>
     fn check_try(&self, try_: &'gcx hir::StmtTry<'gcx>) {
         let Some(f) = self.check_try_target(try_) else { return };
         self.check_try_returns_clause(try_, f);
@@ -3099,11 +3101,14 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(())
     }
 
-    /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
-    /// solc's `validForLocation`.
+    /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`.
     ///
     /// An array's size counts its nested static arrays, but a struct is never sized as a whole:
     /// its reference members are checked one by one.
+    ///
+    /// References:
+    /// - arrays: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1722>
+    /// - structs: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2492>
     fn ty_fits_location(
         &self,
         ty: Ty<'gcx>,
@@ -3142,7 +3147,7 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Returns the memory size of `ty` as solc's `validForLocation` counts it: nested static array
+    /// Returns the memory size of `ty` as `ty_fits_location` counts it: nested static array
     /// lengths times the element's `memoryDataSize`, which is one word per struct member.
     fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> U256 {
         match ty.peel_refs().kind {
@@ -3854,8 +3859,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 } else {
                     self.value_position = ValuePosition::TryReturns;
                 }
-                // The clauses are checked against the call's type, so only after visiting it,
-                // as in solc's `endVisit(TryStatement)`.
+                // The clauses are checked against the call's type, so only after visiting it.
                 self.walk_stmt(stmt)?;
                 self.check_try(try_);
                 return ControlFlow::Continue(());

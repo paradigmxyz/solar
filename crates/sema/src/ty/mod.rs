@@ -2203,7 +2203,9 @@ fn is_value_ns(id: hir::ItemId) -> bool {
 /// mapping sits between the value and the struct.
 ///
 /// Function types do not store their parameter types, so a struct reached only through one is not
-/// recursive, as in solc's `DeclarationTypeChecker`.
+/// recursive.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L176>
 fn visit_stored_structs(
     ty: &hir::Type<'_>,
     dynamic: bool,

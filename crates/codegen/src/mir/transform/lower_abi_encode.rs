@@ -1431,9 +1431,10 @@ fn encode_calldata_bytes_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    // Mirror solc's calldata tail access: the offset bound is signed, so a negative
-    // offset that wraps to a valid load is accepted and the tail checks decide whether
-    // the element is valid. Bytes past `calldatasize` read as zero.
+    // The offset bound is signed, so a negative offset that wraps to a valid load is accepted
+    // and the tail checks decide whether the element is valid. Bytes past `calldatasize` read
+    // as zero.
+    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1443-L1457>
     let offset = builder.calldataload(source_head);
     let calldata_size = builder.calldatasize();
     let available = builder.sub(calldata_size, source_base);

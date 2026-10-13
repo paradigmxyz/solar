@@ -695,7 +695,7 @@ fn check_fallback_signature(gcx: Gcx<'_>, f: &hir::Function<'_>) {
         return;
     }
 
-    // Like solc, point at the returns, or at the parameters when there are none.
+    // Point at the returns, or at the parameters when there are none.
     let vars = if f.returns.is_empty() { f.parameters } else { f.returns };
     gcx.dcx()
         .err("invalid fallback function signature")
@@ -981,7 +981,8 @@ fn check_event_or_error_parameters(
         if ty.can_be_exported(gcx) {
             continue;
         }
-        // Recursiveness comes before internal functions, as in solc's `StructType::interfaceType`.
+        // Recursiveness comes before internal functions.
+        // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2384>
         let (what, code) = if ty.has_mapping(gcx) {
             ("types containing mappings", error_code!(3448))
         } else if ty.is_recursive(gcx) {

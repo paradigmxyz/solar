@@ -280,7 +280,9 @@ impl AbiType {
 
     /// Returns the size of the value's own encoding where a tail offset points: the length
     /// word of a dynamically sized value, or the whole head area of a statically sized one.
-    /// This is solc's `calldataEncodedTailSize`, the length its calldata tail access requires.
+    /// This is the length a calldata tail access requires.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.h#L263>
     #[must_use]
     pub(crate) fn tail_size(&self) -> u64 {
         match self {

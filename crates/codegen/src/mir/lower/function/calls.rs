@@ -1288,9 +1288,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// The size in bytes of the output area a pre-Byzantium call declares, which overlays the
     /// call's input area.
     ///
-    /// This is solc's `ReturnInfo::estimatedReturnSize`: the head size of the static return
-    /// values, and nothing for a dynamically encoded one, which `finish_external_call` reports as
-    /// unsupported before Byzantium.
+    /// This is the head size of the static return values, and nothing for a dynamically encoded
+    /// one, which `finish_external_call` reports as unsupported before Byzantium.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ReturnInfo.cpp#L43-L55>
     fn pre_byzantium_output_size(
         &mut self,
         return_tys: &[Ty<'gcx>],

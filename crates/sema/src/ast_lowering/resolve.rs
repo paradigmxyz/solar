@@ -2543,8 +2543,9 @@ impl Declarations {
         self.declare(sess, hir, name.name, Declaration { res, span: name.span })
     }
 
-    /// Declares `name => decl`, reporting conflicts and reserved names like solc's
-    /// `registerDeclaration`.
+    /// Declares `name => decl`, reporting conflicts and reserved names.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L517>
     pub(crate) fn declare(
         &mut self,
         sess: &Session,
@@ -2554,7 +2555,8 @@ impl Declarations {
     ) -> Result<(), ErrorGuaranteed> {
         check_reserved_name(sess, hir, name, decl);
         self.try_declare(hir, name, decl).map_err(|conflict| {
-            // Like solc, report the declaration that comes later in the source.
+            // Report the declaration that comes later in the source.
+            // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L577-L597>
             let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
                 (conflict, decl)
             } else {
@@ -2685,7 +2687,9 @@ pub(super) fn report_conflict(
 
 /// Reports a declaration named `_`, `super`, or `this`.
 ///
-/// Like solc, events and public or external functions may still use these names.
+/// Events and public or external functions may still use these names.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L537-L557>
 fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: Declaration) {
     if !matches!(name, sym::underscore | sym::super_ | sym::this) {
         return;
