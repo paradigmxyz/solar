@@ -424,7 +424,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::BlockBasefee => Some(self.builder.basefee()),
             Builtin::BlockBlobbasefee => Some(self.builder.blobbasefee()),
             Builtin::MsgSender => Some(self.builder.caller()),
-            Builtin::MsgGas => Some(self.builder.gas()),
             Builtin::MsgValue => Some(self.builder.callvalue()),
             Builtin::MsgSig => {
                 let offset = self.builder.imm(0);

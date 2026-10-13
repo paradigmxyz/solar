@@ -692,6 +692,18 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.register_resolved_member(expr, member);
                         member.ty
                     }
+                    Err(MemberAccessError::NotFound)
+                        if matches!(receiver_ty.kind, TyKind::BuiltinModule(Builtin::Msg))
+                            && ident.name == kw::Gas =>
+                    {
+                        let err = self
+                            .dcx()
+                            .err("`msg.gas` has been removed")
+                            .code(error_code!(1400))
+                            .span(expr.span)
+                            .help("use `gasleft()` instead");
+                        self.gcx.mk_ty_err(err.emit())
+                    }
                     Err(MemberAccessError::NotFound) => {
                         let msg = format!(
                             "member `{ident}` not found on type `{}`",
