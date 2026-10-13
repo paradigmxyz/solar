@@ -1,4 +1,4 @@
-error: cannot apply builtin operator `==` to `struct test.s storage` and `struct test.s storage`
+error[2271]: cannot apply builtin operator `==` to `struct test.s storage` and `struct test.s storage`
    ╭▸ ROOT/tests/ui/typeck/struct_comparison.sol:LL:CC
    │
 LL │     x == y;

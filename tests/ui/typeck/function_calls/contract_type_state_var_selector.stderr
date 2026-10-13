@@ -1,0 +1,8 @@
+error: member `f` not found on type `type(contract A)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_state_var_selector.sol:LL:CC
+   │
+LL │     bytes4 constant s4 = A.f.selector;
+   ╰╴                           ━
+
+error: aborting due to 1 previous error
+

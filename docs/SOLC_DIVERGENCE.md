@@ -289,9 +289,60 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
+### TYPECK-013: Inline assembly names and constants
+
+Status: intentional.
+
+Difference: `solar` accepts inline assembly that `solc` rejects:
+
+- reads of value-type constants whose value is not a number literal, such as
+  `uint(7)`, `true ? 5 : 6`, `three + 1`, `~uint(0)` or `keccak256("abc")`
+  (`solc` error 7615);
+- Yul declarations that shadow a Solidity declaration outside the block, such
+  as a parameter, contract, function or `msg` (`solc` error 3859);
+- the Yul names `this`, `super` and `_` (`solc` error 4113);
+- Yul names reserved for EVM instructions and pure Yul builtins, such as `pc`,
+  `dup1` or `datasize` (`solc` error 5017);
+- a Yul variable inside a Yul function that shares its name with a Solidity
+  local, such as `function g() -> x` in a function that returns `x` (`solc`
+  error 6578).
+
+Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
+resolves the inner declaration first, and constant folding gives assembly the
+same value Solidity sees. The parser also serves formatters and linters, which
+should accept the names.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
+and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+
+### TYPECK-018: `msg.gas`
+
+Status: intentional.
+
+Difference: `solar` accepts `msg.gas` as `gasleft()` with warning 1400, where
+`solc` rejects it with error 1400.
+
+Rationale: the meaning is unambiguous and we compile it correctly, so a
+warning is enough to steer code to `gasleft()`.
+
+Coverage: `tests/ui/typeck/msg_gas.sol`.
+
 ## Contract-Level Checks
 
-No intentional divergences documented yet.
+### CONTRACT-001: Conditionals in storage layout base slots
+
+Status: intentional.
+
+Difference: `solar` accepts conditionals in the base slot of a storage layout
+specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
+`solc` rejects them with error 1505 because its constant evaluator does not
+support conditionals.
+
+Rationale: our constant evaluator folds conditionals, so the base slot has a
+well-defined value.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
+`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 

@@ -129,18 +129,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            // Lowering computes some constants, such as `bytesN` ones. Their initializers must
-            // still be compile-time constants, as solar does not reject those that read state.
+            // Constant reads qualify even when they do not fold.
             TyKind::Elementary(_) => {
                 let gcx = self.cx.gcx;
                 gcx.try_eval_const_value(expr).is_ok()
-                    || gcx.resolved_variable(expr).is_some_and(|id| {
-                        let variable = gcx.hir.variable(id);
-                        variable.is_constant()
-                            && variable
-                                .initializer
-                                .is_some_and(|init| gcx.try_eval_const_value(init).is_ok())
-                    })
+                    || gcx
+                        .resolved_variable(expr)
+                        .is_some_and(|id| gcx.hir.variable(id).is_constant())
             }
             _ => false,
         }
@@ -164,10 +159,66 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_expr(lhs.id)?.peel_refs();
+        // A constant that does not fold can revert, so lower the field values before the
+        // storage access, in the struct constructor's order.
+        let mut values = Vec::new();
+        self.lower_constant_storage_fields(ty, rhs, &mut values)?;
         let Some(access) = self.storage_access(lhs) else {
             return self.cx.report_unsupported(lhs.span, "storage access");
         };
-        self.store_constant_storage_value(ty, access, rhs)
+        self.store_constant_storage_value(ty, access, rhs, &mut values.into_iter())
+    }
+
+    fn lower_constant_storage_fields(
+        &mut self,
+        ty: Ty<'gcx>,
+        expr: &hir::Expr<'_>,
+        values: &mut Vec<ValueId>,
+    ) -> Option<()> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => Some(()),
+            TyKind::Struct(struct_id) => {
+                let (_, args, _) = expr.peel_parens().as_call()?;
+                let fields = self.cx.gcx.hir.strukt(struct_id).fields;
+                let names =
+                    self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                let fields_values = self.lower_call_arguments(
+                    *args,
+                    CallArgumentParams {
+                        count: fields.len(),
+                        names: Some(names.as_slice()),
+                        reverse: false,
+                    },
+                    args.span,
+                    "struct constructor argument",
+                    |this, index, argument| {
+                        let field_ty = this.cx.gcx.type_of_item(fields[index].into());
+                        let mut field_values = Vec::new();
+                        this.lower_constant_storage_fields(field_ty, argument, &mut field_values)?;
+                        Some(field_values)
+                    },
+                )?;
+                values.extend(fields_values.into_iter().flatten());
+                Some(())
+            }
+            _ => {
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                let constant = match self.cx.gcx.try_eval_const_value(expr) {
+                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
+                    Ok(ConstValue::Integer(value)) => {
+                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
+                    }
+                    _ => None,
+                };
+                let value = if let Some(value) = constant {
+                    self.coerce_value(value, expr_ty, ty)
+                } else {
+                    self.lower_typed_expr(expr, ty)?
+                };
+                values.push(value);
+                Some(())
+            }
+        }
     }
 
     fn store_constant_storage_value(
@@ -175,6 +226,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         access: StorageAccess,
         expr: &hir::Expr<'_>,
+        values: &mut std::vec::IntoIter<ValueId>,
     ) -> Option<()> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -206,26 +258,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         field_ty,
                         StorageAccess { slot, location, offset: None },
                         argument,
+                        values,
                     )?;
                 }
                 Some(())
             }
-            _ => {
-                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                let constant = match self.cx.gcx.try_eval_const_value(expr) {
-                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
-                    Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
-                    }
-                    _ => None,
-                };
-                let value = if let Some(value) = constant {
-                    self.coerce_value(value, expr_ty, ty)
-                } else {
-                    self.lower_typed_expr(expr, ty)?
-                };
-                self.store_storage_value(ty, access, value, expr.span)
-            }
+            _ => self.store_storage_value(ty, access, values.next()?, expr.span),
         }
     }
 

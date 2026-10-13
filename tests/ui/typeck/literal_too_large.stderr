@@ -64,7 +64,7 @@ error: mismatched types
 LL │         uint e = 2**255 * 4;
    ╰╴                 ━━━━━━━━━━ expected `uint256`, found `int_literal[258]`
 
-error: cannot apply builtin operator `==` to `int_literal[257]` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `==` to `int_literal[257]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         bool g = 2**256 == 0;
@@ -74,7 +74,7 @@ LL │         bool g = 2**256 == 0;
    │
    ╰ note: literal is too large for any integer type
 
-error: cannot apply builtin operator `+` to `uint256` and `int_literal[301]`
+error[2271]: cannot apply builtin operator `+` to `uint256` and `int_literal[301]`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         x + 2**300;
@@ -84,7 +84,7 @@ LL │         x + 2**300;
    │
    ╰ note: literal is too large for any integer type
 
-error: cannot apply builtin operator `**` to `uint256` and `int_literal[301]`
+error[2271]: cannot apply builtin operator `**` to `uint256` and `int_literal[301]`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         x ** 2**300;
@@ -94,7 +94,7 @@ LL │         x ** 2**300;
    │
    ╰ note: literal is too large for any integer type
 
-error: cannot apply builtin operator `<<` to `uint256` and `int_literal[301]`
+error[2271]: cannot apply builtin operator `<<` to `uint256` and `int_literal[301]`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         x << 2**300;
@@ -104,7 +104,7 @@ LL │         x << 2**300;
    │
    ╰ note: literal is too large for any integer type
 
-error: cannot apply builtin operator `<<` to `int_literal[301]` and `uint256`
+error[2271]: cannot apply builtin operator `<<` to `int_literal[301]` and `uint256`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         (2**300) << x;
@@ -114,7 +114,7 @@ LL │         (2**300) << x;
    │
    ╰ note: literal is too large for any integer type
 
-error: cannot apply builtin operator `<<` to `bytes32` and `int_literal[301]`
+error[2271]: cannot apply builtin operator `<<` to `bytes32` and `int_literal[301]`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         b << 2**300;

@@ -203,7 +203,7 @@ error: mismatched types
 LL │     uint quotient = 7 / 3;
    ╰╴                    ━━━━━ expected `uint256`, found `rational_literal`
 
-error: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
+error[2271]: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     uint shift = 1 << 0.5;
@@ -211,7 +211,7 @@ LL │     uint shift = 1 << 0.5;
    │                  │
    ╰╴                 int_literal[1]
 
-error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     uint power = 2 ** 0.5;

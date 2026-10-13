@@ -1,4 +1,4 @@
-error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         int g = 2 ** -2.2;
@@ -6,7 +6,7 @@ LL │         int g = 2 ** -2.2;
    │                 │
    ╰╴                int_literal[2]
 
-error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         uint b = 3 ** 2.5;
@@ -14,7 +14,7 @@ LL │         uint b = 3 ** 2.5;
    │                  │
    ╰╴                 int_literal[2]
 
-error: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         2 ** (1/2);
@@ -22,7 +22,7 @@ LL │         2 ** (1/2);
    │         │
    ╰╴        int_literal[2]
 
-error: cannot apply builtin operator `**` to `int_literal[6]` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `int_literal[6]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         42 ** (-1/4);
@@ -30,7 +30,7 @@ LL │         42 ** (-1/4);
    │         │
    ╰╴        int_literal[6]
 
-error: cannot apply builtin operator `>>` to `int_literal[7]` and `rational_literal`
+error[2271]: cannot apply builtin operator `>>` to `int_literal[7]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │     uint public a = 0x42 >> (1 / 2);
@@ -50,7 +50,7 @@ error: cannot apply unary operator `!` to `rational_literal`
 LL │         !0.5;
    ╰╴        ━━━━
 
-error: cannot apply builtin operator `|` to `rational_literal` and `int_literal[2]`
+error[2271]: cannot apply builtin operator `|` to `rational_literal` and `int_literal[2]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1.5 | 3;
@@ -58,7 +58,7 @@ LL │         1.5 | 3;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `&` to `rational_literal` and `int_literal[2]`
+error[2271]: cannot apply builtin operator `&` to `rational_literal` and `int_literal[2]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1.5 & 3;
@@ -66,7 +66,7 @@ LL │         1.5 & 3;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `^` to `rational_literal` and `int_literal[2]`
+error[2271]: cannot apply builtin operator `^` to `rational_literal` and `int_literal[2]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1.5 ^ 3;
@@ -74,7 +74,7 @@ LL │         1.5 ^ 3;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `<<` to `rational_literal` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `<<` to `rational_literal` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1.5 << 1;
@@ -82,7 +82,7 @@ LL │         1.5 << 1;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `>>` to `rational_literal` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `>>` to `rational_literal` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1.5 >> 1;
@@ -90,7 +90,7 @@ LL │         1.5 >> 1;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
+error[2271]: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1 << 1.5;
@@ -98,7 +98,7 @@ LL │         1 << 1.5;
    │         │
    ╰╴        int_literal[1]
 
-error: cannot apply builtin operator `**` to `int256` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `int256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         y ** 0.5;
@@ -106,7 +106,7 @@ LL │         y ** 0.5;
    │         │
    ╰╴        int256
 
-error: cannot apply builtin operator `+` to `uint256` and `rational_literal`
+error[2271]: cannot apply builtin operator `+` to `uint256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         x + 0.5;
@@ -114,7 +114,7 @@ LL │         x + 0.5;
    │         │
    ╰╴        uint256
 
-error: cannot apply builtin operator `*` to `rational_literal` and `uint256`
+error[2271]: cannot apply builtin operator `*` to `rational_literal` and `uint256`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.5 * x;
@@ -122,7 +122,7 @@ LL │         0.5 * x;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `%` to `uint256` and `rational_literal`
+error[2271]: cannot apply builtin operator `%` to `uint256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         x % 0.5;
@@ -130,7 +130,7 @@ LL │         x % 0.5;
    │         │
    ╰╴        uint256
 
-error: cannot apply builtin operator `-` to `int256` and `rational_literal`
+error[2271]: cannot apply builtin operator `-` to `int256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         y - 0.5;
@@ -138,7 +138,7 @@ LL │         y - 0.5;
    │         │
    ╰╴        int256
 
-error: cannot apply builtin operator `**` to `uint256` and `rational_literal`
+error[2271]: cannot apply builtin operator `**` to `uint256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         x ** 0.5;
@@ -146,7 +146,7 @@ LL │         x ** 0.5;
    │         │
    ╰╴        uint256
 
-error: cannot apply builtin operator `<<` to `uint256` and `rational_literal`
+error[2271]: cannot apply builtin operator `<<` to `uint256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         x << 0.5;
@@ -154,7 +154,7 @@ LL │         x << 0.5;
    │         │
    ╰╴        uint256
 
-error: cannot apply builtin operator `&&` to `rational_literal` and `bool`
+error[2271]: cannot apply builtin operator `&&` to `rational_literal` and `bool`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.5 && true;
@@ -162,7 +162,7 @@ LL │         0.5 && true;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `<` to `rational_literal` and `rational_literal`
+error[2271]: cannot apply builtin operator `<` to `rational_literal` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.3 < 0.5;
@@ -170,7 +170,7 @@ LL │         0.3 < 0.5;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `==` to `rational_literal` and `rational_literal`
+error[2271]: cannot apply builtin operator `==` to `rational_literal` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.5 == 0.5;
@@ -178,7 +178,7 @@ LL │         0.5 == 0.5;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `!=` to `rational_literal` and `rational_literal`
+error[2271]: cannot apply builtin operator `!=` to `rational_literal` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.5 != 0.7;
@@ -186,7 +186,7 @@ LL │         0.5 != 0.7;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `<` to `rational_literal` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `<` to `rational_literal` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.5 < 1;
@@ -194,7 +194,7 @@ LL │         0.5 < 1;
    │         │
    ╰╴        rational_literal
 
-error: cannot apply builtin operator `>=` to `int_literal[1]` and `rational_literal`
+error[2271]: cannot apply builtin operator `>=` to `int_literal[1]` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         1 >= 0.5;
@@ -202,7 +202,7 @@ LL │         1 >= 0.5;
    │         │
    ╰╴        int_literal[1]
 
-error: cannot apply builtin operator `==` to `rational_literal` and `uint256`
+error[2271]: cannot apply builtin operator `==` to `rational_literal` and `uint256`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
 LL │         0.5 == x;

@@ -58,7 +58,7 @@ LL │     uint256 constant ADD = (1 << 256) + S8;
 LL │         uint256[ADD] memory add;
    ╰╴                ━━━
 
-error: cannot apply builtin operator `>>` to `int_literal[257]` and `uint256`
+error[2271]: cannot apply builtin operator `>>` to `int_literal[257]` and `uint256`
    ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
    │
 LL │     uint256 constant SHR = (1 << 256) >> ONE;
@@ -68,7 +68,7 @@ LL │     uint256 constant SHR = (1 << 256) >> ONE;
    │
    ╰ note: literal is too large for any integer type
 
-error: cannot apply builtin operator `+` to `int_literal[257]` and `uint8`
+error[2271]: cannot apply builtin operator `+` to `int_literal[257]` and `uint8`
    ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
    │
 LL │     uint256 constant ADD = (1 << 256) + S8;
