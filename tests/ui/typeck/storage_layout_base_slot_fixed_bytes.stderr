@@ -1,0 +1,16 @@
+error: failed to evaluate constant: `bytesN` constants are not integers
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fixed_bytes.sol:LL:CC
+   │
+LL │ contract Constant layout at L {}
+   ╰╴                            ━ evaluation of constant value failed here
+
+error: failed to evaluate constant: `bytesN` constants are not integers
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_fixed_bytes.sol:LL:CC
+   │
+LL │ contract Shifted layout at B >> 1 {}
+   │                            ┬━━━━━
+   │                            │
+   ╰╴                           evaluation of constant value failed here
+
+error: aborting due to 2 previous errors
+
