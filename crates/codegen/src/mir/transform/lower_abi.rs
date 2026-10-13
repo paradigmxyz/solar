@@ -4498,32 +4498,18 @@ fn materialize_calldata_return(
     base: ValueId,
     has_bitwise_shifting: bool,
 ) -> ValueId {
-    if let AbiParamType::DynamicArray(element) = ty {
+    let input_end = builder.calldatasize();
+    let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
+    if let AbiParamType::DynamicArray(_) = ty {
         // len = slice_len returned_slice
         // data = slice_ptr returned_slice
-        // object = alloc word_array(len)
-        // object[0..len] = decode elements from data
+        // object = copy_calldata_value(data, len)
         let len = builder.slice_len(base);
         let data = builder.slice_ptr(base);
-        let input_end = builder.calldatasize();
-        let (object, _) =
-            builder.alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let mut current = builder.current_block();
-        let options = DecodeOptions::new(false, input_end, has_bitwise_shifting);
-        LowerAbiCx::decode_array_elements(
-            builder,
-            element,
-            object,
-            len,
-            data,
-            &mut current,
-            options,
-        );
-        return object;
+        return copy_calldata_value(builder, ty, data, Some(len), options);
     }
     // base = slice_ptr returned_slice
     let base = builder.slice_ptr(base);
-    let input_end = builder.calldatasize();
     let mut current = builder.current_block();
     let reason = LowerAbiCx::aggregate_short_reason(ty, true);
     LowerAbiCx::guard_input_range(
@@ -4534,7 +4520,11 @@ fn materialize_calldata_return(
         &mut current,
         reason,
     );
-    let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
+    if ty.is_dynamic() {
+        // object = copy_calldata_value(base)
+        builder.switch_to_block(current);
+        return copy_calldata_value(builder, ty, base, None, options);
+    }
     LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head, current| {
         LowerAbiCx::decode_aggregate_argument(
             builder,
@@ -4546,4 +4536,138 @@ fn materialize_calldata_return(
             options,
         )
     })
+}
+
+/// Copies a calldata value to memory with the checks solc applies when it re-encodes calldata
+/// rather than those of the ABI decoder: nested offsets go through `access_calldata_tail`, which
+/// accepts negative offsets that wrap and reverts on an inner length above `2**64 - 1` before
+/// anything is allocated, and narrow words are validated. `position` is the value's head, or the
+/// data address of a dynamically sized value whose `length` the caller resolved.
+fn copy_calldata_value(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiParamType,
+    position: ValueId,
+    length: Option<ValueId>,
+    options: DecodeOptions<'_>,
+) -> ValueId {
+    match ty {
+        AbiParamType::Bytes => {
+            // object = bytes(length)
+            // copy(position, object.data, length)
+            let length = length.expect("bytes have a length");
+            let object =
+                builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+            let source = builder.make_slice(position, length, SliceLocation::Calldata);
+            builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+            object
+        }
+        AbiParamType::DynamicArray(element) => {
+            // object = word_array(length)
+            let length = length.expect("dynamic arrays have a length");
+            let (object, layout) = builder
+                .alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+            if LowerAbiCx::is_full_word_scalar(element) {
+                // copy(position, object.data, length * 32)
+                let word = builder.imm(EvmMemoryLayout::WORD_SIZE);
+                let size = builder.mul(length, word);
+                let source = builder.make_slice(position, size, SliceLocation::Calldata);
+                builder.memory_object_copy_from_slice(object, layout.kind(), source);
+            } else {
+                copy_calldata_elements(builder, element, object, layout, length, position, options);
+            }
+            object
+        }
+        AbiParamType::FixedArray { element, len } if ty.is_dynamic() => {
+            // object = word_array<len>
+            let (object, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
+            let length = builder.imm(*len);
+            copy_calldata_elements(builder, element, object, layout, length, position, options);
+            object
+        }
+        AbiParamType::Tuple(fields) if ty.is_dynamic() => {
+            // object = struct<fields>
+            // for each field { object.field = copy_calldata_member(position + field_offset) }
+            let (object, layout) =
+                builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
+            let mut offset = 0;
+            for (index, field) in fields.iter().enumerate() {
+                let head = builder.add_u64_offset(position, offset);
+                let value = copy_calldata_member(builder, field, position, head, options);
+                builder.memory_object_store_field(object, layout, index as u64, value);
+                offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
+            }
+            object
+        }
+        _ => {
+            // value = decode_static(position)
+            let mut current = builder.current_block();
+            let value = if ty.is_scalar_word() {
+                LowerAbiCx::decode_source_scalar(builder, ty, position, &mut current, options)
+            } else {
+                LowerAbiCx::decode_static_calldata_argument(
+                    builder,
+                    ty,
+                    position,
+                    &mut current,
+                    options.has_bitwise_shifting,
+                )
+            };
+            builder.switch_to_block(current);
+            value
+        }
+    }
+}
+
+/// Copies `length` elements whose heads start at `data` into the memory array `object`.
+fn copy_calldata_elements(
+    builder: &mut FunctionBuilder<'_>,
+    element: &AbiParamType,
+    object: ValueId,
+    layout: MemoryObjectLayout,
+    length: ValueId,
+    data: ValueId,
+    options: DecodeOptions<'_>,
+) {
+    // for i in 0..length { object[i] = copy_calldata_member(data + i * head_size) }
+    let stride =
+        builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+    builder.counted_loop(length, |builder, index| {
+        let offset = builder.mul(index, stride);
+        let head = builder.add(data, offset);
+        let value = copy_calldata_member(builder, element, data, head, options);
+        builder.memory_object_store_element(object, layout, index, value);
+    });
+}
+
+/// Copies the member of an aggregate starting at `base` whose head is at `head`, as a memory
+/// word.
+fn copy_calldata_member(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiParamType,
+    base: ValueId,
+    head: ValueId,
+    options: DecodeOptions<'_>,
+) -> ValueId {
+    let value = if ty.is_dynamic() {
+        // (position, length) = access_calldata_tail(base, head)
+        // value = copy_calldata_value(position, length)
+        let stride = match ty {
+            AbiParamType::Bytes => Some(1),
+            AbiParamType::DynamicArray(element) => {
+                Some(element.checked_head_size().expect("ABI head size exceeds u64 range"))
+            }
+            _ => None,
+        };
+        let (position, length) = super::lower_abi_encode::access_calldata_tail(
+            builder,
+            base,
+            head,
+            ty.data_head_size(),
+            stride,
+        );
+        copy_calldata_value(builder, ty, position, length, options)
+    } else {
+        copy_calldata_value(builder, ty, head, None, options)
+    };
+    LowerAbiCx::encode_memory_scalar(builder, ty, value)
 }
