@@ -331,8 +331,14 @@ impl<'a> FileResolver<'a> {
     /// Reads `unit` from each root once through the file loader, like solc's file reader.
     fn read_roots(&self, path: &Path, unit: &Path) -> Result<Option<String>, ResolveError> {
         let loader = self.source_map().file_loader();
-        // Ask for a normalized path in each root, so that the result doesn't depend on which
-        // spelling of the name is read first.
+        // Ask for a normalized name, so that the result doesn't depend on which spelling of it is
+        // read first. Without a base path or include paths, keep a `file://` prefix, like libsolc.
+        // Otherwise strip it, like solc's file reader.
+        let unit = if self.roots().all(|root| root.as_os_str().is_empty()) {
+            unit
+        } else {
+            strip_file_url(unit)
+        };
         let candidates = if unit.has_root() {
             vec![normalize_unit(unit)]
         } else {
@@ -425,8 +431,7 @@ impl<'a> FileResolver<'a> {
 
     /// Returns the paths that the host filesystem loader looks up for a source unit name.
     fn search_paths<'b>(&self, unit: &'b Path) -> SmallVec<[Cow<'b, Path>; 2]> {
-        // Like solc, accept `file://` URLs.
-        let unit = unit.to_str().and_then(|s| s.strip_prefix("file://")).map_or(unit, Path::new);
+        let unit = strip_file_url(unit);
         // Unlike solc, look up absolute paths as is, even with a base path.
         if unit.has_root() {
             // A path with a root but no drive, like `/a.sol` on Windows, is on the base path's
@@ -575,6 +580,11 @@ fn sanitize_path(s: &str) -> Cow<'_, str> {
         }
     }
     Cow::Borrowed(s)
+}
+
+/// Strips a `file://` prefix, which solc's file reader accepts.
+fn strip_file_url(path: &Path) -> &Path {
+    path.to_str().and_then(|s| s.strip_prefix("file://")).map_or(path, Path::new)
 }
 
 /// Joins `path` with the current directory, if any, and normalizes it.

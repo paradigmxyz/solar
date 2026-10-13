@@ -74,17 +74,21 @@ Normalizing names has other effects. Remapping contexts match the normalized
 name, so a file reached through the target `./lib/` has the context `lib/...`
 in `solar` and `./lib/...` in `solc`. `solar` applies `..` segments before
 following symbolic links, so `link/../x.sol` names `x.sol` next to `link`, not
-next to its target.
+next to its target. A `file://` import that `solar` loads from disk is named by
+its path, so `file://src/B.sol` and `src/B.sol` are one source unit `src/B.sol`,
+where `solc` keeps the prefix in the name. Files read through the Standard JSON
+callback keep the prefix, as in `solc`.
 
 Rationale: duplicate copies of one file only produce spurious conflicts. Build
 tools such as Foundry preload sources under relative names and pass absolute
 remapping targets, which must resolve to the preloaded sources
 ([#1628](https://github.com/paradigmxyz/solar/pull/1628)).
 
-Coverage: `callback_imports_merge_spellings` in
+Coverage: `callback_imports_merge_spellings` and `callback_imports_file_urls` in
 `crates/solar/tests/it/standard_json.rs`,
-`absolute_remapping_reuses_preloaded_source_unit_name` and
-`direct_import_reuses_preloaded_source_unit_name` in
+`absolute_remapping_reuses_preloaded_source_unit_name`,
+`direct_import_reuses_preloaded_source_unit_name` and
+`file_url_imports_load_from_disk` in
 `crates/interface/src/source_map/file_resolver.rs`.
 
 ### IMPORT-002: Names of files in nested include paths
@@ -130,10 +134,11 @@ Status: intentional.
 
 Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
-when several roots contain the same file, as with a repeated include path. In
-Standard JSON mode, which does not access the file system, it does not check the
-base path. It does not restrict imports to allowed paths, so `--allow-paths` has
-no effect.
+when several roots lead to the same path, as with a repeated include path.
+Different paths to one file, such as an include path and a symbolic link to it,
+are still ambiguous, as in `solc`. In Standard JSON mode, which does not access
+the file system, it does not check the base path. It does not restrict imports
+to allowed paths, so `--allow-paths` has no effect.
 
 Rationale: these inputs have a single sensible meaning, and Standard JSON reads
 imports only through the read callback.
