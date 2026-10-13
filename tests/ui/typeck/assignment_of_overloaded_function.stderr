@@ -1,0 +1,8 @@
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/assignment_of_overloaded_function.sol:LL:CC
+   │
+LL │     function g() public returns (uint) { function (uint) returns (uint) x = f; return x(7); }
+   ╰╴                                                                            ━
+
+error: aborting due to 1 previous error
+

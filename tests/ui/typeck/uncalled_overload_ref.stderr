@@ -1,0 +1,50 @@
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         x = require;
+   ╰╴            ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         (require);
+   ╰╴         ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         require == require;
+   ╰╴        ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         require == require;
+   ╰╴                   ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         c ? require : require;
+   ╰╴            ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         c ? require : require;
+   ╰╴                      ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         require.selector;
+   ╰╴        ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │         g;
+   ╰╴        ━
+
+error: aborting due to 8 previous errors
+
