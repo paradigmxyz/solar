@@ -239,6 +239,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
                 self.gcx.emit_const_eval_error(slot, err);
             }
+            Err(err) if matches!(err.kind, EvalErrorKind::FractionalValue) => {
+                self.dcx()
+                    .err("base slot of storage layout must evaluate to an integer")
+                    .code(error_code!(1763))
+                    .span(slot.span)
+                    .span_label(err.span, err.kind.msg())
+                    .emit();
+            }
             Err(err) => {
                 self.gcx.emit_const_eval_error(slot, err);
             }
@@ -1094,7 +1102,14 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
     /// This is used to preserve literal type through literal expressions.
     fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        let result = self.gcx.try_eval_const(expr).ok()?;
+        let result = match self.gcx.try_eval_const(expr) {
+            Ok(result) => result,
+            // Typed arithmetic would truncate a quotient that solc keeps exact.
+            Err(err) if matches!(err.kind, EvalErrorKind::FractionalValue) => {
+                return Some(self.gcx.mk_ty_err(self.gcx.emit_const_eval_error(expr, err)));
+            }
+            Err(_) => return None,
+        };
         let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
         self.gcx.mk_ty_int_literal_with_fixed_bytes(
             result.is_negative(),

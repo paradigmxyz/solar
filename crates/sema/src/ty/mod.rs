@@ -2003,6 +2003,17 @@ fn internal_function_members_in_context(
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
 }
 
+/// Reports a quotient of two number literals at `span` that is not an integer.
+///
+/// The type checker and the constant evaluator both find these, so they share one report.
+pub(crate) fn fractional_quotient(gcx: _, span: Span) -> ErrorGuaranteed {
+    gcx.dcx()
+        .err("fractional literal quotients are not supported")
+        .span(span)
+        .note("solc divides number literals exactly, so truncating would give a different value")
+        .emit()
+}
+
 } // cached!
 
 // DO NOT ADD `impl Gcx` HERE. ADD FUNCTIONS IN THE IMPL BLOCK ABOVE.
