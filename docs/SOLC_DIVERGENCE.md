@@ -286,15 +286,18 @@ and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
 
 Status: intentional.
 
-Difference: `solc` reports error 7380 when its cyclic constant check follows a
-chain of 256 constants. `solar` reports it only at 2048 constants, so it
-accepts and compiles deeper acyclic chains.
+Difference: `solc` reports error 7380 when its cyclic constant check gets 256
+constants deep. `solar` reports it only when the longest chain from a constant
+has 2048 constants, so it accepts and compiles deeper acyclic chains. Since the
+`solc` search skips constants it has already searched, `solar` can reject
+long chains through shared constants that keep the `solc` search shallow.
 
 Rationale: the 256 limit is arbitrary, since `solar` compiles longer chains.
-Codegen recurses once per constant in a chain, and the 2048 limit keeps a debug
-build within the default compiler thread stack.
+Codegen recurses once per constant in the longest chain, and the 2048 limit
+keeps a debug build within the default compiler thread stack.
 
-Coverage: `tests/ui/typeck/constant_cycles/deep_chain.sol`.
+Coverage: `tests/ui/typeck/constant_cycles/deep_chain.sol` and
+`tests/ui/typeck/constant_cycles/deep_shared_chain.sol`.
 
 ### TYPECK-018: `msg.gas`
 
