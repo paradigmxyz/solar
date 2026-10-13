@@ -219,6 +219,19 @@ Coverage: `tests/ui/parser/fixed_point_type.sol`,
 `tests/ui/typeck/rational_literal_operators.sol`; the upstream fixtures that use
 fixed-point types are excluded from solc parity testing.
 
+### PARSE-005: Yul number literals
+
+Status: intentional.
+
+Difference: solc accepts only plain decimal and hexadecimal integers in Yul and
+inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828. Solar
+accepts any number literal whose value is an integer, as in Solidity.
+
+Rationale: these literals have one obvious value, so rejecting them only makes
+the language harder to use.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings
