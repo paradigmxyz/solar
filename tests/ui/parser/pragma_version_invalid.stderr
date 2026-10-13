@@ -1,0 +1,14 @@
+error: expected version number
+   ╭▸ ROOT/tests/ui/parser/pragma_version_invalid.sol:LL:CC
+   │
+LL │ pragma solidity 0.;
+   ╰╴                  ━
+
+error: ranges can only be combined using the || operator
+   ╭▸ ROOT/tests/ui/parser/pragma_version_invalid.sol:LL:CC
+   │
+LL │ pragma solidity 0 - 1 0 - 2;
+   ╰╴                      ━
+
+error: aborting due to 2 previous errors
+
