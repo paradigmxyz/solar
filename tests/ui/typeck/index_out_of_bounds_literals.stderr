@@ -62,5 +62,29 @@ LL │         b[4];
    │           │
    ╰╴          the length is 4 but the index is 4
 
-error: aborting due to 8 previous errors
+error[3383]: out of bounds array access
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds_literals.sol:LL:CC
+   │
+LL │         m[8 / 2];
+   │         ━━┬────━
+   │           │
+   ╰╴          the length is 4 but the index is 4
+
+error: fractional literal quotients are not supported
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds_literals.sol:LL:CC
+   │
+LL │         s[4 - (3 / 2) * 2];
+   │                ━━━━━
+   │
+   ╰ note: solc divides number literals exactly, so truncating would give a different value
+
+error: fractional literal quotients are not supported
+   ╭▸ ROOT/tests/ui/typeck/index_out_of_bounds_literals.sol:LL:CC
+   │
+LL │         b[6 - (3 / 2) * 2];
+   │                ━━━━━
+   │
+   ╰ note: solc divides number literals exactly, so truncating would give a different value
+
+error: aborting due to 11 previous errors
 

@@ -21,6 +21,12 @@ contract C {
         b[3];
         b[4]; //~ ERROR: out of bounds array access
 
+        // Literal quotients are exact. A fractional one is rejected before the bounds check; see
+        // TYPECK-017.
+        m[8 / 2]; //~ ERROR: out of bounds array access
+        s[4 - (3 / 2) * 2]; //~ ERROR: fractional literal quotients are not supported
+        b[6 - (3 / 2) * 2]; //~ ERROR: fractional literal quotients are not supported
+
         // Only literal indexes are checked.
         m[K];
         m[uint(4)];
