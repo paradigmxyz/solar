@@ -259,6 +259,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
                 | Builtin::BlockBlobbasefee
                 | Builtin::BlockSlotnum
                 | Builtin::MsgSender
+                | Builtin::MsgGas
                 | Builtin::TxOrigin
                 | Builtin::TxGasPrice,
             ) => self.report(StateMutability::View, expr.span, None),

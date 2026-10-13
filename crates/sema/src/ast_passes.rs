@@ -555,6 +555,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            if let Some(vis) = f.visibility
+                && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
+            {
+                self.dcx()
+                    .err("invalid visibility, can only be `external` or `internal`")
+                    .code(error_code!(6012))
+                    .span(vis.span)
+                    .emit();
+            }
         } else if let ast::TypeKind::Mapping(mapping) = &ty.kind {
             self.check_mapping_names(ty.span, mapping);
         }
