@@ -56,6 +56,7 @@ contract C {
 
     function i(uint[block.timestamp] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
     function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: unsupported literal
+    //~^ ERROR: mismatched types
     function k(uint[--x] memory) public {} //~ ERROR: failed to evaluate constant: unsupported unary operation
     //~^ ERROR: cannot assign to a constant variable
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
