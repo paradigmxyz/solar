@@ -1882,8 +1882,18 @@ impl<'gcx> ResolveContext<'gcx> {
                 {
                     break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                 }
-                let msg = "expected exactly one unnamed argument";
-                let guar = self.sess.dcx.emit_err(expr.span, msg);
+                let guar = if let ast::CallArgsKind::Named(args) = &args.kind
+                    && args.len() == 1
+                {
+                    self.dcx()
+                        .err("type conversions cannot take named arguments")
+                        .code(error_code!(5153))
+                        .span(expr.span)
+                        .emit()
+                } else {
+                    let msg = "expected exactly one unnamed argument";
+                    self.sess.dcx.emit_err(expr.span, msg)
+                };
                 hir::ExprKind::Err(guar)
             }
             ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
