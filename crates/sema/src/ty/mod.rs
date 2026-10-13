@@ -7,7 +7,6 @@ use crate::{
     typeck::override_checker::OverrideProxy,
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
-use either::Either;
 use solar_ast::{
     DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
 };
@@ -15,6 +14,8 @@ use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::or_list,
+    graph,
+    index::{IndexSlice, IndexVec},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -254,6 +255,16 @@ impl Recursiveness {
     pub fn is_recursive(self) -> bool {
         !self.is_none()
     }
+}
+
+/// The reference chains from a struct.
+#[derive(Clone, Copy, Debug)]
+struct StructChains {
+    /// The number of structs in the longest chain of direct references, which skip only
+    /// fixed-size arrays, or `None` if such a chain reaches a cycle.
+    direct_depth: Option<u32>,
+    /// Whether a chain of any references reaches a cycle.
+    reaches_cycle: bool,
 }
 
 /// How an internal call resolves in the most-derived contract.
@@ -1931,39 +1942,58 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 
 /// Returns the recursiveness of the given struct.
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
-    use solar_data_structures::cycle::*;
+    let chains = gcx.struct_chains(())[id];
+    // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists.
+    // Report at `id`, like solc, so that each struct reports at most once.
+    let (code, msg) = match chains.direct_depth {
+        None => (error_code!(2046), "recursive struct definition"),
+        Some(depth) if depth >= 256 => (error_code!(5651), "struct is too deeply nested"),
+        Some(_) if chains.reaches_cycle => return Recursiveness::Recursive,
+        Some(_) => return Recursiveness::None,
+    };
+    Recursiveness::Infinite(gcx.dcx().err(msg).code(code).span(gcx.item_span(id)).emit())
+}
 
-    let r = CycleDetector::detect(gcx, id, |gcx, cd, id| {
-        let s = gcx.hir.strukt(id);
+/// Returns the reference chains of every struct.
+fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChains]> {
+    type Edges = IndexVec<hir::StructId, SmallVec<[hir::StructId; 2]>>;
 
-        if cd.depth() >= 256 {
-            let guar = gcx.dcx().emit_err(s.span, "struct is too deeply nested");
-            return CycleDetectorResult::Break(Either::Left(guar));
-        }
-
-        for &field_id in s.fields {
-            let ty = &gcx.hir.variable(field_id).ty;
-            let r = visit_stored_structs(ty, false, &mut |other, dynamic| match cd.run(other) {
-                CycleDetectorResult::Cycle(_) if dynamic => {
-                    ControlFlow::Break(CycleDetectorResult::Break(Either::Right(())))
-                }
-                r => r.to_controlflow(),
-            });
-            if let ControlFlow::Break(r) = r {
-                return r;
+    /// Returns the number of structs in the longest chain of references from each struct, or
+    /// `None` if the struct reaches a cycle.
+    fn chain_depths(edges: &Edges) -> IndexVec<hir::StructId, Option<u32>> {
+        let mut depths = IndexVec::from_vec(vec![None; edges.len()]);
+        // Components come in reverse topological order, so referenced structs come first.
+        for scc in graph::sccs(edges.len(), |id: hir::StructId| edges[id].iter().copied()) {
+            let id = scc[0];
+            if scc.len() == 1 && !edges[id].contains(&id) {
+                depths[id] =
+                    edges[id].iter().try_fold(1, |max, &other| Some(max.max(depths[other]? + 1)));
             }
         }
-
-        CycleDetectorResult::Continue
-    });
-    match r {
-        CycleDetectorResult::Continue => Recursiveness::None,
-        CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
-        CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
-        CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-            gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition")
-        ),
+        depths
     }
+
+    let len = gcx.hir.strukt_ids().len();
+    let (mut direct, mut any) = (Edges::with_capacity(len), Edges::with_capacity(len));
+    for id in gcx.hir.strukt_ids() {
+        let (mut direct_refs, mut any_refs) = (SmallVec::new(), SmallVec::new());
+        for &field_id in gcx.hir.strukt(id).fields {
+            let ty = &gcx.hir.variable(field_id).ty;
+            visit_stored_structs(ty, false, &mut |other, dynamic| {
+                // Direct references skip only fixed-size arrays, like solc.
+                if !dynamic {
+                    direct_refs.push(other);
+                }
+                any_refs.push(other);
+            });
+        }
+        direct.push(direct_refs);
+        any.push(any_refs);
+    }
+    let chains = chain_depths(&direct).into_iter().zip(chain_depths(&any)).map(|(direct, any)| {
+        StructChains { direct_depth: direct, reaches_cycle: any.is_none() }
+    });
+    IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
 }
 
 /// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.
@@ -2187,21 +2217,21 @@ fn is_value_ns(id: hir::ItemId) -> bool {
 ///
 /// Function types do not store their parameter types, so a struct reached only through one is not
 /// recursive, as in solc's `DeclarationTypeChecker`.
-fn visit_stored_structs<T>(
+fn visit_stored_structs(
     ty: &hir::Type<'_>,
     dynamic: bool,
-    f: &mut impl FnMut(hir::StructId, bool) -> ControlFlow<T>,
-) -> ControlFlow<T> {
+    f: &mut impl FnMut(hir::StructId, bool),
+) {
     match ty.kind {
         hir::TypeKind::Custom(hir::ItemId::Struct(id)) => f(id, dynamic),
         hir::TypeKind::Array(array) => {
             visit_stored_structs(&array.element, dynamic || array.size.is_none(), f)
         }
         hir::TypeKind::Mapping(mapping) => {
-            visit_stored_structs(&mapping.key, true, f)?;
-            visit_stored_structs(&mapping.value, true, f)
+            visit_stored_structs(&mapping.key, true, f);
+            visit_stored_structs(&mapping.value, true, f);
         }
-        _ => ControlFlow::Continue(()),
+        _ => {}
     }
 }
 
