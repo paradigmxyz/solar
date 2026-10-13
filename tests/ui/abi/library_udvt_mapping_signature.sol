@@ -5,7 +5,14 @@
 // user-defined value type keeps its name inside a `mapping` in a `library`
 // function signature, but is unwrapped everywhere else.
 
+import {DA as Z} from "./auxiliary/udvt_mapping_types.sol";
+import "./auxiliary/udvt_mapping_types.sol" as M;
+
 type A is uint;
+
+contract K {
+    type KA is uint128;
+}
 
 library L {
     struct S {
@@ -15,6 +22,8 @@ library L {
     enum E {
         X
     }
+
+    type LA is uint64;
 
     // CHECK-DAG: "key(mapping(A => uint256) storage)": "6f56faf4"
     function key(mapping(A => uint) storage) public {}
@@ -43,4 +52,17 @@ library L {
     function f(mapping(A => uint) storage) public {}
     // CHECK-DAG: "f(mapping(uint256 => uint256) storage)": "1d212bbe"
     function f(mapping(uint => uint) storage) public {}
+
+    // Types keep the name and scope of their declaration, not of an import alias.
+    // CHECK-DAG: "scoped(mapping(L.LA => K.KA) storage)": "74ad5794"
+    function scoped(mapping(LA => K.KA) storage) public {}
+    // CHECK-DAG: "aliased(mapping(DA => DL.DLA[]) storage)": "ea255aff"
+    function aliased(mapping(Z => M.DL.DLA[]) storage) public {}
+
+    // CHECK-DAG: "arrayOfMappings(mapping(A => uint256)[2] storage)": "3c6da3c1"
+    function arrayOfMappings(mapping(A => uint)[2] storage) public {}
+    // CHECK-DAG: "mappingArrayValue(mapping(uint256 => mapping(A => uint256)[]) storage)": "62559122"
+    function mappingArrayValue(mapping(uint => mapping(A => uint)[]) storage) public {}
+    // CHECK-DAG: "fnValue(mapping(A => function) storage)": "e8f1315b"
+    function fnValue(mapping(A => function(A) external returns (A)) storage) public {}
 }

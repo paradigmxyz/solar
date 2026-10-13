@@ -1,17 +1,28 @@
 {
   "contracts": {
+    "ROOT/tests/ui/abi/auxiliary/udvt_mapping_types.sol:DL": {
+      "hashes": {}
+    },
+    "ROOT/tests/ui/abi/library_udvt_mapping_signature.sol:K": {
+      "hashes": {}
+    },
     "ROOT/tests/ui/abi/library_udvt_mapping_signature.sol:L": {
       "hashes": {
+        "aliased(mapping(DA => DL.DLA[]) storage)": "ea255aff",
+        "arrayOfMappings(mapping(A => uint256)[2] storage)": "3c6da3c1",
         "arrayValue(mapping(uint256 => A[]) storage)": "5574097d",
         "calldataArray(uint256[])": "1e12961c",
         "f(mapping(A => uint256) storage)": "14780190",
         "f(mapping(uint256 => uint256) storage)": "1d212bbe",
         "fixedArrayValue(mapping(uint256 => A[2][]) storage)": "aff2eaa8",
+        "fnValue(mapping(A => function) storage)": "e8f1315b",
         "key(mapping(A => uint256) storage)": "6f56faf4",
+        "mappingArrayValue(mapping(uint256 => mapping(A => uint256)[]) storage)": "62559122",
         "memoryArray(uint256[])": "45f70b77",
         "named(mapping(L.E => L.S) storage)": "063a3ecf",
         "nested(mapping(A => mapping(A => uint256)) storage)": "535eecec",
         "plain(uint256)": "11546183",
+        "scoped(mapping(L.LA => K.KA) storage)": "74ad5794",
         "structStorage(L.S storage)": "3c58540c",
         "value(mapping(uint256 => A) storage)": "101cff9c"
       }
