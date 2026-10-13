@@ -622,6 +622,7 @@ impl<'a> Run<'_, 'a, '_> {
         {
             // mstore 0x40, entry_heap
             limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
+            self.heap_start = *floor;
         }
         self.frames.push(Frame::new(body, args, result));
         ControlFlow::Continue(())

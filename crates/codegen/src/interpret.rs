@@ -553,6 +553,28 @@ fn @entry() [entry] {{
         let unsupported = "reaches `msize below the heap start`".to_owned();
         assert_eq!(run(0x80, &mut HighHeap), Outcome::Unsupported(unsupported));
         assert_eq!(run(0x100, &mut HighHeap), size(9));
+
+        // With backend memory, the external entry starts the heap where the backend placed it.
+        let module = "@module Size
+@phase lowered
+// backend-memory-v1
+// backend-entry 1 0x100
+fn @entry() [entry] {
+  bb0:
+    tail_call @size
+}
+
+fn @size() [selector=1, abi_wrapper] {
+  bb0:
+    v0 = msize
+    mstore 0, v0
+    returndata 0, 32
+}
+";
+        let outcome =
+            transact(module, &[0, 0, 0, 1], &mut Zero, Options::default()).unwrap().outcome;
+        let unsupported = "reaches `msize below the heap start`".to_owned();
+        assert_eq!(outcome, Outcome::Unsupported(unsupported));
     }
 
     #[test]
