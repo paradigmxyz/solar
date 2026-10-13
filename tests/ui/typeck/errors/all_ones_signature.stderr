@@ -1,0 +1,18 @@
+error[2855]: the selector `0xffffffff` is reserved
+   ╭▸ ROOT/tests/ui/typeck/errors/all_ones_signature.sol:LL:CC
+   │
+LL │ error test266151307();
+   │ ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: rename the error to avoid the collision
+
+error[2855]: the selector `0xffffffff` is reserved
+   ╭▸ ROOT/tests/ui/typeck/errors/all_ones_signature.sol:LL:CC
+   │
+LL │     error test266151307();
+   │     ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: rename the error to avoid the collision
+
+error: aborting due to 2 previous errors
+

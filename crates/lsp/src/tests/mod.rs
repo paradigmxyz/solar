@@ -1519,6 +1519,196 @@ fn analysis_resolves_overlay_remapped_and_auto_remapped_imports() {
 }
 
 #[test]
+fn analysis_uses_nested_dependency_remappings_for_import_resolution() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "x/X.sol"; contract Main { function value() external pure returns (uint) { return X.value(); } }
+
+        //- /lib/x/src/X.sol
+        pragma solidity ^0.8.0;
+        import "y/Vendored.sol";
+        library X { function value() internal pure returns (uint) { return Vendored.value(); } }
+
+        //- /lib/x/remappings.txt
+        y/=lib/vendored/
+
+        //- /lib/x/lib/vendored/Vendored.sol
+        pragma solidity ^0.8.0;
+        library Vendored { function value() internal pure returns (uint) { return 7; } }
+        "#,
+    );
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[test]
+fn analysis_keeps_dependency_source_aliases_scoped() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+
+        //- /src/Main.sol
+        import {Helper} from "./Helper.sol";
+        import {X} from "x/X.sol";
+        contract Main is Helper, X {}
+
+        //- /src/Helper.sol
+        contract Helper {}
+
+        //- /lib/x/remappings.txt
+        src/=src/
+
+        //- /lib/x/src/X.sol open
+        import {Helper} from "src/Helper.sol";
+        contract X is Helper {}
+
+        //- /lib/x/src/Helper.sol
+        contract Helper {}
+        "#,
+    );
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    for (importer, targets) in [
+        ("/src/Main.sol", vec!["/src/Helper.sol", "/lib/x/src/X.sol"]),
+        ("/lib/x/src/X.sol", vec!["/lib/x/src/Helper.sol"]),
+    ] {
+        assert_eq!(
+            result
+                .symbol_tables
+                .document_links(&project.path(importer))
+                .into_iter()
+                .map(|link| link.target.unwrap())
+                .collect::<Vec<_>>(),
+            targets.into_iter().map(|target| project.uri(target)).collect::<Vec<_>>(),
+            "{importer}",
+        );
+    }
+}
+
+#[test]
+fn analysis_protects_configured_source_namespaces() {
+    for (key, source_root, directory, prefix) in [
+        ("src", "src", "src", "src/"),
+        ("test", "test", "test", "test/"),
+        ("script", "script", "script", "script/"),
+        ("src", "contracts", "contracts", "contracts/"),
+        ("test", "checks", "checks", "checks/"),
+        ("script", "deploy", "deploy", "deploy/"),
+        ("src", "contracts/src", "contracts/src", "contracts/"),
+        ("src", "contracts", "contracts/nested", "contracts/nested/"),
+        ("src", "src2", "src2", "src"),
+        #[cfg(windows)]
+        ("src", "src", "src", r"src\"),
+    ] {
+        for config_file in ["remappings.txt", "foundry.toml"] {
+            for shadow_exists in [false, true] {
+                let project = TestProject::from_fixture(&format!(
+                    r#"
+                    //- /foundry.toml
+                    [profile.default]
+                    {key} = "{source_root}"
+
+                    //- /{directory}/Main.sol
+                    import {{Helper}} from "./Helper.sol";
+                    contract Main is Helper {{}}
+
+                    //- /{directory}/Helper.sol
+                    contract Helper {{}}
+
+                    //- /lib/x/src/X.sol
+                    contract X {{}}
+                    "#
+                ));
+                let mapping = format!("{prefix}=private/");
+                let contents = if config_file == "foundry.toml" {
+                    format!("[profile.default]\nremappings = [{mapping:?}]\n")
+                } else {
+                    mapping
+                };
+                project.write_file(&format!("/lib/x/{config_file}"), &contents);
+                if shadow_exists {
+                    let source_unit = format!("{directory}/Helper.sol");
+                    let suffix = source_unit.strip_prefix(&prefix.replace('\\', "/")).unwrap();
+                    project.write_file(&format!("/lib/x/private/{suffix}"), "contract Helper {}");
+                }
+
+                let result = analyze_single_batch(&snapshot(&project));
+                assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+                let links = result
+                    .symbol_tables
+                    .document_links(&project.path(&format!("/{directory}/Main.sol")));
+                assert_eq!(links.len(), 1);
+                assert_eq!(links[0].target, Some(project.uri(&format!("/{directory}/Helper.sol"))));
+            }
+        }
+    }
+}
+
+#[test]
+fn analysis_keeps_root_and_nested_package_remappings_distinct() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "x/X.sol";
+        import {Z} from "z/Z.sol";
+        contract Main { function value() external pure returns (uint) { return X.rootValue() + Z.value(); } }
+
+        //- /lib/x/src/X.sol
+        library X { function rootValue() internal pure returns (uint) { return 1; } }
+
+        //- /lib/z/src/Z.sol
+        import "x/X.sol";
+        library Z { function value() internal pure returns (uint) { return X.nestedValue(); } }
+
+        //- /lib/z/lib/x/src/X.sol
+        library X { function nestedValue() internal pure returns (uint) { return 2; } }
+        "#,
+    );
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[cfg(unix)]
+#[test]
+fn analysis_resolves_symlink_and_physical_package_remappings() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import {Z as AliasZ} from "a/Z.sol";
+        import {Z as PhysicalZ} from "z/Z.sol";
+        contract Main { function value() external pure returns (uint) { return AliasZ.aliasValue() + PhysicalZ.physicalValue(); } }
+
+        //- /lib/z/src/Z.sol
+        library Z {
+            function aliasValue() internal pure returns (uint) { return 1; }
+            function physicalValue() internal pure returns (uint) { return 2; }
+        }
+        "#,
+    );
+    symlink(project.path("/lib/z"), project.path("/lib/a")).unwrap();
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[test]
 fn analysis_batches_use_cached_workspace_source_files() {
     let project = TestProject::from_fixture(
         r#"

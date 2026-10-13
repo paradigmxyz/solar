@@ -1,0 +1,8 @@
+error[4718]: multiple matching identifiers
+   ╭▸ ROOT/tests/ui/assembly/overloaded_reference.sol:LL:CC
+   │
+LL │             let x := f
+   ╰╴                     ━
+
+error: aborting due to 1 previous error
+
