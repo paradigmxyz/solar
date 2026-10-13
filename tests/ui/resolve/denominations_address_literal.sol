@@ -1,4 +1,8 @@
 contract C {
+    struct S {
+        uint256[0x1234567890123456789012345678901234567890 wei] a; //~ ERROR: cannot be used with unit denominations
+    }
+
     uint256[0x1234567890123456789012345678901234567890 wei] a; //~ ERROR: cannot be used with unit denominations
 
     function f() public pure returns (uint256) {
