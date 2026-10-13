@@ -1,0 +1,10 @@
+error: recursive struct definition
+   ╭▸ ROOT/tests/ui/typeck/recursive_struct_size.sol:LL:CC
+   │
+LL │ ┏     struct S {
+LL │ ┃         S s;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 1 previous error
+

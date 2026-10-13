@@ -300,8 +300,9 @@ Rationale: the backend computes head sizes in 64 bits, and larger heads exhaust
 memory or overflow during lowering. No transaction can pass or return such a
 value within a block gas limit.
 
-Coverage: `tests/ui/typeck/abi_head_size.sol` and
-`tests/ui/typeck/public_param_calldata_size.sol`.
+Coverage: `tests/ui/typeck/abi_head_size.sol`,
+`tests/ui/typeck/public_param_calldata_size.sol` and
+`tests/ui/typeck/struct_member_sizes.sol`.
 
 ### TYPECK-018: `msg.gas`
 
