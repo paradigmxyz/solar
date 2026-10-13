@@ -185,3 +185,32 @@ could not run: reaches `gas`
 "#]]
     );
 }
+
+#[test]
+fn returndata_bounds() {
+    let run = run("returndata_bounds.mir", &[]);
+    assert_eq!((run.code, run.stderr.as_str()), (0, ""));
+    assert_data_eq!(
+        run.stdout,
+        str![[r#"
+halted on an out-of-bounds returndata copy
+
+"#]]
+    );
+
+    let run = self::run("returndata_bounds.mir", &["--json"]);
+    assert_eq!((run.code, run.stderr.as_str()), (0, ""));
+    assert_data_eq!(
+        run.stdout,
+        str![[r#"
+{
+  "logs": [],
+  "outcome": "halt",
+  "reason": "returndata copy out of bounds",
+  "storage": {},
+  "transient": {}
+}
+
+"#]]
+    );
+}

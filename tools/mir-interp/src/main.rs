@@ -297,6 +297,7 @@ fn describe(outcome: &Outcome) -> String {
             None => format!("reverted with 0x{}", hex::encode(data)),
         },
         Outcome::Halt => "halted".into(),
+        Outcome::ReturndataOutOfBounds => "halted on an out-of-bounds returndata copy".into(),
         Outcome::Unsupported(reason) => format!("could not run: {reason}"),
     }
 }
@@ -377,6 +378,9 @@ fn report_json(execution: &Execution, decoded: Option<&[DynSolValue]>) -> Json {
             json!({ "outcome": "revert", "data": data(bytes), "reason": revert_reason(bytes) })
         }
         Outcome::Halt => json!({ "outcome": "halt" }),
+        Outcome::ReturndataOutOfBounds => {
+            json!({ "outcome": "halt", "reason": "returndata copy out of bounds" })
+        }
         Outcome::Unsupported(reason) => json!({ "outcome": "unsupported", "reason": reason }),
     };
     if let Some(values) = decoded {
