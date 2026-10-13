@@ -866,7 +866,8 @@ pub(crate) fn rename(
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let (symbol_tables, config) = latest_analysis.await?;
-        let Some(candidate) = symbol_tables.load().rename_candidate(&uri, position) else {
+        let tables = symbol_tables.load_full();
+        let Some(mut candidate) = tables.rename_candidate(&uri, position) else {
             return Ok(None);
         };
         if candidate.requires_yul_validation && invalid_yul_name {
@@ -878,6 +879,7 @@ pub(crate) fn rename(
 
         tokio::task::spawn_blocking(move || {
             validate_rename(&candidate, &config)?;
+            tables.validate_rename_bindings(&mut candidate, &new_name)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
