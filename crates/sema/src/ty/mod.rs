@@ -15,7 +15,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::or_list,
     graph,
-    index::IndexVec,
+    index::{IndexSlice, IndexVec},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -30,7 +30,6 @@ use solar_interface::{
 };
 use std::{
     fmt,
-    hash::Hash,
     ops::ControlFlow,
     sync::{
         Arc, OnceLock,
@@ -52,6 +51,8 @@ mod call_graph;
 
 mod interner;
 use interner::Interner;
+
+mod caches;
 
 #[allow(clippy::module_inception)]
 mod ty;
@@ -378,6 +379,7 @@ pub struct GlobalCtxt<'gcx> {
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
+    pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -413,6 +415,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             interner,
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
+            override_index: OnceLock::new(),
         }
     }
 }
@@ -1577,86 +1580,36 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
-macro_rules! cached_field_type {
-    ($value:ty) => {
-        OnceLock<$value>
-    };
-    ($value:ty, $key_type:ty) => {
-        FxOnceMap<$key_type, $value>
-    };
-    ($value:ty, $key_type:ty, $cache_key_type:ty) => {
-        FxOnceMap<$cache_key_type, $value>
-    };
-}
-
-macro_rules! cached_key_expr {
-    () => {
-        ()
-    };
-    ($key:expr) => {
-        $key
-    };
-    ($key:expr, $cache_key:expr) => {
-        $cache_key
-    };
-}
-
-macro_rules! cached_return_type {
-    ($value:ty) => {
-        &'gcx $value
-    };
-    ($value:ty, $key_type:ty) => {
-        $value
-    };
-}
-
-macro_rules! cached_lookup {
-    ($cache:expr, $cache_key:expr, $make_val:expr, $key:ident) => {
-        cache_insert($cache, $cache_key, |_| $make_val())
-    };
-    ($cache:expr, $cache_key:expr, $make_val:expr,) => {{
-        let () = $cache_key;
-        $cache.get_or_init($make_val)
-    }};
-}
-
 /// Defines cached queries on [`Gcx`].
 ///
-/// A query with a key stores its `Copy` values in a [`FxOnceMap`] and returns them by value. A
-/// query without a key is computed once, stored in a [`OnceLock`], and returns a reference to the
-/// value.
+/// The key type picks the cache that stores the values; see [`caches::QueryKey`]. Values must be
+/// `Copy`, and values in the bump arena never drop, so a value that owns heap memory, such as a
+/// hash map, belongs in its own `OnceLock` field on [`GlobalCtxt`] instead.
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _ $(, $key:ident : $key_type:ty)? $(,)?) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: cached_field_type!($value $(, $key_type)? $(, $cache_key_type)?),
+                $name: caches::CacheFor<$key_type, $value>,
             )*
         }
 
         impl<'gcx> Gcx<'gcx> {
             $(
                 $(#[$attr])*
-                $vis fn $name(self $(, $key: $key_type)?) -> cached_return_type!($value $(, $key_type)?) {
-                    $(const {
-                        assert!(
-                            size_of::<$key_type>() != 0,
-                            "use a query without a key instead of a zero-sized key",
-                        );
-                    })?
-                    let cache_key = cached_key_expr!($($key)? $(, $cache_key)?);
+                $vis fn $name(self, $key: $key_type) -> $value {
                     #[cfg(false)]
-                    let _guard = log_cache_query(stringify!($name), &cache_key);
+                    let _guard = log_cache_query(stringify!($name), &$key);
                     #[cfg(false)]
                     let mut hit = true;
-                    let r = cached_lookup!(&self.cache.$name, cache_key, || -> $value {
+                    let r = caches::QueryCache::get_or_insert(&self.cache.$name, &self.hir, $key, || {
                         #[cfg(false)]
                         {
                             hit = false;
                         }
                         let $gcx = self;
                         $imp
-                    }, $($key)?);
+                    });
                     #[cfg(false)]
                     log_cache_query_result(&r, hit);
                     r
@@ -1976,7 +1929,7 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 
 /// Returns the recursiveness of the given struct.
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
-    let chains = gcx.struct_chains()[id];
+    let chains = gcx.struct_chains(())[id];
     // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists.
     // Report at `id`, like solc, so that each struct reports at most once.
     let (code, msg) = match chains.direct_depth {
@@ -1989,7 +1942,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
 }
 
 /// Returns the reference chains of every struct.
-fn struct_chains(gcx: _) -> IndexVec<hir::StructId, StructChains> {
+fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChains]> {
     type Edges = IndexVec<hir::StructId, SmallVec<[hir::StructId; 2]>>;
 
     /// Returns the number of structs in the longest chain of references from each struct, or
@@ -2027,7 +1980,7 @@ fn struct_chains(gcx: _) -> IndexVec<hir::StructId, StructChains> {
     let chains = chain_depths(&direct).into_iter().zip(chain_depths(&any)).map(|(direct, any)| {
         StructChains { direct_depth: direct, reaches_cycle: any.is_none() }
     });
-    chains.collect()
+    IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
 }
 
 /// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.
@@ -2060,10 +2013,6 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
-}
-
-pub(crate) fn override_index(gcx: _) -> crate::typeck::override_checker::OverrideIndex<'gcx> {
-    crate::typeck::override_checker::override_index(gcx)
 }
 
 /// Reports a literal operand at `span` that is too large for any integer type, next to a typed
@@ -2271,21 +2220,6 @@ fn visit_stored_structs(
         }
         _ => {}
     }
-}
-
-/// `OnceMap::insert` but with `Copy` keys and values.
-#[inline]
-fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
-where
-    K: Copy + Eq + Hash,
-    V: Copy,
-{
-    map.map_insert(key, make_val, cache_insert_with_result)
-}
-
-#[inline]
-fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
-    *v
 }
 
 #[cfg(false)]

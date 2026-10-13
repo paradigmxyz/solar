@@ -421,7 +421,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
     fn has_inherited_name_kind(&self, name: Ident, modifier: bool) -> bool {
         let contract = self.contract();
-        self.gcx.override_index().by_name.get(&name).is_some_and(|candidates| {
+        override_index(self.gcx).by_name.get(&name).is_some_and(|candidates| {
             candidates.iter().any(|&candidate| {
                 candidate.is_modifier(self.gcx) == modifier
                     && candidate.contract(self.gcx).is_some_and(|id| {
@@ -908,7 +908,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
-        for &f_id in &self.gcx.override_index().unimplemented_functions {
+        for &f_id in &override_index(self.gcx).unimplemented_functions {
             let f = self.gcx.hir.function(f_id);
             let Some(base_id) = f.contract else { continue };
             if f.kind.is_constructor()
@@ -974,37 +974,39 @@ impl<'gcx> OverrideChecker<'gcx> {
     }
 }
 
-pub(crate) fn override_index<'gcx>(gcx: Gcx<'gcx>) -> OverrideIndex<'gcx> {
-    let mut by_signature = InheritedFunctions::default();
-    let mut by_name = FxHashMap::default();
-    let mut unimplemented_functions = Vec::new();
+fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
+    gcx.override_index.get_or_init(|| {
+        let mut by_signature = InheritedFunctions::default();
+        let mut by_name = FxHashMap::default();
+        let mut unimplemented_functions = Vec::new();
 
-    for f_id in gcx.hir.function_ids() {
-        let f = gcx.hir.function(f_id);
-        if f.body.is_none() {
-            unimplemented_functions.push(f_id);
+        for f_id in gcx.hir.function_ids() {
+            let f = gcx.hir.function(f_id);
+            if f.body.is_none() {
+                unimplemented_functions.push(f_id);
+            }
+            if f.is_yul || f.kind.is_constructor() {
+                continue;
+            }
+            let proxy = OverrideProxy::Function(f_id);
+            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            if let Some(name) = proxy.name(gcx) {
+                by_name.entry(name).or_insert_with(Vec::new).push(proxy);
+            }
         }
-        if f.is_yul || f.kind.is_constructor() {
-            continue;
-        }
-        let proxy = OverrideProxy::Function(f_id);
-        by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
-        if let Some(name) = proxy.name(gcx) {
-            by_name.entry(name).or_insert_with(Vec::new).push(proxy);
-        }
-    }
 
-    for v_id in gcx.hir.variable_ids() {
-        let v = gcx.hir.variable(v_id);
-        if !v.is_public() {
-            continue;
+        for v_id in gcx.hir.variable_ids() {
+            let v = gcx.hir.variable(v_id);
+            if !v.is_public() {
+                continue;
+            }
+            let proxy = OverrideProxy::Variable(v_id);
+            by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
+            by_name.entry(proxy.name(gcx).unwrap()).or_insert_with(Vec::new).push(proxy);
         }
-        let proxy = OverrideProxy::Variable(v_id);
-        by_signature.entry(override_signature(gcx, proxy)).or_insert_with(Vec::new).push(proxy);
-        by_name.entry(proxy.name(gcx).unwrap()).or_insert_with(Vec::new).push(proxy);
-    }
 
-    OverrideIndex { by_signature, by_name, unimplemented_functions }
+        OverrideIndex { by_signature, by_name, unimplemented_functions }
+    })
 }
 
 /// Returns the definitions of `signature` inherited through the contract's
@@ -1018,7 +1020,7 @@ fn inherited_override_functions<'gcx>(
     contract_id: ContractId,
     signature: OverrideSignature<'gcx>,
 ) -> Vec<OverrideProxy> {
-    let Some(candidates) = gcx.override_index().by_signature.get(&signature) else {
+    let Some(candidates) = override_index(gcx).by_signature.get(&signature) else {
         return Vec::new();
     };
     let contract = gcx.hir.contract(contract_id);
@@ -1119,7 +1121,7 @@ fn compute_inherited_functions<'gcx>(
         })
         .collect::<Vec<_>>();
     let mut result: InheritedFunctions<'gcx> = FxIndexMap::default();
-    for (&signature, candidates) in &gcx.override_index().by_signature {
+    for (&signature, candidates) in &override_index(gcx).by_signature {
         let definitions = visible_definitions(gcx, candidates, &direct_base_ancestries);
         if definitions.len() > 1 {
             result.insert(signature, definitions);
