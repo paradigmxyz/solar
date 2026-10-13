@@ -1,5 +1,7 @@
 //! Solar version information.
 
+use std::sync::LazyLock;
+
 /// The short version information.
 #[cfg(feature = "version")]
 pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
@@ -25,6 +27,9 @@ pub const SOLC_VERSION: &str =
 
 /// The semver version information.
 pub const SEMVER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The solc version number that Solar implements.
+pub const SOLC_SEMVER_VERSION: &str = env!("SOLC_SEMVER_VERSION");
 
 /// Returns the short version selected for the current environment.
 #[cfg(feature = "version")]
@@ -62,4 +67,14 @@ fn solc_version_override() -> Option<&'static str> {
             Some(format!("{prefix}Version: {version}{suffix}"))
         })
         .as_deref()
+}
+
+/// Returns the solc version that Solar implements, parsed from [`SOLC_SEMVER_VERSION`].
+///
+/// This ignores `SOLC_WRAPPER_VERSION`, which only changes the version that `--version`
+/// reports, not the language semantics.
+pub fn solc_semver_version() -> &'static semver::Version {
+    static VERSION: LazyLock<semver::Version> =
+        LazyLock::new(|| semver::Version::parse(SOLC_SEMVER_VERSION).unwrap());
+    &VERSION
 }

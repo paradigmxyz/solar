@@ -160,6 +160,43 @@ fn callback_imports_with_base_path() {
     assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
 }
 
+/// The read callback gets a `file://` import with the prefix when there is no base path or include
+/// path, like libsolc, and without it otherwise, like solc's file reader. The name keeps it.
+#[test]
+fn callback_imports_file_urls() {
+    struct Callback(&'static str);
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            assert_eq!(kind, "source");
+            if data == self.0 {
+                ReadCallbackResult::Success("contract X {}".to_string())
+            } else {
+                ReadCallbackResult::Error(format!("`{data}` not found"))
+            }
+        }
+    }
+
+    for (import, base_path, include_paths, data) in [
+        ("file://X.sol", None, vec![], "file://X.sol"),
+        ("file://X.sol", Some("lib".into()), vec![], "lib/X.sol"),
+        ("file://X.sol", None, vec!["inc".into()], "inc/X.sol"),
+        ("file:///abs/X.sol", None, vec!["inc".into()], "/abs/X.sol"),
+    ] {
+        let input = json!({
+            "language": "Solidity",
+            "sources": {"A.sol": {"content": format!("import \"{import}\"; contract A {{}}")}},
+            "settings": {"outputSelection": {}}
+        });
+        let opts = CompileOpts { base_path, include_paths, ..Default::default() };
+        let mut output = Vec::new();
+        let callback = Arc::new(Callback(data));
+        compile_standard_json(&input.to_string(), opts, Some(callback), &mut output).unwrap();
+        let output = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, import: {"id": 0}}}), "{import}");
+    }
+}
+
 /// The read callback is asked for every root: a file that only an include path serves resolves,
 /// and one that several roots serve is ambiguous.
 #[test]

@@ -1,3 +1,4 @@
+//@ compile-flags: --allow=5333
 pragma solidity *.*.*;
 pragma solidity *.*.0 ;
 pragma solidity *.*.0;
