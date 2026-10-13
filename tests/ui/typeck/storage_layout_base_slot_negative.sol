@@ -10,4 +10,4 @@ contract NegativeNumber layout at -1 {} //~ ERROR: base slot of storage layout e
 contract NegativeSignedConstant layout at -I {} //~ ERROR: base slot of storage layout evaluates to a value outside
 // Negating an unsigned constant is not arithmetic that underflows: the operator
 // does not apply to the type, which is what solc reports here as well.
-contract NegativeUnsignedConstant layout at -U {} //~ ERROR: cannot apply unary operator `-` to an unsigned type
+contract NegativeUnsignedConstant layout at -U {} //~ ERROR: cannot apply unary operator `-` to `uint256`
