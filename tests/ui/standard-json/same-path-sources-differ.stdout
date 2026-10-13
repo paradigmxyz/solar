@@ -1,0 +1,15 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "sources `a/X.sol` and `a//X.sol` are the same path with different contents",
+      "formattedMessage": "error: sources `a/X.sol` and `a//X.sol` are the same path with different contents\n\n"
+    }
+  ],
+  "sources": {}
+}

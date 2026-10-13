@@ -1,4 +1,5 @@
-// CHECK: "message": "source unit names `a/X.sol` and `a//X.sol` are the same path"
+//@ filecheck:
+// CHECK: "message": "sources `a/X.sol` and `a//X.sol` are the same path with different contents"
 {
   "language": "Solidity",
   "sources": {

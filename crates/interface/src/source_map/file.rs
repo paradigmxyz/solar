@@ -146,14 +146,23 @@ impl fmt::Display for FileNameDisplay<'_> {
     }
 }
 
+/// The key of a source file in the source map, derived from its name.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SourceFileId(u64);
+pub struct SourceFileId(u64);
 
 impl SourceFileId {
-    pub(crate) fn new(filename: &FileName) -> Self {
+    /// Returns the ID of the source file with the given name.
+    pub fn new(filename: &FileName) -> Self {
         use std::hash::{Hash, Hasher};
         let mut hasher = solar_data_structures::map::FxHasher::with_seed(0);
-        filename.hash(&mut hasher);
+        match filename {
+            // `Path`'s hash skips the root, so `/a.sol` and `a.sol` would share an ID.
+            FileName::Real(path) => {
+                path.has_root().hash(&mut hasher);
+                path.hash(&mut hasher);
+            }
+            _ => filename.hash(&mut hasher),
+        }
         Self(hasher.finish())
     }
 }

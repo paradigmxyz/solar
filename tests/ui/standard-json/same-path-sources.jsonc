@@ -1,0 +1,42 @@
+//@ filecheck:
+// `lib/B.sol` and `lib//B.sol` have the same contents, so they are one source, as solc metadata
+// can list them. `./a/X.sol` and `/a/X.sol` are separate sources from `a/X.sol`.
+// CHECK-NOT: "lib//B.sol"
+// CHECK-DAG: "lib/B.sol"
+// CHECK-DAG: "./a/X.sol"
+// CHECK-DAG: "/a/X.sol"
+{
+  "language": "Solidity",
+  "sources": {
+    "lib/B.sol": {
+      "content": "contract B {}"
+    },
+    "lib//B.sol": {
+      "content": "contract B {}"
+    },
+    "D.sol": {
+      "content": "import \"lib//B.sol\"; contract D is B {}"
+    },
+    "A2.sol": {
+      "content": "import \"lib/B.sol\"; import {D} from \"D.sol\"; contract A2 is D {}"
+    },
+    "a/X.sol": {
+      "content": "contract X {}"
+    },
+    "./a/X.sol": {
+      "content": "contract Y {}"
+    },
+    "/a/X.sol": {
+      "content": "contract Z {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

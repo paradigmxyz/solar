@@ -53,12 +53,19 @@ Status: intentional.
 
 Difference: `solc` treats source keys as opaque strings, so `a/X.sol` and
 `a//X.sol`, or `a/X.sol` and `a\X.sol` on Windows, are separate source units.
-`solar` reports an error for input keys that are equal as paths.
+`solar` treats input keys that are equal as paths as one source unit, named
+and reported by the first key. It reports an error if their contents differ.
+Keys that differ in a leading `./` or root, like `./a/X.sol` and `/a/X.sol`,
+stay separate, as in `solc`.
 
-Rationale: `solar` keys sources by path, so such keys would share one source
-and silently drop the others. Build tools do not produce such inputs.
+Rationale: `solar` keys sources by path, like the files it loads from disk
+(IMPORT-001). Inputs with such keys do occur: `solc` metadata lists both
+`lib/B.sol` and `lib//B.sol` with the same contents when one file imports
+`lib/B.sol` and another `lib//B.sol`, and Sourcify builds Standard JSON from
+that metadata.
 
-Coverage: `tests/ui/standard-json/equivalent-source-names.jsonc` and
+Coverage: `tests/ui/standard-json/same-path-sources.jsonc`,
+`tests/ui/standard-json/same-path-sources-differ.jsonc`, and
 `windows_backslash_and_slash_keys_collide` in
 `crates/solar/tests/it/standard_json.rs`.
 

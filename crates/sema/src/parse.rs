@@ -4,14 +4,14 @@ use solar_ast::{self as ast, Span};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{Idx, IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap, IndexEntry},
     sync::Mutex,
 };
 use solar_interface::{
     Result, Session,
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    source_map::{FileName, FileResolver, ResolveError, SourceFile},
+    source_map::{FileName, FileResolver, ResolveError, SourceFile, SourceFileId},
 };
 use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
@@ -138,6 +138,31 @@ impl<'gcx> ParsingContext<'gcx> {
         let source_map = self.sess.source_map();
         let dcx = self.dcx();
         let files = files
+            .into_par_iter()
+            .map(|(name, src)| (name.into(), src.into()))
+            .collect::<Vec<(FileName, String)>>();
+        // Names that are equal as paths, like `a/X.sol` and `a//X.sol`, name one source. Within
+        // this call, keep the first of them, and reject them if their contents differ.
+        let mut unique = FxIndexMap::<SourceFileId, (FileName, String)>::default();
+        for (name, src) in files {
+            match unique.entry(SourceFileId::new(&name)) {
+                IndexEntry::Vacant(entry) => {
+                    entry.insert((name, src));
+                }
+                IndexEntry::Occupied(entry) if entry.get().1 != src => {
+                    let msg = format!(
+                        "sources `{}` and `{}` are the same path with different contents",
+                        source_map.filename_for_diagnostics(&entry.get().0),
+                        source_map.filename_for_diagnostics(&name)
+                    );
+                    return Err(dcx.err(msg).emit());
+                }
+                IndexEntry::Occupied(_) => {}
+            }
+        }
+        let files = unique
+            .into_values()
+            .collect::<Vec<_>>()
             .into_par_iter()
             .map(|(name, src)| {
                 source_map

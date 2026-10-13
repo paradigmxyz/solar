@@ -348,7 +348,8 @@ fn relative_imports_with_base_path() {
     );
 }
 
-/// On Windows, source unit names that differ only in separators are the same path.
+/// On Windows, source unit names that differ only in separators are the same path, so their
+/// contents must match.
 #[cfg(windows)]
 #[test]
 fn windows_backslash_and_slash_keys_collide() {
@@ -365,6 +366,6 @@ fn windows_backslash_and_slash_keys_collide() {
     let output = serde_json::from_slice::<Value>(&output).unwrap();
     assert_eq!(
         output["errors"][0]["message"],
-        "source unit names `a/X.sol` and `a\\X.sol` are the same path"
+        "sources `a/X.sol` and `a\\X.sol` are the same path with different contents"
     );
 }
