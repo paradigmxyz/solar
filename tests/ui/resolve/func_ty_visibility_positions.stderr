@@ -40,5 +40,17 @@ error[6012]: invalid visibility, can only be `external` or `internal`
 LL │     function k() public view returns (function() public) {}
    ╰╴                                                 ━━━━━━
 
-error: aborting due to 7 previous errors
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function j(function() private y) public {}
+   ╰╴               ━━━━━━━━━━━━━━━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function k() public view returns (function() public) {}
+   ╰╴                                      ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 9 previous errors
 
