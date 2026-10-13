@@ -3447,6 +3447,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
         }
+        if modifier.qualified
+            && let Some(id) = modifier.id.as_function()
+            && self.gcx.hir.function(id).body.is_none()
+        {
+            self.dcx()
+                .err("cannot call unimplemented modifier")
+                .code(error_code!(1835))
+                .span(modifier.span)
+                .note("the modifier has no implementation in the referenced contract")
+                .help("refer to it by its unqualified name to call the implementation in the most derived contract")
+                .emit();
+        }
         let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
             return self.walk_modifier(modifier);
         };
