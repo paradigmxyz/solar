@@ -1,0 +1,47 @@
+error[8936]: mismatching directional override markers in comment
+   ╭▸ ROOT/tests/ui/lexer/direction_override/markers.sol:LL:CC
+   │
+LL │ /// �doc
+   │ ━━━━━━━━
+   │
+   ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
+   ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
+
+error[8936]: unicode direction override underflow in comment
+   ╭▸ ROOT/tests/ui/lexer/direction_override/markers.sol:LL:CC
+   │
+LL │ /** � */
+   │ ━━━━━━━━
+   │
+   ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
+   ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
+
+error[8936]: mismatching directional override markers in comment
+   ╭▸ ROOT/tests/ui/lexer/direction_override/markers.sol:LL:CC
+   │
+LL │         (/*month�*/, d, /*��hour*/, m) = (1, 2, 3, 4);
+   │          ━━━━━━━━━━
+   │
+   ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
+   ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
+
+error[8936]: unicode direction override underflow in comment
+   ╭▸ ROOT/tests/ui/lexer/direction_override/markers.sol:LL:CC
+   │
+LL │         (/*month�*/, d, /*��hour*/, m) = (1, 2, 3, 4);
+   │                         ━━━━━━━━━━
+   │
+   ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
+   ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
+
+error[8936]: unicode direction override underflow in string literal
+   ╭▸ ROOT/tests/ui/lexer/direction_override/markers.sol:LL:CC
+   │
+LL │         s = unicode"�";
+   │             ━━━━━━━━━━
+   │
+   ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
+   ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
+
+error: aborting due to 5 previous errors
+
