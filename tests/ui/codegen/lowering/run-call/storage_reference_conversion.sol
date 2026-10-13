@@ -17,6 +17,10 @@
 //@ run-call: stringLength => 5
 //@ run-call: stringWrite => true
 //@ run-call: stringPush => 6
+//@ run-call: longStringRead => 0x39
+//@ run-call: longStringWrite => true
+//@ run-call: longStringPush => true
+//@ run-call: longStringPop => true
 //@ run-call: bytesToString => true
 //@ run-call: bytesToStringConcat => true
 //@ run-call: returnString => "abc"
@@ -135,6 +139,33 @@ contract StorageReferenceConversion {
         bytes storage p = bytes(str);
         p.push("x");
         return bytes(str).length;
+    }
+
+    function longStringRead() external returns (bytes1) {
+        str = "abcdefghijklmnopqrstuvwxyz0123456789ABCD";
+        return bytes(str)[35];
+    }
+
+    function longStringWrite() external returns (bool) {
+        str = "abcdefghijklmnopqrstuvwxyz0123456789ABCD";
+        bytes(str)[35] = "Z";
+        return keccak256(bytes(str)) == keccak256("abcdefghijklmnopqrstuvwxyz012345678ZABCD");
+    }
+
+    // Pushing the 32nd byte moves the string out of its slot.
+    function longStringPush() external returns (bool) {
+        str = "abcdefghijklmnopqrstuvwxyz01234";
+        bytes(str).push("5");
+        return bytes(str).length == 32
+            && keccak256(bytes(str)) == keccak256("abcdefghijklmnopqrstuvwxyz012345");
+    }
+
+    // Popping the 32nd byte moves the string back into its slot.
+    function longStringPop() external returns (bool) {
+        str = "abcdefghijklmnopqrstuvwxyz012345";
+        bytes(str).pop();
+        return bytes(str).length == 31
+            && keccak256(bytes(str)) == keccak256("abcdefghijklmnopqrstuvwxyz01234");
     }
 
     function bytesToString() external returns (bool) {

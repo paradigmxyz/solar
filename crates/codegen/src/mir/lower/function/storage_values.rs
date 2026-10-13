@@ -1377,6 +1377,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         length
     }
 
+    /// Reads the first data word and the length of a storage `bytes`/`string` value. A short
+    /// value's word is its header, whose low byte holds the length.
+    pub(super) fn storage_bytes_first_word(&mut self, slot: ValueId) -> (ValueId, ValueId) {
+        // header = sload(slot)
+        // word = is_long ? sload(storage_array_data_slot(slot)) : header
+        let (header, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
+        let long_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        self.builder.branch(is_long, long_block, short_block);
+
+        self.builder.switch_to_block(long_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let long_word = self.builder.sload(data_slot);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(short_block);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        let word = self.builder.phi(vec![(long_block, long_word), (short_block, header)]);
+        (word, length)
+    }
+
     /// Resolves one element of a storage `bytes`/`string` value to the single
     /// word that holds it, after bounds-checking the index.
     ///
