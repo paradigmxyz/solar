@@ -352,6 +352,12 @@ impl Config {
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "foundry.toml"));
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
 
+            for root in workspace.dependency_config_roots() {
+                for pattern in ["foundry.toml", "remappings.txt"] {
+                    specs.insert(WatchedFileSpec::new(root.clone(), pattern));
+                }
+            }
+
             for root in workspace.index_import_only_roots() {
                 if is_approved_index_root(root, base_path, &self.workspace_roots) {
                     specs.insert(WatchedFileSpec::create_delete(root.clone(), "*"));
@@ -452,6 +458,13 @@ impl Config {
         };
         let Some(directory) = path.parent() else { return false };
 
+        if matches!(file_name, "foundry.toml" | "remappings.txt")
+            && self.workspaces.iter().any(|workspace| {
+                workspace.dependency_config_roots().iter().any(|root| root == directory)
+            })
+        {
+            return true;
+        }
         if file_name == "remappings.txt" {
             return self.workspace_roots.iter().any(|root| root == directory)
                 || self.workspaces.iter().any(|workspace| {
@@ -510,7 +523,14 @@ impl Config {
             self.workspaces
                 .iter()
                 .filter(|workspace| workspace.kind() == WorkspaceKind::Foundry)
-                .filter_map(|workspace| workspace.compile_opts().base_path.as_deref())
+                .flat_map(|workspace| {
+                    workspace
+                        .compile_opts()
+                        .base_path
+                        .as_deref()
+                        .into_iter()
+                        .chain(workspace.dependency_config_roots().iter().map(PathBuf::as_path))
+                })
                 .flat_map(|base_path| {
                     ["foundry.toml", "remappings.txt"].map(|name| base_path.join(name))
                 })
@@ -1643,8 +1663,6 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /project/packages *.sol Change
 /project/packages foundry.toml Create | Change | Delete
 /project/packages/app * Create | Delete
-/project/packages/app **/.git Create | Delete
-/project/packages/app **/foundry.toml Create | Change | Delete
 /project/packages/app *.sol Change
 /project/packages/app foundry.toml Create | Change | Delete
 /project/packages/app remappings.txt Create | Change | Delete
@@ -1709,8 +1727,6 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /repo/workspace foundry.toml Create | Change | Delete
 /repo/workspace remappings.txt Create | Change | Delete
 /repo/workspace/nested * Create | Delete
-/repo/workspace/nested **/.git Create | Delete
-/repo/workspace/nested **/foundry.toml Create | Change | Delete
 /repo/workspace/nested *.sol Change
 /repo/workspace/nested foundry.toml Create | Change | Delete
 /repo/workspace/nested remappings.txt Create | Change | Delete
@@ -1788,6 +1804,8 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
 /shared/contracts **/.git Create | Delete
 /shared/contracts **/foundry.toml Create | Change | Delete
 /shared/lib * Create | Delete
+/shared/lib/pkg foundry.toml Create | Change | Delete
+/shared/lib/pkg remappings.txt Create | Change | Delete
 /workspace * Create | Delete
 /workspace **/.git Create | Delete
 /workspace **/foundry.toml Create | Change | Delete
@@ -1835,6 +1853,28 @@ fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
                     ("/project/remappings.txt", true),
                     ("/project/packages/app/foundry.toml", true),
                     ("/other/foundry.toml", false),
+                ][..],
+            ),
+            // Naked roots watch the directories they search for manifests.
+            (
+                r#"
+                //- /packages/contracts/foundry.toml
+
+                //- /packages/frontend/package.json
+                {}
+
+                //- /packages/frontend/deep/project/.keep
+
+                //- /node_modules/dependency/foundry.toml
+                "#,
+                &["/"][..],
+                None,
+                &[
+                    ("/packages/foundry.toml", true),
+                    ("/packages/contracts/foundry.toml", true),
+                    ("/packages/frontend/foundry.toml", true),
+                    ("/packages/frontend/deep/project/foundry.toml", true),
+                    ("/node_modules/foundry.toml", false),
                 ][..],
             ),
             // Custom globs are relative to the deepest workspace.
