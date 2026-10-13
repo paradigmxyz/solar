@@ -553,7 +553,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let mut err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    let mut err = self.dcx().err(msg).span(expr.span);
                     if storage_pointer {
                         err = err.note("storage pointers cannot be deleted");
                     }
@@ -3796,8 +3796,7 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
     match ty.kind {
         TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
-        TyKind::Ref(_, DataLocation::Calldata) => false,
-        TyKind::Ref(inner, _) => !matches!(inner.kind, TyKind::Mapping(..)),
+        TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
 
         TyKind::Err(_) => true,
 
