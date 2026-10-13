@@ -183,7 +183,7 @@ impl<'gcx> TypeChecker<'gcx> {
             .help(format!("compile with `--evm-version {required}` or newer"))
     }
 
-    fn check_res_evm_version(&self, res: hir::Res, span: Span) {
+    fn check_builtin_res(&self, res: hir::Res, span: Span) {
         if let hir::Res::Builtin(builtin) = res {
             let target = self.gcx.sess.opts.evm_version;
             if let Some(required) = builtin.required_evm_version(target) {
@@ -203,6 +203,13 @@ impl<'gcx> TypeChecker<'gcx> {
                     .warn("since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain")
                     .code(error_code!(8417))
                     .span(span)
+                    .emit();
+            } else if builtin == Builtin::MsgGas {
+                self.dcx()
+                    .warn("`msg.gas` is deprecated")
+                    .code(error_code!(1400))
+                    .span(span)
+                    .help("use `gasleft()` instead")
                     .emit();
             }
         }
@@ -556,8 +563,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Ident(resolutions) => {
-                let res = self.resolve_value(expr, resolutions);
-                self.check_res_evm_version(res, expr.span);
+                let mut res = self.resolve_value(expr, resolutions);
+                if !self.in_yul {
+                    res = self.reject_modifier_ref(res, expr.span);
+                }
+                self.check_builtin_res(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -1134,7 +1144,8 @@ impl<'gcx> TypeChecker<'gcx> {
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
-        let mut err = self.dcx().err(msg).span(op.span);
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        let mut err = self.dcx().err(msg).code(code).span(op.span);
         err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
         err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
         self.gcx.mk_ty_err(err.emit())
@@ -2380,7 +2391,7 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(res) = member.res {
-                    self.check_res_evm_version(res, callee.span);
+                    self.check_builtin_res(res, callee.span);
                     self.results
                         .resolved_callees
                         .insert(callee.id, ResolvedCallee::new(res, member.attached));
@@ -2441,7 +2452,7 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) {
         if let Some(res) = member.res {
-            self.check_res_evm_version(res, expr.span);
+            self.check_builtin_res(res, expr.span);
             self.results.resolved_exprs.insert(expr.id, res);
         }
     }
@@ -2456,7 +2467,8 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(res) => res,
             Err(e) => self.report_call_overload_error(e, callee.span),
         };
-        self.check_res_evm_version(res, callee.span);
+        let res = self.reject_modifier_ref(res, callee.span);
+        self.check_builtin_res(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
@@ -3298,6 +3310,18 @@ impl<'gcx> TypeChecker<'gcx> {
         res
     }
 
+    /// Rejects a modifier referenced by an expression, since only modifier invocations in
+    /// function headers can name one.
+    fn reject_modifier_ref(&self, res: hir::Res, span: Span) -> hir::Res {
+        if let Some(id) = res.as_function()
+            && self.gcx.hir.function(id).kind.is_modifier()
+        {
+            let msg = "modifier can only be referenced in function headers";
+            return hir::Res::Err(self.dcx().err(msg).code(error_code!(3112)).span(span).emit());
+        }
+        res
+    }
+
     fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
         match res {
             [] => unreachable!("no candidates for overload resolution"),
@@ -3454,6 +3478,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
+        }
+        if modifier.qualified
+            && let Some(id) = modifier.id.as_function()
+            && self.gcx.hir.function(id).body.is_none()
+        {
+            self.dcx()
+                .err("cannot call unimplemented modifier")
+                .code(error_code!(1835))
+                .span(modifier.span)
+                .note("the modifier has no implementation in the referenced contract")
+                .help("refer to it by its unqualified name to call the implementation in the most derived contract")
+                .emit();
         }
         let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
             return self.walk_modifier(modifier);

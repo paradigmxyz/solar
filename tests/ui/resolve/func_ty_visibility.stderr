@@ -1,0 +1,20 @@
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │     function(bytes memory) public a;
+   ╰╴                           ━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │         function(uint) private returns (uint) x;
+   ╰╴                       ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility.sol:LL:CC
+   │
+LL │         function(uint) public returns (uint) x;
+   ╰╴                       ━━━━━━
+
+error: aborting due to 3 previous errors
+
