@@ -2034,12 +2034,13 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             result = result.and(self.check_array_copy_size(ty, expr.span));
             if !valid_abi_encodable_arg(ty, self.gcx) {
-                result = result.and(Err(self.dcx().emit_err_label(
-                    expr.span,
-                    format!("`{}` argument cannot be ABI-encoded", builtin.name()),
-                    expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                )));
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!("`{}` argument cannot be ABI-encoded", builtin.name()))
+                    .code(error_code!(2056))
+                    .span(expr.span)
+                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit()));
             }
         }
         result
@@ -2336,12 +2337,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty = self.gcx.types.address_payable;
             }
             if !valid_abi_decodable_type(ty, self.gcx) {
-                let guar = self.dcx().emit_err_label(
-                    type_expr.span,
-                    "decoding type not supported",
-                    type_expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                );
+                let guar = self
+                    .dcx()
+                    .err("decoding type not supported")
+                    .code(error_code!(9611))
+                    .span(type_expr.span)
+                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -3000,7 +3002,11 @@ impl<'gcx> TypeChecker<'gcx> {
             && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
             && size >= u32::MAX
         {
-            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+            self.dcx()
+                .err(format!("type too large for {loc}"))
+                .code(error_code!(1534))
+                .span(var.ty.span)
+                .emit();
         }
     }
 
@@ -3896,16 +3902,12 @@ fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
     if ty.references_error() {
         return true;
     }
+    let Some(ty) = ty.mobile(gcx) else { return false };
     match ty.kind {
         TyKind::Tuple([ty]) => valid_abi_encodable_arg(*ty, gcx),
-        TyKind::Tuple(_) => false,
-        TyKind::Error(..)
-        | TyKind::Event(..)
-        | TyKind::Module(..)
-        | TyKind::BuiltinModule(..)
-        | TyKind::Type(_)
-        | TyKind::Meta(_)
-        | TyKind::Variadic => false,
+        TyKind::Tuple(_) | TyKind::Variadic => false,
+        // Only external function values have an ABI encoding.
+        TyKind::Fn(f) => f.is_external(),
         _ => ty.can_be_exported(gcx),
     }
 }
