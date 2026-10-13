@@ -529,6 +529,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            if let Some(state_mutability) = f.state_mutability
+                && *state_mutability == ast::StateMutability::Payable
+                && f.visibility() != Some(ast::Visibility::External)
+            {
+                self.dcx()
+                    .err("only external function types can be payable")
+                    .code(error_code!(7415))
+                    .span(state_mutability.span)
+                    .emit();
+            }
         }
         self.walk_ty(ty)
     }

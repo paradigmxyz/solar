@@ -10,5 +10,11 @@ error[7415]: only external function types can be payable
 LL │     function (uint) internal payable returns (uint) x;
    ╰╴                             ━━━━━━━
 
-error: aborting due to 2 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/resolve/func_ty_payable.sol:LL:CC
+   │
+LL │         x = g;
+   ╰╴            ━ expected `function (uint256) returns (uint256)`, found `function ()`
+
+error: aborting due to 3 previous errors
 

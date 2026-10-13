@@ -1982,7 +1982,7 @@ impl<'gcx> ResolveContext<'gcx> {
             })),
             ast::TypeKind::Function(f) => {
                 let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
-                let function = hir::TypeFunction {
+                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
                         self.function_id.map(hir::ItemId::Function),
@@ -1995,21 +1995,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         self.function_id.map(hir::ItemId::Function),
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
-                };
-                if let Some(state_mutability) = f.state_mutability
-                    && *state_mutability == ast::StateMutability::Payable
-                    && visibility != ast::Visibility::External
-                {
-                    hir::TypeKind::Err(
-                        self.dcx()
-                            .err("only external function types can be payable")
-                            .code(error_code!(7415))
-                            .span(state_mutability.span)
-                            .emit(),
-                    )
-                } else {
-                    hir::TypeKind::Function(self.arena.alloc(function))
-                }
+                }))
             }
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {

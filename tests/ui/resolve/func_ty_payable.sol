@@ -8,7 +8,8 @@ contract C {
 contract D {
     function (uint) internal payable returns (uint) x; //~ ERROR: only external function types can be payable
 
+    // solc stops after its fatal 7415 error; we keep type checking.
     function g() public {
-        x = g;
+        x = g; //~ ERROR: mismatched types
     }
 }
