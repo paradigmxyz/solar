@@ -4,6 +4,7 @@ use crop::Rope;
 use lsp_types::DocumentChanges;
 use snapbox::str;
 
+mod bindings;
 mod coverage;
 mod dependencies;
 

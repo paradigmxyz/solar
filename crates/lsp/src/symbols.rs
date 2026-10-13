@@ -45,7 +45,7 @@ use crate::{
     proto::{self, PositionIndex},
     rename::{
         ImportBindings, MappingBindings, NamespaceBinding, RenameCandidate, RenameIndex,
-        RenameReferenceContext,
+        RenameReferenceContext, validation::RenameAnalysis,
     },
     signature_help::SignatureHelpIndex,
     source_paths::SourcePath,
@@ -95,6 +95,7 @@ pub(crate) struct SymbolTables {
     code_lens: CodeLensIndex,
     builtins: BuiltinIndex,
     has_merged_batches: bool,
+    rename_analyses: Vec<Arc<RenameAnalysis>>,
 }
 
 #[cfg(test)]
@@ -362,6 +363,18 @@ impl SymbolTables {
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
         tables.signature_help = SignatureHelpIndex::build(gcx, &locations);
         tables.rebuild_indexes();
+        tables.rename_analyses.push(Arc::new(RenameAnalysis::new(
+            gcx.sess.opts.clone(),
+            document_link_sources.clone(),
+            &tables.rename,
+            &tables.declarations,
+            tables.references.iter().map(|reference| {
+                (
+                    reference.location.clone(),
+                    reference.targets.iter().map(|&id| tables.selection_location(id)).collect(),
+                )
+            }),
+        )));
         tables
     }
 
@@ -383,6 +396,7 @@ impl SymbolTables {
 
     fn extend_unindexed(&mut self, mut other: Self) {
         self.has_merged_batches = true;
+        self.rename_analyses.append(&mut other.rename_analyses);
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -2060,6 +2074,35 @@ impl SymbolTables {
         self.rename.rebuild(&self.override_families);
         self.code_lens.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.call_hierarchy.rebuild();
+    }
+
+    pub(crate) fn record_rename_diagnostics(
+        &mut self,
+        diagnostics: &crate::diagnostics::DiagnosticMap,
+    ) {
+        for analysis in &mut self.rename_analyses {
+            Arc::make_mut(analysis).record_diagnostics(diagnostics);
+        }
+    }
+
+    pub(crate) fn validate_rename_bindings(
+        &self,
+        candidate: &mut RenameCandidate,
+        new_name: &str,
+    ) -> Result<(), async_lsp::ResponseError> {
+        if candidate.conflicting_contents {
+            return Ok(());
+        }
+        for analysis in &self.rename_analyses {
+            if candidate.locations.iter().any(|location| analysis.contains(&location.uri)) {
+                analysis.validate(candidate, new_name)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn rename_analysis(&self) -> &RenameAnalysis {
+        &self.rename_analyses[0]
     }
 }
 

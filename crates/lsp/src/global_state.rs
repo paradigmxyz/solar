@@ -2987,7 +2987,7 @@ fn analyze_cancellable_with_source_map(
             }
         }
 
-        let symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
+        let mut symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
         if cancellation.is_cancelled() {
             return None;
         }
@@ -3023,6 +3023,7 @@ fn analyze_cancellable_with_source_map(
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
             });
+        symbol_tables.record_rename_diagnostics(&diagnostics);
         let analyzed_documents = compiler
             .sess()
             .source_map()
@@ -3040,6 +3041,68 @@ fn analyze_cancellable_with_source_map(
             analysis_paths,
         })
     })
+}
+
+/// Reanalyzes a rename against its original compilation roots and frozen source contents.
+pub(crate) fn analyze_rename(
+    opts: CompileOpts,
+    roots: &FxHashSet<PathBuf>,
+    sources: &FxHashMap<Url, Arc<String>>,
+) -> SymbolTables {
+    let mut batch = AnalysisBatch::new(opts);
+    let mut files = FxHashMap::default();
+    for (uri, contents) in sources {
+        let Ok(path) = uri.to_file_path() else { continue };
+        files.insert(path.clone(), contents.clone());
+        if roots.contains(&path) {
+            batch.push_shared_file(path, contents.clone());
+        } else {
+            batch.push_preloaded_file(path, contents.clone(), None);
+        }
+    }
+    batch.finish();
+    let source_map = Arc::new(SourceMap::empty());
+    source_map.set_file_loader(RenameFileLoader { files });
+    analyze_cancellable_with_source_map(
+        batch,
+        source_map,
+        ImportPathTracker::default(),
+        &IndexingCancellation::default(),
+    )
+    .expect("fresh rename analysis cancellation cannot be cancelled")
+    .result
+    .symbol_tables
+}
+
+/// Keeps speculative analysis from reading source changes outside its frozen snapshot.
+struct RenameFileLoader {
+    files: FxHashMap<PathBuf, Arc<String>>,
+}
+
+impl FileLoader for RenameFileLoader {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+        let normalized = path.normalize();
+        if self.files.contains_key(&normalized) {
+            return Ok(normalized);
+        }
+        // Base paths and symlink probes still use the filesystem; source reads never do.
+        RealFileLoader.canonicalize_path(path)
+    }
+
+    fn load_stdin(&self) -> io::Result<String> {
+        Err(io::ErrorKind::NotFound.into())
+    }
+
+    fn load_file(&self, path: &Path) -> io::Result<String> {
+        self.files
+            .get(&path.normalize())
+            .map(|contents| contents.as_ref().clone())
+            .ok_or_else(|| io::ErrorKind::NotFound.into())
+    }
+
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        self.load_file(path).map(String::into_bytes)
+    }
 }
 
 /// Access to prepared, fully analyzed in-memory projects for benchmarks and tests.
