@@ -32,12 +32,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         match &expr.kind {
             ExprKind::Member(receiver, name) => {
-                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
-                    || (name.name == sym::offset
-                        && self
-                            .type_of_expr_or_variable(receiver)
-                            .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata)))
-                {
+                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength) {
                     return self.cx.report_unsupported(expr.span, "l-value");
                 }
                 let resolved = self.cx.gcx.resolved_expr(expr)?;
@@ -342,11 +337,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let expr = expr.peel_parens();
         match &expr.kind {
             ExprKind::Member(receiver, name)
-                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
-                    || (name.name == sym::offset
-                        && self
-                            .type_of_expr_or_variable(receiver)
-                            .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))) =>
+                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength) =>
             {
                 return self.store_yul_member(receiver, *name, value, expr.span);
             }

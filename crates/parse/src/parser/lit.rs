@@ -14,7 +14,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// display reasons.
     ///
     /// Returns None if no subdenomination was parsed or if the literal is not a number or rational.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_lit(
         &mut self,
         with_subdenomination: bool,

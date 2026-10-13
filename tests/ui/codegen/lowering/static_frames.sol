@@ -1,12 +1,14 @@
 //@compile-flags: -Zdump=evm-ir-runtime
-//@ filecheck:
+//@ filecheck: --implicit-check-not=mload
+//@ run-call: top 10 => 1168
+//@ run-call: top 13 => 2116
+//@ run-call: top 0 => 16
 
-// Static frame overlays use compile-time-fixed frame addresses, while recursive
-// and mutually recursive calls allocate dynamic frames from the free memory
-// pointer and restore it on return.
+// Values live across internal calls, recursive and mutually recursive ones
+// included, stay on the stack. No call reserves a frame, so the only memory
+// the runtime writes is the free memory pointer, the return word and panic
+// data, and nothing reads memory back.
 contract SF {
-    uint256 public s;
-
     // CHECK: push 0x313ae541
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[TOP:bb[0-9]+]]
@@ -19,39 +21,13 @@ contract SF {
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK: return
-    // The allocating entry initializes its reachable frame floor.
+    // The entry's heap starts right above its return word.
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 352
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // Static locals use fixed addresses without a dynamic-frame header.
-    // CHECK: push 288
-    // CHECK-NEXT: mstore
-    // CHECK: push 224
-    // CHECK-NEXT: mstore
-    // Recursive calls reserve dynamic frames from the free-memory pointer.
     // CHECK: push 160
-    // CHECK-NEXT: mload
-    // CHECK: push 288
-    // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK: push [[REC_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
-    // CHECK: [[REC_ENTRY]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // The continuation restores the caller's FMP and frame pointer from the frame.
-    // CHECK: [[REC_RET]] [continuation]:
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 32
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mstore
+    uint256 public s;
+
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

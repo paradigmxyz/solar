@@ -4,7 +4,7 @@
 contract InternalStopRuntime {
     function haltThenRevert() external pure {
         halt();
-        revert();
+        revert(); //~ WARN: unreachable code
     }
 
     function halt() internal pure {

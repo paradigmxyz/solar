@@ -9,7 +9,7 @@
 //! callers; ordinary CFG cleanup removes it only when no references remain.
 //!
 //! Only immediate pushes, physical stack operations, and position-independent computations are
-//! copied. Deferred values and immutable patches are excluded, and `keep_with_next` boundaries
+//! copied. Immutable patches are excluded, and `keep_with_next` boundaries
 //! remain intact. Entry targets and current fallthrough edges are excluded because their transfer
 //! may cost fewer bytes. The rewrite removes transfer gas independently of execution frequency and
 //! does not depend on debug metadata. It runs after sharing, which can create these tiny tails.
@@ -17,7 +17,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, PushValue, TerminatorKind},
+        ir::{BlockId, Module, TerminatorKind},
         op,
     },
     target::Target,
@@ -63,11 +63,7 @@ impl EvmPass for InlineReturns {
             }
             let size = tail.instructions.iter().try_fold(target.opcode(opcode).bytes, |n, inst| {
                 let bytes = if inst.is_encoded_push() {
-                    if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
-                        return None;
-                    }
-                    let Some(PushValue::Immediate(value)) = inst.value else { return None };
-                    target.push(value).bytes
+                    target.push(inst.concrete_immediate()?).bytes
                 } else if let Some(stack) = inst.as_stack_op() {
                     stack.assembled_len(target.evm_version())? as u32
                 } else if op::is_unaffected_by_preceding_push(inst.opcode) {

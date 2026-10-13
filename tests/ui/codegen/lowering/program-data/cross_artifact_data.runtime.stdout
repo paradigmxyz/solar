@@ -46,20 +46,17 @@ bb0:
   push 31
   not
   and
-  dup 1
-  dup 4
-  add
   push 0
-  swap 1
-  mstore
-  push 64
+  dup 2
   dup 5
   add
-  dup 3
-  dup 5
-  dup 3
+  mstore
+  dup 2
+  dup 4
+  push 64
+  dup 7
+  add
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -67,7 +64,7 @@ bb0:
   mstore
   push 64
   add
-  dup 2
+  swap 1
   return
 bb3 [cold]:
   push 0

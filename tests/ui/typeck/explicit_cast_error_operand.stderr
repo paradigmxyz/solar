@@ -1,0 +1,14 @@
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/explicit_cast_error_operand.sol:LL:CC
+   │
+LL │         return bytes(Missing.get()).length;
+   ╰╴                     ━━━━━━━
+
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/explicit_cast_error_operand.sol:LL:CC
+   │
+LL │         return string(Missing).length;
+   ╰╴                      ━━━━━━━
+
+error: aborting due to 2 previous errors
+

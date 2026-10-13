@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/always_revert.sol:LL:CC
+   │
+LL │         b;
+   ╰╴        ━
+

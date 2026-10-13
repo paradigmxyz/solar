@@ -1,0 +1,8 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   │
+LL │           (, uint256 x) = (fail().identity, 3);
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃         return x;
+   ╰╴┗━━━━━━━━━━━━━━━━┛
+

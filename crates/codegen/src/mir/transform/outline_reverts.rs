@@ -1,7 +1,7 @@
 //! Outline duplicate constant revert blocks into shared helpers.
 //!
 //! Panic checks and argless custom errors lower to small blocks of constant
-//! stores followed by `revert` — `mstore(0, selector); mstore(32, code);
+//! stores followed by `revert` — `mstore(32, code); mstore(0, selector);
 //! revert(28, 36)` — and the same shape repeats at every check site, across
 //! functions. EVM IR also deduplicates equivalent terminal blocks and merges
 //! common terminal tails, but only after backend lowering. Outlining the

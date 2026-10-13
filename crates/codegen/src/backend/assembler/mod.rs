@@ -90,15 +90,11 @@ impl ArtifactKind {
     }
 }
 
-/// Final EVM IR lowered to reusable primitive assembly.
-#[derive(Clone, Debug, Default)]
+/// Final EVM IR lowered to primitive assembly.
+#[derive(Debug, Default)]
 pub(in crate::backend) struct PreparedAssembly {
     pub(in crate::backend) program: AssemblyProgram,
     pub(in crate::backend) evm_ir: Option<ir::Module>,
-    pub(in crate::backend) push_values: LocalInterner<U256, PushValueId>,
-    pub(in crate::backend) immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
-    pub(in crate::backend) next_label: IdCounter<Label>,
-    pub(in crate::backend) deferred_values: FxHashMap<DeferredConst, U256>,
 }
 
 /// Relocating assembler for finalized EVM IR.
@@ -302,65 +298,14 @@ impl<'gcx> Assembler<'gcx> {
     ) -> AssembledCode {
         let prepared =
             self.prepare_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
-        let result = self.assemble_owned(prepared, &[]);
+        let result = self.assemble_owned(prepared);
         self.clear();
         result
     }
 
-    pub(in crate::backend) fn assemble_prepared(
-        &mut self,
-        prepared: &PreparedAssembly,
-        deferred_values: &[(DeferredConst, U256)],
-    ) -> AssembledCode {
-        self.assemble_owned(prepared.clone(), deferred_values)
-    }
-
     #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
-    fn assemble_owned(
-        &mut self,
-        prepared: PreparedAssembly,
-        deferred_values: &[(DeferredConst, U256)],
-    ) -> AssembledCode {
-        let PreparedAssembly {
-            mut program,
-            evm_ir,
-            push_values,
-            immutable_pushes,
-            next_label,
-            deferred_values: prepared_deferred_values,
-        } = prepared;
-        self.push_values = push_values;
-        self.immutable_pushes = immutable_pushes;
-        self.next_label = next_label;
-        self.deferred_values = prepared_deferred_values;
-        self.deferred_values.extend(deferred_values.iter().copied());
-
-        for inst in &mut program.instructions {
-            if let AsmInstKind::PushDeferred(id) = inst.kind() {
-                let value = self
-                    .deferred_values
-                    .get(&id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
-                *inst = self.push_inst(value);
-            }
-        }
-
-        let evm_ir = evm_ir.map(|mut module| {
-            for block in &mut module.blocks {
-                for inst in &mut block.instructions {
-                    if let Some(id) = inst.deferred_push() {
-                        let value = self.deferred_values.get(&id).copied().unwrap_or_else(|| {
-                            panic!("deferred constant {id:?} was never resolved")
-                        });
-                        let metadata = inst.metadata.clone();
-                        *inst = ir::Instruction::push_value(value);
-                        inst.metadata = metadata;
-                    }
-                }
-            }
-            module
-        });
+    fn assemble_owned(&mut self, prepared: PreparedAssembly) -> AssembledCode {
+        let PreparedAssembly { program, evm_ir } = prepared;
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
@@ -467,15 +412,6 @@ impl<'gcx> Assembler<'gcx> {
                     let labels = &program.packed_labels[labels];
                     let width = usize::from(labels.label_width) * labels.labels.len();
                     offset += out.fixed_push_len(width as u8);
-                }
-                AsmInstKind::PushDeferred(id) => {
-                    // Deployment offsets may not be known until the prepared
-                    // program is assembled. Reserve the maximum push for
-                    // unknown values, while using known values exactly.
-                    offset += self
-                        .deferred_values
-                        .get(&id)
-                        .map_or(33, |&value| out.encoded_push_len(value));
                 }
                 AsmInstKind::PushLibrary(_) => offset += 21,
                 AsmInstKind::PushImmutable(id) => {
@@ -592,9 +528,6 @@ impl<'gcx> Assembler<'gcx> {
                     let target_offset = resolve_data_offset(program, &data_offsets, data);
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
-                }
-                AsmInstKind::PushDeferred(_) => {
-                    unreachable!("deferred values must be resolved before assembly");
                 }
                 AsmInstKind::PushImmutable(id) => {
                     out.emit_push_immutable(self.immutable_push(id), source_spans);

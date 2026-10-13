@@ -342,8 +342,6 @@ fn estimated_block_size_up_to(
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     if let Some(size) = inst.immutable_type_size() {
         1 + usize::from(size.bytes())
-    } else if inst.deferred_push().is_some() {
-        3
     } else if inst.is_encoded_push() {
         match &inst.value {
             Some(PushValue::Immediate(value)) => selected_len(gcx, *value),

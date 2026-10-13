@@ -1,0 +1,365 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/call_status_branch_stack.sol:CallStatusBranchStack (runtime) ===
+@module CallStatusBranchStack_runtime
+bb0:
+  push 36
+  calldatasize
+  lt
+  callvalue
+  or
+  push bb6
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xb3f62f5
+  eq
+  push bb11
+  jumpi
+  dup 1
+  push 0x7896dfe3
+  eq
+  push bb17
+  jumpi
+  dup 1
+  push 0x9507d39a
+  eq
+  push bb7
+  jumpi
+  dup 1
+  push 0xf1680ae6
+  eq
+  push bb26
+  jumpi
+  jump bb6
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb15 [cold]:
+  returndatasize
+  push 0
+  push 0
+  returndatacopy
+  returndatasize
+  push 0
+  revert
+bb10 [cold]:
+  push 17
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb7:
+  push 384
+  push 64
+  mstore
+  push 4
+  calldataload
+  push 64
+  mload
+  push 128
+  dup 2
+  add
+  push 64
+  mstore
+  calldatasize
+  push 128
+  swap 2
+  calldatacopy
+  push 256
+  push 1
+  dup 3
+  add
+  dup 1
+  iszero
+  push bb10
+  jumpi
+  push 2
+  dup 4
+  add
+  dup 4
+  dup 2
+  lt
+  push 3
+  dup 6
+  add
+  swap 1
+  dup 6
+  dup 3
+  lt
+  or
+  push 4
+  dup 7
+  add
+  swap 6
+  dup 7
+  lt
+  or
+  push bb10
+  jumpi
+  dup 3
+  dup 5
+  mstore
+  push 32
+  dup 5
+  add
+  swap 2
+  dup 3
+  mstore
+  push 64
+  dup 5
+  add
+  swap 1
+  dup 2
+  mstore
+  swap 3
+  push 96
+  add
+  swap 4
+  dup 5
+  mstore
+  swap 1
+  push 128
+  mstore
+  mload
+  push 160
+  mstore
+  mload
+  push 192
+  mstore
+  mload
+  push 224
+  mstore
+  push 128
+  dup 1
+  return
+bb11:
+  push 160
+  push 64
+  mstore
+  push_immutable 0, 20
+  push 64
+  mload
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x9507d39a
+  push 224
+  shl
+  dup 2
+  mstore
+  push 4
+  calldataload
+  push 4
+  dup 3
+  add
+  mstore
+  push 64
+  dup 2
+  add
+  dup 1
+  swap 3
+  push 128
+  swap 3
+  push 36
+  swap 2
+  gas
+  staticcall
+  iszero
+  push bb15
+  jumpi
+  returndatasize
+  push 128
+  gt
+  push bb6
+  jumpi
+  push bb14
+  jump bb34
+bb34:
+  push 64
+  mload
+  dup 1
+  push 128
+  dup 3
+  add
+  push 64
+  mstore
+  dup 4
+  mload
+  dup 3
+  mstore
+  push 32
+  dup 5
+  add
+  mload
+  push 32
+  dup 4
+  add
+  mstore
+  push 64
+  dup 5
+  add
+  mload
+  push 64
+  dup 4
+  add
+  mstore
+  swap 3
+  push 96
+  add
+  mload
+  swap 1
+  push 96
+  add
+  mstore
+  jump
+bb14 [continuation]:
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb17:
+  push 160
+  push 64
+  mstore
+  push_immutable 0, 20
+  push 64
+  mload
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x9507d39a
+  push 224
+  shl
+  dup 2
+  mstore
+  push 4
+  calldataload
+  push 4
+  dup 3
+  add
+  mstore
+  push 64
+  dup 2
+  add
+  dup 1
+  swap 3
+  push 128
+  swap 3
+  push 36
+  swap 2
+  gas
+  staticcall
+  iszero
+  push bb15
+  jumpi
+  returndatasize
+  push 128
+  gt
+  push bb6
+  jumpi
+  push bb20
+  jump bb34
+bb20 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb10
+  jumpi
+  push 1
+  dup 2
+  sub
+  swap 1
+  iszero
+  push bb10
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb26:
+  push 160
+  push 64
+  mstore
+  push_immutable 0, 20
+  push 64
+  mload
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x9507d39a
+  push 224
+  shl
+  dup 2
+  mstore
+  push 4
+  calldataload
+  push 4
+  dup 3
+  add
+  mstore
+  push 64
+  dup 2
+  add
+  dup 1
+  swap 3
+  push 128
+  swap 3
+  push 36
+  swap 2
+  gas
+  staticcall
+  iszero
+  push bb15
+  jumpi
+  returndatasize
+  push 128
+  gt
+  push bb6
+  jumpi
+  push bb29
+  jump bb34
+bb29 [continuation]:
+  push 64
+  dup 2
+  add
+  mload
+  swap 1
+  push 96
+  add
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb10
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return

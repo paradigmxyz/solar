@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/ret_spill_forwarding_buffer.sol:C ===
+@module C
+fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [pure] {
+  bb0:
+    v0 = calldatasize
+    calldatacopy 0, 0, v0 !metadata(memory=scratch)
+    v1 = mul arg16, 18
+    v2 = mul arg15, 17
+    v3 = xor v1, v2
+    v4 = mul arg14, 16
+    v5 = xor v3, v4
+    v6 = mul arg13, 15
+    v7 = xor v5, v6
+    v8 = mul arg12, 14
+    v9 = xor v7, v8
+    v10 = mul arg11, 13
+    v11 = xor v9, v10
+    v12 = mul arg10, 12
+    v13 = xor v11, v12
+    v14 = mul arg9, 11
+    v15 = xor v13, v14
+    v16 = mul arg8, 10
+    v17 = xor v15, v16
+    v18 = mul arg7, 9
+    v19 = xor v17, v18
+    v20 = mul arg6, 8
+    v21 = xor v19, v20
+    v22 = mul arg5, 7
+    v23 = xor v21, v22
+    v24 = mul arg4, 6
+    v25 = xor v23, v24
+    v26 = mul arg3, 5
+    v27 = xor v25, v26
+    v28 = mul arg2, 4
+    v29 = xor v27, v28
+    v30 = mul arg1, 3
+    v31 = xor v29, v30
+    v32 = mul arg0, 2
+    v33 = xor v31, v32
+    ret v33
+}
+
+fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x15e4a00c, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @h, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16
+    v1 = checked_add u256, v0, 1
+    ret v1
+}
+
+fn @g2(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x9397d4fb, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @h, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16
+    v1 = checked_add u256, v0, 2
+    ret v1
+}

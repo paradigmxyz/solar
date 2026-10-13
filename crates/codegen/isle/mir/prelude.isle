@@ -75,6 +75,7 @@
   (MSize)
   (Fmp)
   (SetFmp (value Value))
+  (HeapFloor)
   (Alloc (size Value) (kind AllocationKind) (semantics AllocationSemantics))
   (MemoryObjectLen (object Value) (kind MemoryObjectKind))
   (SetMemoryObjectLen (object Value) (len Value) (kind MemoryObjectKind))

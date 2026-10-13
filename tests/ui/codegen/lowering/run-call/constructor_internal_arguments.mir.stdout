@@ -96,14 +96,11 @@ fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = eq v11, 0
+    v12 = lt v11, 2
     v13 = eq v12, false
-    v14 = zext i1 v13 to i256
-    v15 = eq v11, v14
-    v16 = eq v15, false
-    icall revert_if<empty>, v16
-    v17 = ne v11, 0
-    ret v17
+    icall revert_if<empty>, v13
+    v14 = ne v11, 0
+    ret v14
 }
 
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
@@ -125,8 +122,8 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = and v11, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v13 = eq v11, v12
+    v12 = shl 24, v11
+    v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
     ret v11

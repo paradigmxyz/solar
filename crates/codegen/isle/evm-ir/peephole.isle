@@ -46,7 +46,6 @@
   (ReloadStoredValue)
   (DropNonzeroTest)
   (EqIszeroJumpi)
-  (StackOp (op StackOp))
   (StackOps (first StackOp) (second StackOp))
 ))
 
@@ -102,8 +101,6 @@
 (decl pop () Inst)
 (extern extractor pop pop)
 ;; A push that may be deleted, or any push at all.
-(decl removable_push () Inst)
-(extern extractor removable_push removable_push)
 (decl any_push () Inst)
 (extern extractor any_push any_push)
 
@@ -127,9 +124,6 @@
 (extern constructor u8_add u8_add)
 (decl pure swap_op (u8) StackOp)
 (extern constructor swap_op swap_op)
-;; The `EXCHANGE` represented by three swaps.
-(decl pure partial exchange_of_swaps (u8 u8 u8) StackOp)
-(extern constructor exchange_of_swaps exchange_of_swaps)
 (decl pure u256_is_zero (U256) bool)
 (extern constructor u256_is_zero u256_is_zero)
 (decl pure u256_is_one (U256) bool)
@@ -151,11 +145,11 @@
 (rule 400 (peep_dup (duplicates_known_zero)) (rewrite 1 (Edit.OverwritePush0)))
 
 ;; `PUSH x PUSH 0 OP -> PUSH 0`, `PUSH x PUSH 1 EXP -> PUSH 1`.
-(rule 350 (peep_op (last3 (removable_push) (push v) (opcode opcode)))
+(rule 350 (peep_op (last3 (any_push) (push v) (opcode opcode)))
          (if-let true (u256_is_zero v))
          (if-let true (absorbs_zero opcode))
          (rewrite 3 (Edit.RemoveFirstKeepOne)))
-(rule 340 (peep_op (last3 (removable_push) (push v) (opcode $EXP)))
+(rule 340 (peep_op (last3 (any_push) (push v) (opcode $EXP)))
          (if-let true (u256_is_one v))
          (rewrite 3 (Edit.RemoveFirstKeepOne)))
 
@@ -189,7 +183,7 @@
 (rule 283 (peep_op (untaken_jump)) (rewrite 3 (Edit.Keep 0)))
 
 ;; `PUSH x POP -> ∅`.
-(rule 280 (peep_pop (last2 (removable_push) (opcode $POP))) (rewrite 2 (Edit.Keep 0)))
+(rule 280 (peep_pop (last2 (any_push) (opcode $POP))) (rewrite 2 (Edit.Keep 0)))
 
 ;; `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
 (rule 220 (peep_op (last2 (opcode $SWAP1) (opcode opcode)))
@@ -269,11 +263,6 @@
 (rule 80 (peep_swap (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
-
-;; `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
-(rule 50 (peep_swap (last3 (swap first) (swap second) (swap third)))
-        (if-let exchange (exchange_of_swaps first second third))
-        (rewrite 3 (Edit.StackOp exchange)))
 
 ;; A bounded window around a closed, one-result shift-count computation.
 (type LateWindow (primitive LateWindow))

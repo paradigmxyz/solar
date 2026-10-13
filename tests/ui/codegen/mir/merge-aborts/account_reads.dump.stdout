@@ -22,8 +22,8 @@ fn @balance() [selector=0x2139cfcb, abi_wrapper, view] {
     mstore 128, v6
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -48,8 +48,8 @@ fn @codeSize() [selector=0x3ae86375, abi_wrapper, view] {
     mstore 128, v6
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -74,8 +74,8 @@ fn @codeHash() [selector=0x76806d71, abi_wrapper, view] {
     mstore 128, v6
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

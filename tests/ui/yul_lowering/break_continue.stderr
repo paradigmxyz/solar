@@ -1,26 +1,38 @@
-error: `break` outside of a loop
+error[2592]: keyword `break` needs to be inside a for-loop body
    ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
    │
 LL │             break
    ╰╴            ━━━━━
 
-error: `continue` outside of a loop
+error[2592]: keyword `continue` needs to be inside a for-loop body
    ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
    │
 LL │             continue
    ╰╴            ━━━━━━━━
 
-error: `break` outside of a loop
+error[2461]: keyword `break` in for-loop post block is not allowed
+   ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
+   │
+LL │                 break
+   ╰╴                ━━━━━
+
+error[2461]: keyword `continue` in for-loop post block is not allowed
+   ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
+   │
+LL │                 continue
+   ╰╴                ━━━━━━━━
+
+error[2592]: keyword `break` needs to be inside a for-loop body
    ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
    │
 LL │                     break
    ╰╴                    ━━━━━
 
-error: `continue` outside of a loop
+error[2592]: keyword `continue` needs to be inside a for-loop body
    ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
    │
 LL │                     continue
    ╰╴                    ━━━━━━━━
 
-error: aborting due to 4 previous errors
+error: aborting due to 6 previous errors
 

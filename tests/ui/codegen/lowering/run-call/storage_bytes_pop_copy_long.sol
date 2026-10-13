@@ -12,8 +12,7 @@
 // SHORT-NEXT: eq
 // SHORT-NEXT: push bb{{[0-9]+}}
 // SHORT-NEXT: jumpi
-// SHORT-NEXT: swap 1
-// SHORT-NEXT: push 2
+// SHORT: push 2{{$}}
 // SHORT-NEXT: add
 //@ codegen-matrix: standard ir
 //@ run-call: test => 0x0303030303030303030303030303030303030303030303030303030303

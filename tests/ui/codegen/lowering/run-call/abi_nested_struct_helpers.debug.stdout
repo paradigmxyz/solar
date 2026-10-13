@@ -148,8 +148,8 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     mstore 100, 0x206c656e67746800000000000000000000000000000000000000000000000000
     revert 0, 132
   bb13:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb11:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
@@ -269,8 +269,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v17 = lt v2, v16
     jumpi v17, bb9, bb8
   bb8:
-    mstore 0, 0x4e487b71
     mstore 32, 50
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb9:
     v19 = mload v136
@@ -300,8 +300,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v35 = add v2, 1
     jump bb1
   bb10:
-    mstore 0, 0x4e487b71
     mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb25:
     v64 = calldataload v61
@@ -470,8 +470,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     mstore 100, 0x72726179206c656e677468000000000000000000000000000000000000000000
     revert 0, 132
   bb18:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb16:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000

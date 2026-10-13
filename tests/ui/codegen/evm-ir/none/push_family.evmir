@@ -6,20 +6,14 @@
 // CHECK: {{^[ +].*}}L_0: "dir/name\".sol:L"
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 1
-// CHECK: {{^[ +].*}}push_deferred 2
-// CHECK: {{^[ +].*}}push_deferred 0xfffffff
 // CHECK: {{^[ +].*}}push_immutable 3, 1
 // CHECK: {{^[ +].*}}push_immutable 0xfffffff, 32
 // CHECK: {{^[ +].*}}push_library L_0
 bb0:
   push 1
-  push_deferred 2
-  push_deferred 0xfffffff
   push_immutable 3, 1
   push_immutable 0xfffffff, 32
   push_library L_0
-  pop
-  pop
   pop
   pop
   pop

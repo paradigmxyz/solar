@@ -114,13 +114,14 @@ contract ShortReturns {
     // An aggregate return decodes out of a buffer taken before the arguments, so the copy out of
     // the overlaid area cannot run into memory the decoding allocates above it.
     // HOMESTEAD-LABEL: fn @emptyAgg
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUFFER]]
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
+    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUFFER]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[INPUT]], 64
-    // HOMESTEAD: abi_decode {{.*}}, [[BUFFER]]
+    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUFFER]] to i256
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     function emptyAgg() external returns (uint256[2] memory) {
         return Target(address(this)).agg();
     }

@@ -107,6 +107,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &evm_inst_schedule::EvmInstSchedule,
+    &heap_floor::HeapFloor,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -178,6 +179,9 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
+    // Clamp inline assembly's stores of absolute addresses to the free memory pointer before any
+    // pass forwards the stored value to the pointer's loads.
+    &heap_floor::HeapFloor,
     // Clone one constant call to a shared pure leaf so scalar passes can fold it.
     &GasOnly::new(inline::InlineConstantLeaves),
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal

@@ -244,7 +244,7 @@ LL │     c_params as !=
    │     ━━━━━━━━
    ╰ help: function `c_params` needs to have two parameters of type `Cmp` to be used for operator `!=`
 
-error: cannot apply builtin operator `+` to `Param` and `Param`
+error[2271]: cannot apply builtin operator `+` to `Param` and `Param`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
 LL │         a + b;
@@ -252,7 +252,7 @@ LL │         a + b;
    │         │
    ╰╴        Param
 
-error: cannot apply builtin operator `*` to `Param` and `Param`
+error[2271]: cannot apply builtin operator `*` to `Param` and `Param`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
 LL │         a * b;
@@ -260,7 +260,7 @@ LL │         a * b;
    │         │
    ╰╴        Param
 
-error: cannot apply builtin operator `-` to `Param` and `Param`
+error[2271]: cannot apply builtin operator `-` to `Param` and `Param`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
 LL │         a - b;
@@ -268,7 +268,7 @@ LL │         a - b;
    │         │
    ╰╴        Param
 
-error: cannot apply builtin operator `/` to `Param` and `Param`
+error[2271]: cannot apply builtin operator `/` to `Param` and `Param`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
 LL │         a / b;
@@ -276,7 +276,7 @@ LL │         a / b;
    │         │
    ╰╴        Param
 
-error: cannot apply builtin operator `%` to `Param` and `Param`
+error[2271]: cannot apply builtin operator `%` to `Param` and `Param`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
 LL │         a % b;
@@ -290,7 +290,7 @@ error: cannot apply unary operator `~` to `Param`
 LL │         ~a;
    ╰╴        ━━
 
-error: cannot apply builtin operator `!=` to `Cmp` and `Cmp`
+error[2271]: cannot apply builtin operator `!=` to `Cmp` and `Cmp`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
 LL │         a != b;

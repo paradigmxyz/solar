@@ -208,4 +208,29 @@
 +   swap 5
 +   pop
     stop
+  bb15:
+    calldatasize
+    returndatasize
+    callvalue
+    swap 2
+-   swap 1
+    mul
+    stop
+  bb16:
+    calldatasize
+    returndatasize
+    callvalue
+    swap 2
+-   swap 1
+-   lt
++   gt
+    stop
+  bb17:
+    calldatasize
+    returndatasize
+    callvalue
+    swap 2
+    swap 1
+    sub
+    stop
   

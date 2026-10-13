@@ -2,8 +2,8 @@
 //@ run-call: outer 3 => 2369
 //@ run-call: other 2 => 2371
 
-// A frame-backed tail-call argument that aliases a selected stack argument must
-// be stored from a duplicate, not from the resident value's only physical copy.
+// A tail-call argument that aliases another argument must come from a copy,
+// not from the value's only stack word.
 contract TailCallAliasedArgs {
     function outer(uint256 x) public pure returns (uint256) {
         return mid(x);

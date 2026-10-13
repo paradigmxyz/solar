@@ -1,0 +1,46 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │ ┏     /**
+LL │ ┃      * @notice block
+LL │ ┃      */
+LL │ ┃     modifier m() { x = 1; _; }
+   ╰╴┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │ ┏     /// @notice after
+LL │ ┃     modifier n() { x = 2; _; }
+   ╰╴┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │     function f() public r m n {}
+   ╰╴                              ━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │     modifier ifPlaceholder(bool c) { revert(); if (c) _; }
+   ╰╴                                               ━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │     function g(bool c) public ifPlaceholder(c) {}
+   ╰╴                                               ━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │     modifier whilePlaceholder(bool c) { revert(); while (c) _; }
+   ╰╴                                                  ━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/modifiers.sol:LL:CC
+   │
+LL │     function h(bool c) public whilePlaceholder(c) {}
+   ╰╴                                                  ━━
+

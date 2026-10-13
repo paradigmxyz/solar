@@ -57,7 +57,7 @@ contract TerminatedControlFlow {
 
     function stopInHelper() external pure {
         stopHelper();
-        revert();
+        revert(); //~ WARN: unreachable code
     }
 
     function stopHelper() internal pure {
@@ -65,7 +65,7 @@ contract TerminatedControlFlow {
     }
 
     function scalarFailure(uint256 reason) external pure returns (uint256) {
-        return failScalar(reason) + 1;
+        return failScalar(reason) + 1; //~ WARN: unreachable code
     }
 
     function failScalar(uint256 reason) internal pure returns (uint256) {
@@ -74,7 +74,7 @@ contract TerminatedControlFlow {
 
     function pairFailure(uint256 reason) external pure returns (uint256, uint256) {
         (uint256 a, uint256 b) = failPair(reason);
-        return (a + 1, b + 2);
+        return (a + 1, b + 2); //~ WARN: unreachable code
     }
 
     function failPair(uint256 reason) internal pure returns (uint256, uint256) {
@@ -85,7 +85,7 @@ contract TerminatedControlFlow {
         if (depth == 0) {
             assembly { mstore(0, reason) revert(0, 32) }
         }
-        return recursiveFailure(depth - 1, reason) + 1;
+        return recursiveFailure(depth - 1, reason) + 1; //~ WARN: unreachable code
     }
 
     function constructorFailure(uint256 reason) external returns (address) {
@@ -162,16 +162,16 @@ contract TerminatedControlFlow {
     }
 
     function breakSkipsTail() external pure returns (uint256 result) {
-        for (uint256 i = 0; i < 1; ++i) {
+        for (uint256 i = 0; i < 1; ++i) { //~ WARN: unreachable code
             break;
-            result = 1;
+            result = 1; //~ WARN: unreachable code
         }
     }
 
     function continueSkipsTail() external pure returns (uint256 result) {
         for (uint256 i = 0; i < 1; ++i) {
             continue;
-            result = 1;
+            result = 1; //~ WARN: unreachable code
         }
     }
 }
@@ -189,7 +189,7 @@ contract StopsInConstructor {
 contract RevertsInConstructor {
     constructor(uint256 reason) {
         uint256 result = fail(reason);
-        assembly { sstore(0, result) }
+        assembly { sstore(0, result) } //~ WARN: unreachable code
     }
 
     function fail(uint256 reason) internal pure returns (uint256) {
@@ -200,7 +200,7 @@ contract RevertsInConstructor {
 contract RevertsWithoutArgs {
     constructor() {
         uint256 result = fail();
-        assembly { sstore(0, result) }
+        assembly { sstore(0, result) } //~ WARN: unreachable code
     }
 
     function fail() internal view returns (uint256) {

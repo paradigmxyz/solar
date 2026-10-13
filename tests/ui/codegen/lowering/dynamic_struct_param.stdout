@@ -5,8 +5,8 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
     v0 = slice_ptr arg0
     v1 = add v0, 32
     v2 = calldataload v1
-    v3 = and v2, 255
-    v4 = eq v2, v3
+    v3 = shr 8, v2
+    v4 = eq v3, 0
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = trunc i256 v2 to i8
@@ -21,8 +21,8 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
     v9 = zext i160 v14 to i256
     ret v9
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -71,8 +71,8 @@ fn @words(arg0: calldataslice) -> i256 [selector=0x6d5f7443, pure, abi_params=[t
   bb2:
     ret v26
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -113,8 +113,8 @@ fn @signedWords(arg0: calldataslice) -> i256 [selector=0x69491962, pure, abi_par
   bb2:
     ret v26
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -207,7 +207,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
   bb2:
     ret v69
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }

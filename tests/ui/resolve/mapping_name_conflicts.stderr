@@ -1,0 +1,182 @@
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │ …     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name2) name3) name4) name5;
+   │       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │ …     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name2) name3) name4) name5;
+   ╰╴                                                                  ━━━━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => address owner) owner;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => address owner) owner;
+   ╰╴                                     ━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address owner)) owner;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address owner)) owner;
+   ╰╴                                             ━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address owner)) owner;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address owner)) owner;
+   ╰╴                                                              ━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address owner)) owner;
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address owner)) owner;
+   ╰╴                                                              ━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address hello)) world;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address owner => address hello)) world;
+   ╰╴                                             ━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address hello => address owner)) world;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address owner => mapping(address hello => address owner)) world;
+   ╰╴                                                              ━━━━━
+
+error[1809]: conflicting parameter name `owner` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address hello => mapping(address owner => address owner)) world;
+   │                              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(address hello => mapping(address owner => address owner)) world;
+   ╰╴                                                              ━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     function(mapping(uint nameSame => mapping(uint name2 => mapping(uint nameSame => uint name3) name4) name5) storage) internal state…
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     function(mapping(uint nameSame => mapping(uint name2 => mapping(uint nameSame => uint name3) name4) name5) storage) internal state…
+   ╰╴                                                                         ━━━━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name3) name6) name4) map;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name3) name6) name4) map;
+   ╰╴                                                                ━━━━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name2) name3) name4) name5;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name2) name3) name4) name5;
+   ╰╴                                                                ━━━━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name3) name6) name4) public name5;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name3) name6) name4) public name5;
+   ╰╴                                                                ━━━━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     function _main(mapping(uint nameSame => mapping(uint name2 => mapping(uint nameSame => uint name3) name4) name5) storage map) inte…
+   │                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │     function _main(mapping(uint nameSame => mapping(uint name2 => mapping(uint nameSame => uint name3) name4) name5) storage map) inte…
+   ╰╴                                                                               ━━━━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │ …     mapping(uint nameSame => mapping(uint name2 => uint nameSame) name4) storage _map = map;
+   │       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │ …     mapping(uint nameSame => mapping(uint name2 => uint nameSame) name4) storage _map = map;
+   ╰╴                                                          ━━━━━━━━
+
+error[1809]: conflicting parameter name `nameSame` in mapping
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │ …     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name3) name6) name4) storage _map = map;
+   │       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the name is reused here
+   ╭▸ ROOT/tests/ui/resolve/mapping_name_conflicts.sol:LL:CC
+   │
+LL │ …     mapping(uint nameSame => mapping(uint name1 => mapping(uint nameSame => uint name3) name6) name4) storage _map = map;
+   ╰╴                                                                  ━━━━━━━━
+
+error: aborting due to 15 previous errors
+

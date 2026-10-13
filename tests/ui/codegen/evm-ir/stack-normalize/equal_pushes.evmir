@@ -1,0 +1,61 @@
+//@compile-flags: -Zevm-ir-pipeline=stack-normalize
+//@filecheck:
+@module module
+
+// Two pushes of the same constant leave equal words, so the run may treat them as one value:
+// five swaps reach the arrangement that needs six with distinct words.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: +   swap 4
+// CHECK-NEXT: +   swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 5
+// CHECK-NEXT: {{^[ +].*}}swap 6
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   swap 4
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: {{^[ +].*}}delegatecall
+bb0:
+  address
+  caller
+  callvalue
+  gas
+  origin
+  push 0
+  push 0
+  swap 5
+  swap 6
+  swap 3
+  swap 1
+  swap 4
+  swap 1
+  delegatecall
+  stop
+
+// Different constants stay distinct, and the run keeps its six swaps.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^  }}swap 5
+// CHECK-NEXT: {{^  }}swap 6
+// CHECK-NEXT: {{^  }}swap 3
+// CHECK-NEXT: {{^  }}swap 1
+// CHECK-NEXT: {{^  }}swap 4
+// CHECK-NEXT: {{^  }}swap 1
+// CHECK-NEXT: {{^  }}delegatecall
+bb1:
+  address
+  caller
+  callvalue
+  gas
+  origin
+  push 0
+  push 1
+  swap 5
+  swap 6
+  swap 3
+  swap 1
+  swap 4
+  swap 1
+  delegatecall
+  stop

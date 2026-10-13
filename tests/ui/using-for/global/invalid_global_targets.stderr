@@ -1,3 +1,21 @@
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ function idL(L x) pure returns (L) {
+   ╰╴             ━
+
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ function idL(L x) pure returns (L) {
+   ╰╴                                ━
+
+error[1130]: invalid use of a library name
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {idL} for L global;
+   ╰╴                ━
+
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
@@ -31,12 +49,6 @@ LL │ using {idC} for C global;
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
-LL │ using {idL} for L global;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: can only use `global` with user-defined types
-   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
-   │
 LL │ using {idI} for I global;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -64,5 +76,5 @@ error: operators can only be implemented for user-defined value types
 LL │ using {addA as +} for A global;
    ╰╴       ━━━━
 
-error: aborting due to 11 previous errors
+error: aborting due to 13 previous errors
 

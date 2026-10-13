@@ -24,9 +24,11 @@ struct AstValidator<'sess, 'ast> {
     function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
     placeholder_count: u32,
+    yul_for_part: YulForPart,
+    in_yul_function: bool,
 }
 
-impl<'sess> AstValidator<'sess, '_> {
+impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     fn new(sess: &'sess Session) -> Self {
         Self {
             item_span: Span::DUMMY,
@@ -35,6 +37,8 @@ impl<'sess> AstValidator<'sess, '_> {
             function_kind: None,
             in_unchecked_block: false,
             placeholder_count: 0,
+            yul_for_part: YulForPart::None,
+            in_yul_function: false,
         }
     }
 
@@ -116,6 +120,65 @@ impl<'sess> AstValidator<'sess, '_> {
                 .emit();
         }
     }
+
+    /// Checks an explicit constructor visibility, which only `abstract` decides now.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L2068-L2091>
+    fn check_constructor_visibility(
+        &self,
+        visibility: ast::Spanned<ast::Visibility>,
+        is_abstract: bool,
+    ) {
+        match *visibility {
+            ast::Visibility::Public if is_abstract => {
+                self.dcx()
+                    .err("abstract contracts cannot have public constructors")
+                    .code(error_code!(8295))
+                    .span(visibility.span)
+                    .help("remove the `public` keyword")
+                    .emit();
+            }
+            ast::Visibility::Internal if !is_abstract => {
+                self.dcx()
+                    .err("non-abstract contracts cannot have internal constructors")
+                    .code(error_code!(1845))
+                    .span(visibility.span)
+                    .help("remove the `internal` keyword and make the contract `abstract`")
+                    .emit();
+            }
+            _ => {
+                self.dcx()
+                    .warn("visibility for constructor is ignored")
+                    .code(error_code!(2462))
+                    .span(visibility.span)
+                    .note(
+                        "to make the contract non-deployable, marking it `abstract` is sufficient",
+                    )
+                    .emit();
+            }
+        }
+    }
+
+    fn check_yul_break_continue(&self, span: Span, kw: &str) {
+        let (code, msg) = match self.yul_for_part {
+            YulForPart::None => (error_code!(2592), "needs to be inside a for-loop body"),
+            YulForPart::Init => (error_code!(9615), "in for-loop init block is not allowed"),
+            YulForPart::Post => (error_code!(2461), "in for-loop post block is not allowed"),
+            YulForPart::Body => return,
+        };
+        self.dcx().err(format!("keyword `{kw}` {msg}")).code(code).span(span).emit();
+    }
+
+    fn visit_yul_block_in(
+        &mut self,
+        part: YulForPart,
+        block: &'ast ast::yul::Block<'ast>,
+    ) -> ControlFlow<Never> {
+        let prev = std::mem::replace(&mut self.yul_for_part, part);
+        let r = self.visit_yul_block(block);
+        self.yul_for_part = prev;
+        r
+    }
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
@@ -134,7 +197,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        ControlFlow::Continue(())
+        self.walk_item_struct(item)
     }
 
     fn visit_item_enum(
@@ -166,7 +229,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    ("abicoder", Some("v1" | "v2")) => {}
+                    ("abicoder", Some("v1")) => {
+                        self.dcx()
+                            .warn("ABI coder v1 is not supported")
+                            .code(error_code!(9511))
+                            .span(self.item_span)
+                            .note("ABI coder v2 is used instead")
+                            .help("remove the pragma or use `pragma abicoder v2`")
+                            .emit();
+                    }
+                    ("abicoder", Some("v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
@@ -230,6 +302,48 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         self.walk_stmt(stmt)
     }
 
+    fn visit_yul_stmt(
+        &mut self,
+        stmt: &'ast ast::yul::Stmt<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        match &stmt.kind {
+            ast::yul::StmtKind::Break => self.check_yul_break_continue(stmt.span, "break"),
+            ast::yul::StmtKind::Continue => self.check_yul_break_continue(stmt.span, "continue"),
+            ast::yul::StmtKind::Leave if !self.in_yul_function => {
+                self.dcx()
+                    .err("keyword `leave` can only be used inside a function")
+                    .code(error_code!(8149))
+                    .span(stmt.span)
+                    .emit();
+            }
+            ast::yul::StmtKind::For(ast::yul::StmtFor { init, cond, step, body }) => {
+                self.visit_yul_block_in(YulForPart::Init, init)?;
+                self.visit_yul_expr(cond)?;
+                self.visit_yul_block_in(YulForPart::Post, step)?;
+                return self.visit_yul_block_in(YulForPart::Body, body);
+            }
+            ast::yul::StmtKind::FunctionDef(function) => {
+                if self.yul_for_part == YulForPart::Init {
+                    self.dcx()
+                        .err("functions cannot be defined inside a for-loop init block")
+                        .code(error_code!(3441))
+                        .span(function.name.span)
+                        .emit();
+                }
+                let prev = (
+                    std::mem::replace(&mut self.yul_for_part, YulForPart::None),
+                    std::mem::replace(&mut self.in_yul_function, true),
+                );
+                let r = self.walk_yul_stmt(stmt);
+                (self.yul_for_part, self.in_yul_function) = prev;
+                return r;
+            }
+            _ => {}
+        }
+
+        self.walk_yul_stmt(stmt)
+    }
+
     fn visit_item_contract(
         &mut self,
         contract: &'ast ast::ItemContract<'ast>,
@@ -280,6 +394,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.item_span,
                     "functions without implementation cannot have modifiers",
                 );
+            }
+            if func.kind.is_constructor()
+                && let Some(visibility) = func.header.visibility
+            {
+                self.check_constructor_visibility(visibility, contract.kind.is_abstract_contract());
             }
         }
 
@@ -410,6 +529,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            if let Some(vis) = f.visibility
+                && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
+            {
+                self.dcx()
+                    .err("invalid visibility, can only be `external` or `internal`")
+                    .code(error_code!(6012))
+                    .span(vis.span)
+                    .emit();
+            }
         }
         self.walk_ty(ty)
     }
@@ -446,4 +574,14 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
         errors.push("remove underscores in front of the exponent");
     }
     errors
+}
+
+/// The part of a Yul `for` loop that a statement is in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum YulForPart {
+    /// Outside of any `for` loop, or inside a function definition.
+    None,
+    Init,
+    Post,
+    Body,
 }

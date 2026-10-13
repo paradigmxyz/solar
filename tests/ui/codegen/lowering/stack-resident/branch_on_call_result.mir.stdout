@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/branch_on_call_result.sol:BranchOnCallResult ===
+@module BranchOnCallResult
+@types
+  struct0: {i1, i256}
+
+fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x7357f5d2, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @search, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = eq v1, false
+    v4 = eq v3, false
+    v5 = eq v4, false
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v6 = icall @search, arg1
+    v7 = extract_value struct0, v6, 0
+    v8 = extract_value struct0, v6, 1
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v9 = checked_add u256, v8, 1
+    jump bb3
+  bb3:
+    v10 = phi [bb6: v9], [bb2: v2]
+    v11 = checked_mul u256, v10, 3
+    ret v11
+  bb4:
+    ret v8
+}
+
+fn @search(arg0: i256) -> struct0 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, arg0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = checked_rem u256, arg0, 3
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v9 = checked_mul u256, arg0, 2
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = checked_add u256, v9, v10
+    v12 = insert_value struct0, undef struct0, 0, false
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
+  bb1:
+    v4 = checked_div u256, arg0, 3
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = checked_add u256, v4, v5
+    v7 = insert_value struct0, undef struct0, 0, true
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
+}

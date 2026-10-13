@@ -241,9 +241,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
     fn lower_yul_function_decl(
         &mut self,
         function: &'gcx ast::yul::Function<'gcx>,
+        span: Span,
     ) -> hir::FunctionId {
         let id = self.hir.functions.next_idx();
-        let span = function.name.span.with_hi(function.body.span.hi());
         let pushed_id = self.hir.functions.push(hir::Function {
             source: self.current_source_id,
             doc: hir::DocId::EMPTY,
@@ -407,14 +407,22 @@ impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
         ControlFlow::Continue(())
     }
 
-    fn visit_yul_function(
+    // Visit function definitions here to get the span of the whole statement.
+    fn visit_yul_block(
         &mut self,
-        function: &'gcx ast::yul::Function<'gcx>,
+        block: &'gcx ast::yul::Block<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        let id = self.lcx.lower_yul_function_decl(function);
-        self.lcx.yul_functions.insert(super::yul_function_key(function), id);
-        self.items.push(hir::ItemId::Function(id));
-        self.visit_yul_block(&function.body)
+        for stmt in block.stmts.iter() {
+            if let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind {
+                let id = self.lcx.lower_yul_function_decl(function, stmt.span);
+                self.lcx.yul_functions.insert(super::yul_function_key(function), id);
+                self.items.push(hir::ItemId::Function(id));
+                self.visit_yul_block(&function.body)?;
+            } else {
+                self.visit_yul_stmt(stmt)?;
+            }
+        }
+        ControlFlow::Continue(())
     }
 
     // Yul function definitions only appear in statements. Short-circuit expressions.

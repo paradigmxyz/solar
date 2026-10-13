@@ -164,7 +164,7 @@ pub(crate) fn make_ethdebug_compilation(
             let source = gcx.hir.source(source_id);
             EthdebugSource {
                 id: EthdebugId::Number(source_id.index() as u32),
-                path: source.file.name.display().to_string().replace('\\', "/"),
+                path: source.file.name.display().to_string(),
                 contents: source.file.src.as_ref().clone(),
                 language: language.to_owned(),
             }

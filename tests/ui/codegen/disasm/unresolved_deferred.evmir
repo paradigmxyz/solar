@@ -1,8 +1,0 @@
-//@ compile-flags: -Zevm-ir-pipeline=default -Zdump=disasm-runtime
-
-@module unresolved_deferred
-
-bb0:
-  push_deferred 0
-  //~? ERROR: cannot assemble unresolved `push_deferred` instruction
-  stop

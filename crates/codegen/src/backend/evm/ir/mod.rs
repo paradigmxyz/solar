@@ -296,7 +296,6 @@ pub(crate) struct Instruction {
 
 impl Instruction {
     const ENCODED_PUSH: u8 = 1;
-    const DEFERRED: u8 = 2;
     const IMMUTABLE: u8 = 4;
     const DATA: u8 = 8;
     const DATA_SIZE: u8 = 16;
@@ -402,19 +401,6 @@ impl Instruction {
         }
     }
 
-    /// Creates an encoded deferred push instruction.
-    #[must_use]
-    pub(in crate::backend) fn push_deferred(id: assembly::DeferredConst) -> Self {
-        assert!(
-            id.index() <= assembly::AsmInst::PAYLOAD_MASK as usize,
-            "deferred constant ID overflow"
-        );
-        Self::encoded_push(
-            PushValue::Immediate(U256::from(id.index())),
-            Self::ENCODED_PUSH | Self::DEFERRED,
-        )
-    }
-
     /// Creates an encoded immutable push instruction with a fixed immediate width.
     #[must_use]
     pub(in crate::backend) fn push_immutable(id: ImmutableId, type_size: TypeSize) -> Self {
@@ -462,7 +448,7 @@ impl Instruction {
 
     /// Returns a literal runtime word carried by an ordinary immediate push.
     ///
-    /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
+    /// Immutable pushes encode internal IDs in the same payload variant, but their
     /// runtime values are supplied later and must not participate in constant-value reasoning.
     #[must_use]
     pub(in crate::backend) const fn concrete_immediate(&self) -> Option<U256> {
@@ -495,12 +481,11 @@ impl Instruction {
     /// derived from a data length.
     #[must_use]
     pub(in crate::backend) fn is_duplicable_push(&self) -> bool {
-        self.deferred_push().is_none()
-            && match self.value {
-                Some(PushValue::Immediate(value)) => !value.is_zero(),
-                Some(PushValue::DataSize(_)) => true,
-                _ => false,
-            }
+        match self.value {
+            Some(PushValue::Immediate(value)) => !value.is_zero(),
+            Some(PushValue::DataSize(_)) => true,
+            _ => false,
+        }
     }
 
     /// Returns the program-data size carried by this push instruction, if any.
@@ -528,9 +513,6 @@ impl Instruction {
                     f.write_str("push_library")
                 }
                 Self::ENCODED_PUSH => f.write_str("push"),
-                encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
-                    f.write_str("push_deferred")
-                }
                 encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
                     f.write_str("push_immutable")
                 }
@@ -576,18 +558,6 @@ impl Instruction {
             .and_then(|definition| definition.stack_io)
             .expect("verified instruction stack effect");
         StackEffect::new(inputs, outputs)
-    }
-
-    /// Returns the deferred constant referenced by this push instruction, if any.
-    #[must_use]
-    pub(in crate::backend) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
-        if self.encoding & Self::DEFERRED == 0 {
-            return None;
-        }
-        let value = self.pushed_value().expect("deferred push must carry an immediate");
-        Some(assembly::DeferredConst::from_usize(
-            usize::try_from(value).expect("deferred constant ID must fit usize"),
-        ))
     }
 
     /// Returns the immutable identifier carried by this push instruction, if any.
@@ -689,12 +659,16 @@ pub(crate) enum TerminatorKind {
     Op(u8),
 }
 
+/// Most words an indexed jump holds above its index while it reads its target from a packed
+/// table.
+pub(crate) const INDEXED_JUMP_STACK_GROWTH: usize = 3;
+
 impl TerminatorKind {
     /// Returns the temporary stack growth introduced when lowering this terminator.
     #[must_use]
     pub(crate) fn lowering_stack_growth(&self, next: Option<BlockId>) -> usize {
         match self {
-            Self::IndexedJump(_) => 3,
+            Self::IndexedJump(_) => INDEXED_JUMP_STACK_GROWTH,
             Self::Jump(target) => usize::from(Some(*target) != next),
             Self::JumpI { .. } => 1,
             Self::Op(_) => 0,

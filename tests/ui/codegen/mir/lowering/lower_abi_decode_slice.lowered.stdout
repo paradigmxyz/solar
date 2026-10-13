@@ -1,0 +1,115 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_slice.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_slice.mir (after lower-abi) ===
+  @module LowerAbiDecodeSlice
+  fn @inline(arg0: memoryslice) -> i256 {
+    bb0:
+-     v0 = abi_decode [u256], arg0
+-     ret v0
++     v1 = slice_ptr arg0
++     v2 = inttoptr i256 v1 to memptr
++     v3 = slice_len arg0
++     v4 = add v1, v3
++     v5 = slt v3, 32
++     jumpi v5, bb1, bb2
++   bb2:
++     v6 = mload v1
++     ret v6
++   bb1:
++     revert 0, 0
+  }
+  
+  fn @shared(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = make_memory_slice arg0, 64
+-     v1 = abi_decode [tuple<u256, u256>], v0
++     v7 = slice_ptr v0
++     v8 = inttoptr i256 v7 to memptr
++     v9 = slice_len v0
++     v10 = slt v9, 64
++     jumpi v10, bb1, bb2
++   bb2:
++     v11 = icall @decode_static, v8
+      v2 = make_memory_slice arg1, arg1
+-     v3 = abi_decode [tuple<u256, u256>], v2
+-     v4 = memory_object_load_field memorystruct<2>, v1, 0
+-     v5 = memory_object_load_field memorystruct<2>, v3, 1
++     v12 = slice_ptr v2
++     v13 = inttoptr i256 v12 to memptr
++     v14 = slice_len v2
++     v15 = slt v14, 64
++     jumpi v15, bb1, bb3
++   bb3:
++     v16 = icall @decode_static, v13
++     v4 = memory_object_load_field memorystruct<2>, v11, 0
++     v5 = memory_object_load_field memorystruct<2>, v16, 1
+      v6 = add v4, v5
+      ret v6
++   bb1:
++     revert 0, 0
+  }
+  
+  fn @dynamic(arg0: memoryslice) -> memptr {
+    bb0:
+-     v0 = abi_decode [bytes], arg0
+-     ret v0
++     v1 = slice_ptr arg0
++     v2 = inttoptr i256 v1 to memptr
++     v3 = slice_len arg0
++     v4 = add v1, v3
++     v5 = slt v3, 32
++     jumpi v5, bb1, bb2
++   bb2:
++     v6 = mload v1
++     v7 = add v1, v6
++     v8 = add v7, 32
++     v9 = gt v6, 0xffffffffffffffff
++     v10 = gt v8, v4
++     v11 = or v9, v10
++     v12 = zext i1 v11 to i256
++     jumpi v11, bb1, bb3
++   bb3:
++     v13 = mload v7
++     v14 = add v7, 32
++     v15 = add v13, 63
++     v16 = lt v15, v13
++     jumpi v16, bb4, bb5
++   bb5:
++     v17 = not 31
++     v18 = and v15, v17
++     v19 = alloc memorybytes, exact, uninitialized, panic, v18
++     set_memory_object_len memorybytes, v19, v13
++     v20 = sub v4, v14
++     v21 = gt v13, v20
++     jumpi v21, bb1, bb6
++   bb6:
++     v22 = make_memory_slice v14, v13
++     memory_object_copy_from_slice memorybytes, v19, v22
++     ret v19
++   bb4:
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
++     revert 0, 0
++ }
++ 
++ fn @decode_static(arg0: memptr) -> memptr {
++   bb0:
++     v0 = ptrtoint memptr arg0 to i256
++     v1 = add v0, 64
++     v2 = slt 64, 64
++     jumpi v2, bb1, bb2
++   bb2:
++     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
++     v4 = ptrtoint memptr arg0 to i256
++     v5 = mload v4
++     memory_object_store_field memorystruct<2>, v3, 0, v5
++     v6 = ptrtoint memptr arg0 to i256
++     v7 = add v6, 32
++     v8 = mload v7
++     memory_object_store_field memorystruct<2>, v3, 1, v8
++     ret v3
++   bb1:
++     revert 0, 0
+  }
+  

@@ -1,4 +1,4 @@
-error: member `f` not unique on type `struct S memory`
+error[6675]: member `f` not unique on type `struct S memory`
    ╭▸ ROOT/tests/ui/using-for/global_local_clash.sol:LL:CC
    │
 LL │         return gen().f();

@@ -100,8 +100,8 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     icall revert_if<tuple_data_too_short>, v36
     v37 = add 0, 0
     v38 = mload v37
-    v39 = and v38, 255
-    v40 = eq v38, v39
+    v39 = shr 8, v38
+    v40 = eq v39, 0
     v41 = eq v40, false
     icall revert_if<empty>, v41
     v42 = trunc i256 v38 to i8

@@ -67,14 +67,14 @@ contract InternalCallEffects {
     function observedReturn() external pure returns (uint256) {
         assembly { mstore(128, 7) }
         returnMemory();
-        assembly { mstore(128, 9) }
+        assembly { mstore(128, 9) } //~ WARN: unreachable code
         return 9;
     }
 
     function observedRevert() external pure {
         assembly { mstore(128, 7) }
         revertMemory();
-        assembly { mstore(128, 9) }
+        assembly { mstore(128, 9) } //~ WARN: unreachable code
     }
 
     function memoryDisjoint() external pure returns (uint256) {

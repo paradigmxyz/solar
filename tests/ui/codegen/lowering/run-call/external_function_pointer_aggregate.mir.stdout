@@ -390,12 +390,9 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
-    v19 = eq v18, 0
+    v19 = lt v18, 2
     v20 = eq v19, false
-    v21 = zext i1 v20 to i256
-    v22 = eq v18, v21
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = ne v18, 0
-    ret v24
+    icall revert_if<empty>, v20
+    v21 = ne v18, 0
+    ret v21
 }

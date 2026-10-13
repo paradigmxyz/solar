@@ -1,10 +1,11 @@
 //@ revisions: none gas size
-//@ compile-flags: --emit=bin
 //@[none] compile-flags: -O none
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
-//~[none]? ERROR: codegen cannot preserve values across a low-memory forwarding buffer
-//~[gas,size]? ERROR: codegen cannot preserve values across a low-memory write
+//@ run-call: run 7, 0, 0 => 7
+//@ run-call: run 7, 0, 3 => 28
+//@ run-call: run 7, 1024, 3 => 28
+//@ run-call: run 9, 4096, 8 => 81
 
 contract RecursiveForwarding {
     function run(uint256 value, uint256 length, uint256 depth) external pure returns (uint256 result) {

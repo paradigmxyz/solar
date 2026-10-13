@@ -1,9 +1,7 @@
 //@ codegen-matrix: standard
-//@[gas] run-call: run 1, 2, 3, 4, 5 => 751
-//@[gas] run-call: run 0, 0, 0, 0, 0 => 345
-//@[gas] run-call: run 7, 100, 1000, 3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 21794
-//~[mir]? ERROR: codegen cannot preserve values across a low-memory write in `f0`
-//~[mir,size]? ERROR: codegen cannot preserve values across a low-memory write in `f1`
+//@ run-call: run 1, 2, 3, 4, 5 => 751
+//@ run-call: run 0, 0, 0, 0, 0 => 345
+//@ run-call: run 7, 100, 1000, 3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 21794
 
 contract ResidentArgDupReachResetFmp {
     uint256 s;

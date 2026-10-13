@@ -104,7 +104,7 @@ contract ReturningBase {
     constructor() {
         value = 1;
         return;
-        value = 3;
+        value = 3; //~ WARN: unreachable code
     }
 }
 

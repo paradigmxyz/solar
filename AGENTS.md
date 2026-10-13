@@ -23,7 +23,8 @@ cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
-Filter tests with `cargo uitest <path-substring>` or
+Filter UI tests with `cargo uitest <path-substring>` or
+`cargo tq <mode> <path-substring>`, and Rust tests with
 `cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating and broader checks once the change settles.
 For documentation-only changes, check prose, examples, and spelling; do not
 build or run tests. Avoid plain `cargo test`.
@@ -356,3 +357,10 @@ bytecode size, then compile time and memory; reject changes that only speed up
 compilation. Record a baseline before editing, and follow the
 [local build workflow](benches/runtime/README.md#comparing-local-builds). For
 parser benchmarks, see [benches/README.md](benches/README.md).
+
+- Reuse the frozen baseline's results; do not rerun it.
+- Narrow with `--tests` while iterating.
+- Check output identity with compile-only runs and output fingerprints.
+- Use release binaries for corpus-wide compiles.
+- Make a local WIP commit before scripted bulk edits.
+- Delete your own `target/` and worktree when done; keep evidence elsewhere.

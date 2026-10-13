@@ -10,8 +10,8 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
     v0 = slice_ptr arg0
     v1 = add v0, 32
     v2 = calldataload v1
-    v3 = and v2, 255
-    v4 = eq v2, v3
+    v3 = shr 8, v2
+    v4 = eq v3, 0
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = trunc i256 v2 to i8
@@ -1303,8 +1303,8 @@ fn @deploy(arg0: calldataslice, arg1: i160) -> i256 [selector=0xea6715b4, abi_pa
     v185 = slt v184, 32
     icall revert_if<calldata_tail_too_short>, v185
     v186 = calldataload v182
-    v187 = and v186, 0xffffffffffffffffffffffffffffffffffffffff
-    v188 = eq v186, v187
+    v187 = shr 160, v186
+    v188 = eq v187, 0
     v189 = eq v188, false
     icall revert_if<empty>, v189
     memory_object_store_field memorystruct<24>, v22, 10, v186
@@ -1314,8 +1314,8 @@ fn @deploy(arg0: calldataslice, arg1: i160) -> i256 [selector=0xea6715b4, abi_pa
     v193 = slt v192, 32
     icall revert_if<calldata_tail_too_short>, v193
     v194 = calldataload v190
-    v195 = and v194, 0xffffffffffffffffffffffffffffffffffffffff
-    v196 = eq v194, v195
+    v195 = shr 160, v194
+    v196 = eq v195, 0
     v197 = eq v196, false
     icall revert_if<empty>, v197
     memory_object_store_field memorystruct<24>, v22, 11, v194
@@ -1332,8 +1332,8 @@ fn @deploy(arg0: calldataslice, arg1: i160) -> i256 [selector=0xea6715b4, abi_pa
     v206 = slt v205, 32
     icall revert_if<calldata_tail_too_short>, v206
     v207 = calldataload v203
-    v208 = and v207, 0xffff
-    v209 = eq v207, v208
+    v208 = shr 16, v207
+    v209 = eq v208, 0
     v210 = eq v209, false
     icall revert_if<empty>, v210
     memory_object_store_field memorystruct<24>, v22, 13, v207
@@ -1343,8 +1343,8 @@ fn @deploy(arg0: calldataslice, arg1: i160) -> i256 [selector=0xea6715b4, abi_pa
     v214 = slt v213, 32
     icall revert_if<calldata_tail_too_short>, v214
     v215 = calldataload v211
-    v216 = and v215, 0xffffffff
-    v217 = eq v215, v216
+    v216 = shr 32, v215
+    v217 = eq v216, 0
     v218 = eq v217, false
     icall revert_if<empty>, v218
     memory_object_store_field memorystruct<24>, v22, 14, v215
@@ -1361,8 +1361,8 @@ fn @deploy(arg0: calldataslice, arg1: i160) -> i256 [selector=0xea6715b4, abi_pa
     v227 = slt v226, 32
     icall revert_if<calldata_tail_too_short>, v227
     v228 = calldataload v224
-    v229 = and v228, 0xffffffffffffffffffffffffffffffffffffffff
-    v230 = eq v228, v229
+    v229 = shr 160, v228
+    v230 = eq v229, 0
     v231 = eq v230, false
     icall revert_if<empty>, v231
     memory_object_store_field memorystruct<24>, v22, 16, v228
@@ -1386,8 +1386,8 @@ fn @deploy(arg0: calldataslice, arg1: i160) -> i256 [selector=0xea6715b4, abi_pa
     v245 = slt v244, 32
     icall revert_if<calldata_tail_too_short>, v245
     v246 = calldataload v242
-    v247 = and v246, 0xffffffffffffffffffffffffffffffffffffffff
-    v248 = eq v246, v247
+    v247 = shr 160, v246
+    v248 = eq v247, 0
     v249 = eq v248, false
     icall revert_if<empty>, v249
     memory_object_store_field memorystruct<24>, v22, 19, v246
@@ -1506,8 +1506,8 @@ fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word], abi
     icall revert_if<tuple_data_too_short>, v30
     v31 = add 0, 0
     v32 = mload v31
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffff
-    v34 = eq v32, v33
+    v33 = shr 160, v32
+    v34 = eq v33, 0
     v35 = eq v34, false
     icall revert_if<empty>, v35
     v36 = trunc i256 v32 to i160

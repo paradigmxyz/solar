@@ -519,7 +519,8 @@ impl Session {
         debug_assert!(threads > 0, "number of threads must already be resolved");
         let mut builder = rayon::ThreadPoolBuilder::new()
             .thread_name(|i| format!("solar-{i}"))
-            .num_threads(threads);
+            .num_threads(threads)
+            .stack_size(thread_stack_size());
         // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
         // install and run in the default global thread pool.
         if threads == 1 {
@@ -539,6 +540,17 @@ impl Session {
         }
         err.emit()
     }
+}
+
+/// Returns the stack size of compiler threads: `RUST_MIN_STACK` if set, or 16 MiB.
+///
+/// Like rustc, we do not grow the stack manually: deeply nested input recurses deeply, and the OS
+/// commits stack pages only when they are used, so a large limit costs nothing until it is needed.
+pub fn thread_stack_size() -> usize {
+    std::env::var("RUST_MIN_STACK")
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(16 * 1024 * 1024)
 }
 
 fn reentrant_log() {

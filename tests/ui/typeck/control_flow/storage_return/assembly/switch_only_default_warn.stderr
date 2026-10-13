@@ -1,0 +1,7 @@
+warning[9592]: `switch` statement has only a default case
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/assembly/switch_only_default_warn.sol:LL:CC
+   │
+LL │ ┏             switch a
+LL │ ┃                 default { c.slot := s.slot }
+   ╰╴┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
