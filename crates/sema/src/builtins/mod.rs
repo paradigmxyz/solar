@@ -20,7 +20,7 @@ pub(crate) fn scopes() -> (Declarations, FxHashMap<Builtin, Declarations>) {
     (global, members_map)
 }
 
-fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
+pub(crate) fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
     let mut declarations = Declarations::new();
     for builtin in builtins {
         let decl = Declaration { res: hir::Res::Builtin(builtin), span: Span::DUMMY };
