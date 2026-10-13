@@ -197,7 +197,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        ControlFlow::Continue(())
+        self.walk_item_struct(item)
     }
 
     fn visit_item_enum(
@@ -530,7 +530,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 }
             }
             if let Some(state_mutability) = f.state_mutability
-                && *state_mutability == ast::StateMutability::Payable
+                && state_mutability.is_payable()
                 && matches!(f.visibility(), None | Some(ast::Visibility::Internal))
             {
                 self.dcx()

@@ -1,6 +1,12 @@
 error[7415]: only external function types can be payable
    ╭▸ ROOT/tests/ui/resolve/func_ty_payable_positions.sol:LL:CC
    │
+LL │         function() payable s;
+   ╰╴                   ━━━━━━━
+
+error[7415]: only external function types can be payable
+   ╭▸ ROOT/tests/ui/resolve/func_ty_payable_positions.sol:LL:CC
+   │
 LL │     function() payable b;
    ╰╴               ━━━━━━━
 
@@ -16,5 +22,5 @@ error[6012]: invalid visibility, can only be `external` or `internal`
 LL │     function() private payable d;
    ╰╴               ━━━━━━━
 
-error: aborting due to 3 previous errors
+error: aborting due to 4 previous errors
 
