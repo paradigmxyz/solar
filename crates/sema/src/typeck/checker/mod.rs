@@ -3188,9 +3188,6 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         } else if actual.is_ref_at(DataLocation::Storage)
             && !expected.is_ref_at(DataLocation::Storage)
-            && self.has_oversized_array(actual, &mut GrowableBitSet::new_empty())
-            // The variable check already reports a target too large for its location.
-            && self.ty_exceeded_location(expected).is_none()
         {
             self.check_array_copy_size(actual, span)?;
         }

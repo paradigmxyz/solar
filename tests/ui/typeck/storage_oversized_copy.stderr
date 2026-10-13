@@ -55,6 +55,22 @@ LL │     function tupleReturn() external view returns (uint256[1 << 64][] memo
 error: array is too large to copy or encode
    ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
    │
+LL │         return (source, 1);
+   │                ━━━━━━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         Wrapper[1] memory wrappers = [Wrapper(source)];
+   │                                               ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
 LL │         target.push(source[0]);
    │                     ━━━━━━━━━
    │
@@ -68,5 +84,5 @@ LL │         target = source;
    │
    ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
 
-error: aborting due to 9 previous errors
+error: aborting due to 11 previous errors
 

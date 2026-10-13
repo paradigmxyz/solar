@@ -32,6 +32,10 @@ contract OversizedStructCopy {
 }
 
 contract NestedOversizedCopy {
+    struct Wrapper {
+        uint256[1 << 64][] values;
+    }
+
     uint256[1 << 64][] source;
     uint256[1 << 64][] target;
 
@@ -41,7 +45,13 @@ contract NestedOversizedCopy {
 
     function tupleReturn() external view returns (uint256[1 << 64][] memory, uint256) {
         //~^ ERROR: type too large for memory
-        return (source, 1);
+        return (source, 1); //~ ERROR: array is too large to copy or encode
+    }
+
+    function structConstructor() external view returns (uint256) {
+        Wrapper[1] memory wrappers = [Wrapper(source)];
+        //~^ ERROR: array is too large to copy or encode
+        return wrappers.length;
     }
 
     function push() external {
