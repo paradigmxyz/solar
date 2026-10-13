@@ -270,7 +270,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         let expr = self.peel_bytes_conversion(expr);
-        if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+        if matches!(expr.kind, ExprKind::Member(..))
             && let Some(id) = self.cx.gcx.resolved_variable(expr)
             && self.cx.gcx.hir.variable(id).is_state_variable()
         {

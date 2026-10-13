@@ -322,7 +322,7 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    YulMember { id: VariableId, member: YulMember, span: Span },
+    YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
 }
 
 /// A Yul suffix on a variable, such as `x.offset` or `x.slot`.
@@ -330,7 +330,7 @@ enum LValuePlace<'gcx> {
 /// Loads and stores read the variable when they run, so later writes see
 /// earlier ones in a multi-assignment.
 #[derive(Clone, Copy)]
-enum YulMember {
+enum YulSuffix {
     CalldataOffset,
     CalldataLength,
     FunctionAddress,

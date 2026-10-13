@@ -13,8 +13,8 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @array(
     // CHECK: [[RES:v[0-9]+]] = icall @shift
-    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value struct1, [[RES]], 0
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value struct1, [[RES]], 1
+    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr arg0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
     // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
@@ -32,10 +32,10 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @mixedBytes(
     // CHECK: [[RES:v[0-9]+]] = icall @shift
-    // CHECK-NEXT: extract_value struct3, [[RES]], 0
-    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value struct3, [[RES]], 1
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value struct3, [[RES]], 2
-    // CHECK-NEXT: extract_value struct3, [[RES]], 3
+    // CHECK-NEXT: extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 2
+    // CHECK-NEXT: extract_value [[TY]], [[RES]], 3
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr arg0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
     // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
@@ -57,9 +57,9 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @mixedString(
     // CHECK: [[RES:v[0-9]+]] = icall @trim
-    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value struct0, [[RES]], 0
-    // CHECK-NEXT: extract_value struct0, [[RES]], 1
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value struct0, [[RES]], 2
+    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: extract_value [[TY]], [[RES]], 1
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 2
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr arg0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
     // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len [[TMP]]
@@ -79,8 +79,8 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @returned(
     // CHECK: [[RES:v[0-9]+]] = icall @shift
-    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value struct1, [[RES]], 0
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value struct1, [[RES]], 1
+    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: [[EMPTY:v[0-9]+]] = make_calldata_slice 0, 0
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[EMPTY]]
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[PTR]], [[LEN]]
@@ -99,8 +99,8 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @reversed(
     // CHECK: [[RES:v[0-9]+]] = icall @shift
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value struct1, [[RES]], 0
-    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value struct1, [[RES]], 1
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: [[OFF:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: [[KEEP:v[0-9]+]] = slice_len arg0
     // CHECK-NEXT: [[TMP:v[0-9]+]] = make_calldata_slice [[OFF]], [[KEEP]]
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[TMP]]
@@ -118,8 +118,8 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @slot(
     // CHECK: [[RES:v[0-9]+]] = icall @get{{.*}}, 0
-    // CHECK-NEXT: extract_value struct1, [[RES]], 0
-    // CHECK-NEXT: [[SLOT:v[0-9]+]] = extract_value struct1, [[RES]], 1
+    // CHECK-NEXT: extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: [[SLOT:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: sload [[SLOT]]
     function slot() external returns (uint256) {
         values.push(5);
@@ -137,8 +137,8 @@ contract YulMemberMultiAssignment {
 
     // CHECK-LABEL: fn @functionPointer(
     // CHECK: [[RES:v[0-9]+]] = icall @get
-    // CHECK-NEXT: [[ADDR:v[0-9]+]] = extract_value struct1, [[RES]], 0
-    // CHECK-NEXT: [[SEL:v[0-9]+]] = extract_value struct1, [[RES]], 1
+    // CHECK-NEXT: [[ADDR:v[0-9]+]] = extract_value [[TY:struct[0-9]+]], [[RES]], 0
+    // CHECK-NEXT: [[SEL:v[0-9]+]] = extract_value [[TY]], [[RES]], 1
     // CHECK-NEXT: and [[SEL]], 0xffffffff
     // CHECK: and [[ADDR]], 0xffffffffffffffffffffffffffffffffffffffff
     function functionPointer() external view returns (address, bytes4) {
