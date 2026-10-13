@@ -336,6 +336,14 @@ impl<'gcx> ResolveContext<'gcx> {
             );
         }
 
+        // Enum variants are resolved as members, so they are declared only to report duplicates.
+        for id in self.hir.enumm_ids() {
+            let enumm = self.hir.enumm(id);
+            let variants = enumm.variants;
+            init_cx!(enumm);
+            self.declare_variables(variants);
+        }
+
         for id in self.hir.error_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Error(id)];
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
@@ -450,6 +458,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         name_span: modifier.name.last().span,
                         id,
                         args,
+                        qualified: modifier.name.get_ident().is_none(),
                     });
                 }
                 self.arena.alloc_smallvec(modifiers)
@@ -621,6 +630,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     name_span: ast_base.name.last().span,
                     id: base_id.into(),
                     args: self.lower_call_args(&ast_base.arguments),
+                    qualified: ast_base.name.get_ident().is_none(),
                 }
             }),
         );
@@ -1991,8 +2001,13 @@ impl<'gcx> ResolveContext<'gcx> {
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
             ast::TypeKind::Function(f) => {
-                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
+                // Invalid visibilities are reported below; lower them as internal.
+                let visibility = if f.visibility() == Some(ast::Visibility::External) {
+                    ast::Visibility::External
+                } else {
+                    ast::Visibility::Internal
+                };
+                let function = hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
                         self.function_id.map(hir::ItemId::Function),
@@ -2005,9 +2020,24 @@ impl<'gcx> ResolveContext<'gcx> {
                         self.function_id.map(hir::ItemId::Function),
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
-                }))
+                };
+                match f.visibility {
+                    Some(vis)
+                        if matches!(*vis, ast::Visibility::Private | ast::Visibility::Public) =>
+                    {
+                        hir::TypeKind::Err(
+                            self.dcx()
+                                .err("invalid visibility, can only be `external` or `internal`")
+                                .code(error_code!(6012))
+                                .span(vis.span)
+                                .emit(),
+                        )
+                    }
+                    _ => hir::TypeKind::Function(self.arena.alloc(function)),
+                }
             }
             ast::TypeKind::Mapping(mapping) => {
+                self.check_mapping_names(ty.span, mapping);
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
                     key_name: mapping.key_name,
@@ -2025,6 +2055,32 @@ impl<'gcx> ResolveContext<'gcx> {
             },
         };
         hir::Type { kind, span: ty.span }
+    }
+
+    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
+    /// innermost mapping reuses as its value name.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
+    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
+        let Some(key_name) = mapping.key_name else { return };
+        let check = |name: Option<Ident>| {
+            if let Some(name) = name
+                && name == key_name
+            {
+                self.dcx()
+                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
+                    .code(error_code!(1809))
+                    .span(span)
+                    .span_note(name.span, "the name is reused here")
+                    .emit();
+            }
+        };
+        let mut inner = mapping;
+        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
+            check(child.key_name);
+            inner = child;
+        }
+        check(inner.value_name);
     }
 
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {

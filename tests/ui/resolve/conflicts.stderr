@@ -46,7 +46,7 @@ note: previous declaration declared here
 LL │     error Er2(uint);
    ╰╴          ━━━
 
-error: identifier `dup` already declared
+error[2333]: identifier `dup` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │     event dup();
@@ -58,7 +58,7 @@ note: previous declaration declared here
 LL │     function dup() public {}
    ╰╴             ━━━
 
-error: identifier `dup` already declared
+error[2333]: identifier `dup` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │     function dup() public {}
@@ -70,7 +70,7 @@ note: previous declaration declared here
 LL │     event dup();
    ╰╴          ━━━
 
-error: identifier `x` already declared
+error[2333]: identifier `x` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │     event x();
@@ -82,7 +82,7 @@ note: previous declaration declared here
 LL │     uint x;
    ╰╴         ━
 
-error: identifier `y` already declared
+error[2333]: identifier `y` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │     event y();
