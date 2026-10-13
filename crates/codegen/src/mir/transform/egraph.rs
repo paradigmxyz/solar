@@ -215,7 +215,7 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
             match &func.inst(inst).kind {
                 InstKind::MappingSlotBytes(key, _) => {
                     if !matches!(func.value(*key), Value::Arg(index)
-                        if func.params[*index] == MirType::MemPtr
+                        if func.params[*index] == MirType::MEMPTR
                             && abi_params.types.get(index.index()) == Some(&AbiParamType::Bytes))
                     {
                         return false;

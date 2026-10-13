@@ -193,7 +193,7 @@ fn slice_values_are_pairs(module: &Module) -> bool {
                 let Value::Inst(id) = *func.value(value) else { return true };
                 match &func.inst(id).kind {
                     InstKind::MakeSlice { location: actual, .. } => *actual == location,
-                    InstKind::MemorySlice(_) => location == crate::mir::SliceLocation::Memory,
+                    InstKind::MemorySlice(_) => location == crate::mir::PtrLocation::Memory,
                     InstKind::FrameLoad { kind, .. } => kind.result_type() == ty,
                     InstKind::AbiEncode { mode, .. } => mode.result_type() == ty,
                     InstKind::ExtractValue { ty: aggregate, index, .. } => {
@@ -283,7 +283,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             // slice -> slice_ptr(slice), slice_len(slice)
                             vec![builder.slice_ptr(value), builder.slice_len(value)]
                         } else if layouts.types[ty].fields[index as usize] == MirType::I256
-                            && matches!(builder.func().value_ty(value), Some(MirType::MemPtr))
+                            && matches!(builder.func().value_ty(value), Some(MirType::MEMPTR))
                         {
                             // raw field = ptrtoint object to i256
                             vec![builder.cast_word(value)]

@@ -349,7 +349,7 @@ fn param_bounds(
     let mut bounds = FxHashMap::default();
     for (id, func) in module.functions.iter_enumerated() {
         for (index, &ty) in func.params.iter_enumerated() {
-            if ty != MirType::MemPtr {
+            if ty != MirType::MEMPTR {
                 continue;
             }
             let entry = if !externally_callable(func) {

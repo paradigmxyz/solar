@@ -1090,7 +1090,7 @@ impl LoopOptimizer {
                     | InstKind::ReturnDataCopy(addr, _, _)
                     | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),
                     InstKind::MappingSlotBytes(key, _)
-                        if func.value_ty(*key) == Some(MirType::MemPtr) =>
+                        if func.value_ty(*key) == Some(MirType::MEMPTR) =>
                     {
                         address_operands.push(*key);
                     }

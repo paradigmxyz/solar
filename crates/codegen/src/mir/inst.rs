@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MemoryObjectLayout, MirType, SliceLocation, Value, ValueId};
+use super::{Function, InstKind, MemoryObjectLayout, MirType, PtrLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -630,8 +630,8 @@ impl AbiEncodeMode {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
-            Self::Bytes => MirType::MemPtr,
+            Self::Slice | Self::Scratch => MirType::Slice(PtrLocation::Memory),
+            Self::Bytes => MirType::MEMPTR,
         }
     }
 }
@@ -641,7 +641,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw | Self::Object(_) => MirType::MemPtr,
+            Self::Raw | Self::Object(_) => MirType::MEMPTR,
         }
     }
 }
@@ -1003,7 +1003,7 @@ impl InstKind {
             Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
-            Self::MemorySlice(_) => result == Some(MirType::Slice(SliceLocation::Memory)),
+            Self::MemorySlice(_) => result == Some(MirType::Slice(PtrLocation::Memory)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
             Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
             Self::Phi(_) => {

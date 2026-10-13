@@ -75,7 +75,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let base = self.builder.slice_ptr(object);
             return if self.is_dynamic_bytes_type(receiver_ty) {
                 // value = byte(0, load_word(slice, index))
-                if location == SliceLocation::Returndata {
+                if location == PtrLocation::Returndata {
                     return self.cx.report_unsupported(expr.span, "returndata index");
                 }
                 let word = self.builder.slice_load_word(object, index);
@@ -87,7 +87,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
                         // head = slice.data + index * element_head_size
                         // value = decode_calldata_element(head, slice.data)
-                        if location != SliceLocation::Calldata {
+                        if location != PtrLocation::Calldata {
                             return self
                                 .cx
                                 .report_unsupported(expr.span, "memory array slice index");
@@ -166,14 +166,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if layout != MemoryObjectLayout::Bytes {
                     return self.cx.report_unsupported(expr.span, "slice");
                 }
-                (self.builder.memory_slice(value), SliceLocation::Memory)
+                (self.builder.memory_slice(value), PtrLocation::Memory)
             }
         };
         let is_bytes = self.is_dynamic_bytes_type(receiver_ty);
         let element_stride = if is_bytes {
             1
         } else if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_))
-            || location != SliceLocation::Calldata
+            || location != PtrLocation::Calldata
         {
             return self.cx.report_unsupported(expr.span, "slice");
         } else {

@@ -8,7 +8,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {
-        if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata) {
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
             return false;
         }
         match ty {
@@ -27,13 +27,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 abi_type,
                 AbiType::DynamicArray {
                     element,
-                    location: SliceLocation::Calldata,
+                    location: PtrLocation::Calldata,
                 } if matches!(element.as_ref(), AbiType::Word(_) | AbiType::Bytes(_))
             )
     }
 
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
-        self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
+        self.builder.func().value_slice_location(value) == Some(PtrLocation::Calldata)
             && !self.dirty_values.contains(&value)
             && self.calldata_aggregate_requires_validation(ty)
     }
@@ -143,12 +143,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_external_abi_argument(value) {
             return;
         }
-        if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
             || !matches!(ty.peel_refs().kind, TyKind::DynArray(_))
         {
             return;
         }
-        let AbiType::DynamicArray { element, location: SliceLocation::Calldata } = abi_type else {
+        let AbiType::DynamicArray { element, location: PtrLocation::Calldata } = abi_type else {
             return;
         };
         let word = self.builder.imm(element.head_size());
@@ -162,8 +162,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_external_abi_argument(value) {
             return;
         }
-        if self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
-            && matches!(abi_type, AbiType::Bytes(SliceLocation::Calldata))
+        if self.builder.func().value_slice_location(value) == Some(PtrLocation::Calldata)
+            && matches!(abi_type, AbiType::Bytes(PtrLocation::Calldata))
         {
             self.validate_calldata_bytes_slice(value);
         }
@@ -217,14 +217,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(value);
         };
         match location {
-            SliceLocation::Calldata => self.materialize_calldata_argument(ty, value, span),
-            SliceLocation::Memory => match ty.peel_refs().kind {
+            PtrLocation::Calldata => self.materialize_calldata_argument(ty, value, span),
+            PtrLocation::Memory => match ty.peel_refs().kind {
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                     Some(self.materialize_memory_slice(value))
                 }
                 _ => self.cx.report_unsupported(span, "memory slice materialization"),
             },
-            SliceLocation::Returndata => {
+            PtrLocation::Returndata => {
                 self.cx.report_unsupported(span, "returndata slice materialization")
             }
         }
@@ -334,7 +334,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<ValueId> {
         if ty.is_ref_at(DataLocation::Calldata)
-            && self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
+            && self.builder.func().value_slice_location(value) == Some(PtrLocation::Calldata)
         {
             Some(value)
         } else {
@@ -349,10 +349,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn memory_abi_type(ty: AbiType) -> AbiType {
-        Self::abi_type_at_location(ty, SliceLocation::Memory)
+        Self::abi_type_at_location(ty, PtrLocation::Memory)
     }
 
-    fn abi_type_at_location(ty: AbiType, location: SliceLocation) -> AbiType {
+    fn abi_type_at_location(ty: AbiType, location: PtrLocation) -> AbiType {
         match ty {
             AbiType::Word(cleanup) => AbiType::Word(cleanup),
             AbiType::Function => AbiType::Function,
@@ -386,7 +386,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         } else if matches!(
             self.builder.func().value_ty(value),
-            Some(MirType::MemPtr) | Some(MirType::Slice(SliceLocation::Memory))
+            Some(MirType::MEMPTR) | Some(MirType::Slice(PtrLocation::Memory))
         ) || (matches!(ty, AbiType::Bytes(_) | AbiType::DynamicArray { .. })
             && self.builder.func().value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT))
             || self.builder.func().fixed_view_load(value)
@@ -470,7 +470,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         self.builder.set_memory_len(object, length);
-        let source = self.builder.make_slice(data, byte_length, SliceLocation::Calldata);
+        let source = self.builder.make_slice(data, byte_length, PtrLocation::Calldata);
         self.builder.memory_copy_from_slice(object, source);
         object
     }
@@ -532,7 +532,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value_pos =
                 self.calldata_value_position(base_ty, head, tuple_base, validate_bounds)?;
             let length = self.builder.imm(u64::try_from(length).ok()?);
-            return Some(self.builder.make_slice(value_pos, length, SliceLocation::Calldata));
+            return Some(self.builder.make_slice(value_pos, length, PtrLocation::Calldata));
         }
         let decode_ty = if ty.is_ref_at(DataLocation::Calldata)
             && matches!(
@@ -581,7 +581,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.validate_calldata_dynamic_tail(value_pos, length, byte_stride);
                 }
                 let data = self.builder.add(value_pos, word);
-                Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
+                Some(self.builder.make_slice(data, length, PtrLocation::Calldata))
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // value = materialize_calldata_bytes(position)
@@ -597,7 +597,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
                     }
                     let data = self.builder.add(value_pos, word);
-                    return Some(self.builder.make_slice(data, length, SliceLocation::Calldata));
+                    return Some(self.builder.make_slice(data, length, PtrLocation::Calldata));
                 }
                 // value = materialize_calldata_array(position)
                 let length = self.builder.calldataload(value_pos);
@@ -626,11 +626,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if is_calldata {
                     // value = calldata_slice(position, length)
                     let length = self.builder.imm(length);
-                    return Some(self.builder.make_slice(
-                        value_pos,
-                        length,
-                        SliceLocation::Calldata,
-                    ));
+                    return Some(self.builder.make_slice(value_pos, length, PtrLocation::Calldata));
                 }
                 // value = materialize_calldata_fixed_array(position)
                 self.materialize_calldata_fixed_array(
@@ -651,7 +647,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.make_slice(
                         value_pos,
                         head_size,
-                        SliceLocation::Calldata,
+                        PtrLocation::Calldata,
                     ));
                 }
                 // value = materialize_calldata_struct(position)
@@ -803,7 +799,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.validate_calldata_dynamic_tail(position, length, byte_stride);
         }
         let data = self.builder.add(position, word);
-        let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
+        let slice = self.builder.make_slice(data, length, PtrLocation::Calldata);
         self.materialize_memory_slice(slice)
     }
 
@@ -856,7 +852,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let byte_length = self.builder.imm(byte_length);
             // copy(calldata(base, byte_length), object)
-            let source = self.builder.make_slice(base, byte_length, SliceLocation::Calldata);
+            let source = self.builder.make_slice(base, byte_length, PtrLocation::Calldata);
             self.builder.memory_copy_to_object(object, source);
             return Some(object);
         }

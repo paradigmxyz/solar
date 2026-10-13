@@ -601,7 +601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let validated_static =
                             self.validate_calldata_static_argument(value, parameter_ty);
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
-                            == Some(SliceLocation::Calldata)
+                            == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
                         if (calldata_dynamic
                             || self.needs_calldata_materialization(value, &abi_type))
@@ -754,7 +754,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;
         }
-        if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
+        if matches!(self.builder.func().value_ty(value), Some(MirType::MEMPTR)) {
             let zero = self.builder.imm(0);
             let view = self.builder.memory_slice(value);
             return self.builder.slice_load_word(view, zero);

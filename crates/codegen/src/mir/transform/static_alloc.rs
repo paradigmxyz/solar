@@ -21,7 +21,7 @@
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module,
-    SliceLocation, Terminator, Value, ValueId,
+    PtrLocation, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -351,9 +351,7 @@ fn candidate_uses_are_safe(
                     continue;
                 }
                 // A view of a fixed array or struct starts at its address.
-                InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. }
-                    if ptr == value =>
-                {
+                InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } if ptr == value => {
                     derived.get(&value).copied()
                 }
                 _ => continue,

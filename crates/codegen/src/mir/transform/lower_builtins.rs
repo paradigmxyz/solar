@@ -13,7 +13,7 @@
 
 use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, Module, PanicCode, SliceLocation, ValueId,
+    MemoryObjectKind, MemoryObjectLayout, Module, PanicCode, PtrLocation, ValueId,
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -344,7 +344,7 @@ fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> Value
     let length = if evm.supports_returndata() { builder.returndatasize() } else { builder.imm(0) };
     let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
     let zero = builder.imm(0);
-    let source = builder.make_slice(zero, length, SliceLocation::Returndata);
+    let source = builder.make_slice(zero, length, PtrLocation::Returndata);
     builder.memory_copy_from_slice(object, source);
     object
 }
@@ -378,7 +378,7 @@ fn lower_hash(
     let output_size = builder.imm(32);
     precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
     let zero = builder.imm(0);
-    let output = builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
+    let output = builder.make_slice(output_ptr, output_len, PtrLocation::Memory);
     let value = builder.slice_load_word(output, zero);
     if ripemd {
         // result = result << 96
@@ -420,7 +420,7 @@ fn lower_ecrecover(
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
     precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    let slice = builder.make_slice(output, output_size, SliceLocation::Memory);
+    let slice = builder.make_slice(output, output_size, PtrLocation::Memory);
     let zero = builder.imm(0);
     builder.slice_load_word(slice, zero)
 }

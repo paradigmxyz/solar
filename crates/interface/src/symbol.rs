@@ -1207,6 +1207,7 @@ symbols! {
         returndata,
         returndata_array,
         returndata_bytes,
+        returndataptr,
         returndataslice,
         revert_error,
         revert_if,

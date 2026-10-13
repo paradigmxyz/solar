@@ -4,7 +4,7 @@ use super::{
     AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, FrameMode, FrameSlotKind,
     Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
     InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
-    RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
+    PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId, Terminator,
     Value, ValueId,
 };
 use crate::{
@@ -857,7 +857,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Reads a dynamic memory object's header into a view of its payload.
     pub(crate) fn memory_slice(&mut self, object: ValueId) -> ValueId {
         // view = memory_slice object
-        self.emit_inst(InstKind::MemorySlice(object), Some(MirType::Slice(SliceLocation::Memory)))
+        self.emit_inst(InstKind::MemorySlice(object), Some(MirType::Slice(PtrLocation::Memory)))
     }
 
     /// Returns a slice view of a dynamic value: slices as they are, memory objects through
@@ -906,7 +906,7 @@ impl<'a> FunctionBuilder<'a> {
         let source = self.slice_ptr(view);
         let len = self.slice_len(view);
         let data = match self.func.value_slice_location(view) {
-            Some(location @ (SliceLocation::Calldata | SliceLocation::Returndata)) => {
+            Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
                 // data = fmp
                 // copy_slice_data data, source, len
                 let data = self.fmp();
@@ -932,7 +932,7 @@ impl<'a> FunctionBuilder<'a> {
         let Some(words) = layout.fixed_words() else { return self.memory_slice(object) };
         // view = make_memory_slice object, words
         let len = self.imm(words);
-        let location = SliceLocation::Memory;
+        let location = PtrLocation::Memory;
         self.emit_inst(
             InstKind::MakeSlice { ptr: object, len, location },
             Some(MirType::Slice(location)),
@@ -1001,7 +1001,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Loads the word at a byte offset as a `memptr` when `ty` is one, and as a word otherwise.
     fn slice_load_word_as(&mut self, slice: ValueId, offset: ValueId, ty: MirType) -> ValueId {
-        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
+        let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
         // result = slice_load_word slice, offset
         self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(result))
     }
@@ -1051,7 +1051,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Loads one word at a byte offset from a memory or calldata slice. Calldata cannot change,
     /// so a calldata slice reads its word directly.
     pub(crate) fn slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
-        if self.func.value_slice_location(slice) == Some(SliceLocation::Calldata) {
+        if self.func.value_slice_location(slice) == Some(PtrLocation::Calldata) {
             // word = calldataload (add (slice_ptr slice), offset)
             let data = self.slice_ptr(slice);
             let address = self.add(data, offset);
@@ -1072,7 +1072,7 @@ impl<'a> FunctionBuilder<'a> {
         // slice_copy destination, 0, source
         let ptr = self.cast(object, MirType::I256);
         let len = self.slice_len(source);
-        let destination = self.make_slice(ptr, len, SliceLocation::Memory);
+        let destination = self.make_slice(ptr, len, PtrLocation::Memory);
         let offset = self.imm(0);
         self.emit_void_inst(InstKind::SliceCopy { destination, offset, source });
     }
@@ -1092,7 +1092,7 @@ impl<'a> FunctionBuilder<'a> {
         } else {
             let data = self.memory_data(object);
             let len = self.slice_len(source);
-            self.make_slice(data, len, SliceLocation::Memory)
+            self.make_slice(data, len, PtrLocation::Memory)
         };
         self.emit_void_inst(InstKind::SliceCopy { destination, offset, source });
     }
@@ -1319,7 +1319,7 @@ impl<'a> FunctionBuilder<'a> {
         &mut self,
         ptr: ValueId,
         len: ValueId,
-        location: SliceLocation,
+        location: PtrLocation,
     ) -> ValueId {
         // raw_pointer = ptrtoint pointer to i256
         // slice = make_slice raw_pointer, length
@@ -1399,17 +1399,17 @@ impl<'a> FunctionBuilder<'a> {
     /// Copies bytes from a logical slice's address space into memory.
     pub(crate) fn copy_slice_data(
         &mut self,
-        location: SliceLocation,
+        location: PtrLocation,
         dest: ValueId,
         source: ValueId,
         size: ValueId,
     ) {
         match location {
-            SliceLocation::Memory => {
+            PtrLocation::Memory => {
                 self.mcopy_heap(dest, source, size);
             }
-            SliceLocation::Calldata => self.calldatacopy_heap(dest, source, size),
-            SliceLocation::Returndata => self.returndatacopy_heap(dest, source, size),
+            PtrLocation::Calldata => self.calldatacopy_heap(dest, source, size),
+            PtrLocation::Returndata => self.returndatacopy_heap(dest, source, size),
         }
     }
 
@@ -1457,7 +1457,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits an address inside the current internal-call frame.
     pub(crate) fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
-        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
+        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MEMPTR))
     }
 
     /// Loads a mutable local through its logical frame slot.
@@ -1506,7 +1506,7 @@ impl<'a> FunctionBuilder<'a> {
         // object = returndata_bytes
         self.emit_inst(
             InstKind::builtin(crate::mir::Builtin::ReturndataBytes, []),
-            Some(MirType::MemPtr),
+            Some(MirType::MEMPTR),
         )
     }
 

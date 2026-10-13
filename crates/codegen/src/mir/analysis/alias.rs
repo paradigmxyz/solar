@@ -10,7 +10,7 @@
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
     AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
-    ImmutableId, InstId, InstKind, MemoryRegion, MirType, RequireKind, SliceLocation, StorageAlias,
+    ImmutableId, InstId, InstKind, MemoryRegion, MirType, PtrLocation, RequireKind, StorageAlias,
     Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use smallvec::SmallVec;
@@ -642,7 +642,7 @@ impl AliasAnalysis {
         slice: ValueId,
         offset: Option<u64>,
     ) -> Option<MemoryLocation> {
-        if func.value_ty(slice) != Some(crate::mir::MirType::Slice(SliceLocation::Memory)) {
+        if func.value_ty(slice) != Some(crate::mir::MirType::Slice(PtrLocation::Memory)) {
             return None;
         }
         let mut address = self.slice_pointer_address(func, slice, 0)?;
@@ -1025,7 +1025,7 @@ impl AliasAnalysis {
         // A memory slice built in this function reads exactly `[ptr, ptr + len)`; other
         // locations read no memory.
         let read_memory_slice = |effects: &mut ModRef, slice| {
-            if func.value_slice_location(slice) != Some(SliceLocation::Memory) {
+            if func.value_slice_location(slice) != Some(PtrLocation::Memory) {
                 return;
             }
             if let Value::Inst(inst) = func.value(resolve(slice))
@@ -1077,7 +1077,7 @@ impl AliasAnalysis {
             }
             // Calldata slices read no memory.
             InstKind::SliceLoadByte { slice, .. } | InstKind::SliceLoadWord { slice, .. }
-                if func.value_slice_location(slice) == Some(SliceLocation::Memory) =>
+                if func.value_slice_location(slice) == Some(PtrLocation::Memory) =>
             {
                 let offset = match kind {
                     InstKind::SliceLoadWord { offset, .. } => func.value_u64(*offset),
@@ -1266,7 +1266,7 @@ impl AliasAnalysis {
                 read_memory(&mut effects, address, SizeOperand::Value(size));
             }
             InstKind::MappingSlotBytes(key, _) => {
-                if func.value_ty(key) == Some(MirType::MemPtr) {
+                if func.value_ty(key) == Some(MirType::MEMPTR) {
                     read_memory(&mut effects, key, SizeOperand::Unknown);
                 }
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
@@ -1721,10 +1721,10 @@ impl AliasAnalysis {
                 .memory_address_with_depth(func, *object, depth + 1)?
                 .checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE),
             InstKind::MakeSlice { ptr, location, .. } => match location {
-                SliceLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
+                PtrLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
                 // Calldata and returndata pointers index their own address
                 // spaces, not memory, so they carry no memory provenance.
-                SliceLocation::Calldata | SliceLocation::Returndata => None,
+                PtrLocation::Calldata | PtrLocation::Returndata => None,
             },
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
                 Some(if self.allocation_is_dynamic(func, *inst_id) {
@@ -1815,12 +1815,12 @@ impl AliasAnalysis {
                 match &func.inst(*slice_inst).kind {
                     InstKind::MemorySlice(object) => self.pointer_region(func, *object, depth + 1),
                     // A fixed array or struct view starts at its object.
-                    InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. }
-                        if func.value_ty(*ptr) == Some(MirType::MemPtr) =>
+                    InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. }
+                        if func.value_ty(*ptr) == Some(MirType::MEMPTR) =>
                     {
                         self.pointer_region(func, *ptr, depth + 1)
                     }
-                    InstKind::MakeSlice { location: SliceLocation::Memory, .. }
+                    InstKind::MakeSlice { location: PtrLocation::Memory, .. }
                     | InstKind::AbiEncode { .. } => MemoryRegion::Heap,
                     _ => MemoryRegion::Unknown,
                 }
@@ -1996,7 +1996,7 @@ impl AliasAnalysis {
                         Self::pointer_lower_bound(func, *object, depth + 1)?
                             .checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
                     }
-                    InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
+                    InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => {
                         Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
                     InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
@@ -2043,13 +2043,13 @@ impl AliasAnalysis {
             // memory (returndata does not occur as an ABI type in practice).
             AbiType::Word(_)
             | AbiType::Function
-            | AbiType::Bytes(SliceLocation::Calldata | SliceLocation::Returndata)
+            | AbiType::Bytes(PtrLocation::Calldata | PtrLocation::Returndata)
             | AbiType::DynamicArray {
-                location: SliceLocation::Calldata | SliceLocation::Returndata,
+                location: PtrLocation::Calldata | PtrLocation::Returndata,
                 ..
             } => false,
-            AbiType::Bytes(SliceLocation::Memory)
-            | AbiType::DynamicArray { location: SliceLocation::Memory, .. }
+            AbiType::Bytes(PtrLocation::Memory)
+            | AbiType::DynamicArray { location: PtrLocation::Memory, .. }
             | AbiType::FixedArray { .. }
             | AbiType::Tuple(_) => true,
         }

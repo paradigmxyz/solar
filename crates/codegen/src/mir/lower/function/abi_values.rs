@@ -46,7 +46,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 let value = this.lower_typed_expr(expr, memory_ty)?;
                 let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
-                    AbiType::Bytes(SliceLocation::Memory)
+                    AbiType::Bytes(PtrLocation::Memory)
                 } else {
                     this.types.abi_type(ty)?
                 };
@@ -251,7 +251,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, AbiParamLayout)> {
         // `abi_decode` reads a memory slice in place.
         let data = match self.builder.func().value_ty(data) {
-            Some(MirType::Slice(SliceLocation::Calldata | SliceLocation::Returndata)) => {
+            Some(MirType::Slice(PtrLocation::Calldata | PtrLocation::Returndata)) => {
                 self.materialize_memory_slice(data)
             }
             _ => data,
@@ -328,11 +328,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let four = self.builder.imm(4);
         let payload_ptr = self.builder.memory_data_at(data, 4);
         let payload_len = self.builder.sub(data_len, four);
-        let payload = self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
+        let payload = self.builder.make_slice(payload_ptr, payload_len, PtrLocation::Memory);
         let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
             vec![AbiParamType::Bytes].into_boxed_slice(),
         ));
-        Some(self.builder.abi_decode(layout, payload, MirType::MemPtr))
+        Some(self.builder.abi_decode(layout, payload, MirType::MEMPTR))
     }
 
     /// Checks whether an `Error(string)` payload can be decoded without reverting.
@@ -422,7 +422,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm(U256::ZERO);
         let payload_ptr = self.builder.memory_data_at(data, 4);
         let word_size = self.builder.imm(32);
-        let payload = self.builder.make_slice(payload_ptr, word_size, SliceLocation::Memory);
+        let payload = self.builder.make_slice(payload_ptr, word_size, PtrLocation::Memory);
         self.builder.slice_load_word(payload, zero)
     }
 
@@ -436,7 +436,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // output = abi_encode_packed(parts)
         Some(
             self.builder
-                .emit_inst(InstKind::AbiEncodePacked { parts, hash: false }, Some(MirType::MemPtr)),
+                .emit_inst(InstKind::AbiEncodePacked { parts, hash: false }, Some(MirType::MEMPTR)),
         )
     }
 
@@ -550,8 +550,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let layout = self.types.memory_layout(ty)?;
         let source = match self.builder.func().value_ty(value) {
-            Some(MirType::MemPtr) => PackedArraySource::Memory { layout },
-            Some(MirType::Slice(location @ (SliceLocation::Memory | SliceLocation::Calldata))) => {
+            Some(MirType::MEMPTR) => PackedArraySource::Memory { layout },
+            Some(MirType::Slice(location @ (PtrLocation::Memory | PtrLocation::Calldata))) => {
                 PackedArraySource::Slice(location)
             }
             Some(MirType::I256)
@@ -579,7 +579,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parts: Box::new([PackedPart::Array { value, element, source }]),
                 hash: false,
             },
-            Some(MirType::MemPtr),
+            Some(MirType::MEMPTR),
         ))
     }
 
@@ -593,7 +593,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // copy_inplace_dynamic_value(ty, value, output, 0)
         let nullable_memory = self.builder.func().fixed_view_load(value);
         if !self.inplace_dynamic_shape(ty)
-            || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr))
+            || (!matches!(self.builder.func().value_ty(value), Some(MirType::MEMPTR))
                 && !nullable_memory)
         {
             return None;
@@ -910,7 +910,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // copy(value, output + offset)
         // return_offset = offset + padded_length
         let data = self.builder.memory_data(value);
-        let source = self.builder.make_slice(data, length, SliceLocation::Memory);
+        let source = self.builder.make_slice(data, length, PtrLocation::Memory);
         self.builder.memory_copy_from_slice_at(output, offset, source);
         self.builder.add(offset, padded)
     }

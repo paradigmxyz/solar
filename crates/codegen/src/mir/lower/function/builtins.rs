@@ -435,7 +435,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::MsgData => {
                 let offset = self.builder.imm(0);
                 let length = self.builder.calldatasize();
-                Some(self.builder.make_slice(offset, length, SliceLocation::Calldata))
+                Some(self.builder.make_slice(offset, length, PtrLocation::Calldata))
             }
             Builtin::TxOrigin => Some(self.builder.origin()),
             Builtin::TxGasPrice => Some(self.builder.gasprice()),

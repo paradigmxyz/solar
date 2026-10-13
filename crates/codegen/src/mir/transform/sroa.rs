@@ -15,8 +15,8 @@
 //! Run before memory-object lowering, while element accesses remain explicit.
 
 use crate::mir::{
-    AllocationKind, Function, Immediate, InstKind, MemoryObjectLayout, Module, SliceLocation,
-    Value, ValueId,
+    AllocationKind, Function, Immediate, InstKind, MemoryObjectLayout, Module, PtrLocation, Value,
+    ValueId,
     analysis::{AliasAnalysis, Location, LocationSize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
@@ -131,7 +131,7 @@ impl SroaCx {
                     }
                     continue;
                 }
-                InstKind::MakeSlice { ptr, len, location: SliceLocation::Memory }
+                InstKind::MakeSlice { ptr, len, location: PtrLocation::Memory }
                     if object_aliases.contains(&ptr) && !object_aliases.contains(&len) =>
                 {
                     views.insert(func.inst_result_value(inst_id)?);

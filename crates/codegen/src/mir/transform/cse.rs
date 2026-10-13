@@ -73,7 +73,7 @@
 
 use crate::mir::{
     AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
+    InstId, InstKind, Instruction, MirType, Module, PtrLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -267,7 +267,7 @@ enum ExprKey {
     MappingSlot(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
-    MakeSlice(OperandKey, OperandKey, SliceLocation),
+    MakeSlice(OperandKey, OperandKey, PtrLocation),
     SlicePtr(OperandKey),
     SliceLen(OperandKey),
     SLoad(StorageAlias),

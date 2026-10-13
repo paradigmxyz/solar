@@ -75,7 +75,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
     ) -> Option<ValueId> {
         // value = inttoptr value to memptr
-        let value = self.builder.cast(value, MirType::MemPtr);
+        let value = self.builder.cast(value, MirType::MEMPTR);
         let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
@@ -116,12 +116,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.lazy_helper(helper_name(sym::default_struct, id.index()), |this, function| {
                 let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
                 let object = lowerer.default_object(element)?;
-                lowerer.builder.set_return_type(MirType::MemPtr);
+                lowerer.builder.set_return_type(MirType::MEMPTR);
                 lowerer.builder.ret([object]);
                 Some(())
             })?;
         // object = icall @default_struct_N
-        Some(self.builder.icall(helper, Vec::new(), MirType::MemPtr))
+        Some(self.builder.icall(helper, Vec::new(), MirType::MEMPTR))
     }
 
     pub(super) fn lower_struct_constructor(
@@ -217,10 +217,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
             let length = self.builder.imm(bytes.len() as u64);
-            self.builder.icall(helper, vec![word, length], MirType::MemPtr)
+            self.builder.icall(helper, vec![word, length], MirType::MEMPTR)
         } else if let Some(index) = self.cx.shared_literals.get_index_of(&symbol) {
             let helper = self.ensure_bytes_literal_helper(symbol, index);
-            self.builder.icall(helper, Vec::new(), MirType::MemPtr)
+            self.builder.icall(helper, Vec::new(), MirType::MEMPTR)
         } else {
             self.lower_bytes_literal(bytes)?
         };
@@ -235,7 +235,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new_semantic(function);
             let word = builder.add_param(MirType::I256);
             let length = builder.add_param(MirType::I256);
-            builder.set_return_type(MirType::MemPtr);
+            builder.set_return_type(MirType::MEMPTR);
             let size = builder.imm(64);
             let object = builder.alloc_object(
                 size,
@@ -349,7 +349,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // literal_bytes() -> bytes
         self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            builder.set_return_type(MirType::MemPtr);
+            builder.set_return_type(MirType::MEMPTR);
             let object = Self::build_bytes_literal(
                 this.cx.gcx,
                 this.cx.module,
@@ -371,7 +371,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn default_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
         if ty.is_ref_at(DataLocation::Calldata) {
             let zero = self.builder.imm(U256::ZERO);
-            return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
+            return self.builder.make_slice(zero, zero, PtrLocation::Calldata);
         }
         self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm(U256::ZERO))
     }
@@ -393,7 +393,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // object = ZERO_SLOT
             let value = crate::mir::Immediate::for_type(
-                Some(MirType::MemPtr),
+                Some(MirType::MEMPTR),
                 U256::from(EvmMemoryLayout::ZERO_SLOT),
             );
             return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));

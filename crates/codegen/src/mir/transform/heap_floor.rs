@@ -98,7 +98,7 @@
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
     Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
-    RawMemoryAccess, RawMemorySize, SliceLocation, Terminator, Value, ValueId,
+    PtrLocation, RawMemoryAccess, RawMemorySize, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -419,7 +419,7 @@ fn returns_out_of_module(func: &Function, sites: &[CallSite]) -> bool {
 
 /// Whether a value of type `ty` refers to memory: a memory object or a memory slice.
 fn is_memory_reference(ty: Option<MirType>) -> bool {
-    matches!(ty, Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory)))
+    matches!(ty, Some(MirType::MEMPTR | MirType::Slice(PtrLocation::Memory)))
 }
 
 /// Whether a returned value holds integers alone, which an external function encodes as data.
@@ -564,7 +564,7 @@ fn module_heap_addresses(
             let mut params = DenseBitSet::new_empty(func.arg_indices().count());
             for index in func.arg_indices() {
                 let heap = if func.is_external_entry() {
-                    func.arg_ty(index) == MirType::MemPtr
+                    func.arg_ty(index) == MirType::MEMPTR
                 } else {
                     !call_sites[func_id].is_empty()
                 };
@@ -663,9 +663,9 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::PtrToInt(..)
         | InstKind::MemorySlice(..)
         | InstKind::SlicePtr(..)
-        | InstKind::MakeSlice { location: SliceLocation::Memory, .. } => true,
+        | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
         InstKind::MLoad(address) => is_slot(func, address),
-        _ => instruction.result_ty == Some(MirType::MemPtr),
+        _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }
 
@@ -684,7 +684,7 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
         InstKind::MemorySlice(object)
         | InstKind::SlicePtr(object)
-        | InstKind::MakeSlice { ptr: object, location: SliceLocation::Memory, .. } => {
+        | InstKind::MakeSlice { ptr: object, location: PtrLocation::Memory, .. } => {
             heap.contains(*object)
         }
         _ => true,

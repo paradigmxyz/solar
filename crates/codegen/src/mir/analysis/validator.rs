@@ -41,8 +41,8 @@
 
 use crate::mir::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, ResultKind,
-    SliceLocation, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
+    ResultKind, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1043,7 +1043,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes => Some(MirType::MemPtr),
+                            Builtin::ReturndataBytes => Some(MirType::MEMPTR),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1091,14 +1091,14 @@ impl<'a> Validator<'a> {
                                         }
                                         crate::mir::PackedArraySource::Slice(location) => matches!(
                                             location,
-                                            SliceLocation::Memory | SliceLocation::Calldata
+                                            PtrLocation::Memory | PtrLocation::Calldata
                                         ),
                                     }
                             }
                         });
                         valid_parts
                             && inst.result_ty
-                                == Some(if *hash { MirType::I256 } else { MirType::MemPtr })
+                                == Some(if *hash { MirType::I256 } else { MirType::MEMPTR })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
@@ -1116,9 +1116,9 @@ impl<'a> Validator<'a> {
                             (1..=256).contains(&variants)
                                 && *element
                                     == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
-                        }) && inst.result_ty == Some(MirType::MemPtr)
+                        }) && inst.result_ty == Some(MirType::MEMPTR)
                     }
-                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MemPtr),
+                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
@@ -1448,12 +1448,12 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemPtr if actual == MirType::I256 => {}
+                    MirType::MEMPTR if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
                         let pointer = match location {
-                            SliceLocation::Memory => MirType::I256,
-                            SliceLocation::Calldata => MirType::I256,
-                            SliceLocation::Returndata => MirType::I256,
+                            PtrLocation::Memory => MirType::I256,
+                            PtrLocation::Calldata => MirType::I256,
+                            PtrLocation::Returndata => MirType::I256,
                         };
                         if actual != pointer {
                             return false;
@@ -1477,7 +1477,7 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::MemPtr);
+    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::MEMPTR);
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
         signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))

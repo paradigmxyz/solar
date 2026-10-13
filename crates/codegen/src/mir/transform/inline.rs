@@ -1101,7 +1101,7 @@ fn is_small_literal_return(func: &Function) -> bool {
     if func.attributes.no_inline
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
-        || func.return_components() != [MirType::MemPtr]
+        || func.return_components() != [MirType::MEMPTR]
     {
         return false;
     }
@@ -1194,7 +1194,7 @@ fn summarize_function(
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
         has_reference_return: func.return_components().iter().any(|&ty| match ty {
-            MirType::MemPtr => !objects_lowered,
+            MirType::MEMPTR => !objects_lowered,
             MirType::Slice(_) => true,
             _ => false,
         }),
@@ -1765,7 +1765,7 @@ fn estimate_inst_cost(
             Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
         InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MemPtr) => {
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
             seq(&[
                 op::MLOAD,
                 op::ADD,
@@ -1826,7 +1826,7 @@ fn estimate_inst_cost(
         | InstKind::SlicePtr(_)
         | InstKind::SliceLen(_) => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
-        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MemPtr) => 8,
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
         InstKind::MappingSlotBytes(..) => 9,
         InstKind::StorageArrayElementSlot { .. } => 4,
         InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
@@ -2158,7 +2158,7 @@ fn inline_call_impl(
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if ty == MirType::MemPtr && caller.value_ty(*arg) != Some(ty) {
+        if ty == MirType::MEMPTR && caller.value_ty(*arg) != Some(ty) {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
@@ -2583,7 +2583,7 @@ fn insert_return_buffer_stores(
     };
     let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
-    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemPtr)) {
+    if return_tys.iter().all(|ty| !matches!(*ty, MirType::Slice(_) | MirType::MEMPTR)) {
         forward_inline_return_loads(caller, continuation, consumer_start, values);
     }
     Some(())

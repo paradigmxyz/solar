@@ -50,8 +50,8 @@ use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, Callee,
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
-    MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, RevertReason,
-    SliceLocation, Terminator, Value, ValueId,
+    MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, PtrLocation,
+    RevertReason, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, MemoryBase},
     memory::EvmMemoryLayout,
     pass::MirPass,
@@ -456,7 +456,7 @@ impl LowerAbiCx {
                 let layout = std::sync::Arc::make_mut(&mut layout);
                 for index in calldata_indices {
                     *layout.types.get_mut(index).expect("ABI return shape exists") =
-                        AbiType::Bytes(SliceLocation::Calldata);
+                        AbiType::Bytes(PtrLocation::Calldata);
                 }
             }
             replacements
@@ -531,11 +531,11 @@ impl LowerAbiCx {
                     else {
                         return value;
                     };
-                    if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
+                    if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata))
                         && match &ty {
                             AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
                             AbiParamType::DynamicArray(_) => !layout.types[index]
-                                .accepts_input_type(MirType::Slice(SliceLocation::Calldata)),
+                                .accepts_input_type(MirType::Slice(PtrLocation::Calldata)),
                             _ => false,
                         }
                     {
@@ -761,7 +761,7 @@ impl LowerAbiCx {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
-                if !ty.is_scalar_word() && arg_type == MirType::MemPtr {
+                if !ty.is_scalar_word() && arg_type == MirType::MEMPTR {
                     // `count_dynamic_tuple_types` counts a dynamic tuple itself.
                     if !nested || !decodes_nested(ty) {
                         count_type(&mut counts, ty, 1);
@@ -828,7 +828,7 @@ impl LowerAbiCx {
                         .zip(&func.params)
                         .filter(|(ty, arg_type)| {
                             matches!(ty, AbiParamType::Bytes)
-                                && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
+                                && matches!(arg_type, MirType::Slice(PtrLocation::Calldata))
                         })
                         .count()
                 })
@@ -915,7 +915,7 @@ impl LowerAbiCx {
             let mut builder = self.builder(&mut function);
             let (base, length) = if passes_slice_base(data_ty, &layout) {
                 // The callers check the slice length, so the input is the head alone.
-                let base = builder.add_param(MirType::MemPtr);
+                let base = builder.add_param(MirType::MEMPTR);
                 let head_size = layout.checked_head_size().expect("checked ABI layout");
                 (base, builder.imm(head_size))
             } else {
@@ -1106,13 +1106,13 @@ impl LowerAbiCx {
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 (abi_ty.is_scalar_word()
                     && !matches!(abi_ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                    && param_ty != MirType::MemPtr)
+                    && param_ty != MirType::MEMPTR)
                     || (!abi_ty.is_scalar_word()
-                        && matches!(param_ty, MirType::MemPtr | MirType::Slice(_)))
+                        && matches!(param_ty, MirType::MEMPTR | MirType::Slice(_)))
             })
             && !func.return_components()
                 .iter()
-                .any(|&ty| matches!(ty, MirType::Slice(SliceLocation::Returndata)))
+                .any(|&ty| matches!(ty, MirType::Slice(PtrLocation::Returndata)))
             && (func.return_components().len() <= 1
                 || func.return_components().iter().all(|&ty| !matches!(ty, MirType::Slice(_))))
             && func.blocks.iter().all(|block| {
@@ -1185,11 +1185,11 @@ impl LowerAbiCx {
             let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
             for index in 1..return_types.len() {
                 let value = match return_types[index] {
-                    MirType::MemPtr => builder.memory_load_field_as(
+                    MirType::MEMPTR => builder.memory_load_field_as(
                         base,
                         MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
                         index as u64,
-                        MirType::MemPtr,
+                        MirType::MEMPTR,
                     ),
                     _ => {
                         let position = builder.add_u64_offset(
@@ -1233,7 +1233,7 @@ impl LowerAbiCx {
             let mut builder = FunctionBuilder::new(&mut wrapper);
             let zero = builder.imm(0);
             let length = builder.calldatasize();
-            let input = builder.make_slice(zero, length, SliceLocation::Calldata);
+            let input = builder.make_slice(zero, length, PtrLocation::Calldata);
             builder.icall_void(body_id, vec![input]);
             builder.invalid();
         }
@@ -1249,7 +1249,7 @@ impl LowerAbiCx {
                 continue;
             };
             let Some(&value) = values.first() else { return false };
-            if values.len() != 1 || func.value_ty(value) != Some(MirType::MemPtr) {
+            if values.len() != 1 || func.value_ty(value) != Some(MirType::MEMPTR) {
                 return false;
             }
             let mut builder = FunctionBuilder::new(func);
@@ -1397,7 +1397,7 @@ impl LowerAbiCx {
                     if ty.is_scalar_word()
                         || !arg_types
                             .get(index)
-                            .is_some_and(|ty| matches!(ty, MirType::MemPtr | MirType::Slice(_)))
+                            .is_some_and(|ty| matches!(*ty, MirType::MEMPTR | MirType::Slice(_)))
                     {
                         head_offset += head_size;
                         continue;
@@ -1421,14 +1421,14 @@ impl LowerAbiCx {
                         && location == AbiParamLocation::Calldata
                         && self.can_use_calldata_slice(builder.func(), uses, ty, arg_type)
                     {
-                        MirType::Slice(SliceLocation::Calldata)
+                        MirType::Slice(PtrLocation::Calldata)
                     } else {
                         arg_type
                     };
                     let validate_array_elements = constructor
                         || (location == AbiParamLocation::Memory
                             && Self::requires_calldata_element_validation(ty))
-                        || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
+                        || !matches!(decode_type, MirType::Slice(PtrLocation::Calldata))
                         || self.needs_full_calldata_array_validation(builder.func(), uses, ty);
                     let helpers = &self.aggregate_type_helpers;
                     let decode_options = DecodeOptions {
@@ -1450,7 +1450,7 @@ impl LowerAbiCx {
                             );
                         } else if location == AbiParamLocation::Memory {
                             if !constructor
-                                && arg_type == MirType::MemPtr
+                                && arg_type == MirType::MEMPTR
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
                                 // value = icall @decode_calldata_type, head[, tuple_base]
@@ -1473,7 +1473,7 @@ impl LowerAbiCx {
                     } else {
                         let value = if !constructor
                             && decode_type == arg_type
-                            && arg_type == MirType::MemPtr
+                            && arg_type == MirType::MEMPTR
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
                             // value = icall @decode_calldata_type, head[, tuple_base]
@@ -1481,14 +1481,14 @@ impl LowerAbiCx {
                             builder.icall(helper, args, arg_type)
                         } else if !constructor
                             && decode_type == arg_type
-                            && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
+                            && matches!(arg_type, MirType::Slice(PtrLocation::Calldata))
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(helper) = self.calldata_slice_helper
                         {
                             let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.calldataload(base);
                             let data = builder.add_u64_offset(base, 32);
-                            builder.make_slice(data, len, SliceLocation::Calldata)
+                            builder.make_slice(data, len, PtrLocation::Calldata)
                         } else {
                             Self::decode_aggregate_argument(
                                 &mut builder,
@@ -1504,7 +1504,7 @@ impl LowerAbiCx {
                             )
                         };
                         logical_values[index] = Some(value);
-                        if matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
+                        if matches!(decode_type, MirType::Slice(PtrLocation::Calldata))
                             && Self::is_scalar_array(ty)
                         {
                             slice_values_to_retag.push(value);
@@ -1673,7 +1673,7 @@ impl LowerAbiCx {
         }
         let source = source?;
         (stores != 0
-            && matches!(func.value_ty(source), Some(MirType::Slice(SliceLocation::Calldata))))
+            && matches!(func.value_ty(source), Some(MirType::Slice(PtrLocation::Calldata))))
         .then_some(source)
     }
 
@@ -1755,9 +1755,8 @@ impl LowerAbiCx {
         } = options;
         builder.switch_to_block(*current);
         let is_dynamic = ty.is_dynamic();
-        let location = if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
-        let to_calldata =
-            !constructor && matches!(arg_type, MirType::Slice(SliceLocation::Calldata));
+        let location = if constructor { PtrLocation::Memory } else { PtrLocation::Calldata };
+        let to_calldata = !constructor && matches!(arg_type, MirType::Slice(PtrLocation::Calldata));
         // The shared helper checks the value's head offset with the tuple reason, so a struct
         // member decodes inline when reasons are encoded. A calldata helper decodes a fresh,
         // fully validated memory struct.
@@ -1784,7 +1783,7 @@ impl LowerAbiCx {
         }
         if !constructor
             && matches!(ty, crate::mir::AbiParamType::Bytes)
-            && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
+            && matches!(arg_type, MirType::Slice(PtrLocation::Calldata))
         {
             let (_, data, len) = Self::decode_calldata_bytes_slice_values(
                 builder,
@@ -1795,7 +1794,7 @@ impl LowerAbiCx {
                 head_checked,
                 options.offset_reason,
             );
-            return builder.make_slice(data, len, SliceLocation::Calldata);
+            return builder.make_slice(data, len, PtrLocation::Calldata);
         }
         let base = if is_dynamic {
             if !head_checked {
@@ -1823,7 +1822,7 @@ impl LowerAbiCx {
             head
         };
         if !is_dynamic
-            && arg_type == MirType::MemPtr
+            && arg_type == MirType::MEMPTR
             && !constructor
             && !allow_alias
             && matches!(
@@ -1859,14 +1858,14 @@ impl LowerAbiCx {
                     let reason = Self::aggregate_short_reason(ty, to_calldata);
                     Self::guard_input_range(builder, base, head_size, input_end, current, reason);
                 }
-                if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
+                if matches!(arg_type, MirType::Slice(PtrLocation::Calldata)) {
                     let length = builder.imm(*len);
                     if validate_array_elements && Self::is_scalar_array(ty) {
                         Self::validate_scalar_array(
                             builder, base, element, length, current, options,
                         );
                     }
-                    return builder.make_slice(base, length, SliceLocation::Calldata);
+                    return builder.make_slice(base, length, PtrLocation::Calldata);
                 }
                 if constructor && allow_alias && Self::is_scalar_or_enum(element) {
                     let length = builder.imm(*len);
@@ -1980,7 +1979,7 @@ impl LowerAbiCx {
                 Self::validate_scalar_array(builder, data, element, len, current, options);
                 base
             }
-            crate::mir::AbiParamType::DynamicArray(element) if arg_type == MirType::MemPtr => {
+            crate::mir::AbiParamType::DynamicArray(element) if arg_type == MirType::MEMPTR => {
                 let checked_decode = constructor && !allow_alias;
                 let len = Self::load_input_word(builder, base, constructor);
                 let data_base = builder.add_u64_offset(base, 32);
@@ -2022,7 +2021,7 @@ impl LowerAbiCx {
                 );
                 if copy_validated {
                     Self::validate_scalar_array(builder, data_base, element, len, current, options);
-                    let source = builder.make_slice(data_base, bytes, SliceLocation::Calldata);
+                    let source = builder.make_slice(data_base, bytes, PtrLocation::Calldata);
                     builder.memory_copy_from_slice(ptr, source);
                     return ptr;
                 }
@@ -2098,14 +2097,14 @@ impl LowerAbiCx {
                         reason,
                     );
                 }
-                if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
+                if matches!(arg_type, MirType::Slice(PtrLocation::Calldata)) {
                     let length = builder
                         .imm(ty.checked_head_size().expect("ABI head size exceeds u64 range"));
-                    return builder.make_slice(base, length, SliceLocation::Calldata);
+                    return builder.make_slice(base, length, PtrLocation::Calldata);
                 }
                 if constructor
                     && allow_alias
-                    && arg_type == MirType::MemPtr
+                    && arg_type == MirType::MEMPTR
                     && fields.iter().all(Self::is_scalar_or_enum)
                 {
                     let mut offset = 0;
@@ -2439,7 +2438,7 @@ impl LowerAbiCx {
             let byte_length = builder.imm(
                 len.checked_mul(EvmMemoryLayout::WORD_SIZE).expect("checked static ABI array size"),
             );
-            let source = builder.make_slice(head, byte_length, SliceLocation::Calldata);
+            let source = builder.make_slice(head, byte_length, PtrLocation::Calldata);
             builder.memory_copy_to_object(object, source);
             return object;
         }
@@ -2715,7 +2714,7 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         arg_type: MirType,
     ) -> bool {
-        if arg_type != MirType::MemPtr || !Self::can_encode_calldata_slice(ty) {
+        if arg_type != MirType::MEMPTR || !Self::can_encode_calldata_slice(ty) {
             return false;
         }
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
@@ -2792,7 +2791,7 @@ impl LowerAbiCx {
                         && (uses.contains(value)
                             || matches!(
                                 func.value_ty(*value),
-                                Some(MirType::MemPtr | MirType::Slice(_))
+                                Some(MirType::MEMPTR | MirType::Slice(_))
                             )) =>
                 {
                     (true, false)
@@ -2825,7 +2824,7 @@ impl LowerAbiCx {
                                 self.function_params
                                     .get(*function)
                                     .and_then(|params| params.get(index)),
-                                Some(MirType::Slice(SliceLocation::Calldata))
+                                Some(MirType::Slice(PtrLocation::Calldata))
                             )
                     }) =>
                 {
@@ -2913,7 +2912,7 @@ impl LowerAbiCx {
                 if !compatible {
                     continue;
                 }
-                func.inst_mut(inst_id).result_ty = Some(MirType::Slice(SliceLocation::Calldata));
+                func.inst_mut(inst_id).result_ty = Some(MirType::Slice(PtrLocation::Calldata));
                 tainted.insert(result);
                 changed = true;
             }
@@ -2931,7 +2930,7 @@ impl LowerAbiCx {
             // view = memory_slice calldata_slice -> calldata_slice
             // view = make_memory_slice calldata_slice, len -> calldata_slice
             if let InstKind::MemorySlice(object)
-            | InstKind::MakeSlice { ptr: object, location: SliceLocation::Memory, .. } =
+            | InstKind::MakeSlice { ptr: object, location: PtrLocation::Memory, .. } =
                 func.inst(inst).kind
                 && matches!(func.value_ty(object), Some(MirType::Slice(_)))
                 && let Some(result) = func.inst_result_value(inst)
@@ -3019,7 +3018,7 @@ impl LowerAbiCx {
                     let preserves_calldata = args.iter().enumerate().all(|(index, value)| {
                         !tainted.contains(*value)
                             || callee_params.and_then(|params| params.get(index))
-                                == Some(&MirType::Slice(SliceLocation::Calldata))
+                                == Some(&MirType::Slice(PtrLocation::Calldata))
                     });
                     !preserves_calldata
                 }
@@ -3028,7 +3027,7 @@ impl LowerAbiCx {
                 }
                 InstKind::SliceLoadWord { .. } => result.is_some_and(|value| {
                     func.value_ty(value)
-                        .is_some_and(|ty| matches!(ty, MirType::MemPtr | MirType::Slice(_)))
+                        .is_some_and(|ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)))
                 }),
                 _ => result.is_some(),
             };
@@ -3205,7 +3204,7 @@ fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, V
     // length = slice_len(view)
     let view = builder.memory_view(data);
     let ptr = builder.slice_ptr(view);
-    let base = builder.cast(ptr, MirType::MemPtr);
+    let base = builder.cast(ptr, MirType::MEMPTR);
     (base, builder.slice_len(view))
 }
 
@@ -3330,15 +3329,15 @@ fn is_wrappable_external(func: &Function) -> bool {
 /// Whether a fallback uses Solidity's raw bytes input/output ABI.
 fn is_bytes_fallback(func: &Function) -> bool {
     func.params.len() == 1
-        && matches!(func.params[ArgIdx::new(0)], MirType::Slice(SliceLocation::Calldata))
-        && matches!(func.return_components(), [MirType::MemPtr])
+        && matches!(func.params[ArgIdx::new(0)], MirType::Slice(PtrLocation::Calldata))
+        && matches!(func.return_components(), [MirType::MEMPTR])
 }
 
 /// Whether every value-carrying fallback return can use raw bytes returndata.
 fn can_lower_bytes_fallback_returns(func: &Function) -> bool {
     func.blocks.iter().all(|block| {
         let Some(Terminator::Return { values }) = &block.terminator else { return true };
-        values.len() == 1 && func.value_ty(values[0]) == Some(MirType::MemPtr)
+        values.len() == 1 && func.value_ty(values[0]) == Some(MirType::MEMPTR)
     })
 }
 
@@ -3626,7 +3625,7 @@ fn lossless_pointer_cast(func: &Function, inst: InstId) -> Option<ValueId> {
         }
         // A view reads through the object or pointer it was made from.
         InstKind::MemorySlice(value)
-        | InstKind::MakeSlice { ptr: value, location: SliceLocation::Memory, .. } => Some(value),
+        | InstKind::MakeSlice { ptr: value, location: PtrLocation::Memory, .. } => Some(value),
         _ => None,
     }
 }
@@ -4070,7 +4069,7 @@ fn is_canonical_decoded_array(
 /// Drops the per-element cleanup from a memory word array's encoding, leaving one payload
 /// copy. Returns whether the layout had such a cleanup to drop.
 fn strip_array_element_cleanup(ty: &mut AbiType) -> bool {
-    let (AbiType::DynamicArray { element, location: SliceLocation::Memory }
+    let (AbiType::DynamicArray { element, location: PtrLocation::Memory }
     | AbiType::FixedArray { element, .. }) = ty
     else {
         return false;
@@ -4261,7 +4260,7 @@ fn direct_calldata_copy_source(
     return_block: BlockId,
     object: ValueId,
 ) -> Option<ValueId> {
-    if func.value_ty(object) != Some(MirType::MemPtr) {
+    if func.value_ty(object) != Some(MirType::MEMPTR) {
         return None;
     }
     let crate::mir::Value::Inst(defining_inst) = func.value(object) else { return None };
@@ -4291,8 +4290,7 @@ fn direct_calldata_copy_source(
                     if func.object_address(destination)
                         == Some((object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
                         && func.value_u64(offset) == Some(0)
-                        && func.value_ty(slice)
-                            == Some(MirType::Slice(SliceLocation::Calldata))
+                        && func.value_ty(slice) == Some(MirType::Slice(PtrLocation::Calldata))
                         && source.replace(slice).is_none()
                         && block_id == return_block => {}
                 _ => return None,
@@ -4322,7 +4320,7 @@ fn reuse_direct_calldata_returns(
     let mut calldata_indices = FxHashSet::default();
     for (index, &value) in values.iter().enumerate() {
         let Some(abi_type) = layout.types.get(index) else { continue };
-        if !matches!(abi_type, AbiType::Bytes(SliceLocation::Memory)) {
+        if !matches!(abi_type, AbiType::Bytes(PtrLocation::Memory)) {
             continue;
         }
         let Some(source) = direct_calldata_copy_source(func, return_block, value) else {
@@ -4350,12 +4348,12 @@ fn reuse_direct_calldata_returns(
 
 fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     if !func.params.is_empty()
-        || func.return_components() != [MirType::MemPtr]
+        || func.return_components() != [MirType::MEMPTR]
         || func.abi_params.as_ref().is_none_or(|layout| !layout.types.is_empty())
         || func
             .abi_returns
             .as_ref()
-            .is_none_or(|layout| layout.types.as_ref() != [AbiType::Bytes(SliceLocation::Memory)])
+            .is_none_or(|layout| layout.types.as_ref() != [AbiType::Bytes(PtrLocation::Memory)])
         || func.blocks.len() != 1
     {
         return None;

@@ -13,8 +13,8 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MirType, Module, RequireKind, RevertKind,
-    RevertPayload, SliceLocation, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    FunctionId, InstKind, InstructionMetadata, MirType, Module, PtrLocation, RequireKind,
+    RevertKind, RevertPayload, pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
@@ -194,7 +194,7 @@ fn emit_payload(
             // revert(payload.ptr, payload.len)
             let selector = builder.imm(ERROR_SELECTOR);
             let layout = Arc::new(AbiLayout::new(
-                vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
+                vec![AbiType::Bytes(PtrLocation::Memory)].into_boxed_slice(),
             ));
             let encoded =
                 builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());

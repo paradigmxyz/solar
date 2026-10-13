@@ -1570,7 +1570,7 @@ mod tests {
         // mixed = (base + (-32)) - 16
         let base = builder.fmp();
         let opaque = builder.add_param(MirType::I256);
-        let pointer = builder.add_param(MirType::MemPtr);
+        let pointer = builder.add_param(MirType::MEMPTR);
         let pointer_word = builder.cast_word(pointer);
         let word = builder.imm(32);
         let pointer_prefix = builder.sub(pointer_word, word);

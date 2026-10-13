@@ -17,7 +17,7 @@
 
 use crate::mir::{
     AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstKind, MirPhase,
-    MirType, Module, SliceLocation, Value,
+    MirType, Module, PtrLocation, Value,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::MirPass,
 };
@@ -68,7 +68,7 @@ impl MirPass for LowerMemoryObjects {
 }
 
 fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
-    let is_pointer = |ty: MirType| ty == MirType::MemPtr;
+    let is_pointer = |ty: MirType| ty == MirType::MEMPTR;
     let needs_lowering = func.arg_indices().any(|index| is_pointer(func.arg_ty(index)))
         || func.return_components().iter().copied().any(is_pointer)
         || func.live_values().any(|value| func.value_ty(value).is_some_and(is_pointer))
@@ -129,10 +129,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                     InstKind::MemorySlice(object) => {
                         let (ptr, len) = memory_slice_parts::<P>(&mut builder, object);
                         builder.func_mut().inst_mut(inst).kind =
-                            InstKind::MakeSlice { ptr, len, location: SliceLocation::Memory };
+                            InstKind::MakeSlice { ptr, len, location: PtrLocation::Memory };
                     }
                     InstKind::MakeSlice { ptr, len, location }
-                        if builder.func().value_ty(ptr) == Some(MirType::MemPtr) =>
+                        if builder.func().value_ty(ptr) == Some(MirType::MEMPTR) =>
                     {
                         // pointer = ptrtoint object to i256
                         // view = make_memory_slice pointer, len
@@ -346,11 +346,11 @@ fn constant_raw_allocation(
     })
 }
 
-fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Option<InstKind> {
+fn slice_load_kind(location: PtrLocation, address: crate::mir::ValueId) -> Option<InstKind> {
     match location {
-        SliceLocation::Calldata => Some(InstKind::CalldataLoad(address)),
-        SliceLocation::Memory => Some(InstKind::MLoad(address)),
-        SliceLocation::Returndata => None,
+        PtrLocation::Calldata => Some(InstKind::CalldataLoad(address)),
+        PtrLocation::Memory => Some(InstKind::MLoad(address)),
+        PtrLocation::Returndata => None,
     }
 }
 
@@ -424,9 +424,9 @@ fn slice_location(
     func: &Function,
     views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
     slice: crate::mir::ValueId,
-) -> Option<SliceLocation> {
+) -> Option<PtrLocation> {
     if views.contains_key(&slice) {
-        Some(SliceLocation::Memory)
+        Some(PtrLocation::Memory)
     } else {
         func.value_slice_location(slice)
     }
@@ -495,9 +495,9 @@ fn lower_slice_copy<P: MemoryLayoutPolicy>(
     // A local view becomes its own length load.
     let length = if views.contains_key(&source) { source } else { builder.slice_len(source) };
     Some(match location {
-        SliceLocation::Memory => InstKind::MCopy(destination, source_ptr, length),
-        SliceLocation::Calldata => InstKind::CalldataCopy(destination, source_ptr, length),
-        SliceLocation::Returndata => InstKind::ReturnDataCopy(destination, source_ptr, length),
+        PtrLocation::Memory => InstKind::MCopy(destination, source_ptr, length),
+        PtrLocation::Calldata => InstKind::CalldataCopy(destination, source_ptr, length),
+        PtrLocation::Returndata => InstKind::ReturnDataCopy(destination, source_ptr, length),
     })
 }
 
@@ -514,7 +514,7 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
             let pointer_address = matches!(
                 inst.kind,
                 InstKind::MLoad(address) | InstKind::MStore(address, _)
-                    if builder.func().value_ty(address) == Some(MirType::MemPtr)
+                    if builder.func().value_ty(address) == Some(MirType::MEMPTR)
             );
             if inst.kind.evm_opcode().is_some()
                 && (pointer_address
@@ -524,7 +524,7 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
                 let mut kind = inst.kind;
                 // integer_operand = ptrtoint pointer_operand to i256
                 kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
-                if inst.result_ty == Some(MirType::MemPtr) {
+                if inst.result_ty == Some(MirType::MEMPTR) {
                     // integer_result = opcode integer_operands
                     // pointer_result = inttoptr integer_result to memptr
                     let value = builder.emit_inst(kind, Some(MirType::I256));

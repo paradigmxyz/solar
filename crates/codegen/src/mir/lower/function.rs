@@ -9,8 +9,8 @@ use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
     AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, DataId, DataRef,
     Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, PtrLocation,
+    RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -698,7 +698,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
                     Some(self.builder.slice_ptr(value))
@@ -944,7 +944,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     );
                 let value = if preserve_calldata_slice {
                     rhs_value

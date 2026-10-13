@@ -597,7 +597,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, &field)| {
                 // field = extract_value result, index
                 let result = self.builder.extract_value(id, value, index as u32, field);
-                if dirty || field == MirType::Slice(SliceLocation::Calldata) {
+                if dirty || field == MirType::Slice(PtrLocation::Calldata) {
                     self.dirty_values.insert(result);
                 }
                 result
@@ -624,14 +624,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if types::TypeLowerer::mir_type(ty) != MirType::MemPtr {
+        if types::TypeLowerer::mir_type(ty) != MirType::MEMPTR {
             return self.load_static_abi_return_value(base, index, returns);
         }
         self.builder.memory_load_field_as(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             u64::try_from(index).unwrap_or(u64::MAX),
-            MirType::MemPtr,
+            MirType::MEMPTR,
         )
     }
 }

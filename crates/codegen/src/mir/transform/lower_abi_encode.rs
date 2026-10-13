@@ -40,8 +40,8 @@ use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, EffectKind,
         Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation, Terminator, Value,
-        ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
+        MemoryObjectLayout, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
         transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
     target::{Cost, Target},
@@ -266,7 +266,7 @@ fn synthesize_array_helpers(
             AbiType::DynamicArray { element, location } => {
                 let location = value
                     .map_or(*location, |value| effective_slice_location(func, value, *location));
-                if location == SliceLocation::Memory && array_loop_element(element).is_some() {
+                if location == PtrLocation::Memory && array_loop_element(element).is_some() {
                     let value_ty =
                         value.and_then(|value| func.value_ty(value)).unwrap_or(MirType::I256);
                     let next = counts.len();
@@ -321,7 +321,7 @@ fn synthesize_array_helpers(
             let value = builder.add_param(key.value_ty);
             // Keep the destination's heap provenance inside the helper. Return its
             // length so the caller derives the tail from its own destination.
-            let dest = builder.add_param(MirType::MemPtr);
+            let dest = builder.add_param(MirType::MEMPTR);
             let dest = builder.cast(dest, MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
             let length = builder.sub(tail, dest);
@@ -627,14 +627,14 @@ fn can_encode_dynamic_return_in_place(
 ) -> bool {
     let [object] = args else { return false };
     let word_array_or_bytes = match &*layout.types {
-        [AbiType::DynamicArray { element, location: SliceLocation::Memory }] => {
+        [AbiType::DynamicArray { element, location: PtrLocation::Memory }] => {
             matches!(element.as_ref(), AbiType::Word(None))
         }
-        [AbiType::Bytes(SliceLocation::Memory)] => true,
+        [AbiType::Bytes(PtrLocation::Memory)] => true,
         _ => false,
     };
     word_array_or_bytes
-        && func.value_ty(*object) == Some(MirType::MemPtr)
+        && func.value_ty(*object) == Some(MirType::MEMPTR)
         && fresh_memory_object(func, *object, fresh_object_returns)
 }
 
@@ -678,7 +678,7 @@ fn encode_dynamic_return_in_place(
     builder.mstore(*object, offset);
     builder.mstore(source, length);
     let total = builder.add_u64_offset(bytes, 64);
-    Some(builder.make_slice(*object, total, SliceLocation::Memory))
+    Some(builder.make_slice(*object, total, PtrLocation::Memory))
 }
 
 fn fresh_memory_object(
@@ -775,7 +775,7 @@ fn lower_encode(
             builder.set_memory_len(object, total);
             let data = builder.memory_data(object);
             encode_tuple(builder, args, &layout.types, data, helpers);
-            return builder.make_slice(data, total, SliceLocation::Memory);
+            return builder.make_slice(data, total, PtrLocation::Memory);
         }
         let buffer = if mode == AbiEncodeMode::Scratch {
             builder.fmp()
@@ -789,7 +789,7 @@ fn lower_encode(
         let dest = offset_ptr(builder, buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, helpers);
         let total = builder.imm(total_size);
-        return builder.make_slice(buffer, total, SliceLocation::Memory);
+        return builder.make_slice(buffer, total, PtrLocation::Memory);
     }
 
     if mode == AbiEncodeMode::Slice
@@ -814,7 +814,7 @@ fn lower_encode(
         let dest = offset_ptr(builder, buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, helpers);
         let total = builder.imm(total_size);
-        return builder.make_slice(buffer, total, SliceLocation::Memory);
+        return builder.make_slice(buffer, total, PtrLocation::Memory);
     }
 
     // Source objects already live below the free-memory pointer. Encode into
@@ -843,7 +843,7 @@ fn lower_encode(
         return object;
     }
     if mode == AbiEncodeMode::Scratch {
-        return builder.make_slice(allocation_base, total, SliceLocation::Memory);
+        return builder.make_slice(allocation_base, total, PtrLocation::Memory);
     }
     let thirty_one = builder.imm(31);
     let rounded = builder.add(total, thirty_one);
@@ -853,7 +853,7 @@ fn lower_encode(
     // make_slice allocated, total
     let allocated = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
     preserve_encoding_address(builder, allocated);
-    builder.make_slice(allocated, total, SliceLocation::Memory)
+    builder.make_slice(allocated, total, PtrLocation::Memory)
 }
 
 /// Literal byte tails have known lengths even though their ABI types are
@@ -873,7 +873,7 @@ fn literal_tuple_size(
     for (ty, &value) in layout.types.iter().zip(args) {
         size = size.checked_add(ty.head_size())?;
         if ty.is_dynamic() {
-            if *ty != AbiType::Bytes(SliceLocation::Memory) || !literal_objects.contains(&value) {
+            if *ty != AbiType::Bytes(PtrLocation::Memory) || !literal_objects.contains(&value) {
                 return None;
             }
             let length = u64::try_from(literal_bytes(func, value, block)?.len()).ok()?;
@@ -922,7 +922,7 @@ fn encode_static_impl(
 ) {
     if source != AbiValueSource::NullableMemory
         && allow_slice_fast_path
-        && let Some(location @ (SliceLocation::Calldata | SliceLocation::Memory)) =
+        && let Some(location @ (PtrLocation::Calldata | PtrLocation::Memory)) =
             builder.func().value_slice_location(value)
     {
         let source = builder.slice_ptr(value);
@@ -1106,7 +1106,7 @@ fn encode_static_slice(
     ty: &AbiType,
     source: ValueId,
     head_addr: ValueId,
-    location: SliceLocation,
+    location: PtrLocation,
 ) {
     match ty {
         AbiType::Tuple(fields) => {
@@ -1131,7 +1131,7 @@ fn encode_static_slice(
         }
         AbiType::Function => {
             let value = load_slice_word(builder, source, location);
-            let value = if location == SliceLocation::Memory {
+            let value = if location == PtrLocation::Memory {
                 AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")
                     .cleanup(builder, value)
@@ -1143,7 +1143,7 @@ fn encode_static_slice(
         AbiType::Word(cleanup) => {
             let value = load_slice_word(builder, source, location);
             let value = match cleanup {
-                Some(cleanup) if location == SliceLocation::Memory => {
+                Some(cleanup) if location == PtrLocation::Memory => {
                     clean_word(builder, *cleanup, value)
                 }
                 _ => value,
@@ -1177,12 +1177,12 @@ fn clean_word(
 fn load_slice_word(
     builder: &mut FunctionBuilder<'_>,
     source: ValueId,
-    location: SliceLocation,
+    location: PtrLocation,
 ) -> ValueId {
     match location {
-        SliceLocation::Calldata => builder.calldataload(source),
-        SliceLocation::Memory => builder.mload(source),
-        SliceLocation::Returndata => unreachable!("returndata slices are not static ABI inputs"),
+        PtrLocation::Calldata => builder.calldataload(source),
+        PtrLocation::Memory => builder.mload(source),
+        PtrLocation::Returndata => unreachable!("returndata slices are not static ABI inputs"),
     }
 }
 
@@ -1208,9 +1208,9 @@ fn encode_dynamic_body(
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
-            if location == SliceLocation::Memory {
+            if location == PtrLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    let pointer = builder.cast(dest, MirType::MemPtr);
+                    let pointer = builder.cast(dest, MirType::MEMPTR);
                     let length = builder.icall(helper, vec![value, pointer], MirType::I256);
                     return builder.add(dest, length);
                 }
@@ -1227,7 +1227,7 @@ fn encode_dynamic_body(
                 return encode_word_array(builder, value, dest, location, cleanup);
             }
             match location {
-                SliceLocation::Calldata => {
+                PtrLocation::Calldata => {
                     if matches!(element.as_ref(), AbiType::Bytes(_)) {
                         encode_calldata_bytes_array(builder, element, value, dest, helpers)
                     } else {
@@ -1236,7 +1236,7 @@ fn encode_dynamic_body(
                         )
                     }
                 }
-                SliceLocation::Memory | SliceLocation::Returndata => {
+                PtrLocation::Memory | PtrLocation::Returndata => {
                     unreachable!("returndata arrays are not ABI inputs")
                 }
             }
@@ -1272,15 +1272,11 @@ fn encode_dynamic_body(
     }
 }
 
-fn effective_slice_location(
-    func: &Function,
-    value: ValueId,
-    declared: SliceLocation,
-) -> SliceLocation {
+fn effective_slice_location(func: &Function, value: ValueId, declared: PtrLocation) -> PtrLocation {
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
-        Some(MirType::I256 | MirType::MemPtr) => SliceLocation::Memory,
-        _ if func.fixed_view_load(value) => SliceLocation::Memory,
+        Some(MirType::I256 | MirType::MEMPTR) => PtrLocation::Memory,
+        _ if func.fixed_view_load(value) => PtrLocation::Memory,
         _ => declared,
     }
 }
@@ -1304,9 +1300,7 @@ fn encode_memory_array(
             None,
             helpers,
         ),
-        cleanup => {
-            encode_word_array(builder, value, dest, SliceLocation::Memory, cleanup.flatten())
-        }
+        cleanup => encode_word_array(builder, value, dest, PtrLocation::Memory, cleanup.flatten()),
     }
 }
 
@@ -1436,7 +1430,7 @@ fn encode_calldata_bytes_array(
     let limit = builder.sub(calldata_size, length);
     let short_tail = builder.sgt(data, limit);
     builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
-    let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
+    let element_value = builder.make_slice(data, length, PtrLocation::Calldata);
     let new_tail = encode_value(
         builder,
         element,
@@ -1465,26 +1459,26 @@ fn encode_word_array(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
     dest: ValueId,
-    location: SliceLocation,
+    location: PtrLocation,
     cleanup: Option<AbiWordValidator>,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
+        PtrLocation::Memory => memory_object_len(builder, value),
+        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
     let word = builder.imm(32);
     let bytes = builder.mul(len, word);
     let data_dest = builder.add(dest, word);
     let data_source = match location {
-        SliceLocation::Memory => builder.memory_data(value),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
+        PtrLocation::Memory => builder.memory_data(value),
+        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
     // Memory elements that need cleanup are copied one word at a time, like solc's per-element
     // array encoder; full words and calldata elements copy as one block.
     if let Some(cleanup) = cleanup
-        && location == SliceLocation::Memory
+        && location == PtrLocation::Memory
     {
         // This is a profitability hint, not a length fact: assembly may have
         // overwritten the length since allocation. Both loops use the loaded
@@ -1541,12 +1535,12 @@ fn encode_bytes(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
     dest: ValueId,
-    location: SliceLocation,
+    location: PtrLocation,
     literal_folding: bool,
     branchless_padding: bool,
 ) -> ValueId {
     if literal_folding
-        && location == SliceLocation::Memory
+        && location == PtrLocation::Memory
         && let Some(bytes) = literal_bytes(builder.func(), value, builder.current_block())
     {
         let length = builder.imm(bytes.len() as u64);
@@ -1565,8 +1559,8 @@ fn encode_bytes(
     }
 
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
+        PtrLocation::Memory => memory_object_len(builder, value),
+        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
     };
     if !branchless_padding {
         // mstore dest, len
@@ -1603,8 +1597,8 @@ fn encode_bytes(
         builder.switch_to_block(copy_block);
     }
     let data_source = match location {
-        SliceLocation::Memory => builder.memory_data(value),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
+        PtrLocation::Memory => builder.memory_data(value),
+        PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
     copy_source_data(builder, location, data_dest, data_source, len);
@@ -1618,20 +1612,20 @@ fn encode_bytes(
 /// `copy_memory_to_memory`.
 fn copy_source_data(
     builder: &mut FunctionBuilder<'_>,
-    location: SliceLocation,
+    location: PtrLocation,
     dest: ValueId,
     source: ValueId,
     size: ValueId,
 ) {
     match location {
         // mcopy dest, source, size !metadata(disjoint)
-        SliceLocation::Memory => {
+        PtrLocation::Memory => {
             let copy = builder.mcopy_heap(dest, source, size);
             builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
         }
         // calldatacopy dest, source, size
         // returndatacopy dest, source, size
-        SliceLocation::Calldata | SliceLocation::Returndata => {
+        PtrLocation::Calldata | PtrLocation::Returndata => {
             builder.copy_slice_data(location, dest, source, size)
         }
     }
@@ -1678,7 +1672,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
             }
             if let InstKind::AbiEncode { args, .. } = kind {
                 for &object in args.iter() {
-                    if func.value_ty(object) == Some(MirType::MemPtr) {
+                    if func.value_ty(object) == Some(MirType::MEMPTR) {
                         if available.contains(&object) {
                             objects.insert(object);
                         } else {
@@ -1741,7 +1735,7 @@ fn literal_object_uses(func: &Function, object: ValueId) -> impl Iterator<Item =
 /// uses are initialization operations preceding this encoding in the same block.
 /// The caller must also exclude opaque observers using the original IR.
 fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec<u8>> {
-    if func.value_ty(object) != Some(MirType::MemPtr) {
+    if func.value_ty(object) != Some(MirType::MEMPTR) {
         return None;
     }
     let Value::Inst(defining_inst) = func.value(object) else { return None };

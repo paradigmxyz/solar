@@ -589,7 +589,7 @@ impl FrameSlotPromoter {
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
             InstKind::ICall { function: Callee::Function(_), .. } => false,
-            InstKind::MappingSlotBytes(key, _) if func.value_ty(key) == Some(MirType::MemPtr) => {
+            InstKind::MappingSlotBytes(key, _) if func.value_ty(key) == Some(MirType::MEMPTR) => {
                 true
             }
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } | InstKind::MSize => true,

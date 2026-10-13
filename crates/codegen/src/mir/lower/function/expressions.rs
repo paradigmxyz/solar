@@ -116,7 +116,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let object = self.lower_expr(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata)
-            && self.builder.func().value_slice_location(object) == Some(SliceLocation::Calldata)
+            && self.builder.func().value_slice_location(object) == Some(PtrLocation::Calldata)
         {
             // head = receiver.ptr + field_offset
             // value = decode_calldata(field, head, receiver.ptr)
@@ -190,7 +190,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let object = self.lower_expr(receiver)?;
             return match self.builder.func().value_ty(object) {
-                Some(MirType::MemPtr) => {
+                Some(MirType::MEMPTR) => {
                     // length = object.len
                     Some(self.builder.memory_len(object))
                 }

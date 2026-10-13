@@ -11,7 +11,7 @@
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectLayout,
-    PackedArraySource, PackedPart, PanicCode, SliceLocation, Value, ValueId, ValueLayout,
+    PackedArraySource, PackedPart, PanicCode, PtrLocation, Value, ValueId, ValueLayout,
     memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
@@ -306,10 +306,10 @@ impl PackedEncoder<'_, '_> {
             PackedArraySource::Slice(_) => Some(self.builder.slice_ptr(value)),
         };
         let memory_source = match source {
-            PackedArraySource::Slice(SliceLocation::Memory) => Some(self.builder.make_slice(
+            PackedArraySource::Slice(PtrLocation::Memory) => Some(self.builder.make_slice(
                 base.expect("slice base"),
                 byte_length,
-                SliceLocation::Memory,
+                PtrLocation::Memory,
             )),
             _ => None,
         };
@@ -344,7 +344,7 @@ impl PackedEncoder<'_, '_> {
                         self.builder.memory_load_element(value, layout, index)
                     }
                     PackedArraySource::Slice(location) => {
-                        debug_assert_ne!(location, SliceLocation::Returndata);
+                        debug_assert_ne!(location, PtrLocation::Returndata);
                         self.builder.slice_load_word(memory_source.unwrap_or(value), element_offset)
                     }
                 };

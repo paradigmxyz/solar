@@ -69,7 +69,7 @@ impl Immediate {
                 );
                 Self::Int(value, bits)
             }
-            Some(MirType::MemPtr) => Self::Pointer(value),
+            Some(MirType::MEMPTR) => Self::Pointer(value),
             _ => Self::I256(value),
         }
     }
@@ -81,7 +81,7 @@ impl Immediate {
             Self::I1(_) => MirType::I1,
             Self::I256(_) => MirType::I256,
             Self::Int(_, bits) => MirType::Int(*bits),
-            Self::Pointer(_) => MirType::MemPtr,
+            Self::Pointer(_) => MirType::MEMPTR,
         }
     }
 

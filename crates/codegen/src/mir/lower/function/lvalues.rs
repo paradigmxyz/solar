@@ -263,14 +263,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
-            if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
+            if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
                 && ty.is_ref_at(DataLocation::Calldata)
             {
                 // slice = calldata(value, previous.length | static.length | 0)
                 let length = match self.values.get(&id).copied() {
                     Some(previous)
                         if self.builder.func().value_slice_location(previous)
-                            == Some(SliceLocation::Calldata) =>
+                            == Some(PtrLocation::Calldata) =>
                     {
                         self.builder.slice_len(previous)
                     }
@@ -281,7 +281,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         _ => self.builder.imm(U256::ZERO),
                     },
                 };
-                value = self.builder.make_slice(value, length, SliceLocation::Calldata);
+                value = self.builder.make_slice(value, length, PtrLocation::Calldata);
             }
             self.dirty_values.insert(value);
         }
@@ -372,8 +372,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let pointer = self.builder.slice_ptr(base);
             let length = self.builder.slice_len(base);
             let slice = match name.name {
-                sym::offset => self.builder.make_slice(value, length, SliceLocation::Calldata),
-                sym::length => self.builder.make_slice(pointer, value, SliceLocation::Calldata),
+                sym::offset => self.builder.make_slice(value, length, PtrLocation::Calldata),
+                sym::length => self.builder.make_slice(pointer, value, PtrLocation::Calldata),
                 _ => return self.cx.report_unsupported(span, "Yul calldata assignment"),
             };
             return self.store_lvalue(receiver, slice);

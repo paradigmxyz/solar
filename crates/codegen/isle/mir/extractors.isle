@@ -216,7 +216,7 @@
 (decl calldatasize () Value)
 (extractor (calldatasize) (inst (Op.CalldataSize)))
 
-(decl makeslice (Value Value SliceLocation) Value)
+(decl makeslice (Value Value PtrLocation) Value)
 (extractor (makeslice ptr len location) (inst (Op.MakeSlice ptr len location)))
 
 (decl sliceptr (Value) Value)

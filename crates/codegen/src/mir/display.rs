@@ -506,7 +506,7 @@ fn display_inst_kind<'a>(
                 display_val(*slice, func),
                 display_val(*offset, func)
             )?;
-            if result_ty == Some(MirType::MemPtr) {
+            if result_ty == Some(MirType::MEMPTR) {
                 write!(f, ", memptr")?;
             }
             Ok(())

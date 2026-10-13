@@ -8,7 +8,7 @@
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    MirType, Module, PtrLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
     pass::MirPass,
 };
 use solar_data_structures::{
@@ -52,11 +52,11 @@ enum ParamRepr {
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
 /// an ordinary EVM word whose address space remains encoded by the slice type.
-pub(super) fn slice_param_ptr_type(location: SliceLocation) -> MirType {
+pub(super) fn slice_param_ptr_type(location: PtrLocation) -> MirType {
     match location {
-        SliceLocation::Memory => MirType::I256,
-        SliceLocation::Calldata => MirType::I256,
-        SliceLocation::Returndata => MirType::I256,
+        PtrLocation::Memory => MirType::I256,
+        PtrLocation::Calldata => MirType::I256,
+        PtrLocation::Returndata => MirType::I256,
     }
 }
 
@@ -70,7 +70,7 @@ fn new_slice_inst(
     func: &mut Function,
     ptr: ValueId,
     len: ValueId,
-    location: SliceLocation,
+    location: PtrLocation,
 ) -> (InstId, ValueId) {
     func.alloc_value_inst(
         Instruction::new(
@@ -611,7 +611,7 @@ impl LowerSlices {
         let slice_args: FxHashMap<_, _> = func
             .arg_uses()
             .iter_enumerated()
-            .filter(|(index, _)| func.arg_ty(*index) == MirType::Slice(SliceLocation::Calldata))
+            .filter(|(index, _)| func.arg_ty(*index) == MirType::Slice(PtrLocation::Calldata))
             .flat_map(|(index, uses)| uses.iter().map(move |&value| (value, index)))
             .collect();
         if slice_args.is_empty() {
@@ -638,8 +638,7 @@ impl LowerSlices {
             .iter_enumerated()
             .flat_map(|(function, func)| {
                 func.params.iter_enumerated().filter_map(move |(index, ty)| {
-                    matches!(ty, MirType::Slice(SliceLocation::Calldata))
-                        .then_some((function, index))
+                    matches!(ty, MirType::Slice(PtrLocation::Calldata)).then_some((function, index))
                 })
             })
             .collect();
@@ -668,7 +667,7 @@ impl LowerSlices {
                         let is_compact = match caller.value(arg) {
                             Value::Arg(source)
                                 if caller.arg_ty(*source)
-                                    == MirType::Slice(SliceLocation::Calldata) =>
+                                    == MirType::Slice(PtrLocation::Calldata) =>
                             {
                                 caller.selector.is_some() || compact.contains(&(caller_id, *source))
                             }
@@ -811,9 +810,7 @@ impl LowerSlices {
                     .params
                     .iter_enumerated()
                     .map(|(index, ty)| match ty {
-                        MirType::Slice(SliceLocation::Calldata)
-                            if compact.contains(&(id, index)) =>
-                        {
+                        MirType::Slice(PtrLocation::Calldata) if compact.contains(&(id, index)) => {
                             ParamRepr::CompactCalldata
                         }
                         MirType::Slice(_) => ParamRepr::Pair,

@@ -2,7 +2,7 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, SliceLocation, StorageAlias, Value, ValueId,
+    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
     utils,
 };
 use alloy_primitives::U256;
@@ -184,7 +184,7 @@ impl Function {
 
     /// Returns the slice location of a value, if it is slice-typed.
     #[must_use]
-    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<SliceLocation> {
+    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<PtrLocation> {
         match self.value_ty(id) {
             Some(MirType::Slice(location)) => Some(location),
             _ => None,
@@ -207,8 +207,8 @@ impl Function {
     pub(crate) fn fixed_view_object(&self, id: ValueId) -> Option<ValueId> {
         let Value::Inst(inst) = self.value(id) else { return None };
         match self.inst(*inst).kind {
-            InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. }
-                if self.value_ty(ptr) == Some(MirType::MemPtr) =>
+            InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. }
+                if self.value_ty(ptr) == Some(MirType::MEMPTR) =>
             {
                 Some(ptr)
             }
@@ -288,7 +288,7 @@ impl Function {
     pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
         let InstKind::MStore(address, len) = self.inst(inst).kind else { return None };
         match self.object_address(address) {
-            Some((object, 0)) if self.value_ty(object) == Some(MirType::MemPtr) => {
+            Some((object, 0)) if self.value_ty(object) == Some(MirType::MEMPTR) => {
                 Some((object, len))
             }
             _ => None,
@@ -307,7 +307,7 @@ impl Function {
                 InstKind::PtrToInt(base, 256)
                 | InstKind::IntToPtr(base)
                 | InstKind::SlicePtr(base)
-                | InstKind::MakeSlice { ptr: base, location: SliceLocation::Memory, .. } => base,
+                | InstKind::MakeSlice { ptr: base, location: PtrLocation::Memory, .. } => base,
                 InstKind::MemorySlice(object) => {
                     offset =
                         offset.checked_add(super::memory::EvmMemoryLayout::DYNAMIC_HEADER_SIZE)?;
@@ -332,7 +332,7 @@ impl Function {
             | InstKind::IntToPtr(_)
             | InstKind::SlicePtr(_)
             | InstKind::MemorySlice(_)
-            | InstKind::MakeSlice { location: SliceLocation::Memory, .. } => true,
+            | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
             InstKind::Add(_, delta) => self.value_u64(delta).is_some(),
             _ => false,
         }

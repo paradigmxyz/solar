@@ -30,7 +30,7 @@ use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
     AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind,
     FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind,
     StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
@@ -120,7 +120,7 @@ impl ResultKind {
         match self {
             Self::None | Self::Custom => None,
             Self::I256 | Self::Integer | Self::Word => Some(MirType::I256),
-            Self::MemPtr => Some(MirType::MemPtr),
+            Self::MemPtr => Some(MirType::MEMPTR),
             Self::I160 => Some(MirType::I160),
             Self::I1 => Some(MirType::I1),
         }
@@ -139,7 +139,7 @@ impl ResultKind {
         } else if self == Self::Integer {
             matches!(ty, MirType::Int(bits) if MirType::valid_integer_width(bits.get()))
         } else {
-            (self == Self::Word && ty == MirType::MemPtr)
+            (self == Self::Word && ty == MirType::MEMPTR)
                 || self.default_type().is_none_or(|expected| expected == ty)
         }
     }
@@ -621,7 +621,7 @@ attributes! {
     ImmutableId,
     MemoryObjectKind,
     MemoryObjectLayout,
-    SliceLocation,
+    PtrLocation,
 }
 
 opaque_attributes! {
@@ -1168,7 +1168,7 @@ define_mir_ops! {
     StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MemPtr]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]
     StorageBytesStore(operand0: ValueId, operand1: ValueId),
     #[mir_op(mnemonic = "store_storage_bytes_literal", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
@@ -1631,7 +1631,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("abstract allocation")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
+    #[operand_types(func => Some(smallvec![MirType::MEMPTR]))]
     SetFmp(value: ValueId),
     /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
     /// can run this function, which codegen fixes once it has placed the frames and spill slots
@@ -1678,7 +1678,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
+    #[operand_types(func => Some(smallvec![MirType::MEMPTR]))]
     MemorySlice(object: ValueId),
     /// Load one byte from a slice.
     #[mir_op(
@@ -1707,7 +1707,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::Slice(PtrLocation::Memory), MirType::I256, MirType::I256]))]
     SliceStoreByte {
         /// Memory slice.
         slice: ValueId,
@@ -1726,7 +1726,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::Slice(PtrLocation::Memory), MirType::I256, MirType::I256]))]
     SliceStoreWord {
         /// Memory slice.
         slice: ValueId,
@@ -1762,7 +1762,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, typing::slice_type(func, *source)]))]
+    #[operand_types(func => Some(smallvec![MirType::Slice(PtrLocation::Memory), MirType::I256, typing::slice_type(func, *source)]))]
     SliceCopy {
         /// Destination memory slice.
         destination: ValueId,
@@ -1823,7 +1823,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MemPtr]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MEMPTR]))]
     StorageToMemory {
         /// Base storage slot.
         storage: ValueId,
@@ -1842,7 +1842,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MEMPTR, MirType::I256]))]
     MemoryToStorage {
         /// Source memory pointer.
         memory: ValueId,
@@ -1988,8 +1988,8 @@ define_mir_ops! {
         side_effects = false,
         category = Some("slice")
     )]
-    #[mnemonic(InstKind::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice")]
-    #[mnemonic(InstKind::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice")]
+    #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Calldata, .. } => "make_calldata_slice")]
+    #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Returndata, .. } => "make_returndata_slice")]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr), MirType::I256]))]
     MakeSlice {
         /// Address of the first element or byte; a memory slice may start at a `memptr`.
@@ -1997,7 +1997,7 @@ define_mir_ops! {
         /// Logical element or byte length.
         len: ValueId,
         /// Address space containing the slice data.
-        location: SliceLocation,
+        location: PtrLocation,
     },
     /// Project the data pointer from a slice.
     #[mir_op(
