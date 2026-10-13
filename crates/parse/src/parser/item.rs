@@ -1063,12 +1063,10 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
                 patch = Some(self.parse_version_part());
                 // Solc starts another match component after the third dot.
                 if self.eat_dot() && self.pos_inside > 0 {
-                    let suffix = self.current_str().unwrap();
-                    self.p.token.kind = TokenKind::Literal(
-                        solar_ast::token::TokenLitKind::Integer,
-                        Symbol::intern(suffix),
-                    );
+                    let suffix = Symbol::intern(self.current_str().unwrap());
+                    // Compute the span before replacing the string literal kind.
                     self.p.token.span = self.current_span();
+                    self.p.token.kind = TokenKind::Literal(TokenLitKind::Integer, suffix);
                     self.pos_inside = 0;
                 }
             }
@@ -1135,15 +1133,28 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
     }
 
     fn current_span(&self) -> Span {
-        let mut s = self.current_token().span;
-        if self.pos_inside > 0 {
-            s = s.with_lo(s.lo() + self.pos_inside);
+        let token = self.current_token();
+        let span = token.span;
+        if self.pos_inside == 0 {
+            return span;
         }
-        s
+        let Some(rest) = self.current_str() else { return span };
+        // The token string ends at the span end, except for the closing quote of a string
+        // literal, whose symbol excludes the prefix and quotes.
+        let hi = match token.kind {
+            TokenKind::Literal(
+                TokenLitKind::Str | TokenLitKind::HexStr | TokenLitKind::UnicodeStr,
+                _,
+            ) => span.hi() - 1,
+            _ => span.hi(),
+        };
+        span.with_lo(hi - rest.len() as u32).with_hi(hi)
     }
 
     fn bump_char(&mut self) {
-        self.bump_chars(1);
+        if let Some(c) = self.current_char() {
+            self.bump_chars(c.len_utf8() as u32);
+        }
     }
 
     fn bump_chars(&mut self, n: u32) {
