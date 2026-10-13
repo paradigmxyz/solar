@@ -183,20 +183,6 @@ just as a plain comment can.
 Coverage: `tests/ui/lexer/direction_override/markers.sol`;
 [#1844](https://github.com/paradigmxyz/solar/issues/1844).
 
-### PARSE-003: Number literals wider than 256 bits
-
-Status: parity debt.
-
-Difference: solc accepts number literals whose value, numerator or denominator
-needs more than 256 bits, such as `1e78 / 10` or `1.5e78 / 1e10`. Solar rejects
-such a literal as "integer part too large" or "rational part too large",
-although literal arithmetic on smaller literals keeps solc's 4096-bit
-precision.
-
-Rationale: the AST stores number literals as 256-bit values.
-
-Coverage: `tests/ui/parser/big_literal.sol`.
-
 ### PARSE-004: Fixed-point types
 
 Status: intentional.

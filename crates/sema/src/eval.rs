@@ -3,7 +3,7 @@ use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
-use solar_ast::{ElementaryType, LitKind, StrKind, TypeSize};
+use solar_ast::{ElementaryType, LitKind, LitUint, StrKind, TypeSize};
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed, error_code};
 use std::fmt;
@@ -338,9 +338,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
             LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
             LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
-            LitKind::Rational(ratio) => Ok(ConstValue::Rational(Ratio::new_raw(
-                IntScalar::bigint_from_u256(*ratio.numer()),
-                IntScalar::bigint_from_u256(*ratio.denom()),
+            LitKind::BigNumber(n) => {
+                Ok(ConstValue::Integer(IntScalar::from_be_bytes(n.to_be_bytes())))
+            }
+            LitKind::Rational(numer, denom) => Ok(ConstValue::Rational(Ratio::new_raw(
+                lit_uint_to_bigint(numer),
+                lit_uint_to_bigint(denom),
             ))),
             LitKind::Address(address) => {
                 Ok(ConstValue::Integer(IntScalar::from_be_bytes(address.as_slice())))
@@ -475,6 +478,10 @@ impl ConstValue {
             Self::Integer(_) | Self::Bool(_) | Self::String(_) => None,
         }
     }
+}
+
+fn lit_uint_to_bigint(n: LitUint) -> BigInt {
+    BigInt::from_bytes_be(Sign::Plus, n.to_be_bytes())
 }
 
 /// Applies the given unary operation to a literal number.
@@ -712,12 +719,8 @@ impl IntScalar {
     }
 
     /// Creates a new integer value from big-endian bytes.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `bytes` is empty or has a length greater than 32.
     pub fn from_be_bytes(bytes: &[u8]) -> Self {
-        Self::new(U256::from_be_slice(bytes))
+        Self { data: BigInt::from_bytes_be(Sign::Plus, bytes), ty: None }
     }
 
     /// Returns the bit length of the integer value.

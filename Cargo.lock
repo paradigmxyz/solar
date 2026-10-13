@@ -4498,7 +4498,6 @@ dependencies = [
  "alloy-primitives",
  "bumpalo",
  "either",
- "num-rational",
  "semver 1.0.28",
  "snapbox",
  "solar-data-structures",

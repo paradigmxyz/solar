@@ -1153,7 +1153,10 @@ impl<'gcx> Gcx<'gcx> {
                     compatible_fixed_bytes,
                 )
             }
-            solar_ast::LitKind::Rational(_) => {
+            solar_ast::LitKind::BigNumber(int) => {
+                self.mk_ty_int_literal_with_fixed_bytes(false, int.bit_len() as _, None)
+            }
+            solar_ast::LitKind::Rational(..) => {
                 // The AST validator has already reported invalid underscores.
                 if !number_literal_underscore_errors(lit.symbol.as_str()).is_empty() {
                     self.mk_ty_misc_err()

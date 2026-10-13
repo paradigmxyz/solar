@@ -32,7 +32,6 @@ alloy-primitives.workspace = true
 bumpalo = { workspace = true, features = ["std", "boxed"] }
 either.workspace = true
 semver.workspace = true
-num-rational.workspace = true
 strum.workspace = true
 
 [dev-dependencies]

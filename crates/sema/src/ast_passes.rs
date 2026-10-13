@@ -66,11 +66,9 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_) | ast::LitKind::Address(_)) =
-            lit.kind
-        else {
+        if !lit.kind.is_number() && !matches!(lit.kind, ast::LitKind::Address(_)) {
             return;
-        };
+        }
         for help in number_literal_underscore_errors(lit.symbol.as_str()) {
             let _ = self
                 .dcx()
@@ -90,9 +88,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             return;
         };
 
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
-            panic!("non-number literal with denomination {:?}", lit.kind)
-        };
+        assert!(lit.kind.is_number(), "non-number literal with denomination {:?}", lit.kind);
 
         if lit.symbol.as_str().starts_with("0x") {
             self.dcx()

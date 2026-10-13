@@ -73,10 +73,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
         });
         if !fixed_bytes
-            && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if matches!(
-                lit.kind,
-                LitKind::Number(_) | LitKind::Rational(_)
-            ))
+            && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
             let shift = self.builder.imm(224);
             return Some(self.builder.shl(shift, value));

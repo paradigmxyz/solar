@@ -1841,9 +1841,7 @@ impl<'hir> Expr<'hir> {
     /// at compile time.
     pub fn is_numeric_literal(&self) -> bool {
         match &self.kind {
-            ExprKind::Lit(lit) => {
-                matches!(lit.kind, ast::LitKind::Number(_) | ast::LitKind::Rational(_))
-            }
+            ExprKind::Lit(lit) => lit.kind.is_number(),
             ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
                 inner.is_numeric_literal()
             }
