@@ -315,11 +315,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // as `lower_expr` does for such values.
                 ConstValue::Integer(value) => match value.as_evm_word() {
                     Some(word) => Some(self.builder.imm(word)),
-                    None => self.lower_expr(initializer),
+                    None => self.lower_typed_expr(initializer, ty),
                 },
                 ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
             };
         }
-        self.lower_expr(initializer)
+        self.lower_typed_expr(initializer, ty)
     }
 }
