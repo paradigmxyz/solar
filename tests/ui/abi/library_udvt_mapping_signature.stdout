@@ -1,0 +1,21 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/library_udvt_mapping_signature.sol:L": {
+      "hashes": {
+        "arrayValue(mapping(uint256 => A[]) storage)": "5574097d",
+        "calldataArray(uint256[])": "1e12961c",
+        "f(mapping(A => uint256) storage)": "14780190",
+        "f(mapping(uint256 => uint256) storage)": "1d212bbe",
+        "fixedArrayValue(mapping(uint256 => A[2][]) storage)": "aff2eaa8",
+        "key(mapping(A => uint256) storage)": "6f56faf4",
+        "memoryArray(uint256[])": "45f70b77",
+        "named(mapping(L.E => L.S) storage)": "063a3ecf",
+        "nested(mapping(A => mapping(A => uint256)) storage)": "535eecec",
+        "plain(uint256)": "11546183",
+        "structStorage(L.S storage)": "3c58540c",
+        "value(mapping(uint256 => A) storage)": "101cff9c"
+      }
+    }
+  },
+  "version": "VERSION"
+}
