@@ -268,6 +268,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Like [`Self::storage_access`], but reports an unsupported error when it fails.
+    pub(super) fn require_storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
+        self.storage_access(expr)
+            .or_else(|| self.cx.report_unsupported(expr.span, "storage access"))
+    }
+
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         let expr = self.peel_bytes_conversion(expr);
         if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
