@@ -336,6 +336,14 @@ impl<'gcx> ResolveContext<'gcx> {
             );
         }
 
+        // Enum variants are resolved as members, so they are declared only to report duplicates.
+        for id in self.hir.enumm_ids() {
+            let enumm = self.hir.enumm(id);
+            let variants = enumm.variants;
+            init_cx!(enumm);
+            self.declare_variables(variants);
+        }
+
         for id in self.hir.error_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Error(id)];
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
