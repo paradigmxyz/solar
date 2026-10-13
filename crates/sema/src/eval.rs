@@ -453,12 +453,6 @@ impl IntScalar {
         !self.data.is_zero()
     }
 
-    /// Returns `true` if dividing this literal by the literal `r` has a fractional result, which
-    /// solc keeps exact where we truncate it.
-    pub(crate) fn is_fractional_div(&self, r: &Self) -> bool {
-        self.ty.is_none() && r.ty.is_none() && !r.is_zero() && !(&self.data % &r.data).is_zero()
-    }
-
     fn bigint_from_u256(data: U256) -> BigInt {
         BigInt::from_bytes_be(Sign::Plus, &data.to_be_bytes::<32>())
     }
