@@ -43,6 +43,16 @@ fn @read_address(arg0: memptr, arg1: i256) -> i256 [selector=0x12345680, abi_par
     ret v1
 }
 
+// A word behind the largest static array loads directly instead of taking a
+// lazy argument for every head word before it.
+// CHECK: + fn @read_after_huge()
+// CHECK: + [[WORD:v[0-9]+]] = calldataload 0xffffffe4
+// CHECK: + mstore 128, [[WORD]]
+fn @read_after_huge(arg0: memptr, arg1: i256) -> i256 [selector=0x12345686, abi_params=[array<134217727, u256>, u256], abi_returns=[word]] {
+  bb0:
+    ret arg1
+}
+
 // CHECK: + fn @address_is_zero()
 // CHECK: + {{v[0-9]+}} = calldataload 4
 // CHECK: = eq arg0, 0

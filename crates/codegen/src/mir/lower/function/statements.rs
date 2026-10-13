@@ -52,7 +52,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Some(value) = value.as_u256()
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                    let value = self.lower_const_integer(expr_ty, value);
+                    let value = self.builder.imm(value);
                     self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
@@ -294,7 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
         }
-        if let ExprKind::Call(callee, ..) = &expr.kind
+        if let ExprKind::Call(callee, ..) = &expr.peel_parens().kind
             && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
         {
             return Some(false);

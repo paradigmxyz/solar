@@ -678,9 +678,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !matches!(expr.kind, ExprKind::Lit(_))
             && expr.is_int_literal()
             && let Ok(value) = self.cx.gcx.try_eval_const(expr)
-            && value.bit_len() <= 256
+            && let Some(word) = value.as_evm_word()
         {
-            return Some(self.builder.imm(value.as_evm_word()));
+            return Some(self.builder.imm(word));
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),

@@ -1,0 +1,12 @@
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/codegen/run-call/func_ty_param_scope.sol:LL:CC
+   │
+LL │         function(uint256 K) external cb;
+   ╰╴                         ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/codegen/run-call/func_ty_param_scope.sol:LL:CC
+   │
+LL │         function(uint256 K) external cb;
+   ╰╴                         ━
+

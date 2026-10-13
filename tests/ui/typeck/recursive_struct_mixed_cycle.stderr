@@ -1,0 +1,29 @@
+error[2046]: recursive struct definition
+   ╭▸ ROOT/tests/ui/typeck/recursive_struct_mixed_cycle.sol:LL:CC
+   │
+LL │ ┏ struct A {
+LL │ ┃     A[] xs;
+LL │ ┃     B b;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error[2046]: recursive struct definition
+   ╭▸ ROOT/tests/ui/typeck/recursive_struct_mixed_cycle.sol:LL:CC
+   │
+LL │ ┏ struct B {
+LL │ ┃     A a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error[2046]: recursive struct definition
+   ╭▸ ROOT/tests/ui/typeck/recursive_struct_mixed_cycle.sol:LL:CC
+   │
+LL │ ┏ struct C {
+LL │ ┃     mapping(uint => C) m;
+LL │ ┃     C[][2] xs;
+LL │ ┃     C[2] c;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 3 previous errors
+

@@ -1,6 +1,5 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -21,7 +20,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -184,7 +183,7 @@ impl<'gcx> TypeChecker<'gcx> {
             .help(format!("compile with `--evm-version {required}` or newer"))
     }
 
-    fn check_res_evm_version(&self, res: hir::Res, span: Span) {
+    fn check_builtin_res(&self, res: hir::Res, span: Span) {
         if let hir::Res::Builtin(builtin) = res {
             let target = self.gcx.sess.opts.evm_version;
             if let Some(required) = builtin.required_evm_version(target) {
@@ -205,43 +204,53 @@ impl<'gcx> TypeChecker<'gcx> {
                     .code(error_code!(8417))
                     .span(span)
                     .emit();
+            } else if builtin == Builtin::MsgGas {
+                self.dcx()
+                    .warn("`msg.gas` is deprecated")
+                    .code(error_code!(1400))
+                    .span(span)
+                    .help("use `gasleft()` instead")
+                    .emit();
             }
         }
     }
 
+    /// Checks the base slot expression of a storage layout specifier.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        match self.gcx.try_eval_const_value(slot) {
-            Ok(ConstValue::Integer(value)) => {
-                if let Some(base_slot) = value.as_u256() {
-                    let Some(contract_id) = self.contract else {
-                        unreachable!("storage layout specifier outside a contract")
-                    };
-                    if let Ok(Some(size)) = super::storage_size_upper_bound(
-                        self.gcx,
-                        contract_id,
-                        DataLocation::Storage,
-                    ) && base_slot.checked_add(size).is_none()
-                    {
-                        self.dcx().emit_err(
-                            slot.span,
-                            "contract extends past the end of storage when this base slot value is specified",
-                        );
-                    }
-                } else {
-                    self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
-                }
-            }
-            Ok(ConstValue::Bool(_)) => {
-                self.dcx()
-                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
-            }
-            Ok(ConstValue::String(_)) => {
-                let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
-                self.gcx.emit_const_eval_error(slot, err);
-            }
-            Err(err) => {
-                self.gcx.emit_const_eval_error(slot, err);
-            }
+        let ty = self.check_expr(slot);
+        if ty.references_error() {
+            return;
+        }
+        if !ty.is_integer() {
+            self.dcx()
+                .err("base slot of storage layout must evaluate to an integer")
+                .code(error_code!(1763))
+                .span(slot.span)
+                .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit();
+            return;
+        }
+        let Ok(value) = self.gcx.eval_const(slot) else { return };
+        let Some(base_slot) = value.as_u256() else {
+            self.dcx()
+                .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
+                .code(error_code!(6753))
+                .span(slot.span)
+                .emit();
+            return;
+        };
+        let contract_id = self.contract.expect("storage layout specifier outside a contract");
+        if let Ok(Some(size)) =
+            super::storage_size_upper_bound(self.gcx, contract_id, DataLocation::Storage)
+            && base_slot.checked_add(size).is_none()
+        {
+            self.dcx()
+                .err("contract extends past the end of storage when this base slot value is specified")
+                .code(error_code!(5015))
+                .span(slot.span)
+                .emit();
         }
     }
 
@@ -545,17 +554,27 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
-                if valid_delete(ty) {
+                // Deleting a storage pointer could mean resetting the pointer or clearing the
+                // storage it points to.
+                let storage_pointer =
+                    ty.is_ref_at(DataLocation::Storage) && self.is_storage_pointer_variable(expr);
+                if valid_delete(ty) && !storage_pointer {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let err = self.dcx().err(msg).span(expr.span);
+                    let mut err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    if storage_pointer {
+                        err = err.note("storage pointers cannot be deleted");
+                    }
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
             hir::ExprKind::Ident(resolutions) => {
-                let res = self.resolve_value(expr, resolutions);
-                self.check_res_evm_version(res, expr.span);
+                let mut res = self.resolve_value(expr, resolutions);
+                if !self.in_yul {
+                    res = self.reject_modifier_ref(res, expr.span);
+                }
+                self.check_builtin_res(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -589,8 +608,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
                     result_ty
-                } else if let TyKind::Type(elem_ty) = ty.kind {
+                } else if let TyKind::Type(mut elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
+                    if let TyKind::Contract(id) = elem_ty.kind
+                        && self.gcx.hir.contract(id).kind.is_library()
+                    {
+                        let msg = "index access for library types is not possible";
+                        let guar =
+                            self.dcx().err(msg).code(error_code!(2876)).span(expr.span).emit();
+                        elem_ty = self.gcx.mk_ty_err(guar);
+                    }
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
@@ -699,12 +726,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.gcx.mk_ty_err(err.emit())
                     }
                     Err(MemberAccessError::Ambiguous) => {
-                        let msg = format!(
-                            "member `{ident}` not unique on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        );
-                        let err = self.dcx().err(msg).span(ident.span);
-                        self.gcx.mk_ty_err(err.emit())
+                        self.report_ambiguous_member(ident, receiver_ty)
                     }
                 };
 
@@ -857,7 +879,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
+                        if ty.is_unit() {
+                            empty_err(self, expr.span)
+                        } else if exprs.len() > 1
+                            && let Err(guar) =
+                                self.check_literal_fits(expr.span, ty, error_code!(3390))
+                        {
+                            self.gcx.mk_ty_err(guar)
+                        } else {
+                            ty
+                        }
                     } else if self.in_lvalue() {
                         self.gcx.types.unit
                     } else {
@@ -1102,6 +1133,20 @@ impl<'gcx> TypeChecker<'gcx> {
         )
     }
 
+    /// Rejects an integer literal too large for any integer type where solc needs its mobile
+    /// type, reporting it with the given code.
+    fn check_literal_fits(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if is_literal_too_large(ty) {
+            return Err(self.gcx.literal_too_large_err(span).code(code).emit());
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_binop(
         &mut self,
@@ -1125,13 +1170,20 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             return ty;
         }
+        for (e, ty, other) in [(lhs_e, lhs, rhs), (rhs_e, rhs, lhs)] {
+            let other = other.peel_refs();
+            if literal_lacks_mobile_type(ty, other) && other.is_integer() {
+                return self.gcx.mk_ty_err(self.gcx.literal_too_large(e.span));
+            }
+        }
 
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
-        let mut err = self.dcx().err(msg).span(op.span);
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        let mut err = self.dcx().err(msg).code(code).span(op.span);
         err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
         err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
         self.gcx.mk_ty_err(err.emit())
@@ -1250,6 +1302,15 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if matches!(args.kind, hir::CallArgsKind::Named(_)) {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("type conversions cannot take named arguments")
+                    .code(error_code!(5153))
+                    .span(span)
+                    .emit(),
+            );
+        }
         if from.references_error() {
             return from;
         }
@@ -1929,6 +1990,14 @@ impl<'gcx> TypeChecker<'gcx> {
             };
         }
 
+        if let hir::ExprKind::Tuple([Some(inner)]) = expr.kind {
+            let result = self.check_require_message_or_error(inner);
+            if let Some(&ty) = self.results.expr_types.get(&inner.id) {
+                self.register_ty(expr, ty);
+            }
+            return result;
+        }
+
         let Some((callee, args, opts)) = expr.as_call() else {
             let actual = self.check_expr_once(expr);
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
@@ -1965,13 +2034,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let selected = match self.select_call_overload(&error_res, args) {
             Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
+            Err(e) => self.report_call_overload_error(e, callee.span),
         };
         let callee_ty = self.type_of_res(selected);
         let TyKind::Error(param_tys, _) = callee_ty.kind else {
@@ -1999,6 +2062,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
+            if let Err(guar) = self.check_literal_fits(expr.span, ty, error_code!(8009)) {
+                result = result.and(Err(guar));
+                continue;
+            }
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
@@ -2017,14 +2084,19 @@ impl<'gcx> TypeChecker<'gcx> {
                 )));
                 continue;
             }
-            result = result.and(self.check_array_copy_size(ty, expr.span));
+            // Packed encoding has no heads.
+            result = result.and(self.check_array_copy_size(ty, expr.span).and_then(|()| {
+                let msg = "type too large to ABI-encode";
+                if is_packed { Ok(()) } else { self.check_abi_heads(ty, expr.span, msg, None) }
+            }));
             if !valid_abi_encodable_arg(ty, self.gcx) {
-                result = result.and(Err(self.dcx().emit_err_label(
-                    expr.span,
-                    format!("`{}` argument cannot be ABI-encoded", builtin.name()),
-                    expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                )));
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!("`{}` argument cannot be ABI-encoded", builtin.name()))
+                    .code(error_code!(2056))
+                    .span(expr.span)
+                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit()));
             }
         }
         result
@@ -2321,12 +2393,24 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty = self.gcx.types.address_payable;
             }
             if !valid_abi_decodable_type(ty, self.gcx) {
-                let guar = self.dcx().emit_err_label(
-                    type_expr.span,
-                    "decoding type not supported",
-                    type_expr.span,
-                    format!("found `{}`", ty.display(self.gcx)),
-                );
+                let guar = self
+                    .dcx()
+                    .err("decoding type not supported")
+                    .code(error_code!(9611))
+                    .span(type_expr.span)
+                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            if let Err(guar) = self.check_location_size(ty, type_expr.span, error_code!(6118)) {
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            let msg = "type too large to ABI-decode";
+            if let Err(guar) =
+                self.check_abi_heads(ty, type_expr.span, msg, Some(error_code!(6118)))
+            {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -2364,31 +2448,20 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(res) = member.res {
-                    self.check_res_evm_version(res, callee.span);
+                    self.check_builtin_res(res, callee.span);
                     self.results
                         .resolved_callees
                         .insert(callee.id, ResolvedCallee::new(res, member.attached));
                 }
                 self.member_call_ty(receiver_ty, member)
             }
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound if possible_members.is_empty() => format!(
-                        "member `{ident}` not found on type `{}`",
-                        receiver_ty.display(self.gcx)
-                    ),
-                    OverloadError::NotFound => {
-                        format!(
-                            "no matching member `{ident}` found on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        )
-                    }
-                    OverloadError::Ambiguous => {
-                        format!(
-                            "member `{ident}` not unique on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        )
-                    }
+            Err(OverloadError::Ambiguous) => self.report_ambiguous_member(ident, receiver_ty),
+            Err(OverloadError::NotFound) => {
+                let receiver = receiver_ty.display(self.gcx);
+                let msg = if possible_members.is_empty() {
+                    format!("member `{ident}` not found on type `{receiver}`")
+                } else {
+                    format!("no matching member `{ident}` found on type `{receiver}`")
                 };
                 self.gcx.mk_ty_err(self.dcx().emit_err(ident.span, msg))
             }
@@ -2436,7 +2509,7 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) {
         if let Some(res) = member.res {
-            self.check_res_evm_version(res, expr.span);
+            self.check_builtin_res(res, expr.span);
             self.results.resolved_exprs.insert(expr.id, res);
         }
     }
@@ -2449,19 +2522,30 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let res = match self.select_call_overload(res, args) {
             Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
+            Err(e) => self.report_call_overload_error(e, callee.span),
         };
-        self.check_res_evm_version(res, callee.span);
+        let res = self.reject_modifier_ref(res, callee.span);
+        self.check_builtin_res(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
         ty
+    }
+
+    /// Reports a call whose argument types select no overload or several.
+    fn report_call_overload_error(&self, e: OverloadError, span: Span) -> hir::Res {
+        let (msg, code) = match e {
+            OverloadError::NotFound => ("no matching declarations found", error_code!(9322)),
+            OverloadError::Ambiguous => ("no unique declarations found", error_code!(4487)),
+        };
+        hir::Res::Err(self.dcx().err(msg).code(code).span(span).emit())
+    }
+
+    /// Reports a member access or call that several members match.
+    fn report_ambiguous_member(&self, ident: Ident, receiver_ty: Ty<'gcx>) -> Ty<'gcx> {
+        let msg =
+            format!("member `{ident}` not unique on type `{}`", receiver_ty.display(self.gcx));
+        self.gcx.mk_ty_err(self.dcx().err(msg).code(error_code!(6675)).span(ident.span).emit())
     }
 
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
@@ -2980,42 +3064,188 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    /// Checks a variable's type against the size limit of its location and, when it crosses the
+    /// ABI, each head of its encoding.
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
-        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
-            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
-            && size >= u32::MAX
+        if self.check_location_size(ty, var.ty.span, error_code!(1534)).is_ok()
+            && !self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty())
+            && self.crosses_abi(var, ty)
         {
-            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+            self.abi_heads_error(
+                var.ty.span,
+                "type too large for calldata",
+                Some(error_code!(1534)),
+            );
         }
     }
 
-    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
-        match ty.kind {
-            TyKind::Array(elem, len) => {
-                let elem_size = if elem.is_dynamically_sized() {
-                    U256::from(32)
+    /// Checks a memory or calldata type against the 32-bit size limit of its location.
+    fn check_location_size(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
+            && !self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())
+        {
+            return Err(self
+                .dcx()
+                .err(format!("type too large for {loc}"))
+                .code(code)
+                .span(span)
+                .emit());
+        }
+        Ok(())
+    }
+
+    /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
+    /// solc's `validForLocation`.
+    ///
+    /// An array's size counts its nested static arrays, but a struct is never sized as a whole:
+    /// its reference members are checked one by one.
+    fn ty_fits_location(
+        &self,
+        ty: Ty<'gcx>,
+        loc: DataLocation,
+        visited: &mut GrowableBitSet<hir::StructId>,
+    ) -> bool {
+        match ty.peel_refs().kind {
+            // Only an array element that is an array itself is checked on its own.
+            TyKind::Array(elem, _) | TyKind::DynArray(elem)
+                if elem.peel_refs().is_array() && !self.ty_fits_location(elem, loc, visited) =>
+            {
+                false
+            }
+            TyKind::Array(_, len) => {
+                let size = if loc == DataLocation::Memory {
+                    self.ty_memory_static_size(ty)
                 } else {
-                    self.ty_memory_static_size(elem)?
+                    // solc's `calldataHeadSize`: a dynamically encoded element takes one word.
+                    ty.abi_static_size(self.gcx)
+                        .unwrap_or_else(|| len.saturating_mul(U256::from(32)))
                 };
-                len.checked_mul(elem_size)
+                size < u32::MAX
             }
+            // A failed member fails the whole type, so a struct seen before has passed or is
+            // still being checked; skipping it also cuts direct cycles.
+            // NOTE: an `Infinite` check would do, but some mixed cycles are classified `Recursive`.
             TyKind::Struct(id) => {
-                if self.gcx.struct_recursiveness(id).is_recursive() {
-                    return None;
-                }
-                let mut size = U256::ZERO;
-                for &field_ty in self.gcx.struct_field_types(id) {
-                    let field_size = if field_ty.is_dynamically_sized() {
-                        U256::from(32)
-                    } else {
-                        self.ty_memory_static_size(field_ty)?
-                    };
-                    size = size.checked_add(field_size)?;
-                }
-                Some(size)
+                !visited.insert(id)
+                    || self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .all(|&field| self.ty_fits_location(field, loc, visited))
             }
-            TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
-            _ => Some(U256::from(32)),
+            _ => true,
+        }
+    }
+
+    /// Returns the memory size of `ty` as solc's `validForLocation` counts it: nested static array
+    /// lengths times the element's `memoryDataSize`, which is one word per struct member.
+    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> U256 {
+        match ty.peel_refs().kind {
+            TyKind::Array(elem, len) => len.saturating_mul(self.ty_memory_static_size(elem)),
+            TyKind::Struct(id) => U256::from(32 * self.gcx.struct_field_types(id).len()),
+            _ => U256::from(32),
+        }
+    }
+
+    /// Checks that each head of `ty`'s ABI encoding stays below the 32-bit size limit.
+    fn check_abi_heads(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty()) {
+            return Ok(());
+        }
+        Err(self.abi_heads_error(span, msg, code))
+    }
+
+    /// Reports a type with an ABI head of 2^32 - 1 bytes or more.
+    fn abi_heads_error(
+        &self,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> ErrorGuaranteed {
+        let mut err = self
+            .dcx()
+            .err(msg)
+            .span(span)
+            .note("each head of an ABI encoding must be smaller than 2^32 - 1 bytes");
+        if let Some(code) = code {
+            err = err.code(code);
+        }
+        err.emit()
+    }
+
+    /// Returns whether `var`'s value is ABI-encoded: a calldata variable, a parameter of an event,
+    /// an error or a non-abstract contract's constructor, or a parameter or return of a public or
+    /// external function or function type. Library storage pointers cross the ABI as slots.
+    fn crosses_abi(&self, var: &hir::Variable<'_>, ty: Ty<'gcx>) -> bool {
+        if ty.encodes_as_slot() {
+            return false;
+        }
+        let crosses = ty.is_ref_at(DataLocation::Calldata)
+            || match var.kind {
+                hir::VarKind::Event | hir::VarKind::Error => true,
+                hir::VarKind::FunctionTyParam(vis) | hir::VarKind::FunctionTyReturn(vis) => {
+                    vis >= hir::Visibility::Public
+                }
+                hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn => {
+                    var.parent.and_then(|parent| parent.as_function()).is_some_and(|f| {
+                        let f = self.gcx.hir.function(f);
+                        if f.is_constructor() {
+                            !f.contract.is_some_and(|c| self.gcx.hir.contract(c).is_abstract())
+                        } else {
+                            f.is_part_of_external_interface()
+                        }
+                    })
+                }
+                _ => false,
+            };
+        crosses && ty.interface_type_error(false, self.gcx).is_none()
+    }
+
+    /// Returns whether each head in `ty`'s ABI encoding, including the heads in the tails of its
+    /// dynamic parts, stays below the 32-bit size limit.
+    ///
+    /// This is stricter than solc, which bounds only arrays: a struct's head sums its members, and
+    /// the backend computes head sizes in 64 bits. See TYPECK-016 in `docs/SOLC_DIVERGENCE.md`.
+    fn ty_abi_heads_fit(&self, ty: Ty<'gcx>, visited: &mut GrowableBitSet<hir::StructId>) -> bool {
+        if let Some(size) = ty.abi_static_size(self.gcx) {
+            return size < u32::MAX;
+        }
+        match ty.peel_refs().kind {
+            // The element is dynamically encoded too, so each one takes a word in the head.
+            TyKind::Array(elem, len) => {
+                len.saturating_mul(U256::from(32)) < u32::MAX
+                    && self.ty_abi_heads_fit(elem, visited)
+            }
+            TyKind::DynArray(elem) => self.ty_abi_heads_fit(elem, visited),
+            // A struct seen before has passed or is still being checked.
+            TyKind::Struct(id) => {
+                if !visited.insert(id) {
+                    return true;
+                }
+                let mut head = U256::ZERO;
+                for &field in self.gcx.struct_field_types(id) {
+                    // A dynamically encoded field takes a word in the head.
+                    let size = match field.abi_static_size(self.gcx) {
+                        Some(size) => size,
+                        None if self.ty_abi_heads_fit(field, visited) => U256::from(32),
+                        None => return false,
+                    };
+                    head = head.saturating_add(size);
+                }
+                head < u32::MAX
+            }
+            _ => true,
         }
     }
 
@@ -3263,15 +3493,30 @@ impl<'gcx> TypeChecker<'gcx> {
         let res = match self.try_resolve_overloads(resolutions) {
             Ok(res) => res,
             Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
+                let (msg, code) = match e {
+                    _ if self.in_yul => ("multiple matching identifiers", error_code!(4718)),
+                    OverloadError::NotFound => {
+                        ("no matching declarations found", error_code!(2144))
+                    }
+                    OverloadError::Ambiguous => ("no unique declarations found", error_code!(7589)),
                 };
-                hir::Res::Err(self.dcx().emit_err(expr.span, msg))
+                hir::Res::Err(self.dcx().err(msg).code(code).span(expr.span).emit())
             }
         };
         if resolutions.len() > 1 {
             self.results.resolved_exprs.insert(expr.id, res);
+        }
+        res
+    }
+
+    /// Rejects a modifier referenced by an expression, since only modifier invocations in
+    /// function headers can name one.
+    fn reject_modifier_ref(&self, res: hir::Res, span: Span) -> hir::Res {
+        if let Some(id) = res.as_function()
+            && self.gcx.hir.function(id).kind.is_modifier()
+        {
+            let msg = "modifier can only be referenced in function headers";
+            return hir::Res::Err(self.dcx().err(msg).code(error_code!(3112)).span(span).emit());
         }
         res
     }
@@ -3432,6 +3677,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
+        }
+        if modifier.qualified
+            && let Some(id) = modifier.id.as_function()
+            && self.gcx.hir.function(id).body.is_none()
+        {
+            self.dcx()
+                .err("cannot call unimplemented modifier")
+                .code(error_code!(1835))
+                .span(modifier.span)
+                .note("the modifier has no implementation in the referenced contract")
+                .help("refer to it by its unqualified name to call the implementation in the most derived contract")
+                .emit();
         }
         let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
             return self.walk_modifier(modifier);
@@ -3662,6 +3919,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
+                let ty = self.check_expr(expr);
+                let _ = self.check_literal_fits(expr.span, ty, error_code!(3757));
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
@@ -3775,7 +4035,8 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
     match ty.kind {
         TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
-        TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
+        TyKind::Ref(_, DataLocation::Calldata) => false,
+        TyKind::Ref(inner, _) => !matches!(inner.kind, TyKind::Mapping(..)),
 
         TyKind::Err(_) => true,
 
@@ -3880,16 +4141,12 @@ fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
     if ty.references_error() {
         return true;
     }
+    let Some(ty) = ty.mobile(gcx) else { return false };
     match ty.kind {
         TyKind::Tuple([ty]) => valid_abi_encodable_arg(*ty, gcx),
-        TyKind::Tuple(_) => false,
-        TyKind::Error(..)
-        | TyKind::Event(..)
-        | TyKind::Module(..)
-        | TyKind::BuiltinModule(..)
-        | TyKind::Type(_)
-        | TyKind::Meta(_)
-        | TyKind::Variadic => false,
+        TyKind::Tuple(_) | TyKind::Variadic => false,
+        // Only external function values have an ABI encoding.
+        TyKind::Fn(f) => f.is_external(),
         _ => ty.can_be_exported(gcx),
     }
 }
@@ -3956,6 +4213,9 @@ fn binop_common_type<'gcx>(
 
     let ty = ty.peel_refs();
     let other = other.peel_refs();
+    if literal_lacks_mobile_type(ty, other) || literal_lacks_mobile_type(other, ty) {
+        return None;
+    }
     match ty.kind {
         TyKind::Elementary(hir::ElementaryType::Int(_))
         | TyKind::Elementary(hir::ElementaryType::UInt(_))
@@ -4001,7 +4261,6 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
-        | TyKind::Struct(_)
         | TyKind::Enum(_)
         | TyKind::Error(..)
         | TyKind::Event(..) => {
@@ -4033,6 +4292,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::CallOptions(_)
+        | TyKind::Struct(_)
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)
@@ -4050,6 +4310,17 @@ fn binop_common_type<'gcx>(
 
         TyKind::Ref(..) => unreachable!(),
     }
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type.
+fn is_literal_too_large(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if TypeSize::try_new_literal_bits(bits).is_none())
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type next to a typed
+/// operand `other`. Like solc, such a binary operation needs the literal's mobile type.
+fn literal_lacks_mobile_type(ty: Ty<'_>, other: Ty<'_>) -> bool {
+    is_literal_too_large(ty) && !matches!(other.kind, TyKind::IntLiteral(..))
 }
 
 fn valid_shift<'gcx>(

@@ -2,7 +2,7 @@
 
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Session, Span, diagnostics::DiagCtxt, error_code, sym};
+use solar_interface::{Ident, Session, Span, diagnostics::DiagCtxt, error_code, sym};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -25,6 +25,7 @@ struct AstValidator<'sess, 'ast> {
     in_unchecked_block: bool,
     placeholder_count: u32,
     yul_for_part: YulForPart,
+    in_yul_function: bool,
 }
 
 impl<'sess, 'ast> AstValidator<'sess, 'ast> {
@@ -37,6 +38,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             in_unchecked_block: false,
             placeholder_count: 0,
             yul_for_part: YulForPart::None,
+            in_yul_function: false,
         }
     }
 
@@ -177,6 +179,32 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         self.yul_for_part = prev;
         r
     }
+
+    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
+    /// innermost mapping reuses as its value name.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
+    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
+        let Some(key_name) = mapping.key_name else { return };
+        let check = |name: Option<Ident>| {
+            if let Some(name) = name
+                && name == key_name
+            {
+                self.dcx()
+                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
+                    .code(error_code!(1809))
+                    .span(span)
+                    .span_note(name.span, "the name is reused here")
+                    .emit();
+            }
+        };
+        let mut inner = mapping;
+        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
+            check(child.key_name);
+            inner = child;
+        }
+        check(inner.value_name);
+    }
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
@@ -195,7 +223,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        ControlFlow::Continue(())
+        self.walk_item_struct(item)
     }
 
     fn visit_item_enum(
@@ -227,7 +255,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    ("abicoder", Some("v1" | "v2")) => {}
+                    ("abicoder", Some("v1")) => {
+                        self.dcx()
+                            .warn("ABI coder v1 is not supported")
+                            .code(error_code!(9511))
+                            .span(self.item_span)
+                            .note("ABI coder v2 is used instead")
+                            .help("remove the pragma or use `pragma abicoder v2`")
+                            .emit();
+                    }
+                    ("abicoder", Some("v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
@@ -298,6 +335,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         match &stmt.kind {
             ast::yul::StmtKind::Break => self.check_yul_break_continue(stmt.span, "break"),
             ast::yul::StmtKind::Continue => self.check_yul_break_continue(stmt.span, "continue"),
+            ast::yul::StmtKind::Leave if !self.in_yul_function => {
+                self.dcx()
+                    .err("keyword `leave` can only be used inside a function")
+                    .code(error_code!(8149))
+                    .span(stmt.span)
+                    .emit();
+            }
             ast::yul::StmtKind::For(ast::yul::StmtFor { init, cond, step, body }) => {
                 self.visit_yul_block_in(YulForPart::Init, init)?;
                 self.visit_yul_expr(cond)?;
@@ -312,9 +356,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .span(function.name.span)
                         .emit();
                 }
-                let prev = std::mem::replace(&mut self.yul_for_part, YulForPart::None);
+                let prev = (
+                    std::mem::replace(&mut self.yul_for_part, YulForPart::None),
+                    std::mem::replace(&mut self.in_yul_function, true),
+                );
                 let r = self.walk_yul_stmt(stmt);
-                self.yul_for_part = prev;
+                (self.yul_for_part, self.in_yul_function) = prev;
                 return r;
             }
             _ => {}
@@ -508,6 +555,27 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            if let Some(vis) = f.visibility
+                && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
+            {
+                self.dcx()
+                    .err("invalid visibility, can only be `external` or `internal`")
+                    .code(error_code!(6012))
+                    .span(vis.span)
+                    .emit();
+            }
+            if let Some(state_mutability) = f.state_mutability
+                && state_mutability.is_payable()
+                && matches!(f.visibility(), None | Some(ast::Visibility::Internal))
+            {
+                self.dcx()
+                    .err("only external function types can be payable")
+                    .code(error_code!(7415))
+                    .span(state_mutability.span)
+                    .emit();
+            }
+        } else if let ast::TypeKind::Mapping(mapping) = &ty.kind {
+            self.check_mapping_names(ty.span, mapping);
         }
         self.walk_ty(ty)
     }

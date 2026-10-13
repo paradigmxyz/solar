@@ -22,7 +22,7 @@ error: can only use `global` with types defined in the same source unit at file 
 LL │ using {unsub2 as -} for Int global;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: cannot apply builtin operator `+` to `Int` and `Int`
+error[2271]: cannot apply builtin operator `+` to `Int` and `Int`
    ╭▸ ROOT/tests/ui/using-for/imports/transitive_global_operator_wrong_source.sol:LL:CC
    │
 LL │         Int.wrap(0) + Int.wrap(0);

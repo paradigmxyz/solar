@@ -10,8 +10,8 @@
 #![cfg_attr(feature = "nightly", feature(never_type))]
 #![cfg_attr(feature = "nightly", allow(internal_features, stable_features))]
 
-pub mod cycle;
 pub mod fmt;
+pub mod graph;
 pub mod hint;
 pub mod index;
 pub mod map;

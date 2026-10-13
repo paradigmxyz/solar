@@ -1,0 +1,82 @@
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │     event E(S2[] s);
+   │             ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │     error Err(S2[] s);
+   │               ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │     function calldataParam(S2[] calldata s) external pure {
+   │                            ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │     function memoryParam(S2[] memory s) external pure {
+   │                          ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │     function publicReturn() public pure returns (S2[] memory s) {}
+   │                                                  ━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │     function dynamicTail(Dyn[] memory d) public pure {
+   │                          ━━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error: type too large to ABI-encode
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │         return abi.encode(s);
+   │                           ━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error: type too large to ABI-encode
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │         return abi.encodeWithSelector(0x12345678, stored);
+   │                                                   ━━━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error: type too large to ABI-encode
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │         return (abi.encode(big), abi.encodePacked(big));
+   │                            ━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error[6118]: type too large to ABI-decode
+   ╭▸ ROOT/tests/ui/typeck/abi_head_size.sol:LL:CC
+   │
+LL │         abi.decode(data, (S2));
+   │                           ━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
+error: aborting due to 10 previous errors
+
