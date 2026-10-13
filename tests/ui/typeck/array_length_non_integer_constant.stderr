@@ -1,0 +1,20 @@
+error: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
+LL │     uint256[T] t;
+   ╰╴            ━ evaluation of constant value failed here
+
+error: failed to evaluate constant: unsupported literal
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
+LL │     uint256["lol"] l;
+   ╰╴            ━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: `bytesN` constants are not integers
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
+LL │     uint256[S] s;
+   ╰╴            ━ evaluation of constant value failed here
+
+error: aborting due to 3 previous errors
+

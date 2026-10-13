@@ -86,6 +86,16 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
+    /// Evaluates the given expression like solc's constant evaluator, without caching the result
+    /// or emitting diagnostics.
+    ///
+    /// solc's evaluator gives no value to a ternary, to a shift by more than `u32::MAX` bits, or
+    /// to a typed shift or power whose right operand does not fit the left operand's type. Checks
+    /// that solc runs on constant operands use this to report the same errors.
+    pub(crate) fn try_eval_solc_const(self, expr: &hir::Expr<'_>) -> EvalResult {
+        ConstantEvaluator { like_solc: true, ..ConstantEvaluator::new(self) }.try_eval_value(expr)
+    }
+
     pub(crate) fn eval_const_value_result(self, expr: &hir::Expr<'_>) -> &'gcx EvalResult {
         // Constant values can own big-integer buffers. Keep them in the cache itself so they
         // are dropped with the compilation instead of leaking from the dropless HIR arena.
@@ -101,7 +111,11 @@ impl<'gcx> Gcx<'gcx> {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
             EE::LiteralTooLarge => self.literal_too_large(err.span),
-            _ => self.emit_once(err.literal.unwrap_or(expr.id), || {
+            _ if let Some(literal) = err.literal => self.emit_once(literal, || {
+                let msg = format!("failed to evaluate constant: {}", err.kind.msg());
+                self.dcx().err(msg).code(error_code!(6020)).span(err.span).emit()
+            }),
+            _ => self.emit_once(expr.id, || {
                 let msg = format!("failed to evaluate constant: {}", err.kind.msg());
                 let label = "evaluation of constant value failed here";
                 self.dcx().emit_err_label(expr.span, msg, err.span, label)
@@ -133,13 +147,16 @@ struct ConstantEvaluator<'gcx> {
     depth: usize,
     /// The values of the constants evaluated so far, as constants can use each other many times.
     constants: FxHashMap<hir::VariableId, EvalResult>,
+    /// Whether to give a value only to the expressions solc's constant evaluator gives one, see
+    /// [`Gcx::try_eval_solc_const`].
+    like_solc: bool,
 }
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, depth: 0, constants: FxHashMap::default() }
+        Self { gcx, depth: 0, constants: FxHashMap::default(), like_solc: false }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -161,6 +178,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             hir::ExprKind::Binary(l_expr, bin_op, r_expr) => {
                 let l = self.eval_operand(l_expr)?;
                 let r = self.eval_operand(r_expr)?;
+                if self.like_solc
+                    && let (ConstValue::Integer(l), ConstValue::Integer(r)) = (&l, &r)
+                    && !l.solc_folds(r, bin_op.kind)?
+                {
+                    return Err(EE::UnsupportedExpr.into());
+                }
                 // Only an untyped literal next to a typed operand can be too large.
                 let literal = if matches!(&l, ConstValue::Integer(l) if l.ty.is_none()) {
                     l_expr
@@ -189,6 +212,11 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
                     return Err(EE::FixedBytesConstant.into());
                 }
+                // The parser reports a constant without an initializer.
+                let Some(initializer) = v.initializer else {
+                    self.gcx.dcx().has_errors().map_err(EE::AlreadyEmitted)?;
+                    return Err(EE::UnsupportedExpr.into());
+                };
                 let value = match self.constants.get(&id) {
                     Some(value) => value.clone(),
                     None => {
@@ -198,16 +226,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                         if self.depth > RECURSION_LIMIT {
                             return Err(EE::RecursionLimitReached.spanned(expr.span));
                         }
-                        let initializer =
-                            v.initializer.expect("constant variable has no initializer");
                         let value = self.try_eval_value(initializer);
                         self.depth -= 1;
                         self.constants.insert(id, value.clone());
                         value
                     }
-                };
-                // Each use of a failing constant is reported separately.
-                let value = value.map_err(|err| EvalError { literal: None, ..err })?;
+                }?;
                 // The constant's declared type carries over into the surrounding expression, so
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.
@@ -225,7 +249,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
             // A whole ternary has the value of its selected branch.
-            hir::ExprKind::Ternary(cond, t, f) => {
+            hir::ExprKind::Ternary(cond, t, f) if !self.like_solc => {
                 let (taken, _) = self.ternary_branches(expr.span, cond, t, f)?;
                 self.try_eval_value(taken)
             }
@@ -246,6 +270,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     /// Type checking evaluates literal arithmetic at every operation, from the operands up, so
     /// evaluating the operands again would take quadratic time in long literal chains.
     fn eval_operand(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
+        // The cache holds values evaluated the usual way.
+        if self.like_solc {
+            return self.try_eval_value(expr);
+        }
         let peeled = expr.peel_parens();
         match peeled.kind {
             // The cache holds the value of a whole ternary, without the type an operand needs.
@@ -475,6 +503,11 @@ fn literal_binop(
     op: hir::BinOpKind,
 ) -> Result<ConstValue, EE> {
     use hir::BinOpKind::*;
+    // Literal arithmetic is exact, so it only overflows its precision.
+    let precision = |err| match err {
+        EE::ArithmeticOverflow => EE::LiteralPrecision,
+        err => err,
+    };
     let integers = lhs.is_integer() && rhs.is_integer();
     let value = match op {
         Lt => return Ok(ConstValue::Bool(lhs < rhs)),
@@ -490,17 +523,19 @@ fn literal_binop(
         Div => lhs / rhs,
         // Truncates the quotient, like integer division.
         Rem => lhs % rhs,
-        Pow => literal_pow(lhs, rhs)?,
+        Pow => literal_pow(lhs, rhs).map_err(precision)?,
         BitOr if integers => (lhs.into_raw().0 | rhs.into_raw().0).into(),
         BitAnd if integers => (lhs.into_raw().0 & rhs.into_raw().0).into(),
         BitXor if integers => (lhs.into_raw().0 ^ rhs.into_raw().0).into(),
-        Shl | Shr if integers => literal_shift(lhs.into_raw().0, rhs.into_raw().0, op)?.into(),
+        Shl | Shr if integers => {
+            literal_shift(lhs.into_raw().0, rhs.into_raw().0, op).map_err(precision)?.into()
+        }
         BitOr | BitAnd | BitXor | Shl | Shr | Sar | Or | And => {
             return Err(EE::UnsupportedBinaryOp);
         }
     };
     if value.numer().bits().max(value.denom().bits()) > LITERAL_PRECISION_BITS + 1 {
-        return Err(EE::ArithmeticOverflow);
+        return Err(EE::LiteralPrecision);
     }
     Ok(ConstValue::literal(value))
 }
@@ -513,7 +548,7 @@ fn literal_shift(value: BigInt, amount: BigInt, op: hir::BinOpKind) -> Result<Bi
     if amount.is_negative() {
         return Err(EE::UnsupportedBinaryOp);
     }
-    let amount = u32::try_from(amount).map_err(|_| EE::ArithmeticOverflow)?;
+    let amount = u32::try_from(amount).map_err(|_| EE::ShiftTooLarge)?;
     if op == hir::BinOpKind::Shr {
         // Rounds towards negative infinity, like the EVM's `sar`.
         Ok(value >> amount)
@@ -566,7 +601,7 @@ fn int_pow(base: &BigInt, exp: &BigUint) -> Result<BigInt, EE> {
     if *base == -BigInt::one() {
         return Ok(if exp.bit(0) { base.clone() } else { BigInt::one() });
     }
-    let exp = u32::try_from(exp).map_err(|_| EE::ArithmeticOverflow)?;
+    let exp = u32::try_from(exp).map_err(|_| EE::ExponentTooLarge)?;
     if base.bits() * u64::from(exp) > LITERAL_PRECISION_BITS {
         return Err(EE::ArithmeticOverflow);
     }
@@ -885,6 +920,21 @@ impl IntScalar {
         })
     }
 
+    /// Returns whether solc's constant evaluator gives the given binary operation a value.
+    ///
+    /// solc converts the right operand of a shift or power to the operation's type, and gives no
+    /// value to a right shift by more than `u32::MAX` bits.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L401-L407>
+    fn solc_folds(&self, r: &Self, op: hir::BinOpKind) -> Result<bool, EE> {
+        use hir::BinOpKind::*;
+        if !matches!(op, Shl | Shr | Sar | Pow) {
+            return Ok(true);
+        }
+        let fits = Self::binop_ty(self, r, op)?.is_none_or(|ty| ty.contains(&r.data));
+        Ok(fits && (op == Pow || u32::try_from(&r.data).is_ok()))
+    }
+
     /// Applies the given binary operation to this value.
     ///
     /// Typed arithmetic stays checked: a result outside of the operation's type is an error, like
@@ -924,7 +974,7 @@ impl IntScalar {
                 Self::checked(self.data >> r)?
             }
             Shl => {
-                let amount = u32::try_from(r.data).map_err(|_| EE::ArithmeticOverflow)?;
+                let amount = u32::try_from(r.data).map_err(|_| EE::ShiftTooLarge)?;
                 Self::checked(int_shl(self.data, amount)?)?
             }
             Sar => return Err(EE::UnsupportedBinaryOp),
@@ -937,6 +987,9 @@ impl IntScalar {
 pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
+    LiteralPrecision,
+    ShiftTooLarge,
+    ExponentTooLarge,
     LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
@@ -955,10 +1008,24 @@ impl EvalErrorKind {
         EvalError { kind: self, span, literal: None }
     }
 
+    /// Returns whether this is an operator that does not apply to the values of its operands.
+    pub(crate) fn rejects_values(&self) -> bool {
+        matches!(
+            self,
+            Self::DivisionByZero
+                | Self::LiteralPrecision
+                | Self::ShiftTooLarge
+                | Self::ExponentTooLarge
+        )
+    }
+
     pub(crate) fn msg(&self) -> &'static str {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
+            Self::LiteralPrecision => "the precision of literal arithmetic is limited to 4096 bits",
+            Self::ShiftTooLarge => "shift amount is too large",
+            Self::ExponentTooLarge => "exponent is too large",
             Self::LiteralTooLarge => "literal is too large for any integer type",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",

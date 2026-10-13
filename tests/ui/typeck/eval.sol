@@ -27,7 +27,7 @@ contract C {
     uint private stateVar = 69;
     uint public stateVarPublic = 420;
 
-    function early(uint[fails] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
+    function early(uint[fails] memory) public {}
 
     function a(uint[x / 0] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
     function a2(uint[x / zeroPublic] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
@@ -35,8 +35,8 @@ contract C {
     function c(uint[x * 2] memory) public {}
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
     function d5(uint[signedTwo] memory) public {}
     function d6(uint[-signedNegTwo] memory) public {}
     function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
@@ -58,7 +58,6 @@ contract C {
 
     function i(uint[block.timestamp] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
     function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: unsupported literal
-    //~^ ERROR: mismatched types
     function k(uint[--x] memory) public {} //~ ERROR: failed to evaluate constant: unsupported unary operation
     //~^ ERROR: cannot assign to a constant variable
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
@@ -67,7 +66,7 @@ contract C {
     function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: array length must be greater than zero
 
     function zeroDivision() external pure returns (uint) {
-        return 1 / 0; //~ ERROR: failed to evaluate constant: attempted to divide by zero
+        return 1 / 0; //~ ERROR: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
     }
     uint fractional = 0.5; //~ ERROR: mismatched types
     uint quotient = 7 / 3; //~ ERROR: mismatched types

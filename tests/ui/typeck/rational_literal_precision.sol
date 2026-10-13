@@ -4,14 +4,14 @@
 contract DivLimit {
     function f() public pure {
         int a;
-        a = 1/(2<<4094)/(2<<4094); //~ ERROR: failed to evaluate constant: arithmetic overflow
+        a = 1/(2<<4094)/(2<<4094); //~ ERROR: cannot apply builtin operator `/` to `rational_literal` and `int_literal[4096]`
     }
 }
 
 contract MulLimit {
     function f() public pure {
         int a;
-        a = (1<<4095)*(1<<4095); //~ ERROR: failed to evaluate constant: arithmetic overflow
+        a = (1<<4095)*(1<<4095); //~ ERROR: cannot apply builtin operator `*` to `int_literal[4096]` and `int_literal[4096]`
     }
 }
 
@@ -21,22 +21,22 @@ contract MulLimit {
 contract Limits {
     uint[(1 << 4095) >> 4094] shiftFits;
     uint[((1 << 4095) * 2) >> 4095] productFits;
-    uint[(1 << 4096) >> 4095] shiftTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
+    uint[(1 << 4096) >> 4095] shiftTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
     uint[2 ** 2048 / 2 ** 2047] powFits;
-    uint[2 ** 2049 / 2 ** 2048] powTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
+    uint[2 ** 2049 / 2 ** 2048] powTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
     uint[0.5 ** 2048 * 2 ** 2048] fractionPowFits;
-    uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
-    //~^ ERROR: failed to evaluate constant: arithmetic overflow
+    uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+    //~^ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
     uint[2 ** -2048 * 2 ** 2048] negativePowFits;
     uint[1 / (1 << 4095) * (1 << 4095)] denominatorFits;
-    uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
-    //~^ ERROR: failed to evaluate constant: arithmetic overflow
+    uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+    //~^ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
     uint[(1 << 300) >> 290] wide;
     uint[0 ** 4294967296 + 1 ** 4294967296 + (-1) ** 4294967297 + 2] trivialBases;
-    uint[2 ** 4294967296] exponentTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
-    uint[1 << 4294967296] shiftAmountTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
-    uint[1 >> 4294967296] rightShiftAmountTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
-    uint[0 << 4294967295 + 1] zeroShiftAmountTooLarge; //~ ERROR: failed to evaluate constant: arithmetic overflow
+    uint[2 ** 4294967296] exponentTooLarge; //~ ERROR: failed to evaluate constant: exponent is too large
+    uint[1 << 4294967296] shiftAmountTooLarge; //~ ERROR: failed to evaluate constant: shift amount is too large
+    uint[1 >> 4294967296] rightShiftAmountTooLarge; //~ ERROR: failed to evaluate constant: shift amount is too large
+    uint[0 << 4294967295 + 1] zeroShiftAmountTooLarge; //~ ERROR: failed to evaluate constant: shift amount is too large
     // Unary operators keep any precision.
     uint[(~(((1 << 4095) * 2 - 1) * 2 + 1) >> 4096) + 3] bitNotWide;
 }

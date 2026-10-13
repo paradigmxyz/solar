@@ -13,7 +13,7 @@ contract InvalidRational {
 }
 
 contract ExponentTooBig {
-    function f() public returns (uint d) { return 2 ** 10000000000; } //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function f() public returns (uint d) { return 2 ** 10000000000; } //~ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[34]`
 }
 
 contract AbiEncodeLargeInteger {
