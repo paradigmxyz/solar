@@ -1,5 +1,6 @@
 //@ revisions: sema bin
 //@[bin] compile-flags: --emit=bin
+//~[bin]? WARN: code generation is experimental
 // The `bin` revision keeps codegen running on a source with rejected base
 // argument lists: a rejected list must not reach lowering as a panic, and
 // lowering adds no diagnostics of its own after the rejection.

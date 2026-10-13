@@ -1,5 +1,6 @@
 //@ revisions: sema bin
 //@[bin] compile-flags: --emit=bin
+//~[bin]? WARN: code generation is experimental
 // A deployable contract that gives a parameterized base constructor no
 // arguments would deploy with the base constructor, and the state-variable
 // initializers it runs, skipped. The `bin` revision keeps codegen running on
