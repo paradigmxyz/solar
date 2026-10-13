@@ -1,0 +1,24 @@
+error: sub-denominations are only allowed on number and rational literals
+   ╭▸ ROOT/tests/ui/parser/str_subdenomination_unescape_error.sol:LL:CC
+   │
+LL │   t["ei
+   │ ┏━━━┛
+LL │ ┃ "wei
+   ╰╴┗━━━━┛
+
+error: unescaped newline
+   ╭▸ ROOT/tests/ui/parser/str_subdenomination_unescape_error.sol:LL:CC
+   │
+LL │   t["ei
+   │ ┏━━━━━━┛
+LL │ ┃ "wei
+   ╰╴┗━┛
+
+error: expected one of `(`, `.`, `?`, `[`, `]`, or `{`, found `<eof>`
+   ╭▸ ROOT/tests/ui/parser/str_subdenomination_unescape_error.sol:LL:CC
+   │
+LL │ "wei
+   ╰╴ ━━━ expected one of `(`, `.`, `?`, `[`, `]`, or `{`
+
+error: aborting due to 3 previous errors
+

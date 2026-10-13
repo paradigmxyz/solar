@@ -38,10 +38,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("natspec is not checked");
     }
 
-    if path_contains("_direction_override") {
-        return Err("Unicode direction override checks not implemented");
-    }
-
     if path_contains("wrong_compiler_") {
         return Err("Solidity pragma version is not checked");
     }
