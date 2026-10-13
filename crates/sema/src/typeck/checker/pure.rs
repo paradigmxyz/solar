@@ -8,8 +8,7 @@ use solar_ast::ElementaryType;
 use solar_interface::{Ident, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
-    /// Returns whether a type-checked expression is a compile-time constant, like solc's `isPure`
-    /// annotation.
+    /// Returns whether a type-checked expression is a compile-time constant.
     ///
     /// Expressions without a type or with an erroneous type count as pure to avoid follow-up
     /// errors.

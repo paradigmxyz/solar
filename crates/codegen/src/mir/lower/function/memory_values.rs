@@ -485,8 +485,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Reverts with `Panic(0x41)`, as solc's allocator does, when a static array is too large to
-    /// allocate. Sema bounds memory variables, but not the fields of a struct array element.
+    /// Reverts with `Panic(0x41)` when a static array is too large to allocate. Sema bounds memory
+    /// variables, but not the fields of a struct array element.
     fn oversized_default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
         if !matches!(ty.peel_refs().kind, TyKind::Array(..)) {
             return None;

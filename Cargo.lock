@@ -4614,6 +4614,7 @@ dependencies = [
  "alloy-primitives",
  "clap",
  "colorchoice",
+ "semver 1.0.28",
  "serde",
  "serde_json",
  "strum 0.28.0",

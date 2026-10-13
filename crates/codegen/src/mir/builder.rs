@@ -1168,8 +1168,9 @@ impl<'a> FunctionBuilder<'a> {
         (is_long, length)
     }
 
-    /// Keeps only the first `length` bytes of a storage `bytes` header word, like
-    /// solc's `mask_bytes_dynamic`.
+    /// Keeps only the first `length` bytes of a storage `bytes` header word.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L649>
     pub(crate) fn mask_storage_bytes_data(&mut self, data: ValueId, length: ValueId) -> ValueId {
         // mask = not((1 << (8 * (32 - length))) - 1)
         // masked = data & mask
@@ -1184,8 +1185,9 @@ impl<'a> FunctionBuilder<'a> {
         self.and(data, data_mask)
     }
 
-    /// Builds the header word of a short storage `bytes` value of `length` bytes,
-    /// like solc's `extract_used_part_and_set_length_of_short_byte_array`.
+    /// Builds the header word of a short storage `bytes` value of `length` bytes.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1620>
     pub(crate) fn short_storage_bytes_header(&mut self, data: ValueId, length: ValueId) -> ValueId {
         // header = mask(data, length) | length * 2
         let masked = self.mask_storage_bytes_data(data, length);
