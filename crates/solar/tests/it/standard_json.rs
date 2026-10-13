@@ -347,3 +347,24 @@ fn relative_imports_with_base_path() {
         json!({"sources": {"/project/A.sol": {"id": 1}, "/project/B.sol": {"id": 0}}})
     );
 }
+
+/// On Windows, source unit names that differ only in separators are the same path.
+#[cfg(windows)]
+#[test]
+fn windows_backslash_and_slash_keys_collide() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "a/X.sol": {"content": "contract X {}"},
+            "a\\X.sol": {"content": "contract Y {}"}
+        },
+        "settings": {"outputSelection": {}}
+    });
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), CompileOpts::default(), None, &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output["errors"][0]["message"],
+        "source unit names `a/X.sol` and `a\\X.sol` are the same path"
+    );
+}

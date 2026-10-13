@@ -47,6 +47,21 @@ Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
 Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
 `tests/ui/standard-json/debug/unknown-key/test.jsonc`.
 
+### JSON-002: Source unit names that are the same path
+
+Status: intentional.
+
+Difference: `solc` treats source keys as opaque strings, so `a/X.sol` and
+`a//X.sol`, or `a/X.sol` and `a\X.sol` on Windows, are separate source units.
+`solar` reports an error for input keys that are equal as paths.
+
+Rationale: `solar` keys sources by path, so such keys would share one source
+and silently drop the others. Build tools do not produce such inputs.
+
+Coverage: `tests/ui/standard-json/equivalent-source-names.jsonc` and
+`windows_backslash_and_slash_keys_collide` in
+`crates/solar/tests/it/standard_json.rs`.
+
 ## Import Resolution
 
 ### IMPORT-001: Files on disk are one source unit each

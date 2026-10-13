@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "source unit names `a/X.sol` and `a//X.sol` are the same path",
+      "formattedMessage": "error: source unit names `a/X.sol` and `a//X.sol` are the same path\n\n"
+    }
+  ]
+}

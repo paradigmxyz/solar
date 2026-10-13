@@ -1,0 +1,15 @@
+// CHECK: "message": "source unit names `a/X.sol` and `a//X.sol` are the same path"
+{
+  "language": "Solidity",
+  "sources": {
+    "a/X.sol": {
+      "content": "contract X {}"
+    },
+    "a//X.sol": {
+      "content": "contract Y {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}

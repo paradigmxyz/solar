@@ -307,6 +307,16 @@ fn compile(
                     compiler,
                     |pcx| {
                         let mut files = Vec::<(PathBuf, String)>::with_capacity(sources.len());
+                        // Sources are keyed by path, so names equal as paths would share one.
+                        let mut names = FxHashMap::<&Path, &str>::default();
+                        for (name, _) in &sources {
+                            if let Some(other) = names.insert(Path::new(name.as_ref()), name) {
+                                let msg = format!(
+                                    "source unit names `{other}` and `{name}` are the same path"
+                                );
+                                return Err(pcx.dcx().err(msg).emit());
+                            }
+                        }
                         for (name, source) in sources {
                             let Some(content) = source.content else {
                                 let message = if source.urls.is_empty() {
