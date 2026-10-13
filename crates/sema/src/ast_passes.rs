@@ -2,7 +2,9 @@
 
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code, sym,
+use solar_interface::{
+    Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
+    sym,
 };
 use std::ops::ControlFlow;
 
