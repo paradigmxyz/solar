@@ -605,11 +605,21 @@ impl<'gcx> Ty<'gcx> {
         let this = self.peel_refs();
         match this.kind {
             TyKind::Struct(id) => {
-                this.is_recursive(gcx)
-                    || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
+                gcx.struct_abi_static_size(id).is_none() || this.is_recursive(gcx)
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
             _ => this.is_dynamically_sized(),
+        }
+    }
+
+    /// Returns the size of the type's ABI encoding if it is statically encoded, or `None` if it is
+    /// dynamically encoded.
+    pub fn abi_static_size(self, gcx: Gcx<'gcx>) -> Option<U256> {
+        let this = self.peel_refs();
+        match this.kind {
+            TyKind::Struct(id) => gcx.struct_abi_static_size(id),
+            TyKind::Array(element, len) => Some(len.saturating_mul(element.abi_static_size(gcx)?)),
+            _ => (!this.is_dynamically_sized()).then(|| U256::from(32)),
         }
     }
 
