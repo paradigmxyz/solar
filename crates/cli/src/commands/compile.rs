@@ -1,8 +1,10 @@
 use solar_codegen::ContractSelection;
 use solar_config::CompileOpts;
-use solar_interface::{Result, Session, error_code};
+use solar_interface::{
+    Result, Session, data_structures::map::FxHashMap, error_code, source_map::SourceFile,
+};
 use solar_sema::{CompilerRef, ParsingContext};
-use std::{ops::ControlFlow, process::ExitCode};
+use std::{ops::ControlFlow, path::Path, process::ExitCode, sync::Arc};
 
 pub(super) fn run(opts: CompileOpts) -> ExitCode {
     match run_compiler_args(opts) {
@@ -90,6 +92,10 @@ pub(crate) fn run_pipeline(
         let note = "if you wish to use the standard input, please specify `-` explicitly";
         return Err(sess.dcx.err(msg).note(note).emit());
     }
+    // Standard JSON keys are unique names.
+    if !sess.opts.standard_json {
+        check_source_unit_names(sess, compiler.gcx().sources.iter().map(|source| &source.file))?;
+    }
 
     compiler.sources_mut().topo_sort();
     after_parsing(compiler);
@@ -146,4 +152,32 @@ fn finish_session(sess: &Session, result: Result) -> Result {
     let diagnostics = sess.dcx.print_error_count();
     result?;
     diagnostics
+}
+
+/// Rejects different files with the same source unit name, which solc reports for input files.
+fn check_source_unit_names<'a>(
+    sess: &Session,
+    files: impl IntoIterator<Item = &'a Arc<SourceFile>>,
+) -> Result {
+    // Sort for a deterministic order, since parsing adds sources in parallel.
+    let mut files = files.into_iter().collect::<Vec<_>>();
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut names = FxHashMap::default();
+    let mut result = Ok(());
+    for file in files {
+        let name = file.name.display().to_string();
+        if let Some(other) = names.insert(name.clone(), file)
+            && !Arc::ptr_eq(other, file)
+        {
+            let note =
+                format!("`{}` and `{}`", real_path(other).display(), real_path(file).display());
+            let msg = format!("source unit name `{name}` matches multiple files");
+            result = Err(sess.dcx.err(msg).note(note).emit());
+        }
+    }
+    result
+}
+
+fn real_path(file: &SourceFile) -> &Path {
+    file.name.as_real().unwrap_or(Path::new(""))
 }

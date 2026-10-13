@@ -1,0 +1,20 @@
+error[3417]: recursive types cannot be event parameter types
+   ╭▸ ROOT/tests/ui/abi/recursive_struct_event.sol:LL:CC
+   │
+LL │     event E1(S);
+   ╰╴             ━
+
+error[3417]: recursive types cannot be event parameter types
+   ╭▸ ROOT/tests/ui/abi/recursive_struct_event.sol:LL:CC
+   │
+LL │     event E2(S[2]);
+   ╰╴             ━━━━
+
+error[3417]: recursive types cannot be event parameter types
+   ╭▸ ROOT/tests/ui/abi/recursive_struct_event.sol:LL:CC
+   │
+LL │     event E3(A);
+   ╰╴             ━
+
+error: aborting due to 3 previous errors
+
