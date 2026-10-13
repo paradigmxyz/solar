@@ -33,6 +33,7 @@ use solar_config::EvmVersion;
 use std::{
     cell::Cell,
     collections::{BTreeMap, HashMap},
+    ffi::OsString,
     fmt::Write as _,
     fs::OpenOptions,
     io::Write,
@@ -438,13 +439,25 @@ fn dumps(config: &TestConfig, build_manager: &BuildManager) -> Dumps {
 /// emitting the runtime bytecode.
 fn dump_command(command: &Command) -> Command {
     let mut dump = Command::new(command.get_program());
+    // `--emit X` is `--emit=X`.
+    let mut original = command.get_args().peekable();
+    let mut normalized = Vec::<OsString>::new();
+    while let Some(arg) = original.next() {
+        match original.peek() {
+            Some(outputs) if arg == "--emit" => {
+                normalized.push(format!("--emit={}", outputs.to_string_lossy()).into());
+                original.next();
+            }
+            _ => normalized.push(arg.to_owned()),
+        }
+    }
     // The compiler rejects an output requested twice.
-    let mut emits_runtime = command.get_args().any(|arg| {
+    let mut emits_runtime = normalized.iter().any(|arg| {
         let text = arg.to_string_lossy();
         text.strip_prefix("--emit=")
             .is_some_and(|outputs| outputs.split(',').any(|output| output == "bin-runtime"))
     });
-    let mut args = command.get_args().peekable();
+    let mut args = normalized.iter().peekable();
     while let Some(arg) = args.next() {
         let text = arg.to_string_lossy();
         // The JSON stays compact, one line among the dump's.
@@ -523,6 +536,20 @@ mod tests {
         assert_eq!(
             args,
             ["--emit=abi,bin-runtime", "test.sol", "-Zdump=mir-final", "--color=never"]
+        );
+    }
+
+    #[test]
+    fn dumps_keep_a_separate_emit_value() {
+        let mut command = Command::new("solar");
+        command.args(["--emit", "abi,bin,bin-runtime", "test.sol"]);
+        let args = dump_command(&command)
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            ["--emit=abi,bin,bin-runtime", "test.sol", "-Zdump=mir-final", "--color=never"]
         );
     }
 
