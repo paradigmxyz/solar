@@ -89,4 +89,12 @@ function f() {
     // More complex expressions with literals
     int16 complex_lit = -(2 * 3 + 1);
     int32 large_lit = -(256 + 1);  // Result is -257, int_literal[2]
+
+    // === Literals wider than 256 bits ===
+    // Literal arithmetic is exact, so wide intermediates can still produce a value that fits.
+    uint256 wide_intermediate = (2**256 + 1) + (0 - 1) - 2**256;
+    int256 wide_negative_intermediate = (2**256 + 1) * (0 - 1) + 2**256;
+    // A literal wider than 256 bits has no mobile type and converts to no integer type.
+    uint256 wide = 2**256; //~ ERROR: mismatched types
+    int256 wide_negative = -(2**256); //~ ERROR: mismatched types
 }
