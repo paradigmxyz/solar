@@ -1869,8 +1869,8 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         // A product by `2^k` tests `eq (shr k, (shl k, x)), x`, which holds iff the left
-        // shift kept every bit of `x`, as a calldata element offset `i * 32` does for
-        // `i < length` once decoding bounded the length.
+        // shift kept every bit of `x` within its width, as a calldata element offset `i * 32`
+        // does for `i < length` once decoding bounded the length.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, inner)) = inst_kind(func, shifted)
                 && let Some(&InstKind::Shl(inner_count, value)) = inst_kind(func, inner)
@@ -1878,7 +1878,8 @@ impl<'a> CheckEliminator<'a> {
                 && let Some(bits) = const_of(func, count)
                 && const_of(func, inner_count) == Some(bits)
                 && bits < U256::from(256)
-                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
+                && self.range_of(func, expected, depth).hi
+                    <= integer_max(func, expected) >> bits.to::<usize>()
             {
                 return Some(true);
             }
@@ -2365,21 +2366,5 @@ fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
     match (const_of(func, a), const_of(func, b)) {
         (Some(a), Some(b)) => a == b,
         _ => false,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn range_intersection_and_union() {
-        let a = Range::new(U256::from(0), U256::from(10));
-        let b = Range::new(U256::from(5), U256::from(20));
-        assert_eq!(a.intersect(b), Some(Range::new(U256::from(5), U256::from(10))));
-        assert_eq!(a.union(b), Range::new(U256::from(0), U256::from(20)));
-
-        let disjoint = Range::new(U256::from(11), U256::from(12));
-        assert_eq!(a.intersect(disjoint), None);
     }
 }

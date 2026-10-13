@@ -194,6 +194,26 @@ impl ElementaryType {
     pub const fn is_reference_type(self) -> bool {
         matches!(self, Self::String | Self::Bytes)
     }
+
+    /// Parses a `fixedMxN` or `ufixedMxN` type name, where `M` is a multiple of 8 in `8..=256`
+    /// and `N` is in `0..=80`.
+    ///
+    /// Returns `None` for any other name, including `fixed` and `ufixed`.
+    pub fn parse_fixed_mxn(name: Symbol) -> Option<Self> {
+        if name.is_preinterned() {
+            return None;
+        }
+        let s = name.as_str();
+        let (unsigned, s) = s.strip_prefix('u').map_or((false, s), |s| (true, s));
+        let (m, n) = s.strip_prefix("fixed")?.split_once('x')?;
+        // Like solc, reject leading zeros such as `fixed08x8`.
+        let size = |s: &str| {
+            if s.len() > 1 && s.starts_with('0') { None } else { s.parse::<u16>().ok() }
+        };
+        let m = TypeSize::try_new_int_bits(size(m)?).filter(|m| m.bits_raw() != 0)?;
+        let n = TypeFixedSize::new(size(n)?.try_into().ok()?)?;
+        Some(if unsigned { Self::UFixed(m, n) } else { Self::Fixed(m, n) })
+    }
 }
 
 /// Bit size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=256.

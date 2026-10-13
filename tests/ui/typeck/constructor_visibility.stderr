@@ -1,0 +1,62 @@
+error: `external` not allowed here; allowed values: internal, public
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() external {}
+   ╰╴                  ━━━━━━━━
+
+error: `private` not allowed here; allowed values: internal, public
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() private {}
+   ╰╴                  ━━━━━━━
+
+warning[2462]: visibility for constructor is ignored
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() internal {}
+   │                   ━━━━━━━━
+   │
+   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient
+
+error[1845]: non-abstract contracts cannot have internal constructors
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() internal {}
+   │                   ━━━━━━━━
+   │
+   ╰ help: remove the `internal` keyword and make the contract `abstract`
+
+error[1845]: non-abstract contracts cannot have internal constructors
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor(address) internal {}
+   │                          ━━━━━━━━
+   │
+   ╰ help: remove the `internal` keyword and make the contract `abstract`
+
+error[1845]: non-abstract contracts cannot have internal constructors
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() internal {}
+   │                   ━━━━━━━━
+   │
+   ╰ help: remove the `internal` keyword and make the contract `abstract`
+
+error[8295]: abstract contracts cannot have public constructors
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() public {}
+   │                   ━━━━━━
+   │
+   ╰ help: remove the `public` keyword
+
+warning[2462]: visibility for constructor is ignored
+   ╭▸ ROOT/tests/ui/typeck/constructor_visibility.sol:LL:CC
+   │
+LL │     constructor() public {}
+   │                   ━━━━━━
+   │
+   ╰ note: to make the contract non-deployable, marking it `abstract` is sufficient
+
+error: aborting due to 6 previous errors; 2 warnings emitted
+

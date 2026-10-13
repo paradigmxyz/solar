@@ -140,8 +140,8 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v88 = mul v86, 32
     v89 = add v75, v88
     v90 = calldataload v89
-    v91 = and v90, 255
-    v92 = eq v90, v91
+    v91 = shr 8, v90
+    v92 = eq v91, 0
     v93 = eq v92, false
     icall revert_if<empty>, v93
     memory_object_store_element memoryarray<1>, v85, v86, v90
@@ -271,8 +271,8 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v74 = mul v72, 32
     v75 = add v61, v74
     v76 = calldataload v75
-    v77 = and v76, 0xffff
-    v78 = eq v76, v77
+    v77 = shr 16, v76
+    v78 = eq v77, 0
     v79 = eq v78, false
     icall revert_if<empty>, v79
     memory_object_store_element memoryarray<1>, v71, v72, v76

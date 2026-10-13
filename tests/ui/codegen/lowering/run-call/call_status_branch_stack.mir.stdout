@@ -1,0 +1,106 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/call_status_branch_stack.sol:CallStatusBranchStack ===
+@module CallStatusBranchStack
+@immutables
+  target: u256
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    storeimmutable target, v1
+    ret
+}
+
+fn @get(arg0: i256) -> memptr [selector=0x9507d39a, pure, abi_params=[u256], abi_returns=[tuple<word, word, word, word>], abi_return_params=[tuple<u256, u256, u256, u256>]] {
+  bb0:
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr v0 to i256
+    memory_zero v1, 128
+    v2 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v3 = checked_add u256, arg0, 1
+    v4 = checked_add u256, arg0, 2
+    v5 = checked_add u256, arg0, 3
+    v6 = checked_add u256, arg0, 4
+    memory_object_store_field memorystruct<4>, v2, 0, v3
+    memory_object_store_field memorystruct<4>, v2, 1, v4
+    memory_object_store_field memorystruct<4>, v2, 2, v5
+    memory_object_store_field memorystruct<4>, v2, 3, v6
+    ret v2
+}
+
+fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = loadimmutable target
+    v1 = gas
+    v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v6 = ptrtoint memptr v5 to i256
+    v7 = staticcall v1, v0, v3, v4, v6, 128
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = lt v8, 128
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = ptrtoint memptr v5 to i256
+    v11 = make_memory_slice v10, 128
+    v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
+    v13 = memory_object_load_field memorystruct<4>, v12, 0
+    ret v13
+}
+
+fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = loadimmutable target
+    v1 = gas
+    v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v6 = ptrtoint memptr v5 to i256
+    v7 = staticcall v1, v0, v3, v4, v6, 128
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = lt v8, 128
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = ptrtoint memptr v5 to i256
+    v11 = make_memory_slice v10, 128
+    v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
+    v13 = memory_object_load_field memorystruct<4>, v12, 0
+    v14 = memory_object_load_field memorystruct<4>, v12, 1
+    v15 = checked_add u256, v13, v14
+    v16 = checked_sub u256, v15, 1
+    ret v16
+}
+
+fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = loadimmutable target
+    v1 = gas
+    v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v6 = ptrtoint memptr v5 to i256
+    v7 = staticcall v1, v0, v3, v4, v6, 128
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = lt v8, 128
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = ptrtoint memptr v5 to i256
+    v11 = make_memory_slice v10, 128
+    v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
+    v13 = memory_object_load_field memorystruct<4>, v12, 2
+    v14 = memory_object_load_field memorystruct<4>, v12, 3
+    v15 = checked_add u256, v13, v14
+    ret v15
+}

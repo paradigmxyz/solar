@@ -1,0 +1,98 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_reference_unassigned.sol:StorageReferenceUnassigned ===
+@module StorageReferenceUnassigned
+@types
+  struct0: {i256, i256}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 5 !metadata(storage=slot(0))
+    v0 = mapping_slot 3, 1
+    sstore v0, 30 !metadata(storage=symbolic(v0))
+    ret
+}
+
+fn @sum(arg0: calldataslice) -> i256 [selector=0x0194db8e, view, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v35]
+    v2 = phi [bb0: 0], [bb3: v39]
+    v3 = phi [bb0: 0], [bb3: v38]
+    v4 = phi [bb0: 0], [bb3: v36]
+    v5 = slice_len v0
+    v6 = lt v2, v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v3
+  bb4:
+    v7 = slice_len v0
+    v8 = lt v2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = slice_ptr v0
+    v11 = mul v2, 32
+    v12 = eq 32, 0
+    v13 = div v11, 32
+    v14 = eq v13, v2
+    v15 = or v12, v14
+    v16 = zext i1 v15 to i256
+    v17 = eq v16, 0
+    icall panic_if<0x41>, v17
+    v18 = add v10, v11
+    v19 = calldataload v18
+    v20 = ne v1, v19
+    jumpi v20, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v21 = slice_len v0
+    v22 = lt v2, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = slice_ptr v0
+    v25 = mul v2, 32
+    v26 = eq 32, 0
+    v27 = div v25, 32
+    v28 = eq v27, v2
+    v29 = or v26, v28
+    v30 = zext i1 v29 to i256
+    v31 = eq v30, 0
+    icall panic_if<0x41>, v31
+    v32 = add v24, v25
+    v33 = calldataload v32
+    v34 = mapping_slot v33, 1
+    jump bb9
+  bb9:
+    v35 = phi [bb7: v33], [bb8: v1]
+    v36 = phi [bb7: v34], [bb8: v4]
+    v37 = sload v36 !metadata(storage=symbolic(v36))
+    v38 = checked_add u256, v3, v37
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v39 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @write(arg0: i1, arg1: i256) -> struct0 [selector=0x6eb8533f, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v0 = mapping_slot 1, 1
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: 0]
+    sstore v1, arg1 !metadata(storage=symbolic(v1))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = mapping_slot 1, 1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}

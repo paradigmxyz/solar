@@ -169,8 +169,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v52 = lt v67, v51
     jumpi v52, bb14, bb7
   bb7:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb14:
     v151 = add v183, 3
@@ -180,12 +180,12 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v184 = add v183, 4
     jump bb1
   bb15:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb17:
     revert 0, 0

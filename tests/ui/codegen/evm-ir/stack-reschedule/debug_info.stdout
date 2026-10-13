@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/debug_info.evmir (before stack-reschedule) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/debug_info.evmir (after stack-reschedule) ===
+  @module DebugInfo
+  bb0 [loop] [stack=2]:
+-   swap 1 !metadata(span=1..2)
++   pop
+    push 2 !metadata(span=3..4)
+    add !metadata(span=5..6)
+-   swap 1 !metadata(span=7..8)
+-   pop !metadata(span=9..10)
+    push 0 !metadata(span=11..12)
+-   mstore !metadata(span=13..14)
++   mstore !metadata(spans=[13..14, 1..2, 7..8, 9..10])
+    stop !metadata(span=15..16)
+  

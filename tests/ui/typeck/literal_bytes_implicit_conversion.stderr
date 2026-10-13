@@ -16,5 +16,17 @@ error: mismatched types
 LL │         bytes1 invalid_b1 = "ab";
    ╰╴                            ━━━━ literal `utf8_string_literal[2]` is larger than the type `bytes1`
 
-error: aborting due to 3 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
+   │
+LL │         bytes32 invalid_b32 = "abcdefghijklmnopqrstuvwxyz0123456";
+   ╰╴                              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ literal `utf8_string_literal[33]` is larger than the type `bytes32`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
+   │
+LL │         bytes32 invalid_explicit_b32 = bytes32("abcdefghijklmnopqrstuvwxyz0123456");
+   ╰╴                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ cannot convert `utf8_string_literal[33]` to `bytes32`
+
+error: aborting due to 5 previous errors
 

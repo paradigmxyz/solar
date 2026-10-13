@@ -95,8 +95,8 @@
 +     v45 = sub v44, 128
 +     returndata 128, v45
 +   bb8:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb4:
 +     revert 0, 0
@@ -126,6 +126,25 @@
 +     v7 = add 128, 32
 +     v8 = sub v7, 128
 +     returndata 128, v8
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @read_after_huge(arg0: memptr, arg1: i256) -> i256 [selector=0x12345686, abi_params=[array<134217727, u256>, u256], abi_returns=[word]] {
++ fn @read_after_huge() [selector=0x12345686, abi_wrapper] {
+    bb0:
+-     ret arg1
++     v0 = calldatasize
++     v1 = lt v0, 0x100000004
++     jumpi v1, bb2, bb3
++   bb3:
++     v2 = calldataload 0xffffffe4
++     jump bb1
++   bb1:
++     mstore 128, v2
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
 +   bb2:
 +     revert 0, 0
   }

@@ -65,6 +65,15 @@ pub trait BumpExt {
         values: SmallVec<A>,
     ) -> &mut RawThinSlice<H, A::Item>;
 
+    /// Like [`alloc_smallvec_thin`](Self::alloc_smallvec_thin), but moves the elements out of
+    /// `values` and leaves it empty, instead of moving `values` itself, which would copy its
+    /// inline buffer.
+    fn alloc_smallvec_drain_thin<H, A: smallvec::Array>(
+        &self,
+        header: H,
+        values: &mut SmallVec<A>,
+    ) -> &mut RawThinSlice<H, A::Item>;
+
     /// See [`alloc_array`](Self::alloc_array).
     fn alloc_array_thin<H, T, const N: usize>(
         &self,
@@ -199,6 +208,15 @@ impl BumpExt for Bump {
         &self,
         header: H,
         mut values: SmallVec<A>,
+    ) -> &mut RawThinSlice<H, A::Item> {
+        self.alloc_smallvec_drain_thin(header, &mut values)
+    }
+
+    #[inline]
+    fn alloc_smallvec_drain_thin<H, A: smallvec::Array>(
+        &self,
+        header: H,
+        values: &mut SmallVec<A>,
     ) -> &mut RawThinSlice<H, A::Item> {
         // SAFETY: See `alloc_vec_thin`.
         unsafe {

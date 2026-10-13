@@ -1,0 +1,54 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         revert();
+   ╰╴        ━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         return failScalar(reason) + 1;
+   ╰╴                                    ━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         return (a + 1, b + 2);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         return recursiveFailure(depth - 1, reason) + 1;
+   ╰╴                                                     ━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         for (uint256 i = 0; i < 1; ++i) {
+   ╰╴                                   ━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │             result = 1;
+   ╰╴            ━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │             result = 1;
+   ╰╴            ━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         assembly { sstore(0, result) }
+   ╰╴                   ━━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   │
+LL │         assembly { sstore(0, result) }
+   ╰╴                   ━━━━━━━━━━━━━━━━━
+

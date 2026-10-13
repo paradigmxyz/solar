@@ -69,13 +69,45 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Directional override markers in doc comments
+
+Status: intentional.
+
+Difference: `solar` rejects unbalanced Unicode directional embeddings and
+overrides (U+202A..U+202E) in NatSpec doc comments (`///` and `/** */`), as it
+does in plain comments and unicode string literals. `solc` checks only plain
+comments and unicode string literals.
+
+Rationale: the check defends against "Trojan Source" attacks, where source text
+renders in a different order from how it compiles; a doc comment can hide code
+just as a plain comment can.
+
+Coverage: `tests/ui/lexer/direction_override/markers.sol`;
+[#1844](https://github.com/paradigmxyz/solar/issues/1844).
+
 ## AST Validation
 
 No intentional divergences documented yet.
 
 ## Name Resolution
 
-No intentional divergences documented yet.
+### NAME-001: Yul declarations can shadow enclosing Yul names
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul variable or function whose name is already
+declared in any enclosing Yul scope, including across function boundaries and
+`for` loop parts, with errors 1395 and 6052. `solar` rejects only a name that
+is already declared in the same Yul scope, so `{ let x := 1 { let x := 2 } }`
+compiles and the inner `x` shadows the outer one.
+
+Rationale: an inner declaration resolves without ambiguity to the innermost
+scope, as in Solidity, so the code compiles to the same program the author
+wrote. Duplicates within one scope stay errors because Yul has no overloads,
+and a use of the name there would be ambiguous.
+
+Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
+`tests/ui/yul_lowering/yul_function_scope.sol`.
 
 ## Type Checking
 
@@ -185,9 +217,136 @@ storage.
 Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
 `tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
 
+### TYPECK-007: Uninitialized storage pointers are reported once per location
+
+Status: intentional.
+
+Difference: `solc` analyzes each function once per contract that inherits it
+and reports error 3464 for every analysis, so a base function with one
+uninitialized access gets one error per derived contract. `solar` runs the same
+analyses but reports each location once.
+
+Rationale: the copies point at the same code and give no extra information.
+
+Coverage: `tests/ui/typeck/control_flow/uninitialized_storage_pointer.sol`.
+
+### TYPECK-008: Unreachable code across sources
+
+Status: intentional.
+
+Difference: when unreachable code spans a function and a modifier declared in
+another source, `solc` merges the ranges into one with mixed sources and
+reports only the part in the function's source. `solar` reports the part in
+each source.
+
+Rationale: the merged `solc` range is invalid and hides unreachable code.
+
+Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
+
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
+
+### TYPECK-013: Inline assembly names and constants
+
+Status: intentional.
+
+Difference: `solar` accepts inline assembly that `solc` rejects:
+
+- reads of value-type constants whose value is not a number literal, such as
+  `uint(7)`, `true ? 5 : 6`, `three + 1`, `~uint(0)` or `keccak256("abc")`
+  (`solc` error 7615);
+- Yul declarations that shadow a Solidity declaration outside the block, such
+  as a parameter, contract, function or `msg` (`solc` error 3859);
+- the Yul names `this`, `super` and `_` (`solc` error 4113);
+- Yul names reserved for EVM instructions and pure Yul builtins, such as `pc`,
+  `dup1` or `datasize` (`solc` error 5017);
+- a Yul variable inside a Yul function that shares its name with a Solidity
+  local, such as `function g() -> x` in a function that returns `x` (`solc`
+  error 6578).
+
+Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
+resolves the inner declaration first, and constant folding gives assembly the
+same value Solidity sees. The parser also serves formatters and linters, which
+should accept the names.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
+and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+
+### TYPECK-016: ABI heads are bounded as a whole
+
+Status: intentional.
+
+Difference: `solar` rejects a type when any head of its ABI encoding, including
+the heads inside the tails of dynamic parts, takes `2^32 - 1` bytes or more. A
+struct's head counts all its members together. The check covers calldata
+variables; parameters of constructors, events, errors and external function
+types; parameters and returns of public and external functions; arguments of
+`abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
+types. `solc` 0.8.37 checks only constructor and public callable parameters
+against calldata, and sizes structs one member at a time, so it accepts, for
+example, an external function that takes a calldata struct with two
+`uint256[134217727]` members.
+
+Rationale: the backend computes head sizes in 64 bits, and larger heads exhaust
+memory or overflow during lowering. No transaction can pass or return such a
+value within a block gas limit.
+
+Coverage: `tests/ui/typeck/abi_head_size.sol`,
+`tests/ui/typeck/public_param_calldata_size.sol` and
+`tests/ui/typeck/struct_member_sizes.sol`.
+
+### TYPECK-018: `msg.gas`
+
+Status: intentional.
+
+Difference: `solar` accepts `msg.gas` as `gasleft()` with warning 1400, where
+`solc` rejects it with error 1400.
+
+Rationale: the meaning is unambiguous and we compile it correctly, so a
+warning is enough to steer code to `gasleft()`.
+
+Coverage: `tests/ui/typeck/msg_gas.sol`.
+
+### TYPECK-019: Struct nesting depth
+
+Status: intentional.
+
+Difference: `solar` reports "struct is too deeply nested" (5651) when the
+longest chain of directly nested structs reaches 256. `solc` measures the depth
+of its search tree, which skips a struct already reached through a shorter
+path, so it accepts some struct graphs with a longer chain.
+
+Rationale: code that walks struct types recurses along the longest chain, and
+the `solc` depth depends on field order. Real code does not nest structs this
+deeply.
+
+Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+
 ## Contract-Level Checks
 
-No intentional divergences documented yet.
+### CONTRACT-001: Conditionals in storage layout base slots
+
+Status: intentional.
+
+Difference: `solar` accepts conditionals in the base slot of a storage layout
+specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
+`solc` rejects them with error 1505 because its constant evaluator does not
+support conditionals.
+
+Rationale: our constant evaluator folds conditionals, so the base slot has a
+well-defined value.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
+`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
@@ -366,3 +525,60 @@ No intentional divergences documented yet.
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+
+### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
+
+- ID: CODEGEN-010
+- Status: intentional
+- Difference: When inline assembly stores a value computed from constants
+  and calldata into the free memory pointer slot, every later read of the
+  slot as the pointer sees at least the initial free memory pointer: an
+  allocation, or an `mload` whose word addresses memory. After
+  `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
+  pointer here. A word that is also read as data, such as one hashed in
+  scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer
+  reads see the raised value. Each external function
+  that runs code writing memory at an absolute address computed from calldata,
+  as Seaport lays out a basic order's hashes and event data, keeps its spill
+  slots and the frames it reaches above `0x2080`, and above the constant
+  ranges assembly names there in the functions it runs or that an external
+  function sharing those frames runs. This costs memory expansion gas; other
+  external functions keep their memory low unless they share those frames, or
+  a recursive helper places every frame above all external functions.
+- Rationale: The spill slots and internal-call frames below the initial free
+  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
+  the next allocation after a lowered pointer, or the absolute layout itself,
+  would replace them. Raising only the pointer reads keeps the stored value for
+  code that uses the slot as scratch, such as an error argument before a revert
+  or a hash input before the pointer is restored. A pointer derived from the
+  heap already lies above the initial one, and an absolute pointer that reaches
+  the store through a parameter, memory, or a call keeps its value. The
+  `heap-floor` pass documents how it tells pointer reads from data reads. A
+  layout that grows past `0x2080`, or one indexed by a loop counter alone, can
+  still reach the compiler's memory; Seaport's basic orders with about 40 or
+  more additional recipients do.
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `cargo tq foundry-external seaport`.
+
+### CODEGEN-011: ABI coder v1 is not supported
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
+  encoders and decoders for that source unit. `solar` warns that ABI coder v1
+  is not supported and always generates ABI coder v2 code. Calldata decoding
+  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
+  `address` argument with dirty high bits reverts, where v1 cleans it and
+  continues. The type checker also does not apply v1's restrictions, so v1
+  source units may use structs and nested dynamic arrays at ABI boundaries,
+  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
+  `--allow 9511` also hides this change.
+- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
+  accepts the same way. A second coder would only change how malformed input
+  fails and which types compile.
+- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
+  `tests/ui/parser/pragma_valid.sol`.

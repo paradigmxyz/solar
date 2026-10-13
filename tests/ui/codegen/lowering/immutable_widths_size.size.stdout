@@ -1,0 +1,76 @@
+// === ROOT/tests/ui/codegen/lowering/immutable_widths_size.sol:ImmutableWidthsSize (runtime) ===
+@module ImmutableWidthsSize_runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x57de26a4
+  sub
+  push bb3
+  jumpi
+  push_immutable 0, 1
+  push 0
+  signextend
+  push 255
+  and
+  push_immutable 1, 28
+  push 27
+  signextend
+  push 0
+  not
+  push 32
+  shr
+  and
+  push_immutable 2, 32
+  push 0
+  not
+  push 24
+  shr
+  and
+  push_immutable 3, 28
+  push 32
+  shl
+  push_immutable 4, 32
+  push_immutable 5, 1
+  push_immutable 6, 1
+  push 248
+  shl
+  swap 5
+  push 27
+  signextend
+  swap 4
+  push 28
+  signextend
+  swap 6
+  push 0
+  signextend
+  push 128
+  mstore
+  swap 3
+  push 160
+  mstore
+  swap 4
+  push 192
+  mstore
+  push 224
+  mstore
+  swap 2
+  push 256
+  mstore
+  swap 1
+  push 288
+  mstore
+  push 320
+  mstore
+  push 224
+  push 128
+  return
+bb3 [cold]:
+  push 0
+  push 0
+  revert

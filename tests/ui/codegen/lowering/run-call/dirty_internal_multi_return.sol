@@ -3,7 +3,7 @@
 //@ run-call: functionPointer => true
 
 contract DirtyInternalMultiReturn {
-    function dirtyPair() internal pure returns (uint256, uint8 value) {
+    function dirtyPair() internal pure returns (uint256, uint8 value) { //~ WARN: unnamed return variable can remain unassigned
         assembly ("memory-safe") {
             value := 0x101
         }

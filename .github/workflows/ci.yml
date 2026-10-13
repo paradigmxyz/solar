@@ -19,7 +19,7 @@ env:
 jobs:
   evm-rules:
     name: EVM word and stack proofs
-    runs-on: depot-ubuntu-latest-4
+    runs-on: depot-ubuntu-latest-8
     timeout-minutes: 45
     permissions:
       id-token: write
@@ -39,7 +39,7 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request ]]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen/isle scripts/evm-rules .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else
@@ -316,7 +316,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
+      - uses: crate-ci/typos@dcea7116aaf94953292ab6ce0907fe483ef15406 # v1.51.0
 
   clippy:
     if: github.event_name != 'schedule'

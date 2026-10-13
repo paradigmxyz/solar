@@ -16,8 +16,8 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v6 = slice_ptr arg0
     v7 = add v6, 0
     v8 = calldataload v7
-    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v10 = eq v8, v9
+    v9 = shl 192, v8
+    v10 = eq v9, 0
     v11 = eq v10, false
     icall revert_if<empty>, v11
     v12 = shr 64, v8
@@ -45,8 +45,8 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v28 = slice_ptr arg0
     v29 = add v28, 32
     v30 = calldataload v29
-    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v32 = eq v30, v31
+    v31 = shl 192, v30
+    v32 = eq v31, 0
     v33 = eq v32, false
     icall revert_if<empty>, v33
     v34 = shr 64, v30
@@ -74,8 +74,8 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v50 = slice_ptr arg0
     v51 = add v50, 64
     v52 = calldataload v51
-    v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v54 = eq v52, v53
+    v53 = shl 192, v52
+    v54 = eq v53, 0
     v55 = eq v54, false
     icall revert_if<empty>, v55
     v56 = shr 64, v52
@@ -171,8 +171,8 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     v26 = mul v24, 32
     v27 = add v3, v26
     v28 = calldataload v27
-    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v30 = eq v28, v29
+    v29 = shl 192, v28
+    v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
     v32 = shr 64, v28

@@ -1,0 +1,86 @@
+error: expected identifier, found keyword `fixed8x1`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │ contract fixed8x1 {}
+   ╰╴         ━━━━━━━━
+
+error: expected identifier, found keyword `ufixed8x8`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │ type ufixed8x8 is uint8;
+   ╰╴     ━━━━━━━━━
+
+error: expected identifier, found keyword `fixed16x2`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │ struct fixed16x2 {
+   ╰╴       ━━━━━━━━━
+
+error: expected identifier, found keyword `fixed8x2`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     uint fixed8x2;
+   ╰╴         ━━━━━━━━
+
+error: expected identifier, found keyword `fixed8x1`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     fixed8x1
+   ╰╴    ━━━━━━━━
+
+error: expected identifier, found keyword `ufixed256x80`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │ function ufixed256x80() {}
+   ╰╴         ━━━━━━━━━━━━
+
+error: expected identifier, found keyword `fixed8x8`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     uint fixed8x8;
+   ╰╴         ━━━━━━━━
+
+error: expected identifier, found keyword `fixed8x1`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     event fixed8x1();
+   ╰╴          ━━━━━━━━
+
+error: expected identifier, found keyword `ufixed8x1`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     error ufixed8x1();
+   ╰╴          ━━━━━━━━━
+
+error: expected identifier, found keyword `fixed16x8`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     modifier fixed16x8() {
+   ╰╴             ━━━━━━━━━
+
+error: expected identifier, found keyword `fixed128x18`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     function fixed128x18() internal {
+   ╰╴             ━━━━━━━━━━━
+
+error: expected identifier, found keyword `ufixed8x18`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │     function f(uint ufixed8x18) public {}
+   ╰╴                    ━━━━━━━━━━
+
+error: expected identifier, found keyword `fixed8x8`
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │         uint fixed8x8;
+   ╰╴             ━━━━━━━━
+
+error: expected exactly one unnamed argument
+   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
+   │
+LL │         fixed128x18();
+   ╰╴                   ━━
+
+error: aborting due to 14 previous errors
+

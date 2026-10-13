@@ -1,0 +1,20 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+@module module
+
+// A `CALLDATASIZE` grows the stack like a push, so the search keeps it within the stack height
+// it may build.
+bb0 [loop, stack=16]:
+  mul
+  calldatasize
+  calldatasize
+  dup 16
+  mul
+  calldatasize
+  calldatasize
+  calldatasize
+  pop
+  add
+  dup 15
+  dup 1
+  mul
+  stop

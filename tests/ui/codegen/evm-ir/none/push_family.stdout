@@ -6,13 +6,9 @@
   
   bb0:
     push 1
-    push_deferred 2
-    push_deferred 0xfffffff
     push_immutable 3, 1
     push_immutable 0xfffffff, 32
     push_library L_0
-    pop
-    pop
     pop
     pop
     pop

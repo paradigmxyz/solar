@@ -4,7 +4,11 @@ use crate::{
     ty::{Ty, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
+use solar_interface::{
+    Ident, Symbol,
+    diagnostics::{DiagId, DiagMsg, ErrorGuaranteed},
+    error_code, kw, sym,
+};
 
 impl<'gcx> TypeChecker<'gcx> {
     pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
@@ -28,13 +32,15 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks whether a resolved identifier should be treated as an external Solidity reference in
     /// Yul. Returns `Ok(true)` when the identifier was accepted and should be typed as a Yul word,
     /// `Ok(false)` when it is not a Yul external reference and normal typing should continue, and
-    /// `Err` after emitting a diagnostic for invalid external-reference use.
+    /// `Err` when the type already holds an error or after emitting a diagnostic for invalid
+    /// external-reference use.
     pub(super) fn check_yul_external_ident(
         &mut self,
         res: hir::Res,
         ty: Ty<'gcx>,
         span: Span,
     ) -> Result<bool, ErrorGuaranteed> {
+        ty.error_reported()?;
         let hir::Res::Item(item) = res else { return Ok(false) };
         let hir::ItemId::Variable(var_id) = item else {
             if let hir::ItemId::Function(id) = item
@@ -45,12 +51,18 @@ impl<'gcx> TypeChecker<'gcx> {
             if self.in_lvalue() {
                 return Err(self
                     .dcx()
-                    .emit_err(span, "only local variables can be assigned to in inline assembly"));
+                    .err("only local variables can be assigned to in inline assembly")
+                    .code(error_code!(1990))
+                    .span(span)
+                    .emit());
             }
             if let hir::ItemId::Function(_) = item {
                 return Err(self
                     .dcx()
-                    .emit_err(span, "access to functions is not allowed in inline assembly"));
+                    .err("access to functions is not allowed in inline assembly")
+                    .code(error_code!(2025))
+                    .span(span)
+                    .emit());
             }
             return Ok(false);
         };
@@ -59,19 +71,26 @@ impl<'gcx> TypeChecker<'gcx> {
         if var.is_immutable() {
             return Err(self
                 .dcx()
-                .emit_err(span, "assembly access to immutable variables is not supported"));
+                .err("assembly access to immutable variables is not supported")
+                .code(error_code!(3773))
+                .span(span)
+                .emit());
         }
 
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
-                .emit_err(span, "only direct number constants are supported in inline assembly"));
+                .err("only direct number constants are supported in inline assembly")
+                .code(error_code!(7615))
+                .span(span)
+                .emit());
         }
 
         if var.is_state_variable() && !var.is_constant() {
             return Err(self
                 .dcx()
                 .err("only local variables are supported in inline assembly")
+                .code(error_code!(1408))
                 .span(span)
                 .help("use `.slot` and `.offset` to access storage or transient storage variables")
                 .emit());
@@ -81,6 +100,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return Err(self
                 .dcx()
                 .err("storage reference variables need a suffix in inline assembly")
+                .code(error_code!(9068))
                 .span(span)
                 .help("use `.slot` or `.offset`")
                 .emit());
@@ -90,6 +110,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return Err(self
                 .dcx()
                 .err("calldata variables need a suffix in inline assembly")
+                .code(error_code!(1397))
                 .span(span)
                 .help("use `.offset` or `.length`")
                 .emit());
@@ -98,7 +119,10 @@ impl<'gcx> TypeChecker<'gcx> {
         if matches!(ty.kind, TyKind::Fn(f) if f.is_external()) {
             return Err(self
                 .dcx()
-                .emit_err(span, "only types that use one stack slot are supported"));
+                .err("only types that use one stack slot are supported")
+                .code(error_code!(9857))
+                .span(span)
+                .emit());
         }
 
         Ok(true)
@@ -118,8 +142,12 @@ impl<'gcx> TypeChecker<'gcx> {
             Assignment(YulMemberAssignmentError),
         }
 
-        let mut inner = || -> Result<(), ErrorKind> {
-            let (ty, res) = self.check_yul_member_base(expr);
+        let (ty, res) = self.check_yul_member_base(expr);
+        if let Err(guar) = ty.error_reported() {
+            return self.gcx.mk_ty_err(guar);
+        }
+
+        let inner = || -> Result<(), ErrorKind> {
             let Some(res) = res else { return Err(ErrorKind::NonVariable) };
             let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
                 return Err(ErrorKind::NonVariable);
@@ -152,34 +180,44 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(())
         };
 
-        let guar = match inner() {
+        let (span, code, msg): (Span, DiagId, DiagMsg) = match inner() {
             Ok(()) => return self.gcx.types.uint(256),
-            Err(ErrorKind::NonVariable) => self
-                .dcx()
-                .emit_err(member.span, "inline assembly suffixes can only be used with variables"),
-            Err(ErrorKind::Immutable) => self
-                .dcx()
-                .emit_err(expr.span, "assembly access to immutable variables is not supported"),
-            Err(ErrorKind::UnsupportedBase) => self.dcx().emit_err(
+            Err(ErrorKind::NonVariable) => (
                 member.span,
-                format!("suffix `.{member}` is not supported by this variable or type"),
+                error_code!(7944),
+                "inline assembly suffixes can only be used with variables".into(),
+            ),
+            Err(ErrorKind::Immutable) => (
+                expr.span,
+                error_code!(3773),
+                "assembly access to immutable variables is not supported".into(),
+            ),
+            Err(ErrorKind::UnsupportedBase) => (
+                member.span,
+                error_code!(3622),
+                format!("suffix `.{member}` is not supported by this variable or type").into(),
             ),
             Err(ErrorKind::UnsupportedMember(member_set)) => {
-                self.dcx().emit_err(member.span, member_set.unsupported_member_message())
+                let (code, msg) = member_set.unsupported_member_error();
+                (member.span, code, msg.into())
             }
-            Err(ErrorKind::NonExternalFunction) => self.dcx().emit_err(
+            Err(ErrorKind::NonExternalFunction) => (
                 member.span,
-                "only external function pointer variables support `.selector` and `.address`",
+                error_code!(8533),
+                "only external function pointer variables support `.selector` and `.address`"
+                    .into(),
             ),
-            Err(ErrorKind::Assignment(YulMemberAssignmentError::StateVariable)) => self
-                .dcx()
-                .emit_err(expr.span, "state variables cannot be assigned to in inline assembly"),
+            Err(ErrorKind::Assignment(YulMemberAssignmentError::StateVariable)) => (
+                expr.span,
+                error_code!(4713),
+                "state variables cannot be assigned to in inline assembly".into(),
+            ),
             Err(ErrorKind::Assignment(YulMemberAssignmentError::StorageOffset)) => {
-                self.dcx().emit_err(member.span, "only `.slot` can be assigned to")
+                (member.span, error_code!(9739), "only `.slot` can be assigned to".into())
             }
         };
 
-        self.gcx.mk_ty_err(guar)
+        self.gcx.mk_ty_err(self.dcx().err(msg).code(code).span(span).emit())
     }
 
     fn check_yul_member_base(
@@ -246,13 +284,18 @@ impl YulMemberSet {
         self.members().into_iter().find(|member| member.name == name)
     }
 
-    fn unsupported_member_message(self) -> &'static str {
+    fn unsupported_member_error(self) -> (DiagId, &'static str) {
         match self {
-            Self::Storage { .. } => "storage variables only support `.slot` and `.offset`",
-            Self::Calldata => "calldata variables only support `.offset` and `.length`",
-            Self::Function { .. } => {
-                "function pointer variables only support `.selector` and `.address`"
+            Self::Storage { .. } => {
+                (error_code!(4656), "storage variables only support `.slot` and `.offset`")
             }
+            Self::Calldata => {
+                (error_code!(1536), "calldata variables only support `.offset` and `.length`")
+            }
+            Self::Function { .. } => (
+                error_code!(9272),
+                "function pointer variables only support `.selector` and `.address`",
+            ),
         }
     }
 

@@ -58,9 +58,10 @@ contract TryBareCatch {
     // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     // OSAKA-LABEL: fn @live
-    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0
+    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
     // OSAKA: jumpi [[OK]]
-    // OSAKA: icall returndata_bytes<>
+    // OSAKA-NOT: returndata_bytes
+    // OSAKA: mload
     function live() external returns (uint256 r) {
         try TryTarget(address(new TryCallee())).value() returns (uint256 v) {
             r = v;

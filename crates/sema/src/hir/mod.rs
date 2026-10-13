@@ -701,7 +701,8 @@ impl<'hir> Item<'_, 'hir> {
     #[inline]
     pub fn is_visible_via_contract_type_access(self) -> bool {
         match self {
-            Item::Function(f) => f.is_ordinary() && f.visibility >= Visibility::Public,
+            // A getter is part of the external interface, but its state variable is not visible.
+            Item::Function(f) => f.is_part_of_external_interface() && !f.is_getter(),
             Item::Struct(_) | Item::Enum(_) | Item::Udvt(_) | Item::Error(_) | Item::Event(_) => {
                 true
             }
@@ -979,6 +980,8 @@ pub struct Modifier<'hir> {
     pub id: ItemId,
     /// The arguments to the modifier or base class call.
     pub args: CallArgs<'hir>,
+    /// Whether the call names its target through a contract, as in `B.m`.
+    pub qualified: bool,
 }
 
 /// A resolved `using for` directive.
@@ -1325,8 +1328,8 @@ impl<'hir> Variable<'hir> {
     pub fn is_local_variable(&self) -> bool {
         matches!(
             self.kind,
-            VarKind::FunctionTyParam
-                | VarKind::FunctionTyReturn
+            VarKind::FunctionTyParam(_)
+                | VarKind::FunctionTyReturn(_)
                 | VarKind::Event
                 | VarKind::Error
                 | VarKind::FunctionParam
@@ -1342,9 +1345,9 @@ impl<'hir> Variable<'hir> {
             VarKind::Event
                 | VarKind::Error
                 | VarKind::FunctionParam
-                | VarKind::FunctionTyParam
+                | VarKind::FunctionTyParam(_)
                 | VarKind::FunctionReturn
-                | VarKind::FunctionTyReturn
+                | VarKind::FunctionTyReturn(_)
                 | VarKind::TryCatch
         )
     }
@@ -1355,7 +1358,7 @@ impl<'hir> Variable<'hir> {
     }
 
     pub fn is_return_parameter(&self) -> bool {
-        matches!(self.kind, VarKind::FunctionReturn | VarKind::FunctionTyReturn)
+        matches!(self.kind, VarKind::FunctionReturn | VarKind::FunctionTyReturn(_))
     }
 
     pub fn is_try_catch_parameter(&self) -> bool {
@@ -1396,10 +1399,10 @@ pub enum VarKind {
     FunctionParam,
     /// Defined as a function return.
     FunctionReturn,
-    /// Defined as a function type parameter.
-    FunctionTyParam,
-    /// Defined as a function type return.
-    FunctionTyReturn,
+    /// Defined as a parameter of a function type with the given visibility.
+    FunctionTyParam(Visibility),
+    /// Defined as a return of a function type with the given visibility.
+    FunctionTyReturn(Visibility),
     /// Defined as a statement, inside of a function, block or `for` statement.
     Statement,
     /// Defined in a catch clause.
@@ -1415,8 +1418,8 @@ impl VarKind {
             Self::Enum => "enum variant",
             Self::Event => "event parameter",
             Self::Error => "error parameter",
-            Self::FunctionParam | Self::FunctionTyParam => "function parameter",
-            Self::FunctionReturn | Self::FunctionTyReturn => "function return parameter",
+            Self::FunctionParam | Self::FunctionTyParam(_) => "function parameter",
+            Self::FunctionReturn | Self::FunctionTyReturn(_) => "function return parameter",
             Self::Statement => "variable",
             Self::TryCatch => "try/catch clause",
         }
@@ -1832,6 +1835,24 @@ impl<'hir> Expr<'hir> {
             | ExprKind::Type(_) => {}
         }
         ControlFlow::Continue(())
+    }
+
+    /// Returns `true` if this expression is integer literal arithmetic, which is evaluated exactly
+    /// at compile time.
+    pub fn is_int_literal(&self) -> bool {
+        match &self.kind {
+            ExprKind::Lit(lit) => matches!(lit.kind, ast::LitKind::Number(_)),
+            ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
+                inner.is_int_literal()
+            }
+            ExprKind::Binary(lhs, op, rhs)
+                if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
+            {
+                lhs.is_int_literal() && rhs.is_int_literal()
+            }
+            ExprKind::Tuple([Some(inner)]) => inner.is_int_literal(),
+            _ => false,
+        }
     }
 }
 

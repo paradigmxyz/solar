@@ -1,0 +1,26 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// Memory accesses keep their order while the pure work around them moves, and nothing
+// crosses a `GAS` read, which ends the run.
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=2]:
+// CHECK: mstore
+// CHECK: mload
+// CHECK: gas
+// CHECK: stop
+bb0 [loop, stack=2]:
+  push 7
+  push 0
+  mstore
+  swap 1
+  push 0
+  mload
+  add
+  swap 1
+  pop
+  gas
+  add
+  push 32
+  mstore
+  stop

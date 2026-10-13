@@ -1,0 +1,36 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/assembly.sol:LL:CC
+   │
+LL │             for { revert(0, 0) } 1 { mstore(0, 2) } { function q() {} mstore(0, 1) }
+   ╰╴                                     ━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/assembly.sol:LL:CC
+   │
+LL │             for { revert(0, 0) } 1 { mstore(0, 2) } { function q() {} mstore(0, 1) }
+   ╰╴                                                      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/assembly.sol:LL:CC
+   │
+LL │             for { return(0, 0) } 1 {} { { mstore(0, 1) } }
+   ╰╴                                        ━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/assembly.sol:LL:CC
+   │
+LL │             for { } 1 { } { mstore(0, 1) }
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/assembly.sol:LL:CC
+   │
+LL │             for { let i := 0 } lt(i, 2) { i := add(i, 1) } { for { revert(0, 0) } 1 {} { mstore(0, i) } }
+   ╰╴                                          ━━━━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/unreachable/assembly.sol:LL:CC
+   │
+LL │             for { let i := 0 } lt(i, 2) { i := add(i, 1) } { for { revert(0, 0) } 1 {} { mstore(0, i) } }
+   ╰╴                                                                                         ━━━━━━━━━━━━
+

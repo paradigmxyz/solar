@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// A cast literal must fit its source type.
+@module CastLiteral
+
+fn @f() -> i256 {
+  bb0:
+    v0 = zext i1 2 to i256 //~ ERROR: cast literal does not fit its source type
+    ret v0
+}

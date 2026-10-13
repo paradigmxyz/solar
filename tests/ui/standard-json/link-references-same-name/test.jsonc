@@ -1,0 +1,21 @@
+//@ filecheck:
+// Two libraries share the name `Lib` but live in different sources, so each
+// keeps its own placeholder and link reference.
+// CHECK-LABEL: "linkReferences": {
+// CHECK-NEXT: "A.sol": {
+// CHECK-NEXT: "Lib": [
+// CHECK-COUNT-1: "length": 20
+// CHECK: "B.sol": {
+// CHECK-NEXT: "Lib": [
+// CHECK-COUNT-1: "length": 20
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "Links": ["evm.deployedBytecode.linkReferences"]
+      }
+    }
+  }
+}

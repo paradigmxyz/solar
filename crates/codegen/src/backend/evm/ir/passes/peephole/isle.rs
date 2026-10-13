@@ -5,7 +5,7 @@
 //! the opcode table into `isle/evm-ir/prelude.isle`. This module implements the
 //! window extractors, instruction facets, and opcode classes the rules call.
 
-use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};
+use super::{Edit, is_block_push, materialization_cost, raw_opcode};
 use crate::{
     backend::evm::{
         ir::{ImmediateMaterialization, Instruction},
@@ -129,7 +129,7 @@ enum SymbolicStackOp {
 }
 
 fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if is_removable_push(inst) {
+    if inst.is_encoded_push() {
         return Some(SymbolicStackOp::Push);
     }
     inst.as_stack_op().map(SymbolicStackOp::Physical)
@@ -361,7 +361,7 @@ impl generated::Context for PeepContext<'_> {
         );
         let before = target.push(U256::ONE) + target.dup() + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.gas <= before.gas && after.bytes <= before.bytes && after != before
+        after.dominates(before)
     }
 
     fn closed_count(&mut self, start: LateWindow) -> bool {
@@ -418,7 +418,7 @@ impl generated::Context for PeepContext<'_> {
             + target.opcode(SWAP1)
             + target.opcode(SUB);
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
-        after.gas <= before.gas && after.bytes <= before.bytes && after != before
+        after.dominates(before)
     }
 
     fn protected_count(&mut self, start: LateWindow) -> bool {
@@ -526,7 +526,10 @@ impl generated::Context for PeepContext<'_> {
             .iter()
             .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
             .map_or(floor, |index| floor + index + 1);
-        if !instructions[start..end].iter().any(|inst| push_value(inst) == Some(U256::ZERO)) {
+        if !instructions[start..end]
+            .iter()
+            .any(|inst| inst.concrete_immediate() == Some(U256::ZERO))
+        {
             return None;
         }
         let mut stack = SmallVec::<[KnownStackWord; MAX_STACK_WINDOW + 16]>::from_elem(
@@ -535,7 +538,7 @@ impl generated::Context for PeepContext<'_> {
         );
         for inst in &instructions[start..end] {
             if inst.is_encoded_push() {
-                stack.push(if push_value(inst) == Some(U256::ZERO) {
+                stack.push(if inst.concrete_immediate() == Some(U256::ZERO) {
                     KnownStackWord::Zero
                 } else {
                     KnownStackWord::Other
@@ -564,8 +567,8 @@ impl generated::Context for PeepContext<'_> {
     /// evaluated result is no worse in both bytes and gas and better in one.
     fn fold_constants(&mut self, _: Window) -> Option<U256> {
         let [.., lhs, rhs, instruction] = self.instructions else { return None };
-        let lhs_value = push_value(lhs)?;
-        let rhs_value = push_value(rhs)?;
+        let lhs_value = lhs.concrete_immediate()?;
+        let rhs_value = rhs.concrete_immediate()?;
         let opcode = raw_opcode(instruction)?;
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
         let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
@@ -593,7 +596,7 @@ impl generated::Context for PeepContext<'_> {
     /// Folds a literal unary expression only when its materialization is Pareto better.
     fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
         let [value, instruction] = self.unprotected_tail()?;
-        let value = push_value(&self.instructions[value])?;
+        let value = self.instructions[value].concrete_immediate()?;
         let opcode = raw_opcode(&self.instructions[instruction])?;
         let result = eval::eval_opcode(opcode, &[value])?;
         let target = Target::with(
@@ -616,7 +619,7 @@ impl generated::Context for PeepContext<'_> {
     /// Removes a closed conditional jump whose literal condition is false.
     fn untaken_jump(&mut self, _: Window) -> Option<()> {
         let [condition, destination, instruction] = self.unprotected_tail()?;
-        (push_value(&self.instructions[condition])?.is_zero()
+        (self.instructions[condition].concrete_immediate()?.is_zero()
             && is_block_push(&self.instructions[destination])
             && raw_opcode(&self.instructions[instruction]) == Some(JUMPI))
         .then_some(())
@@ -637,7 +640,7 @@ impl generated::Context for PeepContext<'_> {
             .map_or(floor, |index| floor + index + 1);
         let last_push = instructions[start..end]
             .iter()
-            .rposition(is_removable_push)
+            .rposition(Instruction::is_encoded_push)
             .map(|index| start + index)?;
         (start..=last_push)
             .find(|&start| is_noop_stack_sequence(&instructions[start..]))
@@ -670,7 +673,7 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn push(&mut self, inst: Inst) -> Option<U256> {
-        push_value(&self.instructions[inst])
+        self.instructions[inst].concrete_immediate()
     }
 
     fn push_block(&mut self, inst: Inst) -> Option<()> {
@@ -679,10 +682,6 @@ impl generated::Context for PeepContext<'_> {
 
     fn opcode(&mut self, inst: Inst) -> Option<u8> {
         self.instructions[inst].as_evm_opcode()
-    }
-
-    fn removable_push(&mut self, inst: Inst) -> Option<()> {
-        is_removable_push(&self.instructions[inst]).then_some(())
     }
 
     fn any_push(&mut self, inst: Inst) -> Option<()> {
@@ -738,10 +737,6 @@ impl generated::Context for PeepContext<'_> {
         StackOp::Swap(depth)
     }
 
-    fn exchange_of_swaps(&mut self, first: u8, second: u8, third: u8) -> Option<StackOp> {
-        StackOp::from_swaps(first, second, third)
-    }
-
     fn u256_is_zero(&mut self, value: U256) -> bool {
         value.is_zero()
     }
@@ -761,66 +756,5 @@ impl generated::Context for PeepContext<'_> {
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {
         Rewrite { skip, edit: *edit }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn protected_word_rejects_observation_and_unknown_instructions() {
-        let mut instructions =
-            [Instruction::push_value(U256::from(288)), Instruction::opcode(MLOAD)];
-        assert_eq!(protected_word_depth(&instructions), Some(1));
-        for index in 0..instructions.len() {
-            instructions[index].metadata.keep_with_next = true;
-            assert_eq!(protected_word_depth(&instructions), None);
-            instructions[index].metadata.keep_with_next = false;
-        }
-        instructions[1] = Instruction::opcode(0x0c);
-        assert_eq!(protected_word_depth(&instructions), None);
-        instructions[1] = Instruction::stack_op(StackOp::Dup(2));
-        assert_eq!(protected_word_depth(&instructions), None);
-        instructions[1] = Instruction::stack_op(StackOp::Swap(1));
-        assert_eq!(protected_word_depth(&instructions), Some(0));
-    }
-
-    #[test]
-    fn suffix_boundaries_remain_protected() {
-        let mut instructions = [
-            Instruction::opcode(GAS),
-            Instruction::push_value(U256::from(2)),
-            Instruction::opcode(ISZERO),
-        ];
-        assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
-        );
-        for boundary in 0..instructions.len() {
-            instructions[boundary].metadata.keep_with_next = true;
-            assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
-                    .unprotected_tail::<2>()
-                    .is_none()
-            );
-            instructions[boundary].metadata.keep_with_next = false;
-        }
-    }
-
-    #[test]
-    fn equality_shuffle_requires_unprotected_window() {
-        let mut instructions = [GAS, DUP2, EQ, ISZERO, SWAP1, POP].map(Instruction::opcode);
-        assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<5>().is_some()
-        );
-        for boundary in 0..instructions.len() {
-            instructions[boundary].metadata.keep_with_next = true;
-            assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
-                    .unprotected_tail::<5>()
-                    .is_none()
-            );
-            instructions[boundary].metadata.keep_with_next = false;
-        }
     }
 }

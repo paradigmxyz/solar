@@ -1,0 +1,120 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_empty_tuple.sol:AbiDecodeEmptyTuple ===
+@module AbiDecodeEmptyTuple
+fn @record(arg0: i256) -> memptr {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, arg0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = abi_encode [word], object, args arg0
+    ret v2
+}
+
+fn @decodeCall(arg0: i256) -> i256 [selector=0x14b002f7, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = icall @record, arg0
+    abi_decode [], v0
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @decodeVoid(arg0: memptr) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    abi_decode [], arg0
+    ret
+}
+
+fn @decodeReturn(arg0: memptr) -> i256 [selector=0x59f6030d, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall @decodeVoid, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @decodeCalldata(arg0: calldataslice) -> i256 [selector=0xea59e64a, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v2
+    v3 = calldatasize
+    v4 = sub v3, v1
+    v5 = sgt v0, v4
+    icall revert_if<calldata_tail_too_short>, v5
+    v6 = slice_len arg0
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    icall panic_if<0x41>, v8
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    memory_object_copy_from_slice memorybytes, v11, arg0
+    abi_decode [], v11
+    v12 = sload 0 !metadata(storage=slot(0))
+    ret v12
+}
+
+fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = calldatasize
+    v1 = make_calldata_slice 0, v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = gt 0, v3
+    v5 = lt 0, 0
+    v6 = or v4, v5
+    v7 = zext i1 v6 to i256
+    icall revert_if<empty>, v6
+    v8 = sub 0, 0
+    v9 = add v2, 0
+    v10 = make_calldata_slice v9, v8
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = make_calldata_slice v11, arg0
+    v14 = slice_len v13
+    v15 = add v14, 63
+    v16 = lt v15, v14
+    icall panic_if<0x41>, v16
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
+    set_memory_object_len memorybytes, v19, v14
+    v20 = slice_ptr v13
+    v21 = slice_len v13
+    v22 = gt v21, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = calldatasize
+    v24 = sub v23, v21
+    v25 = sgt v20, v24
+    icall revert_if<calldata_tail_too_short>, v25
+    memory_object_copy_from_slice memorybytes, v19, v13
+    abi_decode [], v19
+    ret 3
+}
+
+fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 63, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 0
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, arg0
+    abi_decode [], v2
+    ret 4
+}
+
+fn @decodeStorageLength(arg0: i256) -> i256 [selector=0x0359dd97, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mul arg0, 2
+    v1 = add v0, 1
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = load_storage_bytes 1
+    abi_decode [], v2
+    ret 5
+}

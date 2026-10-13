@@ -153,6 +153,9 @@
 (decl setfmp (Value) Value)
 (extractor (setfmp value) (inst (Op.SetFmp value)))
 
+(decl heapfloor () Value)
+(extractor (heapfloor) (inst (Op.HeapFloor)))
+
 (decl alloc (Value AllocationKind AllocationSemantics) Value)
 (extractor (alloc size kind semantics) (inst (Op.Alloc size kind semantics)))
 

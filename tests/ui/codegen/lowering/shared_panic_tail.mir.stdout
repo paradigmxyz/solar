@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/lowering/shared_panic_tail.sol:SharedPanicTail ===
+@module SharedPanicTail
+fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    ret v0
+}
+
+fn @div(arg0: i256, arg1: i256) -> i256 [selector=0xa391c15b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_div u256, arg0, arg1
+    ret v0
+}
+
+fn @at(arg0: i256) -> i256 [selector=0xe0886f90, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 2
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
+    v1 = lt arg0, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
+    ret v3
+}

@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (before share-reverts) ===
 + // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (after share-reverts) ===
   @module module
+  @libraries
+    L_0: "a.sol:L"
+  
   bb0:
     push 1
 -   iszero
@@ -10,7 +13,7 @@
 -   jump bb1
 +   jump bb2
   bb1 [cold]:
-    push_deferred 0
+    push_library L_0
     dup 1
     revert
   bb2:

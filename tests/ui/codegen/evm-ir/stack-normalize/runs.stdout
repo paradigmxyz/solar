@@ -173,4 +173,64 @@
 -   swap 2
     pop
     stop
+  bb13:
+    push 49
+    push 50
+    push 51
+    push 52
+    push 53
+    push 54
+    push 55
+    push 56
+    push 57
+    push 58
+    push 59
+    push 60
+    push 61
+    push 62
+    push 63
+    push 64
+    dup 1
+-   swap 1
+    swap 16
+    stop
+  bb14:
+    push 65
+    push 66
+-   swap 1
+-   swap 1
+-   swap 1
+-   pop
+    dup 1
+    dup 1
+    dup 1
+    dup 1
++   swap 5
++   pop
+    stop
+  bb15:
+    calldatasize
+    returndatasize
+    callvalue
+    swap 2
+-   swap 1
+    mul
+    stop
+  bb16:
+    calldatasize
+    returndatasize
+    callvalue
+    swap 2
+-   swap 1
+-   lt
++   gt
+    stop
+  bb17:
+    calldatasize
+    returndatasize
+    callvalue
+    swap 2
+    swap 1
+    sub
+    stop
   

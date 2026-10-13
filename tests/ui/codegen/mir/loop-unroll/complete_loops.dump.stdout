@@ -121,8 +121,8 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     mstore 128, v61
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     revert 0, 0
@@ -130,8 +130,8 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

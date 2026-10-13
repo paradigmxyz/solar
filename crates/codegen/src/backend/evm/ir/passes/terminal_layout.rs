@@ -9,7 +9,7 @@
 //! Only hot, non-loop predecessors ending in an unconditional jump qualify. The moved block
 //! must already follow a physical terminal boundary, and the suffix must terminate execution.
 //! This preserves other fallthroughs and never rearranges instructions or debug metadata.
-//! Placement-sensitive deferred values and data references are excluded. A conservative size
+//! Placement-sensitive immutable patches and data references are excluded. A conservative size
 //! bound must keep the entire module below the one-byte label-address boundary: exchanging
 //! jumps then cannot increase PUSH widths. Larger modules retain the established layout.
 //!
@@ -159,8 +159,7 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
     let mut upper_bound = 0usize;
     for block in &module.blocks {
         if block.instructions.iter().any(|inst| {
-            inst.deferred_push().is_some()
-                || inst.immutable_push().is_some()
+            inst.immutable_push().is_some()
                 || matches!(inst.value, Some(PushValue::Data(_)))
                 || matches!(inst.as_evm_opcode(), Some(op::PC | op::CODESIZE))
         }) {

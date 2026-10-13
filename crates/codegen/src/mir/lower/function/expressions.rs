@@ -16,9 +16,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
-            ty.peel_refs().kind
-        else {
+        let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind else {
             return None;
         };
         let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind else {
@@ -26,9 +24,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         match &lit.kind {
             LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
+            // value << (32 - N) * 8
             LitKind::Number(value) => {
-                let shift = usize::from(32 - size.bytes()) * 8;
-                Some(self.builder.imm(*value << shift))
+                Some(self.builder.imm(*value << (usize::from(32 - size.bytes()) * 8)))
             }
             _ => None,
         }
@@ -74,13 +72,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let selector = self.cx.gcx.function_selector(function_id).0;
             let selector = self.builder.imm(U256::from_be_slice(&selector));
             return Some(self.builder.or(address, selector));
-        }
-        if name.name == sym::offset
-            && self
-                .type_of_expr_or_variable(receiver)
-                .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))
-        {
-            return self.lower_yul_member(expr, receiver, name);
         }
         if let Some(access) = self.storage_access(expr) {
             // value = load_storage(member_slot)
@@ -180,9 +171,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             // length = static_len
-            if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
-                self.lower_discarded_expr(receiver)?;
-            }
+            self.lower_discarded_expr(receiver)?;
             return Some(self.builder.imm(len));
         }
         if receiver_ty.is_ref_at(DataLocation::Storage) {
@@ -321,28 +310,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                ConstValue::Integer(value) => {
-                    let value = value.as_evm_word();
-                    if let TyKind::Elementary(ElementaryType::FixedBytes(size)) =
-                        ty.peel_refs().kind
-                    {
-                        let shift = usize::from(32 - size.bytes()) * 8;
-                        Some(self.builder.imm(value << shift))
-                    } else {
-                        Some(self.builder.imm(value))
-                    }
-                }
-                ConstValue::String(value) => {
-                    let bytes = value.as_byte_str_in(self.cx.gcx.sess);
-                    if matches!(
-                        ty.peel_refs().kind,
-                        TyKind::Elementary(ElementaryType::FixedBytes(_))
-                    ) {
-                        Some(self.lower_string_literal_word(bytes))
-                    } else {
-                        self.lower_shared_bytes_literal(*value)
-                    }
-                }
+                // A value wider than the EVM word is no immediate; lower the initializer instead,
+                // as `lower_expr` does for such values.
+                ConstValue::Integer(value) => match value.as_evm_word() {
+                    Some(word) => Some(self.builder.imm(word)),
+                    None => self.lower_expr(initializer),
+                },
+                ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
             };
         }
         self.lower_expr(initializer)

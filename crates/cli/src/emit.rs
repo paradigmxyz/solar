@@ -326,7 +326,7 @@ fn emit_combined_json(
         source_list: source_map_encoder.as_ref().map(|_| {
             gcx.hir
                 .source_ids()
-                .map(|id| gcx.hir.source(id).file.name.display().to_string().replace('\\', "/"))
+                .map(|id| gcx.hir.source(id).file.name.display().to_string())
                 .collect()
         }),
         version: solar_config::version::SEMVER_VERSION,
@@ -335,7 +335,7 @@ fn emit_combined_json(
 
     let emit_contracts = emit_abi || emit_hashes || codegen_requested;
     for id in gcx.hir.contract_ids().filter(|_| emit_contracts) {
-        let name = contract_output_name(gcx, id);
+        let name = gcx.contract_fully_qualified_name(id).to_string();
         let contract_output = output.contracts.entry(name).or_default();
 
         if emit_abi {
@@ -406,12 +406,6 @@ fn write_output_json<T: serde::Serialize>(
     writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
 
     Ok(())
-}
-
-fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
-    let contract = gcx.hir.contract(id);
-    let source = gcx.hir.source(contract.source);
-    format!("{}:{}", source.file.name.display().to_string().replace('\\', "/"), contract.name)
 }
 
 fn has_mir_dump(gcx: Gcx<'_>) -> bool {
@@ -491,8 +485,7 @@ fn contract_dump_path_matches(gcx: Gcx<'_>, id: ContractId, path: &str) -> bool 
         return true;
     }
 
-    let path = path.replace('\\', "/");
-    path == gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/")
+    path == gcx.contract_fully_qualified_name(id).to_string()
 }
 
 fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelection> {
@@ -548,7 +541,7 @@ fn available_dump_contracts(gcx: Gcx<'_>) -> String {
     gcx.hir
         .contract_ids()
         .filter(|&id| is_dumpable_contract(gcx, id))
-        .map(|id| gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/"))
+        .map(|id| gcx.contract_fully_qualified_name(id).to_string())
         .collect::<Vec<_>>()
         .join(", ")
 }

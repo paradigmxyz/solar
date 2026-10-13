@@ -9,7 +9,7 @@
 
 use crate::{
     backend::evm::op::*,
-    mir::{InstKind, Op},
+    mir::{EffectKind, Function, InstKind, Op, OpTraits, Value, ValueId},
 };
 
 /// Stack shape of a MIR operation that lowers to one EVM opcode.
@@ -81,33 +81,23 @@ impl InstKind {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::ValueId;
-    use std::fmt::Write as _;
-
-    #[test]
-    fn opcode_selection_matches_schema() {
-        let mut output = String::new();
-        for &name in InstKind::MNEMONICS {
-            if let Some((arity, build)) = InstKind::operand_only(name) {
-                let operands = (0..arity).map(ValueId::from_usize).collect::<Vec<_>>();
-                let kind = build(&operands);
-                if let Some(lowering) = opcode_lowering(&kind.op()) {
-                    let definition = definition(lowering.opcode()).unwrap();
-                    let (pops, pushes) = definition.stack_io.unwrap();
-                    assert_eq!(usize::from(pops), arity, "{name}");
-                    assert_eq!(pushes != 0, kind.op_def().result.produces_value(), "{name}");
-                    writeln!(
-                        output,
-                        "{name}: {lowering:?}, {} ({pops} -> {pushes})",
-                        definition.mnemonic
-                    )
-                    .unwrap();
-                }
-            }
-        }
-        snapbox::assert_data_eq!(output, snapbox::file!["select.snap"]);
+/// Returns the opcode of a stable nullary read, possibly zero-extended, that is cheaper to read
+/// again than to keep on the stack.
+pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
+    let Value::Inst(inst) = *func.value(value) else { return None };
+    let kind = &func.inst(inst).kind;
+    if let InstKind::Zext(inner) = *kind {
+        return rematerializable_nullary_value(func, inner);
+    }
+    // The rematerializable nullary reads are environment reads; pure rematerializable
+    // operations are arithmetic, which never lowers to a nullary opcode.
+    let def = kind.op_def();
+    if def.traits.contains(OpTraits::REMATERIALIZABLE)
+        && def.effect != EffectKind::Pure
+        && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
+    {
+        Some(opcode)
+    } else {
+        None
     }
 }

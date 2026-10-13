@@ -48,6 +48,6 @@ bb3:
 // An unchanged block after changed blocks must not replay their scratch storage.
 bb4:
   push 4
-  push_deferred 0
-  pop
+  push 0
+  sstore
   stop

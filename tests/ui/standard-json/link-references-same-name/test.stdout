@@ -1,0 +1,64 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 178,
+        "end": 293
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2018",
+      "message": "function state mutability can be restricted to view",
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ A.sol:LL:CC\n   │\nLL │ ┏     function bump(uint256 value) external returns (uint256) {\nLL │ ┃         return Lib.bump(value) + B.Lib.bump(value);\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "B.sol": {
+      "id": 0
+    },
+    "A.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Links": {
+        "evm": {
+          "deployedBytecode": {
+            "linkReferences": {
+              "A.sol": {
+                "Lib": [
+                  {
+                    "start": 48,
+                    "length": 20
+                  }
+                ]
+              },
+              "B.sol": {
+                "Lib": [
+                  {
+                    "start": 153,
+                    "length": 20
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

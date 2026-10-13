@@ -460,7 +460,7 @@ contract OrderFulfiller is
         CriteriaResolver[] memory criteriaResolvers,
         bytes32 fulfillerConduitKey,
         address recipient
-    ) internal returns (bool) {
+    ) internal returns (bool) { //~ WARN: unnamed return variable can remain unassigned
         OrderParameters memory orderParameters = advancedOrder.parameters;
         OrderType orderType = orderParameters.orderType;
         (
@@ -639,7 +639,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         CriteriaResolver[] memory criteriaResolvers,
         Fulfillment[] memory fulfillments,
         address recipient
-    ) internal returns (Execution[] memory /* executions */) {
+    ) internal returns (Execution[] memory /* executions */) { //~ WARN: unnamed return variable can remain unassigned
         bool revertOnInvalid = _runTimeConstantTrue();
         (
             bytes32[] memory orderHashes,
@@ -732,7 +732,7 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
     function matchOrders(
         Order[] calldata,
         Fulfillment[] calldata
-    ) external payable override returns (Execution[] memory /* executions */) {
+    ) external payable override returns (Execution[] memory /* executions */) { //~ WARN: unnamed return variable can remain unassigned
             _matchAdvancedOrders(
                 _toAdvancedOrdersReturnType(_decodeOrdersAsAdvancedOrders)(
                     CalldataStart.pptr()
@@ -749,7 +749,7 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
         CriteriaResolver[] calldata,
         Fulfillment[] calldata,
         address recipient
-    ) external payable override returns (Execution[] memory /* executions */) {
+    ) external payable override returns (Execution[] memory /* executions */) { //~ WARN: unnamed return variable can remain unassigned
             _matchAdvancedOrders(
                 _toAdvancedOrdersReturnType(_decodeAdvancedOrders)(
                     CalldataStart.pptr()

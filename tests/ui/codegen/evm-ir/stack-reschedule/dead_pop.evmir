@@ -1,0 +1,40 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=stack-reschedule
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// A dead word below an operand is popped before the operation instead of being swapped
+// around it and popped afterwards.
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=2]:
+// CHECK: +   pop
+// CHECK-NEXT: push 2
+// CHECK-NEXT: add
+// CHECK-NOT: {{^[ +].*}}swap
+// CHECK: stop
+bb0 [loop, stack=2]:
+  swap 1
+  push 2
+  add
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// Code outside loops gets a shorter search, which still finds this one.
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=2]:
+// CHECK: +   pop
+// CHECK-NEXT: push 2
+// CHECK-NEXT: add
+// CHECK-NOT: {{^[ +].*}}swap
+// CHECK: stop
+bb1 [stack=2]:
+  swap 1
+  push 2
+  add
+  swap 1
+  pop
+  push 0
+  mstore
+  stop

@@ -67,3 +67,25 @@ fn @keep_sload_with_call() -> i256 {
   bb3:
     ret v10
 }
+
+// CALLCODE runs the target's code against this contract's storage, so the
+// sload must stay in the loop.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_with_callcode{{[( ]}}
+// CHECK: + {{v[0-9]+}} = sload 5 !metadata
+// CHECK-NEXT: {{^[ +].*[ =]callcode[[:space:]]}}
+fn @keep_sload_with_callcode() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 10
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = sload 5
+    v4 = callcode 1000, 0xbeef, 0, 0, 0, 0, 0
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v10
+}

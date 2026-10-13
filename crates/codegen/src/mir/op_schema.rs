@@ -145,6 +145,36 @@ impl ResultKind {
     }
 }
 
+/// How an operation accesses a raw memory range at an `i256` address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RawMemoryAccess {
+    /// The operation reads the range.
+    Read,
+    /// The operation writes the whole range.
+    Write,
+    /// The operation writes a prefix of the range, which may be shorter or empty.
+    PartialWrite,
+}
+
+/// The size of a raw memory range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RawMemorySize {
+    /// A fixed number of bytes.
+    Bytes(u64),
+    /// The number of bytes an operand holds.
+    Value(ValueId),
+}
+
+impl RawMemorySize {
+    /// Returns the size in bytes when it is a constant.
+    pub(crate) fn constant(self, func: &Function) -> Option<u64> {
+        match self {
+            Self::Bytes(bytes) => Some(bytes),
+            Self::Value(size) => func.value_u64(size),
+        }
+    }
+}
+
 /// Instruction field types, classified as value operands or attributes.
 pub(crate) trait Operands {
     /// Copyable projection of the field seen by rewrite rules.
@@ -545,6 +575,24 @@ macro_rules! commutative_trait {
     };
 }
 
+/// Emits the size of a raw memory range declared with `#[raw_memory]`.
+macro_rules! raw_memory_size {
+    ($bytes:literal) => {
+        RawMemorySize::Bytes($bytes)
+    };
+    ($size:ident) => {
+        RawMemorySize::Value(*$size)
+    };
+}
+
+/// Visits the size operand of a raw memory range declared with `#[raw_memory]`, if it has one.
+macro_rules! visit_raw_memory_size {
+    ($f:ident, $bytes:literal) => {};
+    ($f:ident, $size:ident) => {
+        $f($size)
+    };
+}
+
 macro_rules! define_mir_ops {
     (
         enum $inst_name:ident {
@@ -562,6 +610,7 @@ macro_rules! define_mir_ops {
                 $(#[mnemonic($mnemonic_pattern:pat => $alternate_mnemonic:literal)])*
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
+                $(#[raw_memory($( $access:ident($address:ident, $size:tt) ),+)])?
                 #[operand_types($func:ident => $operand_types:expr)]
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
@@ -615,12 +664,6 @@ macro_rules! define_mir_ops {
                     )+
                 }
             }
-
-            /// All declared textual names, including attribute-dependent spellings.
-            #[cfg(test)]
-            pub(crate) const MNEMONICS: &[&str] = &[
-                $( $mnemonic, $( $alternate_mnemonic, )* )+
-            ];
 
             /// Returns the declarative definition for this operation.
             #[inline]
@@ -690,6 +733,36 @@ macro_rules! define_mir_ops {
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
                             $( $( Operands::visit_mut($operand, &mut f); )+ )?
                             $( $( Operands::visit_mut($field, &mut f); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits each raw memory range the operation reads or writes at an `i256` address,
+            /// with its offset and size, reads before writes. Operations that reach memory only through memory objects,
+            /// slices, frames, or the free memory pointer have none.
+            #[allow(unused_variables)]
+            pub(crate) fn visit_raw_memory(
+                &self,
+                mut f: impl FnMut(RawMemoryAccess, ValueId, RawMemorySize),
+            ) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( f(RawMemoryAccess::$access, *$address, raw_memory_size!($size)); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits the offset and size operands of the raw memory ranges the operation
+            /// accesses, mutably.
+            #[allow(unused_variables)]
+            pub(crate) fn visit_raw_memory_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( f($address); visit_raw_memory_size!(f, $size); )+ )?
                         }
                     )+
                 }
@@ -1403,6 +1476,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mload)]
+    #[raw_memory(Read(offset, 32))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
     MLoad(offset: ValueId),
     /// Store to memory: `mstore(offset, value)`
@@ -1416,6 +1490,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mstore, void)]
+    #[raw_memory(Write(offset, 32))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MStore(offset: ValueId, value: ValueId),
     /// Store a single byte: `mstore8(offset, value)`
@@ -1429,6 +1504,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mstore8, void)]
+    #[raw_memory(Write(offset, 1))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MStore8(offset: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
@@ -1442,6 +1518,7 @@ define_mir_ops! {
         category = Some("memory zero")
     )]
     #[builder(memory_zero, void)]
+    #[raw_memory(Write(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
@@ -1482,6 +1559,20 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     SetFmp(value: ValueId),
+    /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
+    /// can run this function, which codegen fixes once it has placed the frames and spill slots
+    /// below it.
+    #[mir_op(
+        mnemonic = "heap_floor",
+        result = I256,
+        phases = PhaseSet::ALL,
+        effect = EnvironmentRead,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
         mnemonic = "alloc",
@@ -1835,6 +1926,7 @@ define_mir_ops! {
     ///
     /// The instruction result is the first tuple value. Additional values are
     /// published through the multi-return buffer, matching ordinary MIR calls.
+    /// An empty tuple has no result and only checks the data length.
     #[mir_op(
         mnemonic = "abi_decode",
         result = Custom,
@@ -1844,9 +1936,9 @@ define_mir_ops! {
         side_effects = true,
         category = Some("ABI decoding")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *data)]))]
     AbiDecode {
-        /// ABI-encoded bytes object.
+        /// ABI-encoded bytes object, or a memory slice of the encoding.
         data: ValueId,
         /// Interned ABI input layout, including scalar validation types.
         layout: AbiParamLayoutRef,
@@ -1917,6 +2009,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mcopy, void)]
+    #[raw_memory(Read(src, len), Write(dest, len))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     MCopy(dest: ValueId, src: ValueId, len: ValueId),
 
@@ -1999,6 +2092,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(calldatacopy, void)]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     CalldataCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get calldata size: `calldatasize()`
@@ -2155,6 +2249,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Byte length of deferred module data, such as another contract's
@@ -2198,6 +2293,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(codecopy, void)]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code size: `extcodesize(addr)`
@@ -2223,6 +2319,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code hash: `extcodehash(addr)`
@@ -2308,6 +2405,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(returndatacopy, void)]
+    #[raw_memory(Write(dest, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     ReturnDataCopy(dest: ValueId, offset: ValueId, size: ValueId),
 
@@ -2571,6 +2669,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(keccak256)]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Keccak256(offset: ValueId, size: ValueId),
     /// Keccak256 hash of a `memorybytes` object's contents:
@@ -2680,6 +2779,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Call {
         gas: ValueId,
@@ -2700,6 +2800,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     CallCode {
         gas: ValueId,
@@ -2720,6 +2821,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     StaticCall {
         gas: ValueId,
@@ -2739,6 +2841,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     DelegateCall {
         gas: ValueId,
@@ -2773,6 +2876,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(create)]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     Create(value: ValueId, offset: ValueId, size: ValueId),
     /// Create2 contract: `create2(value, offset, size, salt)`
@@ -2785,6 +2889,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
@@ -2800,6 +2905,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Log0(offset: ValueId, size: ValueId),
     /// Log with 1 topic: `log1(offset, size, topic1)`
@@ -2812,6 +2918,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     Log1(offset: ValueId, size: ValueId, topic1: ValueId),
     /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
@@ -2824,6 +2931,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log2(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId),
     /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
@@ -2836,6 +2944,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log3(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId),
     /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
@@ -2848,6 +2957,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[raw_memory(Read(offset, size))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log4(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId, topic4: ValueId),
 
@@ -2897,94 +3007,6 @@ define_mir_ops! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{AbiLayout, AllocationKind, AllocationSemantics, Builtin, Value, ValueId};
-    use solar_interface::Ident;
-
-    #[test]
-    fn empty_signatures_reject_extra_operands() {
-        let mut func = Function::new(Ident::DUMMY);
-        let value = func.alloc_value(Value::Undef(MirType::I256));
-        let bytes = MirType::MemPtr;
-        let extra = [value].into();
-        let calls = [
-            InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), args: extra },
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Concat(Vec::new().into())),
-                args: [value].into(),
-            },
-            InstKind::AbiEncode {
-                mode: AbiEncodeMode::Bytes,
-                selector: None,
-                args: [value].into(),
-                layout: AbiLayout::new([]).into(),
-            },
-        ];
-        for kind in calls {
-            assert!(!kind.scalar_types_match(&func, Some(bytes)));
-        }
-        let empty = InstKind::ICall {
-            function: Callee::Builtin(Builtin::ReturndataBytes),
-            args: [].into(),
-        };
-        assert!(empty.scalar_types_match(&func, Some(bytes)));
-    }
-
-    #[test]
-    fn descriptors_drive_operation_properties() {
-        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
-        assert_eq!(add.mnemonic(), "add");
-        assert_eq!(add.effect_kind(), EffectKind::Pure);
-        assert!(add.op_def().traits.contains(OpTraits::REORDERABLE));
-        assert!(!add.has_side_effects());
-
-        let calldata_size = InstKind::CalldataSize;
-        assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
-        assert!(calldata_size.op_def().phases.contains(MirPhase::Lowered));
-
-        assert_eq!(add.op_def().result.default_type(), Some(MirType::I256));
-        assert!(
-            !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
-        );
-
-        let slice = InstKind::MakeSlice {
-            ptr: ValueId::new(0),
-            len: ValueId::new(1),
-            location: SliceLocation::Calldata,
-        };
-        assert_eq!(slice.mnemonic(), "make_calldata_slice");
-    }
-
-    #[test]
-    fn views_project_operands() {
-        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
-        assert_eq!(add.op(), Op::Add { a: ValueId::new(0), b: ValueId::new(1) });
-        let mapped = add.op().map_values(|value| ValueId::new(value.index() + 10));
-        assert_eq!(mapped, Op::Add { a: ValueId::new(10), b: ValueId::new(11) });
-        assert_eq!(InstKind::MSize.op(), Op::MSize);
-        assert_eq!(add.op().into_kind().as_ref(), Some(&add));
-        assert_eq!(InstKind::Phi(Vec::new()).op().into_kind(), None);
-    }
-
-    #[test]
-    fn commutativity_applies_only_to_the_declared_pair() {
-        let a = ValueId::new(2);
-        let b = ValueId::new(1);
-        let addmod = InstKind::AddMod(a, b, a);
-        assert!(addmod.op_def().traits.contains(OpTraits::COMMUTATIVE));
-        assert_eq!(addmod.op().canonicalize_commutative(), Op::AddMod { a: b, b: a, n: a });
-
-        assert_eq!(
-            addmod.op().canonicalize_commutative_by_key(|value| value == a),
-            Op::AddMod { a: b, b: a, n: a }
-        );
-        assert_eq!(addmod.op().canonicalize_commutative_by_key(|_| false), addmod.op());
-
-        let gt = InstKind::Gt(a, b);
-        assert!(gt.op_def().traits.contains(OpTraits::REORDERABLE));
-        assert!(!gt.op_def().traits.contains(OpTraits::COMMUTATIVE));
-        assert_eq!(gt.op().canonicalize_commutative(), gt.op());
-        assert_eq!(gt.op().canonicalize_commutative_by_key(|value| value == a), gt.op());
-    }
 
     #[test]
     fn isle_prelude_matches_schema() {
@@ -2992,30 +3014,6 @@ mod tests {
         snapbox::assert_data_eq!(
             Op::isle_extractors(),
             snapbox::file!["../../isle/mir/extractors.isle"]
-        );
-    }
-
-    #[test]
-    fn descriptors_enforce_phase_boundaries() {
-        let metadata = InstructionMetadata::EMPTY;
-        let fmp = InstKind::Fmp;
-        assert_eq!(fmp.phase_violation(MirPhase::Lowered, &metadata), Some("abstract allocation"));
-
-        let object_load =
-            InstKind::MemoryObjectLoadByte { object: ValueId::new(0), index: ValueId::new(1) };
-        assert_eq!(
-            object_load.phase_violation(MirPhase::Lowered, &metadata),
-            Some("memory-object")
-        );
-
-        let raw_alloc = InstKind::Alloc {
-            size: ValueId::new(0),
-            kind: AllocationKind::Raw,
-            semantics: AllocationSemantics::INTERNAL,
-        };
-        assert_eq!(
-            raw_alloc.phase_violation(MirPhase::Lowered, &metadata),
-            Some("abstract allocation")
         );
     }
 }

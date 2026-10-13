@@ -11,8 +11,9 @@ contract TryCatchClauses {
     // A bare `catch { }` binds nothing and compiles at every version: the return values come
     // out of the call's own output area, and the clause runs with no return data at all.
     // CHECK-LABEL: fn @bare
-    // CHECK: call
-    // CHECK: icall returndata_bytes<>
+    // CHECK: call {{.*}}, 0, 32
+    // CHECK-NOT: returndata_bytes
+    // CHECK: mload
     function bare(ClauseTarget target) external returns (uint256 r) {
         try target.value() returns (uint256 v) {
             r = v;

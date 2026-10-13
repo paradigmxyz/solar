@@ -2,7 +2,7 @@
 
 use crate::{
     StrKind,
-    ast::{BinOp, BinOpKind, UnOp, UnOpKind},
+    ast::{BinOp, BinOpKind, ElementaryType, UnOp, UnOpKind},
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
 use std::{borrow::Cow, fmt, mem::MaybeUninit};
@@ -622,10 +622,11 @@ impl Token {
         self.is_ident_where(|id| kws.contains(&id.name))
     }
 
-    /// Returns `true` if the token is a keyword used in the language.
+    /// Returns `true` if the token is a keyword used in the language, including `[u]fixedMxN`
+    /// types.
     #[inline]
     pub fn is_used_keyword(&self) -> bool {
-        self.is_ident_where(Ident::is_used_keyword)
+        self.is_ident_where(|id| id.is_used_keyword() || is_fixed_mxn(id))
     }
 
     /// Returns `true` if the token is a keyword reserved for possible future use.
@@ -646,12 +647,10 @@ impl Token {
         self.is_ident_where(|i| i.is_non_reserved(yul))
     }
 
-    /// Returns `true` if the token is an elementary type name.
-    ///
-    /// Note that this does not include `[u]fixedMxN` types.
+    /// Returns `true` if the token is an elementary type name, including `[u]fixedMxN` types.
     #[inline]
     pub fn is_elementary_type(&self) -> bool {
-        self.is_ident_where(Ident::is_elementary_type)
+        self.is_ident_where(|id| id.is_elementary_type() || is_fixed_mxn(id))
     }
 
     /// Returns `true` if the token is the identifier `true` or `false`.
@@ -803,4 +802,8 @@ impl TokenDescription {
             Self::YulEvmBuiltin => "Yul EVM builtin keyword",
         }
     }
+}
+
+fn is_fixed_mxn(id: Ident) -> bool {
+    ElementaryType::parse_fixed_mxn(id.name).is_some()
 }

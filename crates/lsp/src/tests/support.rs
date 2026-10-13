@@ -1034,7 +1034,7 @@ fn inlay_hint_label(label: &InlayHintLabel) -> String {
 
 fn display_path(root: &Path, path: &Path) -> String {
     let path = path.strip_prefix(root).unwrap_or(path);
-    format!("/{}", path.display())
+    format!("/{}", path.to_string_lossy().replace('\\', "/"))
 }
 
 pub(super) fn signature_help_at(

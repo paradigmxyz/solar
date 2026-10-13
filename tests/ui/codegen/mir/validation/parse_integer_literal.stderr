@@ -1,0 +1,8 @@
+error: i8 literal must fit in 8 bits
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_integer_literal.mir:LL:CC
+   │
+LL │     v0 = add i8 256, 1
+   ╰╴                   ━
+
+error: aborting due to 1 previous error
+

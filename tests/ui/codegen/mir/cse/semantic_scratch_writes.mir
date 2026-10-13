@@ -1,0 +1,112 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module SemanticScratchWrites
+
+// Semantic storage operations use scratch memory once lowered, so they clobber
+// the scratch words before lowering exposes the stores. A scratch load after
+// one cannot reuse an earlier load.
+
+// `mapping_slot` hashes two words at 0..64.
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_slot{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 32
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 32
+fn @mapping_slot(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 32
+    v1 = mapping_slot arg0, 1
+    v2 = mload 32
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+
+// The other operations use the word at 0..32.
+// CHECK-LABEL: {{^[ +].*}}fn @storage_array_data_slot{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+fn @storage_array_data_slot(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 0
+    v1 = storage_array_data_slot arg0
+    v2 = mload 0
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @storage_array_element_slot{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+fn @storage_array_element_slot(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 0
+    v1 = storage_array_element_slot arg0, arg1, 2
+    v2 = mload 0
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @clear_storage_words{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+fn @clear_storage_words(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 0
+    clear_storage_words arg0, 1, arg1
+    v2 = mload 0
+    v3 = add v0, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @store_storage_bytes_literal{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+fn @store_storage_bytes_literal(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 0
+    store_storage_bytes_literal arg0, hex"61"
+    v2 = mload 0
+    v3 = add v0, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @store_storage_bytes{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0
+fn @store_storage_bytes(arg0: i256, arg1: memptr) -> i256 {
+  bb0:
+    v0 = mload 0
+    store_storage_bytes arg0, arg1
+    v2 = mload 0
+    v3 = add v0, v2
+    ret v3
+}
+
+// A memory or calldata key is hashed in fresh memory past the free memory
+// pointer, so the write may land anywhere.
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_slot_memory{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0x400
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0x400
+fn @mapping_slot_memory(arg0: memptr, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 0x400
+    v1 = mapping_slot_memory arg0, arg1
+    v2 = mload 0x400
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_slot_calldata{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0x400
+// CHECK: {{^ +}}{{v[0-9]+}} = mload 0x400
+fn @mapping_slot_calldata(arg0: calldataslice, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 0x400
+    v1 = mapping_slot_calldata arg0, arg1
+    v2 = mload 0x400
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}

@@ -7,3 +7,6 @@ mod debug_outputs;
 
 #[cfg(feature = "cli")]
 mod lsp;
+
+#[cfg(feature = "cli")]
+mod standard_json;

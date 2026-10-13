@@ -1,0 +1,120 @@
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/storage_reference.sol:FunctionPointerStorageReference ===
+@module FunctionPointerStorageReference
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 5 !metadata(storage=slot(0))
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = not 0xffffffffffffffff
+    v2 = and v0, v1
+    v3 = and 6, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 1, v4 !metadata(storage=slot(1))
+    ret
+}
+
+fn @quote(arg0: i1, arg1: i256) -> i256 [selector=0x4df60b01, view, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 7], [bb2: 6]
+    v1 = icall @internal_dispatcher_p_storageptr_u256_r_u256, v0, 0, arg1
+    ret v1
+}
+
+fn @invoke(arg0: i256) -> i256 [selector=0x2b30d2b8, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall @internal_dispatcher_p_storageptr_u256_r_none, 8, 0, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @callStored(arg0: i256) -> i256 [selector=0xc0c5a3a7, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = trunc i256 v0 to i64
+    v2 = zext i64 v1 to i256
+    v3 = icall @internal_dispatcher_p_storageptr_u256_r_u256, v2, 0, arg0
+    ret v3
+}
+
+fn @writeThrough(arg0: i256) -> i256 [selector=0x23d2c16c, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @internal_dispatcher_p_storageptr_r_storageptr, 9, 0
+    sstore v0, arg0 !metadata(storage=symbolic(v0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @add(arg0: i256, arg1: i256) -> i256 [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = checked_add u256, v0, arg1
+    ret v1
+}
+
+fn @addTwice(arg0: i256, arg1: i256) -> i256 [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = checked_mul u256, 2, v0
+    v2 = checked_add u256, v1, arg1
+    ret v2
+}
+
+fn @bump(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = checked_add u256, v0, arg1
+    sstore arg0, v1 !metadata(storage=symbolic(arg0))
+    ret
+}
+
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @internal_dispatcher_p_storageptr_u256_r_u256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 6
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = eq arg0, 7
+    jumpi v2, bb3, bb4
+  bb4:
+    icall panic_if<0x51>, true
+    invalid
+  bb3:
+    v3 = icall @addTwice, arg1, arg2
+    ret v3
+  bb1:
+    v1 = icall @add, arg1, arg2
+    ret v1
+}
+
+fn @internal_dispatcher_p_storageptr_u256_r_none(arg0: i256, arg1: i256, arg2: i256) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 8
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    icall @bump, arg1, arg2
+    ret
+}
+
+fn @internal_dispatcher_p_storageptr_r_storageptr(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 9
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @identity, arg1
+    ret v1
+}

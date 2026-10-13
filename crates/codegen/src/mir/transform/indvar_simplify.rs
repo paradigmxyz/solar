@@ -44,7 +44,8 @@
 //!
 //! A pointer with any other base, such as a calldata array element, may wrap,
 //! so it takes over the test only from a counter that starts at a literal below
-//! `2^64` and steps by one, and tests `ptr != end` instead. Two pointers agree
+//! `2^64`, steps by one, and keeps the loop running while `i < bound` holds, and
+//! tests `ptr != end` instead. Two pointers agree
 //! exactly when their counters agree modulo `2^(256 - k)`, where `2^k` is the
 //! largest power of two dividing the scale, so the pointer first reaches `end`
 //! when the counter reaches a bound between the start and that modulus. A bound
@@ -58,11 +59,16 @@
 //! stopped. Once the pointer takes over the exit test, each such read is rebuilt
 //! from the pointer as `init + (ptr - start) / scale`, a shift for a power-of-two
 //! scale, at the top of the reading block, or at the end of the block a phi reads
-//! it from. A phi reading it over a critical exit edge, from a loop block into a
-//! join, needs a block of its own on that edge: the pass splits those edges after
-//! visiting every loop of the function and then visits those loops again. Only
-//! the counter itself may be read after the loop; a value the loop derives from
-//! it keeps the counter.
+//! it from. Only the equality exit takes over from such a counter: it counts up
+//! and its clamped `end` cannot wrap, while a heap pointer's `ptr < end` would
+//! leave at once for a bound near the word size and return a counter the loop
+//! never reached. A phi reading the counter over a critical edge, from a loop
+//! block or from a block after the loop that also branches elsewhere, needs a
+//! block of its own on that edge, so that only the path into the phi pays for the
+//! rebuild: the pass splits those edges after visiting every loop of the function
+//! and then visits those loops again. Only the counter itself may be read after
+//! the loop; a value the loop derives from it keeps the counter, and so does a
+//! counter narrower than a word, which the rebuild would replace with a word.
 //!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
@@ -169,8 +175,15 @@ struct ExitReads {
     blocks: Vec<BlockId>,
     /// Phis outside the loop with the counter incoming from a block outside the loop.
     phis: Vec<(InstId, BlockId)>,
-    /// Exit edges, from a loop block to a join outside it, whose phis read the counter.
+    /// Edges into a join outside the loop whose phis read the counter, from a loop block or
+    /// from a block that also branches elsewhere: each needs a block of its own to rebuild in.
     edges: Vec<(BlockId, BlockId)>,
+}
+
+impl ExitReads {
+    fn is_empty(&self) -> bool {
+        self.blocks.is_empty() && self.phis.is_empty() && self.edges.is_empty()
+    }
 }
 
 /// The header's exit test, `lt counter, bound` or `lt bound, counter`.
@@ -179,6 +192,8 @@ struct ExitTest {
     condition: InstId,
     bound: ValueId,
     counter_first: bool,
+    /// Whether the loop continues where the test holds and leaves where it fails.
+    continues_on_true: bool,
 }
 
 /// How a pointer that replaces the counter tests the loop's exit.
@@ -244,7 +259,7 @@ impl IndVarSimplifier {
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
-            self.run_loop(func, &cfg, &loop_data);
+            self.run_loop(func, &cfg, loop_data);
         }
 
         // A counter read after its loop through a phi on a critical exit edge can die only
@@ -271,7 +286,7 @@ impl IndVarSimplifier {
                 .cloned()
                 .collect();
             for loop_data in loops {
-                self.run_loop(func, &cfg, &loop_data);
+                self.run_loop(func, &cfg, loop_data);
             }
             // NOTE: A second request for the same loop is dropped: its edges were split once.
             self.exit_splits.clear();
@@ -280,10 +295,17 @@ impl IndVarSimplifier {
         &self.stats
     }
 
-    fn run_loop(&mut self, func: &mut Function, cfg: &CfgInfo, loop_data: &Loop) {
+    fn run_loop(&mut self, func: &mut Function, cfg: &CfgInfo, mut loop_data: Loop) {
         let Some(preheader) = loop_data.preheader else { return };
         let [latch] = loop_data.back_edges.as_slice() else { return };
         let latch = *latch;
+        // Reducing an earlier loop can rewrite this loop's entry values, such as with a
+        // counter rebuilt after that loop, so read them again from the header phis.
+        for iv in &mut loop_data.induction_vars {
+            if let Some(init) = preheader_value(func, iv.value, preheader) {
+                iv.init = init;
+            }
+        }
         // A loop may step more than one counter, each walking its own addresses:
         // a codec reading an input and writing an output steps both, and taking
         // only the single-counter case left every such loop rebuilding both
@@ -292,7 +314,7 @@ impl IndVarSimplifier {
         // its latch update, and deletes arithmetic it just made dead, so the
         // blocks, preheader and back edge analyzed here stay valid for the next.
         for iv in loop_data.induction_vars.clone() {
-            self.reduce_induction_variable(func, cfg, loop_data, preheader, latch, iv);
+            self.reduce_induction_variable(func, cfg, &loop_data, preheader, latch, iv);
         }
     }
 
@@ -376,16 +398,21 @@ impl IndVarSimplifier {
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
         let exit_test = self.counter_exit_test(func, loop_data, iv.value);
-        let exit_reads = exit_test.filter(|_| !must_keep_update).and_then(|test| {
-            Self::counter_only_feeds(
-                func,
-                loop_data,
-                iv.value,
-                test.condition,
-                Some(iv.update_inst),
-                &addresses,
-            )
-        });
+        // The pointer rebuilds a counter read after the loop as a word, so a narrower counter
+        // read there keeps its test until integer lowering widens it.
+        let exit_reads = exit_test
+            .filter(|_| !must_keep_update)
+            .and_then(|test| {
+                Self::counter_only_feeds(
+                    func,
+                    loop_data,
+                    iv.value,
+                    test.condition,
+                    Some(iv.update_inst),
+                    &addresses,
+                )
+            })
+            .filter(|reads| reads.is_empty() || func.value_ty(iv.value) == Some(MirType::I256));
         let counter_free = exit_reads.is_some();
         // A counter that starts at a literal and steps by one leaves the loop exactly when an
         // ascending pointer reaches its value at the bound, clamped where that value could
@@ -393,6 +420,11 @@ impl IndVarSimplifier {
         // proof that the pointer does not wrap.
         let literal_start =
             func.value_u256(iv.init).filter(|&start| step == 1 && start <= U256::from(u64::MAX));
+        // A counter read after the loop is rebuilt from where its pointer stopped, so the pointer
+        // must stop where the counter would: a heap pointer's unclamped `end` wraps for a bound
+        // near the word size, leaving at once where the counter runs out of gas, and a descending
+        // counter does not count up from its start. Only the clamped equality exit rebuilds it.
+        let read_after = exit_reads.as_ref().is_some_and(|reads| !reads.is_empty());
         let test_family = if counter_free {
             families
                 .iter()
@@ -402,10 +434,14 @@ impl IndVarSimplifier {
                         && key.invariants.is_empty()
                         && key.base.is_some_and(|base| self.is_heap_address(func, base))
                 })
+                .filter(|_| !read_after)
                 .map(|index| (index, PointerExit::Below))
                 .or_else(|| {
                     let start = literal_start?;
-                    exit_test.filter(|test| test.counter_first)?;
+                    // `ptr != end` holds until the counter first reaches the bound, which is
+                    // `i < bound` only for a loop that runs while the test holds: one that runs
+                    // while `i >= bound` would leave a step past its start.
+                    exit_test.filter(|test| test.counter_first && test.continues_on_true)?;
                     let index = families.iter().position(|members| {
                         let key = &members[0].0;
                         key.scale > 0
@@ -617,10 +653,13 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         iv: ValueId,
     ) -> Option<ExitTest> {
-        let Some(Terminator::Branch { condition, .. }) = &func.blocks[loop_data.header].terminator
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            &func.blocks[loop_data.header].terminator
         else {
             return None;
         };
+        let continues_on_true =
+            loop_data.blocks.contains(*then_block) && !loop_data.blocks.contains(*else_block);
         let Value::Inst(condition) = *func.value(*condition) else { return None };
         let InstKind::Lt(a, b) = func.inst(condition).kind else { return None };
         let invariant = |value: ValueId| match func.value(value) {
@@ -632,9 +671,9 @@ impl IndVarSimplifier {
             Value::Undef(_) | Value::Error(_) => false,
         };
         if a == iv && invariant(b) {
-            Some(ExitTest { condition, bound: b, counter_first: true })
+            Some(ExitTest { condition, bound: b, counter_first: true, continues_on_true })
         } else if b == iv && invariant(a) {
-            Some(ExitTest { condition, bound: a, counter_first: false })
+            Some(ExitTest { condition, bound: a, counter_first: false, continues_on_true })
         } else {
             None
         }
@@ -713,7 +752,13 @@ impl IndVarSimplifier {
                         if value != iv {
                             continue;
                         }
-                        if loop_data.blocks.contains(from) {
+                        // The rebuild runs at the end of the block the phi reads it from, so
+                        // every path out of that block would pay for it.
+                        let branches_elsewhere =
+                            func.blocks[from].terminator.as_ref().is_some_and(|term| {
+                                term.successors().iter().any(|&successor| successor != block_id)
+                            });
+                        if loop_data.blocks.contains(from) || branches_elsewhere {
                             reads.edges.push((from, block_id));
                         } else {
                             reads.phis.push((inst_id, from));
@@ -743,13 +788,12 @@ impl IndVarSimplifier {
         scale: i128,
         reads: &ExitReads,
     ) {
-        let Value::Inst(phi) = *func.value(pointer) else { return };
-        let InstKind::Phi(incoming) = &func.inst(phi).kind else { return };
-        let Some(start) =
-            incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
-        else {
+        // The rebuild counts up from the start, as the equality exit's counter does; a counter
+        // left unrebuilt stays alive for its readers.
+        if iv.descending {
             return;
-        };
+        }
+        let Some(start) = preheader_value(func, pointer, preheader) else { return };
         let Ok(magnitude) = u128::try_from(scale) else { return };
         // counter = init + (ptr - start) >> log2(scale)   or   / scale
         let rebuild = |this: &Self, func: &mut Function, block: BlockId| -> ValueId {
@@ -1434,4 +1478,11 @@ fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         }
         _ => None,
     }
+}
+
+/// The value the header phi `phi` takes on entry from `preheader`.
+fn preheader_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<ValueId> {
+    let Value::Inst(inst_id) = *func.value(phi) else { return None };
+    let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { return None };
+    incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
 }

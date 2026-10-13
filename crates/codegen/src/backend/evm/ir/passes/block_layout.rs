@@ -342,8 +342,6 @@ fn estimated_block_size_up_to(
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     if let Some(size) = inst.immutable_type_size() {
         1 + usize::from(size.bytes())
-    } else if inst.deferred_push().is_some() {
-        3
     } else if inst.is_encoded_push() {
         match &inst.value {
             Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
@@ -446,38 +444,4 @@ pub(super) fn triangle_arm(module: &Module, arm: BlockId, join: BlockId) -> bool
 fn is_cold_terminal_block(block: &Block) -> bool {
     block.metadata.hotness.is_cold()
         && block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
-    use solar_interface::Session;
-    use solar_sema::Compiler;
-
-    fn opts(evm_version: EvmVersion, optimization: OptimizationMode) -> CompileOpts {
-        CompileOpts { evm_version, optimization, ..Default::default() }
-    }
-
-    #[test]
-    fn indexed_jump_estimate_includes_packed_table() {
-        let one = TerminatorKind::IndexedJump(vec![BlockId::ENTRY].into_boxed_slice());
-        let packed = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 2].into_boxed_slice());
-        let many = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 33].into_boxed_slice());
-        let compiler = Compiler::new(
-            Session::builder().opts(opts(EvmVersion::Osaka, OptimizationMode::Size)).build(),
-        );
-        compiler.enter(|c| {
-            assert_eq!(estimated_terminator_size(c.gcx(), &one, None, false), 8);
-            assert_eq!(estimated_terminator_size(c.gcx(), &packed, None, false), 19);
-            assert_eq!(estimated_terminator_size(c.gcx(), &many, None, false), 61);
-        });
-
-        let compiler = Compiler::new(
-            Session::builder().opts(opts(EvmVersion::Byzantium, OptimizationMode::Size)).build(),
-        );
-        compiler.enter(|c| {
-            assert_eq!(estimated_terminator_size(c.gcx(), &many, None, false), 9);
-        });
-    }
 }

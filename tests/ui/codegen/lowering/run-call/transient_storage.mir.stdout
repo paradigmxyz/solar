@@ -60,22 +60,19 @@ fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u
 
 fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>], abi_return_params=[i16]] {
   bb0:
-    v0 = sub 0, 2
-    v1 = trunc i256 v0 to i16
-    v2 = shl 32, 0xffff
-    v3 = tload 1
-    v4 = not v2
-    v5 = and v3, v4
-    v6 = zext i16 v1 to i256
-    v7 = and v6, 0xffff
-    v8 = shl 32, v7
-    v9 = or v5, v8
-    tstore 1, v9
-    v10 = tload 1
-    v11 = shr 32, v10
-    v12 = signextend 1, v11
-    v13 = trunc i256 v12 to i16
-    ret v13
+    v0 = shl 32, 0xffff
+    v1 = tload 1
+    v2 = not v0
+    v3 = and v1, v2
+    v4 = and 0xfffe, 0xffff
+    v5 = shl 32, v4
+    v6 = or v3, v5
+    tstore 1, v6
+    v7 = tload 1
+    v8 = shr 32, v7
+    v9 = signextend 1, v8
+    v10 = trunc i256 v9 to i16
+    ret v10
 }
 
 fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

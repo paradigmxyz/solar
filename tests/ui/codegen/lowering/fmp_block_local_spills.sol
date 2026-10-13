@@ -9,24 +9,19 @@
 //@ run-call: hashBranch false, 1, 2 => 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
 //@ run-call: hashBranch true, 1, 2 => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 
-// Unoptimized lowering reserves block-local free-memory-pointer spill slots.
-// Optimized lowering removes those stores and reduces the reachable frame floor.
+// The free-memory pointer read in each switch arm stays on the stack, so no
+// level reserves a spill slot for it and the frame floor stays at 160.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
-// NONE: push 288
+// NONE: push 160
 // NONE-NEXT: push 64
 // NONE-NEXT: mstore
 // NONE: push 64
 // NONE-NEXT: mload
-// NONE-NEXT: dup 1
-// NONE-NEXT: push [[FMP_SLOT:[0-9]+]]
-// NONE-NEXT: mstore
+// NONE-NEXT: push 32
 // NONE: keccak256
-// NONE: jump [[JOIN:bb[0-9]+]]
 // NONE: push 64
 // NONE-NEXT: mload
-// NONE-NEXT: dup 1
-// NONE-NEXT: push [[FMP_SLOT]]
-// NONE-NEXT: mstore
+// NONE-NEXT: push 64
 //
 // GAS-LABEL: @module FmpBlockLocalSpills_runtime
 // GAS: push 160
@@ -42,9 +37,11 @@
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload
-// SIZE-NEXT: push 32
+// SIZE-NOT: mstore
+// SIZE: push 64{{[[:space:]]+}}mstore
 // SIZE: mload
-// SIZE-NEXT: push 64
+// SIZE-NOT: mstore
+// SIZE: push 64{{[[:space:]]+}}mstore
 contract FmpBlockLocalSpills {
     function hashBranch(
         bool pair,

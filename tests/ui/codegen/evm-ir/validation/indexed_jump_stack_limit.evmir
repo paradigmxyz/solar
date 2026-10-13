@@ -1,0 +1,16 @@
+//~? ERROR: EVM IR verification failed: block 1: `indexed_jump` grows the stack to 1025 words, exceeding the limit of 1024
+@module module
+
+// Lowering an indexed jump pushes three more words. That fits from 1021 words
+// but not from 1022.
+bb0 [stack=1021]:
+  indexed_jump bb2
+
+bb1 [stack=1022]:
+  indexed_jump bb3
+
+bb2:
+  stop
+
+bb3:
+  stop

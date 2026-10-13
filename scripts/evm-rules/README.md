@@ -2,9 +2,8 @@
 
 This is an offline search and verification lane for the **actual ISLE source
 compiled into the optimizer**. Under `crates/codegen/isle/`, it checks MIR
-rewrites in `mir/word`, `mir/word_sequence` and `mir/egraph`,
-lowering rules in `mir-to-evm/stack_select.isle`, and physical EVM IR rules in
-`evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. Each rule becomes a
+rewrites in `mir/word`, `mir/word_sequence` and `mir/egraph`, and physical EVM
+IR rules in `evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. Each rule becomes a
 theorem about EVM semantics written in Lean 4, and Lean proves it; no SMT
 solver takes part. The compiler itself has no prover dependency.
 

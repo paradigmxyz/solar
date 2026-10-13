@@ -1,0 +1,19 @@
+//@ compile-flags: --base-path lib
+// CHECK: "message": "{{.*}} lib/Missing.sol: File import callback not supported"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"Missing.sol\";"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/bitnot_literal.sol:BitNotLiteral ===
+@module BitNotLiteral
+fn @lowByte(arg0: i256) -> i8 [selector=0xc6ab1b41, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = shr 8, arg0
+    v1 = and v0, 255
+    v2 = trunc i256 v1 to i8
+    ret v2
+}
+
+fn @lowShort(arg0: i256) -> i16 [selector=0xd17f79ac, pure, abi_params=[u256], abi_returns=[word<u16>], abi_return_params=[u16]] {
+  bb0:
+    v0 = and arg0, 0xffff
+    v1 = trunc i256 v0 to i16
+    ret v1
+}
+
+fn @lowAddress(arg0: i256) -> i160 [selector=0x255300b1, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+fn @allOnes() -> i8 [selector=0xa0f75bc9, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
+  bb0:
+    ret i8 255
+}
+
+fn @doubleNot(arg0: i256) -> i256 [selector=0xd0425cd9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}

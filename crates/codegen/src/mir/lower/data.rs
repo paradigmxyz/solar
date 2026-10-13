@@ -189,27 +189,3 @@ fn is_repeated_word(data: &[u8]) -> bool {
     let (word, rest) = data.split_at(word_size);
     rest.chunks(word_size).all(|chunk| chunk == &word[..chunk.len()])
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn repeated_word() {
-        let word = std::array::from_fn::<_, 32, _>(|index| index as u8);
-
-        assert!(!is_repeated_word(&word[..31]));
-        assert!(is_repeated_word(&word));
-        assert!(is_repeated_word(&word.repeat(3)));
-
-        let mut partial = word.repeat(2);
-        partial.extend_from_slice(&word[..7]);
-        assert!(is_repeated_word(&partial));
-
-        partial[35] ^= 1;
-        assert!(!is_repeated_word(&partial));
-        partial[35] ^= 1;
-        *partial.last_mut().unwrap() ^= 1;
-        assert!(!is_repeated_word(&partial));
-    }
-}

@@ -3,6 +3,7 @@ contract C {
         // --- Valid: literal to fixed-size bytes (equal size) ---
         bytes3 b3_1 = "abc";
         bytes3 b3_2 = hex"123456";
+        bytes32 b32 = "abcdefghijklmnopqrstuvwxyz012345";
 
         // --- Valid: literal to fixed-size bytes (larger size) ---
         bytes10 b10_1 = "abc";
@@ -15,5 +16,7 @@ contract C {
         bytes2 invalid_b2 = "abc"; //~ ERROR: mismatched types
         bytes2 invalid_h2 = hex"123456"; //~ ERROR: mismatched types
         bytes1 invalid_b1 = "ab"; //~ ERROR: mismatched types
+        bytes32 invalid_b32 = "abcdefghijklmnopqrstuvwxyz0123456"; //~ ERROR: mismatched types
+        bytes32 invalid_explicit_b32 = bytes32("abcdefghijklmnopqrstuvwxyz0123456"); //~ ERROR: invalid explicit type conversion
     }
 }

@@ -1,0 +1,36 @@
+//@compile-flags: -Zmir-pipeline=none
+@module ValidateTerminators
+
+// Raw terminator operands are words: a boolean needs an explicit cast.
+//~? ERROR: [fn0] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+fn @revertOffset(arg0: i1) {
+  bb0:
+    revert arg0, 0
+}
+
+//~? ERROR: [fn1] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+fn @returnSize(arg0: i1) {
+  bb0:
+    returndata 0, arg0
+}
+
+//~? ERROR: [fn2] [bb0] selfdestruct recipient must have type `i256`; use an explicit cast
+fn @selfdestructRecipient(arg0: i1) {
+  bb0:
+    selfdestruct arg0
+}
+
+// Each switch case has the selector's type.
+//~? ERROR: [fn3] [bb0] switch cases must have the selector type
+fn @switchCase(arg0: i1) {
+  bb0:
+    switch arg0, default bb1, [1 => bb1]
+  bb1:
+    stop
+}
+
+//~? ERROR: [fn4] [bb0] block has no terminator
+fn @missingTerminator() {
+  bb0:
+    v0 = add 1, 2
+}

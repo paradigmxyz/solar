@@ -2,19 +2,15 @@
 @module LiteralAddmodFold
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = exp 2, 255
-    v1 = exp 2, 255
-    v2 = icall checked_addmod<>, v0, v1, 7
-    v3 = ne 2, v2
-    jumpi v3, bb1, bb2
+    v0 = icall checked_addmod<>, 0x8000000000000000000000000000000000000000000000000000000000000000, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+    v1 = ne 2, v0
+    jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v4 = exp 2, 255
-    v5 = exp 2, 255
-    v6 = icall checked_addmod<>, v4, v5, 7
-    v7 = ne 2, v6
-    jumpi v7, bb4, bb5
+    v2 = icall checked_addmod<>, 0x8000000000000000000000000000000000000000000000000000000000000000, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+    v3 = ne 2, v2
+    jumpi v3, bb4, bb5
   bb5:
     jump bb6
   bb6:

@@ -1,19 +1,15 @@
-error: recursive struct definition
+error[2046]: recursive struct definition
    ╭▸ ROOT/tests/ui/typeck/recursive_structs.sol:LL:CC
    │
 LL │ ┏ struct A {
-LL │ ┃
-LL │ ┃     // TODO: Cache the check so we don't emit the error twice.
 LL │ ┃     A a;
 LL │ ┃ }
    ╰╴┗━┛
 
-error: recursive struct definition
+error[2046]: recursive struct definition
    ╭▸ ROOT/tests/ui/typeck/recursive_structs.sol:LL:CC
    │
-LL │ ┏ struct A {
-LL │ ┃
-LL │ ┃     // TODO: Cache the check so we don't emit the error twice.
+LL │ ┏ struct C {
 LL │ ┃     A a;
 LL │ ┃ }
    ╰╴┗━┛

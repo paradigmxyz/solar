@@ -1,0 +1,39 @@
+{
+  "sources": {
+    "B.sol": {
+      "id": 0
+    },
+    "C:/Users/dev/ECoin.sol": {
+      "id": 1
+    },
+    "contracts/A.sol": {
+      "id": 2
+    },
+    "contracts/USDС.sol": {
+      "id": 3
+    }
+  },
+  "contracts": {
+    "C:/Users/dev/ECoin.sol": {
+      "ECoin": {
+        "abi": []
+      }
+    },
+    "contracts/A.sol": {
+      "A": {
+        "evm": {
+          "methodIdentifiers": {
+            "a()": "0dbe671f",
+            "b()": "4df7e3d0"
+          }
+        }
+      }
+    },
+    "contracts/USDС.sol": {
+      "USDC": {
+        "abi": [],
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts//USDС.sol\":\"USDC\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts//USDС.sol\":{\"keccak256\":\"0xc75c401c48b92d52f20481056bb4ff19886426ba657312b0bb9571a8dac46d42\",\"urls\":[\"bzz-raw://89688d5d7ead487ceecd10fcb3d842cb3355f12353c7f2ab04050e494cd4043f\",\"dweb:/ipfs/QmdzTA8QatEbqZ4baP5RtDmVG4E9BHgRFb96b35VKCwJQn\"]}},\"version\":1}"
+      }
+    }
+  }
+}

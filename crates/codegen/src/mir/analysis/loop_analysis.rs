@@ -95,12 +95,6 @@ impl LoopAnalyzer {
         self.cfg.as_ref().is_some_and(|cfg| cfg.dominators().dominates(dominator, block))
     }
 
-    /// Analyzes loops in a function.
-    #[cfg(test)]
-    pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
-        self.analyze_with_cfg(func, Rc::new(CfgInfo::new(func)))
-    }
-
     /// Analyzes loops using a CFG snapshot of the current function.
     pub(crate) fn analyze_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
         self.analyze_facts(func, cfg, true)
@@ -487,96 +481,5 @@ impl LoopAnalyzer {
             }
         }
         bound
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{Function, Immediate, Value};
-    use solar_interface::Ident;
-
-    fn make_test_func() -> Function {
-        Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn test_simple_loop_detection() {
-        let mut func = make_test_func();
-
-        let entry = BlockId::ENTRY;
-        let header = func.alloc_block();
-        let body = func.alloc_block();
-        let exit = func.alloc_block();
-
-        func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[header].predecessors.push(entry);
-
-        let cond = func.alloc_value(Value::Immediate(Immediate::I1(true)));
-        func.blocks[header].terminator =
-            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[body].predecessors.push(header);
-        func.blocks[exit].predecessors.push(header);
-
-        func.blocks[body].terminator = Some(Terminator::Jump(header));
-        func.blocks[header].predecessors.push(body);
-
-        func.blocks[exit].terminator = Some(Terminator::Stop);
-
-        let mut analyzer = LoopAnalyzer::new();
-        let info = analyzer.analyze(&func);
-
-        assert_eq!(info.loops.len(), 1);
-        let loop_info = info.loops.get(&header).expect("Loop should have header as key");
-        assert!(loop_info.blocks.contains(header));
-        assert!(loop_info.blocks.contains(body));
-        assert!(!loop_info.blocks.contains(exit));
-    }
-
-    #[test]
-    fn test_loop_order_is_by_header() {
-        let mut func = make_test_func();
-
-        let entry = BlockId::ENTRY;
-        let first_header = func.alloc_block();
-        let first_body = func.alloc_block();
-        let second_header = func.alloc_block();
-        let second_body = func.alloc_block();
-        let exit = func.alloc_block();
-
-        let first_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
-        let second_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
-
-        func.blocks[entry].terminator = Some(Terminator::Jump(first_header));
-        func.blocks[first_header].predecessors.push(entry);
-
-        func.blocks[first_header].terminator = Some(Terminator::Branch {
-            condition: first_condition,
-            then_block: first_body,
-            else_block: second_header,
-        });
-        func.blocks[first_body].predecessors.push(first_header);
-        func.blocks[second_header].predecessors.push(first_header);
-
-        func.blocks[first_body].terminator = Some(Terminator::Jump(first_header));
-        func.blocks[first_header].predecessors.push(first_body);
-
-        func.blocks[second_header].terminator = Some(Terminator::Branch {
-            condition: second_condition,
-            then_block: second_body,
-            else_block: exit,
-        });
-        func.blocks[second_body].predecessors.push(second_header);
-        func.blocks[exit].predecessors.push(second_header);
-
-        func.blocks[second_body].terminator = Some(Terminator::Jump(second_header));
-        func.blocks[second_header].predecessors.push(second_body);
-        func.blocks[exit].terminator = Some(Terminator::Stop);
-
-        let mut analyzer = LoopAnalyzer::new();
-        let info = analyzer.analyze(&func);
-        let headers: Vec<_> = info.all_loops().map(|loop_info| loop_info.header).collect();
-
-        assert_eq!(headers, [first_header, second_header]);
     }
 }

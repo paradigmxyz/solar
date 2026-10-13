@@ -10,95 +10,79 @@
 
 fn @signedAssignment() -> i256 [selector=0x8de017fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
-    ret v2
+    v0 = sext i8 255 to i256
+    ret v0
 }
 
 fn @signedMerge(arg0: i1) -> i256 [selector=0xba2c8ddd, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 2
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
+    v0 = sext i8 254 to i256
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v3 = sub 0, 1
-    v4 = trunc i256 v3 to i8
-    v5 = sext i8 v4 to i256
+    v1 = sext i8 255 to i256
     jump bb3
   bb3:
-    v6 = phi [bb1: v5], [bb2: v2]
-    ret v6
+    v2 = phi [bb1: v1], [bb2: v0]
+    ret v2
 }
 
 fn @signedLoop(arg0: i256) -> i256 [selector=0x7cfa8702, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
+    v0 = sext i8 255 to i256
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb3: v11]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: v2], [bb3: v10]
-    v7 = lt v3, v5
-    jumpi v7, bb4, bb5
+    v1 = phi [bb0: 0], [bb3: v9]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v8]
+    v5 = lt v1, v3
+    jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v6
+    ret v4
   bb4:
-    v8 = trunc i256 v6 to i8
-    v9 = checked_sub i8, v8, i8 1
-    v10 = sext i8 v9 to i256
+    v6 = trunc i256 v4 to i8
+    v7 = checked_sub i8, v6, i8 1
+    v8 = sext i8 v7 to i256
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v11 = checked_add u256, v3, 1
+    v9 = checked_add u256, v1, 1
     jump bb1
 }
 
 fn @signedUserAssignment() -> i256 [selector=0xd75b1413, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
-    ret v2
+    v0 = sext i8 255 to i256
+    ret v0
 }
 
 fn @signedModifier() -> i256 [selector=0xbea1d853, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
-    v3 = sub 0, 1
-    v4 = eq v2, v3
-    v5 = eq v4, false
-    icall revert_if<empty>, v5
-    v6 = sub 0, 1
+    v0 = sext i8 255 to i256
+    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v6
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
 fn @signedSource() -> struct0 [selector=0xeacc97f1, pure, abi_params=[], abi_returns=[word<i8>, memory_bytes], abi_return_params=[i8, bytes]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 0
-    v3 = memory_object_data memorybytes, v2
-    v4 = sext i8 v1 to i256
-    v5 = insert_value struct0, undef struct0, 0, v4
-    v6 = insert_value struct0, v5, 1, v2
-    ret v6
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 0
+    v1 = memory_object_data memorybytes, v0
+    v2 = sext i8 255 to i256
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
 }
 
 fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
@@ -128,16 +112,14 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
   bb5:
     jump bb6
   bb4:
-    v12 = sub 0, 2
-    v13 = trunc i256 v12 to i8
-    v14 = sext i8 v13 to i256
+    v12 = sext i8 254 to i256
     jump bb6
   bb6:
-    v15 = phi [bb4: v14], [bb5: v11]
+    v13 = phi [bb4: v12], [bb5: v11]
     jump bb3
   bb3:
-    v16 = phi [bb6: v15], [bb7: 0]
-    ret v16
+    v14 = phi [bb6: v13], [bb7: 0]
+    ret v14
 }
 
 fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
@@ -166,13 +148,11 @@ fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bo
   bb4:
     jump bb5
   bb3:
-    v16 = sub 0, 2
-    v17 = trunc i256 v16 to i8
-    v18 = sext i8 v17 to i256
+    v16 = sext i8 254 to i256
     jump bb5
   bb5:
-    v19 = phi [bb3: v18], [bb4: v15]
-    ret v19
+    v17 = phi [bb3: v16], [bb4: v15]
+    ret v17
 }
 
 fn @signedAssemblyComparison() -> i256 [selector=0xc03e566f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -188,17 +168,15 @@ fn @signedTernary(arg0: i1) -> struct2 [selector=0x70e03028, pure, abi_params=[b
   bb2:
     jump bb3
   bb1:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
+    v0 = sext i8 255 to i256
     jump bb3
   bb3:
-    v3 = phi [bb1: v2], [bb2: 0x1234]
-    v4 = slt v3, 0
-    v5 = zext i1 v4 to i256
-    v6 = insert_value struct2, undef struct2, 0, v3
-    v7 = insert_value struct2, v6, 1, v5
-    ret v7
+    v1 = phi [bb1: v0], [bb2: 0x1234]
+    v2 = slt v1, 0
+    v3 = zext i1 v2 to i256
+    v4 = insert_value struct2, undef struct2, 0, v1
+    v5 = insert_value struct2, v4, 1, v3
+    ret v5
 }
 
 fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, pure, abi_params=[bool], abi_returns=[word, word], abi_return_params=[i256, u256]] {
@@ -207,16 +185,14 @@ fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, pure, abi_para
   bb2:
     jump bb3
   bb1:
-    v0 = sub 0, 2
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
+    v0 = sext i8 254 to i256
     jump bb3
   bb3:
-    v3 = phi [bb1: v2], [bb2: 0x1234]
-    v4 = phi [bb1: 1], [bb2: 2]
-    v5 = insert_value struct2, undef struct2, 0, v3
-    v6 = insert_value struct2, v5, 1, v4
-    ret v6
+    v1 = phi [bb1: v0], [bb2: 0x1234]
+    v2 = phi [bb1: 1], [bb2: 2]
+    v3 = insert_value struct2, undef struct2, 0, v1
+    v4 = insert_value struct2, v3, 1, v2
+    ret v4
 }
 
 fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
@@ -225,13 +201,11 @@ fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, pure, abi_params=[
   bb2:
     jump bb3
   bb1:
-    v0 = sub 0, 1
-    v1 = trunc i256 v0 to i8
-    v2 = sext i8 v1 to i256
+    v0 = sext i8 255 to i256
     jump bb3
   bb3:
-    v3 = phi [bb1: v2], [bb2: 0x1234]
-    ret v3
+    v1 = phi [bb1: v0], [bb2: 0x1234]
+    ret v1
 }
 
 fn @dirtySigned() -> i256 [selector=0x36c3b875, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

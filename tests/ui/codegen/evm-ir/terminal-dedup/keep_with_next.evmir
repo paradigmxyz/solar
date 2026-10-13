@@ -1,0 +1,45 @@
+//@compile-flags: -Zevm-ir-pipeline=terminal-dedup --evm-version homestead
+//@filecheck:
+@module KeepWithNextTerminalDedup
+
+bb0:
+  push 1
+  push bb1
+  jumpi
+  jump bb2
+
+// The bodies differ only in whether the call's gas reserve is glued to the call. Sharing either
+// copy would add or drop that glue, so both stay.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}gas !metadata(keep_with_next)
+// CHECK-NEXT: {{^[ +].*}}sub !metadata(keep_with_next)
+// CHECK-NEXT: {{^[ +].*}}call
+bb1:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 71
+  gas !meta(keep_with_next)
+  sub !meta(keep_with_next)
+  call
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}gas{{$}}
+// CHECK-NEXT: {{^[ +].*}}sub{{$}}
+// CHECK-NEXT: {{^[ +].*}}call
+bb2:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 71
+  gas
+  sub
+  call
+  stop

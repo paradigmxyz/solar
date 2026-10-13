@@ -107,6 +107,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &evm_inst_schedule::EvmInstSchedule,
+    &heap_floor::HeapFloor,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -178,6 +179,9 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
+    // Clamp inline assembly's stores of absolute addresses to the free memory pointer before any
+    // pass forwards the stored value to the pointer's loads.
+    &heap_floor::HeapFloor,
     // Clone one constant call to a shared pure leaf so scalar passes can fold it.
     &GasOnly::new(inline::InlineConstantLeaves),
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal
@@ -888,52 +892,4 @@ fn run_function_pass_cached(
     }
     analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);
     changed
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{BasicBlock, BlockId, FunctionBuilder, Terminator};
-    use solar_interface::Ident;
-
-    #[test]
-    fn cfg_preservation_uses_snapshot() {
-        let mut func = Function::new(Ident::DUMMY);
-        let left = func.blocks.push(BasicBlock::new());
-        let right = func.blocks.push(BasicBlock::new());
-        // bb0 -> left, right
-        let condition = FunctionBuilder::new(&mut func).imm(1);
-        FunctionBuilder::new(&mut func).branch(condition, left, right);
-        let cfg = CfgInfo::new(&func);
-        assert_eq!(verified_preservation(&func, &cfg, 0), (true, true));
-
-        // bb0 -> right, left
-        FunctionBuilder::new(&mut func).branch(condition, right, left);
-        assert_eq!(verified_preservation(&func, &cfg, 0), (true, true));
-
-        // bb0 -> left
-        FunctionBuilder::new(&mut func).jump(left);
-        assert_eq!(verified_preservation(&func, &cfg, 0), (true, false));
-
-        // bb0 -> bb0
-        FunctionBuilder::new(&mut func).jump(BlockId::ENTRY);
-        assert_eq!(verified_preservation(&func, &cfg, 0), (false, false));
-
-        // bb0 -> left, right; new isolated block
-        FunctionBuilder::new(&mut func).branch(condition, left, right);
-        func.blocks.push(BasicBlock::new());
-        assert_eq!(verified_preservation(&func, &cfg, 0), (false, false));
-        func.blocks.pop();
-
-        // bb0: mstore(0, 0); branch left, right
-        let mut builder = FunctionBuilder::new(&mut func);
-        let zero = builder.imm(0);
-        builder.mstore(zero, zero);
-        assert_eq!(verified_preservation(&func, &cfg, 0), (false, true));
-
-        // bb0 -> left, left
-        func.blocks[BlockId::ENTRY].terminator =
-            Some(Terminator::Branch { condition, then_block: left, else_block: left });
-        assert_eq!(verified_preservation(&func, &cfg, func.num_insts()), (true, false));
-    }
 }

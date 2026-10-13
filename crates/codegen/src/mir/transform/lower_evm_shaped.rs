@@ -10,11 +10,9 @@
 //! module from semantic to lowered MIR. A failed check leaves its phase semantic
 //! and prevents the backend from consuming it.
 //!
-//! Arguments ride along: the backend stores them at the callee's compile-time
-//! frame addresses and jumps, pushing no return address. That addressing only
-//! exists for callees the backend gives a static frame (bodied, selectorless,
-//! non-recursive). Constructor-reachable calls also keep ordinary frames, even
-//! without arguments: callee locals and spills still need a frame base.
+//! Arguments ride along on the stack: the backend jumps with them in place and
+//! pushes no return address. Only bodied, selectorless, non-recursive callees
+//! qualify.
 //! Returnability follows explicit returns and tail-call chains conservatively;
 //! unreachable returns can prevent a proof until CFG cleanup removes them. A
 //! caller worklist propagates newly proven nonreturning bodies after cleanup;
@@ -96,20 +94,6 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             }
         }
 
-        // Deployment emits these bodies with dynamic frames. Even argumentless
-        // callees need the ordinary call to establish a base for locals and spills.
-        let mut constructor_reachable = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        );
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.attributes.is_constructor {
-                constructor_reachable.insert(id);
-            }
-        }
-
         // Keep reverse edges even when cleanup removes a call: stale edges only
         // cause a redundant visit, and function IDs stay stable through block cleanup.
         let mut callers = index_vec![Vec::new(); module.functions.len()];
@@ -161,7 +145,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                 let inst = func.inst(insts[position]);
                 let metadata = inst.metadata.debug_context();
                 let InstKind::ICall { args, .. } = &inst.kind else { unreachable!() };
-                if tail_callable.contains(function) && !constructor_reachable.contains(func_id) {
+                if tail_callable.contains(function) {
                     // result = icall callee, args -> tail_call callee, args
                     let terminator =
                         Terminator::TailCall { function, args: args.iter().copied().collect() };

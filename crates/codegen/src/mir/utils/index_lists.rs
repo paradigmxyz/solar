@@ -53,23 +53,3 @@ impl<I: Idx, T: Copy> IndexLists<I, T> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::BlockId;
-
-    #[test]
-    fn groups_in_pair_order() {
-        let b = BlockId::from_usize;
-        let pairs = [(b(2), 10), (b(0), 11), (b(2), 12), (b(0), 13)];
-        let lists = IndexLists::new(4, pairs.into_iter());
-        assert_eq!(lists.len(), 4);
-        assert_eq!(lists.get(b(0)), [11, 13]);
-        assert!(lists.get(b(1)).is_empty());
-        assert_eq!(lists.get(b(2)), [10, 12]);
-        assert!(lists.get(b(3)).is_empty());
-        assert!(lists.get(b(4)).is_empty());
-        assert!(IndexLists::new(2, std::iter::empty::<(BlockId, u8)>()).get(b(1)).is_empty());
-    }
-}

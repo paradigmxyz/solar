@@ -42,8 +42,8 @@ fn @entry() [entry] {
     mstore 128, v8
     returndata 128, 32
   bb6:
-    mstore 0, 0x4e487b71
     mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb2:
     stop

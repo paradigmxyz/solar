@@ -1,0 +1,14 @@
+error: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_default_overload.sol:LL:CC
+   │
+LL │     function f(fixed x) external pure returns (uint) { return 1; }
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_default_overload.sol:LL:CC
+   │
+LL │     function f(fixed128x18 x) external pure returns (uint) { return 2; }
+   ╰╴             ━
+
+error: aborting due to 1 previous error
+

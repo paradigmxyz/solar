@@ -1,0 +1,71 @@
+//@ compile-flags: -Zevm-ir-pipeline=none -O size -Zdump=disasm-runtime
+//@ filecheck:
+
+// All targets start below 255 bytes, so both tables first plan absolute
+// one-byte entries. Packing the tables moves the last targets past 255 bytes,
+// so both switch to one-byte entries relative to the first target instead of
+// two-byte absolute ones.
+@module relative_growth
+
+// CHECK-LABEL: // === relative_growth (runtime) ===
+// CHECK: PUSH10
+// CHECK-NEXT: SWAP1
+// CHECK-NEXT: BYTE
+// CHECK-NEXT: PUSH1 [[BASE:0x[0-9a-f]+]]
+// CHECK-NEXT: ADD
+// CHECK-NEXT: JUMP ; unknown
+// CHECK: PUSH10
+// CHECK-NEXT: SWAP1
+// CHECK-NEXT: BYTE
+// CHECK-NEXT: PUSH1 [[BASE]]
+// CHECK-NEXT: ADD
+// CHECK-NEXT: JUMP ; unknown
+bb0:
+  push 1
+  indexed_jump bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12
+
+bb1:
+  push 1
+  indexed_jump bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12
+
+bb2:
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 1
+  push 1
+  push 1
+  stop
+
+bb3:
+  stop
+
+bb4:
+  stop
+
+bb5:
+  stop
+
+bb6:
+  stop
+
+bb7:
+  stop
+
+bb8:
+  stop
+
+bb9:
+  stop
+
+bb10:
+  stop
+
+bb11:
+  stop
+
+bb12:
+  stop

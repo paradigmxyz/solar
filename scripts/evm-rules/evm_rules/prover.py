@@ -14,6 +14,7 @@ confirms satisfies every precondition. Counterexamples to an equality are replay
 the same way, so a reported counterexample always differs on concrete words.
 """
 
+import fcntl
 import json
 import os
 import re
@@ -50,9 +51,17 @@ PROVED_BY = re.compile(r"proved by (evm_arith|evm_decide|evm_bits|evm_ring|evm_s
 
 def lean_environment():
     """Build the semantics library and checker; return the `LEAN_PATH` that finds them."""
-    subprocess.run(
-        ["lake", "build"], cwd=LEAN_PROJECT, capture_output=True, text=True, check=True
-    )
+    # Concurrent `lake build` runs on a cold `.lake` corrupt each other's outputs, so
+    # parallel test workers take turns.
+    with (LEAN_PROJECT / "lakefile.toml").open() as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        subprocess.run(
+            ["lake", "build"],
+            cwd=LEAN_PROJECT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     return subprocess.run(
         ["lake", "env", "printenv", "LEAN_PATH"],
         cwd=LEAN_PROJECT,

@@ -41,12 +41,10 @@ fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[w
 
 fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = sub 0, 0x800000
-    v1 = trunc i256 v0 to i24
-    v2 = eq i24 0x800000, v1
-    icall require<short_string>, v2, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
-    v3 = slt i24 0x800000, i24 0
-    icall require<short_string>, v3, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
+    v0 = eq i24 0x800000, i24 0x800000
+    icall require<short_string>, v0, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
+    v1 = slt i24 0x800000, i24 0
+    icall require<short_string>, v1, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

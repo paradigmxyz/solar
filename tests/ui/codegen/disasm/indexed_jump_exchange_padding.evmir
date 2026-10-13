@@ -1,0 +1,144 @@
+//@ compile-flags: -Zevm-ir-pipeline=none -O size --evm-version osaka -Zdump=disasm-runtime
+//@ filecheck:
+
+// Before Amsterdam, `exchange 1, 2` assembles to three `SWAP`s. The planner
+// counts all three bytes, so it sees that the targets sit past 255 bytes and
+// stores one-byte distances from the first target.
+@module exchange_padding
+
+// CHECK-LABEL: // === exchange_padding (runtime) ===
+// CHECK: PUSH10
+// CHECK-NEXT: SWAP1
+// CHECK-NEXT: BYTE
+// CHECK-NEXT: PUSH2
+// CHECK-NEXT: ADD
+// CHECK-NEXT: JUMP ; unknown
+bb0:
+  push 1
+  indexed_jump bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11
+
+bb1:
+  push 1
+  push 1
+  push 1
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  exchange 1, 2
+  stop
+
+bb2:
+  stop
+
+bb3:
+  stop
+
+bb4:
+  stop
+
+bb5:
+  stop
+
+bb6:
+  stop
+
+bb7:
+  stop
+
+bb8:
+  stop
+
+bb9:
+  stop
+
+bb10:
+  stop
+
+bb11:
+  stop

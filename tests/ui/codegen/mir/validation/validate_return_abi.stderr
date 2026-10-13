@@ -1,0 +1,10 @@
+error: [fn1] internal return ABI does not match the function's result type
+
+error: [fn2] internal return ABI does not match the function's result type
+
+error: [fn3] internal return ABI does not match the function's result type
+
+error: [fn6] internal return ABI does not match the function's result type
+
+error: aborting due to 4 previous errors
+

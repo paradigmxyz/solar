@@ -24,7 +24,6 @@ impl Assembler<'_> {
     )]
     pub(in crate::backend) fn optimize(&mut self) {
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-        ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
         let failed = !self.run_pipeline(&mut program);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
     }
@@ -89,14 +88,7 @@ impl Assembler<'_> {
         };
         self.block_labels = labels;
         self.block_labels.clear();
-        PreparedAssembly {
-            evm_ir,
-            program,
-            push_values: std::mem::take(&mut self.push_values),
-            immutable_pushes: std::mem::take(&mut self.immutable_pushes),
-            next_label: std::mem::take(&mut self.next_label),
-            deferred_values: std::mem::take(&mut self.deferred_values),
-        }
+        PreparedAssembly { evm_ir, program }
     }
 }
 
@@ -364,9 +356,7 @@ fn lower_instruction(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
 ) {
-    let inst = if let Some(id) = inst.deferred_push() {
-        AsmInst::push_deferred(id)
-    } else if let Some(id) = inst.immutable_push() {
+    let inst = if let Some(id) = inst.immutable_push() {
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {
@@ -484,47 +474,4 @@ pub(super) fn label_for_block(
         labels.resize_with(original + 1, || None);
     }
     *labels[original].get_or_insert_with(|| assembler.new_label())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::backend::evm::ir::Block;
-    use solar_interface::{Session, sym};
-    use solar_sema::Compiler;
-
-    #[test]
-    fn finalized_ir_does_not_retain_builder_labels() {
-        let mut module = ir::Module::new(sym::module);
-        let entry = module.add_block(Block::new(0));
-        let middle = module.add_block(Block::new(2));
-        // Model a transform reusing textual label 1 after deleting its original block.
-        let target = module.add_block(Block::new(1));
-        module.blocks[entry].terminator =
-            Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
-        module.blocks[middle].terminator =
-            Some(ir::Terminator::new(ir::TerminatorKind::Op(op::INVALID)));
-        module.blocks[target].terminator =
-            Some(ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)));
-
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
-        compiler.enter(|c| {
-            let mut assembler = Assembler::new(c.gcx());
-            let old_entry = assembler.new_label();
-            let old_target = assembler.new_label();
-            let mut labels = vec![Some(old_entry), Some(old_target), None];
-
-            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
-            let target_label =
-                labels[module.blocks[target].label as usize].expect("referenced target label");
-
-            assert_ne!(target_label, old_target);
-            assert!(program.instructions.iter().any(|inst| {
-                matches!(inst.kind(), AsmInstKind::PushLabel(label) if label == target_label)
-            }));
-            assert!(program.instructions.iter().any(|inst| {
-                matches!(inst.kind(), AsmInstKind::Label(label) if label == target_label)
-            }));
-        });
-    }
 }

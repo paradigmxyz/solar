@@ -1,0 +1,8 @@
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_multi_return.sol:LL:CC
+   │
+LL │     function dirtyPair() internal pure returns (uint256, uint8 value) {
+   │                                                 ━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+

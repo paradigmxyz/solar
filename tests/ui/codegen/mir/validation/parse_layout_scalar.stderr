@@ -1,0 +1,8 @@
+error: `bool` is a layout type; use `iN` for a scalar SSA value
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_layout_scalar.mir:LL:CC
+   │
+LL │ fn @f(arg0: bool) -> i1 {
+   ╰╴                ━
+
+error: aborting due to 1 previous error
+

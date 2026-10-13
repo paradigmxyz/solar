@@ -10,8 +10,8 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
   bb6:
     jumpi v11, bb7, bb4
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7:
     v35 = div arg0, arg1
@@ -77,8 +77,8 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     v66 = add v3, 2
     jump bb1
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -91,8 +91,8 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
   bb6:
     jumpi v11, bb7, bb4
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7:
     v30 = div arg0, arg1
@@ -158,8 +158,8 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     v61 = add v2, 2
     jump bb1
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

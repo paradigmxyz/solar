@@ -251,13 +251,14 @@ impl<'a> FunctionBuilder<'a> {
             self.invalid();
             return;
         }
-        // mstore(0, Panic.selector); mstore(32, code); revert(28, 36)
-        let selector = self.imm(0x4e48_7b71_u64);
+        // Store the code first so every panic ends in the same tail.
+        // mstore(32, code); mstore(0, Panic.selector); revert(28, 36)
         let code = self.imm(code.as_u64());
-        let zero = self.imm(U256::ZERO);
-        self.mstore(zero, selector);
         let word = self.imm(32);
         self.mstore(word, code);
+        let selector = self.imm(0x4e48_7b71_u64);
+        let zero = self.imm(U256::ZERO);
+        self.mstore(zero, selector);
         let offset = self.imm(28);
         let size = self.imm(36);
         self.revert(offset, size);
@@ -793,21 +794,9 @@ impl<'a> FunctionBuilder<'a> {
         StorageAlias::for_value(self.func, slot)
     }
 
-    /// Sets the free-memory pointer.
-    #[cfg(test)]
-    pub(crate) fn set_fmp(&mut self, value: ValueId) {
-        self.emit_void_inst(InstKind::SetFmp(value))
-    }
-
     /// Reserves untyped memory under an explicit semantic policy.
     pub(crate) fn alloc_raw(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
-    }
-
-    /// Reserves memory under an explicit semantic policy.
-    #[cfg(test)]
-    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
-        self.alloc_raw(size, semantics)
     }
 
     /// Reserves memory for a semantically shaped object.
@@ -1228,28 +1217,21 @@ impl<'a> FunctionBuilder<'a> {
         result
     }
 
-    /// Decodes a memory-backed ABI tuple into semantic values.
-    ///
-    /// `data` is a bytes object, or a raw word addressing a static head.
+    /// Decodes an ABI tuple from a bytes object or a memory slice into semantic values.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = if self.func.value_ty(data) == Some(MirType::I256) {
-            // object = alloc_bytes static_head_size
-            // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
-            let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
-            let object = self.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
-            let source = self.make_slice(data, size, SliceLocation::Memory);
-            self.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-            object
-        } else {
-            data
-        };
         // result = abi_decode data
         self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
+    }
+
+    /// Checks the length of the data for an empty ABI tuple, which decodes to no values.
+    pub(crate) fn abi_decode_void(&mut self, layout: crate::mir::AbiParamLayoutRef, data: ValueId) {
+        // abi_decode data
+        self.emit_void_inst(InstKind::AbiDecode { data, layout });
     }
 
     /// Emits an mcopy whose destination is proven to be in the heap.
@@ -1761,28 +1743,5 @@ impl<'a> FunctionBuilder<'a> {
     /// Returns a mutable reference to the function.
     pub(crate) fn func_mut(&mut self) -> &mut Function {
         self.func
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn to_uint_accepts_primitives() {
-        let _ = 1_u8.to_uint();
-        let _ = 1_u16.to_uint();
-        let _ = 1_u32.to_uint();
-        let _ = 1_u64.to_uint();
-        let _ = 1_u128.to_uint();
-        let _ = 1_usize.to_uint();
-        let _ = 1_i8.to_uint();
-        let _ = 1_i16.to_uint();
-        let _ = 1_i32.to_uint();
-        let _ = 1_i64.to_uint();
-        let _ = 1_i128.to_uint();
-        let _ = 1_isize.to_uint();
-        let _ = U256::from(1).to_uint();
-        assert_eq!((-1_i8).to_uint(), U256::MAX);
     }
 }

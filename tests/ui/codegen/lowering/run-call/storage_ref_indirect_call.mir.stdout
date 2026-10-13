@@ -1,0 +1,90 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_ref_indirect_call.sol:StorageRefIndirectCall ===
+@module StorageRefIndirectCall
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 11 !metadata(storage=symbolic(v4))
+    sstore 0, v2 !metadata(storage=slot(0))
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = gt v5, 0xffffffffffffffff
+    icall panic_if<0x41>, v6
+    v7 = add v5, 1
+    v8 = storage_array_data_slot 1
+    v9 = add v8, v5
+    sstore v9, 22 !metadata(storage=symbolic(v9))
+    sstore 1, v7 !metadata(storage=slot(1))
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = gt v10, 0xffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = add v10, 1
+    v13 = storage_array_data_slot 1
+    v14 = add v13, v10
+    sstore v14, 33 !metadata(storage=symbolic(v14))
+    sstore 1, v12 !metadata(storage=slot(1))
+    ret
+}
+
+fn @getFirst() -> i256 [view] {
+  bb0:
+    ret 0
+}
+
+fn @getSecond() -> i256 [view] {
+  bb0:
+    ret 1
+}
+
+fn @bind(arg0: i1) -> i256 [selector=0xb8b43f4c, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 2], [bb2: 3]
+    v1 = icall @internal_dispatcher_p_none_r_storageptr, v0
+    jumpi arg0, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jumpi arg0, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb9
+  bb9:
+    v2 = phi [bb7: 3], [bb8: 2]
+    v3 = icall @internal_dispatcher_p_none_r_storageptr, v2
+    jump bb6
+  bb6:
+    v4 = phi [bb9: v3], [bb5: 0]
+    v5 = sload v1 !metadata(storage=symbolic(v1))
+    v6 = sload v4 !metadata(storage=symbolic(v4))
+    v7 = checked_mul u256, 2, v6
+    v8 = checked_add u256, v5, v7
+    ret v8
+}
+
+fn @internal_dispatcher_p_none_r_storageptr(arg0: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = eq arg0, 3
+    jumpi v2, bb3, bb4
+  bb4:
+    icall panic_if<0x51>, true
+    invalid
+  bb3:
+    v3 = icall @getSecond
+    ret v3
+  bb1:
+    v1 = icall @getFirst
+    ret v1
+}

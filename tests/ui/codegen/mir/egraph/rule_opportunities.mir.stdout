@@ -217,9 +217,8 @@ fn @complementSar(arg0: i256, arg1: i256) -> i256 [selector=0x2bf9b092, pure, ab
 
 fn @sarOnes(arg0: i256) -> i256 [selector=0xa65bff8d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = sar arg0, v0
-    ret v1
+    v0 = sar arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
 }
 
 fn @signedMinQuotient(arg0: i256) -> i256 [selector=0xd828c064, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {

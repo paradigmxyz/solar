@@ -1,8 +1,8 @@
 //@ compile-flags: -Ogas --allow=2018 --emit=bin
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// A resident caller prefix plus the callee's stack arguments must fall back to frame-backed
-// arguments when emitting the tuple would require DUP17.
+// A caller's words plus the callee's stack arguments must still form the argument tuple when a
+// copy would need DUP17.
 
 library Constants {
     uint256 internal constant WAD = 1e18;

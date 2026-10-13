@@ -100,7 +100,7 @@ fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumenta
         (hir::VarKind::FunctionReturn, Some(parent @ hir::ItemId::Function(function))) => {
             selected_documentation(gcx, id, parent, gcx.hir.function(function).returns, true)
         }
-        (hir::VarKind::FunctionTyParam | hir::VarKind::FunctionTyReturn, _) => {
+        (hir::VarKind::FunctionTyParam(_) | hir::VarKind::FunctionTyReturn(_), _) => {
             NatSpecDocumentation::default()
         }
         _ if variable.doc.is_empty() => NatSpecDocumentation::default(),

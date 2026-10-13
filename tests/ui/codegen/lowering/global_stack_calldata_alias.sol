@@ -8,25 +8,26 @@ contract Test {
     // CHECK: push 0xc21f7bbb
     // CHECK: eq
     // CHECK: push 1{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[ONE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 2{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[TWO:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 3{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[THREE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 4{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[FOUR:bb[0-9]+]]
     // CHECK-NEXT: jumpi
+    // CHECK-NEXT: swap 1
     // CHECK-NEXT: push 5{{$}}
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[FIVE:bb[0-9]+]]
@@ -37,15 +38,15 @@ contract Test {
     // CHECK-NEXT: add
     // CHECK: [[FOUR]]:
     // CHECK-NEXT: push 4
-    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: [[THREE]]:
     // CHECK-NEXT: push 3
-    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: [[TWO]]:
     // CHECK-NEXT: push 2
-    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: [[ONE]]:
     // CHECK: push 1

@@ -1,0 +1,9 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// SSA values use `iN` types, not Solidity layout types.
+@module LayoutScalar
+
+fn @f(arg0: bool) -> i1 { //~ ERROR: `bool` is a layout type; use `iN` for a scalar SSA value
+  bb0:
+    ret 1
+}

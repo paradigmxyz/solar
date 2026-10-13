@@ -112,8 +112,8 @@ fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_params=[array<_
     v24 = mul v22, 32
     v25 = add v1, v24
     v26 = calldataload v25
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v28 = eq v26, v27
+    v27 = shl 192, v26
+    v28 = eq v27, 0
     v29 = eq v28, false
     icall revert_if<empty>, v29
     v30 = shr 64, v26

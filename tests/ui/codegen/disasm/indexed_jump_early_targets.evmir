@@ -1,0 +1,77 @@
+//@ compile-flags: -Zevm-ir-pipeline=none -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+// The padding pushes the program past 255 bytes, but every target sits before
+// it, so one-byte entries still fit. All 17 entries pack into one `PUSH17`.
+@module early_targets
+
+// CHECK-LABEL: // === early_targets (runtime) ===
+// CHECK: PUSH17
+// CHECK-NEXT: SWAP1
+// CHECK-NEXT: BYTE
+// CHECK-NEXT: JUMP ; unknown
+bb0:
+  push 1
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17
+
+bb1:
+  stop
+
+bb2:
+  stop
+
+bb3:
+  stop
+
+bb4:
+  stop
+
+bb5:
+  stop
+
+bb6:
+  stop
+
+bb7:
+  stop
+
+bb8:
+  stop
+
+bb9:
+  stop
+
+bb10:
+  stop
+
+bb11:
+  stop
+
+bb12:
+  stop
+
+bb13:
+  stop
+
+bb14:
+  stop
+
+bb15:
+  stop
+
+bb16:
+  stop
+
+bb17:
+  stop
+
+bb18:
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  stop

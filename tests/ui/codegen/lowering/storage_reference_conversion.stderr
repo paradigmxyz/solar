@@ -1,0 +1,14 @@
+error: codegen rewrite does not support this storage reference conversion yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/storage_reference_conversion.sol:LL:CC
+   │
+LL │         I.S[](records)[0].x = 5;
+   ╰╴              ━━━━━━━
+
+error: codegen rewrite does not support this storage reference conversion yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/storage_reference_conversion.sol:LL:CC
+   │
+LL │         uint256[](nums)[0] = 7;
+   ╰╴                  ━━━━
+
+error: aborting due to 2 previous errors
+

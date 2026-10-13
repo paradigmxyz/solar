@@ -1,0 +1,759 @@
+//@compile-flags: -Zmir-pipeline=heap-floor
+//@filecheck:
+@module HeapFloor
+@types
+  struct0: {i256, i256}
+
+// An absolute word stored as the pointer and loaded back is raised to the heap floor.
+// CHECK-LABEL: {{^[ +].*}}fn @reset_then_load{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @reset_then_load() -> i256 {
+  bb0:
+    mstore 64, 128
+    v0 = mload 64
+    mstore v0, 1
+    ret v0
+}
+
+// A calldata word hashed in the pointer's slot and restored before anything reads the slot as
+// the pointer keeps its value.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_restored{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scratch_restored() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = keccak256 0, 96
+    mstore 64, v0
+    ret v2
+}
+
+// An error argument written into the slot before a revert keeps its value.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_argument{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @revert_argument() {
+  bb0:
+    v0 = calldataload 36
+    mstore 64, v0
+    revert 28, 68
+}
+
+// A pointer derived from the slot's own value is a heap pointer and stays as stored.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_bump{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @heap_bump() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = mload 64
+    ret v2
+}
+
+// An external function returning only scalar words ends execution there: codegen encodes the
+// result in a static buffer without reading the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @scalar_return{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scalar_return() -> i256 [selector=0x12345678] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = keccak256 0, 96
+    ret v1
+}
+
+fn @allocate() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    ret v0
+}
+
+// A callee that allocates from the slot reads the stored word as the pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @reset_then_call{{[( ]}}
+// CHECK: + {{v[0-9]+}} = heap_floor
+// CHECK: + mstore 64, {{v[0-9]+}}
+// CHECK: icall @allocate
+fn @reset_then_call() -> i256 {
+  bb0:
+    mstore 64, 128
+    v0 = icall @allocate
+    ret v0
+}
+
+fn @hash_scratch(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = keccak256 0, 96
+    ret v1
+  bb2:
+    v2 = sub arg0, 1
+    v3 = icall @hash_scratch, v2
+    ret v3
+}
+
+// A recursive helper that hashes the slot as data passes the word through its recursive call,
+// so the scratch word keeps its value up to the restore.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_through_recursion{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scratch_through_recursion() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = icall @hash_scratch, 0
+    mstore 64, v0
+    ret v2
+}
+
+// A copy over the whole slot replaces the scratch word, so a later read of the pointer reads the
+// copied word, not the stored one.
+// CHECK-LABEL: {{^[ +].*}}fn @copy_replaces_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @copy_replaces_scratch() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = keccak256 0, 96
+    calldatacopy 64, 36, 32
+    v2 = mload 64
+    mstore v2, v1
+    ret v1
+}
+
+// A word loaded from the slot and only stored elsewhere is data, so the calldata word stays.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_read_as_data{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scratch_read_as_data() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 0, v2
+    v3 = keccak256 0, 32
+    mstore 64, v0
+    ret v3
+}
+
+// A word read as data before a call allocates from it keeps its value for the data read, and the
+// slot is clamped right before the call.
+// CHECK-LABEL: {{^[ +].*}}fn @data_then_allocate{{[( ]}}
+// CHECK: [[READ:v[0-9]+]] = mload 64
+// CHECK-NEXT: mstore 0, [[READ]]
+// CHECK-NEXT: + [[SLOT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[SLOT]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[SLOT]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: icall @allocate
+fn @data_then_allocate() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    mstore 0, v1
+    v2 = icall @allocate
+    ret v2
+}
+
+// A load that takes the word as the pointer after a read of it as data reads the clamped word,
+// while the slot keeps the stored one.
+// CHECK-LABEL: {{^[ +].*}}fn @data_then_pointer_load{{[( ]}}
+// CHECK: mstore 0, {{v[0-9]+}}
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: - {{v[0-9]+}} = add [[POINTER]], 32
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+// CHECK-NEXT: + {{v[0-9]+}} = add [[CLAMPED]], 32
+fn @data_then_pointer_load() {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    mstore 0, v1
+    v2 = mload 64
+    mstore v2, 1
+    v3 = add v2, 32
+    mstore 64, v3
+    ret
+}
+
+fn @transfer_scratch(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    mstore 36, arg0
+    mstore 68, arg0
+    v1 = gas
+    v2 = call v1, arg0, 0, 0, 100, 0, 0
+    mstore 64, v0
+    ret
+}
+
+// Stores that together overwrite every byte of the slot replace the word, as a token transfer
+// that lays its call data out over the slot does, so the call does not read the word as data and
+// the word is clamped where it is stored.
+// CHECK-LABEL: {{^[ +].*}}fn @transfer_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @reset_then_transfer{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD:v[0-9]+]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: icall @transfer_scratch
+fn @reset_then_transfer() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    icall @transfer_scratch, 1
+    v1 = icall @allocate
+    ret v1
+}
+
+fn @put_scratch() {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    ret
+}
+
+// A helper's scratch word keeps its value for a caller that hashes it, and a caller that
+// allocates from it clamps the slot after the call.
+// CHECK-LABEL: {{^[ +].*}}fn @put_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @hash_helper_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @hash_helper_scratch() -> i256 {
+  bb0:
+    v0 = mload 64
+    icall @put_scratch
+    v1 = keccak256 0, 96
+    mstore 64, v0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @allocate_after_helper{{[( ]}}
+// CHECK: icall @put_scratch
+// CHECK-NEXT: + [[SLOT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[SLOT]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[SLOT]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: icall @allocate
+fn @allocate_after_helper() -> i256 {
+  bb0:
+    icall @put_scratch
+    v0 = icall @allocate
+    ret v0
+}
+
+fn @read_word() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    ret v2
+}
+
+// A word a helper loads and returns to an external function that returns it is data, as in an
+// assembly function that reads its scratch word back.
+// CHECK-LABEL: {{^[ +].*}}fn @read_word{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @read_in_helper{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @read_in_helper() -> i256 [selector=0x12345679] {
+  bb0:
+    v0 = icall @read_word
+    ret v0
+}
+
+// A hash at an offset the caller supplies may read the scratch word as data, so the word stays in
+// the slot for it and the later load that allocates from the slot reads the clamped word.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_at_param{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK-NEXT: keccak256 arg0, 32
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], {{v[0-9]+}}
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], {{v[0-9]+}}
+fn @hash_at_param(arg0: i256) -> i256 [selector=0x1234567a] {
+  bb0:
+    v0 = calldataload 36
+    mstore 64, v0
+    v1 = keccak256 arg0, 32
+    v2 = mload 64
+    mstore v2, v1
+    ret v1
+}
+
+// A load whose word addresses memory and is also returned keeps the word for the return; only
+// the pointer uses read the clamped word, and the bump, which only the pointer reads, is computed
+// from it in place.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed_load{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[WORD]], 1
+// CHECK-NEXT: - [[END:v[0-9]+]] = add [[WORD]], 32
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+// CHECK-NEXT: + [[END]] = add [[CLAMPED]], 32
+// CHECK-NEXT: mstore 64, [[END]]
+// CHECK-NEXT: ret [[WORD]]
+fn @mixed_load() -> i256 [selector=0x1234567b] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    mstore v1, 1
+    v2 = add v1, 32
+    mstore 64, v2
+    ret v1
+}
+
+// A scratch word an external function returns as one of two integers is data.
+// CHECK-LABEL: {{^[ +].*}}fn @tuple_return{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @tuple_return() -> struct0 [selector=0x1234567c] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+// Two branches' loads meet in a phi that addresses memory and is returned: the address reads a
+// copy of the phi over both clamped words.
+// CHECK-LABEL: {{^[ +].*}}fn @branch_loads{{[( ]}}
+// CHECK: [[RIGHT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + {{v[0-9]+}} = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[RIGHT]],
+// CHECK-NEXT: + [[RIGHT_CLAMPED:v[0-9]+]] = select
+// CHECK: [[LEFT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + {{v[0-9]+}} = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[LEFT]],
+// CHECK-NEXT: + [[LEFT_CLAMPED:v[0-9]+]] = select
+// CHECK: [[PHI:v[0-9]+]] = phi [bb1: [[LEFT]]], [bb2: [[RIGHT]]]
+// CHECK-NEXT: - mstore [[PHI]], 1
+// CHECK-NEXT: + [[COPY:v[0-9]+]] = phi [bb1: [[LEFT_CLAMPED]]], [bb2: [[RIGHT_CLAMPED]]]
+// CHECK-NEXT: + mstore [[COPY]], 1
+// CHECK-NEXT: ret [[PHI]]
+fn @branch_loads() -> i256 [selector=0x1234567d] {
+  bb0:
+    v0 = calldataload 4
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 64, v0
+    v2 = mload 64
+    jump bb3
+  bb2:
+    v3 = calldataload 36
+    mstore 64, v3
+    v4 = mload 64
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v2], [bb2: v4]
+    mstore v5, 1
+    ret v5
+}
+
+// A checked operation on the way to a pointer use keeps its check on the loaded word, and the
+// clamped copy that addresses memory wraps instead of checking.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_scale{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: [[FACTOR:v[0-9]+]] = shl 255, 1
+// CHECK-NEXT: [[SCALED:v[0-9]+]] = checked_mul u256, [[WORD]], [[FACTOR]]
+// CHECK-NEXT: - mstore [[SCALED]], 1
+// CHECK-NEXT: + [[COPY:v[0-9]+]] = mul [[CLAMPED]], [[FACTOR]]
+// CHECK-NEXT: + mstore [[COPY]], 1
+fn @checked_scale() -> i256 [selector=0x1234567e] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    v2 = shl 255, 1
+    v3 = checked_mul u256, v1, v2
+    mstore v3, 1
+    ret v1
+}
+
+// A word subtracted from another yields a distance, not a pointer, so a write at the distance
+// leaves the scratch word alone.
+// CHECK-LABEL: {{^[ +].*}}fn @distance{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @distance() -> i256 [selector=0x1234567f] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    v2 = checked_sub u256, 64, v1
+    mstore v2, 1
+    ret v1
+}
+
+// A public function returns its scratch word to external callers as data and to an internal
+// caller that addresses memory with it: the word returns unclamped, and the caller clamps what its
+// call receives.
+// CHECK-LABEL: {{^[ +].*}}fn @public_read{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @use_public_read{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = icall @public_read
+// CHECK-NEXT: - mstore [[WORD]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @public_read() -> i256 [selector=0x12345680] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    ret v2
+}
+
+fn @use_public_read() -> i256 [selector=0x12345681] {
+  bb0:
+    v0 = icall @public_read
+    mstore v0, 1
+    ret 1
+}
+
+// The same through a pair: the caller clamps the field that carries the word, and the other field
+// keeps its value.
+// CHECK-LABEL: {{^[ +].*}}fn @public_pair{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @use_public_pair{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = extract_value struct0, {{v[0-9]+}}, 0
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: [[OTHER:v[0-9]+]] = extract_value struct0, {{v[0-9]+}}, 1
+// CHECK-NEXT: - mstore [[WORD]], [[OTHER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], [[OTHER]]
+fn @public_pair() -> struct0 [selector=0x12345682] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @use_public_pair() -> i256 [selector=0x12345683] {
+  bb0:
+    v0 = icall @public_pair
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    mstore v1, v2
+    ret v2
+}
+
+// A public function that leaves an absolute word in the slot also returns to the dispatcher,
+// which encodes its bytes at the pointer, so the word is clamped although its internal caller
+// reads nothing after the call.
+// CHECK-LABEL: {{^[ +].*}}fn @public_reset{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @public_reset(arg0: memptr) -> memptr [selector=0x12345684, abi_returns=[memory_bytes]] {
+  bb0:
+    mstore 64, 128
+    ret arg0
+}
+
+fn @call_public_reset(arg0: memptr) -> i256 [selector=0x12345685] {
+  bb0:
+    v0 = icall @public_reset, arg0
+    ret 1
+}
+
+// A revert at an offset loaded from memory may cover the slot, as untouched memory reads zero, so
+// the scratch word stays in the slot for it, and only the branch that addresses memory with the
+// slot's word reads it clamped.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_at_loaded_offset{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @revert_at_loaded_offset(arg0: i256) [selector=0x12345686] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = ne arg0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = mload 64
+    mstore v2, 1
+    returndata 0, 0
+  bb2:
+    v3 = mload 0x10000
+    revert v3, 96
+}
+
+// A revert below the initial pointer may cover the slot, as an offset subtracted from a heap
+// pointer can reach it, so the scratch word stays in the slot for the revert, and only the branch
+// that addresses memory with the slot's word reads it clamped.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_below_pointer{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @revert_below_pointer(arg0: i256) [selector=0x12345687] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 36
+    v2 = sub v0, v1
+    v3 = calldataload 4
+    mstore 64, v3
+    v4 = ne arg0, 0
+    jumpi v4, bb1, bb2
+  bb1:
+    v5 = mload 64
+    mstore v5, 1
+    returndata 0, 0
+  bb2:
+    revert v2, 32
+}
+
+// So may a revert at a heap pointer plus an offset that is not a constant, which can wrap around.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_past_pointer{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+fn @revert_past_pointer(arg0: i256) [selector=0x12345688] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 36
+    v2 = add v0, v1
+    v3 = calldataload 4
+    mstore 64, v3
+    v4 = ne arg0, 0
+    jumpi v4, bb1, bb2
+  bb1:
+    v5 = mload 64
+    mstore v5, 1
+    returndata 0, 0
+  bb2:
+    revert v2, 32
+}
+
+// A revert at a heap pointer plus a constant lies above the slot, so the store that only the other
+// branch reads as the pointer is clamped where it is made.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_above_pointer{{[( ]}}
+// CHECK: [[STORED:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: - mstore 64, [[STORED]]
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[STORED]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[STORED]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @revert_above_pointer(arg0: i256) [selector=0x12345689] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    v2 = calldataload 4
+    mstore 64, v2
+    v3 = ne arg0, 0
+    jumpi v3, bb1, bb2
+  bb1:
+    v4 = mload 64
+    mstore v4, 1
+    returndata 0, 0
+  bb2:
+    revert v1, 32
+}
+
+// A hash of a memory object that assembly points below the heap may read the slot, so the scratch
+// word stays there for it, and the slot is clamped only for the allocation after it.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_low_object{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: keccak256_bytes memptr 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: alloc memorybytes
+fn @hash_low_object() -> i256 [selector=0x1234568a] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    mstore 32, 32
+    v1 = keccak256_bytes memptr 32
+    v2 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v1
+}
+
+// So may a copy out of such an object, which reads no pointer itself.
+// CHECK-LABEL: {{^[ +].*}}fn @copy_low_object{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, memptr 32, 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @copy_low_object() -> memptr [selector=0x1234568b] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = calldataload 4
+    mstore 64, v1
+    mstore 32, 32
+    memory_object_copy memorybytes, v0, memorybytes, memptr 32, 32
+    v2 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v0
+}
+
+// And so may a hash at such an object's data.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_low_object_data{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: keccak256 {{v[0-9]+}}, 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = memory_object_data memorybytes, memptr 32
+    v2 = ptrtoint memptr v1 to i256
+    v3 = keccak256 v2, 32
+    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v3
+}
+
+// A byte at an index the program computes can wrap around to the slot even in a heap object, as
+// when assembly forges the object's length, so the scratch word stays in the slot for it.
+// CHECK-LABEL: {{^[ +].*}}fn @byte_at_computed_index{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: memory_object_load_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = calldataload 4
+    v2 = calldataload 36
+    mstore 64, v2
+    v3 = memory_object_load_byte memorybytes, v0, v1
+    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v3
+}
+
+// So can an element at a computed index.
+// CHECK-LABEL: {{^[ +].*}}fn @element_at_computed_index{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: memory_object_load_element memoryarray<1>, {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v1 = calldataload 4
+    v2 = calldataload 36
+    mstore 64, v2
+    v3 = memory_object_load_element memoryarray<1>, v0, v1
+    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v3
+}
+
+// A byte at a constant index lies past a heap object's address, so only the allocation reads the
+// stored word, as the pointer, and the store is clamped where it is made.
+// CHECK-LABEL: {{^[ +].*}}fn @byte_at_constant_index{{[( ]}}
+// CHECK: [[STORED:v[0-9]+]] = calldataload 36
+// CHECK-NEXT: - mstore 64, [[STORED]]
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[STORED]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[STORED]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = calldataload 36
+    mstore 64, v1
+    v2 = memory_object_load_byte memorybytes, v0, 7
+    v3 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v2
+}
+
+// A scratch word that the compiler's operations hash, encode, store as a value, or use as a key
+// or an index is data, as they reach memory only through memory objects and slices.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_packed_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @store_scratch_element{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @hash_packed_scratch() -> i256 [selector=0x12345690] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    v3 = keccak256_packed (u256 v2)
+    ret v3
+}
+
+fn @store_scratch_element() -> i256 [selector=0x12345691] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v1 = mload 64
+    v2 = calldataload 4
+    mstore 64, v2
+    v3 = mload 64
+    mstore 64, v1
+    memory_object_store_element memoryarray<1>, v0, 0, v3
+    v4 = memory_object_load_element memoryarray<1>, v0, 0
+    ret v4
+}
+
+// A memory object made from the slot's word addresses memory, so the word is clamped for it.
+// CHECK-LABEL: {{^[ +].*}}fn @object_from_scratch{{[( ]}}
+// CHECK: [[STORED:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: - mstore 64, [[STORED]]
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[STORED]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[STORED]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @object_from_scratch() -> i256 [selector=0x12345692] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    v2 = inttoptr i256 v1 to memptr
+    v3 = memory_object_len memorybytes, v2
+    ret v3
+}

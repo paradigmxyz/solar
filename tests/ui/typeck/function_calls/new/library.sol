@@ -4,6 +4,6 @@ library L {}
 
 contract C {
     function f() public {
-        new L(); //~ ERROR: cannot instantiate librarys
+        new L(); //~ ERROR: invalid use of a library name
     }
 }

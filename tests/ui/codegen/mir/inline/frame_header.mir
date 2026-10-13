@@ -1,0 +1,20 @@
+//@compile-flags: -Zmir-pipeline=inline
+@module FrameHeader
+
+// The inliner cannot remap the callee's own frame header, so the attempt is abandoned after
+// it has started rewriting the caller. The call and the caller's blocks must stay unchanged.
+fn @caller() -> i256 [selector=0x01020304] {
+  bb0:
+    v0 = icall @callee, 4
+    v1 = add v0, 1
+    ret v1
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0:
+    v0 = internal_frame_addr 64
+    v1 = ptrtoint memptr v0 to i256
+    v2 = mload v1
+    v3 = add v2, arg0
+    ret v3
+}

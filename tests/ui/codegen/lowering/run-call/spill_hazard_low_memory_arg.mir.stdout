@@ -1,0 +1,124 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_low_memory_arg.sol:C ===
+@module C
+fn @k(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_add u256, arg2, 1
+    v1 = abi_encode [word], scratch, args v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = keccak256 v2, v3
+    v5 = checked_add u256, arg2, 2
+    v6 = abi_encode [word], scratch, args v5
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = keccak256 v7, v8
+    v10 = checked_add u256, arg2, 3
+    v11 = abi_encode [word], scratch, args v10
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = keccak256 v12, v13
+    v15 = checked_add u256, arg2, 4
+    v16 = abi_encode [word], scratch, args v15
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = keccak256 v17, v18
+    v20 = checked_add u256, arg2, 5
+    v21 = abi_encode [word], scratch, args v20
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = keccak256 v22, v23
+    v25 = checked_add u256, arg2, 6
+    v26 = abi_encode [word], scratch, args v25
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = keccak256 v27, v28
+    v30 = checked_add u256, arg2, 7
+    v31 = abi_encode [word], scratch, args v30
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = keccak256 v32, v33
+    v35 = checked_add u256, arg2, 8
+    v36 = abi_encode [word], scratch, args v35
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = keccak256 v37, v38
+    v40 = checked_add u256, arg2, 9
+    v41 = abi_encode [word], scratch, args v40
+    v42 = slice_ptr v41
+    v43 = slice_len v41
+    v44 = keccak256 v42, v43
+    v45 = checked_add u256, arg2, 10
+    v46 = abi_encode [word], scratch, args v45
+    v47 = slice_ptr v46
+    v48 = slice_len v46
+    v49 = keccak256 v47, v48
+    v50 = checked_add u256, arg2, 11
+    v51 = abi_encode [word], scratch, args v50
+    v52 = slice_ptr v51
+    v53 = slice_len v51
+    v54 = keccak256 v52, v53
+    v55 = checked_add u256, arg2, 12
+    v56 = abi_encode [word], scratch, args v55
+    v57 = slice_ptr v56
+    v58 = slice_len v56
+    v59 = keccak256 v57, v58
+    v60 = checked_add u256, arg2, 13
+    v61 = abi_encode [word], scratch, args v60
+    v62 = slice_ptr v61
+    v63 = slice_len v61
+    v64 = keccak256 v62, v63
+    v65 = checked_add u256, arg2, 14
+    v66 = abi_encode [word], scratch, args v65
+    v67 = slice_ptr v66
+    v68 = slice_len v66
+    v69 = keccak256 v67, v68
+    v70 = checked_add u256, arg2, 15
+    v71 = abi_encode [word], scratch, args v70
+    v72 = slice_ptr v71
+    v73 = slice_len v71
+    v74 = keccak256 v72, v73
+    v75 = checked_add u256, arg2, 16
+    v76 = abi_encode [word], scratch, args v75
+    v77 = slice_ptr v76
+    v78 = slice_len v76
+    v79 = keccak256 v77, v78
+    v80 = checked_add u256, arg2, 17
+    v81 = abi_encode [word], scratch, args v80
+    v82 = slice_ptr v81
+    v83 = slice_len v81
+    v84 = keccak256 v82, v83
+    v85 = checked_add u256, arg2, 18
+    v86 = abi_encode [word], scratch, args v85
+    v87 = slice_ptr v86
+    v88 = slice_len v86
+    v89 = keccak256 v87, v88
+    v90 = calldatasize
+    v91 = ptrtoint memptr arg0 to i256
+    v92 = add v91, 32
+    calldatacopy v92, v90, arg1
+    v93 = xor v4, v9
+    v94 = xor v93, v14
+    v95 = xor v94, v19
+    v96 = xor v95, v24
+    v97 = xor v96, v29
+    v98 = xor v97, v34
+    v99 = xor v98, v39
+    v100 = xor v99, v44
+    v101 = xor v100, v49
+    v102 = xor v101, v54
+    v103 = xor v102, v59
+    v104 = xor v103, v64
+    v105 = xor v104, v69
+    v106 = xor v105, v74
+    v107 = xor v106, v79
+    v108 = xor v107, v84
+    v109 = xor v108, v89
+    ret v109
+}
+
+fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = inttoptr i256 arg0 to memptr
+    v1 = icall @k, v0, arg1, arg2
+    ret v1
+}

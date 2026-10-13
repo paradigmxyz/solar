@@ -27,7 +27,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             ElementaryType::UInt(_size) => Default::default(),
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
         },
-        TyKind::StringLiteral(_utf8, _size) => Default::default(),
+        TyKind::StringLiteral(_utf8, _len) => Default::default(),
         TyKind::IntLiteral(..) | TyKind::CallOptions(_) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
@@ -291,11 +291,17 @@ fn contract_type(
 
     match access {
         ContractTypeAccess::External => {
-            members.extend(gcx.interface_functions(id).own().iter().map(|f| {
-                let item = hir::ItemId::from(f.id);
-                let ty = declaration_function_ty(gcx, gcx.type_of_item(item));
-                Member::with_res(gcx.item_name(item).name, ty, item)
-            }));
+            members.extend(
+                gcx.interface_functions(id)
+                    .own()
+                    .iter()
+                    .map(|f| hir::ItemId::from(f.id))
+                    .filter(|&item| gcx.hir.item(item).is_visible_via_contract_type_access())
+                    .map(|item| {
+                        let ty = declaration_function_ty(gcx, gcx.type_of_item(item));
+                        Member::with_res(gcx.item_name(item).name, ty, item)
+                    }),
+            );
         }
         ContractTypeAccess::Library | ContractTypeAccess::DerivingScope { .. } => {
             members.extend(contract.functions().filter_map(|id| {
