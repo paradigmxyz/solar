@@ -3,7 +3,7 @@
 fn @fill() -> memptr [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 224
-    mstore v0, 6
+    store v0, 6
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]

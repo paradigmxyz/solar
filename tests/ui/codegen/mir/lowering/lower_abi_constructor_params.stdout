@@ -32,7 +32,7 @@
       v4 = slice_load_word v3, 0
 -     v5 = add v4, arg1
 +     v5 = add v4, arg4
-      mstore 0, v5
+      store 0, v5
       stop
 +   bb6:
 +     v14 = mul v12, 64
@@ -53,7 +53,7 @@
 +   bb9:
 +     v19 = mul v17, 32
 +     v20 = add v15, v19
-+     v21 = mload v20
++     v21 = load v20
 +     v22 = make_memory_slice v16, 2
 +     v23 = shl 5, v17
 +     slice_store_word v22, v23, v21

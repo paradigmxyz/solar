@@ -134,7 +134,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v81 = lt v80, 32
     icall revert_if<tuple_data_too_short>, v81
     v82 = add 0, 0
-    v83 = mload v82
+    v83 = load v82
     v84 = shl 8, v83
     v85 = eq v84, 0
     v86 = eq v85, false

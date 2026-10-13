@@ -19,7 +19,7 @@
   
   fn @reused(arg0: i256) -> i256 {
     bb0:
-      v0 = calldataload arg0
+      v0 = load calldata arg0
       v1 = ne v0, 0
       jumpi v1, bb1, bb3
 -   bb1:

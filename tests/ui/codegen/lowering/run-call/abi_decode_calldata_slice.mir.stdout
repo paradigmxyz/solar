@@ -33,7 +33,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v20 = not 31
     v21 = and v18, v20
     v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    mstore v22, v17
+    store v22, v17
     v23 = ptrtoint memptr v22 to i256
     v24 = add v23, 32
     v25 = slice_len v10
@@ -69,7 +69,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v50 = not 31
     v51 = and v48, v50
     v52 = alloc memorybytes, exact, uninitialized, infallible, v51
-    mstore v52, v47
+    store v52, v47
     v53 = ptrtoint memptr v52 to i256
     v54 = add v53, 32
     v55 = slice_len v40
@@ -103,7 +103,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v78 = not 31
     v79 = and v76, v78
     v80 = alloc memorybytes, exact, uninitialized, infallible, v79
-    mstore v80, v75
+    store v80, v75
     v81 = ptrtoint memptr v80 to i256
     v82 = add v81, 32
     v83 = slice_len v68

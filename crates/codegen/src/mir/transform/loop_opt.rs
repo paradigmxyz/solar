@@ -48,7 +48,8 @@
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId,
-    InstKind, Instruction, MirType, Module, OpTraits, StorageAlias, Terminator, Value, ValueId,
+    InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
+    ValueId,
     analysis::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
         LocationSize, Loop, LoopAnalyzer, ScalarEvolution,
@@ -480,7 +481,7 @@ impl LoopOptimizer {
             // MSIZE in the function could observe; on top of the dependence checks they must
             // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
             // from speculated memory expansion) or paying for work it never did.
-            InstKind::MLoad(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
@@ -496,7 +497,7 @@ impl LoopOptimizer {
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_write_read_locations(func, ctx, inst_id);
             }
-            // These semantic memory reads lower to `mload` after LICM. Keep them in
+            // These semantic memory reads lower to `load` after LICM. Keep them in
             // place until their physical address and width are explicit so a store
             // in the loop cannot be missed by the dependence check above.
             InstKind::SliceLoadByte { .. }
@@ -681,7 +682,7 @@ impl LoopOptimizer {
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
             | InstKind::Clz(_) => 5,
-            InstKind::MLoad(_) | InstKind::CalldataLoad(_) | InstKind::MemorySlice(_) => 3,
+            InstKind::Load(_, _) | InstKind::MemorySlice(_) => 3,
             _ => 0,
         }
     }
@@ -767,14 +768,14 @@ impl LoopOptimizer {
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.inst(inst_id).kind {
-                    InstKind::MStore(addr, _) => {
+                    InstKind::Store(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 32, block_id,
                         ) {
                             return true;
                         }
                     }
-                    InstKind::MStore8(addr, _) => {
+                    InstKind::Store8(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 1, block_id,
                         ) {
@@ -1075,26 +1076,24 @@ impl LoopOptimizer {
                 let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
-                    InstKind::MLoad(addr)
-                    | InstKind::MStore(addr, _)
-                    | InstKind::MStore8(addr, _)
+                    InstKind::Load(addr, _)
+                    | InstKind::Store(addr, _)
+                    | InstKind::Store8(addr, _)
                     | InstKind::SLoad(addr)
                     | InstKind::SStore(addr, _)
                     | InstKind::TLoad(addr)
                     | InstKind::TStore(addr, _)
-                    | InstKind::CalldataLoad(addr)
                     | InstKind::Keccak256(addr, _)
-                    | InstKind::CalldataCopy(addr, _, _)
+                    | InstKind::Copy(addr, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, addr, _)
                     | InstKind::CodeCopy(addr, _, _)
-                    | InstKind::ReturnDataCopy(addr, _, _)
                     | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),
                     InstKind::MappingSlotBytes(key, _)
                         if func.value_ty(*key) == Some(MirType::MEMPTR) =>
                     {
                         address_operands.push(*key);
                     }
-                    InstKind::MCopy(dst, src, _) => {
+                    InstKind::Copy(dst, src, _, PtrLocation::Memory) => {
                         address_operands.push(*dst);
                         address_operands.push(*src);
                     }

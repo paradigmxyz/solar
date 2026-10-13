@@ -141,7 +141,7 @@ fn @frame_input(arg0: i256) -> i256 {
   bb0:
     v4 = internal_frame_addr 64
     v0 = ptrtoint memptr v4 to i256
-    mstore v0, 511
+    store v0, 511
     v1 = and arg0, 255
     ret v1
 }
@@ -183,14 +183,14 @@ fn @cast_caller() -> i1 {
 // CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
 // CHECK-NOT: {{^[ +].*}}= zext
 // CHECK: [[TEST:v[0-9]+]] = eq arg0, 0
-// CHECK: mstore 0, arg0
+// CHECK: store 0, arg0
 // CHECK: ret [[TEST]]
 fn @clean_cast(arg0: i256) -> i1 {
   bb0:
     v0 = trunc i256 arg0 to i160
     v1 = zext i160 v0 to i256
     v2 = eq v0, i160 0
-    mstore 0, v1
+    store 0, v1
     ret v2
 }
 

@@ -27,7 +27,7 @@ fn @decode(arg0: calldataslice) -> i256 [selector=0xe5c5e9a3, pure, abi_params=[
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    mstore v20, v15
+    store v20, v15
     v21 = ptrtoint memptr v20 to i256
     v22 = add v21, 32
     v23 = slice_len v8

@@ -169,7 +169,7 @@ contract NamedReturnAndDelete {
     // CHECK-NEXT: slice_store_word [[FIELDS]], 0, 96
     // CHECK-NEXT: slice_store_word [[FIELDS]], 32, 96
     // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK: mstore [[BYTES]], 1
+    // CHECK: store [[BYTES]], 1
     function fullyInitializedNamedStruct()
         public
         pure

@@ -33,7 +33,7 @@ fn @constructor() [constructor] {
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -105,7 +105,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
-    v10 = mload v9
+    v10 = load v9
     jump bb3
   bb3:
     v27 = phi [bb1: v10], [bb7: 100]
@@ -159,7 +159,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v36 = lt v35, 32
     icall revert_if<tuple_data_too_short>, v36
     v37 = add 0, 0
-    v38 = mload v37
+    v38 = load v37
     v39 = checked_add u256, v27, v38
     jump bb11
   bb11:
@@ -205,7 +205,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v71 = lt v70, 32
     icall revert_if<tuple_data_too_short>, v71
     v72 = add 0, 0
-    v73 = mload v72
+    v73 = load v72
     v74 = checked_add u256, v61, v73
     jump bb21
   bb21:
@@ -232,9 +232,9 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v102 = lt v101, 64
     icall revert_if<tuple_data_too_short>, v102
     v103 = add v97, 0
-    v104 = mload v103
+    v104 = load v103
     v105 = add v97, 32
-    v106 = mload v105
+    v106 = load v105
     v107 = checked_add u256, v104, v106
     v108 = checked_add u256, v92, v107
     jump bb28
@@ -262,7 +262,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v120 = lt v119, 32
     icall revert_if<tuple_data_too_short>, v120
     v121 = add 0, 0
-    v122 = mload v121
+    v122 = load v121
     v123 = checked_add u256, v110, v122
     jump bb33
   bb33:
@@ -276,7 +276,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v131 = slice_ptr v126
     v132 = ptrtoint memptr v129 to i256
     v133 = add v132, v127
-    mcopy v133, v131, 0 !metadata(memory=heap)
+    copy v133, v131, 0 !metadata(memory=heap)
     v134 = ptrtoint memptr v129 to i256
     v135 = create 0, v134, v127
     v136 = eq v135, i160 0
@@ -322,7 +322,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v155 = lt v154, 32
     icall revert_if<tuple_data_too_short>, v155
     v156 = add 0, 0
-    v157 = mload v156
+    v157 = load v156
     v158 = checked_add u256, v140, v157
     jump bb43
   bb43:
@@ -337,7 +337,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
-    v3 = mload v2
+    v3 = load v2
     v4 = gt v3, 0xffffffffffffffff
     v5 = add v3, 36
     v6 = gt v5, arg1
@@ -346,7 +346,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v7, bb3, bb2
   bb2:
     v9 = add v2, v3
-    v10 = mload v9
+    v10 = load v9
     v11 = gt v10, 0xffffffffffffffff
     v12 = sub arg1, v5
     v13 = gt v10, v12

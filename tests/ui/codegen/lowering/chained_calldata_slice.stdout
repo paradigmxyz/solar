@@ -37,7 +37,7 @@ fn @bytesChain(arg0: calldataslice) -> memptr [selector=0x2007c472, pure, abi_pa
     v27 = not 31
     v28 = and v25, v27
     v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    mstore v29, v24
+    store v29, v24
     v30 = ptrtoint memptr v29 to i256
     v31 = add v30, 32
     v32 = slice_len v17
@@ -74,6 +74,6 @@ fn @arrChain(arg0: calldataslice) -> i256 [selector=0x65df4193, pure, abi_params
     icall panic_if<0x32>, v20
     v21 = slice_ptr v17
     v22 = add v21, 0
-    v23 = calldataload v22
+    v23 = load calldata v22
     ret v23
 }

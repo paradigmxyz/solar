@@ -404,7 +404,7 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -426,7 +426,7 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -448,7 +448,7 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -470,7 +470,7 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -492,7 +492,7 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -514,7 +514,7 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -540,7 +540,7 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     v9 = slice_ptr v3
     v10 = ptrtoint memptr v7 to i256
     v11 = add v10, v4
-    mcopy v11, v9, 32 !metadata(memory=heap)
+    copy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
     v13 = create 0, v12, v5
     v14 = ne v13, i160 0

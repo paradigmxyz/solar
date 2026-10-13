@@ -97,7 +97,7 @@ fn lower_storage_array_data_slot(
     // result = keccak256(0, 32)
     let word = builder.imm(32);
     let zero = builder.imm(0);
-    builder.mstore(zero, slot);
+    builder.store(zero, slot);
     builder.keccak256(zero, word)
 }
 
@@ -131,8 +131,8 @@ fn lower_word_mapping_slot(
     let zero = builder.imm(0);
     let word = builder.imm(32);
     let size = builder.imm(64);
-    builder.mstore(zero, key);
-    builder.mstore(word, slot);
+    builder.store(zero, key);
+    builder.store(word, slot);
     builder.keccak256(zero, size)
 }
 
@@ -153,8 +153,8 @@ fn lower_bytes_mapping_slot(
     let payload_size = builder.add(len, word_size);
     let scratch = builder.fmp();
     let source = builder.memory_data(value);
-    builder.copy_slice_data(location, scratch, source, len);
+    builder.copy_heap(scratch, source, len, location);
     let slot_address = builder.add(scratch, len);
-    builder.mstore(slot_address, slot);
+    builder.store(slot_address, slot);
     builder.keccak256(scratch, payload_size)
 }

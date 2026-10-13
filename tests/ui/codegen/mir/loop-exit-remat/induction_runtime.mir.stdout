@@ -119,7 +119,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     v59 = insert_value struct0, v58, 3, v55
     ret v59
   bb4:
-    v18 = mload v11
+    v18 = load v11
     jump bb7
   bb7:
     v19 = phi [bb4: v6], [bb11: v19]
@@ -140,7 +140,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     jump bb8
   bb9:
     v32 = sub v27, 32
-    v33 = mload v32
+    v33 = load v32
     v34 = gt v33, v24
     v35 = zext i1 v34 to i256
     v36 = eq v35, 0
@@ -150,14 +150,14 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
   bb13:
     jump bb14
   bb14:
-    mstore v27, v33
+    store v27, v33
     jump bb11
   bb11:
     jump bb7
   bb12:
     jump bb8
   bb8:
-    mstore v27, v24
+    store v27, v24
     jump bb6
   bb6:
     jump bb3

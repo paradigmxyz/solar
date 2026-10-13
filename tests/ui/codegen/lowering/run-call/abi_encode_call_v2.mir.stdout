@@ -8,7 +8,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -16,7 +16,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
@@ -37,7 +37,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v27 = sub v26, v25
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
-    v29 = calldataload v25
+    v29 = load calldata v25
     v30 = add v24, v29
     v31 = calldatasize
     v32 = sub v31, v24
@@ -45,7 +45,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
-    v36 = calldataload v30
+    v36 = load calldata v30
     v37 = gt v36, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v37
     v38 = mul v36, 32
@@ -62,7 +62,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     icall panic_if<0x32>, v47
     v48 = slice_ptr v44
     v49 = add v48, 0
-    v50 = calldataload v49
+    v50 = load calldata v49
     v51 = eq v50, 0
     v52 = eq v51, false
     icall panic_if<0x1>, v52
@@ -72,7 +72,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v56 = sub v55, v54
     v57 = slt v56, 32
     icall revert_if<calldata_tail_too_short>, v57
-    v58 = calldataload v54
+    v58 = load calldata v54
     v59 = add v53, v58
     v60 = calldatasize
     v61 = sub v60, v53
@@ -80,7 +80,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v63 = slt v58, v62
     v64 = eq v63, false
     icall revert_if<invalid_calldata_tail_offset>, v64
-    v65 = calldataload v59
+    v65 = load calldata v59
     v66 = gt v65, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v66
     v67 = mul v65, 32
@@ -97,7 +97,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     icall panic_if<0x32>, v76
     v77 = slice_ptr v73
     v78 = add v77, 32
-    v79 = calldataload v78
+    v79 = load calldata v78
     v80 = eq v79, 1
     v81 = eq v80, false
     icall panic_if<0x1>, v81
@@ -107,7 +107,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v85 = sub v84, v83
     v86 = slt v85, 32
     icall revert_if<calldata_tail_too_short>, v86
-    v87 = calldataload v83
+    v87 = load calldata v83
     v88 = add v82, v87
     v89 = calldatasize
     v90 = sub v89, v82
@@ -115,7 +115,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v92 = slt v87, v91
     v93 = eq v92, false
     icall revert_if<invalid_calldata_tail_offset>, v93
-    v94 = calldataload v88
+    v94 = load calldata v88
     v95 = gt v94, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v95
     v96 = mul v94, 32
@@ -132,13 +132,13 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     icall panic_if<0x32>, v105
     v106 = slice_ptr v102
     v107 = add v106, 64
-    v108 = calldataload v107
+    v108 = load calldata v107
     v109 = eq v108, 2
     v110 = eq v109, false
     icall panic_if<0x1>, v110
     v111 = slice_ptr arg0
     v112 = add v111, 32
-    v113 = calldataload v112
+    v113 = load calldata v112
     v114 = eq v113, 6
     v115 = eq v114, false
     icall panic_if<0x1>, v115
@@ -148,7 +148,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v119 = sub v118, v117
     v120 = slt v119, 32
     icall revert_if<calldata_tail_too_short>, v120
-    v121 = calldataload v117
+    v121 = load calldata v117
     v122 = add v116, v121
     v123 = calldatasize
     v124 = sub v123, v116
@@ -156,7 +156,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v126 = slt v121, v125
     v127 = eq v126, false
     icall revert_if<invalid_calldata_tail_offset>, v127
-    v128 = calldataload v122
+    v128 = load calldata v122
     v129 = gt v128, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v129
     v130 = mul v128, 1
@@ -182,7 +182,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v146 = not 31
     v147 = and v144, v146
     v148 = alloc memorybytes, exact, uninitialized, infallible, v147
-    mstore v148, v143
+    store v148, v143
     v149 = ptrtoint memptr v148 to i256
     v150 = add v149, 32
     v151 = slice_len v136
@@ -201,7 +201,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v162 = sub v161, v160
     v163 = slt v162, 32
     icall revert_if<calldata_tail_too_short>, v163
-    v164 = calldataload v160
+    v164 = load calldata v160
     v165 = add v159, v164
     v166 = calldatasize
     v167 = sub v166, v159
@@ -209,7 +209,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v169 = slt v164, v168
     v170 = eq v169, false
     icall revert_if<invalid_calldata_tail_offset>, v170
-    v171 = calldataload v165
+    v171 = load calldata v165
     v172 = gt v171, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v172
     v173 = mul v171, 1
@@ -235,7 +235,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v189 = not 31
     v190 = and v187, v189
     v191 = alloc memorybytes, exact, uninitialized, infallible, v190
-    mstore v191, v186
+    store v191, v186
     v192 = ptrtoint memptr v191 to i256
     v193 = add v192, 32
     v194 = slice_len v179
@@ -250,7 +250,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     icall panic_if<0x1>, v201
     v202 = slice_ptr arg0
     v203 = add v202, 128
-    v204 = calldataload v203
+    v204 = load calldata v203
     v205 = lt v204, 3
     v206 = eq v205, false
     icall revert_if<empty>, v206
@@ -281,7 +281,7 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     slice_store_word v2, 64, 96
     slice_store_word v2, 96, 96
     v3 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v3, 3
+    store v3, 3
     v4 = make_memory_slice v0, 5
     v5 = ptrtoint memptr v3 to i256
     slice_store_word v4, 0, v5
@@ -312,18 +312,18 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     v24 = make_memory_slice v0, 5
     slice_store_word v24, 32, 6
     v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v25, 10
+    store v25, 10
     v26 = ptrtoint memptr v25 to i256
     v27 = add v26, 32
-    mstore v27, 0x5374727563744e616d6500000000000000000000000000000000000000000000
+    store v27, 0x5374727563744e616d6500000000000000000000000000000000000000000000
     v28 = make_memory_slice v0, 5
     v29 = ptrtoint memptr v25 to i256
     slice_store_word v28, 64, v29
     v30 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v30, 4
+    store v30, 4
     v31 = ptrtoint memptr v30 to i256
     v32 = add v31, 32
-    mstore v32, 0x3132333400000000000000000000000000000000000000000000000000000000
+    store v32, 0x3132333400000000000000000000000000000000000000000000000000000000
     v33 = make_memory_slice v0, 5
     v34 = ptrtoint memptr v30 to i256
     slice_store_word v33, 96, v34
@@ -335,10 +335,10 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     v38 = address
     v39 = gas
     v40 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v40, 8
+    store v40, 8
     v41 = ptrtoint memptr v40 to i256
     v42 = add v41, 32
-    mstore v42, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    store v42, 0x546573744e616d65000000000000000000000000000000000000000000000000
     v43 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v40
     v44 = address_call v38, v43, gas v39
     ret v44

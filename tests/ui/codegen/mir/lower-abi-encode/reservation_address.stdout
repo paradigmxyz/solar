@@ -13,18 +13,18 @@
 +     v6 = add v5, 32
 +     v7 = ptrtoint memptr v4 to i256
 +     v8 = sub v6, v7
-+     mstore v4, v8
++     store v4, v8
 +     v9 = slice_len v0
 +     v10 = not 31
 +     v11 = add 0, 31
 +     v12 = and v11, v10
 +     v13 = add v6, 32
 +     v14 = add v6, v12
-+     mstore v14, 0
-+     mstore v6, 0
++     store v14, 0
++     store v6, 0
 +     v15 = slice_ptr v0
 +     v16 = add v13, v12
-+     calldatacopy v13, 0, 0
++     copy calldata v13, 0, 0
 +     v17 = ptrtoint memptr v4 to i256
 +     v18 = sub v16, v17
 +     v19 = add v18, 0
@@ -50,20 +50,20 @@
       v6 = add v5, 32
 -     v7 = ptrtoint memptr v4 to i256
 -     v8 = sub v6, v7
--     mstore v4, v8
-+     mstore v4, 32
+-     store v4, v8
++     store v4, 32
       v9 = slice_len v0
 -     v10 = not 31
 -     v11 = add 0, 31
 -     v12 = and v11, v10
       v13 = add v6, 32
 -     v14 = add v6, v12
--     mstore v14, 0
-      mstore v6, 0
-+     mstore v6, 0
+-     store v14, 0
+      store v6, 0
++     store v6, 0
       v15 = slice_ptr v0
 -     v16 = add v13, v12
--     calldatacopy v13, 0, 0
+-     copy calldata v13, 0, 0
 -     v17 = ptrtoint memptr v4 to i256
 -     v18 = sub v16, v17
 -     v19 = add v18, 0
@@ -90,11 +90,11 @@
       v4 = fmp
       v5 = ptrtoint memptr v4 to i256
       v6 = add v5, 32
-      mstore v4, 32
+      store v4, 32
 -     v9 = slice_len v0
 -     v13 = add v6, 32
-      mstore v6, 0
-      mstore v6, 0
+      store v6, 0
+      store v6, 0
 -     v15 = slice_ptr v0
       v23 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v24 = ptrtoint memptr v23 to i256
@@ -112,9 +112,9 @@
       v4 = fmp
       v5 = ptrtoint memptr v4 to i256
       v6 = add v5, 32
-      mstore v4, 32
-      mstore v6, 0
-      mstore v6, 0
+      store v4, 32
+      store v6, 0
+      store v6, 0
       v23 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v24 = ptrtoint memptr v23 to i256
       returndata v24, 64

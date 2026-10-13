@@ -22,6 +22,6 @@ fn @callLiteral() -> i256 [selector=0x74903211, view, abi_params=[], abi_returns
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
-    v10 = mload v9
+    v10 = load v9
     ret v10
 }

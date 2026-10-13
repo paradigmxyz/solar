@@ -47,17 +47,17 @@
 -     v2 = memory_slice arg0
 -     v3 = slice_len v2
 +     v9 = ptrtoint memptr arg0 to i256
-+     v0 = mload v9
++     v0 = load v9
 +     v10 = ptrtoint memptr arg0 to i256
-+     v2 = mload v10
++     v2 = load v10
       v4 = ptrtoint memptr arg0 to i256
-      mstore v4, 9
+      store v4, 9
 -     v5 = memory_slice arg0
 -     v6 = slice_len v5
 -     v7 = add v1, v3
 -     v8 = add v7, v6
 +     v11 = ptrtoint memptr arg0 to i256
-+     v5 = mload v11
++     v5 = load v11
 +     v7 = add v0, v2
 +     v8 = add v7, v5
       ret v8
@@ -71,7 +71,7 @@
 -     v3 = ne v2, 0
 +     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v6 = ptrtoint memptr v0 to i256
-+     v1 = mload v6
++     v1 = load v6
 +     v3 = ne v1, 0
       jumpi v3, bb1, bb2
     bb2:
@@ -81,7 +81,7 @@
 -     v5 = slice_len v4
 -     ret v5
 +     v7 = ptrtoint memptr v0 to i256
-+     v4 = mload v7
++     v4 = load v7
 +     ret v4
   }
   
@@ -93,7 +93,7 @@
 -     v3 = ne v2, 0
 +     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v7 = ptrtoint memptr v0 to i256
-+     v1 = mload v7
++     v1 = load v7
 +     v3 = ne v1, 0
       jumpi v3, bb1, bb2
     bb2:
@@ -103,7 +103,7 @@
 -     v5 = slice_len v4
 -     v6 = add v2, v5
 +     v8 = ptrtoint memptr v0 to i256
-+     v4 = mload v8
++     v4 = load v8
 +     v6 = add v1, v4
       ret v6
   }
@@ -116,14 +116,14 @@
 +     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v6 = ptrtoint memptr v0 to i256
 +     v1 = make_memory_slice v6, 1
-+     v2 = mload v6
++     v2 = load v6
       v3 = ne v2, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
 -     v4 = slice_load_word v1, 0
-+     v4 = mload v6
++     v4 = load v6
       v5 = add v2, v4
       ret v5
   }
@@ -133,19 +133,19 @@
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
 +     v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
 -     v2 = memory_slice v0
 -     v3 = slice_ptr v2
 +     v6 = ptrtoint memptr v0 to i256
 +     v3 = add v6, 32
-      mstore v3, 0
+      store v3, 0
       jump bb1
     bb1:
 -     v4 = memory_slice v0
 -     v5 = slice_len v4
 -     ret v5
 +     v7 = ptrtoint memptr v0 to i256
-+     v4 = mload v7
++     v4 = load v7
 +     ret v4
   }
   
@@ -153,13 +153,13 @@
 + fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
-      mstore v0, arg1
+      store v0, 3
+      store v0, arg1
 -     v1 = memory_slice arg0
 -     v2 = slice_len v1
 -     ret v2
 +     v3 = ptrtoint memptr arg0 to i256
-+     v1 = mload v3
++     v1 = load v3
 +     ret v1
   }
   
@@ -167,20 +167,20 @@
 + fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
+      store v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      mstore v0, 4
+      store v0, 4
       jump bb3
     bb3:
 -     v2 = memory_slice arg0
 -     v3 = slice_len v2
 -     ret v3
 +     v4 = ptrtoint memptr arg0 to i256
-+     v2 = mload v4
++     v2 = load v4
 +     ret v2
   }
   
@@ -188,21 +188,21 @@
 + fn @loop_header_clobber(arg0: memptr) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 7
+      store v0, 7
       jump bb1
     bb1:
 -     v1 = memory_slice arg0
 -     v2 = slice_len v1
 -     v3 = ne v2, 0
 +     v4 = ptrtoint memptr arg0 to i256
-+     v1 = mload v4
++     v1 = load v4
 +     v3 = ne v1, 0
       jumpi v3, bb2, bb3
     bb3:
 -     ret v2
 +     ret v1
     bb2:
-      mstore v0, 0
+      store v0, 0
       jump bb1
   }
   
@@ -211,18 +211,18 @@
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
       v2 = inttoptr i256 v1 to memptr
       set_fmp v2
 -     v3 = alloc memorybytes, exact, uninitialized, infallible, 32
 +     v3 = alloc raw, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
-      mstore v4, 4
+      store v4, 4
 -     v5 = memory_slice v0
 -     v6 = slice_len v5
 -     ret v6
 +     v7 = ptrtoint memptr v0 to i256
-+     v5 = mload v7
++     v5 = load v7
 +     ret v5
   }
   
@@ -234,21 +234,21 @@
 -     v2 = slice_len v1
 +     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v7 = ptrtoint memptr arg0 to i256
-+     v1 = mload v7
++     v1 = load v7
       v3 = ptrtoint memptr v0 to i256
-      mstore v3, 7
+      store v3, 7
 -     v4 = memory_slice arg0
 -     v5 = slice_len v4
 -     v6 = add v2, v5
 +     v8 = ptrtoint memptr arg0 to i256
-+     v4 = mload v8
++     v4 = load v8
 +     v6 = add v1, v4
       ret v6
   }
   
   fn @fabricated_parameter() -> i256 {
     bb0:
-      v0 = mload 64
+      v0 = load 64
       v1 = inttoptr i256 v0 to memptr
       v2 = icall @parameter_may_overlap_allocation, v1
       ret v2
@@ -291,13 +291,13 @@
   fn @invalidate_length(arg0: memptr) -> i256 [may_return_memory] {
     bb0:
       v9 = ptrtoint memptr arg0 to i256
-      v0 = mload v9
+      v0 = load v9
       v10 = ptrtoint memptr arg0 to i256
-      v2 = mload v10
+      v2 = load v10
       v4 = ptrtoint memptr arg0 to i256
-      mstore v4, 9
+      store v4, 9
       v11 = ptrtoint memptr arg0 to i256
-      v5 = mload v11
+      v5 = load v11
       v7 = add v0, v2
       v8 = add v7, v5
       ret v8
@@ -307,14 +307,14 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v6 = ptrtoint memptr v0 to i256
-      v1 = mload v6
+      v1 = load v6
       v3 = ne v1, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
       v7 = ptrtoint memptr v0 to i256
-      v4 = mload v7
+      v4 = load v7
       ret v4
   }
   
@@ -322,14 +322,14 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v7 = ptrtoint memptr v0 to i256
-      v1 = mload v7
+      v1 = load v7
       v3 = ne v1, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
       v8 = ptrtoint memptr v0 to i256
-      v4 = mload v8
+      v4 = load v8
       v6 = add v1, v4
       ret v6
   }
@@ -339,13 +339,13 @@
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v6 = ptrtoint memptr v0 to i256
 -     v1 = make_memory_slice v6, 1
-      v2 = mload v6
+      v2 = load v6
       v3 = ne v2, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
-      v4 = mload v6
+      v4 = load v6
       v5 = add v2, v4
       ret v5
   }
@@ -354,58 +354,58 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
       v6 = ptrtoint memptr v0 to i256
       v3 = add v6, 32
-      mstore v3, 0
+      store v3, 0
       jump bb1
     bb1:
       v7 = ptrtoint memptr v0 to i256
-      v4 = mload v7
+      v4 = load v7
       ret v4
   }
   
   fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
-      mstore v0, arg1
+      store v0, 3
+      store v0, arg1
       v3 = ptrtoint memptr arg0 to i256
-      v1 = mload v3
+      v1 = load v3
       ret v1
   }
   
   fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
+      store v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      mstore v0, 4
+      store v0, 4
       jump bb3
     bb3:
       v4 = ptrtoint memptr arg0 to i256
-      v2 = mload v4
+      v2 = load v4
       ret v2
   }
   
   fn @loop_header_clobber(arg0: memptr) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 7
+      store v0, 7
       jump bb1
     bb1:
       v4 = ptrtoint memptr arg0 to i256
-      v1 = mload v4
+      v1 = load v4
       v3 = ne v1, 0
       jumpi v3, bb2, bb3
     bb3:
       ret v1
     bb2:
-      mstore v0, 0
+      store v0, 0
       jump bb1
   }
   
@@ -413,14 +413,14 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
       v2 = inttoptr i256 v1 to memptr
       set_fmp v2
       v3 = alloc raw, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
-      mstore v4, 4
+      store v4, 4
       v7 = ptrtoint memptr v0 to i256
-      v5 = mload v7
+      v5 = load v7
       ret v5
   }
   
@@ -428,18 +428,18 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v7 = ptrtoint memptr arg0 to i256
-      v1 = mload v7
+      v1 = load v7
       v3 = ptrtoint memptr v0 to i256
-      mstore v3, 7
+      store v3, 7
       v8 = ptrtoint memptr arg0 to i256
-      v4 = mload v8
+      v4 = load v8
       v6 = add v1, v4
       ret v6
   }
   
   fn @fabricated_parameter() -> i256 {
     bb0:
-      v0 = mload 64
+      v0 = load 64
       v1 = inttoptr i256 v0 to memptr
       v2 = icall @parameter_may_overlap_allocation, v1
       ret v2
@@ -475,16 +475,16 @@
   fn @invalidate_length(arg0: memptr) -> i256 [may_return_memory] {
     bb0:
       v9 = ptrtoint memptr arg0 to i256
-      v0 = mload v9
+      v0 = load v9
 -     v10 = ptrtoint memptr arg0 to i256
--     v2 = mload v10
+-     v2 = load v10
 -     v4 = ptrtoint memptr arg0 to i256
--     mstore v4, 9
+-     store v4, 9
 -     v11 = ptrtoint memptr arg0 to i256
--     v5 = mload v11
+-     v5 = load v11
 -     v7 = add v0, v2
 -     v8 = add v7, v5
-+     mstore v9, 9
++     store v9, 9
 +     v7 = add v0, v0
 +     v8 = add v7, 9
       ret v8
@@ -494,15 +494,15 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v6 = ptrtoint memptr v0 to i256
-      v1 = mload v6
+      v1 = load v6
       v3 = ne v1, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
 -     v7 = ptrtoint memptr v0 to i256
--     v4 = mload v7
-+     v4 = mload v6
+-     v4 = load v7
++     v4 = load v6
       ret v4
   }
   
@@ -510,14 +510,14 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v7 = ptrtoint memptr v0 to i256
-      v1 = mload v7
+      v1 = load v7
       v3 = ne v1, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
 -     v8 = ptrtoint memptr v0 to i256
--     v4 = mload v8
+-     v4 = load v8
 -     v6 = add v1, v4
 +     v6 = add v1, v1
       ret v6
@@ -527,13 +527,13 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v6 = ptrtoint memptr v0 to i256
-      v2 = mload v6
+      v2 = load v6
       v3 = ne v2, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
--     v4 = mload v6
+-     v4 = load v6
 -     v5 = add v2, v4
 +     v5 = add v2, v2
       ret v5
@@ -543,15 +543,15 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
 -     v6 = ptrtoint memptr v0 to i256
 -     v3 = add v6, 32
 +     v3 = add v1, 32
-      mstore v3, 0
+      store v3, 0
       jump bb1
     bb1:
 -     v7 = ptrtoint memptr v0 to i256
--     v4 = mload v7
+-     v4 = load v7
 -     ret v4
 +     ret 3
   }
@@ -559,10 +559,10 @@
   fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
-      mstore v0, arg1
+      store v0, 3
+      store v0, arg1
 -     v3 = ptrtoint memptr arg0 to i256
--     v1 = mload v3
+-     v1 = load v3
 -     ret v1
 +     ret arg1
   }
@@ -570,36 +570,36 @@
   fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
+      store v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      mstore v0, 4
+      store v0, 4
       jump bb3
     bb3:
 -     v4 = ptrtoint memptr arg0 to i256
--     v2 = mload v4
-+     v2 = mload v0
+-     v2 = load v4
++     v2 = load v0
       ret v2
   }
   
   fn @loop_header_clobber(arg0: memptr) -> i256 [may_return_memory] {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 7
+      store v0, 7
       jump bb1
     bb1:
 -     v4 = ptrtoint memptr arg0 to i256
--     v1 = mload v4
-+     v1 = mload v0
+-     v1 = load v4
++     v1 = load v0
       v3 = ne v1, 0
       jumpi v3, bb2, bb3
     bb3:
       ret v1
     bb2:
-      mstore v0, 0
+      store v0, 0
       jump bb1
   }
   
@@ -607,15 +607,15 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
       v2 = inttoptr i256 v1 to memptr
       set_fmp v2
       v3 = alloc raw, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
-      mstore v4, 4
+      store v4, 4
 -     v7 = ptrtoint memptr v0 to i256
--     v5 = mload v7
-+     v5 = mload v1
+-     v5 = load v7
++     v5 = load v1
       ret v5
   }
   
@@ -623,19 +623,19 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v7 = ptrtoint memptr arg0 to i256
-      v1 = mload v7
+      v1 = load v7
       v3 = ptrtoint memptr v0 to i256
-      mstore v3, 7
+      store v3, 7
 -     v8 = ptrtoint memptr arg0 to i256
--     v4 = mload v8
-+     v4 = mload v7
+-     v4 = load v8
++     v4 = load v7
       v6 = add v1, v4
       ret v6
   }
   
   fn @fabricated_parameter() -> i256 {
     bb0:
-      v0 = mload 64
+      v0 = load 64
       v1 = inttoptr i256 v0 to memptr
       v2 = icall @parameter_may_overlap_allocation, v1
       ret v2

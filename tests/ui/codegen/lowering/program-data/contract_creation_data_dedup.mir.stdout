@@ -11,7 +11,7 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 fn @payload() -> memptr [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    mstore v0, 128
+    store v0, 128
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
     datacopy literal_0, v2, 128
@@ -34,7 +34,7 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -56,7 +56,7 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
-    v20 = mload v19
+    v20 = load v19
     ret v20
 }
 
@@ -71,7 +71,7 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -93,7 +93,7 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
-    v20 = mload v19
+    v20 = load v19
     ret v20
 }
 
@@ -108,7 +108,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -125,7 +125,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v16 = slice_ptr v11
     v17 = ptrtoint memptr v14 to i256
     v18 = add v17, v12
-    mcopy v18, v16, 0 !metadata(memory=heap)
+    copy v18, v16, 0 !metadata(memory=heap)
     v19 = ptrtoint memptr v14 to i256
     v20 = create 0, v19, v12
     v21 = ne v20, i160 0
@@ -147,7 +147,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v29 = lt v28, 32
     icall revert_if<tuple_data_too_short>, v29
     v30 = add 0, 0
-    v31 = mload v30
+    v31 = load v30
     v32 = gas
     v33 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v34 = slice_ptr v33
@@ -162,7 +162,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v39 = lt v38, 32
     icall revert_if<tuple_data_too_short>, v39
     v40 = add 0, 0
-    v41 = mload v40
+    v41 = load v40
     v42 = checked_add u256, v31, v41
     ret v42
 }

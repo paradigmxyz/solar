@@ -10,9 +10,9 @@
 +   bb3:
 +     jump bb1
 +   bb1:
-      v0 = mload arg0
+      v0 = load arg0
       v1 = add v0, arg1
-      mstore 128, v1
+      store 128, v1
       returndata 128, 32
 +   bb2:
 +     revert 0, 0

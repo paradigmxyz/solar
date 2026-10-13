@@ -54,7 +54,7 @@
       stop
     bb2:
 -     v4 = ptrtoint memptr arg0 to i256
-      mstore v4, v0
+      store v4, v0
       v5 = add v0, 1
       jump bb1
   }
@@ -71,7 +71,7 @@
     bb3:
       stop
     bb2:
-      mstore arg1, v0
+      store arg1, v0
       v4 = add v0, 1
       jump bb1
   }
@@ -80,7 +80,7 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 32
+      store v1, 32
       jump bb1
     bb1:
       v2 = phi [bb0: 0], [bb2: v9]

@@ -39,7 +39,7 @@ fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, abi_params=[u256, bool], a
     v10 = sload 10 !metadata(storage=slot(10))
     v11 = sload 11 !metadata(storage=slot(11))
     v12 = calldatasize
-    calldatacopy 128, v12, arg0
+    copy calldata 128, v12, arg0
     v13 = ne arg1, 0
     jumpi v13, bb1, bb2
   bb2:
@@ -62,6 +62,6 @@ fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, abi_params=[u256, bool], a
     v25 = add v24, v9
     v26 = add v25, v10
     v27 = add v26, v11
-    mstore 0, v27 !metadata(memory=scratch)
+    store 0, v27 !metadata(memory=scratch)
     returndata 0, 32
 }

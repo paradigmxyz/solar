@@ -3,9 +3,9 @@
   @module RestoredCalls
   fn @reuse(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = load arg0
       v1 = icall @restore, arg0, arg1
--     v2 = mload arg0
+-     v2 = load arg0
 -     v3 = add v0, v2
 +     v3 = add v0, v0
       v4 = add v3, v1
@@ -14,16 +14,16 @@
   
   fn @restore(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = mload arg0
-      mstore arg0, 17
+      v0 = load arg0
+      store arg0, 17
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb2: v3]
       v2 = lt v1, arg1
       jumpi v2, bb2, bb3
     bb3:
--     v4 = mload arg0
-      mstore arg0, v0
+-     v4 = load arg0
+      store arg0, v0
 -     ret v4
 +     ret 17
     bb2:
@@ -33,20 +33,20 @@
   
   fn @dirty_sibling(arg0: i256, arg1: i1) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = load arg0
       icall @conditional, arg0, arg1
-      v1 = mload arg0
+      v1 = load arg0
       v2 = add v0, v1
       ret v2
   }
   
   fn @conditional(arg0: i256, arg1: i1) {
     bb0:
-      v0 = mload arg0
-      mstore arg0, 17
+      v0 = load arg0
+      store arg0, 17
       jumpi arg1, bb1, bb2
     bb1:
-      mstore arg0, v0
+      store arg0, v0
       jump bb2
     bb2:
       ret
@@ -54,9 +54,9 @@
   
   fn @loop_save(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = load arg0
       icall @cyclic_save, arg0, arg1
-      v1 = mload arg0
+      v1 = load arg0
       v2 = add v0, v1
       ret v2
   }
@@ -66,39 +66,39 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb1: v2]
-      v1 = mload arg0
-      mstore arg0, 17
+      v1 = load arg0
+      store arg0, 17
       v2 = add v0, 1
       v3 = lt v2, arg1
       jumpi v3, bb1, bb2
     bb2:
-      mstore arg0, v1
+      store arg0, v1
       ret
   }
   
   fn @other_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = load arg0
       icall @overlap, arg0, arg1
-      v1 = mload arg0
+      v1 = load arg0
       v2 = add v0, v1
       ret v2
   }
   
   fn @overlap(arg0: i256, arg1: i256) {
     bb0:
-      v0 = mload arg0
-      mstore arg0, 17
-      mstore arg1, 19
-      mstore arg0, v0
+      v0 = load arg0
+      store arg0, 17
+      store arg1, 19
+      store arg0, v0
       ret
   }
   
   fn @partial_write(arg0: i256) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = load arg0
       icall @partial, arg0
--     v1 = mload arg0
+-     v1 = load arg0
 -     v2 = add v0, v1
 +     v2 = add v0, v0
       ret v2
@@ -106,10 +106,10 @@
   
   fn @partial(arg0: i256) {
     bb0:
-      v0 = mload arg0
-      mstore arg0, 17
-      mstore8 arg0, 19
-      mstore arg0, v0
+      v0 = load arg0
+      store arg0, 17
+      store8 arg0, 19
+      store arg0, v0
       ret
   }
   
@@ -125,7 +125,7 @@
   fn @intervening_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = icall @restore, arg0, arg1
-      mstore8 arg0, 1
+      store8 arg0, 1
       v1 = icall @restore, arg0, arg1
       v2 = add v0, v1
       ret v2
@@ -133,20 +133,20 @@
   
   fn @late_save(arg0: i256) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = load arg0
       icall @save_after_write, arg0
-      v1 = mload arg0
+      v1 = load arg0
       v2 = add v0, v1
       ret v2
   }
   
   fn @save_after_write(arg0: i256) {
     bb0:
-      mstore arg0, 17
--     v0 = mload arg0
-      mstore arg0, 19
--     mstore arg0, v0
-+     mstore arg0, 17
+      store arg0, 17
+-     v0 = load arg0
+      store arg0, 19
+-     store arg0, v0
++     store arg0, 17
       ret
   }
   
@@ -160,10 +160,10 @@
   
   fn @reads_gas(arg0: i256) -> i256 {
     bb0:
-      v0 = mload arg0
-      mstore arg0, 17
+      v0 = load arg0
+      store arg0, 17
       v1 = gas
-      mstore arg0, v0
+      store arg0, v0
       ret v1
   }
   
@@ -178,9 +178,9 @@
   fn @reads_size(arg0: i256) -> i256 {
     bb0:
       v0 = msize
-      v1 = mload arg0
-      mstore arg0, 17
-      mstore arg0, v1
+      v1 = load arg0
+      store arg0, 17
+      store arg0, v1
       ret v0
   }
   

@@ -15,7 +15,8 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout, utils::IndexLists,
+    Module, PtrLocation, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    utils::IndexLists,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -656,7 +657,7 @@ fn local_summary(
     for (block_id, block) in func.blocks.iter_enumerated() {
         // A write or free-memory-pointer move on a path that can only revert is
         // rolled back with the call frame, so no caller observes it; a panic
-        // block's `mstore` of the error selector does not make a helper a
+        // block's `store` of the error selector does not make a helper a
         // memory writer. Reads stay: revert data may expose them.
         let returns = returning.contains(block_id);
         for &inst_id in &block.instructions {
@@ -705,8 +706,8 @@ fn local_summary(
             }
 
             match kind {
-                InstKind::MStore(_, value)
-                | InstKind::MStore8(_, value)
+                InstKind::Store(_, value)
+                | InstKind::Store8(_, value)
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value)
                 | InstKind::SetFmp(value)
@@ -773,7 +774,7 @@ fn local_summary(
             }
         }
     }
-    // saved = mload p; mstore p, temporary; ...; mstore p, saved; ret
+    // saved = load p; store p, temporary; ...; store p, saved; ret
     // => no net memory write on a returning path
     if summary.writes(AddressSpace::Memory) && super::memory_restoration::restores_memory(func, aa)
     {
@@ -823,7 +824,9 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             InstKind::Fmp
             | InstKind::MSize
             | InstKind::ICall { function: Callee::Function(_), .. } => true,
-            InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
             _ => false,
         };
         if root && let Some(result) = func.inst_result_value(inst_id) {
@@ -882,7 +885,7 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize | InstKind::MappingSlotBytes(..) => {
             true
         }
-        InstKind::MLoad(address) | InstKind::MStore(address, _) => {
+        InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         _ => false,
@@ -892,18 +895,16 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
-        InstKind::MStore(address, value) => {
+        InstKind::Store(address, value) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
             }
             !is_monotonic_fmp_advance(func, value)
         }
-        InstKind::MStore8(address, _)
-        | InstKind::MCopy(address, _, _)
+        InstKind::Store8(address, _)
+        | InstKind::Copy(address, ..)
         | InstKind::MemoryZero(address, _)
-        | InstKind::CalldataCopy(address, _, _)
-        | InstKind::CodeCopy(address, _, _)
-        | InstKind::ReturnDataCopy(address, _, _) => {
+        | InstKind::CodeCopy(address, _, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         InstKind::ExtCodeCopy(_, address, _, _) => {
@@ -949,7 +950,9 @@ fn is_fmp_derived(
 
     let result = match func.value(value) {
         Value::Inst(inst_id) => match func.inst(*inst_id).kind.clone() {
-            InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::Load(address, PtrLocation::Memory) => {
+                func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+            }
             InstKind::Add(first, second) => {
                 (is_fmp_derived(func, first, visiting, anchor, supported)
                     && is_nonnegative_offset(func, second))
@@ -987,14 +990,12 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
             | InstKind::Sar(_, _)
             | InstKind::Not(_)
             | InstKind::SetFmp(_)
-            | InstKind::MStore(_, _)
-            | InstKind::MStore8(_, _)
-            | InstKind::MCopy(_, _, _)
+            | InstKind::Store(_, _)
+            | InstKind::Store8(_, _)
+            | InstKind::Copy(..)
             | InstKind::MemoryZero(_, _)
-            | InstKind::CalldataCopy(_, _, _)
             | InstKind::CodeCopy(_, _, _)
-            | InstKind::ReturnDataCopy(_, _, _)
-            | InstKind::ExtCodeCopy(_, _, _, _)
+            | InstKind::ExtCodeCopy(..)
             | InstKind::Call { .. }
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
@@ -1084,8 +1085,7 @@ fn instruction_compares_values(kind: &InstKind) -> bool {
 fn instruction_loads_data(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::MLoad(_)
-            | InstKind::CalldataLoad(_)
+        InstKind::Load(_, _)
             | InstKind::SLoad(_)
             | InstKind::TLoad(_)
             | InstKind::Keccak256(_, _)

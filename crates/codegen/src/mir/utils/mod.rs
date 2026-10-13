@@ -4,7 +4,9 @@
 //! local edge helpers below. New edges need explicit phi inputs; none of these helpers updates
 //! cached analyses or reconstructs SSA after moving definitions.
 
-use crate::mir::{BasicBlock, BlockId, Function, InstKind, Instruction, Terminator, ValueId};
+use crate::mir::{
+    BasicBlock, BlockId, Function, InstKind, Instruction, PtrLocation, Terminator, ValueId,
+};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -361,16 +363,14 @@ pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
 pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::MLoad(_)
-            | InstKind::MStore(_, _)
-            | InstKind::MStore8(_, _)
+        InstKind::Load(_, PtrLocation::Memory)
+            | InstKind::Store(_, _)
+            | InstKind::Store8(_, _)
             | InstKind::MemoryZero(_, _)
-            | InstKind::MCopy(_, _, _)
-            | InstKind::CalldataCopy(_, _, _)
+            | InstKind::Copy(..)
             | InstKind::DataCopy(_, _, _)
             | InstKind::CodeCopy(_, _, _)
-            | InstKind::ReturnDataCopy(_, _, _)
-            | InstKind::ExtCodeCopy(_, _, _, _)
+            | InstKind::ExtCodeCopy(..)
             | InstKind::Keccak256(_, _)
             | InstKind::MappingSlotBytes(_, _)
     )

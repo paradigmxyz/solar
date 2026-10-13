@@ -10,14 +10,14 @@
 //!
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
-//! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
+//! is conservative: any read of the allocation (`load`, `keccak256`, a copy
 //! that reads it, or an escape into a call/return) keeps every write. Writes must fit a known
 //! allocation extent; writes outside it can affect other objects, even when this object is unread.
 //! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
@@ -264,7 +264,7 @@ impl CopyElisionCx {
                 let inst = func.inst(inst_id);
                 match &inst.kind {
                     // Writes to the allocation: the address is a derived value.
-                    InstKind::MStore(addr, value) => {
+                    InstKind::Store(addr, value) => {
                         if derived.contains(value) {
                             return None; // Storing an interior address elsewhere is a read/escape.
                         }
@@ -272,7 +272,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MStore8(addr, value) => {
+                    InstKind::Store8(addr, value) => {
                         if derived.contains(value) {
                             return None;
                         }
@@ -302,10 +302,9 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::CalldataCopy(dest, _, _)
+                    InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, dest, _)
-                    | InstKind::CodeCopy(dest, _, _)
-                    | InstKind::ReturnDataCopy(dest, _, _) => {
+                    | InstKind::CodeCopy(dest, _, _) => {
                         if derived.contains(dest) {
                             writes.push(inst_id);
                         }
@@ -315,7 +314,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::MCopy(dest, source, _) => {
+                    InstKind::Copy(dest, source, _, PtrLocation::Memory) => {
                         if derived.contains(source) {
                             return None; // Read as a copy source.
                         }
@@ -324,7 +323,7 @@ impl CopyElisionCx {
                         }
                     }
                     // Reads of the allocation keep every write.
-                    InstKind::MLoad(addr) | InstKind::SliceLen(addr) => {
+                    InstKind::Load(addr, PtrLocation::Memory) | InstKind::SliceLen(addr) => {
                         if derived.contains(addr) {
                             return None;
                         }

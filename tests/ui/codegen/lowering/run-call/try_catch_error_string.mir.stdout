@@ -22,7 +22,7 @@ fn @constructor() [constructor] {
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -102,7 +102,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
-    v3 = mload v2
+    v3 = load v2
     v4 = gt v3, 0xffffffffffffffff
     v5 = add v3, 36
     v6 = gt v5, arg1
@@ -111,7 +111,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v7, bb3, bb2
   bb2:
     v9 = add v2, v3
-    v10 = mload v9
+    v10 = load v9
     v11 = gt v10, 0xffffffffffffffff
     v12 = sub arg1, v5
     v13 = gt v10, v12

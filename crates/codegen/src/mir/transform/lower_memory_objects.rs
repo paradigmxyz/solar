@@ -114,10 +114,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             return false;
                         }
                         // header = ptrtoint object to i256
-                        // view = mload header
+                        // view = load header
                         let header = builder.cast(object, MirType::I256);
                         let instruction = builder.func_mut().inst_mut(inst);
-                        instruction.kind = InstKind::MLoad(header);
+                        instruction.kind = InstKind::Load(header, PtrLocation::Memory);
                         instruction.result_ty = Some(MirType::I256);
                     }
                     InstKind::SliceLen(slice) if views.contains_key(&slice) => {
@@ -162,11 +162,11 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                     InstKind::SliceStoreByte { slice, index, value } => {
                         let base = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, base, index);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Store8(address, value);
                     }
                     InstKind::SliceStoreWord { slice, offset, value } => {
                         let address = slice_word_address::<P>(&mut builder, &views, slice, offset);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Store(address, value);
                     }
                     InstKind::SliceLoadWord { slice, offset } => {
                         let Some(kind) = slice_word_load::<P>(&mut builder, &views, slice, offset)
@@ -256,7 +256,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 let member =
                     |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
                 let derived = match func.inst(next_id).kind {
-                    InstKind::MStore(address, _) | InstKind::MStore8(address, _) => {
+                    InstKind::Store(address, _) | InstKind::Store8(address, _) => {
                         let Some((owner, _)) = owners[address] else { break };
                         allocations[owner].2 = true;
                         scan += 1;
@@ -346,14 +346,6 @@ fn constant_raw_allocation(
     })
 }
 
-fn slice_load_kind(location: PtrLocation, address: crate::mir::ValueId) -> Option<InstKind> {
-    match location {
-        PtrLocation::Calldata => Some(InstKind::CalldataLoad(address)),
-        PtrLocation::Memory => Some(InstKind::MLoad(address)),
-        PtrLocation::Returndata => None,
-    }
-}
-
 fn dynamic_offset_address(
     builder: &mut FunctionBuilder<'_>,
     base: crate::mir::ValueId,
@@ -368,10 +360,10 @@ fn memory_slice_parts<P: MemoryLayoutPolicy>(
     object: crate::mir::ValueId,
 ) -> (crate::mir::ValueId, crate::mir::ValueId) {
     // header = ptrtoint object to i256
-    // len = mload header
+    // len = load header
     // data = add header, P::DYNAMIC_HEADER_SIZE
     let header = builder.cast(object, MirType::I256);
-    let len = builder.mload(header);
+    let len = builder.load(header, PtrLocation::Memory);
     let data = builder.add_u64_offset(header, P::DYNAMIC_HEADER_SIZE);
     (data, len)
 }
@@ -459,7 +451,7 @@ fn slice_word_load<P: MemoryLayoutPolicy>(
 ) -> Option<InstKind> {
     let location = slice_location(builder.func(), views, slice)?;
     let address = slice_word_address::<P>(builder, views, slice, offset);
-    slice_load_kind(location, address)
+    (location != PtrLocation::Returndata).then_some(InstKind::Load(address, location))
 }
 
 /// Returns the address of the word at a byte offset into a slice. A local view at a constant
@@ -494,11 +486,7 @@ fn lower_slice_copy<P: MemoryLayoutPolicy>(
     let source_ptr = slice_data::<P>(builder, views, source);
     // A local view becomes its own length load.
     let length = if views.contains_key(&source) { source } else { builder.slice_len(source) };
-    Some(match location {
-        PtrLocation::Memory => InstKind::MCopy(destination, source_ptr, length),
-        PtrLocation::Calldata => InstKind::CalldataCopy(destination, source_ptr, length),
-        PtrLocation::Returndata => InstKind::ReturnDataCopy(destination, source_ptr, length),
-    })
+    Some(InstKind::Copy(destination, source_ptr, length, location))
 }
 
 /// Materializes integer operands and pointer results at the physical opcode boundary.
@@ -509,13 +497,12 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
         builder.switch_to_block(block);
         for id in instructions {
             let inst = builder.func().inst(id).clone();
-            // `mload` and `mstore` accept a `memptr` address, which `scalar_types_match` allows;
-            // cast it too, so every use of the object's address shares one stack value.
-            let pointer_address = matches!(
-                inst.kind,
-                InstKind::MLoad(address) | InstKind::MStore(address, _)
-                    if builder.func().value_ty(address) == Some(MirType::MEMPTR)
-            );
+            // Memory accesses accept a `memptr` address, which `scalar_types_match` allows; cast
+            // it too, so every use of the object's address shares one stack value.
+            let mut pointer_address = false;
+            inst.kind.visit_operands(|value| {
+                pointer_address |= builder.func().value_ty(value) == Some(MirType::MEMPTR);
+            });
             if inst.kind.evm_opcode().is_some()
                 && (pointer_address
                     || !inst.kind.scalar_types_match(builder.func(), inst.result_ty))

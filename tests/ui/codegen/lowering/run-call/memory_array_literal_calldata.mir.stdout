@@ -27,7 +27,7 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    mstore v19, v14
+    store v19, v14
     v20 = ptrtoint memptr v19 to i256
     v21 = add v20, 32
     v22 = slice_len arg0
@@ -50,7 +50,7 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v34 = not 31
     v35 = and v32, v34
     v36 = alloc memorybytes, exact, uninitialized, infallible, v35
-    mstore v36, v31
+    store v36, v31
     v37 = ptrtoint memptr v36 to i256
     v38 = add v37, 32
     v39 = slice_len arg1

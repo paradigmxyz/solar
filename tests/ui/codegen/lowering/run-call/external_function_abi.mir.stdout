@@ -57,14 +57,14 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v21 = abi_encode [function], object, args v3
     v22 = ptrtoint memptr v21 to i256
     v23 = add v22, 32
-    v24 = mload v23
+    v24 = load v23
     v25 = trunc i256 v24 to i64
     v26 = eq v25, i64 0
     icall require<short_string>, v26, 7, 0x70616464696e6700000000000000000000000000000000000000000000000000
     v27 = abi_encode [function], object, selector 0x90898ee400000000000000000000000000000000000000000000000000000000, args v3
     v28 = ptrtoint memptr v27 to i256
     v29 = add v28, 67
-    mstore8 v29, 1
+    store8 v29, 1
     v30 = address
     v31 = gas
     v32 = address_call v30, v27, gas v31
@@ -115,7 +115,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v67 = eq v66, 7
     icall require<short_string>, v67, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
     v68 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v68, 1
+    store v68, 1
     v69 = memory_slice v68
     v70 = slice_len v69
     v71 = lt 0, v70

@@ -193,7 +193,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v166 = eq v165, 0
     icall panic_if<0x41>, v166
     v167 = alloc memoryarray<1>, exact, uninitialized, panic, v160
-    mstore v167, v150
+    store v167, v150
     jump bb7
   bb7:
     v168 = phi [bb2: 0], [bb12: v191]

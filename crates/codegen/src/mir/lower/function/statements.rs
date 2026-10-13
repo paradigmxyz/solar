@@ -659,7 +659,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (zero, zero)
         } else if matches!(data_types.as_slice(), [AbiType::Word(_)]) {
             let zero = self.builder.imm(0);
-            self.builder.mstore(zero, data_values[0]);
+            self.builder.store(zero, data_values[0]);
             (zero, self.builder.imm(32))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));

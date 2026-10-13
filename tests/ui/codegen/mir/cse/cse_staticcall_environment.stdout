@@ -30,9 +30,9 @@
   
   fn @keep_memory_reads_across_staticcall(arg0: i256) -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = staticcall 0x186a0, arg0, 0, 0, 128, 32
-      v2 = mload 128
+      v2 = load 128
       v3 = add v0, v2
       v4 = zext i1 v1 to i256
       v5 = add v3, v4

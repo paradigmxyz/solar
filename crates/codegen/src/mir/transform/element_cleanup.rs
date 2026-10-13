@@ -235,7 +235,7 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
             }
             // A direct allocation's header is separate from existing array elements.
-            InstKind::MStore(..)
+            InstKind::Store(..)
                 if func.memory_length_store(inst).is_some_and(|(object, _)| {
                     matches!(func.value(object), Value::Inst(alloc)
                         if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }))
@@ -248,7 +248,7 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             | InstKind::FrameStore { .. }
             | InstKind::MemoryZero(..)
             | InstKind::StorageArrayLoad { .. } => 0,
-            InstKind::MStore(..) | InstKind::MStore8(..) => {
+            InstKind::Store(..) | InstKind::Store8(..) => {
                 if instruction.metadata.memory_region() == Some(MemoryRegion::Scratch) {
                     0
                 } else {

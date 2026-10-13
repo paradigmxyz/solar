@@ -5,7 +5,7 @@ fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[u8], abi_retur
     v0 = not 31
     v1 = and 64, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 1
+    store v2, 1
     v3 = zext i8 arg0 to i256
     v4 = shl 248, v3
     v5 = memory_slice v2
@@ -91,7 +91,7 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     v0 = not 31
     v1 = and 64, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 1
+    store v2, 1
     jump bb1
   bb1:
     v3 = phi [bb0: 0], [bb3: v19]
@@ -107,7 +107,7 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     ret v3
   bb4:
     v9 = ptrtoint memptr v4 to i256
-    mstore v9, 0
+    store v9, 0
     v10 = memory_slice v4
     v11 = slice_len v10
     v12 = lt v5, v11
@@ -153,14 +153,14 @@ fn @shrink(arg0: i256, arg1: i256) -> i256 [selector=0xefab6938, pure, abi_param
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, zeroed, panic, v12
-    mstore v19, arg0
+    store v19, arg0
     v20 = memory_slice v19
     v21 = slice_len v20
     v22 = gt v21, 0
     v23 = eq v22, false
     icall revert_if<empty>, v23
     v24 = ptrtoint memptr v19 to i256
-    mstore v24, arg1
+    store v24, arg1
     v25 = memory_slice v19
     v26 = slice_len v25
     v27 = lt 0, v26

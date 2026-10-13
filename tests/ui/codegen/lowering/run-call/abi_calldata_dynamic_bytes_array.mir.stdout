@@ -25,7 +25,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = calldataload v5
+    v9 = load calldata v5
     v10 = add v4, v9
     v11 = calldatasize
     v12 = sub v11, v4
@@ -33,7 +33,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v14 = slt v9, v13
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
-    v16 = calldataload v10
+    v16 = load calldata v10
     v17 = gt v16, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v17
     v18 = mul v16, 1
@@ -55,7 +55,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v32 = sub v31, v30
     v33 = slt v32, 32
     icall revert_if<calldata_tail_too_short>, v33
-    v34 = calldataload v30
+    v34 = load calldata v30
     v35 = add v29, v34
     v36 = calldatasize
     v37 = sub v36, v29
@@ -63,7 +63,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v39 = slt v34, v38
     v40 = eq v39, false
     icall revert_if<invalid_calldata_tail_offset>, v40
-    v41 = calldataload v35
+    v41 = load calldata v35
     v42 = gt v41, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v42
     v43 = mul v41, 1
@@ -81,7 +81,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v53 = slice_ptr v49
     v54 = slice_ptr v49
     v55 = add v54, 0
-    v56 = calldataload v55
+    v56 = load calldata v55
     v57 = byte 0, v56
     v58 = shl 248, v57
     v59 = shr 248, v58
@@ -97,7 +97,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v68 = sub v67, v66
     v69 = slt v68, 32
     icall revert_if<calldata_tail_too_short>, v69
-    v70 = calldataload v66
+    v70 = load calldata v66
     v71 = add v65, v70
     v72 = calldatasize
     v73 = sub v72, v65
@@ -105,7 +105,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v75 = slt v70, v74
     v76 = eq v75, false
     icall revert_if<invalid_calldata_tail_offset>, v76
-    v77 = calldataload v71
+    v77 = load calldata v71
     v78 = gt v77, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v78
     v79 = mul v77, 1
@@ -123,7 +123,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v89 = slice_ptr v85
     v90 = slice_ptr v85
     v91 = add v90, 1
-    v92 = calldataload v91
+    v92 = load calldata v91
     v93 = byte 0, v92
     v94 = shl 248, v93
     v95 = shr 248, v94
@@ -139,7 +139,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v104 = sub v103, v102
     v105 = slt v104, 32
     icall revert_if<calldata_tail_too_short>, v105
-    v106 = calldataload v102
+    v106 = load calldata v102
     v107 = add v101, v106
     v108 = calldatasize
     v109 = sub v108, v101
@@ -147,7 +147,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v111 = slt v106, v110
     v112 = eq v111, false
     icall revert_if<invalid_calldata_tail_offset>, v112
-    v113 = calldataload v107
+    v113 = load calldata v107
     v114 = gt v113, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v114
     v115 = mul v113, 1
@@ -169,7 +169,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v129 = sub v128, v127
     v130 = slt v129, 32
     icall revert_if<calldata_tail_too_short>, v130
-    v131 = calldataload v127
+    v131 = load calldata v127
     v132 = add v126, v131
     v133 = calldatasize
     v134 = sub v133, v126
@@ -177,7 +177,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v136 = slt v131, v135
     v137 = eq v136, false
     icall revert_if<invalid_calldata_tail_offset>, v137
-    v138 = calldataload v132
+    v138 = load calldata v132
     v139 = gt v138, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v139
     v140 = mul v138, 1
@@ -195,7 +195,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v150 = slice_ptr v146
     v151 = slice_ptr v146
     v152 = add v151, 0
-    v153 = calldataload v152
+    v153 = load calldata v152
     v154 = byte 0, v153
     v155 = shl 248, v154
     v156 = shr 248, v155
@@ -211,7 +211,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v165 = sub v164, v163
     v166 = slt v165, 32
     icall revert_if<calldata_tail_too_short>, v166
-    v167 = calldataload v163
+    v167 = load calldata v163
     v168 = add v162, v167
     v169 = calldatasize
     v170 = sub v169, v162
@@ -219,7 +219,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v172 = slt v167, v171
     v173 = eq v172, false
     icall revert_if<invalid_calldata_tail_offset>, v173
-    v174 = calldataload v168
+    v174 = load calldata v168
     v175 = gt v174, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v175
     v176 = mul v174, 1
@@ -237,7 +237,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v186 = slice_ptr v182
     v187 = slice_ptr v182
     v188 = add v187, 1
-    v189 = calldataload v188
+    v189 = load calldata v188
     v190 = byte 0, v189
     v191 = shl 248, v190
     v192 = shr 248, v191
@@ -253,7 +253,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v201 = sub v200, v199
     v202 = slt v201, 32
     icall revert_if<calldata_tail_too_short>, v202
-    v203 = calldataload v199
+    v203 = load calldata v199
     v204 = add v198, v203
     v205 = calldatasize
     v206 = sub v205, v198
@@ -261,7 +261,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v208 = slt v203, v207
     v209 = eq v208, false
     icall revert_if<invalid_calldata_tail_offset>, v209
-    v210 = calldataload v204
+    v210 = load calldata v204
     v211 = gt v210, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v211
     v212 = mul v210, 1
@@ -279,7 +279,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v222 = slice_ptr v218
     v223 = slice_ptr v218
     v224 = add v223, 2
-    v225 = calldataload v224
+    v225 = load calldata v224
     v226 = byte 0, v225
     v227 = shl 248, v226
     v228 = shr 248, v227

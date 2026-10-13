@@ -8,7 +8,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -16,7 +16,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
@@ -34,7 +34,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v25 = sub v24, v23
     v26 = slt v25, 32
     icall revert_if<calldata_tail_too_short>, v26
-    v27 = calldataload v23
+    v27 = load calldata v23
     v28 = add v22, v27
     v29 = calldatasize
     v30 = sub v29, v22
@@ -42,7 +42,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v32 = slt v27, v31
     v33 = eq v32, false
     icall revert_if<invalid_calldata_tail_offset>, v33
-    v34 = calldataload v28
+    v34 = load calldata v28
     v35 = gt v34, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v35
     v36 = mul v34, 32
@@ -59,7 +59,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     icall panic_if<0x32>, v45
     v46 = slice_ptr v42
     v47 = add v46, 0
-    v48 = calldataload v47
+    v48 = load calldata v47
     v49 = checked_add u256, v21, v48
     v50 = slice_ptr arg0
     v51 = add v50, 32
@@ -67,7 +67,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v53 = sub v52, v51
     v54 = slt v53, 32
     icall revert_if<calldata_tail_too_short>, v54
-    v55 = calldataload v51
+    v55 = load calldata v51
     v56 = add v50, v55
     v57 = calldatasize
     v58 = sub v57, v50
@@ -75,7 +75,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v60 = slt v55, v59
     v61 = eq v60, false
     icall revert_if<invalid_calldata_tail_offset>, v61
-    v62 = calldataload v56
+    v62 = load calldata v56
     v63 = gt v62, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v63
     v64 = mul v62, 32
@@ -94,7 +94,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v76 = sub v75, v74
     v77 = slt v76, 32
     icall revert_if<calldata_tail_too_short>, v77
-    v78 = calldataload v74
+    v78 = load calldata v74
     v79 = add v73, v78
     v80 = calldatasize
     v81 = sub v80, v73
@@ -102,7 +102,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v83 = slt v78, v82
     v84 = eq v83, false
     icall revert_if<invalid_calldata_tail_offset>, v84
-    v85 = calldataload v79
+    v85 = load calldata v79
     v86 = gt v85, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v86
     v87 = mul v85, 32
@@ -125,7 +125,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v99 = sub v98, v97
     v100 = slt v99, 32
     icall revert_if<calldata_tail_too_short>, v100
-    v101 = calldataload v97
+    v101 = load calldata v97
     v102 = add v96, v101
     v103 = calldatasize
     v104 = sub v103, v96
@@ -133,7 +133,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v106 = slt v101, v105
     v107 = eq v106, false
     icall revert_if<invalid_calldata_tail_offset>, v107
-    v108 = calldataload v102
+    v108 = load calldata v102
     v109 = gt v108, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v109
     v110 = mul v108, 32
@@ -150,14 +150,14 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     icall panic_if<0x32>, v119
     v120 = slice_ptr v116
     v121 = add v120, 64
-    v122 = calldataload v121
+    v122 = load calldata v121
     v123 = slice_ptr arg0
     v124 = add v123, 0
     v125 = calldatasize
     v126 = sub v125, v124
     v127 = slt v126, 32
     icall revert_if<calldata_tail_too_short>, v127
-    v128 = calldataload v124
+    v128 = load calldata v124
     v129 = add v123, v128
     v130 = calldatasize
     v131 = sub v130, v123
@@ -165,7 +165,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     v133 = slt v128, v132
     v134 = eq v133, false
     icall revert_if<invalid_calldata_tail_offset>, v134
-    v135 = calldataload v129
+    v135 = load calldata v129
     v136 = gt v135, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v136
     v137 = mul v135, 32
@@ -182,7 +182,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x06889ec9, pure, abi_params=[tup
     icall panic_if<0x32>, v146
     v147 = slice_ptr v143
     v148 = add v147, 0
-    v149 = calldataload v148
+    v149 = load calldata v148
     v150 = checked_sub u256, v122, v149
     v151 = checked_add u256, v72, v150
     jump bb3
@@ -199,7 +199,7 @@ fn @first(arg0: calldataslice) -> i256 [selector=0x0e2e2b05, pure, abi_params=[t
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -207,7 +207,7 @@ fn @first(arg0: calldataslice) -> i256 [selector=0x0e2e2b05, pure, abi_params=[t
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
@@ -219,7 +219,7 @@ fn @first(arg0: calldataslice) -> i256 [selector=0x0e2e2b05, pure, abi_params=[t
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
-    v22 = calldataload v21
+    v22 = load calldata v21
     ret v22
 }
 
@@ -227,7 +227,7 @@ fn @word(arg0: calldataslice) -> i256 [selector=0xf128a547, pure, abi_params=[tu
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
-    v2 = calldataload v1
+    v2 = load calldata v1
     ret v2
 }
 
@@ -239,7 +239,7 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -254,7 +254,7 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     v16 = sub v15, v14
     v17 = slt v16, 32
     icall revert_if<calldata_tail_too_short>, v17
-    v18 = calldataload v14
+    v18 = load calldata v14
     v19 = add v13, v18
     v20 = calldatasize
     v21 = sub v20, v13
@@ -262,7 +262,7 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     v23 = slt v18, v22
     v24 = eq v23, false
     icall revert_if<invalid_calldata_tail_offset>, v24
-    v25 = calldataload v19
+    v25 = load calldata v19
     v26 = gt v25, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v26
     v27 = mul v25, 32
@@ -279,14 +279,14 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     icall panic_if<0x32>, v36
     v37 = slice_ptr v33
     v38 = add v37, 32
-    v39 = calldataload v38
+    v39 = load calldata v38
     v40 = slice_ptr arg0
     v41 = add v40, 32
     v42 = calldatasize
     v43 = sub v42, v41
     v44 = slt v43, 32
     icall revert_if<calldata_tail_too_short>, v44
-    v45 = calldataload v41
+    v45 = load calldata v41
     v46 = add v40, v45
     v47 = calldatasize
     v48 = sub v47, v40
@@ -301,7 +301,7 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     v56 = sub v55, v54
     v57 = slt v56, 32
     icall revert_if<calldata_tail_too_short>, v57
-    v58 = calldataload v54
+    v58 = load calldata v54
     v59 = add v53, v58
     v60 = calldatasize
     v61 = sub v60, v53
@@ -309,7 +309,7 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     v63 = slt v58, v62
     v64 = eq v63, false
     icall revert_if<invalid_calldata_tail_offset>, v64
-    v65 = calldataload v59
+    v65 = load calldata v59
     v66 = gt v65, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v66
     v67 = mul v65, 32
@@ -326,7 +326,7 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0x1637766b, pure, abi_params=[
     icall panic_if<0x32>, v76
     v77 = slice_ptr v73
     v78 = add v77, 0
-    v79 = calldataload v78
+    v79 = load calldata v78
     v80 = checked_add u256, v39, v79
     ret v80
 }
@@ -360,7 +360,7 @@ fn @total(arg0: calldataslice) -> i256 [selector=0x5188d7c7, pure, abi_params=[a
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = add v8, v9
-    v17 = calldataload v16
+    v17 = load calldata v16
     v18 = checked_add u256, v1, v17
     jump bb6
   bb6:

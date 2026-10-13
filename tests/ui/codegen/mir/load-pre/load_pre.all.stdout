@@ -69,13 +69,13 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      mstore 128, arg1
+      store 128, arg1
       jump bb3
     bb1:
-      mstore 128, arg1
+      store 128, arg1
       jump bb3
     bb3:
--     v0 = mload 128
+-     v0 = load 128
 -     ret v0
 +     ret arg1
   }

@@ -865,10 +865,10 @@ impl AliasAnalysis {
             | InstKind::SlicePtr(_)
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(_, 256) => false,
-            InstKind::MLoad(address) | InstKind::MemorySlice(address) => operand != *address,
+            InstKind::Load(address, PtrLocation::Memory) | InstKind::MemorySlice(address) => operand != *address,
             InstKind::SliceLoadByte { slice: object, .. } => operand != *object,
-            InstKind::MStore(address, _)
-            | InstKind::MStore8(address, _)
+            InstKind::Store(address, _)
+            | InstKind::Store8(address, _)
             | InstKind::MemoryZero(address, _) => operand != *address,
             InstKind::SliceStoreByte { slice, index, value }
             | InstKind::SliceStoreWord { slice, offset: index, value } => {
@@ -880,15 +880,14 @@ impl AliasAnalysis {
             InstKind::SliceCopy { destination, offset, source } => {
                 operand != *destination && operand != *offset && operand != *source
             }
-            InstKind::MCopy(dest, source, _)
+            InstKind::Copy(dest, source, _, PtrLocation::Memory)
             | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
                 operand != *dest && operand != *source
             }
             InstKind::MemoryToStorage { memory, .. } => operand != *memory,
-            InstKind::CalldataCopy(dest, _, _)
+            InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, dest, _)
             | InstKind::CodeCopy(dest, _, _)
-            | InstKind::ReturnDataCopy(dest, _, _)
             | InstKind::Keccak256(dest, _)
             | InstKind::Log { offset: dest, .. } => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
@@ -1050,13 +1049,13 @@ impl AliasAnalysis {
         };
 
         match *kind {
-            InstKind::MLoad(address) => {
+            InstKind::Load(address, PtrLocation::Memory) => {
                 read_memory(&mut effects, address, SizeOperand::Const(32));
             }
-            InstKind::MStore(address, _) => {
+            InstKind::Store(address, _) => {
                 write_memory(&mut effects, address, SizeOperand::Const(32));
             }
-            InstKind::MStore8(address, _) => {
+            InstKind::Store8(address, _) => {
                 write_memory(&mut effects, address, SizeOperand::Const(1));
             }
             InstKind::MemoryZero(address, size) => {
@@ -1249,14 +1248,13 @@ impl AliasAnalysis {
                     self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
                 add_storage_range(&mut effects, base, layout.storage_slots(), true);
             }
-            InstKind::MCopy(dest, source, size) => {
+            InstKind::Copy(dest, source, size, PtrLocation::Memory) => {
                 read_memory(&mut effects, source, SizeOperand::Value(size));
                 write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
-            InstKind::CalldataCopy(dest, _, size)
+            InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, dest, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size) => {
+            | InstKind::CodeCopy(dest, _, size) => {
                 write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
@@ -1780,7 +1778,7 @@ impl AliasAnalysis {
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
             InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
-            InstKind::MLoad(address)
+            InstKind::Load(address, PtrLocation::Memory)
                 if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 MemoryRegion::Heap
@@ -1894,8 +1892,8 @@ impl AliasAnalysis {
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
-            InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
-            InstKind::MStore8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
+            InstKind::Store(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
+            InstKind::Store8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
             InstKind::SliceStoreByte { slice: object, .. }
             | InstKind::SliceStoreWord { slice: object, .. }
             | InstKind::SliceCopy { destination: object, .. } => {
@@ -1903,12 +1901,12 @@ impl AliasAnalysis {
                 // as an object, and lowering exposes their writes to reserved memory.
                 Self::range_may_overlap_fmp(func, object, None)
             }
-            InstKind::MCopy(dest, _, size)
+            InstKind::Copy(dest, _, size, PtrLocation::Memory)
             | InstKind::MemoryZero(dest, size)
-            | InstKind::CalldataCopy(dest, _, size)
+            | InstKind::Copy(dest, _, size, PtrLocation::Calldata)
             | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size) => {
+            | InstKind::Copy(dest, _, size, PtrLocation::Returndata) => {
                 Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
@@ -1962,7 +1960,7 @@ impl AliasAnalysis {
             | InstKind::Alloc { .. }
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
-            InstKind::MLoad(address)
+            InstKind::Load(address, PtrLocation::Memory)
                 if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 Some(EvmMemoryLayout::HEAP_START)

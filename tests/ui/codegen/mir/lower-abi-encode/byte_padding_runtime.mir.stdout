@@ -12,7 +12,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
-    mstore v7, arg0
+    store v7, arg0
     jump bb1
   bb1:
     v8 = phi [bb0: 0], [bb3: v23]
@@ -24,9 +24,9 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
   bb5:
     jump bb2
   bb2:
-    v24 = mload 64 !metadata(memory=scratch)
+    v24 = load 64 !metadata(memory=scratch)
     v25 = add v24, 512
-    v26 = mload 64 !metadata(memory=scratch)
+    v26 = load 64 !metadata(memory=scratch)
     jump bb7
   bb7:
     v27 = phi [bb2: v8], [bb9: v27]
@@ -55,10 +55,10 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     icall revert_if<empty>, v47
     v48 = ptrtoint memptr v38 to i256
     v49 = add v48, 32
-    v50 = mload v49
+    v50 = load v49
     v51 = ptrtoint memptr v38 to i256
     v52 = add v51, 64
-    v53 = mload v52
+    v53 = load v52
     v54 = eq v50, 64
     jumpi v54, bb13, bb14
   bb14:
@@ -102,7 +102,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v73 = ptrtoint memptr v62 to i256
     v74 = add v73, 32
     v75 = add v74, v72
-    v76 = mload v75
+    v76 = load v75
     v77 = eq v76, v66
     v78 = eq v77, false
     icall revert_if<empty>, v78
@@ -169,7 +169,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     jump bb25
   bb10:
     v36 = not 0
-    mstore v28, v36
+    store v28, v36
     jump bb12
   bb12:
     jump bb9

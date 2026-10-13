@@ -3,7 +3,7 @@
 fn @hashStaticTuple() -> i256 [selector=0x432a72da, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -32,7 +32,7 @@ fn @hashStaticTuple() -> i256 [selector=0x432a72da, pure, abi_params=[], abi_ret
 fn @hashDynamicTuple() -> i256 [selector=0xfe92a929, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -61,7 +61,7 @@ fn @hashDynamicTuple() -> i256 [selector=0xfe92a929, pure, abi_params=[], abi_re
 fn @hashStaticFixedArray() -> i256 [selector=0x5fdc5289, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -88,7 +88,7 @@ fn @hashStaticFixedArray() -> i256 [selector=0x5fdc5289, pure, abi_params=[], ab
 fn @hashDynamicFixedArray() -> i256 [selector=0x6c0960c7, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb6: v12]
@@ -125,7 +125,7 @@ fn @hashDynamicFixedArray() -> i256 [selector=0x6c0960c7, pure, abi_params=[], a
 fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v11]
@@ -158,9 +158,9 @@ fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_ret
 
 fn @returnDefaultSmall() -> memptr [selector=0x443c486c, pure, abi_params=[], abi_returns=[memory_array<tuple<word<u8>>>], abi_return_params=[array<_, tuple<u8>>]] {
   bb0:
-    mstore 0, 291 !metadata(memory=scratch)
+    store 0, 291 !metadata(memory=scratch)
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]

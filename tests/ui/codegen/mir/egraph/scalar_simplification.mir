@@ -45,17 +45,17 @@ fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @remove_zero_length_copies{{[( ]}}
-// CHECK: - mcopy
-// CHECK: - calldatacopy
+// CHECK: - copy
+// CHECK: - copy calldata
 // CHECK: - codecopy
-// CHECK: - returndatacopy
+// CHECK: - copy returndata
 // CHECK: {{^[ +].*}}ret arg0
 fn @remove_zero_length_copies(arg0: i256) -> i256 {
   bb0:
-    mcopy 64, 96, 0
-    calldatacopy 128, 0, 0
+    copy 64, 96, 0
+    copy calldata 128, 0, 0
     codecopy 160, 0, 0
-    returndatacopy 192, 0, 0
+    copy returndata 192, 0, 0
     ret arg0
 }
 

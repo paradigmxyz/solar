@@ -14,22 +14,22 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v3 = make_memory_slice v0, 4
     slice_store_word v3, 0, 7
     v4 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    mstore v4, 73
+    store v4, 73
     v5 = ptrtoint memptr v4 to i256
     v6 = add v5, 32
-    mstore v6, 0x3132333435363738393031323334353637383930313233343536373839303120
+    store v6, 0x3132333435363738393031323334353637383930313233343536373839303120
     v7 = add v5, 64
-    mstore v7, 0x3132333435363738393031323334353637383930313233343536373839303120
+    store v7, 0x3132333435363738393031323334353637383930313233343536373839303120
     v8 = add v5, 96
-    mstore v8, 0x3132333435363738390000000000000000000000000000000000000000000000
+    store v8, 0x3132333435363738390000000000000000000000000000000000000000000000
     v9 = make_memory_slice v0, 4
     v10 = ptrtoint memptr v4 to i256
     slice_store_word v9, 96, v10
     v11 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v11, 6
+    store v11, 6
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
-    mstore v13, 0x6162636465660000000000000000000000000000000000000000000000000000
+    store v13, 0x6162636465660000000000000000000000000000000000000000000000000000
     v14 = make_memory_slice v0, 4
     v15 = ptrtoint memptr v11 to i256
     slice_store_word v14, 32, v15
@@ -79,22 +79,22 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     v3 = make_memory_slice v0, 4
     slice_store_word v3, 0, 7
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v4, 17
+    store v4, 17
     v5 = ptrtoint memptr v4 to i256
     v6 = add v5, 32
-    mstore v6, 0x3132333435363738393233343536373839000000000000000000000000000000
+    store v6, 0x3132333435363738393233343536373839000000000000000000000000000000
     v7 = make_memory_slice v0, 4
     v8 = ptrtoint memptr v4 to i256
     slice_store_word v7, 96, v8
     v9 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    mstore v9, 73
+    store v9, 73
     v10 = ptrtoint memptr v9 to i256
     v11 = add v10, 32
-    mstore v11, 0x3132333435363738393031323334353637383930313233343536373839303120
+    store v11, 0x3132333435363738393031323334353637383930313233343536373839303120
     v12 = add v10, 64
-    mstore v12, 0x3132333435363738393031323334353637383930313233343536373839303120
+    store v12, 0x3132333435363738393031323334353637383930313233343536373839303120
     v13 = add v10, 96
-    mstore v13, 0x3132333435363738390000000000000000000000000000000000000000000000
+    store v13, 0x3132333435363738390000000000000000000000000000000000000000000000
     v14 = make_memory_slice v0, 4
     v15 = ptrtoint memptr v9 to i256
     slice_store_word v14, 32, v15

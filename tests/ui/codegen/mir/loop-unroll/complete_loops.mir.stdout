@@ -33,7 +33,7 @@ fn @u32(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
     v11 = slice_ptr v1
     v12 = slice_ptr v1
     v13 = add v12, v0
-    v14 = calldataload v13
+    v14 = load calldata v13
     v15 = byte 0, v14
     v16 = shl 248, v15
     v17 = shr 248, v16
@@ -78,7 +78,7 @@ fn @u16(arg0: calldataslice, arg1: i256) -> struct1 [pure] {
     v11 = slice_ptr v0
     v12 = slice_ptr v0
     v13 = add v12, v4
-    v14 = calldataload v13
+    v14 = load calldata v13
     v15 = byte 0, v14
     v16 = shl 248, v15
     v17 = shr 248, v16
@@ -136,7 +136,7 @@ fn @sum4(arg0: calldataslice) -> i256 [selector=0x0540a714, pure, abi_params=[ar
     v14 = eq v13, 0
     icall panic_if<0x41>, v14
     v15 = add v7, v8
-    v16 = calldataload v15
+    v16 = load calldata v15
     v17 = checked_add u256, v2, v16
     jump bb6
   bb6:

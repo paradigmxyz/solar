@@ -15,7 +15,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v6 = sub v5, v4
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = calldataload v4
+    v8 = load calldata v4
     v9 = add v3, v8
     v10 = calldatasize
     v11 = sub v10, v3
@@ -26,7 +26,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v15 = make_calldata_slice v9, 32
     v16 = slice_ptr v15
     v17 = add v16, 0
-    v18 = calldataload v17
+    v18 = load calldata v17
     v19 = slice_len arg0
     v20 = lt 0, v19
     v21 = eq v20, false
@@ -37,7 +37,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v25 = sub v24, v23
     v26 = slt v25, 32
     icall revert_if<calldata_tail_too_short>, v26
-    v27 = calldataload v23
+    v27 = load calldata v23
     v28 = add v22, v27
     v29 = calldatasize
     v30 = sub v29, v22
@@ -52,7 +52,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v38 = sub v37, v36
     v39 = slt v38, 32
     icall revert_if<calldata_tail_too_short>, v39
-    v40 = calldataload v36
+    v40 = load calldata v36
     v41 = add v35, v40
     v42 = calldatasize
     v43 = sub v42, v35
@@ -60,7 +60,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v45 = slt v40, v44
     v46 = eq v45, false
     icall revert_if<invalid_calldata_tail_offset>, v46
-    v47 = calldataload v41
+    v47 = load calldata v41
     v48 = gt v47, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v48
     v49 = mul v47, 1
@@ -86,7 +86,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v65 = not 31
     v66 = and v63, v65
     v67 = alloc memorybytes, exact, uninitialized, infallible, v66
-    mstore v67, v62
+    store v67, v62
     v68 = ptrtoint memptr v67 to i256
     v69 = add v68, 32
     v70 = slice_len v55

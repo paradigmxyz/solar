@@ -61,7 +61,7 @@ contract C {
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: delegatecall [[FWD]], {{.*}}, [[IN]], {{.*}}, [[IN]], 32
-    // HOMESTEAD: mload
+    // HOMESTEAD: {{(^|[^a-z_])}}load
     // From EIP-150 on the forwarded gas is capped, so the reserve goes away while the output area
     // and the code check stay.
     // TANGERINE-LABEL: fn @one
@@ -70,7 +70,7 @@ contract C {
     // TANGERINE-NOT: sub [[GAS]]
     // TANGERINE: extcodesize
     // TANGERINE: delegatecall [[GAS]], {{.*}}, [[IN]], {{.*}}, [[IN]], 32
-    // TANGERINE: mload
+    // TANGERINE: {{(^|[^a-z_])}}load
     // BYZANTIUM-LABEL: fn @one
     // BYZANTIUM-NOT: extcodesize
     // BYZANTIUM: delegatecall {{.*}}, 0, 32
@@ -85,12 +85,12 @@ contract C {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
-    // HOMESTEAD-NOT: mstore
+    // HOMESTEAD-NOT: {{(^|[^a-z_])}}store
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: mload
-    // HOMESTEAD: mload
+    // HOMESTEAD: {{(^|[^a-z_])}}load
+    // HOMESTEAD: {{(^|[^a-z_])}}load
     // TANGERINE-LABEL: fn @two
     // TANGERINE: [[IN:v[0-9]+]] = slice_ptr
     // TANGERINE-NOT: alloc raw
@@ -108,8 +108,7 @@ contract C {
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
+    // HOMESTEAD: copy [[BUF]], [[IN]], 64
     // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
@@ -126,7 +125,7 @@ contract C {
     // HOMESTEAD-LABEL: fn @boolean
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
-    // HOMESTEAD: [[WORD:v[0-9]+]] = mload
+    // HOMESTEAD: [[WORD:v[0-9]+]] = load
     // HOMESTEAD: [[CLEAN:v[0-9]+]] = eq [[WORD]],
     // HOMESTEAD: eq [[CLEAN]], {{(0|false)}}
     // HOMESTEAD: icall revert_if<empty>, {{v[0-9]+}}
@@ -142,8 +141,7 @@ contract C {
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
-    // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
+    // HOMESTEAD: copy [[BUF]], [[IN]], 64
     // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
     // HOMESTEAD: abi_decode [tuple<bool, u256>], [[SLICE]]
@@ -161,7 +159,7 @@ contract C {
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
-    // HOMESTEAD: mload
+    // HOMESTEAD: {{(^|[^a-z_])}}load
     // BYZANTIUM-LABEL: fn @attached
     // BYZANTIUM: abi_encode {{.*}}, args 0
     // BYZANTIUM: delegatecall {{.*}}, 0, 32
@@ -177,7 +175,7 @@ contract C {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50

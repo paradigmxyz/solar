@@ -10,7 +10,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v18 = lt v17, 36
     jumpi v18, bb1, bb2
   bb2:
-    v19 = calldataload 4
+    v19 = load calldata 4
     v20 = add v19, 4
     v21 = gt v19, 0xffffffffffffffff
     jumpi v21, bb3, bb4
@@ -24,7 +24,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb6:
     v26 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
     v97 = ptrtoint memptr v26 to i256
-    v28 = calldataload v20
+    v28 = load calldata v20
     v29 = add v20, v28
     v30 = gt v28, 0xffffffffffffffff
     jumpi v30, bb7, bb8
@@ -35,13 +35,13 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v139 = or v32, v34
     jumpi v139, bb5, bb9
   bb9:
-    v134 = mload 64
+    v134 = load 64
     v135 = add v134, 96
-    mstore 64, v135
-    v37 = calldataload v29
-    mstore v134, v37
+    store 64, v135
+    v37 = load calldata v29
+    store v134, v37
     v38 = add v29, 32
-    v39 = calldataload v38
+    v39 = load calldata v38
     v40 = add v29, v39
     v41 = gt v39, 0xffffffffffffffff
     jumpi v41, bb7, bb10
@@ -50,34 +50,34 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v43 = gt v42, v17
     jumpi v43, bb11, bb12
   bb12:
-    v44 = calldataload v40
+    v44 = load calldata v40
     v46 = add v44, 63
     v47 = lt v46, v44
     jumpi v47, bb13, bb14
   bb14:
     v49 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v122 = mload 64
+    v122 = load 64
     v123 = add v122, v49
     v124 = lt v123, v122
     v125 = gt v123, 0xffffffffffffffff
     v126 = or v124, v125
     jumpi v126, bb13, bb23
   bb23:
-    mstore 64, v123
-    mstore v122, v44
+    store 64, v123
+    store v122, v44
     v51 = sub v17, v42
     v52 = gt v44, v51
     jumpi v52, bb15, bb16
   bb16:
     v55 = add v122, 32
-    calldatacopy v55, v42, v44
+    copy calldata v55, v42, v44
     v100 = add v134, 32
-    mstore v100, v122
+    store v100, v122
     v101 = add v134, 64
-    mstore v101, v29
-    mstore v97, v134
+    store v101, v29
+    store v97, v134
     v60 = add v20, 32
-    v61 = calldataload v60
+    v61 = load calldata v60
     v62 = add v20, v61
     v63 = gt v61, 0xffffffffffffffff
     jumpi v63, bb7, bb17
@@ -88,13 +88,13 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v140 = or v65, v67
     jumpi v140, bb5, bb18
   bb18:
-    v136 = mload 64
+    v136 = load 64
     v137 = add v136, 96
-    mstore 64, v137
-    v70 = calldataload v62
-    mstore v136, v70
+    store 64, v137
+    v70 = load calldata v62
+    store v136, v70
     v71 = add v62, 32
-    v72 = calldataload v71
+    v72 = load calldata v71
     v73 = add v62, v72
     v74 = gt v72, 0xffffffffffffffff
     jumpi v74, bb7, bb19
@@ -103,88 +103,88 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v76 = gt v75, v17
     jumpi v76, bb11, bb20
   bb20:
-    v77 = calldataload v73
+    v77 = load calldata v73
     v79 = add v77, 63
     v80 = lt v79, v77
     jumpi v80, bb13, bb21
   bb21:
     v82 = and v79, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v128 = mload 64
+    v128 = load 64
     v129 = add v128, v82
     v130 = lt v129, v128
     v131 = gt v129, 0xffffffffffffffff
     v132 = or v130, v131
     jumpi v132, bb13, bb24
   bb24:
-    mstore 64, v129
-    mstore v128, v77
+    store 64, v129
+    store v128, v77
     v84 = sub v17, v75
     v85 = gt v77, v84
     jumpi v85, bb15, bb22
   bb22:
     v88 = add v128, 32
-    calldatacopy v88, v75, v77
+    copy calldata v88, v75, v77
     v104 = add v136, 32
-    mstore v104, v128
+    store v104, v128
     v105 = add v136, 64
-    mstore v105, v62
+    store v105, v62
     v106 = add v97, 32
-    mstore v106, v136
+    store v106, v136
     v107 = add v97, 64
-    mstore v107, v20
-    v7 = mload v136
-    v12 = mload v128
-    v118 = mload v97
-    v3 = mload v118
-    mstore 128, v3
-    mstore 160, v7
-    mstore 192, v12
+    store v107, v20
+    v7 = load v136
+    v12 = load v128
+    v118 = load v97
+    v3 = load v118
+    store 128, v3
+    store 160, v7
+    store 192, v12
     returndata 128, 96
   bb15:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 39
-    mstore 68, 0x414249206465636f64696e673a20696e76616c69642062797465206172726179
-    mstore 100, 0x206c656e67746800000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 39
+    store 68, 0x414249206465636f64696e673a20696e76616c69642062797465206172726179
+    store 100, 0x206c656e67746800000000000000000000000000000000000000000000000000
     revert 0, 132
   bb13:
-    mstore 32, 65
-    mstore 0, 0x4e487b71
+    store 32, 65
+    store 0, 0x4e487b71
     revert 28, 36
   bb11:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 43
-    mstore 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
-    mstore 100, 0x72726179206f6666736574000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 43
+    store 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
+    store 100, 0x72726179206f6666736574000000000000000000000000000000000000000000
     revert 0, 132
   bb7:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 35
-    mstore 68, 0x414249206465636f64696e673a20696e76616c696420737472756374206f6666
-    mstore 100, 0x7365740000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 35
+    store 68, 0x414249206465636f64696e673a20696e76616c696420737472756374206f6666
+    store 100, 0x7365740000000000000000000000000000000000000000000000000000000000
     revert 0, 132
   bb5:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 35
-    mstore 68, 0x414249206465636f64696e673a20737472756374206461746120746f6f207368
-    mstore 100, 0x6f72740000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 35
+    store 68, 0x414249206465636f64696e673a20737472756374206461746120746f6f207368
+    store 100, 0x6f72740000000000000000000000000000000000000000000000000000000000
     revert 0, 132
   bb3:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 34
-    mstore 68, 0x414249206465636f64696e673a20696e76616c6964207475706c65206f666673
-    mstore 100, 0x6574000000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 34
+    store 68, 0x414249206465636f64696e673a20696e76616c6964207475706c65206f666673
+    store 100, 0x6574000000000000000000000000000000000000000000000000000000000000
     revert 0, 132
   bb1:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, 34
-    mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
-    mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    store 4, 32 !metadata(memory=scratch)
+    store 36, 34
+    store 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
+    store 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     revert 0, 132
 }
 
@@ -194,7 +194,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v50 = lt v49, 36
     jumpi v50, bb12, bb13
   bb13:
-    v51 = calldataload 4
+    v51 = load calldata 4
     v52 = add v51, 4
     v53 = gt v51, 0xffffffffffffffff
     jumpi v53, bb14, bb15
@@ -203,7 +203,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v55 = gt v54, v49
     jumpi v55, bb16, bb17
   bb17:
-    v56 = calldataload v52
+    v56 = load calldata v52
     v58 = shl 5, v56
     v60 = shr 5, v58
     v64 = ne v60, v56
@@ -212,15 +212,15 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v224 = or v64, v66
     jumpi v224, bb18, bb19
   bb19:
-    v199 = mload 64 !metadata(memory=scratch)
+    v199 = load 64 !metadata(memory=scratch)
     v200 = add v199, v65
     v201 = lt v200, v199
     v202 = gt v200, 0xffffffffffffffff
     v203 = or v201, v202
     jumpi v203, bb18, bb44
   bb44:
-    mstore 64, v200
-    mstore v199, v56
+    store 64, v200
+    store v199, v56
     v68 = sub v49, v54
     v69 = shr 5, v68
     v70 = gt v56, 0xffffffffffffffff
@@ -241,55 +241,55 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb1:
     v0 = phi [bb26: 0], [bb11: v45]
     v2 = phi [bb26: 0], [bb11: v47]
-    v3 = mload v199
+    v3 = load v199
     v5 = lt v2, v3
     jumpi v5, bb2, bb3
   bb3:
-    mstore 128, v0
+    store 128, v0
     returndata 128, 32
   bb2:
     v10 = shl 5, v2
     v160 = add v199, 32
     v161 = add v160, v10
-    v11 = mload v161
+    v11 = load v161
     v12 = inttoptr i256 v11 to memptr
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = icall @default_struct_1
     v16 = ptrtoint memptr v14 to i256
-    mstore v161, v16
+    store v161, v16
     jump bb5
   bb5:
     v17 = phi [bb2: v12], [bb4: v14]
     v165 = ptrtoint memptr v17 to i256
-    v193 = mload v165
-    v21 = mload v193
-    v22 = mload v199
+    v193 = load v165
+    v21 = load v193
+    v22 = load v199
     v24 = lt v2, v22
     jumpi v24, bb9, bb8
   bb8:
-    mstore 32, 50
-    mstore 0, 0x4e487b71
+    store 32, 50
+    store 0, 0x4e487b71
     revert 28, 36
   bb9:
-    v27 = mload v161
+    v27 = load v161
     v28 = inttoptr i256 v27 to memptr
     v29 = eq v27, 0
     jumpi v29, bb6, bb7
   bb6:
     v30 = icall @default_struct_1
     v32 = ptrtoint memptr v30 to i256
-    mstore v161, v32
+    store v161, v32
     jump bb7
   bb7:
     v33 = phi [bb9: v28], [bb6: v30]
     v171 = ptrtoint memptr v33 to i256
     v172 = add v171, 32
-    v194 = mload v172
+    v194 = load v172
     v174 = add v194, 32
-    v195 = mload v174
-    v38 = mload v195
+    v195 = load v174
+    v38 = load v195
     v43 = add v21, v38
     v44 = lt v43, v21
     v45 = add v0, v43
@@ -300,11 +300,11 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v47 = add v2, 1
     jump bb1
   bb10:
-    mstore 32, 17
-    mstore 0, 0x4e487b71
+    store 32, 17
+    store 0, 0x4e487b71
     revert 28, 36
   bb25:
-    v76 = calldataload v73
+    v76 = load calldata v73
     v77 = add v54, v76
     v78 = gt v76, 0xffffffffffffffff
     jumpi v78, bb16, bb27
@@ -315,10 +315,10 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v225 = or v80, v82
     jumpi v225, bb28, bb29
   bb29:
-    v217 = mload 64
+    v217 = load 64
     v218 = add v217, 96
-    mstore 64, v218
-    v85 = calldataload v77
+    store 64, v218
+    v85 = load calldata v77
     v86 = add v77, v85
     v87 = gt v85, 0xffffffffffffffff
     jumpi v87, bb30, bb31
@@ -329,13 +329,13 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v226 = or v89, v91
     jumpi v226, bb28, bb32
   bb32:
-    v219 = mload 64
+    v219 = load 64
     v220 = add v219, 96
-    mstore 64, v220
-    v94 = calldataload v86
-    mstore v219, v94
+    store 64, v220
+    v94 = load calldata v86
+    store v219, v94
     v95 = add v86, 32
-    v96 = calldataload v95
+    v96 = load calldata v95
     v97 = add v86, v96
     v98 = gt v96, 0xffffffffffffffff
     jumpi v98, bb30, bb33
@@ -344,34 +344,34 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v100 = gt v99, v49
     jumpi v100, bb16, bb34
   bb34:
-    v101 = calldataload v97
+    v101 = load calldata v97
     v103 = add v101, 63
     v104 = lt v103, v101
     jumpi v104, bb18, bb35
   bb35:
     v106 = and v103, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v205 = mload 64
+    v205 = load 64
     v206 = add v205, v106
     v207 = lt v206, v205
     v208 = gt v206, 0xffffffffffffffff
     v209 = or v207, v208
     jumpi v209, bb18, bb45
   bb45:
-    mstore 64, v206
-    mstore v205, v101
+    store 64, v206
+    store v205, v101
     v108 = sub v49, v99
     v109 = gt v101, v108
     jumpi v109, bb36, bb37
   bb37:
     v112 = add v205, 32
-    calldatacopy v112, v99, v101
+    copy calldata v112, v99, v101
     v182 = add v219, 32
-    mstore v182, v205
+    store v182, v205
     v183 = add v219, 64
-    mstore v183, v86
-    mstore v217, v219
+    store v183, v86
+    store v217, v219
     v117 = add v77, 32
-    v118 = calldataload v117
+    v118 = load calldata v117
     v119 = add v77, v118
     v120 = gt v118, 0xffffffffffffffff
     jumpi v120, bb30, bb38
@@ -382,13 +382,13 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v227 = or v122, v124
     jumpi v227, bb28, bb39
   bb39:
-    v221 = mload 64
+    v221 = load 64
     v222 = add v221, 96
-    mstore 64, v222
-    v127 = calldataload v119
-    mstore v221, v127
+    store 64, v222
+    v127 = load calldata v119
+    store v221, v127
     v128 = add v119, 32
-    v129 = calldataload v128
+    v129 = load calldata v128
     v130 = add v119, v129
     v131 = gt v129, 0xffffffffffffffff
     jumpi v131, bb30, bb40
@@ -397,126 +397,126 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v133 = gt v132, v49
     jumpi v133, bb16, bb41
   bb41:
-    v134 = calldataload v130
+    v134 = load calldata v130
     v136 = add v134, 63
     v137 = lt v136, v134
     jumpi v137, bb18, bb42
   bb42:
     v139 = and v136, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v211 = mload 64
+    v211 = load 64
     v212 = add v211, v139
     v213 = lt v212, v211
     v214 = gt v212, 0xffffffffffffffff
     v215 = or v213, v214
     jumpi v215, bb18, bb46
   bb46:
-    mstore 64, v212
-    mstore v211, v134
+    store 64, v212
+    store v211, v134
     v141 = sub v49, v132
     v142 = gt v134, v141
     jumpi v142, bb36, bb43
   bb43:
     v145 = add v211, 32
-    calldatacopy v145, v132, v134
+    copy calldata v145, v132, v134
     v186 = add v221, 32
-    mstore v186, v211
+    store v186, v211
     v187 = add v221, 64
-    mstore v187, v119
+    store v187, v119
     v188 = add v217, 32
-    mstore v188, v221
+    store v188, v221
     v189 = add v217, 64
-    mstore v189, v77
+    store v189, v77
     v151 = shl 5, v74
     v191 = add v199, 32
     v192 = add v191, v151
-    mstore v192, v217
+    store v192, v217
     v153 = sub v72, 1
     v154 = add v73, 32
     v155 = add v74, 1
     jump bb24
   bb36:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 39
-    mstore 68, 0x414249206465636f64696e673a20696e76616c69642062797465206172726179
-    mstore 100, 0x206c656e67746800000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 39
+    store 68, 0x414249206465636f64696e673a20696e76616c69642062797465206172726179
+    store 100, 0x206c656e67746800000000000000000000000000000000000000000000000000
     revert 0, 132
   bb30:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 35
-    mstore 68, 0x414249206465636f64696e673a20696e76616c696420737472756374206f6666
-    mstore 100, 0x7365740000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 35
+    store 68, 0x414249206465636f64696e673a20696e76616c696420737472756374206f6666
+    store 100, 0x7365740000000000000000000000000000000000000000000000000000000000
     revert 0, 132
   bb28:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 35
-    mstore 68, 0x414249206465636f64696e673a20737472756374206461746120746f6f207368
-    mstore 100, 0x6f72740000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 35
+    store 68, 0x414249206465636f64696e673a20737472756374206461746120746f6f207368
+    store 100, 0x6f72740000000000000000000000000000000000000000000000000000000000
     revert 0, 132
   bb22:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 43
-    mstore 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
-    mstore 100, 0x7272617920737472696465000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 43
+    store 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
+    store 100, 0x7272617920737472696465000000000000000000000000000000000000000000
     revert 0, 132
   bb20:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 43
-    mstore 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
-    mstore 100, 0x72726179206c656e677468000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 43
+    store 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
+    store 100, 0x72726179206c656e677468000000000000000000000000000000000000000000
     revert 0, 132
   bb18:
-    mstore 32, 65
-    mstore 0, 0x4e487b71
+    store 32, 65
+    store 0, 0x4e487b71
     revert 28, 36
   bb16:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 43
-    mstore 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
-    mstore 100, 0x72726179206f6666736574000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 43
+    store 68, 0x414249206465636f64696e673a20696e76616c69642063616c6c646174612061
+    store 100, 0x72726179206f6666736574000000000000000000000000000000000000000000
     revert 0, 132
   bb14:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 34
-    mstore 68, 0x414249206465636f64696e673a20696e76616c6964207475706c65206f666673
-    mstore 100, 0x6574000000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 34
+    store 68, 0x414249206465636f64696e673a20696e76616c6964207475706c65206f666673
+    store 100, 0x6574000000000000000000000000000000000000000000000000000000000000
     revert 0, 132
   bb12:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 34
-    mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
-    mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 34
+    store 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
+    store 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     revert 0, 132
 }
 
 fn @default_struct_1() -> memptr [may_return_memory] {
   bb0:
-    v28 = mload 64 !metadata(memory=scratch)
+    v28 = load 64 !metadata(memory=scratch)
     v0 = inttoptr i256 v28 to memptr !metadata(memory=scratch)
     v29 = add v28, 256
-    mstore 64, v29
+    store 64, v29
     v21 = add v28, 64
-    mstore v21, 0
+    store v21, 0
     v23 = add v28, 128
-    mstore v23, 0
+    store v23, 0
     v14 = add v28, 96
-    mstore v14, v23
-    mstore v28, v21
+    store v14, v23
+    store v28, v21
     v25 = add v28, 160
-    mstore v25, 0
+    store v25, 0
     v27 = add v28, 224
-    mstore v27, 0
+    store v27, 0
     v16 = add v28, 192
-    mstore v16, v27
+    store v16, v27
     v17 = add v28, 32
-    mstore v17, v25
+    store v17, v25
     ret v0
 }
 
@@ -526,7 +526,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb5, bb1
   bb1:
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = shr 224, v2
     switch v3, default bb4, [0x54d20d9 => bb2, 0x7a5de1e9 => bb3]
   bb3:
@@ -534,17 +534,17 @@ fn @entry() [entry] {
   bb2:
     tail_call @pairs
   bb4:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, 53 !metadata(memory=scratch)
-    mstore 68, 0x436f6e747261637420646f6573206e6f7420686176652066616c6c6261636b20 !metadata(memory=scratch)
-    mstore 100, 0x6e6f7220726563656976652066756e6374696f6e730000000000000000000000 !metadata(memory=scratch)
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32 !metadata(memory=scratch)
+    store 36, 53 !metadata(memory=scratch)
+    store 68, 0x436f6e747261637420646f6573206e6f7420686176652066616c6c6261636b20 !metadata(memory=scratch)
+    store 100, 0x6e6f7220726563656976652066756e6374696f6e730000000000000000000000 !metadata(memory=scratch)
     revert 0, 132
   bb5:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
-    mstore 4, 32
-    mstore 36, 34
-    mstore 68, 0x45746865722073656e7420746f206e6f6e2d70617961626c652066756e637469
-    mstore 100, 0x6f6e000000000000000000000000000000000000000000000000000000000000
+    store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000
+    store 4, 32
+    store 36, 34
+    store 68, 0x45746865722073656e7420746f206e6f6e2d70617961626c652066756e637469
+    store 100, 0x6f6e000000000000000000000000000000000000000000000000000000000000
     revert 0, 132
 }

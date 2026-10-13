@@ -4,7 +4,7 @@
 fn @f(arg0: i256) {
   bb0:
     v0 = add arg0, 1
-    mstore 128, v0
+    store 128, v0
     returndata 128, 32
 }
 

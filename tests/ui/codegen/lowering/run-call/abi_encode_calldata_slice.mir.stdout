@@ -230,7 +230,7 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selec
     v36 = lt v35, 32
     icall panic_if<0x41>, v36
     v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
-    mstore v37, v16
+    store v37, v16
     jump bb1
   bb1:
     v38 = phi [bb0: 0], [bb2: v48]
@@ -242,7 +242,7 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selec
   bb2:
     v40 = mul v38, 32
     v41 = add v17, v40
-    v42 = calldataload v41
+    v42 = load calldata v41
     v43 = shr 8, v42
     v44 = eq v43, 0
     v45 = eq v44, false
@@ -307,7 +307,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v0 = not 31
     v1 = and 66, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 3
+    store v2, 3
     v3 = memory_slice v2
     v4 = slice_len v3
     v5 = lt 0, v4
@@ -427,7 +427,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
 fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     v1 = memory_slice v0
     v2 = slice_len v1
     v3 = lt 0, v2

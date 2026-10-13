@@ -20,7 +20,7 @@ fn @unusedReturn() -> i256 [selector=0x1df86abb, view, abi_params=[], abi_return
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = mload v7
+    v8 = load v7
     ret 1
   bb3:
     ret 0

@@ -77,7 +77,7 @@ fn @signedModifier() -> i256 [selector=0xbea1d853, pure, abi_params=[], abi_retu
 fn @signedSource() -> struct0 [selector=0xeacc97f1, pure, abi_params=[], abi_returns=[word<i8>, memory_bytes], abi_return_params=[i8, bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    mstore v0, 0
+    store v0, 0
     v1 = ptrtoint memptr v0 to i256
     v2 = sext i8 255 to i256
     v3 = insert_value struct0, undef struct0, 0, v2

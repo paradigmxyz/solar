@@ -14,7 +14,8 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId, InstId, InstKind, Module, PtrLocation, Terminator, Value,
+        ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -447,7 +448,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Zext(operand)
                 | InstKind::PtrToInt(operand, _)
                 | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
-                InstKind::CalldataLoad(offset) => {
+                InstKind::Load(offset, PtrLocation::Calldata) => {
                     // <offset>; calldataload
                     self.emit_materialized(func, *offset);
                     self.asm.emit_op(op::CALLDATALOAD);

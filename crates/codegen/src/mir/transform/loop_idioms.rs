@@ -10,7 +10,7 @@
 //! the payload base may be computed in the body or hoisted, and the exits may
 //! be distinct `ret` blocks or, once the scan was inlined into its ABI wrapper,
 //! one block whose phi selects the result from the header and body edges or a
-//! lowered `mstore`/`returndata` epilogue.
+//! lowered `store`/`returndata` epilogue.
 //!
 //! Full chunks stay within the source payload. A final load may include only
 //! the rounded allocation padding; the transform shifts or forces those bytes
@@ -21,7 +21,8 @@
 //! grows code.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, Module, Terminator, Value, ValueId,
+    BlockId, Function, FunctionBuilder, InstId, InstKind, Module, PtrLocation, Terminator, Value,
+    ValueId,
     analysis::{AliasAnalysis, LocationSize},
     pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     utils::{fold_terminator_to_jump, invalidate_unreachable_block},
@@ -83,11 +84,11 @@ fn length_object(
         if func.inst_result_value(load) != Some(length) {
             return None;
         }
-        let InstKind::MLoad(object) = func.inst(load).kind else { return None };
+        let InstKind::Load(object, PtrLocation::Memory) = func.inst(load).kind else { return None };
         return Some(object);
     }
     let Value::Inst(load) = func.value(length) else { return None };
-    let InstKind::MLoad(object) = func.inst(*load).kind else { return None };
+    let InstKind::Load(object, PtrLocation::Memory) = func.inst(*load).kind else { return None };
     let instructions = &func.blocks[preheader].instructions;
     let position = instructions.iter().position(|inst| inst == load)?;
     instructions[position + 1..]
@@ -187,7 +188,7 @@ fn emit_return(builder: &mut FunctionBuilder<'_>, exit: ReturnShape, value: Valu
     match exit {
         ReturnShape::Ret => builder.ret([value]),
         ReturnShape::Lowered { address, size } => {
-            builder.mstore(address, value);
+            builder.store(address, value);
             builder.set_terminator(Terminator::ReturnData { offset: address, size });
         }
     }
@@ -260,7 +261,9 @@ fn match_ascii_loop(func: &Function, header: BlockId) -> Option<AsciiLoop> {
     //       [aligned = shl 248, byte]; rejected = gt byte, 127; jumpi rejected, reject, latch
     let (ptr, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
     let [load_inst, byte_inst, rest @ ..] = rest else { reject!("body shape") };
-    let InstKind::MLoad(load_ptr) = func.inst(*load_inst).kind else { reject!("load") };
+    let InstKind::Load(load_ptr, PtrLocation::Memory) = func.inst(*load_inst).kind else {
+        reject!("load")
+    };
     if load_ptr != ptr {
         reject!("load operand");
     }
@@ -338,7 +341,7 @@ fn constant_return(func: &Function, block: BlockId) -> Option<(ReturnShape, Valu
             _ => None,
         },
         ([store], Terminator::ReturnData { offset, size }) => {
-            let InstKind::MStore(address, value) = func.inst(*store).kind else { return None };
+            let InstKind::Store(address, value) = func.inst(*store).kind else { return None };
             (same_word(func, address, *offset) && func.value_u64(*size) == Some(32))
                 .then_some((ReturnShape::Lowered { address, size: *size }, value))
         }
@@ -425,7 +428,9 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     let hoisted_length = len_inst.is_none().then_some(length);
     let (pointer, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
     let [load_inst, byte_inst, align_inst, nonzero_inst] = rest else { return None };
-    let InstKind::MLoad(load_pointer) = func.inst(*load_inst).kind else { return None };
+    let InstKind::Load(load_pointer, PtrLocation::Memory) = func.inst(*load_inst).kind else {
+        return None;
+    };
     if load_pointer != pointer {
         return None;
     }
@@ -552,7 +557,9 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let pointer = func.inst_result_value(*ptr_inst)?;
-    let InstKind::CalldataLoad(load_pointer) = func.inst(*load_inst).kind else { return None };
+    let InstKind::Load(load_pointer, PtrLocation::Calldata) = func.inst(*load_inst).kind else {
+        return None;
+    };
     if load_pointer != pointer {
         return None;
     }
@@ -656,7 +663,8 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         builder.switch_to_block(candidate.preheader);
         let (data, length) = match candidate.source {
             ByteSource::Memory { object } => {
-                let length = candidate.length.unwrap_or_else(|| builder.mload(object));
+                let length =
+                    candidate.length.unwrap_or_else(|| builder.load(object, PtrLocation::Memory));
                 let data = builder.add_u64_offset(object, 32);
                 (data, length)
             }
@@ -692,8 +700,8 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let all = builder.imm(U256::MAX);
         let padding_mask = builder.shr(data_bits, all);
         let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.mload(data),
-            ByteSource::Calldata { .. } => builder.calldataload(data),
+            ByteSource::Memory { .. } => builder.load(data, PtrLocation::Memory),
+            ByteSource::Calldata { .. } => builder.load(data, PtrLocation::Calldata),
         };
         let word = builder.or(word, padding_mask);
         let result = emit_zero_byte_count(&mut builder, word);
@@ -714,8 +722,8 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         // next_pointer = pointer + 32
         builder.switch_to_block(word_body);
         let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.mload(pointer),
-            ByteSource::Calldata { .. } => builder.calldataload(pointer),
+            ByteSource::Memory { .. } => builder.load(pointer, PtrLocation::Memory),
+            ByteSource::Calldata { .. } => builder.load(pointer, PtrLocation::Calldata),
         };
         let lane_count = emit_zero_byte_count(&mut builder, word);
         let count_next = builder.add(word_count, lane_count);
@@ -743,8 +751,8 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let all_bits = builder.imm(U256::MAX);
         let padding_mask = builder.shr(data_bits, all_bits);
         let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.mload(pointer),
-            ByteSource::Calldata { .. } => builder.calldataload(pointer),
+            ByteSource::Memory { .. } => builder.load(pointer, PtrLocation::Memory),
+            ByteSource::Calldata { .. } => builder.load(pointer, PtrLocation::Calldata),
         };
         let word = builder.or(word, padding_mask);
         let tail_count = emit_zero_byte_count(&mut builder, word);
@@ -800,7 +808,8 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         };
 
         builder.switch_to_block(candidate.preheader);
-        let length = candidate.length.unwrap_or_else(|| builder.mload(candidate.object));
+        let length =
+            candidate.length.unwrap_or_else(|| builder.load(candidate.object, PtrLocation::Memory));
         let pair_size = builder.imm(64);
         let is_short = builder.lt(length, pair_size);
         builder.branch(is_short, small_check, setup);
@@ -824,7 +833,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         // jump finish((word & 0x8080..80) == 0)
         builder.switch_to_block(one_word);
         let data = builder.add_u64_offset(candidate.object, 32);
-        let word = builder.mload(data);
+        let word = builder.load(data, PtrLocation::Memory);
         let word_size = builder.imm(32);
         let padding = builder.sub(word_size, length);
         let byte_bits = builder.imm(8);
@@ -838,9 +847,9 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         // jump finish((words & 0x8080..80) == 0)
         builder.switch_to_block(two_words);
         let data = builder.add_u64_offset(candidate.object, 32);
-        let first = builder.mload(data);
+        let first = builder.load(data, PtrLocation::Memory);
         let second_pointer = builder.add_u64_offset(data, 32);
-        let second = builder.mload(second_pointer);
+        let second = builder.load(second_pointer, PtrLocation::Memory);
         let pair_size = builder.imm(64);
         let padding = builder.sub(pair_size, length);
         let byte_bits = builder.imm(8);
@@ -871,9 +880,9 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         // next_pointer = pointer + 64
         // if (first | second) & 0x8080..80: reject else pair_header
         builder.switch_to_block(pair_body);
-        let first = builder.mload(pointer);
+        let first = builder.load(pointer, PtrLocation::Memory);
         let second_pointer = builder.add_u64_offset(pointer, 32);
-        let second = builder.mload(second_pointer);
+        let second = builder.load(second_pointer, PtrLocation::Memory);
         let words = builder.or(first, second);
         let next_pointer = builder.add_u64_offset(second_pointer, 32);
         let high_bits = builder.imm(U256::from_be_bytes([0x80; 32]));
@@ -906,7 +915,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         let padding = builder.sub(word_size, remainder);
         let byte_bits = builder.imm(8);
         let padding_bits = builder.mul(padding, byte_bits);
-        let word = builder.mload(tail_pointer);
+        let word = builder.load(tail_pointer, PtrLocation::Memory);
         let word = builder.shr(padding_bits, word);
         let final_aggregate = builder.or(tail_aggregate, word);
         let tail_result = emit_ascii_result(&mut builder, final_aggregate);
@@ -915,7 +924,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         // single = mload(pointer)
         // jump tail(pointer + 32, aggregate | single)
         builder.switch_to_block(single_body);
-        let single = builder.mload(pointer);
+        let single = builder.load(pointer, PtrLocation::Memory);
         let single_pointer = builder.add_u64_offset(pointer, 32);
         builder.jump(tail);
         builder.add_phi_incoming(tail_pointer, single_body, single_pointer);
@@ -1066,7 +1075,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     let mut step = false;
     for &inst in &func.blocks[body].instructions {
         match func.inst(inst).kind {
-            InstKind::MLoad(address) if load.is_none() => {
+            InstKind::Load(address, PtrLocation::Memory) if load.is_none() => {
                 load = Some((address, func.inst_result_value(inst)?));
             }
             InstKind::Byte(position, word)
@@ -1076,7 +1085,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
             {
                 extract = func.inst_result_value(inst);
             }
-            InstKind::MStore8(address, value) if store.is_none() && Some(value) == extract => {
+            InstKind::Store8(address, value) if store.is_none() && Some(value) == extract => {
                 store = Some(address);
             }
             InstKind::Add(first, second)
@@ -1119,7 +1128,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     let source = strip(source)?;
     let dest = strip(dest)?;
 
-    // `mcopy` moves as if through a buffer while the loop copies upwards, so
+    // `copy` moves as if through a buffer while the loop copies upwards, so
     // the two differ exactly when the ranges overlap. Require them disjoint.
     let [source_base] = source.as_slice() else { return None };
     let [dest_base] = dest.as_slice() else { return None };
@@ -1152,7 +1161,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     })
 }
 
-/// Replaces a recognized byte-copy loop with one `mcopy` in its preheader.
+/// Replaces a recognized byte-copy loop with one `copy` in its preheader.
 fn rewrite_copy_loop(func: &mut Function, candidate: CopyLoop) {
     {
         let mut builder = FunctionBuilder::new(func);
@@ -1171,7 +1180,7 @@ fn rewrite_copy_loop(func: &mut Function, candidate: CopyLoop) {
         // mcopy(dest, source, length)
         let source = base(&mut builder, candidate.source, candidate.source_offset);
         let dest = base(&mut builder, candidate.dest, candidate.dest_offset);
-        builder.mcopy(dest, source, candidate.length);
+        builder.copy(dest, source, candidate.length, PtrLocation::Memory);
     }
     // The copy is complete before the loop would start, so the header leaves at
     // once and later cleanup removes the unreachable body.

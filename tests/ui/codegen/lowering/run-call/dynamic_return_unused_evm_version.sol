@@ -85,13 +85,13 @@ contract DynamicReturnUnused {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // HOMESTEAD: [[FIRST:v[0-9]+]] = add [[INPUT]], 0
-    // HOMESTEAD: mload [[FIRST]]
+    // HOMESTEAD: load [[FIRST]]
     function liveMixed() external returns (uint256 r) {
         (uint256 v, ) = DynamicTarget(address(new DynamicCallee())).mixed();
         r = v;

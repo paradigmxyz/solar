@@ -1,4 +1,4 @@
-//! Lower `mcopy` for EVM versions that predate Cancun.
+//! Lower `copy` for EVM versions that predate Cancun.
 //!
 //! Each copy becomes word-copy loops, since the target has no `MCOPY` opcode.
 //! The identity precompile would be smaller, but calling it is observable:
@@ -35,8 +35,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, Value,
-        ValueId,
+        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module,
+        PtrLocation, Value, ValueId,
         analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -49,7 +49,7 @@ use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::{collections::BTreeMap, sync::Arc};
 
-/// Lowers `mcopy` to overlap-safe word-copy loops without an `MCOPY` opcode.
+/// Lowers `copy` to overlap-safe word-copy loops without an `MCOPY` opcode.
 pub(crate) struct LowerMCopy;
 
 impl MirPass for LowerMCopy {
@@ -115,17 +115,17 @@ impl MirPass for LowerMCopy {
 }
 
 fn is_mcopy(func: &Function, inst: InstId) -> bool {
-    matches!(func.inst(inst).kind, InstKind::MCopy(_, _, _))
+    matches!(func.inst(inst).kind, InstKind::Copy(_, _, _, PtrLocation::Memory))
 }
 
-/// The loop an `mcopy` expands to.
+/// The loop a `copy` expands to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CopyShape {
     direction: CopyDirection,
     whole_words: bool,
 }
 
-/// One `mcopy` and the loop it expands to.
+/// One `copy` and the loop it expands to.
 struct CopySite {
     inst: InstId,
     shape: CopyShape,
@@ -145,7 +145,9 @@ fn copy_sites(
     let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
     func.instructions()
         .filter_map(|inst| {
-            let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return None };
+            let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
+                return None;
+            };
             let disjoint = func.inst(inst).metadata.disjoint();
             let direction = if disjoint {
                 CopyDirection::Forward
@@ -236,7 +238,9 @@ fn lower_function(
 
 /// Returns whether a helper call frame is provably disjoint from both copy ranges.
 fn copy_helper_eligible(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
-    let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return false };
+    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
+        return false;
+    };
     let size = alias.location_size(func, len);
     [dest, src].into_iter().all(|pointer| {
         alias
@@ -287,9 +291,11 @@ fn copy_direction(
     }
 }
 
-/// Replaces an `mcopy` with a call of the shared helper.
+/// Replaces a `copy` with a call of the shared helper.
 fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
-    let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
+    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
+        unreachable!()
+    };
     // icall @mcopy_words, 0, dest, src, len
     let instruction = func.inst_mut(inst);
     instruction.kind = InstKind::ICall {
@@ -306,7 +312,9 @@ fn lower_mcopy(
     inst: InstId,
     shape: CopyShape,
 ) {
-    let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
+    let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
+        unreachable!()
+    };
 
     let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
     let tail = instructions.split_off(position + 1);
@@ -419,9 +427,9 @@ fn emit_forward_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continua
     // jump forward_head
     builder.switch_to_block(forward_body);
     let src_ptr = builder.add(src, forward_offset);
-    let word = builder.mload(src_ptr);
+    let word = builder.load(src_ptr, PtrLocation::Memory);
     let dest_ptr = builder.add(dest, forward_offset);
-    builder.mstore(dest_ptr, word);
+    builder.store(dest_ptr, word);
     let forward_next = builder.add(forward_offset, word_size);
     builder.add_phi_incoming(forward_offset, forward_body, forward_next);
     builder.jump(forward_head);
@@ -485,9 +493,9 @@ fn emit_reverse_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continua
     builder.switch_to_block(reverse_body);
     let reverse_next = builder.sub(reverse_offset, word_size);
     let src_ptr = builder.add(src, reverse_next);
-    let word = builder.mload(src_ptr);
+    let word = builder.load(src_ptr, PtrLocation::Memory);
     let dest_ptr = builder.add(dest, reverse_next);
-    builder.mstore(dest_ptr, word);
+    builder.store(dest_ptr, word);
     builder.add_phi_incoming(reverse_offset, reverse_body, reverse_next);
     builder.jump(reverse_head);
 }
@@ -531,16 +539,16 @@ fn emit_partial_copy(
     let three = builder.imm(3);
     let shift = builder.shl(three, gap);
     let src_tail_ptr = builder.add(src, partial_offset);
-    let src_word = builder.mload(src_tail_ptr);
+    let src_word = builder.load(src_tail_ptr, PtrLocation::Memory);
     let src_shifted = builder.shr(shift, src_word);
     let src_top = builder.shl(shift, src_shifted);
     let dest_tail_ptr = builder.add(dest, partial_offset);
-    let dest_word = builder.mload(dest_tail_ptr);
+    let dest_word = builder.load(dest_tail_ptr, PtrLocation::Memory);
     let one = builder.imm(1);
     let low_bound = builder.shl(shift, one);
     let low_mask = builder.sub(low_bound, one);
     let dest_low = builder.and(dest_word, low_mask);
     let merged = builder.or(src_top, dest_low);
-    builder.mstore(dest_tail_ptr, merged);
+    builder.store(dest_tail_ptr, merged);
     builder.jump(continuation);
 }

@@ -25,7 +25,7 @@ fn @consume(arg0: calldataslice) -> struct0 [selector=0x353abfa4, view, abi_para
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 160
-    v2 = calldataload v1
+    v2 = load calldata v1
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = trunc i256 v3 to i160
     v5 = zext i160 v4 to i256
@@ -56,7 +56,7 @@ fn @constructor() [constructor] {
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -87,7 +87,7 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
     v7 = slice_ptr v2
     v8 = ptrtoint memptr v5 to i256
     v9 = add v8, v3
-    mcopy v9, v7, 0 !metadata(memory=heap)
+    copy v9, v7, 0 !metadata(memory=heap)
     v10 = ptrtoint memptr v5 to i256
     v11 = create 0, v10, v3
     v12 = ne v11, i160 0
@@ -223,7 +223,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v35 = lt v34, 32
     icall revert_if<tuple_data_too_short>, v35
     v36 = add 0, 0
-    v37 = mload v36
+    v37 = load v36
     v38 = lt v37, 2
     v39 = eq v38, false
     icall revert_if<empty>, v39
@@ -244,7 +244,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v50 = lt v49, 32
     icall revert_if<tuple_data_too_short>, v50
     v51 = add 0, 0
-    v52 = mload v51
+    v52 = load v51
     v53 = lt v52, 2
     v54 = eq v53, false
     icall revert_if<empty>, v54
@@ -324,7 +324,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v100 = lt v99, 32
     icall revert_if<tuple_data_too_short>, v100
     v101 = add 0, 0
-    v102 = mload v101
+    v102 = load v101
     v103 = shr 160, v102
     v104 = eq v103, 0
     v105 = eq v104, false
@@ -355,17 +355,17 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v119 = lt v118, 128
     icall revert_if<tuple_data_too_short>, v119
     v120 = add v114, 0
-    v121 = mload v120
+    v121 = load v120
     v122 = add v114, 32
-    v123 = mload v122
+    v123 = load v122
     v124 = shr 128, v123
     v125 = eq v124, 0
     v126 = eq v125, false
     icall revert_if<empty>, v126
     v127 = add v114, 64
-    v128 = mload v127
+    v128 = load v127
     v129 = add v114, 96
-    v130 = mload v129
+    v130 = load v129
     v131 = trunc i256 v123 to i128
     v132 = insert_value struct0, undef struct0, 0, v121
     v133 = insert_value struct0, v132, 1, v131

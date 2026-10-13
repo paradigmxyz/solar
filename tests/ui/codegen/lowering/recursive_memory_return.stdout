@@ -54,7 +54,7 @@ fn @mkArr(arg0: i256) -> memptr [selector=0xfb67dbf3, pure, abi_params=[u256], a
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    mstore v16, arg0
+    store v16, arg0
     jump bb1
   bb1:
     v17 = phi [bb0: arg0], [bb3: v17]
@@ -130,7 +130,7 @@ fn @squares(arg0: i256) -> memptr [selector=0x1d1d15d4, pure, abi_params=[u256],
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    mstore v16, arg0
+    store v16, arg0
     v17 = icall @fillImpl, v16, 0
     ret v17
 }

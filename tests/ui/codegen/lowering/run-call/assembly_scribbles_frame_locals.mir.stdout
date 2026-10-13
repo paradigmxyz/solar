@@ -14,12 +14,12 @@ fn @fallback() [fallback] {
   bb4:
     jump bb2
   bb2:
-    mstore 0, v1 !metadata(memory=scratch)
+    store 0, v1 !metadata(memory=scratch)
     returndata 0, 32
   bb3:
-    v6 = calldataload v0
+    v6 = load calldata v0
     v7 = byte 0, v6
-    mstore8 v1, v7
+    store8 v1, v7
     v8 = add v1, 1
     v9 = add v0, 1
     jump bb5

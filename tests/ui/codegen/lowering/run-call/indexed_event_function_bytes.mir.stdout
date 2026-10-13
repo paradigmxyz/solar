@@ -19,10 +19,10 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v7 = shl 64, v5
     slice_store_word v6, 0, v7
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v8, 1
+    store v8, 1
     v9 = ptrtoint memptr v8 to i256
     v10 = add v9, 32
-    mstore v10, 0x7800000000000000000000000000000000000000000000000000000000000000
+    store v10, 0x7800000000000000000000000000000000000000000000000000000000000000
     v11 = make_memory_slice v0, 2
     v12 = ptrtoint memptr v8 to i256
     slice_store_word v11, 32, v12
@@ -57,7 +57,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v38 = lt v37, 32
     icall panic_if<0x41>, v38
     v39 = alloc memorybytes, exact, uninitialized, infallible, v37
-    mstore v39, v30
+    store v39, v30
     v40 = make_memory_slice v0, 2
     v41 = slice_load_word v40, 0
     v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000

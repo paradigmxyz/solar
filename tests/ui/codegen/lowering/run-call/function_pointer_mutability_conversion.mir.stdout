@@ -83,7 +83,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v84 = lt v83, 32
     icall revert_if<tuple_data_too_short>, v84
     v85 = add 0, 0
-    v86 = mload v85
+    v86 = load v85
     v87 = lt 0, 1
     v88 = eq v87, false
     icall panic_if<0x32>, v88
@@ -226,7 +226,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v84 = lt v83, 32
     icall revert_if<tuple_data_too_short>, v84
     v85 = add 0, 0
-    v86 = mload v85
+    v86 = load v85
     v87 = lt 0, 1
     v88 = eq v87, false
     icall panic_if<0x32>, v88
@@ -369,7 +369,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v84 = lt v83, 32
     icall revert_if<tuple_data_too_short>, v84
     v85 = add 0, 0
-    v86 = mload v85
+    v86 = load v85
     v87 = lt 0, 1
     v88 = eq v87, false
     icall panic_if<0x32>, v88

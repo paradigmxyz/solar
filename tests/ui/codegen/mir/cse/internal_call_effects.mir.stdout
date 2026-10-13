@@ -52,17 +52,17 @@ fn @transientSlots() -> i256 [selector=0xe5208ad5, abi_params=[], abi_returns=[w
 
 fn @observedReturn() -> i256 [selector=0xba4bd320, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    mstore 128, 7
+    store 128, 7
     icall @returnMemory
-    mstore 128, 9
+    store 128, 9
     ret 9
 }
 
 fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    mstore 128, 7
+    store 128, 7
     icall @revertMemory
-    mstore 128, 9
+    store 128, 9
     ret
 }
 
@@ -159,7 +159,7 @@ fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_ret
 
 fn @writeMemory(arg0: i256) [pure] {
   bb0:
-    mstore arg0, 7
+    store arg0, 7
     ret
 }
 

@@ -39,7 +39,7 @@ fn @read(arg0: calldataslice, arg1: i256) -> i256 [selector=0x8f65cc66, pure, ab
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
-    v12 = calldataload v11
+    v12 = load calldata v11
     ret v12
 }
 
@@ -71,7 +71,7 @@ fn @readDynamicCalldata(arg0: calldataslice, arg1: i256) -> i256 [selector=0x55c
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
-    v12 = calldataload v11
+    v12 = load calldata v11
     ret v12
 }
 
@@ -96,7 +96,7 @@ fn @readBytesCalldata(arg0: calldataslice) -> i256 [selector=0x4bc2c5d5, pure, a
     v3 = slice_ptr arg0
     v4 = slice_ptr arg0
     v5 = add v4, 1
-    v6 = calldataload v5
+    v6 = load calldata v5
     v7 = byte 0, v6
     v8 = shl 248, v7
     ret v8
@@ -166,7 +166,7 @@ fn @readNestedList(arg0: memptr) -> i256 [selector=0x2fc71376, pure, abi_params=
     jumpi v12, bb1, bb2
   bb1:
     v13 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v13, 0
+    store v13, 0
     v14 = ptrtoint memptr v13 to i256
     slice_store_word v6, 0, v14
     jump bb2
@@ -245,7 +245,7 @@ fn @readNestedBytes(arg0: memptr) -> i256 [selector=0x8516eaf9, pure, abi_params
     jumpi v7, bb1, bb2
   bb1:
     v8 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v8, 0
+    store v8, 0
     v9 = ptrtoint memptr v8 to i256
     slice_store_word v2, 0, v9
     jump bb2
@@ -265,7 +265,7 @@ fn @readNestedBytes(arg0: memptr) -> i256 [selector=0x8516eaf9, pure, abi_params
     jumpi v20, bb3, bb4
   bb3:
     v21 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v21, 0
+    store v21, 0
     v22 = ptrtoint memptr v21 to i256
     slice_store_word v15, 32, v22
     jump bb4

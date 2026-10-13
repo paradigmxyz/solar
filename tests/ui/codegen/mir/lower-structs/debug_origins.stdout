@@ -13,7 +13,7 @@
 +     v2 = icall @pair, arg0 !metadata(spans=[10..20, 30..40], modifier_depth=2)
 +     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch, spans=[10..20, 30..40], modifier_depth=2)
 +     v4 = add v3, 32 !metadata(spans=[10..20, 30..40], modifier_depth=2)
-+     v5 = mload v4 !metadata(spans=[10..20, 30..40], modifier_depth=2)
++     v5 = load v4 !metadata(spans=[10..20, 30..40], modifier_depth=2)
 +     v6 = select arg1, v2, undef i256 !metadata(spans=[50..60, 70..80], modifier_depth=3)
 +     v7 = select arg1, v5, undef i256 !metadata(spans=[50..60, 70..80], modifier_depth=3)
 +     ret v6, v7 !metadata(span=90..100, modifier_depth=4)

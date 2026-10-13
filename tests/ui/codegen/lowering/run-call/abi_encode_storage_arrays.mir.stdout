@@ -31,7 +31,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
-    mstore v21, v0
+    store v21, v0
     jump bb1
   bb1:
     v22 = phi [bb0: 0], [bb2: v40]
@@ -81,7 +81,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v95 = eq v94, 0
     icall panic_if<0x41>, v95
     v96 = alloc memoryarray<1>, exact, uninitialized, panic, v89
-    mstore v96, v79
+    store v96, v79
     jump bb23
   bb23:
     v97 = phi [bb14: 0], [bb28: v113]
@@ -227,7 +227,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
-    mstore v21, v0
+    store v21, v0
     jump bb1
   bb1:
     v22 = phi [bb0: 0], [bb2: v40]

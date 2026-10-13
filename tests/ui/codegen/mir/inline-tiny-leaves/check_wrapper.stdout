@@ -35,7 +35,7 @@
   
   fn @effect(arg0: i1) {
     bb0:
-      mstore 0, 42
+      store 0, 42
       icall revert_if<empty>, arg0
       ret
   }

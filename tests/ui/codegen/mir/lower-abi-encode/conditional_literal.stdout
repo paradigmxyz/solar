@@ -5,7 +5,7 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 1
+      store v1, 1
       v2 = ne arg0, 0
       jumpi v2, bb1, bb2
     bb1:
@@ -20,7 +20,7 @@
 +     v7 = add v6, 32
 +     v8 = ptrtoint memptr v5 to i256
 +     v9 = sub v7, v8
-+     mstore v5, v9
++     store v5, v9
 +     v10 = memory_slice v0
 +     v11 = slice_len v10
 +     v12 = ptrtoint memptr v0 to i256
@@ -33,12 +33,12 @@
 +     v19 = and v18, v17
 +     v20 = add v7, 32
 +     v21 = add v7, v19
-+     mstore v21, 0
-+     mstore v7, v16
++     store v21, 0
++     store v7, v16
 +     v22 = ptrtoint memptr v0 to i256
 +     v23 = add v22, 32
 +     v24 = add v20, v19
-+     mcopy v20, v23, v16 !metadata(memory=heap, disjoint)
++     copy v20, v23, v16 !metadata(memory=heap, disjoint)
 +     v25 = ptrtoint memptr v5 to i256
 +     v26 = sub v24, v25
 +     v27 = add v26, 0
@@ -55,12 +55,12 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 1
+      store v1, 1
       v2 = memory_slice v0
       slice_store_word v2, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
       v3 = alloc memorybytes, exact, uninitialized, infallible, 64
       v4 = ptrtoint memptr v3 to i256
-      mstore v4, 1
+      store v4, 1
       v5 = memory_slice v3
       slice_store_word v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0, arg0
 -     v6 = abi_encode [memory_bytes], args v0
@@ -70,7 +70,7 @@
 +     v9 = add v8, 32
 +     v10 = ptrtoint memptr v7 to i256
 +     v11 = sub v9, v10
-+     mstore v7, v11
++     store v7, v11
 +     v12 = memory_slice v0
 +     v13 = slice_len v12
 +     v14 = ptrtoint memptr v0 to i256
@@ -83,12 +83,12 @@
 +     v21 = and v20, v19
 +     v22 = add v9, 32
 +     v23 = add v9, v21
-+     mstore v23, 0
-+     mstore v9, v18
++     store v23, 0
++     store v9, v18
 +     v24 = ptrtoint memptr v0 to i256
 +     v25 = add v24, 32
 +     v26 = add v22, v21
-+     mcopy v22, v25, v18 !metadata(memory=heap, disjoint)
++     copy v22, v25, v18 !metadata(memory=heap, disjoint)
 +     v27 = ptrtoint memptr v7 to i256
 +     v28 = sub v26, v27
 +     v29 = add v28, 0
@@ -105,7 +105,7 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 1
+      store v1, 1
       v2 = memory_slice v0
       slice_store_word v2, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
 -     v3 = abi_encode [memory_bytes], args v0
@@ -115,7 +115,7 @@
 +     v6 = add v5, 32
 +     v7 = ptrtoint memptr v4 to i256
 +     v8 = sub v6, v7
-+     mstore v4, v8
++     store v4, v8
 +     v9 = memory_slice v0
 +     v10 = slice_len v9
 +     v11 = ptrtoint memptr v0 to i256
@@ -128,12 +128,12 @@
 +     v18 = and v17, v16
 +     v19 = add v6, 32
 +     v20 = add v6, v18
-+     mstore v20, 0
-+     mstore v6, v15
++     store v20, 0
++     store v6, v15
 +     v21 = ptrtoint memptr v0 to i256
 +     v22 = add v21, 32
 +     v23 = add v19, v18
-+     mcopy v19, v22, v15 !metadata(memory=heap, disjoint)
++     copy v19, v22, v15 !metadata(memory=heap, disjoint)
 +     v24 = ptrtoint memptr v4 to i256
 +     v25 = sub v23, v24
 +     v26 = add v25, 0

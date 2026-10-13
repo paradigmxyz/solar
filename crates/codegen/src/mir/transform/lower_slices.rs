@@ -95,7 +95,8 @@ fn split_slice_phis(
             func.blocks[pred].instructions.push(len_inst);
             (pointer, length)
         } else {
-            let (len_inst, length) = new_word_inst(func, InstKind::MLoad(value));
+            let (len_inst, length) =
+                new_word_inst(func, InstKind::Load(value, PtrLocation::Memory));
             func.blocks[pred].instructions.push(len_inst);
             (value, length)
         };
@@ -390,9 +391,9 @@ impl LowerSlices {
                 }
 
                 let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-                let base = builder.mload(slot);
+                let base = builder.load(slot, PtrLocation::Memory);
                 let length_address = builder.add_u64_offset(base, EvmMemoryLayout::WORD_SIZE);
-                let length = builder.mload(length_address);
+                let length = builder.load(length_address, PtrLocation::Memory);
                 let slice = builder.make_slice(result, length, location);
                 let Value::Inst(constructor) = *builder.func().value(slice) else { unreachable!() };
                 replacements.insert(result, slice);
@@ -588,7 +589,7 @@ impl LowerSlices {
                     } else {
                         *lengths.entry(head).or_insert_with(|| {
                             let len_pos = builder.add_u64_offset(head, 4);
-                            builder.calldataload(len_pos)
+                            builder.load(len_pos, PtrLocation::Calldata)
                         })
                     };
                     let result = builder
@@ -731,13 +732,13 @@ impl LowerSlices {
             let physical_object = matches!(ty, MirType::I256);
             let physical_pointer = matches!(ty, MirType::I256);
             let physical_word = matches!(ty, MirType::I256)
-                && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
+                && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::Load(_, PtrLocation::Memory)));
             if physical_word || (physical_pointer && is_ptr) {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, slice);
                 removed.insert(inst);
             } else if physical_object {
-                func.inst_mut(inst).kind = InstKind::MLoad(slice);
+                func.inst_mut(inst).kind = InstKind::Load(slice, PtrLocation::Memory);
             }
         }
         if components.is_empty() {

@@ -3,7 +3,7 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb6: v12]
@@ -33,7 +33,7 @@ fn @constructor() [constructor] {
     jumpi v36, bb16, bb17
   bb17:
     v165 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v165, 2
+    store v165, 2
     jump bb49
   bb49:
     v166 = phi [bb17: 0], [bb50: v170]
@@ -63,7 +63,7 @@ fn @constructor() [constructor] {
     jumpi v195, bb61, bb62
   bb62:
     v286 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v286, 2
+    store v286, 2
     jump bb85
   bb85:
     v287 = phi [bb62: 0], [bb86: v291]
@@ -223,7 +223,7 @@ fn @constructor() [constructor] {
     sstore v469, v479 !metadata(storage=symbolic(v469))
     sstore v463, v466 !metadata(storage=offset(v462, 1))
     v480 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v480, 2
+    store v480, 2
     jump bb108
   bb108:
     v481 = phi [bb95: 0], [bb109: v485]
@@ -501,7 +501,7 @@ fn @constructor() [constructor] {
     jumpi v511, bb119, bb120
   bb119:
     v512 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v512, 0
+    store v512, 0
     v513 = shl 5, v506
     v514 = ptrtoint memptr v512 to i256
     slice_store_word v505, v513, v514
@@ -613,7 +613,7 @@ fn @constructor() [constructor] {
     jumpi v319, bb96, bb97
   bb96:
     v320 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v320, 0
+    store v320, 0
     v321 = shl 5, v314
     v322 = ptrtoint memptr v320 to i256
     slice_store_word v313, v321, v322
@@ -725,7 +725,7 @@ fn @constructor() [constructor] {
     jumpi v199, bb63, bb64
   bb63:
     v200 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v200, 0
+    store v200, 0
     v201 = shl 5, v194
     v202 = ptrtoint memptr v200 to i256
     slice_store_word v193, v201, v202
@@ -766,7 +766,7 @@ fn @constructor() [constructor] {
     jumpi v228, bb73, bb74
   bb73:
     v229 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v229, 0
+    store v229, 0
     v230 = shl 5, v223
     v231 = ptrtoint memptr v229 to i256
     slice_store_word v222, v230, v231
@@ -936,7 +936,7 @@ fn @constructor() [constructor] {
     jumpi v59, bb26, bb27
   bb27:
     v113 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v113, 0
+    store v113, 0
     v114 = memory_slice v113
     v115 = slice_len v114
     v116 = sload v58 !metadata(storage=symbolic(v58))
@@ -1095,7 +1095,7 @@ fn @constructor() [constructor] {
     jump bb31
   bb21:
     v45 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v45, 0
+    store v45, 0
     v46 = shl 5, v43
     v47 = ptrtoint memptr v45 to i256
     slice_store_word v42, v46, v47
@@ -1177,7 +1177,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v21 = eq v20, 0
     icall panic_if<0x41>, v21
     v22 = alloc memoryarray<1>, exact, uninitialized, panic, v15
-    mstore v22, v5
+    store v22, v5
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v31]
@@ -1296,7 +1296,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     jumpi v55, bb12, bb13
   bb12:
     v56 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v56, 0
+    store v56, 0
     v57 = shl 5, v50
     v58 = ptrtoint memptr v56 to i256
     slice_store_word v49, v57, v58
@@ -1433,7 +1433,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
     v20 = alloc memoryarray<1>, exact, uninitialized, panic, v13
-    mstore v20, v3
+    store v20, v3
     jump bb1
   bb1:
     v21 = phi [bb0: 0], [bb2: v29]
@@ -1552,7 +1552,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     jumpi v53, bb12, bb13
   bb12:
     v54 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v54, 0
+    store v54, 0
     v55 = shl 5, v48
     v56 = ptrtoint memptr v54 to i256
     slice_store_word v47, v55, v56
@@ -1766,7 +1766,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     jumpi v20, bb7, bb8
   bb8:
     v74 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v74, 0
+    store v74, 0
     v75 = memory_slice v74
     v76 = slice_len v75
     v77 = sload v19 !metadata(storage=offset(v17, 5))

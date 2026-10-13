@@ -2,18 +2,18 @@
 @module C
 fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    mstore 0, 3 !metadata(memory=scratch)
+    store 0, 3 !metadata(memory=scratch)
     v0 = icall @eff
-    v1 = mload 0 !metadata(memory=scratch)
+    v1 = load 0 !metadata(memory=scratch)
     v2 = mul v1, v0
     ret v2
 }
 
 fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    mstore 0, 1 !metadata(memory=scratch)
+    store 0, 1 !metadata(memory=scratch)
     v0 = icall @w, 7
-    v1 = mload 0 !metadata(memory=scratch)
+    v1 = load 0 !metadata(memory=scratch)
     v2 = add v1, 100
     v3 = sub v2, v0
     ret v3
@@ -22,14 +22,14 @@ fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns
 fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v0, 20
+    store v0, 20
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
-    mstore v2, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
-    mstore 32, 0 !metadata(memory=scratch)
+    store v2, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
+    store 32, 0 !metadata(memory=scratch)
     v3 = ptrtoint memptr v0 to i256
     v4 = icall @doCreate, v3
-    v5 = mload 32 !metadata(memory=scratch)
+    v5 = load 32 !metadata(memory=scratch)
     v6 = extcodesize v5
     v7 = mul v6, v4
     v8 = eq v7, 0
@@ -41,22 +41,22 @@ fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word
 
 fn @eff() -> i256 {
   bb0:
-    mstore 0, 5 !metadata(memory=scratch)
+    store 0, 5 !metadata(memory=scratch)
     ret 10
 }
 
 fn @w(arg0: i256) -> i256 {
   bb0:
-    mstore 0, arg0 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
     ret arg0
 }
 
 fn @doCreate(arg0: i256) -> i256 {
   bb0:
-    v0 = mload arg0
+    v0 = load arg0
     v1 = add arg0, 32
     v2 = create 0, v1, v0
     v3 = zext i160 v2 to i256
-    mstore 32, v3 !metadata(memory=scratch)
+    store 32, v3 !metadata(memory=scratch)
     ret v3
 }

@@ -5,10 +5,10 @@
 
 fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = calldataload 36
-    v1 = calldataload 4
+    v0 = load calldata 36
+    v1 = load calldata 4
     v2 = sub v1, v0
-    v3 = calldataload 4
+    v3 = load calldata 4
     v4 = add v3, 1
     v5 = calldatasize
     v6 = div v5, v4

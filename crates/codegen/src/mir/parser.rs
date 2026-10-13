@@ -1572,6 +1572,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
+    /// Parses an optional non-memory location before a memory access's operands.
+    fn parse_ptr_location(&mut self) -> PtrLocation {
+        if self.parser.eat_keyword(kw::Calldata) {
+            PtrLocation::Calldata
+        } else if self.parser.eat_keyword(sym::returndata) {
+            PtrLocation::Returndata
+        } else {
+            PtrLocation::Memory
+        }
+    }
+
     fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
         let kind = self.parser.parse_ident()?;
         Ok(match kind {
@@ -1842,6 +1853,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let storage = self.parse_value(builder)?;
                 (InstKind::ClearStorage { storage, layout }, None)
+            }
+
+            sym::load => {
+                let location = self.parse_ptr_location();
+                let ptr = self.parse_value(builder)?;
+                schema_typed(InstKind::Load(ptr, location))
+            }
+            sym::copy => {
+                let location = self.parse_ptr_location();
+                let dest = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let src = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let len = self.parse_value(builder)?;
+                (InstKind::Copy(dest, src, len, location), None)
             }
 
             // Slices.

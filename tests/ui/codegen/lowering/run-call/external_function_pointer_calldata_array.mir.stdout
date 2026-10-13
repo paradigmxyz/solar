@@ -15,7 +15,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     icall panic_if<0x32>, v5
     v6 = slice_ptr arg0
     v7 = add v6, 0
-    v8 = calldataload v7
+    v8 = load calldata v7
     v9 = shl 192, v8
     v10 = eq v9, 0
     v11 = eq v10, false
@@ -37,14 +37,14 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
-    v24 = mload v23
+    v24 = load v23
     v25 = slice_len arg0
     v26 = lt 1, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = slice_ptr arg0
     v29 = add v28, 32
-    v30 = calldataload v29
+    v30 = load calldata v29
     v31 = shl 192, v30
     v32 = eq v31, 0
     v33 = eq v32, false
@@ -66,14 +66,14 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v44 = lt v43, 32
     icall revert_if<tuple_data_too_short>, v44
     v45 = add 0, 0
-    v46 = mload v45
+    v46 = load v45
     v47 = slice_len arg0
     v48 = lt 2, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
     v50 = slice_ptr arg0
     v51 = add v50, 64
-    v52 = calldataload v51
+    v52 = load calldata v51
     v53 = shl 192, v52
     v54 = eq v53, 0
     v55 = eq v54, false
@@ -95,7 +95,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v66 = lt v65, 32
     icall revert_if<tuple_data_too_short>, v66
     v67 = add 0, 0
-    v68 = mload v67
+    v68 = load v67
     v69 = insert_value struct0, undef struct0, 0, v24
     v70 = insert_value struct0, v69, 1, v46
     v71 = insert_value struct0, v70, 2, v68
@@ -132,7 +132,7 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
-    mstore v23, v2
+    store v23, v2
     jump bb1
   bb1:
     v24 = phi [bb0: 0], [bb2: v36]
@@ -152,11 +152,11 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     v43 = lt v42, 96
     icall revert_if<tuple_data_too_short>, v43
     v44 = add v38, 0
-    v45 = mload v44
+    v45 = load v44
     v46 = add v38, 32
-    v47 = mload v46
+    v47 = load v46
     v48 = add v38, 64
-    v49 = mload v48
+    v49 = load v48
     v50 = insert_value struct0, undef struct0, 0, v45
     v51 = insert_value struct0, v50, 1, v47
     v52 = insert_value struct0, v51, 2, v49
@@ -170,7 +170,7 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
-    v28 = calldataload v27
+    v28 = load calldata v27
     v29 = shl 192, v28
     v30 = eq v29, 0
     v31 = eq v30, false
@@ -202,7 +202,7 @@ fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[wo
 fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
@@ -253,11 +253,11 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v57 = lt v56, 96
     icall revert_if<tuple_data_too_short>, v57
     v58 = add v52, 0
-    v59 = mload v58
+    v59 = load v58
     v60 = add v52, 32
-    v61 = mload v60
+    v61 = load v60
     v62 = add v52, 64
-    v63 = mload v62
+    v63 = load v62
     v64 = insert_value struct0, undef struct0, 0, v59
     v65 = insert_value struct0, v64, 1, v61
     v66 = insert_value struct0, v65, 2, v63
@@ -281,11 +281,11 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v36 = lt v35, 96
     icall revert_if<tuple_data_too_short>, v36
     v37 = add v31, 0
-    v38 = mload v37
+    v38 = load v37
     v39 = add v31, 32
-    v40 = mload v39
+    v40 = load v39
     v41 = add v31, 64
-    v42 = mload v41
+    v42 = load v41
     v43 = insert_value struct0, undef struct0, 0, v38
     v44 = insert_value struct0, v43, 1, v40
     v45 = insert_value struct0, v44, 2, v42

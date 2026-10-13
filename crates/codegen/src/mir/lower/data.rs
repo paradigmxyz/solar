@@ -5,7 +5,7 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
-    mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
+    mir::{FunctionBuilder, Module, PtrLocation, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -93,7 +93,7 @@ pub(super) fn copy_data_to_memory(
         let tail_offset = data.len() / word_size * word_size;
         let tail = dest.at(builder, tail_offset as u64);
         let zero = builder.imm(0);
-        builder.mstore(tail, zero);
+        builder.store(tail, zero);
     }
     let size = builder.imm(data.len() as u64);
     let data = module.intern_data(data, name);
@@ -147,7 +147,7 @@ fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: DataDest, data: &[u
     for (index, chunk) in data.chunks(word_size).enumerate() {
         let value = builder.imm(U256::from_be_bytes(padded_data_word(chunk)));
         let address = dest.at(builder, (index * word_size) as u64);
-        builder.mstore(address, value);
+        builder.store(address, value);
     }
 }
 
@@ -171,22 +171,22 @@ fn copy_splat_to_memory(
         let tail_offset = data.len() / word_size * word_size;
         let tail = dest.at(builder, tail_offset as u64);
         let zero = builder.imm(0);
-        builder.mstore(tail, zero);
+        builder.store(tail, zero);
     }
     let value = builder.imm(U256::from_be_bytes(padded_data_word(&data[..word_size])));
     let start = dest.at(builder, 0);
-    builder.mstore(start, value);
+    builder.store(start, value);
     let mut filled = word_size;
     if data.len() >= word_size * 2 {
         let target = dest.at(builder, word_size as u64);
-        builder.mstore(target, value);
+        builder.store(target, value);
         filled += word_size;
     }
     while filled < data.len() {
         let chunk = filled.min(data.len() - filled);
         let target = dest.at(builder, filled as u64);
         let size = builder.imm(chunk as u64);
-        builder.mcopy(target, start, size);
+        builder.copy(target, start, size, PtrLocation::Memory);
         filled += chunk;
     }
     true

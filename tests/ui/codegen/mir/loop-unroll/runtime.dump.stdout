@@ -7,10 +7,10 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb7, bb1
   bb1:
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = shr 224, v2
-    v4 = calldataload 4
-    v5 = calldataload 36
+    v4 = load calldata 4
+    v5 = load calldata 36
     switch v3, default bb7, [0x188b85b4 => bb2, 0x1d1d15d4 => bb3, 0x252fc58f => bb4, 0x55680991 => bb5, 0x8129c875 => bb6]
   bb6:
     v41 = calldatasize
@@ -30,7 +30,7 @@ fn @entry() [entry] {
     v45 = lt v43, v4
     jumpi v45, bb30, bb29
   bb29:
-    mstore 128, v44
+    store 128, v44
     returndata 128, 32
   bb30:
     v46 = mul v44, 7
@@ -73,7 +73,7 @@ fn @entry() [entry] {
     v40 = eq v39, 0
     jumpi v40, bb11, bb24
   bb25:
-    mstore 128, v36
+    store 128, v36
     returndata 128, 32
   bb42:
     v142 = add v140, v139
@@ -100,7 +100,7 @@ fn @entry() [entry] {
     v29 = lt v27, v4
     jumpi v29, bb21, bb20
   bb20:
-    mstore 128, v28
+    store 128, v28
     returndata 128, 32
   bb21:
     v30 = add v28, v5
@@ -174,7 +174,7 @@ fn @entry() [entry] {
     v24 = add v19, 1
     jump bb14
   bb15:
-    mstore 128, v18
+    store 128, v18
     returndata 128, 32
   bb2:
     v6 = calldatasize
@@ -194,7 +194,7 @@ fn @entry() [entry] {
     v10 = lt v8, v4
     jumpi v10, bb10, bb9
   bb9:
-    mstore 128, v9
+    store 128, v9
     returndata 128, 32
   bb10:
     v11 = mul v8, 3
@@ -233,8 +233,8 @@ fn @entry() [entry] {
     v80 = add v72, 1
     jump bb32
   bb11:
-    mstore 32, 17
-    mstore 0, 0x4e487b71
+    store 32, 17
+    store 0, 0x4e487b71
     revert 28, 36
   bb7:
     revert 0, 0

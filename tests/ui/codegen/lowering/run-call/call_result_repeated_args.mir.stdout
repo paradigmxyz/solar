@@ -6,7 +6,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall @store, 3, 4
     v0 = icall @helper
     v1 = codesize
-    calldatacopy 0, 0, v1 !metadata(memory=scratch)
+    copy calldata 0, 0, v1 !metadata(memory=scratch)
     v2 = ne v0, 0
     jumpi v2, bb1, bb2
   bb2:

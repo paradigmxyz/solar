@@ -60,7 +60,7 @@ fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [pure] {
     v14 = not 31
     v15 = and v12, v14
     v16 = alloc memorybytes, exact, zeroed, panic, v15
-    mstore v16, v11
+    store v16, v11
     jump bb7
   bb7:
     v17 = phi [bb6: arg0], [bb9: v17]
@@ -340,7 +340,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v35 = not 31
     v36 = and v33, v35
     v37 = alloc memorybytes, exact, zeroed, panic, v36
-    mstore v37, v32
+    store v37, v32
     jump bb13
   bb13:
     v38 = phi [bb6: v1], [bb15: v38]
@@ -494,7 +494,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v3 = not 31
     v4 = and 63, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
-    mstore v5, 0
+    store v5, 0
     ret v5
 }
 

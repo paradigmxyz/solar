@@ -47,7 +47,7 @@ fn @invalidate_length(arg0: memptr) -> i256 {
     v7 = memory_slice arg0
     v2 = slice_len v7
     v8 = ptrtoint memptr arg0 to i256
-    mstore v8, 9
+    store v8, 9
     v9 = memory_slice arg0
     v3 = slice_len v9
     v4 = add v1, v2
@@ -96,8 +96,8 @@ fn @reuse_live_length() -> i256 {
 
 // Semantic element loads are left to memory DSE; their lowered words are reused.
 // LOWERED-LABEL: {{^[ +].*}}fn @reuse_struct_field{{[( ]}}
-// LOWERED:       [[FIELD:v[0-9]+]] = mload
-// LOWERED: -     {{v[0-9]+}} = mload
+// LOWERED:       [[FIELD:v[0-9]+]] = load
+// LOWERED: -     {{v[0-9]+}} = load
 // LOWERED: +     {{v[0-9]+}} = add [[FIELD]], [[FIELD]]
 fn @reuse_struct_field() -> i256 {
   bb0:
@@ -121,16 +121,16 @@ fn @reuse_struct_field() -> i256 {
 // CHECK-NEXT:       {{v[0-9]+}} = memory_slice
 // LOWERED-LABEL: {{^[ +].*}}fn @forward_initialized_length{{[( ]}}
 // LOWERED:       bb1:
-// LOWERED:       -     {{v[0-9]+}} = mload
+// LOWERED:       -     {{v[0-9]+}} = load
 // LOWERED:       +     ret 3
 fn @forward_initialized_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     v26 = ptrtoint memptr v0 to i256
-    mstore v26, 3
+    store v26, 3
     v25 = memory_slice v0
     v1 = slice_ptr v25
-    mstore v1, 0
+    store v1, 0
     jump bb1
   bb1:
     v27 = memory_slice v0
@@ -145,8 +145,8 @@ fn @forward_initialized_length() -> i256 {
 fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v2 = ptrtoint memptr arg0 to i256
-    mstore v2, 3
-    mstore v2, arg1
+    store v2, 3
+    store v2, arg1
     v4 = memory_slice arg0
     v3 = slice_len v4
     ret v3
@@ -160,11 +160,11 @@ fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
 fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v4 = ptrtoint memptr arg0 to i256
-    mstore v4, 3
+    store v4, 3
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb1:
-    mstore v4, 4
+    store v4, 4
     jump bb3
   bb2:
     jump bb3
@@ -183,7 +183,7 @@ fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
 fn @loop_header_clobber(arg0: memptr) -> i256 {
   bb0:
     v3 = ptrtoint memptr arg0 to i256
-    mstore v3, 7
+    store v3, 7
     jump bb1
   bb1:
     v4 = memory_slice arg0
@@ -191,7 +191,7 @@ fn @loop_header_clobber(arg0: memptr) -> i256 {
     v2 = ne v1, 0
     jumpi v2, bb2, bb3
   bb2:
-    mstore v3, 0
+    store v3, 0
     jump bb1
   bb3:
     ret v1
@@ -205,12 +205,12 @@ fn @recycled_header_clobber() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 3
+    store v1, 3
     v4 = inttoptr i256 v1 to memptr
     set_fmp v4
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
     v5 = ptrtoint memptr v2 to i256
-    mstore v5, 4
+    store v5, 4
     v6 = memory_slice v0
     v3 = slice_len v6
     ret v3
@@ -220,7 +220,7 @@ fn @recycled_header_clobber() -> i256 {
 // CHECK-LABEL: fn @parameter_may_overlap_allocation
 // CHECK: [[VIEW:v[0-9]+]] = memory_slice arg0
 // CHECK: [[LEN:v[0-9]+]] = slice_len [[VIEW]]
-// CHECK: mstore {{v[0-9]+}}, 7
+// CHECK: store {{v[0-9]+}}, 7
 // CHECK: [[AFTER_VIEW:v[0-9]+]] = memory_slice arg0
 // CHECK: [[AFTER:v[0-9]+]] = slice_len [[AFTER_VIEW]]
 // CHECK: add [[LEN]], [[AFTER]]
@@ -230,7 +230,7 @@ fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
     v4 = memory_slice arg0
     v1 = slice_len v4
     v5 = ptrtoint memptr v0 to i256
-    mstore v5, 7
+    store v5, 7
     v6 = memory_slice arg0
     v2 = slice_len v6
     v3 = add v1, v2
@@ -239,7 +239,7 @@ fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
 
 fn @fabricated_parameter() -> i256 {
   bb0:
-    v0 = mload 64
+    v0 = load 64
     v1 = inttoptr i256 v0 to memptr
     v3 = icall @parameter_may_overlap_allocation, v1
     ret v3

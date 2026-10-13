@@ -17,7 +17,7 @@ fn @receive() [receive, payable] {
 fn @receive() [receive, payable] {
   bb0:
     v0 = shl 224, 0xdeadbeef
-    mstore 0, v0 !metadata(memory=scratch)
+    store 0, v0 !metadata(memory=scratch)
     revert 0, 4
 }
 
@@ -41,7 +41,7 @@ fn @constructor() [constructor] {
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -65,7 +65,7 @@ fn @constructor() [constructor] {
     v22 = slice_ptr v17
     v23 = ptrtoint memptr v20 to i256
     v24 = add v23, v18
-    mcopy v24, v22, 0 !metadata(memory=heap)
+    copy v24, v22, 0 !metadata(memory=heap)
     v25 = ptrtoint memptr v20 to i256
     v26 = create 0, v25, v18
     v27 = ne v26, i160 0
@@ -141,8 +141,8 @@ fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[w
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160
     v2 = icall send<>, v1, 0
-    returndatacopy 0, 0, 4 !metadata(memory=scratch)
-    v3 = mload 0 !metadata(memory=scratch)
+    copy returndata 0, 0, 4 !metadata(memory=scratch)
+    v3 = load 0 !metadata(memory=scratch)
     ret v3
 }
 

@@ -145,8 +145,8 @@ impl EvmInstSchedule {
     ///
     /// ```text
     /// v1 = add v0, 2            mstore8 v3, v4
-    /// mstore8 v3, v4      =>    v1 = add v0, 2
-    /// mstore8 v1, v5            mstore8 v1, v5
+    /// store8 v3, v4      =>    v1 = add v0, 2
+    /// store8 v1, v5            store8 v1, v5
     /// ```
     fn sink_past_barriers(
         func: &mut Function,

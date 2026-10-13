@@ -8,7 +8,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: + {{v[0-9]+}} = icall @pair, arg0 !metadata(spans=[10..20, 30..40], modifier_depth=2)
 // CHECK: + {{v[0-9]+}} = frame_load multi_return, word, 0 !metadata(memory=scratch, spans=[10..20, 30..40], modifier_depth=2)
-// CHECK: + {{v[0-9]+}} = mload {{v[0-9]+}} !metadata(spans=[10..20, 30..40], modifier_depth=2)
+// CHECK: + {{v[0-9]+}} = load {{v[0-9]+}} !metadata(spans=[10..20, 30..40], modifier_depth=2)
 // CHECK: + {{v[0-9]+}} = select arg1, {{.*}} !metadata(spans=[50..60, 70..80], modifier_depth=3)
 // CHECK: + {{v[0-9]+}} = select arg1, {{.*}} !metadata(spans=[50..60, 70..80], modifier_depth=3)
 // CHECK: + ret {{.*}} !metadata(span=90..100, modifier_depth=4)

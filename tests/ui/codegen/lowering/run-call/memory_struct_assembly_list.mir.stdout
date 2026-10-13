@@ -33,22 +33,22 @@ fn @append.2(arg0: memptr, arg1: memptr) -> memptr [pure] {
     v5 = make_memory_slice v4, 1
     slice_store_word v5, 0, 0
     v6 = ptrtoint memptr v4 to i256
-    mstore v6, v3
+    store v6, v3
     icall @updateTail, arg0, v4
     ret arg0
 }
 
 fn @dirtyFreeMemory() [view] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = gas
     v2 = caller
     v3 = zext i160 v2 to i256
     v4 = add v3, v1
-    mstore v0, v4
+    store v0, v4
     v5 = not 0
     v6 = add v0, 32
-    mstore v6, v5
+    store v6, v5
     ret
 }
 
@@ -59,7 +59,7 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
     slice_store_word v1, 0, 0
     icall @dirtyFreeMemory
     v2 = ptrtoint memptr v0 to i256
-    v3 = mload v2
+    v3 = load v2
     v4 = eq v3, 0
     v5 = zext i1 v4 to i256
     ret v5
@@ -70,7 +70,7 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
     icall @dirtyFreeMemory
     v0 = icall @empty
     v1 = ptrtoint memptr v0 to i256
-    v2 = mload v1
+    v2 = load v1
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
     ret v4
@@ -84,10 +84,10 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
     icall @dirtyFreeMemory
     v2 = icall @append.1, v0, 7
     v3 = ptrtoint memptr v2 to i256
-    v4 = mload v3
+    v4 = load v3
     v5 = and v4, 0xffffffffff
     v6 = shr 40, v4
-    v7 = mload v5
+    v7 = load v5
     v8 = shr 48, v7
     v9 = eq v8, 7
     v10 = zext i1 v9 to i256
@@ -111,14 +111,14 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
     v2 = icall @append.1, v0, 7
     v3 = icall @append.1, v2, 9
     v4 = ptrtoint memptr v3 to i256
-    v5 = mload v4
+    v5 = load v4
     v6 = and v5, 0xffffffffff
     v7 = shr 40, v5
-    v8 = mload v7
+    v8 = load v7
     v9 = shr 48, v8
     v10 = eq v9, 9
     v11 = zext i1 v10 to i256
-    v12 = mload v6
+    v12 = load v6
     v13 = and v12, 0xffffffffff
     v14 = eq v13, v7
     v15 = zext i1 v14 to i256
@@ -128,10 +128,10 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
 
 fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = icall @encode, arg0, v0
     v2 = sub v1, v0
-    v3 = mload v0
+    v3 = load v0
     v4 = insert_value struct0, undef struct0, 0, v2
     v5 = insert_value struct0, v4, 1, v3
     ret v5
@@ -156,11 +156,11 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     v13 = icall @append.2, v11, v12
     v14 = icall @append.2, v10, v13
     v15 = icall @append.2, v7, v14
-    v16 = mload 64 !metadata(memory=scratch)
+    v16 = load 64 !metadata(memory=scratch)
     v17 = ptrtoint memptr v15 to i256
     v18 = icall @encodeList, v17, v16
     v19 = sub v18, v16
-    v20 = mload v16
+    v20 = load v16
     v21 = insert_value struct0, undef struct0, 0, v19
     v22 = insert_value struct0, v21, 1, v20
     ret v22
@@ -169,10 +169,10 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
 fn @updateTail(arg0: memptr, arg1: memptr) [pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
-    v1 = mload v0
+    v1 = load v0
     v2 = ptrtoint memptr arg1 to i256
     v3 = ptrtoint memptr arg0 to i256
-    v4 = mload v3
+    v4 = load v3
     v5 = shr v4, v2
     v6 = or v5, v1
     v7 = shr 40, v6
@@ -181,11 +181,11 @@ fn @updateTail(arg0: memptr, arg1: memptr) [pure] {
     v10 = shl 40, v9
     v11 = xor v10, v6
     v12 = ptrtoint memptr arg0 to i256
-    mstore v12, v11
+    store v12, v11
     v13 = ptrtoint memptr arg1 to i256
-    v14 = mload v7
+    v14 = load v7
     v15 = or v14, v13
-    mstore v7, v15
+    store v7, v15
     ret
 }
 
@@ -202,10 +202,10 @@ fn @encode(arg0: i256, arg1: i256) -> i256 {
     v5 = sub arg0, 1
     v6 = icall @encode, v5, v4
     v7 = add 192, arg0
-    mstore8 arg1, v7
+    store8 arg1, v7
     ret v6
   bb1:
-    mstore8 arg1, 192
+    store8 arg1, 192
     v3 = add arg1, 1
     ret v3
 }
@@ -246,11 +246,11 @@ fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
     v31 = shr 3, v27
     v32 = or v31, v30
     v33 = add v32, 129
-    mstore8 arg1, v33
-    mstore 0, arg0 !metadata(memory=scratch)
+    store8 arg1, v33
+    store 0, arg0 !metadata(memory=scratch)
     v34 = xor 31, v32
-    v35 = mload v34
-    mstore v0, v35
+    v35 = load v34
+    store v0, v35
     v36 = add 1, v32
     v37 = add v36, v0
     ret v37
@@ -259,7 +259,7 @@ fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
     v7 = zext i1 v6 to i256
     v8 = shl 7, v7
     v9 = or v8, arg0
-    mstore8 arg1, v9
+    store8 arg1, v9
     ret v0
 }
 
@@ -267,15 +267,15 @@ fn @encodeAddress(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg1, 21
     v1 = shl 88, arg0
-    mstore arg1, v1
-    mstore8 arg1, 148
+    store arg1, v1
+    store8 arg1, 148
     ret v0
 }
 
 fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = add arg1, 1
-    v1 = mload arg0
+    v1 = load arg0
     v2 = gt v1, 55
     v3 = zext i1 v2 to i256
     v4 = eq v3, 0
@@ -288,7 +288,7 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v23 = shr 32, v1
     v24 = returndatasize
     v25 = returndatasize
-    returndatacopy v25, v24, v23
+    copy returndata v25, v24, v23
     v26 = lt 0xffffff, v1
     v27 = zext i1 v26 to i256
     v28 = lt 0xffff, v1
@@ -301,7 +301,7 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v35 = add arg2, 55
     v36 = add v34, v35
     v37 = shl 248, v36
-    mstore arg1, v37
+    store arg1, v37
     v38 = add v34, v0
     v39 = add v38, v1
     v40 = add 32, arg0
@@ -322,8 +322,8 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     jump bb8
   bb9:
     v51 = add v43, v48
-    v52 = mload v51
-    mstore v48, v52
+    v52 = load v51
+    store v48, v52
     v53 = add v48, 32
     v54 = lt v53, v47
     v55 = zext i1 v54 to i256
@@ -344,13 +344,13 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v60 = shl 3, v46
     v61 = sub 248, v60
     v62 = shl v61, v42
-    v63 = mload v44
+    v63 = load v44
     v64 = or v63, v62
-    mstore v44, v64
+    store v44, v64
     ret v47
   bb1:
     v7 = add 32, arg0
-    v8 = mload v7
+    v8 = load v7
     v9 = byte 0, v8
     v10 = lt v9, 128
     v11 = zext i1 v10 to i256
@@ -364,23 +364,23 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb5:
     jump bb6
   bb6:
-    mstore arg1, v8
+    store arg1, v8
     ret v0
   bb4:
     v18 = add v1, arg2
-    mstore8 arg1, v18
+    store8 arg1, v18
     v19 = add 64, arg0
-    v20 = mload v19
+    v20 = load v19
     v21 = add 33, arg1
-    mstore v21, v20
-    mstore v0, v8
+    store v21, v20
+    store v0, v8
     v22 = add v1, v0
     ret v22
 }
 
 fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v0 = mload arg0
+    v0 = load arg0
     v1 = eq v0, 0
     v2 = zext i1 v1 to i256
     v3 = ne v2, 0
@@ -401,7 +401,7 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb7:
     jump bb5
   bb6:
-    v12 = mload v10
+    v12 = load v10
     v13 = and v12, 0xffffffffff
     v14 = eq v13, 0
     v15 = zext i1 v14 to i256
@@ -410,7 +410,7 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb10:
     jump bb11
   bb11:
-    v17 = mload v13
+    v17 = load v13
     v18 = byte 26, v17
     v19 = gt v18, 1
     v20 = zext i1 v19 to i256
@@ -435,19 +435,19 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb22:
     jump bb23
   bb23:
-    v46 = mload v13
+    v46 = load v13
     v47 = shr 48, v46
     v48 = icall @encodeAddress, v47, v7
     jump bb8
   bb8:
     jump bb4
   bb21:
-    v43 = mload v13
+    v43 = load v13
     v44 = shr 48, v43
     v45 = icall @encodeList, v44, v7
     jump bb4
   bb18:
-    v37 = mload v13
+    v37 = load v13
     v38 = shr 48, v37
     v39 = icall @encodeBytes, v38, v7, 128
     jump bb4
@@ -459,13 +459,13 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb16:
     jump bb17
   bb17:
-    v30 = mload v13
+    v30 = load v13
     v31 = shr 48, v30
-    v32 = mload v31
+    v32 = load v31
     v33 = icall @encodeUint, v32, v7
     jump bb4
   bb15:
-    v27 = mload v13
+    v27 = load v13
     v28 = shr 48, v27
     v29 = icall @encodeUint, v28, v7
     jump bb4
@@ -484,25 +484,25 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb25:
     jump bb26
   bb26:
-    mstore v6, v51
+    store v6, v51
     v66 = icall @encodeBytes, v6, v6, 192
     ret v66
   bb24:
     v57 = add v51, 192
-    mstore8 v6, v57
+    store8 v6, v57
     v58 = add v6, 32
-    v59 = mload v58
+    v59 = load v58
     v60 = add v6, 1
-    mstore v60, v59
+    store v60, v59
     v61 = add v6, 64
-    v62 = mload v61
+    v62 = load v61
     v63 = add v6, 33
-    mstore v63, v62
+    store v63, v62
     v64 = add v6, 1
     v65 = add v51, v64
     ret v65
   bb1:
-    mstore8 arg1, 192
+    store8 arg1, 192
     v4 = add arg1, 1
     ret v4
 }

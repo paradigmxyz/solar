@@ -43,7 +43,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v31 = lt v30, 32
     icall panic_if<0x41>, v31
     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, v30
-    mstore v32, v11
+    store v32, v11
     v33 = make_calldata_slice v12, v23
     v34 = ptrtoint memptr v32 to i256
     v35 = add v34, 32
@@ -88,7 +88,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v68 = lt v67, 32
     icall panic_if<0x41>, v68
     v69 = alloc memoryarray<1>, exact, uninitialized, infallible, v67
-    mstore v69, v48
+    store v69, v48
     v70 = make_calldata_slice v49, v60
     v71 = ptrtoint memptr v69 to i256
     v72 = add v71, 32
@@ -147,7 +147,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     jumpi v80, bb4, bb5
   bb5:
     v102 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v102, 0
+    store v102, 0
     v103 = memory_slice v102
     v104 = slice_len v103
     v105 = sload v79 !metadata(storage=symbolic(v77))

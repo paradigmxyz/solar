@@ -12,13 +12,13 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v0 = datasize A_creation_code_0
     v1 = datasize A_creation_code_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
-    mstore v2, v0
+    store v2, v0
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     v5 = datasize A_creation_code_0, 31, aligned
     v6 = ptrtoint memptr v2 to i256
     v7 = add v6, v5
-    mstore v7, 0
+    store v7, 0
     datacopy A_creation_code_0, v4, v0
     v8 = memory_slice v2
     v9 = slice_len v8
@@ -30,13 +30,13 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v11 = datasize A_runtime_code_1
     v12 = datasize A_runtime_code_1, 63, aligned
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
-    mstore v13, v11
+    store v13, v11
     v14 = ptrtoint memptr v13 to i256
     v15 = add v14, 32
     v16 = datasize A_runtime_code_1, 31, aligned
     v17 = ptrtoint memptr v13 to i256
     v18 = add v17, v16
-    mstore v18, 0
+    store v18, 0
     datacopy A_runtime_code_1, v15, v11
     v19 = memory_slice v13
     v20 = slice_len v19
@@ -74,13 +74,13 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v0 = datasize InternalContract_runtime_code_0
     v1 = datasize InternalContract_runtime_code_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
-    mstore v2, v0
+    store v2, v0
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     v5 = datasize InternalContract_runtime_code_0, 31, aligned
     v6 = ptrtoint memptr v2 to i256
     v7 = add v6, v5
-    mstore v7, 0
+    store v7, 0
     datacopy InternalContract_runtime_code_0, v4, v0
     v8 = memory_slice v2
     v9 = slice_len v8
@@ -92,13 +92,13 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v11 = datasize ConstructorOnly_runtime_code_1
     v12 = datasize ConstructorOnly_runtime_code_1, 63, aligned
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
-    mstore v13, v11
+    store v13, v11
     v14 = ptrtoint memptr v13 to i256
     v15 = add v14, 32
     v16 = datasize ConstructorOnly_runtime_code_1, 31, aligned
     v17 = ptrtoint memptr v13 to i256
     v18 = add v17, v16
-    mstore v18, 0
+    store v18, 0
     datacopy ConstructorOnly_runtime_code_1, v15, v11
     v19 = memory_slice v13
     v20 = slice_len v19
@@ -113,13 +113,13 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v23 = datasize InternalLibrary_runtime_code_2
     v24 = datasize InternalLibrary_runtime_code_2, 63, aligned
     v25 = alloc memorybytes, exact, uninitialized, infallible, v24 !metadata(preserves_fmp)
-    mstore v25, v23
+    store v25, v23
     v26 = ptrtoint memptr v25 to i256
     v27 = add v26, 32
     v28 = datasize InternalLibrary_runtime_code_2, 31, aligned
     v29 = ptrtoint memptr v25 to i256
     v30 = add v29, v28
-    mstore v30, 0
+    store v30, 0
     datacopy InternalLibrary_runtime_code_2, v27, v23
     v31 = memory_slice v25
     v32 = slice_len v31
@@ -141,7 +141,7 @@ fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_ret
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -151,10 +151,10 @@ fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_ret
   bb2:
     v11 = gas
     v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v12, 4
+    store v12, 4
     v13 = ptrtoint memptr v12 to i256
     v14 = add v13, 32
-    mstore v14, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    store v14, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
     v15 = address_call v9, v12, gas v11
     v16 = zext i160 v9 to i256
     v17 = extcodesize v16
@@ -181,7 +181,7 @@ fn @hasCode() -> i1 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -206,7 +206,7 @@ fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -216,7 +216,7 @@ fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<
   bb2:
     v11 = gas
     v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    mstore v12, 0
+    store v12, 0
     v13 = ptrtoint memptr v12 to i256
     v14 = address_call v9, v12, gas v11
     v15 = eq v14, false

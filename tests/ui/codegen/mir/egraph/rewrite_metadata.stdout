@@ -15,15 +15,15 @@
     bb0:
 -     v0 = add arg0, 0
 -     v1 = sload v0 !metadata(storage=symbolic(v0), span=5..9)
--     v2 = mload v0 !metadata(memory=heap, span=9..13)
+-     v2 = load v0 !metadata(memory=heap, span=9..13)
 +     v1 = sload arg0 !metadata(span=5..9)
-+     v2 = mload arg0 !metadata(span=9..13)
++     v2 = load arg0 !metadata(span=9..13)
       ret v1, v2
   }
   
   fn @unchanged(arg0: i256) -> i256 {
     bb0:
-      v0 = mload arg0 !metadata(memory=heap, span=13..17)
+      v0 = load arg0 !metadata(memory=heap, span=13..17)
       ret v0
   }
   

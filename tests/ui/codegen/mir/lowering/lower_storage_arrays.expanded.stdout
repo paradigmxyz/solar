@@ -20,7 +20,7 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     mstore v11, v1
++     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
@@ -39,8 +39,8 @@
 +     v20 = add v13, 1
 +     jump bb4
 +   bb1:
-+     mstore 32, 65 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 65 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -63,7 +63,7 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     mstore v11, v1
++     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
@@ -87,8 +87,8 @@
 +     v25 = add v13, 1
 +     jump bb4
 +   bb1:
-+     mstore 32, 65 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 65 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -111,7 +111,7 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     mstore v11, v1
++     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
@@ -135,8 +135,8 @@
 +     v25 = add v13, 1
 +     jump bb4
 +   bb1:
-+     mstore 32, 65 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 65 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -159,7 +159,7 @@
 +     jumpi v10, bb1, bb3
 +   bb3:
 +     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     mstore v11, v1
++     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
@@ -186,12 +186,12 @@
 +     v26 = add v13, 1
 +     jump bb4
 +   bb7:
-+     mstore 32, 33 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 33 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
-+     mstore 32, 65 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 65 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -217,7 +217,7 @@
 +     jumpi v11, bb4, bb6 !metadata(span=50..60, modifier_depth=5)
 +   bb6:
 +     v12 = alloc memoryarray<1>, exact, uninitialized, panic, v5 !metadata(span=50..60, modifier_depth=5)
-+     mstore v12, v2 !metadata(span=50..60, modifier_depth=5)
++     store v12, v2 !metadata(span=50..60, modifier_depth=5)
 +     v13 = storage_array_data_slot arg1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb7:
@@ -240,8 +240,8 @@
 +     v21 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb4:
-+     mstore 32, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     store 32, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     store 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
 + }
 + 
@@ -267,7 +267,7 @@
 +     v14 = not 31
 +     v15 = and v12, v14
 +     v16 = alloc memorybytes, exact, uninitialized, panic, v15
-+     mstore v16, v7
++     store v16, v7
 +     jumpi v3, bb6, bb5
 +   bb5:
 +     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -294,12 +294,12 @@
 +     v26 = add v20, 1
 +     jump bb8
 +   bb3:
-+     mstore 32, 65 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 65 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
-+     mstore 32, 34 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 34 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

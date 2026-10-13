@@ -7,12 +7,12 @@
 -     jump bb1
 -   bb1:
 -     v0 = phi [bb0: 0], [bb3: v9]
--     v1 = mload arg0
+-     v1 = load arg0
 -     v2 = lt v0, v1
 -     jumpi v2, bb2, bb4
 -   bb4:
 -     ret true
-+     v10 = mload arg0
++     v10 = load arg0
 +     v11 = lt v10, 64
 +     jumpi v11, bb3, bb7
 +   bb7:
@@ -30,7 +30,7 @@
 +     v45 = ne v44, 0
 +     jumpi v45, bb12, bb11
 +   bb12:
-+     v56 = mload v34
++     v56 = load v34
 +     v57 = add v34, 32
 +     jump bb11
 +   bb11:
@@ -39,16 +39,16 @@
 +     v48 = and v10, 31
 +     v49 = sub 32, v48
 +     v50 = mul v49, 8
-+     v51 = mload v46
++     v51 = load v46
 +     v52 = shr v50, v51
 +     v53 = or v47, v52
 +     v54 = and v53, 0x8080808080808080808080808080808080808080808080808080808080808080
 +     v55 = eq v54, 0
 +     jump bb13
 +   bb10:
-+     v37 = mload v34
++     v37 = load v34
 +     v38 = add v34, 32
-+     v39 = mload v38
++     v39 = load v38
 +     v40 = or v37, v39
 +     v41 = add v38, 32
 +     v42 = and v40, 0x8080808080808080808080808080808080808080808080808080808080808080
@@ -57,7 +57,7 @@
     bb2:
 -     v3 = add arg0, 32
 -     v4 = add v3, v0
--     v5 = mload v4
+-     v5 = load v4
 -     v6 = byte 0, v5
 -     v7 = shl 248, v6
 -     v8 = gt v7, 0x7f00000000000000000000000000000000000000000000000000000000000000
@@ -76,9 +76,9 @@
 +     jumpi v13, bb4, bb6
 +   bb6:
 +     v21 = add arg0, 32
-+     v22 = mload v21
++     v22 = load v21
 +     v23 = add v21, 32
-+     v24 = mload v23
++     v24 = load v23
 +     v25 = sub 64, v10
 +     v26 = mul v25, 8
 +     v27 = shr v26, v24
@@ -88,7 +88,7 @@
 +     jump bb13
 +   bb4:
 +     v14 = add arg0, 32
-+     v15 = mload v14
++     v15 = load v14
 +     v16 = sub 32, v10
 +     v17 = mul v16, 8
 +     v18 = shr v17, v15
@@ -105,7 +105,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb3: v9]
-      v1 = mload arg0
+      v1 = load arg0
       v2 = lt v0, v1
       jumpi v2, bb2, bb4
     bb4:
@@ -113,11 +113,11 @@
     bb2:
       v3 = add arg0, 32
       v4 = add v3, v0
-      v5 = mload v4
+      v5 = load v4
       v6 = byte 0, v5
       v7 = shl 248, v6
       v8 = gt v7, 0x7f00000000000000000000000000000000000000000000000000000000000000
-      mstore arg1, v6
+      store arg1, v6
       jumpi v8, bb5, bb3
     bb3:
       v9 = add v0, 1

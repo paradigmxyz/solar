@@ -3,7 +3,7 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -398,7 +398,7 @@ fn @constructor() [constructor] {
     jumpi v27, bb15, bb16
   bb15:
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v28, 0
+    store v28, 0
     v29 = shl 5, v22
     v30 = ptrtoint memptr v28 to i256
     slice_store_word v21, v29, v30
@@ -495,7 +495,7 @@ fn @test1() -> memptr [selector=0x6b59084d, view, abi_params=[], abi_returns=[me
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
-    mstore v17, v0
+    store v17, v0
     jump bb1
   bb1:
     v18 = phi [bb0: 0], [bb2: v26]
@@ -572,7 +572,7 @@ fn @test3() -> memptr [selector=0x0a8e8e01, view, abi_params=[], abi_returns=[me
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
-    mstore v17, v0
+    store v17, v0
     jump bb1
   bb1:
     v18 = phi [bb0: 0], [bb6: v34]

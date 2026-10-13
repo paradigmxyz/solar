@@ -35,7 +35,7 @@
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
       v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-      mstore v16, arg0
+      store v16, arg0
       v17 = memory_slice v16
       v18 = slice_len v17
       v19 = lt 1, v18
@@ -96,7 +96,7 @@
     bb0:
       v0 = ptrtoint memptr arg0 to i256
       v1 = add v0, 32
-      mstore v1, 0x123456789abcdef0123456789abcdef0123456789abcdef
+      store v1, 0x123456789abcdef0123456789abcdef0123456789abcdef
       v2 = memory_slice arg0
       v3 = slice_len v2
       v4 = lt 0, v3
@@ -172,7 +172,7 @@
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
       v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-      mstore v16, arg0
+      store v16, arg0
       v17 = memory_slice v16
       v18 = slice_len v17
       v19 = lt 1, v18
@@ -220,7 +220,7 @@
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
       v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-      mstore v16, arg0
+      store v16, arg0
       v17 = memory_slice v16
       v18 = slice_len v17
       v19 = lt 1, v18
@@ -268,7 +268,7 @@
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
       v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-      mstore v16, arg0
+      store v16, arg0
       v17 = memory_slice v16
       v18 = slice_len v17
       v19 = lt 1, v18

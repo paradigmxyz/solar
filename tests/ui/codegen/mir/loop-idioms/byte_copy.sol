@@ -17,16 +17,16 @@
 // if through a buffer while the loop copies upwards, so overlapping ranges give
 // different results. The copy returning the value is unrelated.
 // CHECK-LABEL: fn @inPlace
-// CHECK: mstore8
+// CHECK: store8
 
 // The raw allocation frontier has no disjointness proof for the input header.
 // Keep the source bounds check and byte loop when that length cannot be reused.
 // CHECK-LABEL: fn @_slice
 // CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-// CHECK: mload [[INPUT]]
-// CHECK: mload [[INPUT]]
-// CHECK: mstore8
-// CHECK-NOT: mcopy
+// CHECK: load [[INPUT]]
+// CHECK: load [[INPUT]]
+// CHECK: store8
+// CHECK-NOT: {{(^|[^a-z_])}}copy {{[^cr]}}
 
 contract Test {
     function slice(bytes memory s, uint256 start, uint256 end) public pure returns (bytes memory) {

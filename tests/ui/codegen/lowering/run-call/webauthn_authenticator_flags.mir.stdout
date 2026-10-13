@@ -14,9 +14,9 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = icall @auth
     v1 = ptrtoint memptr v0 to i256
-    v2 = mload v1
+    v2 = load v1
     v3 = add v2, 33
-    v4 = mload v3
+    v4 = load v3
     v5 = and v4, 1
     v6 = eq v5, 1
     v7 = zext i1 v6 to i256
@@ -44,7 +44,7 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
 fn @auth() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    mstore v0, 62
+    store v0, 62
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
     datacopy literal_0, v2, 64
@@ -71,33 +71,33 @@ fn @auth() -> memptr [pure] {
 fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v0, 2
+    store v0, 2
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
-    mstore v2, 0x4667000000000000000000000000000000000000000000000000000000000000
+    store v2, 0x4667000000000000000000000000000000000000000000000000000000000000
     v3 = ptrtoint memptr arg1 to i256
     v4 = add v3, 32
-    v5 = mload v4
-    v6 = mload v5
+    v5 = load v4
+    v6 = load v5
     v7 = add v5, 32
     v8 = ptrtoint memptr arg1 to i256
     v9 = add v8, 64
-    v10 = mload v9
+    v10 = load v9
     v11 = ptrtoint memptr arg1 to i256
     v12 = add v11, 96
-    v13 = mload v12
+    v13 = load v12
     v14 = ptrtoint memptr v0 to i256
-    v15 = mload v14
+    v15 = load v14
     v16 = add v15, 13
     v17 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
     v18 = ptrtoint memptr v0 to i256
-    mstore v18, v17
+    store v18, v17
     v19 = add v16, v10
     v20 = lt v19, v6
     v21 = zext i1 v20 to i256
     v22 = add v7, v10
     v23 = add v22, v16
-    v24 = mload v23
+    v24 = load v23
     v25 = byte 0, v24
     v26 = eq v25, 34
     v27 = zext i1 v26 to i256
@@ -119,17 +119,17 @@ fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
     v43 = zext i1 v42 to i256
     v44 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
     v45 = add v7, v13
-    v46 = mload v45
+    v46 = load v45
     v47 = shr 88, v46
     v48 = eq v47, v44
     v49 = zext i1 v48 to i256
     v50 = and v49, v43
     v51 = and v50, v36
     v52 = ptrtoint memptr v0 to i256
-    mstore v52, v15
+    store v52, v15
     v53 = ptrtoint memptr arg1 to i256
-    v54 = mload v53
-    v55 = mload v54
+    v54 = load v53
+    v55 = load v54
     v56 = eq arg0, 0
     v57 = zext i1 v56 to i256
     v58 = eq v57, 0
@@ -137,9 +137,9 @@ fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
     v60 = shl 2, v59
     v61 = or 1, v60
     v62 = ptrtoint memptr arg1 to i256
-    v63 = mload v62
+    v63 = load v62
     v64 = add v63, 33
-    v65 = mload v64
+    v65 = load v64
     v66 = and v65, v61
     v67 = eq v66, v61
     v68 = zext i1 v67 to i256

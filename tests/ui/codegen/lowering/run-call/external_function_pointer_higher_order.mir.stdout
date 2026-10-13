@@ -42,7 +42,7 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     ret v11
 }
 
@@ -65,7 +65,7 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v12 = slice_ptr v7
     v13 = ptrtoint memptr v10 to i256
     v14 = add v13, v8
-    mcopy v14, v12, 0 !metadata(memory=heap)
+    copy v14, v12, 0 !metadata(memory=heap)
     v15 = ptrtoint memptr v10 to i256
     v16 = create 0, v15, v8
     v17 = ne v16, i160 0

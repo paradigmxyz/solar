@@ -58,7 +58,7 @@ fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[i8], abi_
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     v12 = signextend 0, v11
     v13 = eq v11, v12
     v14 = eq v13, false
@@ -73,7 +73,7 @@ fn @signedWord(arg0: i8) -> i256 [selector=0x1b01a17f, pure, abi_params=[i8], ab
     v1 = abi_encode [word<i8>], object, args v0
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = load v3
     ret v4
 }
 
@@ -83,14 +83,14 @@ fn @signedUserWord() -> i256 [selector=0xf36510a8, pure, abi_params=[], abi_retu
     v1 = abi_encode [word<i16>], object, args v0
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = load v3
     ret v4
 }
 
 fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     v1 = memory_slice v0
     v2 = slice_len v1
     v3 = lt 0, v2
@@ -100,7 +100,7 @@ fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_re
     slice_store_word v1, 0, v5
     v6 = ptrtoint memptr v0 to i256
     v7 = add v6, 32
-    v8 = mload v7
+    v8 = load v7
     ret v8
 }
 
@@ -255,7 +255,7 @@ fn @packedDynamicHashModified(arg0: i256, arg1: calldataslice) -> i256 [selector
     v4 = keccak256 v2, v3
     jump bb2
   bb2:
-    v5 = mload 64 !metadata(memory=scratch)
+    v5 = load 64 !metadata(memory=scratch)
     v6 = gt v5, 128
     v7 = eq v6, false
     icall revert_if<empty>, v7
@@ -267,10 +267,10 @@ fn @packedDynamicHashModified(arg0: i256, arg1: calldataslice) -> i256 [selector
 fn @mutatedInput() -> memptr [selector=0x7d98764f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v0, 3
+    store v0, 3
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
-    mstore v2, 0x102030000000000000000000000000000000000000000000000000000000000
+    store v2, 0x102030000000000000000000000000000000000000000000000000000000000
     v3 = icall @shorten, v0
     v4 = abi_encode_packed (bytes v0, u8 v3)
     ret v4
@@ -279,6 +279,6 @@ fn @mutatedInput() -> memptr [selector=0x7d98764f, pure, abi_params=[], abi_retu
 fn @shorten(arg0: memptr) -> i8 [pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
-    mstore v0, 1
+    store v0, 1
     ret i8 9
 }

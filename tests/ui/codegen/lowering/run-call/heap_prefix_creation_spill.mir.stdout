@@ -21,7 +21,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -30,10 +30,10 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb2:
     v11 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v11, 15
+    store v11, 15
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
-    mstore v13, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    store v13, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
     v14 = zext i160 v9 to i256
     v15 = shl 0, 1
     v16 = icall @_cloneDeterministic, v14, v11, v15
@@ -52,7 +52,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v25 = lt v24, 32
     icall revert_if<tuple_data_too_short>, v25
     v26 = add 0, 0
-    v27 = mload v26
+    v27 = load v26
     v28 = eq v27, 7
     icall require<short_string>, v28, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
@@ -63,33 +63,33 @@ fn @_cloneDeterministic(arg0: i256, arg1: memptr, arg2: i256) -> i256 {
     v0 = icall @_creationStart, arg1
     v1 = ptrtoint memptr arg1 to i256
     v2 = sub v1, 96
-    v3 = mload v2
+    v3 = load v2
     v4 = ptrtoint memptr arg1 to i256
     v5 = sub v4, 64
-    v6 = mload v5
+    v6 = load v5
     v7 = ptrtoint memptr arg1 to i256
     v8 = sub v7, 32
-    v9 = mload v8
+    v9 = load v8
     v10 = ptrtoint memptr arg1 to i256
-    v11 = mload v10
+    v11 = load v10
     v12 = ptrtoint memptr arg1 to i256
     v13 = add v12, 32
     v14 = add v13, v11
-    v15 = mload v14
+    v15 = load v14
     v16 = add v11, 2
     v17 = ptrtoint memptr arg1 to i256
-    mstore v17, 0x5af43d3d93803e606057fd5bf3
+    store v17, 0x5af43d3d93803e606057fd5bf3
     v18 = ptrtoint memptr arg1 to i256
     v19 = sub v18, 13
-    mstore v19, arg0
+    store v19, arg0
     v20 = shl 72, v16
     v21 = or v20, 0x593da1005b363d3d373d3d3d3d610000806062363936013d73
     v22 = ptrtoint memptr arg1 to i256
     v23 = sub v22, 33
-    mstore v23, v21
+    store v23, v21
     v24 = ptrtoint memptr arg1 to i256
     v25 = sub v24, 58
-    mstore v25, 0x9e4ac34f21c619cefc926c8bd93b54bf5a39c7ab2127a895af1cc0691d7e3dff
+    store v25, 0x9e4ac34f21c619cefc926c8bd93b54bf5a39c7ab2127a895af1cc0691d7e3dff
     v26 = add v16, 98
     v27 = shl 120, v26
     v28 = or v27, 0xfd6100003d81600a3d39f336602c57343d527f
@@ -98,9 +98,9 @@ fn @_cloneDeterministic(arg0: i256, arg1: memptr, arg2: i256) -> i256 {
     v31 = add 89, v30
     v32 = ptrtoint memptr arg1 to i256
     v33 = sub v32, v31
-    mstore v33, v28
+    store v33, v28
     v34 = shl 240, v16
-    mstore v14, v34
+    store v14, v34
     v35 = add v16, 108
     v36: i256 = create2 0, v0, v35, arg2
     v37 = eq v36, 0
@@ -110,18 +110,18 @@ fn @_cloneDeterministic(arg0: i256, arg1: memptr, arg2: i256) -> i256 {
   bb2:
     jump bb3
   bb3:
-    mstore v14, v15
+    store v14, v15
     v40 = ptrtoint memptr arg1 to i256
-    mstore v40, v11
+    store v40, v11
     v41 = ptrtoint memptr arg1 to i256
     v42 = sub v41, 32
-    mstore v42, v9
+    store v42, v9
     v43 = ptrtoint memptr arg1 to i256
     v44 = sub v43, 64
-    mstore v44, v6
+    store v44, v6
     v45 = ptrtoint memptr arg1 to i256
     v46 = sub v45, 96
-    mstore v46, v3
+    store v46, v3
     ret v36
   bb1:
     revert 0, 0
@@ -145,7 +145,7 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     v1 = icall @pair.2
     v2 = extract_value struct0, v1, 0
     v3 = extract_value struct0, v1, 1
-    mstore v2, 999
+    store v2, 999
     v4 = add v0, v3
     ret v4
 }
@@ -156,14 +156,14 @@ fn @checkSecond(arg0: i256) -> i256 [selector=0x509876d9, pure, abi_params=[u256
     v1 = icall @pair.3
     v2 = extract_value struct0, v1, 0
     v3 = extract_value struct0, v1, 1
-    mstore v3, 999
+    store v3, 999
     v4 = add v0, v2
     ret v4
 }
 
 fn @pair.2() -> struct0 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = sub v0, 160
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, 7
@@ -172,7 +172,7 @@ fn @pair.2() -> struct0 {
 
 fn @pair.3() -> struct0 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = sub v0, 128
     v2 = insert_value struct0, undef struct0, 0, 7
     v3 = insert_value struct0, v2, 1, v1
@@ -192,10 +192,10 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 32
+    store v2, 32
     v3 = ptrtoint memptr v2 to i256
     v4 = sub v3, 32
-    mstore v4, 0xdeadbeef
+    store v4, 0xdeadbeef
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
@@ -220,10 +220,10 @@ fn @build(arg0: i256) -> i256 [pure] {
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 32
+    store v2, 32
     v3 = ptrtoint memptr v2 to i256
     v4 = sub v3, 160
-    mstore v4, 0xdeadbeef
+    store v4, 0xdeadbeef
     ret arg0
 }
 
@@ -245,10 +245,10 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
     v4 = not 31
     v5 = and 95, v4
     v6 = alloc memorybytes, exact, zeroed, panic, v5
-    mstore v6, 32
+    store v6, 32
     v7 = ptrtoint memptr v6 to i256
     v8 = sub v7, 288
-    mstore v8, 0xdeadbeef
+    store v8, 0xdeadbeef
     ret arg0
   bb1:
     v1 = checked_sub u256, arg1, 1

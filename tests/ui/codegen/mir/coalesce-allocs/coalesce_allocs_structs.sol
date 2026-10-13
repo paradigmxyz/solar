@@ -21,11 +21,11 @@ contract CoalesceAllocsFixture {
     // allocations.
     // CHECK-LABEL: fn @combine
     // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 96
-    // CHECK: [[FIRST:v[0-9]+]] = mload 64
+    // CHECK: [[FIRST:v[0-9]+]] = load 64
     // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
     // CHECK: [[OUTER:v[0-9]+]] = ptrtoint memptr [[OUTER_PTR]] to i256
-    // CHECK: mstore [[OUTER]], [[FIRST]]
-    // CHECK: mstore {{v[0-9]+}}, [[SECOND]]
+    // CHECK: store [[OUTER]], [[FIRST]]
+    // CHECK: store {{v[0-9]+}}, [[SECOND]]
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {
         Outer memory outer = Outer(Inner(x, 1), Inner(2, x), 3);

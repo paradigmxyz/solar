@@ -374,7 +374,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
         // init = creation_bytecode ++ arguments
-        self.builder.copy_slice_data(PtrLocation::Memory, copy_dest, encoded_ptr, encoded_len);
+        self.builder.copy_heap(copy_dest, encoded_ptr, encoded_len, PtrLocation::Memory);
         // address = create|create2(value, init, init.length[, salt])
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
@@ -1339,7 +1339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(size_bytes);
         let above = self.builder.add(area, size);
         let zero = self.builder.imm(U256::ZERO);
-        self.builder.mstore(above, zero);
+        self.builder.store(above, zero);
     }
 
     /// Emits an external call of `selector` on `address` with the ABI-encoded `values`, and
@@ -1420,7 +1420,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // The output area overlays the arguments, so the values move out of it before the
                 // decoding allocates over them.
                 // mcopy(data, ret_offset, ret_size)
-                self.builder.mcopy(data, offset, size);
+                self.builder.copy(data, offset, size, PtrLocation::Memory);
             }
             // source = make_slice(data, size)
             Some(self.builder.make_slice(data, size, PtrLocation::Memory))

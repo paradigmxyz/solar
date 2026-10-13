@@ -6,8 +6,8 @@ fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[wo
     v1 = mapping_slot v0, 2
     sstore v1, 9 !metadata(storage=symbolic(v1))
     v2 = not 0
-    mstore 0, v2 !metadata(memory=scratch)
-    mstore 32, 2 !metadata(memory=scratch)
+    store 0, v2 !metadata(memory=scratch)
+    store 32, 2 !metadata(memory=scratch)
     v3 = keccak256 0, 64 !metadata(memory=scratch)
     v4 = sload v3 !metadata(storage=symbolic(v3))
     ret v4
@@ -19,8 +19,8 @@ fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word],
     v1 = mapping_slot v0, 1
     sstore v1, 7 !metadata(storage=symbolic(v1))
     v2 = not 0
-    mstore 0, v2 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
+    store 0, v2 !metadata(memory=scratch)
+    store 32, 1 !metadata(memory=scratch)
     v3 = keccak256 0, 64 !metadata(memory=scratch)
     v4 = sload v3 !metadata(storage=symbolic(v3))
     ret v4

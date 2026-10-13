@@ -16,7 +16,7 @@
 // CHECK: + {{v[0-9]+}} = phi [bb3: [[START]]], [bb5: {{v[0-9]+}}]
 fn @continued_counter() -> i256 {
   bb0:
-    v0 = mload 64
+    v0 = load 64
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -25,7 +25,7 @@ fn @continued_counter() -> i256 {
   bb2:
     v3 = shl 5, v1
     v5 = add v0, v3
-    mstore v5, 8
+    store v5, 8
     v4 = add v1, 1
     jump bb1
   bb3:
@@ -37,7 +37,7 @@ fn @continued_counter() -> i256 {
   bb5:
     v8 = shl 5, v6
     v10 = add v0, v8
-    mstore v10, 9
+    store v10, 9
     v9 = add v6, 1
     jump bb4
   bb6:

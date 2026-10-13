@@ -614,7 +614,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let offset = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
         debug_assert!(index < words);
         let position = self.builder.add(base, offset);
-        self.builder.mload(position)
+        self.builder.load(position, PtrLocation::Memory)
     }
 
     pub(super) fn load_static_abi_return_value_as(

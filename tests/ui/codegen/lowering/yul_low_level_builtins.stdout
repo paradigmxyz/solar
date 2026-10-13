@@ -2,8 +2,8 @@
 @module YulLowLevelBuiltins
 fn @yulStringLiteral() -> i256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    mstore 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    v0 = mload 0 !metadata(memory=scratch)
+    store 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    v0 = load 0 !metadata(memory=scratch)
     ret v0
 }
 
@@ -23,12 +23,12 @@ fn @callCode(arg0: i256) -> i256 [selector=0xc66764e1, abi_params=[address], abi
 
 fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, abi_params=[address, bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore 0, arg1 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    store 0, arg1 !metadata(memory=scratch)
     v1 = gas
     v2 = call v1, arg0, 0, 0, 4, 0, 32
     v3 = zext i1 v2 to i256
-    v4 = mload 0 !metadata(memory=scratch)
+    v4 = load 0 !metadata(memory=scratch)
     v5 = eq v4, 1
     v6 = zext i1 v5 to i256
     v7 = and v3, v6
@@ -43,11 +43,11 @@ fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, abi_params=[a
     v14 = gt v13, 0
     v15 = zext i1 v14 to i256
     v16 = and v3, v15
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v16
   bb1:
     v11 = returndatasize
-    returndatacopy v0, 0, v11
+    copy returndata v0, 0, v11
     v12 = returndatasize
     revert v0, v12
 }

@@ -5,19 +5,19 @@
 // CHECK-LABEL: @promote_recomputed_offset_slot
 // CHECK:       [[SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     sstore [[SLOT]], 1
-// CHECK:       mstore [[VALUE_ADDR:[0-9]+]], 1
+// CHECK:       store [[VALUE_ADDR:[0-9]+]], 1
 // CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[EXIT]]:
-// CHECK:       [[VALUE:v[0-9]+]] = mload [[VALUE_ADDR]]
+// CHECK:       [[VALUE:v[0-9]+]] = load [[VALUE_ADDR]]
 // CHECK:       sstore [[SLOT]], [[VALUE]]
 // CHECK:       [[BODY]]:
 // CHECK:       [[BODY_SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     {{v[0-9]+}} = sload [[BODY_SLOT]]
-// CHECK:       [[BODY_VALUE:v[0-9]+]] = mload [[VALUE_ADDR]]
+// CHECK:       [[BODY_VALUE:v[0-9]+]] = load [[VALUE_ADDR]]
 // CHECK:       [[UPDATED:v[0-9]+]] = mul [[BODY_VALUE]], 2
 // CHECK:       [[STORE_SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     sstore [[STORE_SLOT]], [[UPDATED]]
-// CHECK:       mstore [[VALUE_ADDR]], [[UPDATED]]
+// CHECK:       store [[VALUE_ADDR]], [[UPDATED]]
 fn @promote_recomputed_offset_slot(arg0: i256) [selector=0x01020304] {
   bb0:
     v1 = add arg0, 1
@@ -61,16 +61,16 @@ fn @reject_loop_variant_offset_slot(arg0: i256) [selector=0x01020304] {
 }
 
 // CHECK-LABEL: @promote_store_only_without_initial_load
-// CHECK:       mstore [[DIRTY_ADDR:[0-9]+]], 0
-// CHECK:       [[DIRTY:v[0-9]+]] = mload [[DIRTY_ADDR]]
+// CHECK:       store [[DIRTY_ADDR:[0-9]+]], 0
+// CHECK:       [[DIRTY:v[0-9]+]] = load [[DIRTY_ADDR]]
 // CHECK:       [[COND:v[0-9]+]] = ne [[DIRTY]], 0
 // CHECK:       jumpi [[COND]], [[FLUSH:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK:       [[FLUSH]]:
-// CHECK:       [[VALUE:v[0-9]+]] = mload [[VALUE_ADDR:[0-9]+]]
+// CHECK:       [[VALUE:v[0-9]+]] = load [[VALUE_ADDR:[0-9]+]]
 // CHECK:       sstore [[SLOT:[0-9]+]], [[VALUE]]
 // CHECK: -     sstore [[SLOT]], 7
-// CHECK:       mstore [[VALUE_ADDR]], 7
-// CHECK:       mstore [[DIRTY_ADDR]], 1
+// CHECK:       store [[VALUE_ADDR]], 7
+// CHECK:       store [[DIRTY_ADDR]], 1
 fn @promote_store_only_without_initial_load() [selector=0x01020304] {
   bb0:
     jump bb1
@@ -88,25 +88,25 @@ fn @promote_store_only_without_initial_load() [selector=0x01020304] {
 // CHECK-LABEL: @promote_two_initialized_slots
 // CHECK: -     sstore [[ZERO_SLOT:[0-9]+]], 1
 // CHECK: -     sstore [[ONE_SLOT:[0-9]+]], 2
-// CHECK:       mstore [[ZERO_ADDR:[0-9]+]], 1
-// CHECK:       mstore [[ONE_ADDR:[0-9]+]], 2
+// CHECK:       store [[ZERO_ADDR:[0-9]+]], 1
+// CHECK:       store [[ONE_ADDR:[0-9]+]], 2
 // CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[EXIT]]:
-// CHECK:       [[ONE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       [[ONE:v[0-9]+]] = load [[ONE_ADDR]]
 // CHECK:       sstore [[ONE_SLOT]], [[ONE]]
-// CHECK:       [[ZERO:v[0-9]+]] = mload [[ZERO_ADDR]]
+// CHECK:       [[ZERO:v[0-9]+]] = load [[ZERO_ADDR]]
 // CHECK:       sstore [[ZERO_SLOT]], [[ZERO]]
 // CHECK:       [[BODY]]:
 // CHECK: -     {{v[0-9]+}} = sload [[ZERO_SLOT]]
-// CHECK:       [[ZERO_VALUE:v[0-9]+]] = mload [[ZERO_ADDR]]
+// CHECK:       [[ZERO_VALUE:v[0-9]+]] = load [[ZERO_ADDR]]
 // CHECK:       [[ZERO_UPDATED:v[0-9]+]] = mul [[ZERO_VALUE]], 2
 // CHECK: -     sstore [[ZERO_SLOT]], [[ZERO_UPDATED]]
 // CHECK: -     {{v[0-9]+}} = sload [[ONE_SLOT]]
-// CHECK:       mstore [[ZERO_ADDR]], [[ZERO_UPDATED]]
-// CHECK:       [[ONE_VALUE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       store [[ZERO_ADDR]], [[ZERO_UPDATED]]
+// CHECK:       [[ONE_VALUE:v[0-9]+]] = load [[ONE_ADDR]]
 // CHECK:       [[ONE_UPDATED:v[0-9]+]] = add [[ONE_VALUE]], 3
 // CHECK: -     sstore [[ONE_SLOT]], [[ONE_UPDATED]]
-// CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
+// CHECK:       store [[ONE_ADDR]], [[ONE_UPDATED]]
 fn @promote_two_initialized_slots() [selector=0x01020304] {
   bb0:
     sstore 0, 1
@@ -130,15 +130,15 @@ fn @promote_two_initialized_slots() [selector=0x01020304] {
 
 // CHECK-LABEL: @promote_without_init_rewrites_successor_phi
 // CHECK:       [[INIT:v[0-9]+]] = sload [[SLOT:[0-9]+]]
-// CHECK:       mstore [[VALUE_ADDR:[0-9]+]], [[INIT]]
-// CHECK:       mstore [[DIRTY_ADDR:[0-9]+]], 0
+// CHECK:       store [[VALUE_ADDR:[0-9]+]], [[INIT]]
+// CHECK:       store [[DIRTY_ADDR:[0-9]+]], 0
 // CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[LOOP_EXIT:bb[0-9]+]]
 // CHECK:       [[LOOP_EXIT]]:
-// CHECK:       [[DIRTY:v[0-9]+]] = mload [[DIRTY_ADDR]]
+// CHECK:       [[DIRTY:v[0-9]+]] = load [[DIRTY_ADDR]]
 // CHECK:       [[COND:v[0-9]+]] = ne [[DIRTY]], 0
 // CHECK:       jumpi [[COND]], [[FLUSH:bb[0-9]+]], [[CLEAN:bb[0-9]+]]
 // CHECK:       [[FLUSH]]:
-// CHECK:       [[VALUE:v[0-9]+]] = mload [[VALUE_ADDR]]
+// CHECK:       [[VALUE:v[0-9]+]] = load [[VALUE_ADDR]]
 // CHECK:       sstore [[SLOT]], [[VALUE]]
 // CHECK:       jump [[CLEAN]]
 // CHECK:       [[CLEAN]]:
@@ -148,11 +148,11 @@ fn @promote_two_initialized_slots() [selector=0x01020304] {
 // CHECK:       ret [[PHI]]
 // CHECK:       [[BODY]]:
 // CHECK: -     {{v[0-9]+}} = sload [[SLOT]]
-// CHECK:       [[BODY_VALUE:v[0-9]+]] = mload [[VALUE_ADDR]]
+// CHECK:       [[BODY_VALUE:v[0-9]+]] = load [[VALUE_ADDR]]
 // CHECK:       [[UPDATED:v[0-9]+]] = add [[BODY_VALUE]], 2
 // CHECK: -     sstore [[SLOT]], [[UPDATED]]
-// CHECK:       mstore [[VALUE_ADDR]], [[UPDATED]]
-// CHECK:       mstore [[DIRTY_ADDR]], 1
+// CHECK:       store [[VALUE_ADDR]], [[UPDATED]]
+// CHECK:       store [[DIRTY_ADDR]], 1
 // CHECK:       [[OTHER]]:
 // CHECK:       jump [[MERGE]]
 fn @promote_without_init_rewrites_successor_phi() -> i256 [selector=0x01020304] {

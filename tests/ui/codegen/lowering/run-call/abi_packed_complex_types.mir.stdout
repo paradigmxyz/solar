@@ -6,7 +6,7 @@
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     v1 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     v2 = trunc i256 v1 to i120
     v3 = memory_slice v0
@@ -127,7 +127,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
 fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     v1 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     v2 = trunc i256 v1 to i120
     v3 = memory_slice v0
@@ -165,7 +165,7 @@ fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[wo
 fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -309,7 +309,7 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
-    v10 = mload v9
+    v10 = load v9
     ret v10
 }
 

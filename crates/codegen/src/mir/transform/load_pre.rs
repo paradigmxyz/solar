@@ -27,10 +27,10 @@
 //!   killed by may-aliasing `sstore` and by calls and creates. `STATICCALL` cannot mutate storage
 //!   or transient storage and does not kill them.
 //! - `(Transient, alias)`: same with `tload`/`tstore`.
-//! - `(Memory, canonical address, width 32)`: genned by `mload` and by `mstore` at the same
-//!   canonical address (forwarded stored value); killed by overlapping `mstore`/`mstore8`, by
-//!   copies with an overlapping or unknown destination range, and by every call (including
-//!   `STATICCALL`, which writes its return buffer).
+//! - `(Memory, canonical address, width 32)`: genned by `load` and by `store` at the same canonical
+//!   address (forwarded stored value); killed by overlapping `store`/`store8`, by copies with an
+//!   overlapping or unknown destination range, and by every call (including `STATICCALL`, which
+//!   writes its return buffer).
 //! - `(Keccak, canonical offset, size or dynamic-size value)`: genned by `keccak256`; killed like a
 //!   memory read over its range. Reads with a non-constant size key the size operand so reads of
 //!   different lengths never unify.
@@ -95,7 +95,7 @@ use crate::{
     backend::evm::op,
     mir::{
         BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata, MirType,
-        Module, StorageAlias, Terminator, Value, ValueId,
+        Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
             Location, LocationSize, MemoryAddress, MemoryLocation, ModRef,
@@ -1176,11 +1176,11 @@ impl LoadRedundancyEliminator {
                 LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::MLoad(addr) => self
+            InstKind::Load(addr, PtrLocation::Memory) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
             InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
-            InstKind::MStore(addr, value) => self
+            InstKind::Store(addr, value) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {

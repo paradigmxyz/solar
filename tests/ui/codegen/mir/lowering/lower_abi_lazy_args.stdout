@@ -9,7 +9,7 @@
 +     v1 = lt v0, 36
 +     jumpi v1, bb2, bb3
 +   bb3:
-+     v2 = calldataload 4
++     v2 = load calldata 4
 +     v3 = lt v2, 2
 +     jumpi v3, bb4, bb2
 +   bb4:
@@ -17,7 +17,7 @@
 +   bb1:
 +     v4 = eq arg0, false
 +     v6 = zext i1 arg0 to i256
-+     mstore 128, v6
++     store 128, v6
 +     v7 = add 128, 32
 +     v8 = sub v7, 128
 +     returndata 128, v8

@@ -3,9 +3,9 @@
 @module LowerAlloc
 
 // CHECK-LABEL: {{^[ +].*}}fn @operations{{[( ]}}
-// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK: + {{v[0-9]+}} = load 64
 // CHECK: + [[NEXT:v[0-9]+]] = add {{v[0-9]+}}, 64
-// CHECK: + mstore 64, [[NEXT]]
+// CHECK: + store 64, [[NEXT]]
 fn @operations(arg0: i256) -> i256 {
   bb0:
     v4 = fmp
@@ -13,7 +13,7 @@ fn @operations(arg0: i256) -> i256 {
     set_fmp v4 !metadata(preserves_fmp, effect=memory_write)
     v5 = alloc raw, word, uninitialized, infallible, 64
     v2 = ptrtoint memptr v5 to i256
-    mstore v2, arg0
+    store v2, arg0
     ret v2
 }
 
@@ -23,89 +23,89 @@ fn @deferred() {
   bb0:
     v6 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
     v0 = ptrtoint memptr v6 to i256
-    mstore v0, 1
+    store v0, 1
     stop
 }
 
 // CHECK-LABEL: {{.*}}(after fmp-cse)
 // CHECK-LABEL: @forward_load_store
-// CHECK: - {{v[0-9]+}} = mload 64
+// CHECK: - {{v[0-9]+}} = load 64
 // CHECK: + [[SUM:v[0-9]+]] = add [[PTR:v[0-9]+]], [[PTR]]
-// CHECK: - {{v[0-9]+}} = mload 64
+// CHECK: - {{v[0-9]+}} = load 64
 // CHECK: + ret [[SUM]]
 fn @forward_load_store() -> i256 {
   bb0:
-    v0 = mload 64
-    v1 = mload 64
+    v0 = load 64
+    v1 = load 64
     v2 = add v0, v1
-    mstore 64, v2
-    v3 = mload 64
+    store 64, v2
+    v3 = load 64
     ret v3
 }
 
 // CHECK-LABEL: @byte_clobber
-// CHECK: {{^ +}}mstore8 65, arg0
-// CHECK-NEXT: {{^ +}}[[BYTE:v[0-9]+]] = mload 64
+// CHECK: {{^ +}}store8 65, arg0
+// CHECK-NEXT: {{^ +}}[[BYTE:v[0-9]+]] = load 64
 // CHECK-NEXT: {{^ +}}ret [[BYTE]]
 fn @byte_clobber(arg0: i256) -> i256 {
   bb0:
-    mstore 64, 128
-    mstore8 65, arg0
-    v1 = mload 64
+    store 64, 128
+    store8 65, arg0
+    v1 = load 64
     ret v1
 }
 
 // CHECK-LABEL: @unknown_clobber
-// CHECK: {{^ +}}mstore arg0, 256
-// CHECK-NEXT: {{^ +}}[[UNKNOWN:v[0-9]+]] = mload 64
+// CHECK: {{^ +}}store arg0, 256
+// CHECK-NEXT: {{^ +}}[[UNKNOWN:v[0-9]+]] = load 64
 // CHECK-NEXT: {{^ +}}ret [[UNKNOWN]]
 fn @unknown_clobber(arg0: i256) -> i256 {
   bb0:
-    mstore 64, 128
-    mstore arg0, 256
-    v1 = mload 64
+    store 64, 128
+    store arg0, 256
+    v1 = load 64
     ret v1
 }
 
 // CHECK-LABEL: @call_clobber
 // CHECK: {{^ +}}icall @write_fmp
-// CHECK-NEXT: {{^ +}}[[CALL:v[0-9]+]] = mload 64
+// CHECK-NEXT: {{^ +}}[[CALL:v[0-9]+]] = load 64
 // CHECK-NEXT: {{^ +}}ret [[CALL]]
 fn @call_clobber() -> i256 {
   bb0:
-    mstore 64, 128
+    store 64, 128
     icall @write_fmp
-    v0 = mload 64
+    v0 = load 64
     ret v0
 }
 
 fn @write_fmp() {
   bb0:
-    mstore 64, 256
+    store 64, 256
     ret
 }
 
 // CHECK-LABEL: @across_edge
 // CHECK: {{^ +}}bb1:
-// CHECK-NEXT: {{^ +}}[[EDGE:v[0-9]+]] = mload 64
+// CHECK-NEXT: {{^ +}}[[EDGE:v[0-9]+]] = load 64
 // CHECK-NEXT: {{^ +}}ret [[EDGE]]
 fn @across_edge() -> i256 {
   bb0:
-    mstore 64, 128
+    store 64, 128
     jump bb1
   bb1:
-    v0 = mload 64
+    v0 = load 64
     ret v0
 }
 
 // CHECK-LABEL: @forwarded_address
-// CHECK: - {{v[0-9]+}} = mload 64
-// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = load 64
+// CHECK: - {{v[0-9]+}} = load {{v[0-9]+}}
 // CHECK: + ret 64
 fn @forwarded_address() -> i256 {
   bb0:
-    mstore 64, 64
-    v0 = mload 64
-    v1 = mload v0
+    store 64, 64
+    v0 = load 64
+    v1 = load v0
     ret v1
 }

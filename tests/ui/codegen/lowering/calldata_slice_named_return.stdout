@@ -5,7 +5,7 @@ fn @unwrap(arg0: i256, arg1: i256) -> calldataslice [pure, return_abi=[i256, i25
   bb0:
     v1 = sub arg1, 32
     v3 = add arg0, v1
-    v4 = calldataload v3
+    v4 = load calldata v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
   bb1:
@@ -19,13 +19,13 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36
-    v4 = calldataload 4
+    v4 = load calldata 4
     v5 = add v4, 4
     v6 = add v5, 32
     v7 = gt v4, 0xffffffffffffffff
     v8 = gt v6, v2
     v9 = or v7, v8
-    v11 = calldataload v5
+    v11 = load calldata v5
     v13 = sub v2, v6
     v14 = gt v11, v13
     v17 = or v9, v14
@@ -33,10 +33,10 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     jumpi v27, bb1, bb2
   bb2:
     v0 = icall @unwrap, v6, v11
-    v23 = mload 32 !metadata(memory=scratch)
+    v23 = load 32 !metadata(memory=scratch)
     v24 = add v23, 32
-    v25 = mload v24
-    mstore 128, v25
+    v25 = load v24
+    store 128, v25
     returndata 128, 32
   bb1:
     revert 0, 0
@@ -48,7 +48,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
   bb1:
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = shr 224, v2
     switch v3, default bb3, [0x1bd03f7 => bb2]
   bb2:

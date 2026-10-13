@@ -234,7 +234,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = alloc memoryarray<1>, exact, zeroed, panic, v24
-    mstore v31, v1
+    store v31, v1
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = lt v1, v32
     v34 = eq v33, false

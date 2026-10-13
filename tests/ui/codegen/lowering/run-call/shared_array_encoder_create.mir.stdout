@@ -115,7 +115,7 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
 fn @mk(arg0: i160, arg1: i160) -> i160 {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     v1 = memory_slice v0
     v2 = slice_len v1
     v3 = lt 0, v2
@@ -147,7 +147,7 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
     v22 = slice_ptr v11
     v23 = ptrtoint memptr v20 to i256
     v24 = add v23, v13
-    mcopy v24, v22, v12 !metadata(memory=heap)
+    copy v24, v22, v12 !metadata(memory=heap)
     v25 = ptrtoint memptr v20 to i256
     v26 = create 0, v25, v14
     v27 = ne v26, i160 0
@@ -161,7 +161,7 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
 fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     v1 = memory_slice v0
     v2 = slice_len v1
     v3 = lt 0, v2
@@ -200,7 +200,7 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     v27 = slice_ptr v16
     v28 = ptrtoint memptr v25 to i256
     v29 = add v28, v18
-    mcopy v29, v27, v17 !metadata(memory=heap)
+    copy v29, v27, v17 !metadata(memory=heap)
     v30 = ptrtoint memptr v25 to i256
     v31 = create 0, v30, v19
     v32 = ne v31, i160 0
@@ -229,7 +229,7 @@ fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     v12 = shr 160, v11
     v13 = eq v12, 0
     v14 = eq v13, false
@@ -248,7 +248,7 @@ fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
-    v24 = mload v23
+    v24 = load v23
     v25 = shr 160, v24
     v26 = eq v25, 0
     v27 = eq v26, false
@@ -275,7 +275,7 @@ fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, wo
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     v12 = shr 160, v11
     v13 = eq v12, 0
     v14 = eq v13, false
@@ -296,7 +296,7 @@ fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, wo
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = mload v25
+    v26 = load v25
     v27 = shr 160, v26
     v28 = eq v27, 0
     v29 = eq v28, false
@@ -326,7 +326,7 @@ fn @lengths() -> struct0 [selector=0xdab1fa12, abi_params=[], abi_returns=[word,
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     v12 = gas
     v13 = abi_encode [], selector 0x56d88e2700000000000000000000000000000000000000000000000000000000
     v14 = slice_ptr v13
@@ -341,7 +341,7 @@ fn @lengths() -> struct0 [selector=0xdab1fa12, abi_params=[], abi_returns=[word,
     v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
-    v21 = mload v20
+    v21 = load v20
     v22 = insert_value struct0, undef struct0, 0, v11
     v23 = insert_value struct0, v22, 1, v21
     ret v23

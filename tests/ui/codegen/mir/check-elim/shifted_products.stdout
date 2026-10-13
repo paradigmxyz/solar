@@ -19,7 +19,7 @@
 +     jump bb3
     bb3:
       v6 = add arg0, v3
-      v7 = calldataload v6
+      v7 = load calldata v6
       v8 = add v0, 1
       jump bb1
     bb4:
@@ -34,7 +34,7 @@
       jumpi v2, bb2, bb1
     bb1:
       v3 = add arg0, v0
-      v4 = calldataload v3
+      v4 = load calldata v3
       ret v4
     bb2:
       revert 0, 0

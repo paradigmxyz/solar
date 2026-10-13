@@ -11,9 +11,9 @@
 -     storeimmutable first, v0
 -     storeimmutable second, arg1
 +     v3 = zext i8 v0 to i256
-+     mstore 192, v3
++     store 192, v3
 +     v4 = zext i1 arg1 to i256
-+     mstore 224, v4
++     store 224, v4
       v1 = loadimmutable first
       v2 = zext i8 v1 to i256
       ret v2
@@ -31,7 +31,7 @@
       v0 = trunc i256 2 to i8
 -     storeimmutable first, v0
 +     v1 = zext i8 v0 to i256
-+     mstore 192, v1
++     store 192, v1
       stop
   }
   

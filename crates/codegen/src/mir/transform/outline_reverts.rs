@@ -100,7 +100,7 @@ fn create_revert(module: &mut Module, (stores, offset, size): &RevertShape) -> F
         for &(store_offset, value) in stores {
             let store_offset = builder.imm(store_offset);
             let value = builder.imm(value);
-            builder.mstore(store_offset, value);
+            builder.store(store_offset, value);
         }
         let offset = builder.imm(*offset);
         let size = builder.imm(*size);
@@ -113,7 +113,7 @@ fn create_revert(module: &mut Module, (stores, offset, size): &RevertShape) -> F
 const MIN_OUTLINED_SIZE: usize = 12;
 
 /// Returns the block's shape when every instruction is a fully-constant
-/// `mstore` and the terminator is a fully-constant `revert`.
+/// `store` and the terminator is a fully-constant `revert`.
 fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShape> {
     let block = &func.blocks[crate::mir::BlockId::from_usize(block_idx)];
     let Some(Terminator::Revert { offset, size }) = block.terminator else {
@@ -125,7 +125,7 @@ fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShap
     };
     let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
-        let InstKind::MStore(store_offset, value) = func.inst(inst_id).kind else {
+        let InstKind::Store(store_offset, value) = func.inst(inst_id).kind else {
             return None;
         };
         stores.push((imm(store_offset)?, imm(value)?));

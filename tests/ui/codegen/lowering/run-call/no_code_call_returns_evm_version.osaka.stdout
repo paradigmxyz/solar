@@ -46,7 +46,7 @@ fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], ab
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = mload v7
+    v8 = load v7
     ret v8
 }
 
@@ -65,7 +65,7 @@ fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = mload v7
+    v8 = load v7
     ret v8
 }
 
@@ -87,7 +87,7 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], a
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     ret v11
 }
 
@@ -166,7 +166,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -188,7 +188,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
-    v20 = mload v19
+    v20 = load v19
     ret v20
 }
 
@@ -203,7 +203,7 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0

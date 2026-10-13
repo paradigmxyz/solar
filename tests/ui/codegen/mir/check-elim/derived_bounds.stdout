@@ -28,7 +28,7 @@
     bb7:
       v8 = shl 5, v5
       v9 = add arg0, v8
-      v10 = mload v9
+      v10 = load v9
       v11 = lt v0, arg1
 -     jumpi v11, bb9, bb8
 -   bb8:
@@ -37,7 +37,7 @@
     bb9:
       v12 = shl 5, v0
       v13 = add arg0, v12
-      mstore v13, v10
+      store v13, v10
       v14 = add v0, 1
       jump bb1
     bb5:

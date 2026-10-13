@@ -11,7 +11,7 @@
 
 // CHECK-LABEL: @module Signatures
 // CHECK-LABEL: fn @entry()
-// CHECK: calldataload 4
+// CHECK: load calldata 4
 // CHECK: switch
 // CHECK-NOT: tail_call
 contract Signatures {

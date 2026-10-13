@@ -69,8 +69,8 @@
 use crate::{
     mir::{
         AbiParamType, AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, Immediate,
-        InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, RequireKind, Terminator, Value,
-        ValueId,
+        InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, PtrLocation, RequireKind,
+        Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo, Liveness},
         pass::{
             MirPass, run_selected_function_pass, run_selected_function_pass_cached,
@@ -1229,7 +1229,7 @@ fn resolve_replacement(
 
 /// Returns whether an instruction is a pure expression the e-graph may number.
 ///
-/// `calldataload`, `blockhash`, and `blobhash` are stable within one execution
+/// `load calldata`, `blockhash`, and `blobhash` are stable within one execution
 /// and join the pure operations. Reads that need clobber tracking stay with
 /// CSE.
 fn is_node(kind: &InstKind) -> bool {
@@ -1239,7 +1239,7 @@ fn is_node(kind: &InstKind) -> bool {
         && !matches!(kind, InstKind::Phi(_));
     pure || matches!(
         kind,
-        InstKind::CalldataLoad(_) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
+        InstKind::Load(_, PtrLocation::Calldata) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
     )
 }
 
@@ -1356,11 +1356,10 @@ pub(super) fn is_dead_noop(
         InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
             func.value_u256(resolve(args[0])).is_some_and(|value| value.is_zero() != *is_zero)
         }
-        InstKind::MCopy(_, _, size)
-        | InstKind::CalldataCopy(_, _, size)
+        InstKind::Copy(_, _, size, PtrLocation::Memory | PtrLocation::Calldata)
         | InstKind::DataCopy(_, _, size)
         | InstKind::CodeCopy(_, _, size) => is_zero(func, resolve(*size)),
-        InstKind::ReturnDataCopy(_, offset, size) => {
+        InstKind::Copy(_, offset, size, PtrLocation::Returndata) => {
             is_zero(func, resolve(*offset)) && is_zero(func, resolve(*size))
         }
         _ => false,

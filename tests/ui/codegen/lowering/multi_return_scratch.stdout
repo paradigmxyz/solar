@@ -34,14 +34,14 @@ fn @triple(arg0: i256) -> struct0 [pure] {
 
 fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = icall @triple, arg1
     v2 = extract_value struct0, v1, 0
     v3 = extract_value struct0, v1, 1
     v4 = extract_value struct0, v1, 2
     v5 = mapping_slot arg0, 0
     sstore v5, v2 !metadata(storage=symbolic(v5))
-    v6 = mload 64 !metadata(memory=scratch)
+    v6 = load 64 !metadata(memory=scratch)
     v7 = insert_value struct1, undef struct1, 0, v3
     v8 = insert_value struct1, v7, 1, v4
     v9 = insert_value struct1, v8, 2, v0

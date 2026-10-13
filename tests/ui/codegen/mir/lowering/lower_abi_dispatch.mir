@@ -15,6 +15,6 @@
 // An out-of-order required conversion reports an error before later passes run.
 fn @get(arg0: i256) [selector=0x9507d39a] {
   bb0:
-    mstore 128, arg0
+    store 128, arg0
     returndata 128, 32
 }

@@ -77,7 +77,7 @@ fn @row(arg0: calldataslice, arg1: i256) -> calldataslice [selector=0x538f7fda, 
     v14 = sub v13, v12
     v15 = slt v14, 32
     icall revert_if<calldata_tail_too_short>, v15
-    v16 = calldataload v12
+    v16 = load calldata v12
     v17 = add v4, v16
     v18 = calldatasize
     v19 = sub v18, v4
@@ -85,7 +85,7 @@ fn @row(arg0: calldataslice, arg1: i256) -> calldataslice [selector=0x538f7fda, 
     v21 = slt v16, v20
     v22 = eq v21, false
     icall revert_if<invalid_calldata_tail_offset>, v22
-    v23 = calldataload v17
+    v23 = load calldata v17
     v24 = gt v23, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v24
     v25 = mul v23, 64
@@ -108,7 +108,7 @@ fn @member(arg0: calldataslice) -> calldataslice [selector=0xef3fa208, pure, abi
     v4 = sub v3, v2
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = calldataload v2
+    v6 = load calldata v2
     v7 = add v1, v6
     v8 = calldatasize
     v9 = sub v8, v1
@@ -116,7 +116,7 @@ fn @member(arg0: calldataslice) -> calldataslice [selector=0xef3fa208, pure, abi
     v11 = slt v6, v10
     v12 = eq v11, false
     icall revert_if<invalid_calldata_tail_offset>, v12
-    v13 = calldataload v7
+    v13 = load calldata v7
     v14 = gt v13, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = mul v13, 64

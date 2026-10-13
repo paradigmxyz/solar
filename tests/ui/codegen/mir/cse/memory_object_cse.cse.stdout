@@ -36,7 +36,7 @@
 -     v2 = memory_slice arg0
 -     v3 = slice_len v2
       v4 = ptrtoint memptr arg0 to i256
-      mstore v4, 9
+      store v4, 9
       v5 = memory_slice arg0
 -     v6 = slice_len v5
 -     v7 = add v1, v3
@@ -98,10 +98,10 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
       v2 = memory_slice v0
       v3 = slice_ptr v2
-      mstore v3, 0
+      store v3, 0
       jump bb1
     bb1:
 -     v4 = memory_slice v0
@@ -113,8 +113,8 @@
   fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
-      mstore v0, arg1
+      store v0, 3
+      store v0, arg1
       v1 = memory_slice arg0
 -     v2 = slice_len v1
 -     ret v2
@@ -124,13 +124,13 @@
   fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 3
+      store v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      mstore v0, 4
+      store v0, 4
       jump bb3
     bb3:
       v2 = memory_slice arg0
@@ -141,7 +141,7 @@
   fn @loop_header_clobber(arg0: memptr) -> i256 {
     bb0:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, 7
+      store v0, 7
       jump bb1
     bb1:
       v1 = memory_slice arg0
@@ -151,7 +151,7 @@
     bb3:
       ret v2
     bb2:
-      mstore v0, 0
+      store v0, 0
       jump bb1
   }
   
@@ -159,12 +159,12 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
       v2 = inttoptr i256 v1 to memptr
       set_fmp v2
       v3 = alloc memorybytes, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
-      mstore v4, 4
+      store v4, 4
       v5 = memory_slice v0
       v6 = slice_len v5
       ret v6
@@ -176,7 +176,7 @@
       v1 = memory_slice arg0
       v2 = slice_len v1
       v3 = ptrtoint memptr v0 to i256
-      mstore v3, 7
+      store v3, 7
       v4 = memory_slice arg0
       v5 = slice_len v4
       v6 = add v2, v5
@@ -185,7 +185,7 @@
   
   fn @fabricated_parameter() -> i256 {
     bb0:
-      v0 = mload 64
+      v0 = load 64
       v1 = inttoptr i256 v0 to memptr
       v2 = icall @parameter_may_overlap_allocation, v1
       ret v2

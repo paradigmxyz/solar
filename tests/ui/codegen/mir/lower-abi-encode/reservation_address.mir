@@ -6,8 +6,8 @@
 // Reserving that memory must not relocate it away from the preceding stores.
 // CHECK-LABEL: (after defer-alloc)
 // CHECK: fn @encode_empty
-// CHECK: mstore {{v[0-9]+}}, 32
-// CHECK: mstore {{v[0-9]+}}, 0
+// CHECK: store {{v[0-9]+}}, 32
+// CHECK: store {{v[0-9]+}}, 0
 // CHECK: = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp){{$}}
 // CHECK-NOT: deferred_alloc
 // CHECK: returndata

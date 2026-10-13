@@ -22,7 +22,7 @@ contract CalldataSliceNamedReturn {
     }
 
     // CSNR-LABEL: fn @use
-    // CSNR: calldataload
+    // CSNR: load calldata
     // CSNR-NOT: unsupported
     function use(bytes calldata sig) external pure returns (uint256) {
         return unwrap(sig).length;

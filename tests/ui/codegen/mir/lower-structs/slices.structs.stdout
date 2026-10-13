@@ -40,17 +40,17 @@
 +     v12 = icall @pack, arg0, arg1, arg2
 +     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v14 = add v13, 32
-+     v15 = mload v14
++     v15 = load v14
 +     v16 = add v13, 64
-+     v17 = mload v16
++     v17 = load v16
 +     v18 = add v13, 96
-+     v19 = mload v18
++     v19 = load v18
 +     v20 = add v13, 128
-+     v21 = mload v20
++     v21 = load v20
 +     v22 = add v13, 160
-+     v23 = mload v22
++     v23 = load v22
 +     v24 = add v13, 192
-+     v25 = mload v24
++     v25 = load v24
 +     v26 = make_memory_slice v12, v15
 +     v27 = make_calldata_slice v17, v19
 +     v28 = make_returndata_slice v23, v25

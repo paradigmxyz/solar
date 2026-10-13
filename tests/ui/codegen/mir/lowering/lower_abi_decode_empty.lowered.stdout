@@ -29,7 +29,7 @@
 +     v6 = slt v4, 32
 +     jumpi v6, bb1, bb2
 +   bb2:
-+     v7 = mload v3
++     v7 = load v3
 +     ret v7
 +   bb1:
 +     revert 0, 0

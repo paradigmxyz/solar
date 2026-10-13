@@ -383,7 +383,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     sstore v309, v319 !metadata(storage=symbolic(v309))
     sstore 0, v306 !metadata(storage=slot(0))
     v320 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v320, 1
+    store v320, 1
     v321 = memory_slice v320
     v322 = slice_len v321
     v323 = lt 0, v322

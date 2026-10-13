@@ -69,8 +69,8 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, Terminator,
-        Value, ValueId,
+        ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
+        Terminator, Value, ValueId,
         analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
@@ -1127,7 +1127,7 @@ fn is_small_literal_return(func: &Function) -> bool {
             continue;
         }
         let (address, value) = match func.inst(inst).kind {
-            InstKind::MStore(address, value) => (func.object_address(address), value),
+            InstKind::Store(address, value) => (func.object_address(address), value),
             InstKind::SliceStoreWord { slice, offset, value } => (
                 func.object_address(slice).and_then(|(base, data)| {
                     Some((base, data.checked_add(func.value_u64(offset)?)?))
@@ -1442,17 +1442,17 @@ fn is_memory_wrapper(func: &Function) -> bool {
     let [call, rest @ ..] = block.instructions.as_slice() else { return false };
     rest.len() <= 5
         && matches!(func.inst(*call).kind, InstKind::ICall { function: Callee::Function(_), .. })
-        && rest.iter().any(|&inst| {
-            matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
-        })
+        && rest
+            .iter()
+            .any(|&inst| matches!(func.inst(inst).kind, InstKind::Store(..) | InstKind::Store8(..)))
         && rest.iter().all(|&inst| {
             matches!(
                 func.inst(inst).kind,
                 InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::MLoad(..)
-                    | InstKind::MStore(..)
-                    | InstKind::MStore8(..)
+                    | InstKind::Load(_, PtrLocation::Memory)
+                    | InstKind::Store(..)
+                    | InstKind::Store8(..)
             )
         })
         && matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() == 1)
@@ -2568,7 +2568,7 @@ fn insert_return_buffer_stores(
             } else {
                 builder.internal_frame_addr(frame_offset.checked_add(offset)?)
             };
-            builder.mstore(offset, value);
+            builder.store(offset, value);
         }
         let base = if caller_is_external {
             builder.imm(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
@@ -2630,7 +2630,7 @@ fn forward_inline_return_loads(
                     offsets.insert(value, offset);
                 }
             }
-            InstKind::MLoad(address) => {
+            InstKind::Load(address, PtrLocation::Memory) => {
                 if let Some(&offset) = offsets.get(&address)
                     && offset >= 32
                     && offset % 32 == 0

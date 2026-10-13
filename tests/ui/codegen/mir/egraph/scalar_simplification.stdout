@@ -45,10 +45,10 @@
   
   fn @remove_zero_length_copies(arg0: i256) -> i256 {
     bb0:
--     mcopy 64, 96, 0
--     calldatacopy 128, 0, 0
+-     copy 64, 96, 0
+-     copy calldata 128, 0, 0
 -     codecopy 160, 0, 0
--     returndatacopy 192, 0, 0
+-     copy returndata 192, 0, 0
       ret arg0
   }
   

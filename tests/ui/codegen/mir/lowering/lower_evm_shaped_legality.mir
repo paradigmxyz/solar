@@ -12,7 +12,7 @@ fn @entry() [entry] {
   bb0:
     v0 = storage_array_data_slot 7
     v1 = sload v0
-    mstore 128, v1
+    store 128, v1
     returndata 128, 32
 }
 

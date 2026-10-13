@@ -17,20 +17,20 @@ fn @arithmetic(arg0: i256) -> i256 {
 // Canonicalizing a storage or memory address must drop its old alias proof.
 // CHECK-LABEL: {{^[ +].*}}fn @operands
 // CHECK: + {{v[0-9]+}} = sload arg0 !metadata(span=5..9)
-// CHECK: + {{v[0-9]+}} = mload arg0 !metadata(span=9..13)
+// CHECK: + {{v[0-9]+}} = load arg0 !metadata(span=9..13)
 fn @operands(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v0 = add arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0), effect=storage_read, span=5..9)
-    v2 = mload v0 !metadata(memory=heap, effect=memory_read, span=9..13)
+    v2 = load v0 !metadata(memory=heap, effect=memory_read, span=9..13)
     ret v1, v2
 }
 
 // Instructions whose operands and operation stay unchanged retain their facts.
 // CHECK-LABEL: {{^[ +].*}}fn @unchanged
-// CHECK: {{^[ +].*}}mload arg0 !metadata(memory=heap, span=13..17)
+// CHECK: {{^[ +].*}}load arg0 !metadata(memory=heap, span=13..17)
 fn @unchanged(arg0: i256) -> i256 {
   bb0:
-    v0 = mload arg0 !metadata(memory=heap, effect=memory_read, span=13..17)
+    v0 = load arg0 !metadata(memory=heap, effect=memory_read, span=13..17)
     ret v0
 }

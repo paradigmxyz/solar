@@ -793,17 +793,15 @@ impl Instruction {
             | InstKind::SGt(..)
             | InstKind::Eq(..)
             | InstKind::Ne(..)
-            | InstKind::MLoad(..)
-            | InstKind::MStore(..)
-            | InstKind::MStore8(..)
+            | InstKind::Load(..)
+            | InstKind::Store(..)
+            | InstKind::Store8(..)
             | InstKind::MSize
-            | InstKind::MCopy(..)
+            | InstKind::Copy(..)
             | InstKind::SLoad(..)
             | InstKind::SStore(..)
             | InstKind::TLoad(..)
             | InstKind::TStore(..)
-            | InstKind::CalldataLoad(..)
-            | InstKind::CalldataCopy(..)
             | InstKind::CalldataSize
             | InstKind::InternalFrameAddr(..)
             | InstKind::ConstructorArgsBase
@@ -819,7 +817,6 @@ impl Instruction {
             | InstKind::DataSize(..)
             | InstKind::LoadImmutable(..)
             | InstKind::ReturnDataSize
-            | InstKind::ReturnDataCopy(..)
             | InstKind::Caller
             | InstKind::CallValue
             | InstKind::Origin

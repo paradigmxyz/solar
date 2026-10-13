@@ -208,7 +208,7 @@ fn @second(arg0: u256, arg1: u256) {
 """
         for barrier in (
             "    sstore 0, v0",
-            "    v2 = mload v0",
+            "    v2 = load v0",
             "  bb1:",
             "    v3 = unknown v0",
         ):
@@ -468,7 +468,7 @@ class SemanticsTests(unittest.TestCase):
         self.assertNotEqual(result["lhs_value"], result["rhs_value"])
 
     def test_unsupported_operations_fail(self):
-        for op in ("sload", "mload", "call", "keccak256", "mystery"):
+        for op in ("sload", "load", "call", "keccak256", "mystery"):
             with self.assertRaises(Unsupported):
                 term(expression(op, 0))
         with self.assertRaises(Unsupported):

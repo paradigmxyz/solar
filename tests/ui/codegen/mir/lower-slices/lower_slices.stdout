@@ -11,7 +11,7 @@
 +     jump bb1
 +   bb1:
       v0 = icall @len, arg0
-      mstore 128, v0
+      store 128, v0
       returndata 128, 32
 +   bb2:
 +     revert 0, 0
@@ -61,7 +61,7 @@
       jump bb1
     bb1:
       v0 = icall @len, arg0
-      mstore 128, v0
+      store 128, v0
       returndata 128, 32
     bb2:
       revert 0, 0
@@ -73,7 +73,7 @@
 -     v0 = slice_len arg0
 -     ret v0
 +     v1 = add arg0, 4
-+     v2 = calldataload v1
++     v2 = load calldata v1
 +     ret v2
   }
   

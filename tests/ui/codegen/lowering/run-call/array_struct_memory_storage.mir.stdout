@@ -3,7 +3,7 @@
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v11]
@@ -18,7 +18,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v14, 64, 3
     v15 = ptrtoint memptr v13 to i256
     v16 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v16, 3
+    store v16, 3
     v17 = ptrtoint memptr v16 to i256
     v18 = make_memory_slice v12, 3
     slice_store_word v18, 0, 0
@@ -393,7 +393,7 @@ fn @default_struct_0() -> memptr {
     v4 = ptrtoint memptr v2 to i256
     slice_store_word v1, 32, v4
     v5 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v5, 0
+    store v5, 0
     v6 = ptrtoint memptr v5 to i256
     slice_store_word v1, 64, v6
     ret v0

@@ -36,7 +36,7 @@ fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    mstore v12, v7
+    store v12, v7
     v13 = slice_ptr v6
     v14 = slice_len v6
     v15 = gt v14, 0xffffffffffffffff
@@ -69,7 +69,7 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    mstore v12, v7
+    store v12, v7
     v13 = slice_ptr v6
     v14 = slice_len v6
     v15 = gt v14, 0xffffffffffffffff
@@ -112,7 +112,7 @@ fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=
     icall panic_if<0x32>, v3
     v4 = slice_ptr v0
     v5 = add v4, 32
-    v6 = calldataload v5
+    v6 = load calldata v5
     ret v6
 }
 
@@ -121,7 +121,7 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v0 = icall @makeStruct
     v1 = slice_ptr v0
     v2 = add v1, 0
-    v3 = calldataload v2
+    v3 = load calldata v2
     v4 = shr 8, v3
     v5 = eq v4, 0
     v6 = eq v5, false

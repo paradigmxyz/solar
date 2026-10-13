@@ -80,7 +80,7 @@ fn @barrier(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = not v0
-    mstore 0, arg0
+    store 0, arg0
     v2 = and arg0, v1
     ret v2
 }

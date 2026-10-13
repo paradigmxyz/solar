@@ -3,8 +3,8 @@
   @module CseMemoryAlias
   fn @reuse_same_memory_load(arg0: i256) -> i256 {
     bb0:
-      v0 = mload arg0
--     v1 = mload arg0
+      v0 = load arg0
+-     v1 = load arg0
 -     v2 = add v0, v1
 +     v2 = add v0, v0
       ret v2
@@ -12,10 +12,10 @@
   
   fn @reuse_after_disjoint_memory_store(arg0: i256) -> i256 {
     bb0:
-      v0 = mload 64
--     v1 = mload 64
-      mstore 96, arg0
--     v2 = mload 64
+      v0 = load 64
+-     v1 = load 64
+      store 96, arg0
+-     v2 = load 64
 -     v3 = add v0, v1
 -     v4 = add v3, v2
 +     v3 = add v0, v0
@@ -25,9 +25,9 @@
   
   fn @keep_after_overlapping_memory_store(arg0: i256) -> i256 {
     bb0:
-      v0 = mload 64
-      mstore 80, arg0
-      v1 = mload 64
+      v0 = load 64
+      store 80, arg0
+      v1 = load 64
       v2 = add v0, v1
       ret v2
   }
@@ -35,7 +35,7 @@
   fn @reuse_keccak_after_disjoint_memory_store(arg0: i256) -> i256 {
     bb0:
       v0 = keccak256 128, 64
-      mstore 64, arg0
+      store 64, arg0
 -     v1 = keccak256 128, 64
 -     v2 = add v0, v1
 +     v2 = add v0, v0
@@ -44,9 +44,9 @@
   
   fn @reuse_mload_after_disjoint_call_return(arg0: i256) -> i256 {
     bb0:
-      v0 = mload 64
+      v0 = load 64
       v1 = call 0x186a0, arg0, 0, 0, 0, 96, 32
--     v2 = mload 64
+-     v2 = load 64
 -     v3 = add v0, v2
 +     v3 = add v0, v0
       v4 = zext i1 v1 to i256
@@ -56,9 +56,9 @@
   
   fn @keep_mload_after_overlapping_call_return(arg0: i256) -> i256 {
     bb0:
-      v0 = mload 96
+      v0 = load 96
       v1 = call 0x186a0, arg0, 0, 0, 0, 96, 32
-      v2 = mload 96
+      v2 = load 96
       v3 = add v0, v2
       v4 = zext i1 v1 to i256
       v5 = add v3, v4
@@ -67,56 +67,56 @@
   
   fn @forward_constant_word(arg0: i256) -> i256 {
     bb0:
-      mstore arg0, 2
--     v0 = mload arg0
+      store arg0, 2
+-     v0 = load arg0
 -     ret v0
 +     ret 2
   }
   
   fn @forward_constant_after_disjoint_write(arg0: i256) -> i256 {
     bb0:
-      mstore 128, 2
-      mstore 160, arg0
--     v0 = mload 128
+      store 128, 2
+      store 160, arg0
+-     v0 = load 128
 -     ret v0
 +     ret 2
   }
   
   fn @keep_constant_after_byte_write(arg0: i256) -> i256 {
     bb0:
-      mstore 128, 2
-      mstore8 159, arg0
-      v0 = mload 128
+      store 128, 2
+      store8 159, arg0
+      v0 = load 128
       ret v0
   }
   
   fn @keep_constant_after_unknown_write(arg0: i256) -> i256 {
     bb0:
-      mstore 128, 2
-      mstore arg0, 3
-      v0 = mload 128
+      store 128, 2
+      store arg0, 3
+      v0 = load 128
       ret v0
   }
   
   fn @keep_constant_after_call_return(arg0: i256) -> i256 {
     bb0:
-      mstore 128, 2
+      store 128, 2
       v0 = call 0x186a0, arg0, 0, 0, 0, 128, 32
-      v1 = mload 128
+      v1 = load 128
       ret v1
   }
   
   fn @keep_constant_after_diamond_write(arg0: i1) -> i256 {
     bb0:
-      mstore 128, 2
+      store 128, 2
       jumpi arg0, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      mstore 128, 3
+      store 128, 3
       jump bb3
     bb3:
-      v0 = mload 128
+      v0 = load 128
       ret v0
   }
   

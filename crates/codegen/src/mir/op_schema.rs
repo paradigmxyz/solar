@@ -681,9 +681,10 @@ macro_rules! define_mir_ops {
                     category = $category:expr $(,)?
                 )]
                 $(#[mnemonic($mnemonic_pattern:pat => $alternate_mnemonic:literal)])*
+                $(#[effect($effect_pattern:pat => $alternate_effect:ident)])*
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
-                $(#[raw_memory($( $access:ident($address:ident, $size:tt) ),+)])?
+                $(#[raw_memory($( $access:ident($address:ident, $size:tt) $(if $guard:expr)? ),+)])?
                 #[operand_types($func:ident => $operand_types:expr)]
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
@@ -756,6 +757,7 @@ macro_rules! define_mir_ops {
                             };
                             match self {
                                 $( $mnemonic_pattern => &OpDef { mnemonic: $alternate_mnemonic, ..DEF }, )*
+                                $( $effect_pattern => &OpDef { effect: EffectKind::$alternate_effect, ..DEF }, )*
                                 _ => &DEF,
                             }
                         },
@@ -822,7 +824,11 @@ macro_rules! define_mir_ops {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
-                            $( $( f(RawMemoryAccess::$access, *$address, raw_memory_size!($size)); )+ )?
+                            $( $(
+                                if true $( && $guard )? {
+                                    f(RawMemoryAccess::$access, *$address, raw_memory_size!($size));
+                                }
+                            )+ )?
                         }
                     )+
                 }
@@ -835,7 +841,12 @@ macro_rules! define_mir_ops {
                 match self {
                     $(
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
-                            $( $( f($address); visit_raw_memory_size!(f, $size); )+ )?
+                            $( $(
+                                if true $( && $guard )? {
+                                    f($address);
+                                    visit_raw_memory_size!(f, $size);
+                                }
+                            )+ )?
                         }
                     )+
                 }
@@ -1538,10 +1549,10 @@ define_mir_ops! {
     Ne(a: ValueId, b: ValueId),
 
     // Memory operations
-    /// Load from memory: `mload(offset)`. Like an LLVM load from `ptr`, the address may be a
-    /// `memptr`; lowering casts it at the opcode boundary.
+    /// Load the word at `ptr` from memory or calldata. Like an LLVM load from `ptr`, the address
+    /// may be a pointer into the same location; lowering casts it at the opcode boundary.
     #[mir_op(
-        mnemonic = "mload",
+        mnemonic = "load",
         result = I256,
         phases = PhaseSet::ALL,
         effect = MemoryRead,
@@ -1549,13 +1560,13 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[builder(mload)]
-    #[raw_memory(Read(offset, 32))]
-    #[operand_types(func => Some(smallvec![typing::address(func, *offset)]))]
-    MLoad(offset: ValueId),
-    /// Store to memory: `mstore(offset, value)`. The address may be a `memptr`, as for `mload`.
+    #[effect(InstKind::Load(_, PtrLocation::Calldata | PtrLocation::Returndata) => EnvironmentRead)]
+    #[raw_memory(Read(ptr, 32) if *location == PtrLocation::Memory)]
+    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location)]))]
+    Load(ptr: ValueId, location: PtrLocation),
+    /// Store a word to memory at `ptr`, which may be a `memptr`, as for `load`.
     #[mir_op(
-        mnemonic = "mstore",
+        mnemonic = "store",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -1563,13 +1574,13 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
-    #[builder(mstore, void)]
-    #[raw_memory(Write(offset, 32))]
-    #[operand_types(func => Some(smallvec![typing::address(func, *offset), MirType::I256]))]
-    MStore(offset: ValueId, value: ValueId),
-    /// Store a single byte: `mstore8(offset, value)`
+    #[builder(store, void)]
+    #[raw_memory(Write(ptr, 32))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
+    Store(ptr: ValueId, value: ValueId),
+    /// Store the low byte of `value` to memory at `ptr`.
     #[mir_op(
-        mnemonic = "mstore8",
+        mnemonic = "store8",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -1577,10 +1588,10 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
-    #[builder(mstore8, void)]
-    #[raw_memory(Write(offset, 1))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
-    MStore8(offset: ValueId, value: ValueId),
+    #[builder(store8, void)]
+    #[raw_memory(Write(ptr, 1))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
+    Store8(ptr: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
     #[mir_op(
         mnemonic = "memory_zero",
@@ -1868,9 +1879,9 @@ define_mir_ops! {
         /// Aggregate layout.
         layout: StorageLayoutRef,
     },
-    /// Copy memory: `mcopy(dest, src, len)`
+    /// Copy `len` bytes from `src` in memory, calldata, or returndata to `dest` in memory.
     #[mir_op(
-        mnemonic = "mcopy",
+        mnemonic = "copy",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -1878,10 +1889,9 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
-    #[builder(mcopy, void)]
-    #[raw_memory(Read(src, len), Write(dest, len))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    MCopy(dest: ValueId, src: ValueId, len: ValueId),
+    #[raw_memory(Read(src, len) if *location == PtrLocation::Memory, Write(dest, len))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), typing::address(func, *src, *location), MirType::I256]))]
+    Copy(dest: ValueId, src: ValueId, len: ValueId, location: PtrLocation),
 
     // Storage operations
     /// Load from storage: `sload(slot)`
@@ -1938,33 +1948,6 @@ define_mir_ops! {
     TStore(slot: ValueId, value: ValueId),
 
     // Calldata operations
-    /// Load from calldata: `calldataload(offset)`
-    #[mir_op(
-        mnemonic = "calldataload",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = EnvironmentRead,
-        traits = OpTraits::NONE,
-        side_effects = false,
-        category = None
-    )]
-    #[builder(calldataload)]
-    #[operand_types(func => Some(smallvec![MirType::I256]))]
-    CalldataLoad(offset: ValueId),
-    /// Copy calldata to memory: `calldatacopy(destOffset, offset, size)`
-    #[mir_op(
-        mnemonic = "calldatacopy",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[builder(calldatacopy, void)]
-    #[raw_memory(Write(dest, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    CalldataCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get calldata size: `calldatasize()`
     #[mir_op(
         mnemonic = "calldatasize",
@@ -1990,7 +1973,7 @@ define_mir_ops! {
     )]
     #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Calldata, .. } => "make_calldata_slice")]
     #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Returndata, .. } => "make_returndata_slice")]
-    #[operand_types(func => Some(smallvec![typing::address(func, *ptr), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location), MirType::I256]))]
     MakeSlice {
         /// Address of the first element or byte; a memory slice may start at a `memptr`.
         ptr: ValueId,
@@ -2264,20 +2247,6 @@ define_mir_ops! {
     #[builder(returndatasize)]
     #[operand_types(func => Some(smallvec![]))]
     ReturnDataSize,
-    /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
-    #[mir_op(
-        mnemonic = "returndatacopy",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[builder(returndatacopy, void)]
-    #[raw_memory(Write(dest, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ReturnDataCopy(dest: ValueId, offset: ValueId, size: ValueId),
 
     // Environment operations
     /// Get caller address: `caller()`

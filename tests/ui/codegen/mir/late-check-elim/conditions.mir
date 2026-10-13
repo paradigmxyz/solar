@@ -14,7 +14,7 @@ fn @same_length(arg0: i256, arg1: i256) -> i256 {
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
   bb1:
-    v2 = mload arg0
+    v2 = load arg0
     v3 = lt arg1, v2
     jumpi v3, bb3, bb2
   bb2:
@@ -32,8 +32,8 @@ fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
   bb1:
-    mstore arg0, arg2
-    v2 = mload arg0
+    store arg0, arg2
+    v2 = load arg0
     v3 = lt arg1, v2
     jumpi v3, bb3, bb2
   bb2:
@@ -54,7 +54,7 @@ fn @loop_length(arg0: i256) -> i256 {
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
   bb2:
-    v3 = mload arg0
+    v3 = load arg0
     v4 = lt v0, v3
     jumpi v4, bb3, bb5
   bb3:
@@ -78,7 +78,7 @@ fn @loop_exit(arg0: i256) -> i256 {
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
   bb2:
-    v3 = mload arg0
+    v3 = load arg0
     v4 = lt v0, v3
     jumpi v4, bb3, bb5
   bb3:
@@ -102,7 +102,7 @@ fn @outlined_failure(arg0: i256) -> i256 {
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
   bb2:
-    v3 = mload arg0
+    v3 = load arg0
     v4 = lt v0, v3
     jumpi v4, bb3, bb5
   bb3:

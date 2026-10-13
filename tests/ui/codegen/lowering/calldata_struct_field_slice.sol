@@ -43,7 +43,7 @@ contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS-NOT: icall
     // CDSFS: lt {{v[0-9]+}}, 20
-    // CDSFS: [[LEAD:v[0-9]+]] = calldataload
+    // CDSFS: [[LEAD:v[0-9]+]] = load calldata
     // CDSFS-NEXT: [[MASKED:v[0-9]+]] = and [[LEAD]], 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     // CDSFS-NEXT: shr 96, [[MASKED]]
     function factory(PackedUserOperation calldata op) external pure returns (address) {
@@ -59,14 +59,14 @@ contract CalldataStructFieldSlice {
     // The `bytes32` conversion loads the word at the slice start once bounds are checked.
     // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
     // CDSFS: = lt {{v[0-9]+}}, 32
-    // CDSFS: [[WORD:v[0-9]+]] = calldataload
-    // CDSFS-NEXT: mstore 128, [[WORD]]
+    // CDSFS: [[WORD:v[0-9]+]] = load calldata
+    // CDSFS-NEXT: store 128, [[WORD]]
     // The hashing helper stays a separate function below the wrappers: the `[20:]` slice is
     // copied into memory and the hash reads that copy directly.
     // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
     // CDSFS-DAG: [[LEN:v[0-9]+]] = sub {{v[0-9]+}}, 20
     // CDSFS-DAG: [[START:v[0-9]+]] = add {{v[0-9]+}}, 20
-    // CDSFS: calldatacopy [[COPY:v[0-9]+]], [[START]], [[LEN]]
+    // CDSFS: copy calldata [[COPY:v[0-9]+]], [[START]], [[LEN]]
     // CDSFS: keccak256 [[COPY]],
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);

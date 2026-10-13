@@ -68,7 +68,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     sstore 1, v4 !metadata(storage=slot(1))
     v5 = slice_ptr arg0
     v6 = add v5, 64
-    v7 = calldataload v6
+    v7 = load calldata v6
     v8 = shr 24, v7
     v9 = eq v8, 0
     v10 = eq v9, false
@@ -77,7 +77,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v12 = zext i24 v11 to i256
     v13 = slice_ptr arg1
     v14 = add v13, 64
-    v15 = calldataload v14
+    v15 = load calldata v14
     v16 = shr 160, v15
     v17 = eq v16, 0
     v18 = eq v17, false
@@ -129,7 +129,7 @@ fn @constructor() [constructor] {
     v19 = slice_ptr v14
     v20 = ptrtoint memptr v17 to i256
     v21 = add v20, v15
-    mcopy v21, v19, 0 !metadata(memory=heap)
+    copy v21, v19, 0 !metadata(memory=heap)
     v22 = ptrtoint memptr v17 to i256
     v23 = create 0, v22, v15
     v24 = ne v23, i160 0
@@ -166,7 +166,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
-    v12 = mload v11
+    v12 = load v11
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = trunc i256 v13 to i160
     v15 = gas
@@ -185,7 +185,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = mload v25
+    v26 = load v25
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = trunc i256 v27 to i160
     v29 = gas
@@ -203,7 +203,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
     v38 = add 0, 0
-    v39 = mload v38
+    v39 = load v38
     v40 = insert_value struct0, undef struct0, 0, v12
     v41 = insert_value struct0, v40, 1, v26
     v42 = insert_value struct0, v41, 2, v39
@@ -229,7 +229,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
-    v12 = mload v11
+    v12 = load v11
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = trunc i256 v13 to i160
     v15 = gas
@@ -248,7 +248,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = mload v25
+    v26 = load v25
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = trunc i256 v27 to i160
     v29 = gas
@@ -266,7 +266,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
     v38 = add 0, 0
-    v39 = mload v38
+    v39 = load v38
     v40 = insert_value struct0, undef struct0, 0, v12
     v41 = insert_value struct0, v40, 1, v26
     v42 = insert_value struct0, v41, 2, v39
@@ -397,7 +397,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v64 = lt v63, 32
     icall revert_if<tuple_data_too_short>, v64
     v65 = add 0, 0
-    v66 = mload v65
+    v66 = load v65
     v67 = eq v66, 100
     icall require<short_string>, v67, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     ret 1
@@ -419,10 +419,10 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     slice_store_word v4, 32, 101
     slice_store_word v4, 64, 99
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v5, 4
+    store v5, 4
     v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
-    mstore v7, 0x1234567800000000000000000000000000000000000000000000000000000000
+    store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
     v8 = make_memory_slice v0, 5
     v9 = slice_load_word v8, 0
     v10 = trunc i256 v9 to i160
@@ -457,7 +457,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v33 = lt v32, 32
     icall revert_if<tuple_data_too_short>, v33
     v34 = add 0, 0
-    v35 = mload v34
+    v35 = load v34
     v36 = make_memory_slice v0, 5
     v37 = slice_load_word v36, 0
     v38 = trunc i256 v37 to i160
@@ -620,7 +620,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v128 = lt v127, 32
     icall revert_if<tuple_data_too_short>, v128
     v129 = add 0, 0
-    v130 = mload v129
+    v130 = load v129
     v131 = eq v130, 100
     icall require<short_string>, v131, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     ret 2

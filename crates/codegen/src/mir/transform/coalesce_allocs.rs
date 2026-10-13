@@ -21,7 +21,7 @@
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
     AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind, Module,
-    ValueId, analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
+    PtrLocation, ValueId, analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
 };
 use solar_sema::Gcx;
 
@@ -135,7 +135,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
         EffectKind::MemoryRead => match &inst.kind {
-            InstKind::MLoad(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) => {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
             InstKind::Keccak256(addr, len) => range_avoids_fmp(func, *addr, func.value_u64(*len)),
@@ -144,19 +144,18 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
             _ => false,
         },
         EffectKind::MemoryWrite => match &inst.kind {
-            InstKind::MStore(addr, _) => {
+            InstKind::Store(addr, _) => {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
             }
-            InstKind::MStore8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),
+            InstKind::Store8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),
             InstKind::MemoryZero(addr, len)
-            | InstKind::CalldataCopy(addr, _, len)
+            | InstKind::Copy(addr, _, len, PtrLocation::Calldata | PtrLocation::Returndata)
             | InstKind::DataCopy(_, addr, len)
             | InstKind::CodeCopy(addr, _, len)
-            | InstKind::ReturnDataCopy(addr, _, len)
             | InstKind::ExtCodeCopy(_, addr, _, len) => {
                 range_avoids_fmp(func, *addr, func.value_u64(*len))
             }
-            InstKind::MCopy(dest, src, len) => {
+            InstKind::Copy(dest, src, len, PtrLocation::Memory) => {
                 let len = func.value_u64(*len);
                 range_avoids_fmp(func, *dest, len) && range_avoids_fmp(func, *src, len)
             }

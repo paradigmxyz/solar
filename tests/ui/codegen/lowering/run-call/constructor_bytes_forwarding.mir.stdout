@@ -141,7 +141,7 @@ fn @f(arg0: i256, arg1: memptr) -> struct0 [selector=0xcdc9dc79, abi_params=[u25
     v11 = slice_ptr v0
     v12 = ptrtoint memptr v9 to i256
     v13 = add v12, v2
-    mcopy v13, v11, v1 !metadata(memory=heap)
+    copy v13, v11, v1 !metadata(memory=heap)
     v14 = ptrtoint memptr v9 to i256
     v15 = create 0, v14, v3
     v16 = ne v15, i160 0
@@ -163,7 +163,7 @@ fn @f(arg0: i256, arg1: memptr) -> struct0 [selector=0xcdc9dc79, abi_params=[u25
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = mload v25
+    v26 = load v25
     v27 = gas
     v28 = abi_encode [word], selector 0x710422c600000000000000000000000000000000000000000000000000000000, args arg0
     v29 = slice_ptr v28
@@ -178,7 +178,7 @@ fn @f(arg0: i256, arg1: memptr) -> struct0 [selector=0xcdc9dc79, abi_params=[u25
     v34 = lt v33, 32
     icall revert_if<tuple_data_too_short>, v34
     v35 = add 0, 0
-    v36 = mload v35
+    v36 = load v35
     v37 = shl 8, v36
     v38 = eq v37, 0
     v39 = eq v38, false

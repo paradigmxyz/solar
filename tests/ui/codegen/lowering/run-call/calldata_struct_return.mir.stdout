@@ -17,7 +17,7 @@ fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_param
     v2 = extract_value struct1, v0, 1
     v3 = slice_ptr v2
     v4 = add v3, 64
-    v5 = calldataload v4
+    v5 = load calldata v4
     v6 = insert_value struct0, undef struct0, 0, v1
     v7 = insert_value struct0, v6, 1, v5
     ret v7
@@ -40,16 +40,16 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v2 = shl 0, 1
     v3 = shl 0, 2
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v4, 3
+    store v4, 3
     v5 = ptrtoint memptr v4 to i256
     v6 = add v5, 32
-    mstore v6, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    store v6, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     v7 = ptrtoint memptr v4 to i256
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v8, 4
+    store v8, 4
     v9 = ptrtoint memptr v8 to i256
     v10 = add v9, 32
-    mstore v10, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
+    store v10, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
     v11 = ptrtoint memptr v8 to i256
     v12 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args v2, v3, 3, 4, v4, v8
     v13 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v12

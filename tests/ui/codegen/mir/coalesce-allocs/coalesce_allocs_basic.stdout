@@ -9,7 +9,7 @@
 -     v0 = alloc raw, exact, uninitialized, infallible, 64
 +     v0 = alloc raw, exact, uninitialized, infallible, 160
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 1
+      store v1, 1
 -     v2 = alloc raw, exact, uninitialized, infallible, 32
 +     v7 = ptrtoint memptr v0 to i256
 +     v8 = add v7, 64
@@ -20,9 +20,9 @@
 +     v10 = add v9, 96
 +     v4 = inttoptr i256 v10 to memptr
       v5 = ptrtoint memptr v4 to i256
-      mstore v3, 2
-      mstore v5, 3
-      v6 = mload v3
+      store v3, 2
+      store v5, 3
+      v6 = load v3
       ret v6
   }
   
@@ -40,7 +40,7 @@
 +     v6 = ptrtoint memptr v2 to i256
 +     memory_zero v6, 32
       v3 = ptrtoint memptr v2 to i256
-      v4 = mload v3
+      v4 = load v3
       ret v4
   }
   
@@ -51,7 +51,7 @@
 +     v5 = ptrtoint memptr v0 to i256
 +     memory_zero v5, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore 160, 7
+      store 160, 7
 -     v2 = alloc raw, exact, zeroed, infallible, 32
 +     v7 = ptrtoint memptr v0 to i256
 +     v8 = add v7, 32
@@ -59,7 +59,7 @@
 +     v6 = ptrtoint memptr v2 to i256
 +     memory_zero v6, 32
       v3 = ptrtoint memptr v2 to i256
-      v4 = mload v3
+      v4 = load v3
       ret v4
   }
   
@@ -69,7 +69,7 @@
       v1 = ptrtoint memptr v0 to i256
       v2 = sub 64, v1
       v3 = add v1, v2
-      mstore v3, 0x10000
+      store v3, 0x10000
       v4 = alloc raw, exact, uninitialized, infallible, 32
       v5 = ptrtoint memptr v4 to i256
       ret v5
@@ -83,8 +83,8 @@
       v3 = ptrtoint memptr v2 to i256
       v4 = alloc raw, exact, uninitialized, infallible, 32
       v5 = ptrtoint memptr v4 to i256
-      mstore v1, 1
-      mstore v5, 2
+      store v1, 1
+      store v5, 2
       ret v3
   }
   
@@ -92,10 +92,10 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore 64, 0x10000
+      store 64, 0x10000
       v2 = alloc raw, exact, uninitialized, infallible, 32
       v3 = ptrtoint memptr v2 to i256
-      mstore v3, 4
+      store v3, 4
       ret v3
   }
   
@@ -107,7 +107,7 @@
       set_fmp v2
       v3 = alloc raw, exact, uninitialized, infallible, 32
       v4 = ptrtoint memptr v3 to i256
-      mstore v4, 5
+      store v4, 5
       ret v4
   }
   
@@ -144,7 +144,7 @@
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 42
+      store v1, 42
       storeimmutable stored, 7
 -     v2 = alloc raw, exact, uninitialized, infallible, 32
 +     v4 = ptrtoint memptr v0 to i256

@@ -32,7 +32,7 @@ fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
     v11 = slice_ptr v1
     v12 = slice_ptr v1
     v13 = add v12, v0
-    v14 = calldataload v13
+    v14 = load calldata v13
     v15 = byte 0, v14
     v16 = shl 248, v15
     v17 = shr 248, v16

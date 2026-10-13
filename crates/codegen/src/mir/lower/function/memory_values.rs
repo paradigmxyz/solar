@@ -305,12 +305,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = builder.memory_data(object);
         // The last data word starts one length word before the padded length. Empty code
         // has no data words, and this clears the length word, which is also zero.
-        // mstore object + data_size(code(C), 31, aligned), 0
+        // store object + data_size(code(C), 31, aligned), 0
         // datacopy code(C), data, len
         let tail_offset = builder.data_size(code, word - 1, true);
         let tail = builder.add(object, tail_offset);
         let zero = builder.imm(0);
-        builder.mstore(tail, zero);
+        builder.store(tail, zero);
         builder.data_copy(DataRef::new(code, 0), data, len);
         object
     }
@@ -335,7 +335,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
     ) -> ValueId {
         // object = bytes(size) !preserves_fmp
-        // mstore object, len
+        // store object, len
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")

@@ -32,7 +32,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
 fn @fallback() [fallback, payable] {
   bb0:
     v0 = returndatasize
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v1 = sload 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc !metadata(storage=slot(0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc))
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
@@ -46,7 +46,7 @@ fn @fallback() [fallback, payable] {
     v5 = calldatasize
     v6 = returndatasize
     v7 = returndatasize
-    calldatacopy v7, v6, v5
+    copy calldata v7, v6, v5
     v8 = returndatasize
     v9 = codesize
     v10 = calldatasize
@@ -62,12 +62,12 @@ fn @fallback() [fallback, payable] {
     jump bb6
   bb6:
     v20 = returndatasize
-    returndatacopy 0, 0, v20 !metadata(memory=scratch)
+    copy returndata 0, 0, v20 !metadata(memory=scratch)
     v21 = returndatasize
     returndata 0, v21
   bb4:
     v18 = returndatasize
-    returndatacopy 0, 0, v18 !metadata(memory=scratch)
+    copy returndata 0, 0, v18 !metadata(memory=scratch)
     v19 = returndatasize
     revert 0, v19
 }
@@ -89,7 +89,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -108,7 +108,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
+    copy v20, v18, 32 !metadata(memory=heap)
     v21 = ptrtoint memptr v16 to i256
     v22 = create 0, v21, v14
     v23 = ne v22, i160 0
@@ -118,10 +118,10 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb4:
     v24 = gas
     v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v25, 16
+    store v25, 16
     v26 = ptrtoint memptr v25 to i256
     v27 = add v26, 32
-    mstore v27, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
+    store v27, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
     v28 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v25
     v29 = slice_ptr v28
     v30 = slice_len v28
@@ -149,7 +149,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v43 = lt v42, 32
     icall revert_if<tuple_data_too_short>, v43
     v44 = add 0, 0
-    v45 = mload v44
+    v45 = load v44
     v46 = eq v45, 76
     icall require<short_string>, v46, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1

@@ -21,7 +21,7 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitAnonymous
-    // CHECK: mstore 0, arg1
+    // CHECK: store 0, arg1
     // CHECK: [[WORD:v[0-9]+]] = zext {{i(1|160)}} arg0
     // CHECK: log 0, 32, [[WORD]]
     function emitAnonymous(address sender, uint256 value) external {

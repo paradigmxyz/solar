@@ -27,10 +27,10 @@ fn @recordFirst(arg0: i160) {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v1, 5
+    store v1, 5
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
-    mstore v3, 0x6669727374000000000000000000000000000000000000000000000000000000
+    store v3, 0x6669727374000000000000000000000000000000000000000000000000000000
     v4 = abi_encode [word<u160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 1, v1
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -51,10 +51,10 @@ fn @recordSecond(arg0: i160) {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v1, 6
+    store v1, 6
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
-    mstore v3, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    store v3, 0x7365636f6e640000000000000000000000000000000000000000000000000000
     v4 = abi_encode [word<u160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 2, v1
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -88,7 +88,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -107,7 +107,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
+    copy v20, v18, 32 !metadata(memory=heap)
     v21 = ptrtoint memptr v16 to i256
     v22 = create 0, v21, v14
     v23 = ne v22, i160 0
@@ -129,6 +129,6 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v31 = lt v30, 32
     icall revert_if<tuple_data_too_short>, v31
     v32 = add 0, 0
-    v33 = mload v32
+    v33 = load v32
     ret v33
 }

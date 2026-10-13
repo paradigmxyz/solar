@@ -15,7 +15,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v6 = make_calldata_slice v5, 64
     v7 = slice_ptr v6
     v8 = add v7, 0
-    v9 = calldataload v8
+    v9 = load calldata v8
     v10 = slice_len arg0
     v11 = lt 0, v10
     v12 = eq v11, false
@@ -25,7 +25,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v15 = make_calldata_slice v14, 64
     v16 = slice_ptr v15
     v17 = add v16, 32
-    v18 = calldataload v17
+    v18 = load calldata v17
     v19 = slice_len arg0
     v20 = lt 1, v19
     v21 = eq v20, false
@@ -35,7 +35,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v24 = make_calldata_slice v23, 64
     v25 = slice_ptr v24
     v26 = add v25, 0
-    v27 = calldataload v26
+    v27 = load calldata v26
     v28 = slice_len arg0
     v29 = lt 1, v28
     v30 = eq v29, false
@@ -45,7 +45,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v33 = make_calldata_slice v32, 64
     v34 = slice_ptr v33
     v35 = add v34, 32
-    v36 = calldataload v35
+    v36 = load calldata v35
     v37 = insert_value struct0, undef struct0, 0, v0
     v38 = insert_value struct0, v37, 1, v9
     v39 = insert_value struct0, v38, 2, v18

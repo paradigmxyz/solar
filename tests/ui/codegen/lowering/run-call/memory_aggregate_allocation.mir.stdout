@@ -5,7 +5,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v0 = not 31
     v1 = and 98, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 35
+    store v2, 35
     v3 = memory_slice v2
     v4 = slice_len v3
     v5 = lt 34, v4
@@ -14,7 +14,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v7 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
     slice_store_byte v3, 34, v7
     v8 = alloc memoryarray<1>, exact, zeroed, panic, 160
-    mstore v8, 4
+    store v8, 4
     jump bb1
   bb1:
     v9 = phi [bb0: 0], [bb2: v16]
@@ -45,7 +45,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     icall panic_if<0x32>, v30
     slice_store_word v28, 32, 8
     v31 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v31, 3
+    store v31, 3
     jump bb6
   bb6:
     v32 = phi [bb5: 0], [bb7: v42]
@@ -78,7 +78,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v58 = not 31
     v59 = and 69, v58
     v60 = alloc memorybytes, exact, zeroed, panic, v59
-    mstore v60, 6
+    store v60, 6
     v61 = memory_slice v31
     v62 = slice_len v61
     v63 = lt 2, v62
@@ -248,7 +248,7 @@ fn @default_struct_0() -> memptr {
     v4 = ptrtoint memptr v2 to i256
     slice_store_word v1, 0, v4
     v5 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v5, 0
+    store v5, 0
     v6 = ptrtoint memptr v5 to i256
     slice_store_word v1, 32, v6
     ret v0

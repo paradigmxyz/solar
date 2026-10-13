@@ -9,7 +9,7 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
-    v2 = calldataload v1
+    v2 = load calldata v1
     v3 = shr 8, v2
     v4 = eq v3, 0
     v5 = eq v4, false
@@ -29,7 +29,7 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -37,7 +37,7 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
@@ -73,7 +73,7 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v39 = not 31
     v40 = and v37, v39
     v41 = alloc memorybytes, exact, uninitialized, infallible, v40
-    mstore v41, v36
+    store v41, v36
     v42 = ptrtoint memptr v41 to i256
     v43 = add v42, 32
     v44 = slice_len v29
@@ -85,7 +85,7 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
 fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -111,10 +111,10 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v19 = make_memory_slice v18, 3
     slice_store_word v19, 0, 7
     v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v20, 2
+    store v20, 2
     v21 = ptrtoint memptr v20 to i256
     v22 = add v21, 32
-    mstore v22, 0x102000000000000000000000000000000000000000000000000000000000000
+    store v22, 0x102000000000000000000000000000000000000000000000000000000000000
     v23 = memory_slice v0
     v24 = slice_len v23
     v25 = lt 0, v24
@@ -135,7 +135,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v34 = ptrtoint memptr v20 to i256
     slice_store_word v33, 32, v34
     v35 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v35, 2
+    store v35, 2
     v36 = memory_slice v0
     v37 = slice_len v36
     v38 = lt 0, v37
@@ -222,10 +222,10 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v90 = make_memory_slice v89, 3
     slice_store_word v90, 0, 11
     v91 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v91, 3
+    store v91, 3
     v92 = ptrtoint memptr v91 to i256
     v93 = add v92, 32
-    mstore v93, 0x304050000000000000000000000000000000000000000000000000000000000
+    store v93, 0x304050000000000000000000000000000000000000000000000000000000000
     v94 = memory_slice v0
     v95 = slice_len v94
     v96 = lt 1, v95
@@ -246,7 +246,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v105 = ptrtoint memptr v91 to i256
     slice_store_word v104, 32, v105
     v106 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v106, 1
+    store v106, 1
     v107 = memory_slice v0
     v108 = slice_len v107
     v109 = lt 1, v108
@@ -462,10 +462,10 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v18 = make_memory_slice v17, 3
     slice_store_word v18, 0, 5
     v19 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v19, 2
+    store v19, 2
     v20 = ptrtoint memptr v19 to i256
     v21 = add v20, 32
-    mstore v21, 0x102000000000000000000000000000000000000000000000000000000000000
+    store v21, 0x102000000000000000000000000000000000000000000000000000000000000
     v22 = make_memory_slice v0, 2
     v23 = lt 0, 2
     v24 = eq v23, false
@@ -485,7 +485,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v32 = ptrtoint memptr v19 to i256
     slice_store_word v31, 32, v32
     v33 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v33, 1
+    store v33, 1
     v34 = make_memory_slice v0, 2
     v35 = lt 0, 2
     v36 = eq v35, false
@@ -545,10 +545,10 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v69 = make_memory_slice v68, 3
     slice_store_word v69, 0, 7
     v70 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v70, 3
+    store v70, 3
     v71 = ptrtoint memptr v70 to i256
     v72 = add v71, 32
-    mstore v72, 0x304050000000000000000000000000000000000000000000000000000000000
+    store v72, 0x304050000000000000000000000000000000000000000000000000000000000
     v73 = make_memory_slice v0, 2
     v74 = lt 1, 2
     v75 = eq v74, false
@@ -568,7 +568,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v83 = ptrtoint memptr v70 to i256
     slice_store_word v82, 32, v83
     v84 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v84, 2
+    store v84, 2
     v85 = make_memory_slice v0, 2
     v86 = lt 1, 2
     v87 = eq v86, false
@@ -771,7 +771,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
 fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -921,7 +921,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
 fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -929,7 +929,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v6, 2
+    store v6, 2
     jump bb4
   bb4:
     v7 = phi [bb3: 0], [bb5: v11]
@@ -949,7 +949,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     jumpi v20, bb7, bb8
   bb7:
     v21 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v21, 0
+    store v21, 0
     v22 = ptrtoint memptr v21 to i256
     slice_store_word v14, 0, v22
     jump bb8
@@ -968,7 +968,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     jumpi v32, bb9, bb10
   bb9:
     v33 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v33, 0
+    store v33, 0
     v34 = ptrtoint memptr v33 to i256
     slice_store_word v26, 32, v34
     jump bb10
@@ -990,7 +990,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     jumpi v47, bb11, bb12
   bb11:
     v48 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v48, 0
+    store v48, 0
     v49 = ptrtoint memptr v48 to i256
     slice_store_word v41, 0, v49
     jump bb12
@@ -1009,7 +1009,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     jumpi v59, bb13, bb14
   bb13:
     v60 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v60, 0
+    store v60, 0
     v61 = ptrtoint memptr v60 to i256
     slice_store_word v53, 32, v61
     jump bb14
@@ -1040,14 +1040,14 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
 fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    mstore 0, 99 !metadata(memory=scratch)
+    store 0, 99 !metadata(memory=scratch)
     v6 = memory_slice v0
     v7 = slice_len v6
     v8 = lt 0, v7
@@ -1059,7 +1059,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     jumpi v12, bb4, bb5
   bb4:
     v13 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v13, 0
+    store v13, 0
     v14 = ptrtoint memptr v13 to i256
     slice_store_word v6, 0, v14
     jump bb5
@@ -1083,14 +1083,14 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
 fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    mstore 0, 99 !metadata(memory=scratch)
+    store 0, 99 !metadata(memory=scratch)
     v9 = memory_slice v0
     v10 = slice_len v9
     v11 = lt 0, v10
@@ -1132,11 +1132,11 @@ fn @default_struct_1() -> memptr {
     v1 = make_memory_slice v0, 3
     slice_store_word v1, 0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 32, v3
     v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v4, 0
+    store v4, 0
     v5 = ptrtoint memptr v4 to i256
     slice_store_word v1, 64, v5
     ret v0

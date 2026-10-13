@@ -20,7 +20,7 @@ fn @read(arg0: calldataslice) -> i256 [pure] {
     v3 = slice_ptr arg0
     v4 = slice_ptr arg0
     v5 = add v4, 2
-    v6 = calldataload v5
+    v6 = load calldata v5
     v7 = byte 0, v6
     v8 = shl 248, v7
     ret v8
@@ -40,7 +40,7 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     v0 = not 31
     v1 = and 97, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 34
+    store v2, 34
     v3 = shl 248, 7
     v4 = memory_slice v2
     v5 = slice_len v4
@@ -64,7 +64,7 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
-    v19 = mload v18
+    v19 = load v18
     v20 = shl 8, v19
     v21 = eq v20, 0
     v22 = eq v21, false

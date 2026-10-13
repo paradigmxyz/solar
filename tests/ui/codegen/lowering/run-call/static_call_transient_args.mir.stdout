@@ -99,7 +99,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb19:
     jump bb20
   bb18:
-    mstore 0, v28 !metadata(memory=scratch)
+    store 0, v28 !metadata(memory=scratch)
     log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
     jump bb20
   bb20:
@@ -123,7 +123,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v42 = eq v41, 0
     icall panic_if<0x41>, v42
     v43 = add v35, v36
-    v44 = calldataload v43
+    v44 = load calldata v43
     v45 = shr 160, v44
     v46 = eq v45, 0
     v47 = eq v46, false
@@ -143,7 +143,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v59 = eq v58, 0
     icall panic_if<0x41>, v59
     v60 = add v52, v53
-    v61 = calldataload v60
+    v61 = load calldata v60
     v62 = slice_len v23
     v63 = lt v26, v62
     v64 = eq v63, false
@@ -162,7 +162,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v75 = sub v74, v73
     v76 = slt v75, 32
     icall revert_if<calldata_tail_too_short>, v76
-    v77 = calldataload v73
+    v77 = load calldata v73
     v78 = add v65, v77
     v79 = calldatasize
     v80 = sub v79, v65
@@ -170,7 +170,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v82 = slt v77, v81
     v83 = eq v82, false
     icall revert_if<invalid_calldata_tail_offset>, v83
-    v84 = calldataload v78
+    v84 = load calldata v78
     v85 = gt v84, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v85
     v86 = mul v84, 1

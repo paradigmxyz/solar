@@ -79,13 +79,13 @@ fn @memory_join(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    mstore 128, arg1
+    store 128, arg1
     jump bb3
   bb2:
-    mstore 128, arg1
+    store 128, arg1
     jump bb3
   bb3:
-    v1 = mload 128
+    v1 = load 128
     ret v1
 }
 

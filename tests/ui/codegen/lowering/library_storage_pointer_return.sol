@@ -82,11 +82,11 @@ contract C {
     // `delegatecall(..., out, 32)` does: the input area before Byzantium, scratch memory after.
     // PREBYZ-LABEL: fn @len
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}load
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @len
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: [[SLOT:v[0-9]+]] = mload
+    // POSTBYZ: [[SLOT:v[0-9]+]] = load
     // POSTBYZ: sload [[SLOT]]
     function len() external view returns (uint256) {
         return Lib.arrRef(nums).length;
@@ -95,11 +95,11 @@ contract C {
     // A `bytes` slot is a slot too: the length still comes from storage.
     // PREBYZ-LABEL: fn @bytesLen
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}load
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @bytesLen
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: [[SLOT:v[0-9]+]] = mload
+    // POSTBYZ: [[SLOT:v[0-9]+]] = load
     // POSTBYZ: sload [[SLOT]]
     function bytesLen() external view returns (uint256) {
         return Lib.bytesRef(bs).length;
@@ -108,11 +108,11 @@ contract C {
     // A struct pointer indexes its member off the returned slot.
     // PREBYZ-LABEL: fn @member
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}load
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @member
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: [[SLOT:v[0-9]+]] = mload
+    // POSTBYZ: [[SLOT:v[0-9]+]] = load
     // POSTBYZ: sload [[SLOT]]
     function member() external view returns (uint256) {
         return Lib.plainRef(plain).a;
@@ -130,11 +130,11 @@ contract C {
 
     // PREBYZ-LABEL: fn @fixedLast
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}load
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @fixedLast
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: mload
+    // POSTBYZ: {{(^|[^a-z_])}}load
     // POSTBYZ: sload
     function fixedLast() external view returns (uint256) {
         return Lib.fixedRef(fixedNums)[2];
@@ -142,11 +142,11 @@ contract C {
 
     // PREBYZ-LABEL: fn @mapValue
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: [[SLOT:v[0-9]+]] = mload
+    // PREBYZ: [[SLOT:v[0-9]+]] = load
     // PREBYZ: mapping_slot
     // POSTBYZ-LABEL: fn @mapValue
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: [[SLOT:v[0-9]+]] = mload
+    // POSTBYZ: [[SLOT:v[0-9]+]] = load
     // POSTBYZ: mapping_slot {{.*}}, [[SLOT]]
     function mapValue(uint256 key) external view returns (uint256) {
         return Lib.mapRef(byKey)[key];
@@ -177,11 +177,11 @@ contract C {
     // An attached call passes the receiver's slot and gets a slot back.
     // PREBYZ-LABEL: fn @attached
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
-    // PREBYZ: mload
+    // PREBYZ: {{(^|[^a-z_])}}load
     // PREBYZ: sload
     // POSTBYZ-LABEL: fn @attached
     // POSTBYZ: delegatecall {{.*}}, 0, 32
-    // POSTBYZ: [[SLOT:v[0-9]+]] = mload
+    // POSTBYZ: [[SLOT:v[0-9]+]] = load
     // POSTBYZ: sload [[SLOT]]
     function attached() external view returns (uint256) {
         return nums.arrRef().length;

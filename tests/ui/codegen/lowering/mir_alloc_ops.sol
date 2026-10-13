@@ -32,8 +32,8 @@ contract MirAllocOps {
     }
 
     // CHECK-LABEL: fn @rawAssembly{{[( ]}}
-    // CHECK: = mload 64
-    // CHECK: mstore 64,
+    // CHECK: = load 64
+    // CHECK: store 64,
     function rawAssembly() external pure returns (uint256 ptr) {
         assembly {
             ptr := mload(0x40)

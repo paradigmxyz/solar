@@ -13,7 +13,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = calldataload v5
+    v9 = load calldata v5
     v10 = add v4, v9
     v11 = calldatasize
     v12 = sub v11, v4
@@ -32,7 +32,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v23 = sub v22, v21
     v24 = slt v23, 32
     icall revert_if<calldata_tail_too_short>, v24
-    v25 = calldataload v21
+    v25 = load calldata v21
     v26 = add v20, v25
     v27 = calldatasize
     v28 = sub v27, v20
@@ -40,7 +40,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v30 = slt v25, v29
     v31 = eq v30, false
     icall revert_if<invalid_calldata_tail_offset>, v31
-    v32 = calldataload v26
+    v32 = load calldata v26
     v33 = gt v32, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v33
     v34 = mul v32, 32
@@ -63,7 +63,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v49 = sub v48, v47
     v50 = slt v49, 32
     icall revert_if<calldata_tail_too_short>, v50
-    v51 = calldataload v47
+    v51 = load calldata v47
     v52 = add v46, v51
     v53 = calldatasize
     v54 = sub v53, v46
@@ -82,7 +82,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v65 = sub v64, v63
     v66 = slt v65, 32
     icall revert_if<calldata_tail_too_short>, v66
-    v67 = calldataload v63
+    v67 = load calldata v63
     v68 = add v62, v67
     v69 = calldatasize
     v70 = sub v69, v62
@@ -90,7 +90,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v72 = slt v67, v71
     v73 = eq v72, false
     icall revert_if<invalid_calldata_tail_offset>, v73
-    v74 = calldataload v68
+    v74 = load calldata v68
     v75 = gt v74, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v75
     v76 = mul v74, 32
@@ -107,7 +107,7 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     icall panic_if<0x32>, v85
     v86 = slice_ptr v82
     v87 = add v86, 0
-    v88 = calldataload v87
+    v88 = load calldata v87
     v89 = shr 8, v88
     v90 = eq v89, 0
     v91 = eq v90, false
@@ -131,7 +131,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = calldataload v5
+    v9 = load calldata v5
     v10 = add v4, v9
     v11 = calldatasize
     v12 = sub v11, v4
@@ -150,7 +150,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v23 = sub v22, v21
     v24 = slt v23, 32
     icall revert_if<calldata_tail_too_short>, v24
-    v25 = calldataload v21
+    v25 = load calldata v21
     v26 = add v20, v25
     v27 = calldatasize
     v28 = sub v27, v20
@@ -158,7 +158,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v30 = slt v25, v29
     v31 = eq v30, false
     icall revert_if<invalid_calldata_tail_offset>, v31
-    v32 = calldataload v26
+    v32 = load calldata v26
     v33 = gt v32, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v33
     v34 = mul v32, 32
@@ -181,7 +181,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v49 = sub v48, v47
     v50 = slt v49, 32
     icall revert_if<calldata_tail_too_short>, v50
-    v51 = calldataload v47
+    v51 = load calldata v47
     v52 = add v46, v51
     v53 = calldatasize
     v54 = sub v53, v46
@@ -200,7 +200,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v65 = sub v64, v63
     v66 = slt v65, 32
     icall revert_if<calldata_tail_too_short>, v66
-    v67 = calldataload v63
+    v67 = load calldata v63
     v68 = add v62, v67
     v69 = calldatasize
     v70 = sub v69, v62
@@ -208,7 +208,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v72 = slt v67, v71
     v73 = eq v72, false
     icall revert_if<invalid_calldata_tail_offset>, v73
-    v74 = calldataload v68
+    v74 = load calldata v68
     v75 = gt v74, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v75
     v76 = mul v74, 32
@@ -225,7 +225,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     icall panic_if<0x32>, v85
     v86 = slice_ptr v82
     v87 = add v86, 0
-    v88 = calldataload v87
+    v88 = load calldata v87
     v89 = checked_add u256, v42, v88
     v90 = slice_len arg0
     v91 = lt 0, v90
@@ -237,7 +237,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v96 = sub v95, v94
     v97 = slt v96, 32
     icall revert_if<calldata_tail_too_short>, v97
-    v98 = calldataload v94
+    v98 = load calldata v94
     v99 = add v93, v98
     v100 = calldatasize
     v101 = sub v100, v93
@@ -256,7 +256,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v112 = sub v111, v110
     v113 = slt v112, 32
     icall revert_if<calldata_tail_too_short>, v113
-    v114 = calldataload v110
+    v114 = load calldata v110
     v115 = add v109, v114
     v116 = calldatasize
     v117 = sub v116, v109
@@ -264,7 +264,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v119 = slt v114, v118
     v120 = eq v119, false
     icall revert_if<invalid_calldata_tail_offset>, v120
-    v121 = calldataload v115
+    v121 = load calldata v115
     v122 = gt v121, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v122
     v123 = mul v121, 32
@@ -281,7 +281,7 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     icall panic_if<0x32>, v132
     v133 = slice_ptr v129
     v134 = add v133, 0
-    v135 = calldataload v134
+    v135 = load calldata v134
     v136 = checked_add u256, v89, v135
     ret v136
 }

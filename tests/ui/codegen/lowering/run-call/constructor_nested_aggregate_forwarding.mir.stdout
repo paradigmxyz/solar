@@ -83,7 +83,7 @@ fn @default_struct_0() -> memptr {
     v1 = make_memory_slice v0, 2
     slice_store_word v1, 0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 32, v3
     ret v0
@@ -240,7 +240,7 @@ fn @default_struct_0() -> memptr {
     v1 = make_memory_slice v0, 2
     slice_store_word v1, 0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 32, v3
     ret v0
@@ -260,7 +260,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memptr) {
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -286,10 +286,10 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v19 = make_memory_slice v18, 2
     slice_store_word v19, 0, 7
     v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v20, 2
+    store v20, 2
     v21 = ptrtoint memptr v20 to i256
     v22 = add v21, 32
-    mstore v22, 0x102000000000000000000000000000000000000000000000000000000000000
+    store v22, 0x102000000000000000000000000000000000000000000000000000000000000
     v23 = memory_slice v0
     v24 = slice_len v23
     v25 = lt 0, v24
@@ -328,10 +328,10 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v45 = make_memory_slice v44, 2
     slice_store_word v45, 0, 11
     v46 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v46, 3
+    store v46, 3
     v47 = ptrtoint memptr v46 to i256
     v48 = add v47, 32
-    mstore v48, 0x304050000000000000000000000000000000000000000000000000000000000
+    store v48, 0x304050000000000000000000000000000000000000000000000000000000000
     v49 = memory_slice v0
     v50 = slice_len v49
     v51 = lt 1, v50
@@ -368,7 +368,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v72 = slice_ptr v61
     v73 = ptrtoint memptr v70 to i256
     v74 = add v73, v63
-    mcopy v74, v72, v62 !metadata(memory=heap)
+    copy v74, v72, v62 !metadata(memory=heap)
     v75 = ptrtoint memptr v70 to i256
     v76 = create 0, v75, v64
     v77 = ne v76, i160 0
@@ -390,7 +390,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v85 = lt v84, 32
     icall revert_if<tuple_data_too_short>, v85
     v86 = add 0, 0
-    v87 = mload v86
+    v87 = load v86
     ret v87
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -411,7 +411,7 @@ fn @default_struct_0() -> memptr {
     v1 = make_memory_slice v0, 2
     slice_store_word v1, 0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 32, v3
     ret v0

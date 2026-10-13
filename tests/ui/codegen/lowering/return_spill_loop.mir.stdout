@@ -8,7 +8,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     v0 = not 31
     v1 = and 66, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 3
+    store v2, 3
     v3 = trunc i256 arg0 to i8
     v4 = zext i8 v3 to i256
     v5 = shl 248, v4
@@ -73,10 +73,10 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v0, 3
+    store v0, 3
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
-    mstore v2, 0x2222330000000000000000000000000000000000000000000000000000000000
+    store v2, 0x2222330000000000000000000000000000000000000000000000000000000000
     v3 = icall @copy, v0, 34
     v4 = icall @copy, v3, 221
     v5 = memory_slice v4
@@ -107,11 +107,11 @@ fn @twice(arg0: memptr, arg1: i256) -> memptr [selector=0x5a2aaa96, pure, abi_pa
 
 fn @copy(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = ptrtoint memptr arg0 to i256
     v2 = add v1, 32
     v3 = ptrtoint memptr arg0 to i256
-    v4 = mload v3
+    v4 = load v3
     v5 = add v2, v4
     v6 = ptrtoint memptr arg0 to i256
     v7 = sub v0, v6
@@ -130,7 +130,7 @@ fn @copy(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb4:
     jump bb2
   bb3:
-    v17 = mload v9
+    v17 = load v9
     v18 = byte 0, v17
     v19 = eq v18, v8
     v20 = zext i1 v19 to i256
@@ -140,7 +140,7 @@ fn @copy(arg0: memptr, arg1: i256) -> memptr [pure] {
     jump bb8
   bb8:
     v30 = add v9, v10
-    mstore v30, v17
+    store v30, v17
     v31 = add v9, 1
     jump bb5
   bb5:
@@ -148,7 +148,7 @@ fn @copy(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb6:
     v22 = not v17
     v23 = add v9, v10
-    mstore v23, v22
+    store v23, v22
     v24 = add v9, 1
     v25 = lt v24, v13
     v26 = zext i1 v25 to i256
@@ -167,13 +167,13 @@ fn @copy(arg0: memptr, arg1: i256) -> memptr [pure] {
     v33 = ptrtoint memptr v11 to i256
     v34 = add v33, 32
     v35 = sub v32, v34
-    mstore v12, v35
+    store v12, v35
     v36 = add v12, 32
     v37 = add v36, v35
-    mstore v37, 0
+    store v37, 0
     v38 = add v12, 64
     v39 = add v38, v35
-    mstore 64, v39 !metadata(memory=scratch)
+    store 64, v39 !metadata(memory=scratch)
     v40 = inttoptr i256 v12 to memptr
     ret v40
 }

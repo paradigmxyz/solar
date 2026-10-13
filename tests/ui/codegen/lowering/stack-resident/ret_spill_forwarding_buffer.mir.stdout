@@ -3,7 +3,7 @@
 fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [pure] {
   bb0:
     v0 = calldatasize
-    calldatacopy 0, 0, v0 !metadata(memory=scratch)
+    copy calldata 0, 0, v0 !metadata(memory=scratch)
     v1 = mul arg16, 18
     v2 = mul arg15, 17
     v3 = xor v1, v2

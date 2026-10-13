@@ -36,7 +36,7 @@ fn @fallback() [fallback] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
     v2 = zext i160 v1 to i256
-    calldatacopy 0, 0, 0x3000 !metadata(memory=scratch)
+    copy calldata 0, 0, 0x3000 !metadata(memory=scratch)
     v3 = calldatasize
     v4 = gas
     v5 = delegatecall v4, v2, 0, v3, 0, 0
@@ -49,12 +49,12 @@ fn @fallback() [fallback] {
     jump bb3
   bb3:
     v12 = returndatasize
-    returndatacopy 0, 0, v12 !metadata(memory=scratch)
+    copy returndata 0, 0, v12 !metadata(memory=scratch)
     v13 = returndatasize
     returndata 0, v13
   bb1:
     v10 = returndatasize
-    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    copy returndata 0, 0, v10 !metadata(memory=scratch)
     v11 = returndatasize
     revert 0, v11
 }
@@ -86,11 +86,11 @@ fn @fallback() [fallback] {
     jumpi v6, bb1, bb2
   bb2:
     v8 = calldatasize
-    calldatacopy 0, 0, v8 !metadata(memory=scratch)
+    copy calldata 0, 0, v8 !metadata(memory=scratch)
     jump bb3
   bb1:
     v7 = calldatasize
-    calldatacopy 0, 0, v7 !metadata(memory=scratch)
+    copy calldata 0, 0, v7 !metadata(memory=scratch)
     jump bb3
   bb3:
     v9 = calldatasize
@@ -105,12 +105,12 @@ fn @fallback() [fallback] {
     jump bb6
   bb6:
     v18 = returndatasize
-    returndatacopy 0, 0, v18 !metadata(memory=scratch)
+    copy returndata 0, 0, v18 !metadata(memory=scratch)
     v19 = returndatasize
     returndata 0, v19
   bb4:
     v16 = returndatasize
-    returndatacopy 0, 0, v16 !metadata(memory=scratch)
+    copy returndata 0, 0, v16 !metadata(memory=scratch)
     v17 = returndatasize
     revert 0, v17
 }
@@ -135,7 +135,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -154,7 +154,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
+    copy v20, v18, 32 !metadata(memory=heap)
     v21 = ptrtoint memptr v16 to i256
     v22 = create 0, v21, v14
     v23 = ne v22, i160 0
@@ -166,7 +166,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v25 = not 31
     v26 = and 223, v25
     v27 = alloc memorybytes, exact, zeroed, panic, v26
-    mstore v27, 160
+    store v27, 160
     v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v27
     v29 = slice_ptr v28
     v30 = slice_len v28
@@ -194,7 +194,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v43 = lt v42, 32
     icall revert_if<tuple_data_too_short>, v43
     v44 = add 0, 0
-    v45 = mload v44
+    v45 = load v44
     v46 = eq v45, 166
     icall require<short_string>, v46, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
@@ -211,7 +211,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -230,7 +230,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
+    copy v20, v18, 32 !metadata(memory=heap)
     v21 = ptrtoint memptr v16 to i256
     v22 = create 0, v21, v14
     v23 = ne v22, i160 0
@@ -242,7 +242,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v25 = not 31
     v26 = and 223, v25
     v27 = alloc memorybytes, exact, zeroed, panic, v26
-    mstore v27, 160
+    store v27, 160
     v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v27
     v29 = slice_ptr v28
     v30 = slice_len v28
@@ -270,7 +270,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v43 = lt v42, 32
     icall revert_if<tuple_data_too_short>, v43
     v44 = add 0, 0
-    v45 = mload v44
+    v45 = load v44
     v46 = eq v45, 175
     icall require<short_string>, v46, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
@@ -287,7 +287,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -306,7 +306,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
+    copy v20, v18, 32 !metadata(memory=heap)
     v21 = ptrtoint memptr v16 to i256
     v22 = create 0, v21, v14
     v23 = ne v22, i160 0
@@ -326,7 +326,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     icall require<short_string>, v31, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
     v32 = ptrtoint memptr v27 to i256
     v33 = add v32, 32
-    v34 = mload v33
+    v34 = load v33
     v35 = shl 0, 0x1234
     v36 = eq v34, v35
     icall require<short_string>, v36, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
@@ -337,7 +337,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
 @module RevertingProducer
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    mstore 0, 0x1234 !metadata(memory=scratch)
+    store 0, 0x1234 !metadata(memory=scratch)
     revert 0, 228
 }
 
@@ -374,7 +374,7 @@ fn @bubble() -> memptr [selector=0x4ce637d6, view, abi_params=[], abi_returns=[m
 @module SharedPublicFrame
 fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    calldatacopy 0, 0, 0x1000 !metadata(memory=scratch)
+    copy calldata 0, 0, 0x1000 !metadata(memory=scratch)
     ret arg0
 }
 
@@ -388,7 +388,7 @@ fn @entry() -> i256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word
 @module HelperReturnedHeapBuffer
 fn @buffer() -> i256 [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     ret v0
 }
 
@@ -398,7 +398,7 @@ fn @forward(arg0: i256, arg1: calldataslice) -> i256 [selector=0x6fadcf72, abi_p
     v1 = slice_len arg1
     v2 = slice_ptr arg1
     v3 = add v0, 64
-    calldatacopy v3, v2, v1
+    copy calldata v3, v2, v1
     v4 = slice_len arg1
     v5 = add 64, v4
     v6 = gas

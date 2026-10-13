@@ -105,7 +105,7 @@ contract CallGasCalls {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -126,7 +126,7 @@ contract CallGasCalls {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 256
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -152,7 +152,7 @@ contract CallGasCalls {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]],

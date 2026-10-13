@@ -31,7 +31,7 @@
 +     v8 = not 31 !metadata(span=30..40, modifier_depth=3)
 +     v9 = and 63, v8 !metadata(span=30..40, modifier_depth=3)
 +     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(span=30..40, modifier_depth=3)
-+     mstore v10, 0 !metadata(span=30..40, modifier_depth=3)
++     store v10, 0 !metadata(span=30..40, modifier_depth=3)
 +     v11 = make_returndata_slice 0, 0 !metadata(span=30..40, modifier_depth=3)
 +     v12 = ptrtoint memptr v10 to i256 !metadata(span=30..40, modifier_depth=3)
 +     v13 = add v12, 32 !metadata(span=30..40, modifier_depth=3)

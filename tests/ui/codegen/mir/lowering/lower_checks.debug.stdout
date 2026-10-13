@@ -12,13 +12,13 @@
       v4 = mul arg1, 2
       jump bb3
     bb1:
-      mstore 64, arg1
+      store 64, arg1
       v0 = ne arg1, 0
 -     icall panic_if_zero<0x1>, v0
 +     jumpi v0, bb5, bb4
 +   bb4:
-+     mstore 32, 1 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 1 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb5:
       v1 = add arg1, 1
@@ -26,14 +26,14 @@
 -     icall revert_if_zero<tuple_data_too_short>, v2
 +     jumpi v2, bb7, bb6
 +   bb6:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, 34 !metadata(memory=scratch)
-+     mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
-+     mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     store 4, 32 !metadata(memory=scratch)
++     store 36, 34 !metadata(memory=scratch)
++     store 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
++     store 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     revert 0, 132
 +   bb7:
-      mstore 96, v1
+      store 96, v1
       jump bb3
     bb3:
 -     v5 = phi [bb1: v1], [bb2: v4]
@@ -54,9 +54,9 @@
 +   bb2:
 +     jumpi arg0, bb4, bb3
 +   bb3:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, 0 !metadata(memory=scratch)
++     store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     store 4, 32 !metadata(memory=scratch)
++     store 36, 0 !metadata(memory=scratch)
 +     revert 0, 68
 +   bb4:
 +     jumpi arg0, bb6, bb5
@@ -80,8 +80,8 @@
     bb0:
       memory_zero 128, 32
 -     icall panic_if_zero<0x32>, false
-+     mstore 32, 50 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 50 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
       v0 = add 1, 2
@@ -95,17 +95,17 @@
 +   bb2:
       ret
 +   bb1:
-+     mstore 32, 50 !metadata(memory=scratch)
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     store 32, 50 !metadata(memory=scratch)
++     store 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 + }
 + 
 + fn @revert_error(arg0: i256, arg1: i256) {
 +   bb0:
-+     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 32 !metadata(memory=scratch)
-+     mstore 36, arg0 !metadata(memory=scratch)
-+     mstore 68, arg1 !metadata(memory=scratch)
++     store 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     store 4, 32 !metadata(memory=scratch)
++     store 36, arg0 !metadata(memory=scratch)
++     store 68, arg1 !metadata(memory=scratch)
 +     revert 0, 100
   }
   

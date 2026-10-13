@@ -1196,7 +1196,7 @@ impl LowerAbiCx {
                             base,
                             u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
                         );
-                        builder.mload(position)
+                        builder.load(position, PtrLocation::Memory)
                     }
                 };
                 values.push(value);
@@ -1486,7 +1486,7 @@ impl LowerAbiCx {
                             && let Some(helper) = self.calldata_slice_helper
                         {
                             let base = builder.icall(helper, vec![head], MirType::I256);
-                            let len = builder.calldataload(base);
+                            let len = builder.load(base, PtrLocation::Calldata);
                             let data = builder.add_u64_offset(base, 32);
                             builder.make_slice(data, len, PtrLocation::Calldata)
                         } else {
@@ -2311,13 +2311,13 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         if let Some(validator) = ty.word_validator() {
-            let value = builder.mload(head);
+            let value = builder.load(head, PtrLocation::Memory);
             let valid = validator.condition(builder, value, has_bitwise_shifting);
             *current = builder.revert_if_zero(valid, RevertReason::Empty);
             return Self::normalize_abi_word(builder, ty, value);
         }
         if matches!(ty, AbiParamType::Scalar(_)) {
-            return builder.mload(head);
+            return builder.load(head, PtrLocation::Memory);
         }
         let value =
             Self::decode_static_aggregate(builder, ty, head, |builder, ty, head, current| {
@@ -2353,7 +2353,7 @@ impl LowerAbiCx {
                 RevertReason::TupleDataTooShort,
             );
         }
-        let offset = builder.calldataload(head);
+        let offset = builder.load(head, PtrLocation::Calldata);
         let base = builder.add(tuple_base, offset);
         let word = builder.imm(32);
         let target_end = builder.add(base, word);
@@ -2367,12 +2367,12 @@ impl LowerAbiCx {
             *current = builder.revert_if(offset_overflow, offset_reason);
             *current =
                 builder.revert_if(head_out_of_range, RevertReason::InvalidCalldataArrayOffset);
-            let len = builder.calldataload(base);
+            let len = builder.load(base, PtrLocation::Calldata);
             let data = builder.add(base, word);
             Self::guard_bytes_data(builder, data, len, input_end, current, false);
             return (base, data, len);
         }
-        let len = builder.calldataload(base);
+        let len = builder.load(base, PtrLocation::Calldata);
         let data = builder.add(base, word);
         let remaining = builder.sub(input_end, data);
         let tail_invalid = builder.gt(len, remaining);
@@ -2405,13 +2405,13 @@ impl LowerAbiCx {
         has_bitwise_shifting: bool,
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
-            let value = builder.calldataload(head);
+            let value = builder.load(head, PtrLocation::Calldata);
             let condition = validator.condition(builder, value, has_bitwise_shifting);
             *valid = builder.and(*valid, condition);
             return Self::normalize_abi_word(builder, ty, value);
         }
         if matches!(ty, crate::mir::AbiParamType::Scalar(_)) {
-            return builder.calldataload(head);
+            return builder.load(head, PtrLocation::Calldata);
         }
         if let AbiParamType::FixedArray { element, len } = ty
             && Self::is_scalar_or_enum(element)
@@ -2452,7 +2452,11 @@ impl LowerAbiCx {
         position: ValueId,
         constructor: bool,
     ) -> ValueId {
-        if constructor { builder.mload(position) } else { builder.calldataload(position) }
+        if constructor {
+            builder.load(position, PtrLocation::Memory)
+        } else {
+            builder.load(position, PtrLocation::Calldata)
+        }
     }
 
     fn load_input_dynamic_array(
@@ -2719,9 +2723,9 @@ impl LowerAbiCx {
         }
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) => true,
-            InstKind::MLoad(address)
-            | InstKind::MStore(address, _)
-            | InstKind::MStore8(address, _)
+            InstKind::Load(address, PtrLocation::Memory)
+            | InstKind::Store(address, _)
+            | InstKind::Store8(address, _)
                 if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 true
@@ -2752,7 +2756,7 @@ impl LowerAbiCx {
             let tainted_operand = inst.operands().iter().any(|value| tainted.contains(*value));
             if matches!(
                 &inst.kind,
-                InstKind::MLoad(address)
+                InstKind::Load(address, PtrLocation::Memory)
                     if func.value_u64(*address).is_some() && !tainted_operand
             ) || matches!(&inst.kind, InstKind::Keccak256(offset, size)
                     if func.value_u64(*offset).is_some()
@@ -2771,22 +2775,20 @@ impl LowerAbiCx {
                 | InstKind::SliceStoreByte { slice: object, .. }
                 | InstKind::SliceStoreWord { slice: object, .. }
                 | InstKind::SliceCopy { destination: object, .. }
-                | InstKind::MStore(object, _)
-                | InstKind::MStore8(object, _)
+                | InstKind::Store(object, _)
+                | InstKind::Store8(object, _)
                 | InstKind::MemoryZero(object, _)
-                | InstKind::MCopy(object, _, _)
-                | InstKind::CalldataCopy(object, _, _)
+                | InstKind::Copy(object, ..)
                 | InstKind::CodeCopy(object, _, _)
                 | InstKind::ExtCodeCopy(_, object, _, _)
-                | InstKind::ReturnDataCopy(object, _, _)
                     if tainted.contains(*object) =>
                 {
                     (true, false)
                 }
                 InstKind::SliceStoreByte { value, .. }
                 | InstKind::SliceStoreWord { value, .. }
-                | InstKind::MStore(_, value)
-                | InstKind::MStore8(_, value)
+                | InstKind::Store(_, value)
+                | InstKind::Store8(_, value)
                     if tainted.contains(*value)
                         && (uses.contains(value)
                             || matches!(
@@ -2838,7 +2840,7 @@ impl LowerAbiCx {
                 InstKind::Zext(_)
                 | InstKind::Add(..)
                 | InstKind::Sub(..)
-                | InstKind::MLoad(_)
+                | InstKind::Load(_, PtrLocation::Memory)
                 | InstKind::Keccak256(..)
                 | InstKind::SliceLoadWord { .. } => (true, false),
                 InstKind::Phi(incoming) if Self::is_scalar_array(ty) => {
@@ -3649,7 +3651,7 @@ fn memory_writes_stay_private(
                         object,
                         aliases.location_size(func, size),
                     ),
-                    InstKind::MStore(..) => {
+                    InstKind::Store(..) => {
                         func.memory_length_store(inst).and_then(|(object, _)| {
                             aliases.memory_object_length_location(func, inst, object)
                         })
@@ -3722,7 +3724,7 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
                         return false;
                     }
                 }
-                InstKind::MStore(base, value)
+                InstKind::Store(base, value)
                     if pointer_alias_root(func, base) == object
                         && pointer_alias_root(func, value) != object => {}
                 InstKind::SliceLen(base) if pointer_alias_root(func, base) == object => {}
@@ -4394,7 +4396,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             continue;
         }
         let (address, stored) = match func.inst(inst).kind {
-            InstKind::MStore(address, stored) => (func.object_address(address)?, stored),
+            InstKind::Store(address, stored) => (func.object_address(address)?, stored),
             InstKind::SliceStoreWord { slice, offset, value } => {
                 let (base, data) = func.object_address(slice)?;
                 ((base, data.checked_add(func.value_u64(offset)?)?), value)
@@ -4454,19 +4456,19 @@ fn encode_static_bytes_return(
     let len_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size);
     let len = builder.imm(value.len);
     let size = builder.imm(return_size);
-    builder.mstore(offset, data_offset);
-    builder.mstore(len_offset, len);
+    builder.store(offset, data_offset);
+    builder.store(len_offset, len);
     if value.len != 0 {
         // mstore(192, word)
         let word_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 2);
         let word = builder.imm(value.word);
-        builder.mstore(word_offset, word);
+        builder.store(word_offset, word);
     }
     if let Some(tail) = value.tail {
         // mstore(224, tail)
         let tail_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 3);
         let tail = builder.imm(tail);
-        builder.mstore(tail_offset, tail);
+        builder.store(tail_offset, tail);
     }
     builder.ret_data(offset, size);
 }

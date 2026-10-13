@@ -4,32 +4,32 @@
 fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
   bb0:
     v9 = icall @decode_calldata_slice
-    v10 = calldataload v9
+    v10 = load calldata v9
     v11 = add v9, 32
     v2 = sub v10, 32
     v4 = add v11, v2
-    v5 = calldataload v4
-    mstore 128, v5
+    v5 = load calldata v4
+    store 128, v5
     returndata 128, 32
 }
 
 fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
   bb0:
     v26 = icall @decode_calldata_slice
-    v27 = calldataload v26
+    v27 = load calldata v26
     v28 = add v26, 32
     v13 = sub v27, 32
     v15 = add v28, v13
-    v16 = calldataload v15
+    v16 = load calldata v15
     v4 = eq v27, 0
     jumpi v4, bb1, bb2
   bb2:
     v8 = add v28, 1
     v19 = sub v27, 33
     v21 = add v8, v19
-    v22 = calldataload v21
+    v22 = load calldata v21
     v11 = xor v16, v22
-    mstore 128, v11
+    store 128, v11
     returndata 128, 32
   bb1:
     revert 0, 0
@@ -38,13 +38,13 @@ fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
 fn @decode_calldata_slice() -> i256 {
   bb0:
     v0 = calldatasize
-    v1 = calldataload 4
+    v1 = load calldata 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5
-    v8 = calldataload v2
+    v8 = load calldata v2
     v10 = sub v0, v3
     v11 = gt v8, v10
     v14 = or v6, v11
@@ -65,7 +65,7 @@ fn @entry() [entry] {
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
   bb2:
-    v6 = calldataload 0
+    v6 = load calldata 0
     v7 = shr 224, v6
     switch v7, default bb1, [0x3955f902 => bb3, 0x97f495a8 => bb4]
   bb4:

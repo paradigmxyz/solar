@@ -21,7 +21,7 @@ fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i2
   bb3:
     v1 = phi [bb1: 42], [bb2: 1]
     v2 = calldatasize
-    calldatacopy 0, 0, v2 !metadata(memory=scratch)
+    copy calldata 0, 0, v2 !metadata(memory=scratch)
     v3 = checked_add u256, v1, arg1
     v4 = checked_sub u256, v3, arg1
     v5 = checked_add u256, v4, arg2
@@ -44,7 +44,7 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -54,17 +54,17 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
   bb2:
     v11 = zext i160 v9 to i256
     v12 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v13 = mload 64 !metadata(memory=scratch)
+    v13 = load 64 !metadata(memory=scratch)
     v14 = calldatasize
-    calldatacopy 0, 0, v14 !metadata(memory=scratch)
+    copy calldata 0, 0, v14 !metadata(memory=scratch)
     v15 = ptrtoint memptr v12 to i256
-    v16 = mload v15
+    v16 = load v15
     v17 = ptrtoint memptr v12 to i256
     v18 = add v17, 32
     v19 = gas
     v20 = delegatecall v19, v11, v18, v16, 0, 32
     v21 = zext i1 v20 to i256
-    v22 = mload 0 !metadata(memory=scratch)
+    v22 = load 0 !metadata(memory=scratch)
     v23 = eq v22, 7
     v24 = zext i1 v23 to i256
     v25 = and v21, v24

@@ -5,7 +5,7 @@
     bb0:
       v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 2
+      store v1, 2
       ret v0
   }
   
@@ -28,9 +28,9 @@
 +     v13 = shl 5, v10
 +     v14 = ptrtoint memptr v0 to i256
 +     v15 = add v14, 64
-+     mcopy v15, v12, v13
-+     mstore v0, 32
-+     mstore v12, v10
++     copy v15, v12, v13
++     store v0, 32
++     store v12, v10
 +     v16 = add v13, 64
 +     v17 = ptrtoint memptr v0 to i256
 +     v18 = make_memory_slice v17, v16
@@ -50,7 +50,7 @@
 +     v5 = add v4, 32
 +     v6 = ptrtoint memptr v3 to i256
 +     v7 = sub v5, v6
-+     mstore v3, v7
++     store v3, v7
 +     v8 = memory_slice arg0
 +     v9 = slice_len v8
 +     v10 = ptrtoint memptr arg0 to i256
@@ -58,13 +58,13 @@
 +     v12 = eq v11, false
 +     v13 = zext i1 v12 to i256
 +     v14 = mul v9, v13
-+     mstore v5, v14
++     store v5, v14
 +     v15 = mul v14, 32
 +     v16 = add v5, 32
 +     v17 = ptrtoint memptr arg0 to i256
 +     v18 = add v17, 32
 +     v19 = add v16, v15
-+     mcopy v16, v18, v15 !metadata(memory=heap, disjoint)
++     copy v16, v18, v15 !metadata(memory=heap, disjoint)
 +     v20 = ptrtoint memptr v3 to i256
 +     v21 = sub v19, v20
 +     v22 = add v21, 0
@@ -83,7 +83,7 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 96
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, arg0
+      store v1, arg0
       ret v0
   }
   
@@ -113,12 +113,12 @@
 +     v14 = not 31
 +     v15 = and v13, v14
 +     v16 = add v12, v15
-+     mstore v16, 0
++     store v16, 0
 +     v17 = ptrtoint memptr v0 to i256
 +     v18 = add v17, 64
-+     mcopy v18, v12, v10
-+     mstore v0, 32
-+     mstore v12, v10
++     copy v18, v12, v10
++     store v0, 32
++     store v12, v10
 +     v19 = add v15, 64
 +     v20 = ptrtoint memptr v0 to i256
 +     v21 = make_memory_slice v20, v19

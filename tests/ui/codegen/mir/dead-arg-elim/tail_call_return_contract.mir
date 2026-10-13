@@ -26,11 +26,11 @@ fn @forward() -> i256 {
 // The stored result is a material use that keeps `@keep`'s return live.
 // CHECK-LABEL: fn @user()
 // CHECK: v0 = icall @keep
-// CHECK: mstore 0, v0
+// CHECK: store 0, v0
 fn @user() -> i256 {
   bb0:
     v0 = icall fn0
-    mstore 0, v0
+    store 0, v0
     ret 7
 }
 

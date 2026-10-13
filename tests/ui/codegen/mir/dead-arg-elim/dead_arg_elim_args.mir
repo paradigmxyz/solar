@@ -169,11 +169,11 @@ fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x01020308]
 
 // CHECK-LABEL: fn @constant_store(arg0: i1, arg1: i1, arg2: i256)
 // CHECK: v0 = icall @constant, arg0, arg1, arg2
-// CHECK-NEXT: mstore 128, v0
+// CHECK-NEXT: store 128, v0
 fn @constant_store(arg0: i1, arg1: i1, arg2: i256) [selector=0x01020309] {
   bb0:
     v0 = icall @constant, arg0, arg1, arg2
-    mstore 128, v0
+    store 128, v0
     ret
 }
 

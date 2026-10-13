@@ -9,8 +9,9 @@
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode, ValueId,
-    memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
+    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+    PtrLocation, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -199,7 +200,7 @@ fn initialize(
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-    // ptr = mload 64
+    // ptr = load 64
     // object = inttoptr ptr
     let kind = if builder.func().inst(inst).result_ty.is_some_and(crate::mir::MirType::is_pointer) {
         let block = builder.current_block();
@@ -207,13 +208,13 @@ fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
         if attached {
             builder.func_mut().blocks[block].instructions.pop();
         }
-        let ptr = builder.mload(slot);
+        let ptr = builder.load(slot, PtrLocation::Memory);
         if attached {
             builder.func_mut().blocks[block].instructions.push(inst);
         }
         InstKind::IntToPtr(ptr)
     } else {
-        InstKind::MLoad(slot)
+        InstKind::Load(slot, PtrLocation::Memory)
     };
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = kind;
@@ -232,7 +233,7 @@ fn rewrite_as_fmp_store(
     let ptr = builder.cast(ptr, MirType::I256);
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
-    instruction.kind = InstKind::MStore(slot, ptr);
+    instruction.kind = InstKind::Store(slot, ptr);
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
@@ -240,5 +241,5 @@ fn rewrite_as_fmp_store(
 
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-    builder.mstore(slot, ptr);
+    builder.store(slot, ptr);
 }

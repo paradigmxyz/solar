@@ -3,7 +3,7 @@
   @module ContinuedCounter
   fn @continued_counter() -> i256 {
     bb0:
-      v0 = mload 64
+      v0 = load 64
 +     v13 = add v0, 128
       jump bb1
     bb1:
@@ -30,17 +30,17 @@
     bb5:
 -     v8 = shl 5, v6
 -     v9 = add v0, v8
--     mstore v9, 9
+-     store v9, 9
 -     v10 = add v6, 1
-+     mstore v18, 9
++     store v18, 9
 +     v19 = add v18, 32
       jump bb4
     bb2:
 -     v3 = shl 5, v1
 -     v4 = add v0, v3
--     mstore v4, 8
+-     store v4, 8
 -     v5 = add v1, 1
-+     mstore v11, 8
++     store v11, 8
 +     v12 = add v11, 32
       jump bb1
   }

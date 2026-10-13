@@ -72,7 +72,7 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    mstore v16, arg0
+    store v16, arg0
     v17 = memory_slice v16
     v18 = slice_len v17
     v19 = lt arg1, v18
@@ -133,7 +133,7 @@ fn @cdDyn(arg0: calldataslice, arg1: i256) -> i256 [selector=0x1406a581, pure, a
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
-    v12 = calldataload v11
+    v12 = load calldata v11
     ret v12
 }
 
@@ -153,7 +153,7 @@ fn @cdFix(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe21341a4, pure, a
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
-    v12 = calldataload v11
+    v12 = load calldata v11
     ret v12
 }
 
@@ -166,7 +166,7 @@ fn @cdBytes(arg0: calldataslice, arg1: i256) -> i256 [selector=0x335b74df, pure,
     v3 = slice_ptr arg0
     v4 = slice_ptr arg0
     v5 = add v4, arg1
-    v6 = calldataload v5
+    v6 = load calldata v5
     v7 = byte 0, v6
     v8 = shl 248, v7
     ret v8

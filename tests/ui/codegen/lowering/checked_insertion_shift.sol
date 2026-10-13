@@ -18,16 +18,16 @@
 // check survives in either loop and the payload is never read twice.
 contract CheckedInsertionShift {
     // OPT-LABEL: fn @sort
-    // OPT: [[LEN:v[0-9]+]] = mload [[OBJ:v[0-9]+]]
+    // OPT: [[LEN:v[0-9]+]] = load [[OBJ:v[0-9]+]]
     // OPT-NEXT: [[BASE:v[0-9]+]] = add [[OBJ]], 32
     // OPT-NEXT: jump [[HEADER:bb[0-9]+]]
     // OPT: [[HEADER]]:
     // OPT-NEXT: [[I:v[0-9]+]] = phi
     // OPT-NEXT: {{v[0-9]+}} = lt [[I]], [[LEN]]
-    // OPT-NOT: mstore 4, 50
+    // OPT-NOT: store 4, 50
     // OPT: {{v[0-9]+}} = phi [{{bb[0-9]+}}: [[I]]]
-    // OPT-NOT: mload [[OBJ]]
-    // OPT-NOT: mstore 4, 50
+    // OPT-NOT: load [[OBJ]]
+    // OPT-NOT: store 4, 50
     // OPT: jump [[HEADER]]
     function sort(uint256[] memory a) external pure returns (uint256[] memory) {
         for (uint256 i = 1; i < a.length; ++i) {
@@ -45,7 +45,7 @@ contract CheckedInsertionShift {
     // The index arrives from the caller, so its bound is unknown and the
     // first access keeps its check; the panic block stays reachable.
     // OPT-LABEL: fn @shiftAt
-    // OPT: mstore 32, 50
+    // OPT: store 32, 50
     function shiftAt(uint256[] memory a, uint256 j) external pure returns (uint256[] memory) {
         if (j != 0) {
             a[j] = a[j - 1];

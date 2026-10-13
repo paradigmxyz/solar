@@ -24,10 +24,10 @@ fn @f3() -> memptr [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memor
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v2, 3
+    store v2, 3
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
-    mstore v4, 0x6465660000000000000000000000000000000000000000000000000000000000
+    store v4, 0x6465660000000000000000000000000000000000000000000000000000000000
     v5 = memory_slice v2
     v6 = slice_len v5
     v7 = lt 0, v6
@@ -90,10 +90,10 @@ fn @f4() -> memptr [selector=0xc3f90202, abi_params=[], abi_returns=[memory_byte
     slice_store_word v14, 32, v18
     v19 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
     v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v20, 3
+    store v20, 3
     v21 = ptrtoint memptr v20 to i256
     v22 = add v21, 32
-    mstore v22, 0x6465660000000000000000000000000000000000000000000000000000000000
+    store v22, 0x6465660000000000000000000000000000000000000000000000000000000000
     v23 = memory_slice v20
     v24 = slice_len v23
     v25 = lt 0, v24
@@ -149,7 +149,7 @@ fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_re
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v0, arg1
+    store v0, arg1
     v1 = memory_slice v0
     slice_store_word v1, 0, arg0
     ret v0

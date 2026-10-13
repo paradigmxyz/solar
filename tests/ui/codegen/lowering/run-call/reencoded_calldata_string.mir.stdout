@@ -2,7 +2,7 @@
 @module C
 fn @f(arg0: calldataslice) -> memptr [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v10]
@@ -41,7 +41,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x91e145ef, abi_params=[bytes], a
     revert 0, 0
   bb4:
     v9 = sub 0, 1
-    mstore v1, v9
+    store v1, v9
     jump bb6
   bb6:
     jump bb3
@@ -55,10 +55,10 @@ fn @test() -> memptr [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_by
     v0 = address
     v1 = gas
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v2, 3
+    store v2, 3
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
-    mstore v4, 0x6162630000000000000000000000000000000000000000000000000000000000
+    store v4, 0x6162630000000000000000000000000000000000000000000000000000000000
     v5 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
     v6 = slice_ptr v5
     v7 = slice_len v5
@@ -75,7 +75,7 @@ fn @test() -> memptr [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_by
 
 fn @encodeDynamic(arg0: calldataslice) -> memptr [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = abi_encode [calldata_bytes], object, args arg0
     v2 = ptrtoint memptr v1 to i256
     v3 = eq v0, v2
@@ -94,7 +94,7 @@ fn @encodeDynamic(arg0: calldataslice) -> memptr [selector=0x44a76707, pure, abi
 
 fn @encodeStatic(arg0: i256) -> memptr [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = abi_encode [word], object, args arg0
     v2 = ptrtoint memptr v1 to i256
     v3 = eq v0, v2

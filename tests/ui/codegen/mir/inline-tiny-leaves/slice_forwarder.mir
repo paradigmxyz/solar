@@ -51,7 +51,7 @@ fn @load_caller(arg0: i256) -> memoryslice {
 
 fn @load(arg0: i256) -> memoryslice {
   bb0:
-    v0 = mload arg0
+    v0 = load arg0
     v1 = make_memory_slice arg0, v0
     ret v1
 }

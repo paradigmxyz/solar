@@ -63,7 +63,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
-    v21 = mload v20
+    v21 = load v20
     ret v21
   bb3:
     ret 0
@@ -114,7 +114,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v26 = lt v25, 32
     icall revert_if<tuple_data_too_short>, v26
     v27 = add 0, 0
-    v28 = mload v27
+    v28 = load v27
     ret v28
   bb5:
     ret 0

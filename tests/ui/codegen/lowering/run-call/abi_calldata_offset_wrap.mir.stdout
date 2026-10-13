@@ -21,7 +21,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v8 = sub v7, v6
     v9 = slt v8, 32
     icall revert_if<calldata_tail_too_short>, v9
-    v10 = calldataload v6
+    v10 = load calldata v6
     v11 = add v5, v10
     v12 = calldatasize
     v13 = sub v12, v5
@@ -29,7 +29,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v15 = slt v10, v14
     v16 = eq v15, false
     icall revert_if<invalid_calldata_tail_offset>, v16
-    v17 = calldataload v11
+    v17 = load calldata v11
     v18 = gt v17, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v18
     v19 = mul v17, 32
@@ -59,7 +59,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v35 = sub v34, v33
     v36 = slt v35, 32
     icall revert_if<calldata_tail_too_short>, v36
-    v37 = calldataload v33
+    v37 = load calldata v33
     v38 = add v32, v37
     v39 = calldatasize
     v40 = sub v39, v32
@@ -67,7 +67,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v42 = slt v37, v41
     v43 = eq v42, false
     icall revert_if<invalid_calldata_tail_offset>, v43
-    v44 = calldataload v38
+    v44 = load calldata v38
     v45 = gt v44, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v45
     v46 = mul v44, 32

@@ -22,7 +22,7 @@ fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    mstore v16, arg0
+    store v16, arg0
     v17 = memory_slice v16
     v18 = slice_len v17
     v19 = lt arg1, v18
@@ -55,7 +55,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    mstore v16, arg0
+    store v16, arg0
     jump bb1
   bb1:
     v17 = phi [bb0: 0], [bb2: v21]
@@ -88,7 +88,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     jumpi v61, bb10, bb11
   bb10:
     v62 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v62, 0
+    store v62, 0
     v63 = shl 5, v26
     v64 = ptrtoint memptr v62 to i256
     slice_store_word v54, v63, v64
@@ -124,7 +124,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v45 = eq v44, 0
     icall panic_if<0x41>, v45
     v46 = alloc memoryarray<1>, exact, zeroed, panic, v39
-    mstore v46, v22
+    store v46, v22
     v47 = memory_slice v24
     v48 = slice_len v47
     v49 = lt v27, v48
@@ -183,7 +183,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
-    mstore v16, arg0
+    store v16, arg0
     jump bb1
   bb1:
     v17 = phi [bb0: 0], [bb2: v24]

@@ -132,14 +132,14 @@
 (decl ne (Value Value) Value)
 (extractor (ne a b) (inst (Op.Ne a b)))
 
-(decl mload (Value) Value)
-(extractor (mload offset) (inst (Op.MLoad offset)))
+(decl load (Value PtrLocation) Value)
+(extractor (load ptr location) (inst (Op.Load ptr location)))
 
-(decl mstore (Value Value) Value)
-(extractor (mstore offset value) (inst (Op.MStore offset value)))
+(decl store (Value Value) Value)
+(extractor (store ptr value) (inst (Op.Store ptr value)))
 
-(decl mstore8 (Value Value) Value)
-(extractor (mstore8 offset value) (inst (Op.MStore8 offset value)))
+(decl store8 (Value Value) Value)
+(extractor (store8 ptr value) (inst (Op.Store8 ptr value)))
 
 (decl memoryzero (Value Value) Value)
 (extractor (memoryzero offset size) (inst (Op.MemoryZero offset size)))
@@ -192,8 +192,8 @@
 (decl clearstorage (Value Unit) Value)
 (extractor (clearstorage storage layout) (inst (Op.ClearStorage storage layout)))
 
-(decl mcopy (Value Value Value) Value)
-(extractor (mcopy dest src len) (inst (Op.MCopy dest src len)))
+(decl copy (Value Value Value PtrLocation) Value)
+(extractor (copy dest src len location) (inst (Op.Copy dest src len location)))
 
 (decl sload (Value) Value)
 (extractor (sload slot) (inst (Op.SLoad slot)))
@@ -206,12 +206,6 @@
 
 (decl tstore (Value Value) Value)
 (extractor (tstore slot value) (inst (Op.TStore slot value)))
-
-(decl calldataload (Value) Value)
-(extractor (calldataload offset) (inst (Op.CalldataLoad offset)))
-
-(decl calldatacopy (Value Value Value) Value)
-(extractor (calldatacopy dest offset size) (inst (Op.CalldataCopy dest offset size)))
 
 (decl calldatasize () Value)
 (extractor (calldatasize) (inst (Op.CalldataSize)))
@@ -272,9 +266,6 @@
 
 (decl returndatasize () Value)
 (extractor (returndatasize) (inst (Op.ReturnDataSize)))
-
-(decl returndatacopy (Value Value Value) Value)
-(extractor (returndatacopy dest offset size) (inst (Op.ReturnDataCopy dest offset size)))
 
 (decl caller () Value)
 (extractor (caller) (inst (Op.Caller)))

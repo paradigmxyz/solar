@@ -140,10 +140,10 @@ fn @branch_fact_through_chain(arg0: i1, arg1: i1) -> i256 {
   bb1:
     ret 1
   bb2:
-    mstore 0, 2
+    store 0, 2
     jumpi arg1, bb3, bb1
   bb3:
-    mstore 32, 3
+    store 32, 3
     jumpi arg0, bb4, bb5
   bb4:
     ret 4

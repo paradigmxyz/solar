@@ -14,7 +14,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = not 0
     v1 = ptrtoint memptr arg0 to i256
-    v2 = mload v1
+    v2 = load v1
     jump bb1
   bb1:
     v3 = phi [bb0: v0]
@@ -28,7 +28,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
     jump bb2
   bb3:
     v9 = ptrtoint memptr v7 to i256
-    v10 = mload v9
+    v10 = load v9
     v11 = eq v10, 0
     v12 = zext i1 v11 to i256
     v13 = ne v12, 0
@@ -37,7 +37,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
     jump bb8
   bb8:
     v19 = ptrtoint memptr v7 to i256
-    v20 = mload v19
+    v20 = load v19
     v21 = ptrtoint memptr v4 to i256
     v22 = add v21, 32
     v23 = add v22, v5
@@ -49,7 +49,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
     v29 = shl 3, v28
     v30 = ptrtoint memptr v7 to i256
     v31 = add v30, 32
-    v32 = mload v31
+    v32 = load v31
     v33 = lt v5, v6
     v34 = zext i1 v33 to i256
     v35 = lt v23, v26
@@ -88,7 +88,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb35:
     jump bb33
   bb34:
-    v91 = mload v86
+    v91 = load v86
     v92 = xor v91, v81
     v93 = shr v88, v92
     v94 = eq v93, 0
@@ -143,7 +143,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb21:
     jump bb19
   bb20:
-    v61 = mload v56
+    v61 = load v56
     v62 = xor v61, v50
     v63 = shr v58, v62
     v64 = eq v63, 0

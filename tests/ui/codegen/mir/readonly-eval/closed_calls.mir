@@ -27,7 +27,7 @@ fn @guard(arg0: i256) {
   bb1:
     ret
   bb2:
-    mstore 0, 17
+    store 0, 17
     revert 0, 32
 }
 
@@ -76,7 +76,7 @@ fn @gas_reader() {
 
 fn @memory_reader() {
   bb0:
-    v0 = mload 4096
+    v0 = load 4096
     ret
 }
 
@@ -103,14 +103,14 @@ fn @known_memory() -> i256 {
   bb0:
     v2 = alloc raw, exact, uninitialized, infallible, 32
     v0 = ptrtoint memptr v2 to i256
-    mstore v0, 19
+    store v0, 19
     icall @guard, 42
     v1 = icall @read, v0
     ret v1
 }
 fn @read(arg0: i256) -> i256 {
   bb0:
-    v0 = mload arg0
+    v0 = load arg0
     ret v0
 }
 

@@ -134,7 +134,7 @@ fn @truncated_pointer_escapes() -> i256 {
     memory_zero v1, 32
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256
-    mstore v3, 7
+    store v3, 7
     v4 = make_memory_slice v0, 1
     v6 = slice_load_word v4, 0
     ret v6

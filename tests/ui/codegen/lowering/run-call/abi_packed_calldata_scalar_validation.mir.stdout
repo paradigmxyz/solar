@@ -28,7 +28,7 @@ fn @encode(arg0: calldataslice) -> memptr [selector=0x1597ee44, pure, abi_params
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
-    mstore v21, v0
+    store v21, v0
     jump bb1
   bb1:
     v22 = phi [bb0: 0], [bb2: v32]
@@ -40,7 +40,7 @@ fn @encode(arg0: calldataslice) -> memptr [selector=0x1597ee44, pure, abi_params
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
-    v26 = calldataload v25
+    v26 = load calldata v25
     v27 = shr 8, v26
     v28 = eq v27, 0
     v29 = eq v28, false

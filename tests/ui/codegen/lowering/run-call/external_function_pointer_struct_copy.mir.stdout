@@ -31,7 +31,7 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
-    mstore v23, v2
+    store v23, v2
     jump bb1
   bb1:
     v24 = phi [bb0: 0], [bb2: v36]
@@ -48,7 +48,7 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
-    v28 = calldataload v27
+    v28 = load calldata v27
     v29 = shl 192, v28
     v30 = eq v29, 0
     v31 = eq v30, false
@@ -78,7 +78,7 @@ fn @constructor() [constructor] {
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -99,7 +99,7 @@ fn @constructor() [constructor] {
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2

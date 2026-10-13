@@ -57,10 +57,10 @@ fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<
     v0 = make_memory_slice arg0, 1
     v1 = slice_load_word v0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v2, 2
+    store v2, 2
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
-    mstore v4, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    store v4, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v5 = insert_value struct0, undef struct0, 0, v1
     v6 = insert_value struct0, v5, 1, v2
     ret v6
@@ -84,10 +84,10 @@ fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
     invalid
   bb4:
     v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v14, 6
+    store v14, 6
     v15 = ptrtoint memptr v14 to i256
     v16 = add v15, 32
-    mstore v16, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    store v16, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v17 = insert_value struct0, undef struct0, 0, 0
     v18 = insert_value struct0, v17, 1, v14
     ret v18

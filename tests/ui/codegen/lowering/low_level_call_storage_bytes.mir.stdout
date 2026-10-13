@@ -40,7 +40,7 @@ fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[a
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    mstore v17, v12
+    store v17, v12
     v18 = ptrtoint memptr v17 to i256
     v19 = add v18, 32
     v20 = slice_len arg1

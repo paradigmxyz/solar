@@ -20,7 +20,7 @@ fn @caller() {
     jump bb1
   bb1:
     v0 = add 1, 2
-    mstore 128, v0
+    store 128, v0
     returndata 128, 32
 }
 fn @fused() {
@@ -45,6 +45,6 @@ fn @pair_caller() -> struct0 {
 
 fn @pair_fail(arg0: i256) -> struct0 {
   bb0:
-    mstore 0, arg0
+    store 0, arg0
     revert 0, 32
 }

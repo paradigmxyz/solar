@@ -3,7 +3,7 @@
   @module AggregateEffects
   fn @reads_memory(arg0: i256) {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       memory_to_storage struct<word>, v0, 0
       stop
@@ -11,19 +11,19 @@
   
   fn @overwrites_memory(arg0: i256) -> i256 {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       storage_to_memory struct<word>, 0, v0
-      v1 = mload arg0
+      v1 = load arg0
       ret v1
   }
   
   fn @flat_memory_write_is_precise() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<word>, 0, v1
--     v2 = mload 128
+-     v2 = load 128
 -     v3 = add v0, v2
 +     v3 = add v0, v0
       ret v3
@@ -31,10 +31,10 @@
   
   fn @nested_memory_write_is_barrier() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<struct<word>>, 0, v1
-      v2 = mload 128
+      v2 = load 128
       v3 = add v0, v2
       ret v3
   }
@@ -80,7 +80,7 @@
   @module AggregateEffects
   fn @reads_memory(arg0: i256) {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       memory_to_storage struct<word>, v0, 0
       stop
@@ -88,16 +88,16 @@
   
   fn @overwrites_memory(arg0: i256) -> i256 {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       storage_to_memory struct<word>, 0, v0
-      v1 = mload arg0
+      v1 = load arg0
       ret v1
   }
   
   fn @flat_memory_write_is_precise() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<word>, 0, v1
       v3 = add v0, v0
@@ -106,10 +106,10 @@
   
   fn @nested_memory_write_is_barrier() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<struct<word>>, 0, v1
-      v2 = mload 128
+      v2 = load 128
       v3 = add v0, v2
       ret v3
   }
@@ -153,7 +153,7 @@
   @module AggregateEffects
   fn @reads_memory(arg0: i256) {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       memory_to_storage struct<word>, v0, 0
       stop
@@ -161,16 +161,16 @@
   
   fn @overwrites_memory(arg0: i256) -> i256 {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       storage_to_memory struct<word>, 0, v0
-      v1 = mload arg0
+      v1 = load arg0
       ret v1
   }
   
   fn @flat_memory_write_is_precise() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<word>, 0, v1
       v3 = add v0, v0
@@ -179,10 +179,10 @@
   
   fn @nested_memory_write_is_barrier() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<struct<word>>, 0, v1
-      v2 = mload 128
+      v2 = load 128
       v3 = add v0, v2
       ret v3
   }
@@ -229,7 +229,7 @@
   @module AggregateEffects
   fn @reads_memory(arg0: i256) {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       memory_to_storage struct<word>, v0, 0
       stop
@@ -237,16 +237,16 @@
   
   fn @overwrites_memory(arg0: i256) -> i256 {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       storage_to_memory struct<word>, 0, v0
-      v1 = mload arg0
+      v1 = load arg0
       ret v1
   }
   
   fn @flat_memory_write_is_precise() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<word>, 0, v1
       v3 = add v0, v0
@@ -255,10 +255,10 @@
   
   fn @nested_memory_write_is_barrier() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<struct<word>>, 0, v1
-      v2 = mload 128
+      v2 = load 128
       v3 = add v0, v2
       ret v3
   }
@@ -305,7 +305,7 @@
   @module AggregateEffects
   fn @reads_memory(arg0: i256) {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       memory_to_storage struct<word>, v0, 0
       stop
@@ -313,16 +313,16 @@
   
   fn @overwrites_memory(arg0: i256) -> i256 {
     bb0:
-      mstore arg0, 7
+      store arg0, 7
       v0 = inttoptr i256 arg0 to memptr
       storage_to_memory struct<word>, 0, v0
-      v1 = mload arg0
+      v1 = load arg0
       ret v1
   }
   
   fn @flat_memory_write_is_precise() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<word>, 0, v1
       v3 = add v0, v0
@@ -331,10 +331,10 @@
   
   fn @nested_memory_write_is_barrier() -> i256 {
     bb0:
-      v0 = mload 128
+      v0 = load 128
       v1 = inttoptr i256 256 to memptr
       storage_to_memory struct<struct<word>>, 0, v1
-      v2 = mload 128
+      v2 = load 128
       v3 = add v0, v2
       ret v3
   }

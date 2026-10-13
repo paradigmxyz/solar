@@ -17,7 +17,7 @@
 
 use crate::mir::{
     ArgIdx, Callee, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind,
-    MirType, Module, StructId, StructType, Terminator, Value, ValueId,
+    MirType, Module, PtrLocation, StructId, StructType, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -359,8 +359,10 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                                         base,
                                         index as u64 * EvmMemoryLayout::WORD_SIZE,
                                     );
-                                    values
-                                        .push(builder.emit_inst(InstKind::MLoad(offset), Some(ty)));
+                                    values.push(builder.emit_inst(
+                                        InstKind::Load(offset, PtrLocation::Memory),
+                                        Some(ty),
+                                    ));
                                 }
                             }
                             values

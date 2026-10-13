@@ -42,10 +42,10 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
   bb5:
     jump bb6
   bb6:
-    mstore 0, 9 !metadata(memory=scratch)
+    store 0, 9 !metadata(memory=scratch)
     returndata 0, 32
   bb4:
-    mstore 0, 7 !metadata(memory=scratch)
+    store 0, 7 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     revert 0, 0

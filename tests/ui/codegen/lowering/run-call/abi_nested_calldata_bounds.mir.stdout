@@ -13,7 +13,7 @@ fn @nested(arg0: memptr) -> i256 [selector=0x798068af, pure, abi_params=[array<_
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v7, 0
+    store v7, 0
     v8 = ptrtoint memptr v7 to i256
     slice_store_word v0, 0, v8
     jump bb2

@@ -4,7 +4,7 @@ fn @parseSel(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
-    v2 = mload v1
+    v2 = load v1
     ret v2
 }
 
@@ -78,7 +78,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
   bb0:
     v0 = not 0
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v1, 1
+    store v1, 1
     v2 = memory_slice v1
     v3 = slice_len v2
     v4 = lt 0, v3
@@ -91,7 +91,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     v9 = sub v8, 1
     v10 = ptrtoint memptr v1 to i256
     v11 = add v10, 32
-    v12 = mload v11
+    v12 = load v11
     v13 = eq v12, v9
     v14 = zext i1 v13 to i256
     ret v14

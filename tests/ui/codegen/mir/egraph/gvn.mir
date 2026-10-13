@@ -153,7 +153,7 @@ fn @mapping_fmp_reset(arg0: memptr) -> i256 [selector=0x10000004, abi_params=[by
 fn @mapping_raw_read(arg0: memptr) -> i256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_bytes arg0, 0
-    v4 = mload 128
+    v4 = load 128
     v2 = mapping_slot_bytes arg0, 0
     v3 = add v1, v2
     ret v3

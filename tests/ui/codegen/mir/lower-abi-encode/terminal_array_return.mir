@@ -9,7 +9,7 @@ fn @fresh_array() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, 2
+    store v1, 2
     ret v0
 }
 
@@ -22,9 +22,9 @@ fn @fresh_array() -> memptr {
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
 // CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
-// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
-// CHECK: + mstore [[OBJECT]], 32
-// CHECK: + mstore [[SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + copy [[DESTINATION]], [[SOURCE]], [[BYTES]]
+// CHECK: + store [[OBJECT]], 32
+// CHECK: + store [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
 // CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[SLICE_POINTER]], [[TOTAL]]
@@ -39,7 +39,7 @@ fn @terminal() {
 
 // A caller-visible array cannot be destructively encoded.
 // CHECK-LABEL: {{^[ +].*}}fn @borrowed{{[( ]}}
-// CHECK: + mcopy
+// CHECK: + copy
 // CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc raw
 // CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
 fn @borrowed(arg0: memptr) {
@@ -54,7 +54,7 @@ fn @fresh_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     v1 = ptrtoint memptr v0 to i256
-    mstore v1, arg0
+    store v1, arg0
     ret v0
 }
 
@@ -74,10 +74,10 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
 // CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[LAST:v[0-9]+]] = add [[SOURCE]],
-// CHECK: + mstore [[LAST]], 0
+// CHECK: + store [[LAST]], 0
 // CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
-// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
-// CHECK: + mstore [[OBJECT]], 32
+// CHECK: + copy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + store [[OBJECT]], 32
 fn @terminal_bytes(arg0: i256) {
   bb0:
     v0 = icall @fresh_bytes_wrapper, arg0

@@ -10,7 +10,7 @@
 +     v3 = add v2, 32
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = sub v3, v4
-+     mstore v1, v5
++     store v1, v5
 +     v6 = memory_slice arg0
 +     v7 = slice_len v6
 +     v8 = ptrtoint memptr arg0 to i256
@@ -18,7 +18,7 @@
 +     v10 = eq v9, false
 +     v11 = zext i1 v10 to i256
 +     v12 = mul v7, v11
-+     mstore v3, v12
++     store v3, v12
 +     v13 = mul v12, 32
 +     v14 = add v3, 32
 +     v15 = ptrtoint memptr arg0 to i256
@@ -31,9 +31,9 @@
 +     v20 = phi [bb0: v12], [bb1: v25]
 +     v21 = phi [bb0: v14], [bb1: v26]
 +     v22 = add v21, v18
-+     v23 = mload v22
++     v23 = load v22
 +     v24 = and v23, 255
-+     mstore v21, v24
++     store v21, v24
 +     v25 = sub v20, 1
 +     v26 = add v21, 32
 +     v27 = ne v25, 0
@@ -62,8 +62,8 @@
       v3 = add v2, 32
 -     v4 = ptrtoint memptr v1 to i256
 -     v5 = sub v3, v4
--     mstore v1, v5
-+     mstore v1, 32
+-     store v1, v5
++     store v1, 32
       v6 = memory_slice arg0
       v7 = slice_len v6
       v8 = ptrtoint memptr arg0 to i256
@@ -72,7 +72,7 @@
 +     v10 = ne v8, 0
       v11 = zext i1 v10 to i256
       v12 = mul v7, v11
-      mstore v3, v12
+      store v3, v12
 -     v13 = mul v12, 32
 +     v13 = shl 5, v12
       v14 = add v3, 32
@@ -87,9 +87,9 @@
       v20 = phi [bb0: v12], [bb1: v25]
       v21 = phi [bb0: v14], [bb1: v26]
       v22 = add v21, v18
-      v23 = mload v22
+      v23 = load v22
       v24 = and v23, 255
-      mstore v21, v24
+      store v21, v24
       v25 = sub v20, 1
       v26 = add v21, 32
       v27 = ne v25, 0
@@ -120,7 +120,7 @@
       v1 = fmp
       v2 = ptrtoint memptr v1 to i256
       v3 = add v2, 32
-      mstore v1, 32
+      store v1, 32
       v6 = memory_slice arg0
       v7 = slice_len v6
       v8 = ptrtoint memptr arg0 to i256
@@ -128,7 +128,7 @@
       v10 = ne v8, 0
       v11 = zext i1 v10 to i256
       v12 = mul v7, v11
-      mstore v3, v12
+      store v3, v12
 -     v13 = shl 5, v12
       v14 = add v3, 32
       v16 = add v8, 32
@@ -140,9 +140,9 @@
       v20 = phi [bb0: v12], [bb1: v25]
       v21 = phi [bb0: v14], [bb1: v26]
       v22 = add v21, v18
-      v23 = mload v22
+      v23 = load v22
       v24 = and v23, 255
-      mstore v21, v24
+      store v21, v24
       v25 = sub v20, 1
       v26 = add v21, 32
       v27 = ne v25, 0

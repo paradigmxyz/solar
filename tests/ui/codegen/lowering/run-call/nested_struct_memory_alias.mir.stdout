@@ -3,7 +3,7 @@
 fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -11,7 +11,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v6, 1
+    store v6, 1
     jump bb4
   bb4:
     v7 = phi [bb3: 0], [bb5: v17]
@@ -26,7 +26,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v22 = ptrtoint memptr v6 to i256
     slice_store_word v18, 0, v22
     v23 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v23, 2
+    store v23, 2
     v24 = memory_slice v0
     v25 = slice_len v24
     v26 = lt 0, v25
@@ -38,7 +38,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v30, bb7, bb8
   bb7:
     v31 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v31, 0
+    store v31, 0
     v32 = ptrtoint memptr v31 to i256
     slice_store_word v24, 0, v32
     jump bb8
@@ -74,7 +74,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v52, bb11, bb12
   bb11:
     v53 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v53, 0
+    store v53, 0
     v54 = ptrtoint memptr v53 to i256
     slice_store_word v46, 0, v54
     jump bb12
@@ -115,7 +115,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v78, bb15, bb16
   bb15:
     v79 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v79, 0
+    store v79, 0
     v80 = ptrtoint memptr v79 to i256
     slice_store_word v72, 0, v80
     jump bb16
@@ -156,7 +156,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v104, bb19, bb20
   bb19:
     v105 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v105, 0
+    store v105, 0
     v106 = ptrtoint memptr v105 to i256
     slice_store_word v98, 0, v106
     jump bb20
@@ -196,7 +196,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v129, bb23, bb24
   bb23:
     v130 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v130, 0
+    store v130, 0
     v131 = ptrtoint memptr v130 to i256
     slice_store_word v123, 0, v131
     jump bb24
@@ -236,7 +236,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v154, bb27, bb28
   bb27:
     v155 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v155, 0
+    store v155, 0
     v156 = ptrtoint memptr v155 to i256
     slice_store_word v148, 0, v156
     jump bb28
@@ -277,7 +277,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v180, bb31, bb32
   bb31:
     v181 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v181, 0
+    store v181, 0
     v182 = ptrtoint memptr v181 to i256
     slice_store_word v174, 0, v182
     jump bb32
@@ -317,7 +317,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v205, bb35, bb36
   bb35:
     v206 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v206, 0
+    store v206, 0
     v207 = ptrtoint memptr v206 to i256
     slice_store_word v199, 0, v207
     jump bb36
@@ -359,7 +359,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jumpi v233, bb39, bb40
   bb39:
     v234 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v234, 0
+    store v234, 0
     v235 = ptrtoint memptr v234 to i256
     slice_store_word v227, 0, v235
     jump bb40
@@ -421,7 +421,7 @@ fn @default_struct_0() -> memptr {
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = make_memory_slice v0, 2
     v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 0, v3
     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64

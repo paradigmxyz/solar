@@ -167,7 +167,9 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         | InstKind::Fmp
         | InstKind::SetFmp(_)
         | InstKind::ICall { function: Callee::Function(_), .. } => true,
-        InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+        InstKind::Load(address, PtrLocation::Memory) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
         _ => false,
     }
 }
@@ -377,20 +379,19 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let ok = match kind {
-                InstKind::MLoad(addr) => operand == addr && in_range(off, 32),
-                InstKind::MStore(addr, value) => {
+                InstKind::Load(addr, PtrLocation::Memory) => operand == addr && in_range(off, 32),
+                InstKind::Store(addr, value) => {
                     operand == addr && !derived.contains_key(&value) && in_range(off, 32)
                 }
                 InstKind::Keccak256(addr, size)
                 | InstKind::Log { offset: addr, size, .. }
                 | InstKind::MemoryZero(addr, size)
-                | InstKind::CalldataCopy(addr, _, size)
+                | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata)
                 | InstKind::DataCopy(_, addr, size)
-                | InstKind::ReturnDataCopy(addr, _, size)
                 | InstKind::CodeCopy(addr, _, size) => {
                     operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
                 }
-                InstKind::MCopy(dest, src, size) => {
+                InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
                     (operand == dest || operand == src)
                         && func.value_u64(size).is_some_and(|len| in_range(off, len))
                 }

@@ -350,13 +350,13 @@ fn @emptyLog(arg0: i256) [selector=0xade0865c, abi_params=[u256], abi_returns=[]
 
 fn @emptyCopy(arg0: i256) [selector=0xa8964271, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    calldatacopy arg0, arg0, 0
+    copy calldata arg0, arg0, 0
     ret
 }
 
 fn @emptyReturnCopy(arg0: i256) [selector=0xf7a3d452, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    returndatacopy 0, arg0, 0 !metadata(memory=scratch)
+    copy returndata 0, arg0, 0 !metadata(memory=scratch)
     ret
 }
 

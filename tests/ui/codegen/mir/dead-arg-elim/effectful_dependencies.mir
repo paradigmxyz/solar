@@ -5,11 +5,11 @@
 // A discarded result must retain a read in its dependency slice. A later DCE pass could otherwise
 // remove the `mload`, changing memory expansion as observed by a caller's `msize`.
 // CHECK-LABEL: fn @read() -> i256
-// CHECK: v0 = mload 0x10000
+// CHECK: v0 = load 0x10000
 // CHECK-NEXT: ret v0
 fn @read() -> i256 {
   bb0:
-    v0 = mload 65536 !metadata(effect=pure)
+    v0 = load 65536 !metadata(effect=pure)
     ret v0
 }
 
@@ -29,11 +29,11 @@ fn @unused(arg0: i256) {
 }
 
 // CHECK-LABEL: fn @argument_entry()
-// CHECK: v0 = mload 0x10000
+// CHECK: v0 = load 0x10000
 // CHECK-NEXT: icall @unused, v0
 fn @argument_entry() [selector=0x05060708] {
   bb0:
-    v0 = mload 65536
+    v0 = load 65536
     icall fn2, v0
     ret
 }

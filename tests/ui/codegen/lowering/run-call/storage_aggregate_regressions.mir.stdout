@@ -217,7 +217,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v156 = add v155, v152
     sstore 6, v154 !metadata(storage=slot(6))
     v157 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v157, 2
+    store v157, 2
     v158 = memory_slice v157
     v159 = slice_len v158
     v160 = lt 0, v159

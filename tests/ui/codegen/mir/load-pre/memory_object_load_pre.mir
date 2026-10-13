@@ -14,11 +14,11 @@ fn @forward_length_across_join(arg0: memptr, arg1: i1, arg2: i256) -> i256 {
     jumpi arg1, bb1, bb2
   bb1:
     v0 = ptrtoint memptr arg0 to i256
-    mstore v0, arg2
+    store v0, arg2
     jump bb3
   bb2:
     v1 = ptrtoint memptr arg0 to i256
-    mstore v1, arg2
+    store v1, arg2
     jump bb3
   bb3:
     v2 = memory_slice arg0
@@ -35,17 +35,17 @@ fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     v5 = ptrtoint memptr v0 to i256
-    mstore v5, 7
+    store v5, 7
     v7 = memory_slice v0
     v1 = slice_ptr v7
-    mstore v1, 99
+    store v1, 99
     v8 = memory_slice v0
     v2 = slice_len v8
     jumpi arg0, bb1, bb2
   bb1:
     v3 = alloc memorybytes, exact, uninitialized, infallible, 32
     v6 = ptrtoint memptr v3 to i256
-    mstore v6, 0
+    store v6, 0
     jump bb2
   bb2:
     v9 = memory_slice v0
@@ -62,19 +62,19 @@ fn @unknown_data_write_can_reset_fmp(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     v7 = ptrtoint memptr v0 to i256
-    mstore v7, 7
+    store v7, 7
     v1 = inttoptr i256 arg1 to memptr
     v8 = memory_slice v1
     v2 = slice_ptr v8
     v6 = ptrtoint memptr v0 to i256
-    mstore v2, v6
+    store v2, v6
     v9 = memory_slice v0
     v3 = slice_len v9
     jumpi arg0, bb1, bb2
   bb1:
     v4 = alloc memorybytes, exact, uninitialized, infallible, 32
     v10 = ptrtoint memptr v4 to i256
-    mstore v10, 0
+    store v10, 0
     jump bb2
   bb2:
     v11 = memory_slice v0
@@ -136,10 +136,10 @@ fn @forward_latest_store() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     v5 = ptrtoint memptr v0 to i256
-    mstore v5, 7
+    store v5, 7
     v6 = memory_slice v0
     v1 = slice_len v6
-    mstore v5, 9
+    store v5, 9
     v7 = memory_slice v0
     v2 = slice_len v7
     v4 = ne v2, 0

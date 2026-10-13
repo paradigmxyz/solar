@@ -66,7 +66,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -85,7 +85,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
-    mcopy v20, v18, 32 !metadata(memory=heap)
+    copy v20, v18, 32 !metadata(memory=heap)
     v21 = ptrtoint memptr v16 to i256
     v22 = create 0, v21, v14
     v23 = ne v22, i160 0
@@ -107,7 +107,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     v31 = lt v30, 32
     icall revert_if<tuple_data_too_short>, v31
     v32 = add 0, 0
-    v33 = mload v32
+    v33 = load v32
     ret v33
 }
 
@@ -122,7 +122,7 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -158,6 +158,6 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     v27 = lt v26, 32
     icall revert_if<tuple_data_too_short>, v27
     v28 = add 0, 0
-    v29 = mload v28
+    v29 = load v28
     ret v29
 }

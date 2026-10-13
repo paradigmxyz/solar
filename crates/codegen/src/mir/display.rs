@@ -4,8 +4,8 @@
 
 use super::{
     BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
-    InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator,
-    Value, ValueId,
+    InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, PtrLocation,
+    StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
@@ -391,6 +391,11 @@ fn display_inst_kind<'a>(
         func: &Function,
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
+        if let InstKind::Load(_, location) | InstKind::Copy(.., location) = kind
+            && *location != PtrLocation::Memory
+        {
+            write!(f, " {location}")?;
+        }
         let operands = kind.operands();
         if !operands.is_empty() {
             write!(

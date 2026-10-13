@@ -2,18 +2,18 @@
 @module Registry
 fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
-    calldatacopy 140, 36, 128
-    mstore 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)
-    mstore 93, arg0 !metadata(memory=scratch)
-    mstore 73, 0x3d60ad80600a3d3981f3363d3d373d3d3d363d73 !metadata(memory=scratch)
-    mstore8 0, 255 !metadata(memory=scratch)
+    copy calldata 140, 36, 128
+    store 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)
+    store 93, arg0 !metadata(memory=scratch)
+    store 73, 0x3d60ad80600a3d3981f3363d3d373d3d3d363d73 !metadata(memory=scratch)
+    store8 0, 255 !metadata(memory=scratch)
     v0 = keccak256 85, 183 !metadata(memory=scratch)
-    mstore 53, v0 !metadata(memory=scratch)
+    store 53, v0 !metadata(memory=scratch)
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 96, v2
-    mstore 1, v3 !metadata(memory=scratch)
-    mstore 21, arg1 !metadata(memory=scratch)
+    store 1, v3 !metadata(memory=scratch)
+    store 21, arg1 !metadata(memory=scratch)
     v4 = keccak256 0, 85 !metadata(memory=scratch)
     v5 = extcodesize v4
     v6 = eq v5, 0
@@ -25,7 +25,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
   bb3:
     v13 = shl 96, v4
     v14 = shr 96, v13
-    mstore 0, v14 !metadata(memory=scratch)
+    store 0, v14 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     v9: i256 = create2 0, 85, 183, arg1
@@ -36,11 +36,11 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
   bb5:
     jump bb6
   bb6:
-    mstore 108, v9 !metadata(memory=scratch)
+    store 108, v9 !metadata(memory=scratch)
     log 108, 96, 0x79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf88722, arg0, arg3, arg4
     returndata 108, 32
   bb4:
-    mstore 0, 0x20188a59 !metadata(memory=scratch)
+    store 0, 0x20188a59 !metadata(memory=scratch)
     revert 28, 4
 }
 
@@ -60,7 +60,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -83,7 +83,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
-    v21 = mload v20
+    v21 = load v20
     v22 = shr 160, v21
     v23 = eq v22, 0
     v24 = eq v23, false
@@ -97,7 +97,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v30 = not 31
     v31 = and v28, v30
     v32 = alloc memorybytes, exact, zeroed, panic, v31
-    mstore v32, v27
+    store v32, v27
     v33 = ptrtoint memptr v32 to i256
     v34 = add v33, 32
     v35 = zext i160 v25 to i256
@@ -108,13 +108,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall require<short_string>, v38, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
     v39 = ptrtoint memptr v32 to i256
     v40 = add v39, 109
-    v41 = mload v40
+    v41 = load v40
     v42 = ptrtoint memptr v32 to i256
     v43 = add v42, 141
-    v44 = mload v43
+    v44 = load v43
     v45 = ptrtoint memptr v32 to i256
     v46 = add v45, 173
-    v47 = mload v46
+    v47 = load v46
     v48 = eq v41, 0x7a69
     icall require<short_string>, v48, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
     v49 = eq v44, 0x4444444444444444444444444444444444444444

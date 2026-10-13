@@ -4,49 +4,49 @@
   fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
     bb0:
 +     v5 = sload 0
-+     mstore 192, v5
-+     mstore 224, 0
++     store 192, v5
++     store 224, 0
       jump bb6
     bb6:
       jumpi true, bb7, bb8
     bb8:
-+     v6 = mload 224
++     v6 = load 224
 +     v7 = ne v6, 0
 +     jumpi v7, bb12, bb11
 +   bb12:
-+     v8 = mload 192
++     v8 = load 192
 +     sstore 0, v8
 +     jump bb11
 +   bb11:
       stop
     bb7:
-+     mstore 160, 0
++     store 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
-+     v2 = mload 160
++     v2 = load 160
 +     v3 = ne v2, 0
 +     jumpi v3, bb10, bb9
 +   bb10:
-+     v4 = mload 128
-+     mstore 192, v4
-+     mstore 224, 1
++     v4 = load 128
++     store 192, v4
++     store 224, 1
 +     jump bb9
 +   bb9:
       jump bb5
     bb5:
 -     v0 = sload 0
-+     v0 = mload 192
++     v0 = load 192
       v1 = add v0, 1
 -     sstore 0, v1
-+     mstore 192, v1
-+     mstore 224, 1
++     store 192, v1
++     store 224, 1
       jump bb6
     bb2:
 -     sstore 0, 7
-+     mstore 128, 7
-+     mstore 160, 1
++     store 128, 7
++     store 160, 1
       jump bb3
     bb3:
       jump bb1
@@ -60,16 +60,16 @@
     bb8:
       stop
     bb7:
-+     mstore 160, 0
++     store 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
-+     v2 = mload 160
++     v2 = load 160
 +     v3 = ne v2, 0
 +     jumpi v3, bb10, bb9
 +   bb10:
-+     v4 = mload 128
++     v4 = load 128
 +     sstore arg0, v4
 +     jump bb9
 +   bb9:
@@ -83,8 +83,8 @@
       jump bb6
     bb2:
 -     sstore arg0, 7
-+     mstore 128, 7
-+     mstore 160, 1
++     store 128, 7
++     store 160, 1
       jump bb3
     bb3:
       jump bb1

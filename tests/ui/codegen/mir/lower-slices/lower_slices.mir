@@ -5,14 +5,14 @@
 fn @entry(arg0: calldataslice) [selector=0x12345678] {
   bb0:
     v1 = icall @len, arg0
-    mstore 128, v1
+    store 128, v1
     returndata 128, 32
 }
 
 // CHECK-LABEL: {{^[ +].*}}after lower-slices
 // CHECK: {{^[ +].*}}fn @len{{[( ]}}
 // CHECK: + [[HEAD:v[0-9]+]] = add arg0, 4
-// CHECK: + [[LENGTH:v[0-9]+]] = calldataload [[HEAD]]
+// CHECK: + [[LENGTH:v[0-9]+]] = load calldata [[HEAD]]
 // CHECK: + ret [[LENGTH]]
 fn @len(arg0: calldataslice) -> i256 {
   bb0:

@@ -28,7 +28,7 @@ fn @pushArray(arg0: calldataslice) -> i120 [selector=0xac513f44, abi_params=[arr
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
-    mstore v21, v0
+    store v21, v0
     jump bb1
   bb1:
     v22 = phi [bb0: 0], [bb2: v32]
@@ -138,7 +138,7 @@ fn @pushArray(arg0: calldataslice) -> i120 [selector=0xac513f44, abi_params=[arr
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
-    v26 = calldataload v25
+    v26 = load calldata v25
     v27 = shr 120, v26
     v28 = eq v27, 0
     v29 = eq v28, false
@@ -159,7 +159,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v4 = sub v3, v0
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = calldataload v0
+    v6 = load calldata v0
     v7 = shr 16, v6
     v8 = eq v7, 0
     v9 = eq v8, false
@@ -170,7 +170,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v12 = sub v11, v10
     v13 = slt v12, 32
     icall revert_if<calldata_tail_too_short>, v13
-    v14 = calldataload v10
+    v14 = load calldata v10
     v15 = shr 16, v14
     v16 = eq v15, 0
     v17 = eq v16, false
@@ -200,7 +200,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v39 = sub v38, v37
     v40 = slt v39, 32
     icall revert_if<calldata_tail_too_short>, v40
-    v41 = calldataload v37
+    v41 = load calldata v37
     v42 = add v0, v41
     v43 = calldatasize
     v44 = sub v43, v0
@@ -208,7 +208,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v46 = slt v41, v45
     v47 = eq v46, false
     icall revert_if<invalid_calldata_tail_offset>, v47
-    v48 = calldataload v42
+    v48 = load calldata v42
     v49 = gt v48, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v49
     v50 = mul v48, 32
@@ -230,7 +230,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v64 = lt v63, 32
     icall panic_if<0x41>, v64
     v65 = alloc memoryarray<1>, exact, uninitialized, infallible, v63
-    mstore v65, v48
+    store v65, v48
     jump bb4
   bb4:
     v66 = phi [bb3: 0], [bb5: v76]
@@ -457,7 +457,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
   bb5:
     v68 = mul v66, 32
     v69 = add v55, v68
-    v70 = calldataload v69
+    v70 = load calldata v69
     v71 = shr 16, v70
     v72 = eq v71, 0
     v73 = eq v72, false
@@ -470,7 +470,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
   bb2:
     v25 = mul v23, 32
     v26 = add v18, v25
-    v27 = calldataload v26
+    v27 = load calldata v26
     v28 = shr 16, v27
     v29 = eq v28, 0
     v30 = eq v29, false

@@ -25,7 +25,7 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vUint8{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: [[HIGH:v[0-9]+]] = shr 8, [[RAW]]
     // CHECK: eq [[HIGH]], {{(0|false)}}
     function vUint8(uint8 x) external pure returns (uint8) {
@@ -33,7 +33,7 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vInt16{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: [[CANON:v[0-9]+]] = signextend 1, [[RAW]]
     // CHECK: eq [[RAW]], [[CANON]]
     function vInt16(int16 x) external pure returns (int16) {
@@ -41,14 +41,14 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: {{v[0-9]+}} = lt [[RAW]], 2
     function vBool(bool x) external pure returns (bool) {
         return x;
     }
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: [[HIGH:v[0-9]+]] = shr 160, [[RAW]]
     // CHECK: eq [[HIGH]], {{(0|false)}}
     function vAddress(address x) external pure returns (address) {
@@ -56,7 +56,7 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: [[LOW:v[0-9]+]] = shl 32, [[RAW]]
     // CHECK: eq [[LOW]], {{(0|false)}}
     function vBytes4(bytes4 x) external pure returns (bytes4) {
@@ -64,7 +64,7 @@ contract CalldataValidation {
     }
 
     // CHECK-LABEL: fn @vEnum{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: lt [[RAW]], 3
     function vEnum(Dir x) external pure returns (Dir) {
         return x;
@@ -72,20 +72,20 @@ contract CalldataValidation {
 
     // The ABI wrapper validates the narrow input, so widening needs no mask.
     // CHECK-LABEL: fn @vWidened{{[( ]}}
-    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[RAW:v[0-9]+]] = load calldata 4
     // CHECK: {{v[0-9]+}} = shr 8, [[RAW]]
     // CHECK-NOT: = and arg0
     // CHECK: [[WIDE:v[0-9]+]] = zext i8 arg0 to i16
     // CHECK: [[WORD:v[0-9]+]] = zext i16 [[WIDE]] to i256
-    // CHECK: mstore 128, [[WORD]]
+    // CHECK: store 128, [[WORD]]
     function vWidened(uint8 x) external pure returns (uint16) {
         return x;
     }
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
-    // CHECK: [[A:v[0-9]+]] = calldataload 4
+    // CHECK: [[A:v[0-9]+]] = load calldata 4
     // CHECK: {{v[0-9]+}} = shr 32, [[A]]
-    // CHECK: [[B:v[0-9]+]] = calldataload 36
+    // CHECK: [[B:v[0-9]+]] = load calldata 36
     // CHECK: {{v[0-9]+}} = signextend 0, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {
         return uint256(uint32(a)) + uint256(uint8(int8(b)));

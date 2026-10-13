@@ -7,8 +7,8 @@
 // recorded and the mload must stay in the loop.
 @module LicmMultiLatch
 // CHECK-LABEL: {{^[ +].*}}fn @multi_latch_mixed_step{{[( ]}}
-// CHECK: {{^[ +].*}}mstore
-// CHECK: {{^[ +].*}}mload 288
+// CHECK: {{^[ +](.*[^a-z_])?}}store
+// CHECK: {{^[ +].*}}load 288
 fn @multi_latch_mixed_step() -> i256 {
   bb0:
     jump bb1
@@ -19,9 +19,9 @@ fn @multi_latch_mixed_step() -> i256 {
     jumpi v2, bb4, bb5
   bb4:
     v6 = mul v1, 32
-    mstore v6, 1
-    v3 = mload 288
-    v7 = calldataload 0
+    store v6, 1
+    v3 = load 288
+    v7 = load calldata 0
     v11 = ne v7, 0
     jumpi v11, bb2, bb3
   bb2:
@@ -37,8 +37,8 @@ fn @multi_latch_mixed_step() -> i256 {
 // Two latches passing the SAME update value keep the stride uniform; the
 // store range is exactly [0, 320) and the mload at 320 may be hoisted.
 // CHECK-LABEL: {{^[ +].*}}fn @multi_latch_same_value{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = mload 320
-// CHECK: - [[LOAD]] = mload 320
+// CHECK: + [[LOAD:v[0-9]+]] = load 320
+// CHECK: - [[LOAD]] = load 320
 fn @multi_latch_same_value() -> i256 {
   bb0:
     jump bb1
@@ -49,10 +49,10 @@ fn @multi_latch_same_value() -> i256 {
     jumpi v2, bb4, bb5
   bb4:
     v6 = mul v1, 32
-    mstore v6, 1
-    v3 = mload 320
+    store v6, 1
+    v3 = load 320
     v8 = add v1, 1
-    v7 = calldataload 0
+    v7 = load calldata 0
     v10 = ne v7, 0
     jumpi v10, bb2, bb3
   bb2:

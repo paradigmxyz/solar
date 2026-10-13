@@ -24,7 +24,7 @@
     bb2:
       jump bb3
     bb1:
-      mstore 0, 1
+      store 0, 1
       jump bb3
     bb3:
       ret 7

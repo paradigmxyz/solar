@@ -29,7 +29,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v10 = slice_ptr v5
     v11 = ptrtoint memptr v8 to i256
     v12 = add v11, v6
-    mcopy v12, v10, 0 !metadata(memory=heap)
+    copy v12, v10, 0 !metadata(memory=heap)
     v13 = ptrtoint memptr v8 to i256
     v14 = create 0, v13, v6
     v15 = ne v14, i160 0
@@ -54,12 +54,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v26 = lt v25, 32
     icall revert_if<tuple_data_too_short>, v26
     v27 = add 0, 0
-    v28 = mload v27
+    v28 = load v27
     v29 = lt v28, 2
     v30 = eq v29, false
     icall revert_if<empty>, v30
     v31 = returndatasize
-    returndatacopy 0, 0, v31 !metadata(memory=scratch)
+    copy returndata 0, 0, v31 !metadata(memory=scratch)
     v32 = sload 4 !metadata(storage=slot(4))
     v33 = lt v4, v32
     v34 = eq v33, false
@@ -140,7 +140,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v94 = slice_ptr v89
     v95 = ptrtoint memptr v92 to i256
     v96 = add v95, v90
-    mcopy v96, v94, 0 !metadata(memory=heap)
+    copy v96, v94, 0 !metadata(memory=heap)
     v97 = ptrtoint memptr v92 to i256
     v98 = create 0, v97, v90
     v99 = ne v98, i160 0
@@ -195,7 +195,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v136 = lt v135, 32
     icall revert_if<tuple_data_too_short>, v136
     v137 = add 0, 0
-    v138 = mload v137
+    v138 = load v137
     v139 = lt v138, 2
     v140 = eq v139, false
     icall revert_if<empty>, v140

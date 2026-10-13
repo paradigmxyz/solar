@@ -12,7 +12,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
-    mstore v7, arg0
+    store v7, arg0
     jump bb1
   bb1:
     v8 = phi [bb0: v7], [bb3: v8]
@@ -28,12 +28,12 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v22 = ptrtoint memptr v8 to i256
     v23 = add v22, 32
     v24 = add v23, v9
-    mstore v24, 0xdeadbeef
+    store v24, 0xdeadbeef
     v25 = icall @scan, v8
     v26 = ptrtoint memptr v8 to i256
     v27 = add v26, 32
     v28 = add v27, v9
-    v29 = mload v28
+    v29 = load v28
     v30 = eq v29, 0xdeadbeef
     v31 = eq v30, false
     icall revert_if<empty>, v31
@@ -65,7 +65,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
 fn @scan(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
-    v1 = mload v0
+    v1 = load v0
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:
@@ -74,8 +74,8 @@ fn @scan(arg0: memptr) -> i256 [pure] {
     v3 = ptrtoint memptr arg0 to i256
     v4 = add v3, 32
     v5 = add v4, v1
-    v6 = mload v5
-    mstore v5, 0
+    v6 = load v5
+    store v5, 0
     jump bb4
   bb4:
     v7 = phi [bb1: 1], [bb8: v7]
@@ -89,7 +89,7 @@ fn @scan(arg0: memptr) -> i256 [pure] {
   bb7:
     jump bb5
   bb6:
-    v14 = mload v8
+    v14 = load v8
     v15 = and v14, 0x8080808080808080808080808080808080808080808080808080808080808080
     v16 = ne v15, 0
     jumpi v16, bb9, bb10
@@ -116,7 +116,7 @@ fn @scan(arg0: memptr) -> i256 [pure] {
   bb5:
     v23 = phi [bb9: 0], [bb12: v7], [bb7: v7]
     v24 = phi [bb9: v8], [bb12: v17], [bb7: v8]
-    mstore v12, v9
+    store v12, v9
     jump bb3
   bb3:
     v25 = phi [bb5: v10], [bb2: arg0]

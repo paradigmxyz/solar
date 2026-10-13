@@ -15,11 +15,11 @@ fn @first(arg0: i256) {
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    mstore 4, 17
+    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    store 4, 17
     revert 0, 36
   bb2:
-    mstore 128, v1
+    store 128, v1
     returndata 128, 32
 }
 
@@ -31,16 +31,16 @@ fn @second(arg0: i256) {
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    mstore 4, 17
+    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    store 4, 17
     revert 0, 36
   bb2:
-    mstore 128, v1
+    store 128, v1
     returndata 128, 32
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @third{{[( ]}}
-// CHECK: {{^[ +].*}}mstore 4, 18
+// CHECK: {{^[ +].*}}store 4, 18
 // CHECK: {{^[ +].*}}revert 0, 36
 fn @third(arg0: i256) {
   bb0:
@@ -48,14 +48,14 @@ fn @third(arg0: i256) {
     v2 = gt v1, arg0
     jumpi v2, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    mstore 4, 18
+    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    store 4, 18
     revert 0, 36
   bb2:
-    mstore 128, v1
+    store 128, v1
     returndata 128, 32
 }
 
 // CHECK-LABEL: + fn @revert_stub{{.*}}
-// CHECK: + mstore 4, 17
+// CHECK: + store 4, 17
 // CHECK: {{^ +}}revert 0, 36

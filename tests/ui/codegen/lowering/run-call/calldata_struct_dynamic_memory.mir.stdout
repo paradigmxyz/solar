@@ -28,7 +28,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
-    mstore v21, v0
+    store v21, v0
     jump bb1
   bb1:
     v22 = phi [bb0: 0], [bb2: v75]
@@ -91,7 +91,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v27 = sub v26, v25
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
-    v29 = calldataload v25
+    v29 = load calldata v25
     v30 = add v1, v29
     v31 = calldatasize
     v32 = sub v31, v1
@@ -105,7 +105,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v39 = sub v38, v30
     v40 = slt v39, 32
     icall revert_if<calldata_tail_too_short>, v40
-    v41 = calldataload v30
+    v41 = load calldata v30
     v42 = add v30, v41
     v43 = calldatasize
     v44 = sub v43, v30
@@ -113,7 +113,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v46 = slt v41, v45
     v47 = eq v46, false
     icall revert_if<invalid_calldata_tail_offset>, v47
-    v48 = calldataload v42
+    v48 = load calldata v42
     v49 = gt v48, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v49
     v50 = mul v48, 32
@@ -135,7 +135,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v64 = lt v63, 32
     icall panic_if<0x41>, v64
     v65 = alloc memoryarray<1>, exact, uninitialized, infallible, v63
-    mstore v65, v48
+    store v65, v48
     v66 = make_calldata_slice v55, v56
     v67 = ptrtoint memptr v65 to i256
     v68 = add v67, 32
@@ -157,7 +157,7 @@ fn @default_struct_0() -> memptr {
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = make_memory_slice v0, 1
     v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 0, v3
     ret v0

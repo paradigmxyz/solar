@@ -4,8 +4,8 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @word_crosses_allocation{{[( ]}}
 // CHECK: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}mstore
-// CHECK-NEXT: {{^[ +].*}}[[RELOAD:v[0-9]+]] = mload
+// CHECK: {{^[ +](.*[^a-z_])?}}store
+// CHECK-NEXT: {{^[ +].*}}[[RELOAD:v[0-9]+]] = load
 // CHECK-NEXT: {{^[ +].*}}[[RESULT:v[0-9]+]] = add {{v[0-9]+}}, [[RELOAD]]
 // CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
 fn @word_crosses_allocation(arg0: i1) -> i256 {
@@ -15,22 +15,22 @@ fn @word_crosses_allocation(arg0: i1) -> i256 {
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 31
     v4 = ptrtoint memptr v1 to i256
-    v5 = mload v3
+    v5 = load v3
     jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
-    mstore v4, 7
-    v6 = mload v3
+    store v4, 7
+    v6 = load v3
     v7 = add v5, v6
     ret v7
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keccak_crosses_allocation{{[( ]}}
 // CHECK: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}store
 // CHECK-NEXT: {{^[ +].*}}[[RELOAD:v[0-9]+]] = keccak256
 // CHECK-NEXT: {{^[ +].*}}[[RESULT:v[0-9]+]] = add {{v[0-9]+}}, [[RELOAD]]
 // CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
@@ -48,7 +48,7 @@ fn @keccak_crosses_allocation(arg0: i1) -> i256 {
   bb2:
     jump bb3
   bb3:
-    mstore v4, 7
+    store v4, 7
     v6 = keccak256 v3, 33
     v7 = add v5, v6
     ret v7
@@ -56,7 +56,7 @@ fn @keccak_crosses_allocation(arg0: i1) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keccak_dynamic_size{{[( ]}}
 // CHECK: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}store
 // CHECK-NEXT: {{^[ +].*}}[[RELOAD:v[0-9]+]] = keccak256
 // CHECK-NEXT: {{^[ +].*}}[[RESULT:v[0-9]+]] = add {{v[0-9]+}}, [[RELOAD]]
 // CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
@@ -74,7 +74,7 @@ fn @keccak_dynamic_size(arg0: i1, arg1: i256) -> i256 {
   bb2:
     jump bb3
   bb3:
-    mstore v4, 7
+    store v4, 7
     v6 = keccak256 v3, arg1
     v7 = add v5, v6
     ret v7
@@ -82,8 +82,8 @@ fn @keccak_dynamic_size(arg0: i1, arg1: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @store_crosses_allocation{{[( ]}}
 // CHECK: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}mstore
-// CHECK-NEXT: {{^[ +].*}}[[RELOAD:v[0-9]+]] = mload
+// CHECK: {{^[ +](.*[^a-z_])?}}store
+// CHECK-NEXT: {{^[ +].*}}[[RELOAD:v[0-9]+]] = load
 // CHECK-NEXT: {{^[ +].*}}ret [[RELOAD]]
 fn @store_crosses_allocation(arg0: i1) -> i256 {
   bb0:
@@ -92,14 +92,14 @@ fn @store_crosses_allocation(arg0: i1) -> i256 {
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 31
     v4 = ptrtoint memptr v1 to i256
-    mstore v3, 99
+    store v3, 99
     jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
-    mstore v4, 7
-    v5 = mload v3
+    store v4, 7
+    v5 = load v3
     ret v5
 }

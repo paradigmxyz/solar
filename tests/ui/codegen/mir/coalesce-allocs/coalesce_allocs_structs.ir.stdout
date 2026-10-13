@@ -8,23 +8,23 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     jumpi v25, bb3, bb4
   bb4:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
-    v45 = mload 64 !metadata(memory=scratch)
+    v45 = load 64 !metadata(memory=scratch)
     v46 = add v45, 128
-    mstore 64, v46 !metadata(memory=scratch)
-    mstore v45, arg0
+    store 64, v46 !metadata(memory=scratch)
+    store v45, arg0
     v31 = add v45, 32
-    mstore v31, 1
+    store v31, 1
     v44 = add v45, 64
-    mstore v44, 2
+    store v44, 2
     v33 = add v45, 96
-    mstore v33, arg0
+    store v33, arg0
     v34 = ptrtoint memptr v0 to i256
-    mstore v34, v45
+    store v34, v45
     v35 = add v34, 32
-    mstore v35, v44
+    store v35, v44
     v36 = add v34, 64
-    mstore v36, 3
-    v11 = mload v45
+    store v36, 3
+    v11 = load v45
     v20 = add v11, arg0
     v21 = lt v20, v11
     v22 = add v20, 3
@@ -32,11 +32,11 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v47 = or v21, v23
     jumpi v47, bb1, bb2
   bb2:
-    mstore 128, v22
+    store 128, v22
     returndata 128, 32
   bb1:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:
     revert 0, 0
@@ -48,7 +48,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
   bb1:
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = shr 224, v2
     switch v3, default bb3, [0xd9171e32 => bb2]
   bb2:

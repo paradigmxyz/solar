@@ -12,7 +12,7 @@ fn @read(arg0: calldataslice) -> i256 [selector=0xae6a5262, pure, abi_params=[ar
     v6 = sub v5, v4
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = calldataload v4
+    v8 = load calldata v4
     v9 = add v3, v8
     v10 = calldatasize
     v11 = sub v10, v3

@@ -606,7 +606,7 @@ fn return_values_are_fresh(
     let Value::Inst(inst) = func.value(*value) else { return false };
     match func.inst(*inst).kind {
         InstKind::Alloc { .. } => true,
-        InstKind::MLoad(address)
+        InstKind::Load(address, PtrLocation::Memory)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                 && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
         {
@@ -665,7 +665,7 @@ fn encode_dynamic_return_in_place(
         // => [32, length, bytes..., zero padding]
         let last = builder.add(source, padded);
         let zero = builder.imm(0);
-        builder.mstore(last, zero);
+        builder.store(last, zero);
         padded
     };
 
@@ -673,10 +673,10 @@ fn encode_dynamic_return_in_place(
     // => [32, length, payload...]
     let destination = builder.memory_data_at(*object, 32);
     let copy_size = if is_array { bytes } else { length };
-    builder.mcopy(destination, source, copy_size);
+    builder.copy(destination, source, copy_size, PtrLocation::Memory);
     let offset = builder.imm(32);
-    builder.mstore(*object, offset);
-    builder.mstore(source, length);
+    builder.store(*object, offset);
+    builder.store(source, length);
     let total = builder.add_u64_offset(bytes, 64);
     Some(builder.make_slice(*object, total, PtrLocation::Memory))
 }
@@ -755,7 +755,7 @@ fn lower_encode(
             builder.set_memory_len(object, total);
             if let Some(selector) = selector {
                 let buffer = builder.memory_data(object);
-                builder.mstore(buffer, selector);
+                builder.store(buffer, selector);
             }
             let dest = builder.memory_data_at(object, selector_size);
             encode_tuple(builder, args, &layout.types, dest, helpers);
@@ -784,7 +784,7 @@ fn lower_encode(
             builder.alloc_raw(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
         };
         if let Some(selector) = selector {
-            builder.mstore(buffer, selector);
+            builder.store(buffer, selector);
         }
         let dest = offset_ptr(builder, buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, helpers);
@@ -803,13 +803,13 @@ fn lower_encode(
         )
     {
         // buffer = alloc raw, padded_size
-        // mstore buffer, selector (when present)
+        // store buffer, selector (when present)
         // encode_tuple buffer + selector_size, args
         // make_slice buffer, total_size
         let size = builder.imm(total_size.next_multiple_of(32));
         let buffer = builder.alloc_raw(size, crate::mir::AllocationSemantics::INTERNAL);
         if let Some(selector) = selector {
-            builder.mstore(buffer, selector);
+            builder.store(buffer, selector);
         }
         let dest = offset_ptr(builder, buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, helpers);
@@ -823,7 +823,7 @@ fn lower_encode(
     let header_size = if mode == AbiEncodeMode::Bytes { 32 } else { 0 };
     if let Some(selector) = selector {
         let buffer = offset_ptr(builder, allocation_base, header_size);
-        builder.mstore(buffer, selector);
+        builder.store(buffer, selector);
     }
     let dest = offset_ptr(builder, allocation_base, header_size + selector_size);
     let encoded_size = encode_tuple(builder, args, &layout.types, dest, helpers);
@@ -831,7 +831,7 @@ fn lower_encode(
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
         // object = alloc bytes allocation_size !metadata(preserves_fmp)
-        // mstore object, total
+        // store object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc_object(
             allocation_size,
@@ -971,7 +971,7 @@ fn encode_static_impl(
                     .expect("function words always require cleanup")
                     .cleanup(builder, value)
             };
-            builder.mstore(head_addr, value);
+            builder.store(head_addr, value);
         }
         AbiType::Word(cleanup) => {
             let value = match (source, cleanup) {
@@ -980,7 +980,7 @@ fn encode_static_impl(
                 }
                 _ => value,
             };
-            builder.mstore(head_addr, value);
+            builder.store(head_addr, value);
         }
         AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
             unreachable!("dynamic ABI values are not static")
@@ -1093,7 +1093,7 @@ fn encode_value(
 ) -> ValueId {
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
-        builder.mstore(dest.head_addr, relative);
+        builder.store(dest.head_addr, relative);
         encode_dynamic_body(builder, ty, value, dest.tail, source, helpers)
     } else {
         encode_static_impl(builder, ty, value, dest.head_addr, true, source);
@@ -1130,7 +1130,7 @@ fn encode_static_slice(
             });
         }
         AbiType::Function => {
-            let value = load_slice_word(builder, source, location);
+            let value = builder.load(source, location);
             let value = if location == PtrLocation::Memory {
                 AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")
@@ -1138,17 +1138,17 @@ fn encode_static_slice(
             } else {
                 value
             };
-            builder.mstore(head_addr, value);
+            builder.store(head_addr, value);
         }
         AbiType::Word(cleanup) => {
-            let value = load_slice_word(builder, source, location);
+            let value = builder.load(source, location);
             let value = match cleanup {
                 Some(cleanup) if location == PtrLocation::Memory => {
                     clean_word(builder, *cleanup, value)
                 }
                 _ => value,
             };
-            builder.mstore(head_addr, value);
+            builder.store(head_addr, value);
         }
         AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
             unreachable!("dynamic ABI values are not static")
@@ -1171,18 +1171,6 @@ fn clean_word(
             value
         }
         _ => cleanup.cleanup(builder, value),
-    }
-}
-
-fn load_slice_word(
-    builder: &mut FunctionBuilder<'_>,
-    source: ValueId,
-    location: PtrLocation,
-) -> ValueId {
-    match location {
-        PtrLocation::Calldata => builder.calldataload(source),
-        PtrLocation::Memory => builder.mload(source),
-        PtrLocation::Returndata => unreachable!("returndata slices are not static ABI inputs"),
     }
 }
 
@@ -1316,7 +1304,7 @@ fn encode_memory_array_elements(
     let (len, element_area) = match layout {
         MemoryObjectLayout::DynamicArray { .. } => {
             let len = memory_object_len(builder, value);
-            builder.mstore(dest, len);
+            builder.store(dest, len);
             let word = builder.imm(32);
             (len, builder.add(dest, word))
         }
@@ -1350,7 +1338,7 @@ fn encode_memory_array_elements(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let mut element_value = builder.mload(source);
+    let mut element_value = builder.load(source, PtrLocation::Memory);
     if let Some(non_null) = non_null {
         element_value = builder.mul(element_value, non_null);
     }
@@ -1386,7 +1374,7 @@ fn encode_calldata_bytes_array(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     let len = builder.slice_len(value);
-    builder.mstore(dest, len);
+    builder.store(dest, len);
 
     let word = builder.imm(32);
     let element_area = builder.add(dest, word);
@@ -1413,7 +1401,7 @@ fn encode_calldata_bytes_array(
     // Mirror solc's calldata tail access: the offset bound is signed, so a negative
     // offset that wraps to a valid load is accepted and the tail checks decide whether
     // the element is valid. Bytes past `calldatasize` read as zero.
-    let offset = builder.calldataload(source_head);
+    let offset = builder.load(source_head, PtrLocation::Calldata);
     let calldata_size = builder.calldatasize();
     let available = builder.sub(calldata_size, source_base);
     let thirty_one = builder.imm(31);
@@ -1422,7 +1410,7 @@ fn encode_calldata_bytes_array(
     let invalid_offset = builder.eq_zero(valid_offset);
     builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
     let element_base = builder.add(source_base, offset);
-    let length = builder.calldataload(element_base);
+    let length = builder.load(element_base, PtrLocation::Calldata);
     let max_length = builder.imm(u64::MAX);
     let invalid_length = builder.gt(length, max_length);
     builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
@@ -1466,7 +1454,7 @@ fn encode_word_array(
         PtrLocation::Memory => memory_object_len(builder, value),
         PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
     };
-    builder.mstore(dest, len);
+    builder.store(dest, len);
     let word = builder.imm(32);
     let bytes = builder.mul(len, word);
     let data_dest = builder.add(dest, word);
@@ -1488,21 +1476,21 @@ fn encode_word_array(
                 if builder.func().value_u64(size).is_some_and(|size| size <= 64)));
         if small_allocation {
             // for index in 0..len:
-            //   mstore data_dest + index * 32, clean(mload data_source + index * 32)
+            //   store data_dest + index * 32, clean(load data_source + index * 32)
             builder.counted_loop(len, |builder, index| {
                 let offset = builder.mul(index, word);
                 let source = builder.add(data_source, offset);
                 let destination = builder.add(data_dest, offset);
-                let value = builder.mload(source);
+                let value = builder.load(source, PtrLocation::Memory);
                 let value = clean_word(builder, cleanup, value);
-                builder.mstore(destination, value);
+                builder.store(destination, value);
             });
             return tail;
         }
         // delta = data_source - data_dest
         // remaining = len; destination = data_dest
         // if remaining != 0: do:
-        //   mstore destination, clean(mload destination + delta)
+        //   store destination, clean(load destination + delta)
         //   remaining -= 1; destination += 32
         // while remaining != 0
         let delta = builder.sub(data_source, data_dest);
@@ -1514,9 +1502,9 @@ fn encode_word_array(
         let remaining = builder.phi(vec![(preheader, len)]);
         let destination = builder.phi(vec![(preheader, data_dest)]);
         let source = builder.add(destination, delta);
-        let value = builder.mload(source);
+        let value = builder.load(source, PtrLocation::Memory);
         let value = clean_word(builder, cleanup, value);
-        builder.mstore(destination, value);
+        builder.store(destination, value);
         let one = builder.imm(1);
         let next_remaining = builder.sub(remaining, one);
         let next_destination = builder.add(destination, word);
@@ -1544,7 +1532,7 @@ fn encode_bytes(
         && let Some(bytes) = literal_bytes(builder.func(), value, builder.current_block())
     {
         let length = builder.imm(bytes.len() as u64);
-        builder.mstore(dest, length);
+        builder.store(dest, length);
         let data = builder.add_u64_offset(dest, 32);
         for (index, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0_u8; 32];
@@ -1552,7 +1540,7 @@ fn encode_bytes(
             let word = builder.imm(U256::from_be_bytes(padded));
             let offset = builder.imm(index as u64 * 32);
             let address = builder.add(data, offset);
-            builder.mstore(address, word);
+            builder.store(address, word);
         }
         let size = builder.imm(bytes.len().next_multiple_of(32) as u64);
         return builder.add(data, size);
@@ -1563,8 +1551,8 @@ fn encode_bytes(
         PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
     };
     if !branchless_padding {
-        // mstore dest, len
-        builder.mstore(dest, len);
+        // store dest, len
+        builder.store(dest, len);
     }
 
     let word = builder.imm(32);
@@ -1576,13 +1564,13 @@ fn encode_bytes(
 
     if branchless_padding {
         // last = dest + padded
-        // mstore last, 0
-        // mstore dest, len
+        // store last, 0
+        // store dest, len
         // For an empty tail, last == dest; write the header after zeroing it.
         let last = builder.add(dest, padded);
         let zero = builder.imm(0);
-        builder.mstore(last, zero);
-        builder.mstore(dest, len);
+        builder.store(last, zero);
+        builder.store(dest, len);
     } else {
         // if padded != 0: mstore dest + padded, 0
         let zero_block = builder.create_block();
@@ -1592,7 +1580,7 @@ fn encode_bytes(
         builder.switch_to_block(zero_block);
         let last = builder.add(dest, padded);
         let zero = builder.imm(0);
-        builder.mstore(last, zero);
+        builder.store(last, zero);
         builder.jump(copy_block);
         builder.switch_to_block(copy_block);
     }
@@ -1618,15 +1606,15 @@ fn copy_source_data(
     size: ValueId,
 ) {
     match location {
-        // mcopy dest, source, size !metadata(disjoint)
+        // copy dest, source, size !metadata(disjoint)
         PtrLocation::Memory => {
-            let copy = builder.mcopy_heap(dest, source, size);
+            let copy = builder.copy_heap(dest, source, size, PtrLocation::Memory);
             builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
         }
-        // calldatacopy dest, source, size
-        // returndatacopy dest, source, size
+        // copy calldata dest, source, size
+        // copy returndata dest, source, size
         PtrLocation::Calldata | PtrLocation::Returndata => {
-            builder.copy_slice_data(location, dest, source, size)
+            builder.copy_heap(dest, source, size, location);
         }
     }
 }
@@ -1692,7 +1680,7 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
         InstKind::Alloc { kind: AllocationKind::Object(_), .. } | InstKind::AbiEncode { .. } => {
             false
         }
-        InstKind::MStore(address, _) => !literal_word_in_bounds(func, *address, Some(0)),
+        InstKind::Store(address, _) => !literal_word_in_bounds(func, *address, Some(0)),
         InstKind::SliceStoreWord { slice, offset, .. } => {
             !literal_word_in_bounds(func, *slice, func.value_u64(*offset))
         }
@@ -1759,7 +1747,7 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         }
         // Payload offset and stored word.
         let (offset, word) = match func.inst(inst).kind {
-            InstKind::MStore(address, word) => {
+            InstKind::Store(address, word) => {
                 let (base, offset) = func.object_address(address)?;
                 (base == object).then_some(())?;
                 if offset == 0 {

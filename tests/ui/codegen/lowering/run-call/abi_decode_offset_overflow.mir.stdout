@@ -3,7 +3,7 @@
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     v1 = abi_encode [word, word, word], object, args 32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v2 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v3 = make_memory_slice v2, 1
@@ -27,7 +27,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     jumpi v15, bb1, bb2
   bb1:
     v16 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v16, 0
+    store v16, 0
     v17 = ptrtoint memptr v16 to i256
     slice_store_word v10, 32, v17
     jump bb2
@@ -45,7 +45,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
 fn @withinArray() -> i256 [selector=0xac457954, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     v1 = abi_encode [word, word], object, args 32, 2
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v3 = make_memory_slice v2, 2
@@ -73,7 +73,7 @@ fn @withinArray() -> i256 [selector=0xac457954, pure, abi_params=[], abi_returns
     jumpi v17, bb1, bb2
   bb1:
     v18 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v18, 0
+    store v18, 0
     v19 = ptrtoint memptr v18 to i256
     slice_store_word v11, 0, v19
     jump bb2
@@ -96,7 +96,7 @@ fn @withinArray() -> i256 [selector=0xac457954, pure, abi_params=[], abi_returns
     jumpi v32, bb3, bb4
   bb3:
     v33 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v33, 0
+    store v33, 0
     v34 = ptrtoint memptr v33 to i256
     slice_store_word v26, 32, v34
     jump bb4

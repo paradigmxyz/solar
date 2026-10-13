@@ -9,7 +9,7 @@
 
 use crate::{
     backend::evm::op::*,
-    mir::{EffectKind, Function, InstKind, LogTopics, Op, OpTraits, Value, ValueId},
+    mir::{EffectKind, Function, InstKind, LogTopics, Op, OpTraits, PtrLocation, Value, ValueId},
 };
 
 /// Stack shape of a MIR operation that lowers to one EVM opcode.
@@ -70,6 +70,22 @@ struct RuleContext;
 impl generated::Context for RuleContext {
     fn log_opcode(&mut self, topics: LogTopics) -> u8 {
         LOG0 + topics.len() as u8
+    }
+
+    fn load_opcode(&mut self, location: PtrLocation) -> Option<u8> {
+        match location {
+            PtrLocation::Memory => Some(MLOAD),
+            PtrLocation::Calldata => Some(CALLDATALOAD),
+            PtrLocation::Returndata => None,
+        }
+    }
+
+    fn copy_opcode(&mut self, location: PtrLocation) -> u8 {
+        match location {
+            PtrLocation::Memory => MCOPY,
+            PtrLocation::Calldata => CALLDATACOPY,
+            PtrLocation::Returndata => RETURNDATACOPY,
+        }
     }
 }
 

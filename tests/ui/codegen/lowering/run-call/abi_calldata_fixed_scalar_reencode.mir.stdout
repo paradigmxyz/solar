@@ -63,7 +63,7 @@ fn @h(arg0: calldataslice) -> memptr [selector=0x94e17704, pure, abi_params=[arr
   bb2:
     v7 = mul v5, 32
     v8 = add v0, v7
-    v9 = calldataload v8
+    v9 = load calldata v8
     v10 = shr 8, v9
     v11 = eq v10, 0
     v12 = eq v11, false
@@ -117,7 +117,7 @@ fn @i(arg0: calldataslice, arg1: i256) -> memptr [selector=0x18e849a4, view, abi
   bb2:
     v21 = mul v19, 32
     v22 = add v15, v21
-    v23 = calldataload v22
+    v23 = load calldata v22
     v24 = shr 8, v23
     v25 = eq v24, 0
     v26 = eq v25, false

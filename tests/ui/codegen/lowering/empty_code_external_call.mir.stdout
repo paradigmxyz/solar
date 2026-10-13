@@ -189,7 +189,7 @@ fn @lowLevel() -> i1 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    mstore v1, 0
+    store v1, 0
     v2 = ptrtoint memptr v1 to i256
     v3 = address_call i160 0, v1, gas v0
     ret v3
@@ -236,7 +236,7 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_par
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0

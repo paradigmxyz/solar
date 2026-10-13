@@ -1,6 +1,6 @@
 //! Classification of words as absolute memory addresses by what they are computed from.
 
-use crate::mir::{Function, InstKind, Value, ValueId};
+use crate::mir::{Function, InstKind, PtrLocation, Value, ValueId};
 use solar_data_structures::index::{IndexVec, index_vec};
 
 /// What an absolute address is computed from, ordered from the most to the least known.
@@ -32,7 +32,9 @@ pub(crate) fn absolute_address_inputs(func: &Function) -> IndexVec<ValueId, Addr
         for inst_id in func.instructions() {
             let Some(value) = func.inst_result_value(inst_id) else { continue };
             let input = match &func.inst(inst_id).kind {
-                InstKind::CalldataLoad(_) | InstKind::CalldataSize => AddressInput::Calldata,
+                InstKind::Load(_, PtrLocation::Calldata) | InstKind::CalldataSize => {
+                    AddressInput::Calldata
+                }
                 InstKind::Add(lhs, rhs)
                 | InstKind::Sub(lhs, rhs)
                 | InstKind::Mul(lhs, rhs)

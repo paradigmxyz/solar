@@ -3,7 +3,7 @@
 //! This is Solar's EVM-shaped version of LLVM's mem2reg: promote compiler-owned
 //! local slots from memory traffic into SSA values. The pass is deliberately
 //! conservative. A slot is promotable only when its address is used as the exact
-//! address of full-word `mload`/`mstore` instructions, and the function has no
+//! address of full-word `load`/`store` instructions, and the function has no
 //! observations that could make removing that memory traffic visible.
 //!
 //! Safety contract:
@@ -13,7 +13,8 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::mir::{
-    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
+    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, PtrLocation,
+    Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -292,7 +293,7 @@ impl FrameSlotPromoter {
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
                 match *kind {
-                    InstKind::MLoad(addr) => {
+                    InstKind::Load(addr, PtrLocation::Memory) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
@@ -300,7 +301,7 @@ impl FrameSlotPromoter {
                                 .note_load(block_id, inst_id);
                         }
                     }
-                    InstKind::MStore(addr, value) => {
+                    InstKind::Store(addr, value) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
@@ -433,11 +434,11 @@ impl FrameSlotPromoter {
     ) -> bool {
         match *kind {
             InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => false,
-            InstKind::MLoad(addr) => {
+            InstKind::Load(addr, PtrLocation::Memory) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
             }
-            InstKind::MStore(addr, value) => {
+            InstKind::Store(addr, value) => {
                 (!Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(
                         func,
@@ -448,23 +449,25 @@ impl FrameSlotPromoter {
                     ))
                     || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
             }
-            InstKind::MStore8(addr, _) => {
+            InstKind::Store8(addr, _) => {
                 Self::internal_frame_range_may_overlap(func, aa, addr, Some(1), slot_offset)
             }
             InstKind::Keccak256(addr, size)
             | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
-            | InstKind::ReturnDataCopy(addr, _, size)
+            | InstKind::Copy(addr, _, size, PtrLocation::Returndata)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::CalldataCopy(addr, _, size) => Self::internal_frame_range_may_overlap(
-                func,
-                aa,
-                addr,
-                func.value_u64(size),
-                slot_offset,
-            ),
-            InstKind::MCopy(dest, src, size) => {
+            | InstKind::Copy(addr, _, size, PtrLocation::Calldata) => {
+                Self::internal_frame_range_may_overlap(
+                    func,
+                    aa,
+                    addr,
+                    func.value_u64(size),
+                    slot_offset,
+                )
+            }
+            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
                 let size = func.value_u64(size);
                 Self::internal_frame_range_may_overlap(func, aa, dest, size, slot_offset)
                     || Self::internal_frame_range_may_overlap(func, aa, src, size, slot_offset)
@@ -540,23 +543,23 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         match *kind {
-            InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
+            InstKind::Load(addr, PtrLocation::Memory) | InstKind::Store(addr, _) => {
                 !Self::is_exact_external_slot_access(func, aa, addr, slot_addr)
                     && Self::external_range_reaches_slot(func, aa, addr, Some(32), slot_addr)
             }
-            InstKind::MStore8(addr, _) => {
+            InstKind::Store8(addr, _) => {
                 Self::external_range_reaches_slot(func, aa, addr, Some(1), slot_addr)
             }
             InstKind::Keccak256(addr, size)
             | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
-            | InstKind::ReturnDataCopy(addr, _, size)
+            | InstKind::Copy(addr, _, size, PtrLocation::Returndata)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::CalldataCopy(addr, _, size) => {
+            | InstKind::Copy(addr, _, size, PtrLocation::Calldata) => {
                 Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
-            InstKind::MCopy(dest, src, size) => {
+            InstKind::Copy(dest, src, size, PtrLocation::Memory) => {
                 let size = func.value_u64(size);
                 Self::external_range_reaches_slot(func, aa, dest, size, slot_addr)
                     || Self::external_range_reaches_slot(func, aa, src, size, slot_addr)
@@ -715,7 +718,7 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
         }
         builders.push(builder);
     }
-    // mstore field, value; ...; result = mload field => result = phi/reaching_value
+    // store field, value; ...; result = load field => result = phi/reaching_value
     let mut replacements = FxHashMap::default();
     let mut dead = GrowableBitSet::with_capacity(func.num_insts());
     for builder in builders {
@@ -917,7 +920,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn apply(self, func: &mut Function) {
         self.apply_phis(func);
-        // result = mload slot => result = reaching_value
+        // result = load slot => result = reaching_value
         func.replace_uses_canonicalized(&self.replacements);
 
         for block in func.blocks.iter_mut() {
@@ -997,7 +1000,7 @@ impl<'a> SlotSsaBuilder<'a> {
     /// value operand and keeps the scalar zero supplied by SROA.
     fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
         match func.inst(inst).kind {
-            InstKind::MStore(_, value) | InstKind::SliceStoreWord { value, .. } => value,
+            InstKind::Store(_, value) | InstKind::SliceStoreWord { value, .. } => value,
             InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
             _ => unreachable!("promoted definition must be a word store or zero fill"),
         }

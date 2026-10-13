@@ -5,7 +5,7 @@
 
 fn @memorySize() -> i256 [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     ret v0
 }
 

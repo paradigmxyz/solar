@@ -174,9 +174,9 @@
       v3 = ptrtoint memptr v0 to i256
       v4 = zext i1 v1 to i256
       v5 = zext i160 v2 to i256
-      mstore 0, v4
-      mstore 32, v5
-      mstore 64, v3
+      store 0, v4
+      store 32, v5
+      store 64, v3
       stop
   }
   
@@ -185,8 +185,8 @@
       v0 = sext i1 arg0 to i256
       v1 = sext i1 arg0 to i160
       v2 = zext i160 v1 to i256
-      mstore 0, v0
-      mstore 32, v2
+      store 0, v0
+      store 32, v2
       stop
   }
   

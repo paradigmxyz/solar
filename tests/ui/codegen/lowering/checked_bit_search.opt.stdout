@@ -13,21 +13,21 @@ fn @entry() [entry] {
 fn @fls.0() [selector=0x27be8b2d, abi_wrapper, pure] {
   bb0:
     v0 = icall @fls.3, arg0
-    mstore 128, v0
+    store 128, v0
     returndata 128, 32
 }
 
 fn @clz.1() [selector=0x30244f7a, abi_wrapper, pure] {
   bb0:
     v0 = icall @clz.4, arg0
-    mstore 128, v0
+    store 128, v0
     returndata 128, 32
 }
 
 fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
   bb0:
     v0 = icall @ffs.5, arg0
-    mstore 128, v0
+    store 128, v0
     returndata 128, 32
 }
 
@@ -94,8 +94,8 @@ fn @clz.4(arg0: i256) -> i256 [pure] {
     v5 = gt v1, 255
     jumpi v5, bb3, bb2
   bb3:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     v3 = phi [bb0: 256], [bb1: v4]
@@ -127,7 +127,7 @@ fn @entry() [entry] {
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
   bb2:
-    v6 = calldataload 0
+    v6 = load calldata 0
     v7 = shr 224, v6
     switch v7, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
   bb5:

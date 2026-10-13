@@ -6,11 +6,11 @@
       jumpi arg1, bb1, bb2
     bb2:
       v1 = ptrtoint memptr arg0 to i256
-      mstore v1, arg2
+      store v1, arg2
       jump bb3
     bb1:
       v0 = ptrtoint memptr arg0 to i256
-      mstore v0, arg2
+      store v0, arg2
       jump bb3
     bb3:
       v2 = memory_slice arg0
@@ -22,17 +22,17 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 7
+      store v1, 7
       v2 = memory_slice v0
       v3 = slice_ptr v2
-      mstore v3, 99
+      store v3, 99
       v4 = memory_slice v0
       v5 = slice_len v4
       jumpi arg0, bb1, bb2
     bb1:
       v6 = alloc memorybytes, exact, uninitialized, infallible, 32
       v7 = ptrtoint memptr v6 to i256
-      mstore v7, 0
+      store v7, 0
       jump bb2
     bb2:
       v8 = memory_slice v0
@@ -44,19 +44,19 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 7
+      store v1, 7
       v2 = inttoptr i256 arg1 to memptr
       v3 = memory_slice v2
       v4 = slice_ptr v3
       v5 = ptrtoint memptr v0 to i256
-      mstore v4, v5
+      store v4, v5
       v6 = memory_slice v0
       v7 = slice_len v6
       jumpi arg0, bb1, bb2
     bb1:
       v8 = alloc memorybytes, exact, uninitialized, infallible, 32
       v9 = ptrtoint memptr v8 to i256
-      mstore v9, 0
+      store v9, 0
       jump bb2
     bb2:
       v10 = memory_slice v0
@@ -99,10 +99,10 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 7
+      store v1, 7
       v2 = memory_slice v0
       v3 = slice_len v2
-      mstore v1, 9
+      store v1, 9
       v4 = memory_slice v0
       v5 = slice_len v4
       v6 = ne v5, 0

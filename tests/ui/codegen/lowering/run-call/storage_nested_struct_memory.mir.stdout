@@ -112,7 +112,7 @@ fn @copy(arg0: memptr) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<
     jumpi v34, bb15, bb16
   bb15:
     v35 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v35, 0
+    store v35, 0
     v36 = shl 5, v29
     v37 = ptrtoint memptr v35 to i256
     slice_store_word v28, v36, v37
@@ -442,7 +442,7 @@ fn @copyFixed(arg0: memptr) -> i256 [selector=0x39bd9a66, abi_params=[array<1, a
     jumpi v4, bb4, bb5
   bb5:
     v128 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v128, 0
+    store v128, 0
     v129 = memory_slice v128
     v130 = slice_len v129
     v131 = sload v3 !metadata(storage=offset(v1, 1))
@@ -974,7 +974,7 @@ fn @copyDynamicFixed(arg0: memptr) -> i256 [selector=0x62d70355, abi_params=[arr
     v144 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v145 = make_memory_slice v144, 2
     v146 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v146, 0
+    store v146, 0
     v147 = ptrtoint memptr v146 to i256
     slice_store_word v145, 0, v147
     v148 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -1234,7 +1234,7 @@ fn @copyDynamicFixed(arg0: memptr) -> i256 [selector=0x62d70355, abi_params=[arr
     v38 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v39 = make_memory_slice v38, 2
     v40 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v40, 0
+    store v40, 0
     v41 = ptrtoint memptr v40 to i256
     slice_store_word v39, 0, v41
     v42 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -1292,7 +1292,7 @@ fn @default_struct_0() -> memptr {
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = make_memory_slice v0, 2
     v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 0, v3
     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64

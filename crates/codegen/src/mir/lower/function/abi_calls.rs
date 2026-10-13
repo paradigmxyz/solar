@@ -575,7 +575,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
                 // value = calldata_slice(position + 32, calldataload(position))
-                let length = self.builder.calldataload(value_pos);
+                let length = self.builder.load(value_pos, PtrLocation::Calldata);
                 if validate_bounds {
                     let byte_stride = self.builder.imm(1);
                     self.validate_calldata_dynamic_tail(value_pos, length, byte_stride);
@@ -590,7 +590,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 if is_calldata {
                     // value = calldata_slice(position + 32, calldataload(position))
-                    let length = self.builder.calldataload(value_pos);
+                    let length = self.builder.load(value_pos, PtrLocation::Calldata);
                     if validate_bounds {
                         let element_head_size =
                             self.builder.imm(self.types.abi_type(element)?.head_size());
@@ -600,7 +600,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.make_slice(data, length, PtrLocation::Calldata));
                 }
                 // value = materialize_calldata_array(position)
-                let length = self.builder.calldataload(value_pos);
+                let length = self.builder.load(value_pos, PtrLocation::Calldata);
                 let element_type = self.types.abi_type(element)?;
                 if validate_bounds {
                     let element_head_size = self.builder.imm(element_type.head_size());
@@ -690,7 +690,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // offset = calldataload(head)
         // position = tuple_base + offset
-        let offset = self.builder.calldataload(head);
+        let offset = self.builder.load(head, PtrLocation::Calldata);
         let value_pos = self.builder.add(tuple_base, offset);
         if validate_bounds {
             // Solidity's calldata tail helper uses a signed offset bound and requires the
@@ -753,7 +753,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.check_calldata_range(position, word);
         }
         // value = calldataload(position)
-        let value = self.builder.calldataload(position);
+        let value = self.builder.load(position, PtrLocation::Calldata);
         let validator = if is_external_function {
             AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                 .expect("function words always validate")
@@ -793,7 +793,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // slice = calldata(position + 32, len)
         // return materialize_memory_slice(slice)
         let word = self.builder.imm(32);
-        let length = self.builder.calldataload(position);
+        let length = self.builder.load(position, PtrLocation::Calldata);
         if validate_bounds {
             let byte_stride = self.builder.imm(1);
             self.validate_calldata_dynamic_tail(position, length, byte_stride);

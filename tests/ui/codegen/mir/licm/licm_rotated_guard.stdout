@@ -7,8 +7,8 @@
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
       v1 = mul v0, 32
-      mstore v1, 1
-      v2 = mload 320
+      store v1, 1
+      v2 = load 320
       v3 = lt v0, 10
       jumpi v3, bb2, bb3
     bb3:
@@ -24,8 +24,8 @@
     bb1:
       v0 = phi [bb0: 0], [bb1: v3]
       v1 = mul v0, 32
-      mstore v1, 1
-      v2 = mload 320
+      store v1, 1
+      v2 = load 320
       v3 = add v0, 1
       v4 = lt v0, 10
       jumpi v4, bb1, bb2
@@ -35,7 +35,7 @@
   
   fn @top_tested_control() -> i256 {
     bb0:
-+     v4 = mload 320
++     v4 = load 320
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
@@ -46,21 +46,21 @@
       ret v0
     bb2:
       v3 = mul v1, 32
-      mstore v3, 1
--     v4 = mload 320
+      store v3, 1
+-     v4 = load 320
       v5 = add v1, 1
       jump bb1
   }
   
   fn @disjoint_past_widened_range() -> i256 {
     bb0:
-+     v2 = mload 384
++     v2 = load 384
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
       v1 = mul v0, 32
-      mstore v1, 1
--     v2 = mload 384
+      store v1, 1
+-     v2 = load 384
       v3 = lt v0, 10
       jumpi v3, bb2, bb3
     bb3:

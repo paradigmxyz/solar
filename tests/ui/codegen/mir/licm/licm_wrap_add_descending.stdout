@@ -13,8 +13,8 @@
       ret v0
     bb2:
       v3 = mul v1, 32
-      mstore v3, 1
-      v4 = mload 0
+      store v3, 1
+      v4 = load 0
       v5 = add v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       jump bb1
   }

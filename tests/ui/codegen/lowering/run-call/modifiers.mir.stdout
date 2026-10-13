@@ -26,10 +26,10 @@ fn @literalString() -> memptr [selector=0x660cf51a, pure, abi_params=[], abi_ret
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v1, 3
+    store v1, 3
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
-    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
+    store v3, 0x6162630000000000000000000000000000000000000000000000000000000000
     jump bb2
   bb2:
     jump bb1
@@ -67,7 +67,7 @@ fn @calldataBytes(arg0: calldataslice) -> memptr [selector=0x7965815f, pure, abi
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    mstore v12, v7
+    store v12, v7
     v13 = ptrtoint memptr v12 to i256
     v14 = add v13, 32
     v15 = slice_len arg0

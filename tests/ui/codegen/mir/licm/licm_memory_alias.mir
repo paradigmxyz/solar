@@ -5,11 +5,11 @@
   value: u256
 
 // CHECK-LABEL: @hoist_non_aliasing_mload
-// CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
+// CHECK: +     [[LOAD:v[0-9]+]] = load [[ADDR:[0-9]+]]
 // CHECK-NEXT:  jump {{bb[0-9]+}}
 // CHECK: [[RESULT:v[0-9]+]] = phi [bb0: 0], [bb2: [[LOAD]]]
 // CHECK: ret [[RESULT]]
-// CHECK: -     [[LOAD]] = mload [[ADDR]]
+// CHECK: -     [[LOAD]] = load [[ADDR]]
 fn @hoist_non_aliasing_mload() -> i256 {
   bb0:
     jump bb1
@@ -17,8 +17,8 @@ fn @hoist_non_aliasing_mload() -> i256 {
     v1 = phi [bb0: 0], [bb2: v0]
     jumpi true, bb2, bb3
   bb2:
-    v0 = mload 0
-    mstore 64, 1
+    v0 = load 0
+    store 64, 1
     jump bb1
   bb3:
     ret v1
@@ -27,8 +27,8 @@ fn @hoist_non_aliasing_mload() -> i256 {
 // CHECK-LABEL: @keep_aliasing_mload
 // CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
-// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
-// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
+// CHECK: {{^ +}}{{v[0-9]+}} = load {{[0-9]+}}
+// CHECK: {{^ +}}store {{[0-9]+}}, 1
 fn @keep_aliasing_mload() -> i256 {
   bb0:
     jump bb1
@@ -36,8 +36,8 @@ fn @keep_aliasing_mload() -> i256 {
     v1 = phi [bb0: 0], [bb2: v0]
     jumpi true, bb2, bb3
   bb2:
-    v0 = mload 0
-    mstore 16, 1
+    v0 = load 0
+    store 16, 1
     jump bb1
   bb3:
     ret v1
@@ -57,7 +57,7 @@ fn @hoist_non_aliasing_keccak() -> i256 {
     jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
-    mstore 64, 1
+    store 64, 1
     jump bb1
   bb3:
     ret v1
@@ -67,7 +67,7 @@ fn @hoist_non_aliasing_keccak() -> i256 {
 // CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
-// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
+// CHECK: {{^ +}}store {{[0-9]+}}, 1
 fn @keep_aliasing_keccak() -> i256 {
   bb0:
     jump bb1
@@ -76,7 +76,7 @@ fn @keep_aliasing_keccak() -> i256 {
     jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
-    mstore 16, 1
+    store 16, 1
     jump bb1
   bb3:
     ret v1

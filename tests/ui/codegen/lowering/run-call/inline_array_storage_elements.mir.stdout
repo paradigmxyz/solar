@@ -53,7 +53,7 @@ fn @ternary(arg0: i1) -> memptr [selector=0xee58c378, view, abi_params=[bool], a
     jumpi v10, bb4, bb5
   bb4:
     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v11, 0
+    store v11, 0
     v12 = ptrtoint memptr v11 to i256
     slice_store_word v5, 0, v12
     jump bb5
@@ -86,7 +86,7 @@ fn @ternaryLength(arg0: i1) -> i256 [selector=0x3dabb232, view, abi_params=[bool
     jumpi v10, bb4, bb5
   bb4:
     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v11, 0
+    store v11, 0
     v12 = ptrtoint memptr v11 to i256
     slice_store_word v5, 0, v12
     jump bb5
@@ -121,7 +121,7 @@ fn @pointer(arg0: i1) -> memptr [selector=0xa5e90171, view, abi_params=[bool], a
     jumpi v10, bb4, bb5
   bb4:
     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v11, 0
+    store v11, 0
     v12 = ptrtoint memptr v11 to i256
     slice_store_word v5, 0, v12
     jump bb5
@@ -147,7 +147,7 @@ fn @stateVariable() -> memptr [selector=0xe1967eae, view, abi_params=[], abi_ret
     jumpi v9, bb1, bb2
   bb1:
     v10 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v10, 0
+    store v10, 0
     v11 = ptrtoint memptr v10 to i256
     slice_store_word v4, 0, v11
     jump bb2

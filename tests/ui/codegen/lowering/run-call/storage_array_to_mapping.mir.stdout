@@ -3,7 +3,7 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -33,7 +33,7 @@ fn @constructor() [constructor] {
     jumpi v24, bb10, bb11
   bb11:
     v85 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v85, 2
+    store v85, 2
     v86 = sload 1 !metadata(storage=slot(1))
     v87 = lt 0, v86
     v88 = eq v87, false
@@ -126,7 +126,7 @@ fn @constructor() [constructor] {
     v181 = or v178, v180
     sstore v171, v181 !metadata(storage=symbolic(v171))
     v182 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v182, 3
+    store v182, 3
     v183 = sload 1 !metadata(storage=slot(1))
     v184 = lt 1, v183
     v185 = eq v184, false
@@ -361,7 +361,7 @@ fn @constructor() [constructor] {
     jumpi v28, bb12, bb13
   bb12:
     v29 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v29, 0
+    store v29, 0
     v30 = shl 5, v23
     v31 = ptrtoint memptr v29 to i256
     slice_store_word v22, v30, v31
@@ -491,7 +491,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = alloc memoryarray<1>, exact, uninitialized, panic, v11
-    mstore v18, v1
+    store v18, v1
     jump bb1
   bb1:
     v19 = phi [bb0: 0], [bb2: v27]
@@ -543,7 +543,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v125 = eq v124, 0
     icall panic_if<0x41>, v125
     v126 = alloc memoryarray<1>, exact, uninitialized, panic, v119
-    mstore v126, v109
+    store v126, v109
     jump bb24
   bb24:
     v127 = phi [bb11: 0], [bb25: v135]
@@ -569,7 +569,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     jumpi v51, bb12, bb13
   bb12:
     v52 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v52, 0
+    store v52, 0
     v53 = shl 5, v46
     v54 = ptrtoint memptr v52 to i256
     slice_store_word v45, v53, v54
@@ -703,7 +703,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = alloc memoryarray<1>, exact, uninitialized, panic, v11
-    mstore v18, v1
+    store v18, v1
     jump bb1
   bb1:
     v19 = phi [bb0: 0], [bb2: v27]
@@ -755,7 +755,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v125 = eq v124, 0
     icall panic_if<0x41>, v125
     v126 = alloc memoryarray<1>, exact, uninitialized, panic, v119
-    mstore v126, v109
+    store v126, v109
     jump bb24
   bb24:
     v127 = phi [bb11: 0], [bb25: v135]
@@ -781,7 +781,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     jumpi v51, bb12, bb13
   bb12:
     v52 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v52, 0
+    store v52, 0
     v53 = shl 5, v46
     v54 = ptrtoint memptr v52 to i256
     slice_store_word v45, v53, v54
@@ -914,7 +914,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
-    mstore v17, v0
+    store v17, v0
     jump bb1
   bb1:
     v18 = phi [bb0: 0], [bb2: v26]
@@ -966,7 +966,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v124 = eq v123, 0
     icall panic_if<0x41>, v124
     v125 = alloc memoryarray<1>, exact, uninitialized, panic, v118
-    mstore v125, v108
+    store v125, v108
     jump bb24
   bb24:
     v126 = phi [bb11: 0], [bb25: v134]
@@ -992,7 +992,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     jumpi v50, bb12, bb13
   bb12:
     v51 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v51, 0
+    store v51, 0
     v52 = shl 5, v45
     v53 = ptrtoint memptr v51 to i256
     slice_store_word v44, v52, v53
@@ -1130,7 +1130,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
-    mstore v21, v0
+    store v21, v0
     jump bb1
   bb1:
     v22 = phi [bb0: 0], [bb6: v68]
@@ -1182,7 +1182,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v166 = eq v165, 0
     icall panic_if<0x41>, v166
     v167 = alloc memoryarray<1>, exact, uninitialized, panic, v160
-    mstore v167, v150
+    store v167, v150
     jump bb27
   bb27:
     v168 = phi [bb14: 0], [bb28: v176]
@@ -1208,7 +1208,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     jumpi v92, bb15, bb16
   bb15:
     v93 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v93, 0
+    store v93, 0
     v94 = shl 5, v87
     v95 = ptrtoint memptr v93 to i256
     slice_store_word v86, v94, v95
@@ -1313,7 +1313,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v27 = sub v26, v25
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
-    v29 = calldataload v25
+    v29 = load calldata v25
     v30 = add v1, v29
     v31 = calldatasize
     v32 = sub v31, v1
@@ -1321,7 +1321,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
-    v36 = calldataload v30
+    v36 = load calldata v30
     v37 = gt v36, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v37
     v38 = mul v36, 32
@@ -1343,7 +1343,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v52 = lt v51, 32
     icall panic_if<0x41>, v52
     v53 = alloc memoryarray<1>, exact, uninitialized, infallible, v51
-    mstore v53, v36
+    store v53, v36
     jump bb4
   bb4:
     v54 = phi [bb2: 0], [bb5: v64]
@@ -1359,7 +1359,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
   bb5:
     v56 = mul v54, 32
     v57 = add v43, v56
-    v58 = calldataload v57
+    v58 = load calldata v57
     v59 = shr 8, v58
     v60 = eq v59, 0
     v61 = eq v60, false

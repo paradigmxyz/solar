@@ -95,7 +95,7 @@ fn @k(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
     v90 = calldatasize
     v91 = ptrtoint memptr arg0 to i256
     v92 = add v91, 32
-    calldatacopy v92, v90, arg1
+    copy calldata v92, v90, arg1
     v93 = xor v4, v9
     v94 = xor v93, v14
     v95 = xor v94, v19

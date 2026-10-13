@@ -10,7 +10,7 @@ fn @switchCallResult() -> i256 [selector=0x2e6d4117, abi_params=[], abi_returns=
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    mstore v1, 0
+    store v1, 0
     v2 = ptrtoint memptr v1 to i256
     v3 = address_call i160 0, v1, gas v0
     v4 = zext i1 v3 to i256

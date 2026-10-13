@@ -179,7 +179,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3
-    mstore v10, v0
+    store v10, v0
     v11 = storage_array_data_slot arg0
     jump bb1
   bb1:
@@ -211,7 +211,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
 fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
-    mstore 0, 0 !metadata(memory=scratch)
+    store 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, 2 !metadata(storage=symbolic(v0))
     v1 = icall @load_storage_packed_array_1_0_enum_2, 0
@@ -232,7 +232,7 @@ fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[wor
 fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 1, 1 !metadata(storage=slot(1))
-    mstore 0, 1 !metadata(memory=scratch)
+    store 0, 1 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, 2 !metadata(storage=symbolic(v0))
     v1 = icall @load_storage_packed_array_1_0_enum_3, 1

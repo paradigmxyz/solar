@@ -13,9 +13,9 @@ fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word]
 fn @constructor() [constructor] {
   bb0:
     v0 = callvalue
-    mstore 0, v0 !metadata(memory=scratch)
-    mstore 32, 2 !metadata(memory=scratch)
-    mstore 64, 3 !metadata(memory=scratch)
+    store 0, v0 !metadata(memory=scratch)
+    store 32, 2 !metadata(memory=scratch)
+    store 64, 3 !metadata(memory=scratch)
     v1 = keccak256 0, 96 !metadata(memory=scratch)
     sstore 0, v1 !metadata(storage=slot(0))
     ret
@@ -40,7 +40,7 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     v14 = keccak256_packed (u256 arg0, u256 14)
     v15 = keccak256_packed (u256 arg0, u256 15)
     v16 = keccak256_packed (u256 arg0, u256 16)
-    mstore 64, 128 !metadata(memory=scratch)
+    store 64, 128 !metadata(memory=scratch)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
   bb2:
@@ -150,7 +150,7 @@ fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_
   bb3:
     v19 = phi [bb1: v18], [bb2: 0]
     v20 = calldatasize
-    calldatacopy 0x2080, v20, 0x400
+    copy calldata 0x2080, v20, 0x400
     v21 = xor v0, v1
     v22 = xor v21, v2
     v23 = xor v22, v3
@@ -173,7 +173,7 @@ fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_
 
 fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    mstore 0x2400, arg0
+    store 0x2400, arg0
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
   bb2:
@@ -185,10 +185,10 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     v2 = not 31
     v3 = and 0x43f, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
-    mstore v4, 0x400
+    store v4, 0x400
     v5 = ptrtoint memptr v4 to i256
-    v6 = mload v5
-    v7 = mload 0x2400
+    v6 = load v5
+    v7 = load 0x2400
     v8 = add v7, v6
     ret v8
 }
@@ -198,9 +198,9 @@ fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[u
     v0 = gas
     v1 = staticcall v0, 4, 0, 1, 0, 0
     v2 = zext i1 v1 to i256
-    v3 = calldataload 4
-    returndatacopy v3, 1, 0
-    v4 = mload 64 !metadata(memory=scratch)
+    v3 = load calldata 4
+    copy returndata v3, 1, 0
+    v4 = load 64 !metadata(memory=scratch)
     v5 = lt v4, 0x2000
     v6 = zext i1 v5 to i256
     ret v6
@@ -225,8 +225,8 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v14 = keccak256_packed (u256 arg0, u256 14)
     v15 = keccak256_packed (u256 arg0, u256 15)
     v16 = keccak256_packed (u256 arg0, u256 16)
-    mstore 64, 128 !metadata(memory=scratch)
-    v17 = mload 64 !metadata(memory=scratch)
+    store 64, 128 !metadata(memory=scratch)
+    v17 = load 64 !metadata(memory=scratch)
     jump bb1
   bb1:
     v18 = phi [bb0: 0], [bb3: v46]
@@ -260,7 +260,7 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
   bb2:
     v47 = shl 5, v23
     v48 = add v25, v47
-    mstore 64, v48 !metadata(memory=scratch)
+    store 64, v48 !metadata(memory=scratch)
     v49 = xor v29, v21
     v50 = xor v49, v35
     v51 = xor v50, v28
@@ -284,7 +284,7 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v43 = not 0
     v44 = shl 5, v18
     v45 = add v25, v44
-    mstore v45, v43
+    store v45, v43
     jump bb6
   bb6:
     jump bb3
@@ -295,26 +295,26 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
 
 fn @revertWithTime(arg0: i256, arg1: i256) [selector=0xa03dd0df, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    mstore 0, 0x21ccfeb7 !metadata(memory=scratch)
-    mstore 32, arg0 !metadata(memory=scratch)
-    v0 = calldataload 36
-    mstore 64, v0 !metadata(memory=scratch)
+    store 0, 0x21ccfeb7 !metadata(memory=scratch)
+    store 32, arg0 !metadata(memory=scratch)
+    v0 = load calldata 36
+    store 64, v0 !metadata(memory=scratch)
     revert 28, 68
 }
 
 fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a9e6e6, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
-    v1 = calldataload 68
-    mstore 64, v1 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
+    v1 = load calldata 68
+    store 64, v1 !metadata(memory=scratch)
     v2 = keccak256 0, 96 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v3 = not 31
     v4 = and 68, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
-    mstore v5, 5
+    store v5, 5
     v6 = memory_slice v5
     v7 = slice_len v6
     v8 = insert_value struct0, undef struct0, 0, v2
@@ -324,28 +324,28 @@ fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a
 
 fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f5115, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
-    v1 = calldataload 68
-    mstore 64, v1 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
+    v1 = load calldata 68
+    store 64, v1 !metadata(memory=scratch)
     v2 = icall @hashScratch.49
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v2
 }
 
 fn @storeInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0c3d9af0, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     icall @put, arg0, arg1
     v1 = keccak256 0, 96 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v1
 }
 
 fn @deepAddress(arg0: i256) -> i256 [selector=0xb1cb77b2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = calldataload 4
+    v0 = load calldata 4
     v1 = add v0, v0
     v2 = add v1, v1
     v3 = add v2, v2
@@ -394,45 +394,45 @@ fn @deepAddress(arg0: i256) -> i256 [selector=0xb1cb77b2, pure, abi_params=[u256
     v46 = add v45, v45
     v47 = add v46, v46
     v48 = add v47, v47
-    v49 = calldataload 4
+    v49 = load calldata 4
     v50 = and v48, 31
-    mstore v50, v49
-    v51 = mload 0 !metadata(memory=scratch)
+    store v50, v49
+    v51 = load 0 !metadata(memory=scratch)
     ret v51
 }
 
 fn @hashRecursive(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x56f931cd, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
-    v1 = calldataload 68
-    mstore 64, v1 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
+    v1 = load calldata 68
+    store 64, v1 !metadata(memory=scratch)
     v2 = icall @hashFrom, 0
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v2
 }
 
 fn @hashThenCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x52d607e7, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
-    v0 = calldataload 68
-    mstore 64, v0 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
+    v0 = load calldata 68
+    store 64, v0 !metadata(memory=scratch)
     v1 = keccak256 0, 96 !metadata(memory=scratch)
-    calldatacopy 64, 36, 32 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore v2, v1
+    copy calldata 64, 36, 32 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store v2, v1
     ret v1
 }
 
 fn @readScratch(arg0: i256) -> i256 [selector=0x29c22c76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v2
 }
 
@@ -444,32 +444,32 @@ fn @readInHelper(arg0: i256) -> i256 [selector=0xe70d1a86, pure, abi_params=[u25
 
 fn @hashAt(arg0: i256, arg1: i256) -> i256 [selector=0xf170e9dc, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = calldataload 36
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load calldata 36
+    store 64, v0 !metadata(memory=scratch)
     v1 = keccak256 arg0, 32
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore v2, v1
+    v2 = load 64 !metadata(memory=scratch)
+    store v2, v1
     ret v1
 }
 
 fn @mixedLoad(arg0: i256) -> i256 [selector=0x5fc7002c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = calldataload 4
-    mstore 64, v0 !metadata(memory=scratch)
-    v1 = mload 64 !metadata(memory=scratch)
-    mstore v1, 1
+    v0 = load calldata 4
+    store 64, v0 !metadata(memory=scratch)
+    v1 = load 64 !metadata(memory=scratch)
+    store v1, 1
     v2 = add v1, 32
-    mstore 64, v2 !metadata(memory=scratch)
+    store 64, v2 !metadata(memory=scratch)
     ret v1
 }
 
 fn @dataThenMixed(arg0: i256) -> struct0 [selector=0xa625ab9b, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = calldataload 4
-    mstore 64, v0 !metadata(memory=scratch)
-    v1 = mload 64 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore v2, 1
+    v0 = load calldata 4
+    store 64, v0 !metadata(memory=scratch)
+    v1 = load 64 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store v2, 1
     v3 = insert_value struct0, undef struct0, 0, v1
     v4 = insert_value struct0, v3, 1, v2
     ret v4
@@ -477,11 +477,11 @@ fn @dataThenMixed(arg0: i256) -> struct0 [selector=0xa625ab9b, pure, abi_params=
 
 fn @tupleReturn(arg0: i256) -> struct0 [selector=0x6661d15f, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v3 = insert_value struct0, undef struct0, 0, v2
     v4 = insert_value struct0, v3, 1, 7
     ret v4
@@ -509,11 +509,11 @@ fn @tupleThroughYul(arg0: i256) -> struct0 [selector=0x2cb8ee56, pure, abi_param
 
 fn @tupleReturnPublic(arg0: i256) -> struct0 [selector=0xada7ba42, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v3 = insert_value struct0, undef struct0, 0, v2
     v4 = insert_value struct0, v3, 1, 7
     ret v4
@@ -531,26 +531,26 @@ fn @tupleThroughPublic(arg0: i256) -> struct0 [selector=0x6993efc2, pure, abi_pa
 
 fn @publicRead(arg0: i256) -> i256 [selector=0xd3e4ec77, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v2
 }
 
 fn @writeThroughPublicRead(arg0: i256) -> i256 [selector=0x09891331, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @publicRead, arg0
-    mstore v0, 1
-    v1 = mload v0
+    store v0, 1
+    v1 = load v0
     ret v1
 }
 
 fn @returnAndWriteThroughPublicRead(arg0: i256) -> i256 [selector=0x047fa66e, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @publicRead, arg0
-    mstore v0, 1
+    store v0, 1
     ret v0
 }
 
@@ -559,8 +559,8 @@ fn @writeThroughPublicPair(arg0: i256) -> struct0 [selector=0x10a87d15, pure, ab
     v0 = icall @tupleReturnPublic, arg0
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    mstore v1, 1
-    v3 = mload v1
+    store v1, 1
+    v3 = load v1
     v4 = insert_value struct0, undef struct0, 0, v3
     v5 = insert_value struct0, v4, 1, v2
     ret v5
@@ -568,68 +568,68 @@ fn @writeThroughPublicPair(arg0: i256) -> struct0 [selector=0x10a87d15, pure, ab
 
 fn @revertAtLoadedOffset(arg0: i256, arg1: i256) [selector=0xf3970891, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = calldataload 4
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load calldata 4
+    store 64, v0 !metadata(memory=scratch)
     v1 = ne arg1, 0
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = mload 0x10000
+    v3 = load 0x10000
     revert v3, 96
   bb1:
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore v2, 1
+    v2 = load 64 !metadata(memory=scratch)
+    store v2, 1
     returndata 0, 0
 }
 
 fn @revertBelowPointer(arg0: i256, arg1: i256) [selector=0x7f4c2912, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = sub v0, 64
-    mstore 0, v1 !metadata(memory=scratch)
-    v2 = calldataload 4
-    mstore 64, v2 !metadata(memory=scratch)
+    store 0, v1 !metadata(memory=scratch)
+    v2 = load calldata 4
+    store 64, v2 !metadata(memory=scratch)
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v5 = mload 0 !metadata(memory=scratch)
+    v5 = load 0 !metadata(memory=scratch)
     v6 = sub v0, v5
     revert v6, 32
   bb1:
-    v4 = mload 64 !metadata(memory=scratch)
-    mstore v4, 1
+    v4 = load 64 !metadata(memory=scratch)
+    store v4, 1
     returndata 0, 0
 }
 
 fn @revertPastPointer(arg0: i256, arg1: i256) [selector=0x866f32cc, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     v1 = sub 64, v0
-    mstore 0, v1 !metadata(memory=scratch)
-    v2 = calldataload 4
-    mstore 64, v2 !metadata(memory=scratch)
+    store 0, v1 !metadata(memory=scratch)
+    v2 = load calldata 4
+    store 64, v2 !metadata(memory=scratch)
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v5 = mload 0 !metadata(memory=scratch)
+    v5 = load 0 !metadata(memory=scratch)
     v6 = add v0, v5
     revert v6, 32
   bb1:
-    v4 = mload 64 !metadata(memory=scratch)
-    mstore v4, 1
+    v4 = load 64 !metadata(memory=scratch)
+    store v4, 1
     returndata 0, 0
 }
 
 fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
-    v0 = calldataload 4
-    mstore 64, v0 !metadata(memory=scratch)
-    mstore 32, 32 !metadata(memory=scratch)
+    v0 = load calldata 4
+    store 64, v0 !metadata(memory=scratch)
+    store 32, 32 !metadata(memory=scratch)
     v1 = memory_slice memptr 32
     v2 = slice_ptr v1
     v3 = slice_len v1
@@ -637,7 +637,7 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     v5 = not 31
     v6 = and 64, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
-    mstore v7, 1
+    store v7, 1
     v8 = memory_slice v7
     v9 = slice_len v8
     v10 = insert_value struct0, undef struct0, 0, v4
@@ -650,12 +650,12 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v0 = not 31
     v1 = and 64, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    mstore v2, 1
+    store v2, 1
     v3 = not 0
     v4 = ptrtoint memptr v2 to i256
-    mstore v4, v3
-    v5 = calldataload 4
-    mstore 64, v5 !metadata(memory=scratch)
+    store v4, v3
+    v5 = load calldata 4
+    store 64, v5 !metadata(memory=scratch)
     v6 = ptrtoint memptr v2 to i256
     v7 = add v6, 32
     v8 = sub 95, v7
@@ -671,7 +671,7 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v17 = not 31
     v18 = and 64, v17
     v19 = alloc memorybytes, exact, zeroed, panic, v18
-    mstore v19, 1
+    store v19, 1
     v20 = memory_slice v19
     v21 = slice_len v20
     v22 = insert_value struct1, undef struct1, 0, v16
@@ -682,12 +682,12 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     v1 = not 0
     v2 = ptrtoint memptr v0 to i256
-    mstore v2, v1
-    v3 = calldataload 4
-    mstore 64, v3 !metadata(memory=scratch)
+    store v2, v1
+    v3 = load calldata 4
+    store 64, v3 !metadata(memory=scratch)
     v4 = ptrtoint memptr v0 to i256
     v5 = add v4, 32
     v6 = sub 64, v5
@@ -702,7 +702,7 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     v14 = not 31
     v15 = and 64, v14
     v16 = alloc memorybytes, exact, zeroed, panic, v15
-    mstore v16, 1
+    store v16, 1
     v17 = memory_slice v16
     v18 = slice_len v17
     v19 = insert_value struct0, undef struct0, 0, v13
@@ -730,7 +730,7 @@ fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[u256
 fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     v1 = icall @_scratchWord
     v2 = memory_slice v0
     v3 = slice_len v2
@@ -764,22 +764,22 @@ fn @scratchError(arg0: i256) [selector=0x0ba9186e, pure, abi_params=[u256], abi_
 
 fn @checkedScaled(arg0: i256) -> i256 [selector=0x0cc852a0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = calldataload 4
-    mstore 64, v0 !metadata(memory=scratch)
-    v1 = mload 64 !metadata(memory=scratch)
+    v0 = load calldata 4
+    store 64, v0 !metadata(memory=scratch)
+    v1 = load 64 !metadata(memory=scratch)
     v2 = checked_mul u256, v1, 0x8000000000000000000000000000000000000000000000000000000000000000
-    mstore v2, 1
+    store v2, 1
     ret v1
 }
 
 fn @hashHelperScratch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x75fdf974, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
     icall @_putScratch
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
     v1 = keccak256 0, 96 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v1
 }
 
@@ -792,7 +792,7 @@ fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x
     v2 = not 31
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
-    mstore v4, arg2
+    store v4, arg2
     v5 = memory_slice v4
     v6 = slice_len v5
     ret v6
@@ -800,14 +800,14 @@ fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x
 
 fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe3ce866b, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 68
-    mstore 64, v1 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 68
+    store 64, v1 !metadata(memory=scratch)
     v2 = checked_add u256, arg0, arg1
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
     v3 = keccak256 0, 96 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v4 = checked_sub u256, v2, arg0
     v5 = checked_sub u256, v4, arg1
     v6 = shl 0, v5
@@ -817,27 +817,27 @@ fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0
 
 fn @_putScratch() [pure] {
   bb0:
-    v0 = calldataload 68
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load calldata 68
+    store 64, v0 !metadata(memory=scratch)
     ret
 }
 
 fn @_copy(arg0: i256) -> memptr [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore v0, arg0
+    v0 = load 64 !metadata(memory=scratch)
+    store v0, arg0
     v1 = add v0, 32
     codecopy v1, 0, arg0
     v2 = add v0, 32
     v3 = add v2, arg0
-    mstore 64, v3 !metadata(memory=scratch)
+    store 64, v3 !metadata(memory=scratch)
     v4 = inttoptr i256 v0 to memptr
     ret v4
 }
 
 fn @_lay(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = calldataload 36
+    v0 = load calldata 36
     v1 = shl 5, v0
     v2 = add 160, v1
     jump bb1
@@ -853,13 +853,13 @@ fn @_lay(arg0: i256) -> i256 [pure] {
   bb5:
     jump bb2
   bb2:
-    mstore v6, v5
+    store v6, v5
     v11 = sub v6, 160
     v12 = add v11, 32
     v13 = keccak256 160, v12
     ret v13
   bb4:
-    mstore v4, v5
+    store v4, v5
     jump bb6
   bb6:
     jump bb3
@@ -870,21 +870,21 @@ fn @_lay(arg0: i256) -> i256 [pure] {
 
 fn @_scratchWord() -> i256 [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v2
 }
 
 fn @_scratchPair() -> struct0 [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v3 = insert_value struct0, undef struct0, 0, v2
     v4 = insert_value struct0, v3, 1, 7
     ret v4
@@ -898,10 +898,10 @@ fn @hashScratch.49() -> i256 {
 
 fn @put(arg0: i256, arg1: i256) {
   bb0:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, arg1 !metadata(memory=scratch)
-    v0 = calldataload 68
-    mstore 64, v0 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
+    store 32, arg1 !metadata(memory=scratch)
+    v0 = load calldata 68
+    store 64, v0 !metadata(memory=scratch)
     ret
 }
 
@@ -922,21 +922,21 @@ fn @hashFrom(arg0: i256) -> i256 {
 
 fn @readWord() -> i256 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v2
 }
 
 fn @scratchPair() -> struct0 {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    v1 = calldataload 4
-    mstore 64, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    v1 = load calldata 4
+    store 64, v1 !metadata(memory=scratch)
+    v2 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     v3 = insert_value struct0, undef struct0, 0, v2
     v4 = insert_value struct0, v3, 1, 7
     ret v4

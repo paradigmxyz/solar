@@ -15,7 +15,7 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -41,7 +41,7 @@ fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_r
     v7 = slice_ptr v1
     v8 = ptrtoint memptr v5 to i256
     v9 = add v8, v2
-    mcopy v9, v7, 32 !metadata(memory=heap)
+    copy v9, v7, 32 !metadata(memory=heap)
     v10 = ptrtoint memptr v5 to i256
     v11 = create 0, v10, v3
     v12 = ne v11, i160 0
@@ -69,7 +69,7 @@ fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_return
     v9 = slice_ptr v3
     v10 = ptrtoint memptr v7 to i256
     v11 = add v10, v4
-    mcopy v11, v9, 32 !metadata(memory=heap)
+    copy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
     v13 = create 0, v12, v5
     v14 = ne v13, i160 0

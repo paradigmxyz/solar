@@ -7,11 +7,11 @@
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96
 +     v0 = alloc raw, exact, zeroed, panic, 96
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 3
+      store v1, 3
 -     v2 = memory_slice v0
 -     v3 = slice_len v2
 -     v4 = slice_ptr v2
--     mstore8 v4, v3
+-     store8 v4, v3
 -     v5 = make_memory_slice arg2, 2
 -     slice_store_word v5, 32, v3
 -     v6 = memory_slice arg1
@@ -21,24 +21,24 @@
 -     v9 = shl 5, v3
 -     slice_store_word v8, v9, v3
 +     v10 = ptrtoint memptr v0 to i256
-+     v2 = mload v10
++     v2 = load v10
 +     v11 = ptrtoint memptr v0 to i256
 +     v4 = add v11, 32
-+     mstore8 v4, v2
++     store8 v4, v2
 +     v12 = ptrtoint memptr arg2 to i256
 +     v5 = make_memory_slice v12, 2
 +     v13 = add v12, 32
-+     mstore v13, v2
++     store v13, v2
 +     v7 = shl 5, v2
 +     v14 = ptrtoint memptr arg1 to i256
 +     v15 = add v14, 32
 +     v16 = add v15, v7
-+     mstore v16, v2
++     store v16, v2
 +     v17 = ptrtoint memptr arg3 to i256
 +     v8 = make_memory_slice v17, 4
 +     v9 = shl 5, v2
 +     v18 = add v17, v9
-+     mstore v18, v2
++     store v18, v2
       stop
   }
   
@@ -53,17 +53,17 @@
 +     v2 = add v1, 32
 +     v3 = slice_ptr arg1
 +     v4 = slice_len arg1
-+     mcopy v2, v3, v4
++     copy v2, v3, v4
 +     v5 = ptrtoint memptr arg0 to i256
 +     v6 = add v5, 32
 +     v7 = slice_ptr arg2
 +     v8 = slice_len arg2
-+     calldatacopy v6, v7, v8
++     copy calldata v6, v7, v8
 +     v9 = ptrtoint memptr arg0 to i256
 +     v10 = add v9, 32
 +     v11 = slice_ptr arg3
 +     v12 = slice_len arg3
-+     returndatacopy v10, v11, v12
++     copy returndata v10, v11, v12
       stop
   }
   
@@ -78,7 +78,7 @@
 +     v1 = add v4, 32
 +     v5 = ptrtoint memptr arg1 to i256
 +     v3 = add v5, 32
-      mcopy v1, v3, arg2
+      copy v1, v3, arg2
       stop
   }
   
@@ -90,7 +90,7 @@
 -     v2 = memory_slice v1
 -     v3 = slice_len v2
 -     ret v3
-+     v2 = mload v0
++     v2 = load v0
 +     ret v2
   }
   
@@ -109,13 +109,13 @@
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
-      mstore v1, 0
+      store v1, 0
 -     v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
 +     v4 = ptrtoint memptr v0 to i256
 +     v5 = add v4, 32
 +     v2 = inttoptr i256 v5 to memptr
       v3 = ptrtoint memptr v2 to i256
-      mstore v3, 0
+      store v3, 0
       ret v2
   }
   

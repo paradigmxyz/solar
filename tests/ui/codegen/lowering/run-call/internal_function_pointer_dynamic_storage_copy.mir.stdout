@@ -3,7 +3,7 @@
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
-    mstore v0, 10
+    store v0, 10
     v1 = memory_slice v0
     v2 = slice_len v1
     v3 = sload 0 !metadata(storage=slot(0))

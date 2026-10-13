@@ -69,25 +69,25 @@ fn @reject_symbolic_and_constant_slots(arg0: i256) [selector=0x01020304] {
 // CHECK-LABEL: @promote_two_constant_slots
 // CHECK: -     sstore [[ZERO_SLOT:[0-9]+]], 1
 // CHECK: -     sstore [[ONE_SLOT:[0-9]+]], 2
-// CHECK:       mstore [[ZERO_ADDR:[0-9]+]], 1
-// CHECK:       mstore [[ONE_ADDR:[0-9]+]], 2
+// CHECK:       store [[ZERO_ADDR:[0-9]+]], 1
+// CHECK:       store [[ONE_ADDR:[0-9]+]], 2
 // CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[EXIT]]:
-// CHECK:       [[ONE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       [[ONE:v[0-9]+]] = load [[ONE_ADDR]]
 // CHECK:       sstore [[ONE_SLOT]], [[ONE]]
-// CHECK:       [[ZERO:v[0-9]+]] = mload [[ZERO_ADDR]]
+// CHECK:       [[ZERO:v[0-9]+]] = load [[ZERO_ADDR]]
 // CHECK:       sstore [[ZERO_SLOT]], [[ZERO]]
 // CHECK:       [[BODY]]:
 // CHECK: -     {{v[0-9]+}} = sload [[ZERO_SLOT]]
-// CHECK:       [[ZERO_VALUE:v[0-9]+]] = mload [[ZERO_ADDR]]
+// CHECK:       [[ZERO_VALUE:v[0-9]+]] = load [[ZERO_ADDR]]
 // CHECK:       [[ZERO_UPDATED:v[0-9]+]] = mul [[ZERO_VALUE]], 2
 // CHECK: -     sstore [[ZERO_SLOT]], [[ZERO_UPDATED]]
 // CHECK: -     {{v[0-9]+}} = sload [[ONE_SLOT]]
-// CHECK:       mstore [[ZERO_ADDR]], [[ZERO_UPDATED]]
-// CHECK:       [[ONE_VALUE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       store [[ZERO_ADDR]], [[ZERO_UPDATED]]
+// CHECK:       [[ONE_VALUE:v[0-9]+]] = load [[ONE_ADDR]]
 // CHECK:       [[ONE_UPDATED:v[0-9]+]] = add [[ONE_VALUE]], 3
 // CHECK: -     sstore [[ONE_SLOT]], [[ONE_UPDATED]]
-// CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
+// CHECK:       store [[ONE_ADDR]], [[ONE_UPDATED]]
 fn @promote_two_constant_slots() [selector=0x01020304] {
   bb0:
     sstore 0, 1
@@ -112,31 +112,31 @@ fn @promote_two_constant_slots() [selector=0x01020304] {
 // CHECK-LABEL: @promote_same_base_distinct_offsets
 // CHECK:       [[ONE_SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     sstore [[ONE_SLOT]], 1
-// CHECK:       mstore [[ONE_ADDR:[0-9]+]], 1
+// CHECK:       store [[ONE_ADDR:[0-9]+]], 1
 // CHECK:       [[TWO_SLOT:v[0-9]+]] = add arg0, 2
 // CHECK: -     sstore [[TWO_SLOT]], 2
-// CHECK:       mstore [[TWO_ADDR:[0-9]+]], 2
+// CHECK:       store [[TWO_ADDR:[0-9]+]], 2
 // CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[EXIT]]:
-// CHECK:       [[TWO_FLUSH:v[0-9]+]] = mload [[TWO_ADDR]]
+// CHECK:       [[TWO_FLUSH:v[0-9]+]] = load [[TWO_ADDR]]
 // CHECK:       sstore [[TWO_SLOT]], [[TWO_FLUSH]]
-// CHECK:       [[ONE_FLUSH:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       [[ONE_FLUSH:v[0-9]+]] = load [[ONE_ADDR]]
 // CHECK:       sstore [[ONE_SLOT]], [[ONE_FLUSH]]
 // CHECK:       [[BODY]]:
 // CHECK:       [[BODY_ONE_SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     {{v[0-9]+}} = sload [[BODY_ONE_SLOT]]
-// CHECK:       [[ONE_VALUE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       [[ONE_VALUE:v[0-9]+]] = load [[ONE_ADDR]]
 // CHECK:       [[ONE_UPDATED:v[0-9]+]] = mul [[ONE_VALUE]], 2
 // CHECK:       [[STORE_ONE_SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     sstore [[STORE_ONE_SLOT]], [[ONE_UPDATED]]
-// CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
+// CHECK:       store [[ONE_ADDR]], [[ONE_UPDATED]]
 // CHECK:       [[BODY_TWO_SLOT:v[0-9]+]] = add arg0, 2
 // CHECK: -     {{v[0-9]+}} = sload [[BODY_TWO_SLOT]]
-// CHECK:       [[TWO_VALUE:v[0-9]+]] = mload [[TWO_ADDR]]
+// CHECK:       [[TWO_VALUE:v[0-9]+]] = load [[TWO_ADDR]]
 // CHECK:       [[TWO_UPDATED:v[0-9]+]] = add [[TWO_VALUE]], 3
 // CHECK:       [[STORE_TWO_SLOT:v[0-9]+]] = add arg0, 2
 // CHECK: -     sstore [[STORE_TWO_SLOT]], [[TWO_UPDATED]]
-// CHECK:       mstore [[TWO_ADDR]], [[TWO_UPDATED]]
+// CHECK:       store [[TWO_ADDR]], [[TWO_UPDATED]]
 fn @promote_same_base_distinct_offsets(arg0: i256) [selector=0x01020304] {
   bb0:
     v1 = add arg0, 1

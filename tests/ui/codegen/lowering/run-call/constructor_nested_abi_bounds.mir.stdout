@@ -31,7 +31,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v7, 0
+    store v7, 0
     v8 = ptrtoint memptr v7 to i256
     slice_store_word v0, 0, v8
     jump bb2
@@ -53,7 +53,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     jumpi v20, bb3, bb4
   bb3:
     v21 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v21, 0
+    store v21, 0
     v22 = ptrtoint memptr v21 to i256
     slice_store_word v14, 32, v22
     jump bb4
@@ -75,7 +75,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     jumpi v34, bb5, bb6
   bb5:
     v35 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v35, 0
+    store v35, 0
     v36 = ptrtoint memptr v35 to i256
     slice_store_word v28, 0, v36
     jump bb6
@@ -95,7 +95,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     jumpi v47, bb7, bb8
   bb7:
     v48 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v48, 0
+    store v48, 0
     v49 = ptrtoint memptr v48 to i256
     slice_store_word v41, 32, v49
     jump bb8
@@ -116,7 +116,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -124,12 +124,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    mstore v6, 62
+    store v6, 62
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
-    mstore v8, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
+    store v8, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
     v9 = add v7, 64
-    mstore v9, 0x8a09ff40000
+    store v9, 0x8a09ff40000
     v10 = memory_slice v0
     v11 = slice_len v10
     v12 = lt 0, v11
@@ -138,10 +138,10 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v14 = ptrtoint memptr v6 to i256
     slice_store_word v10, 0, v14
     v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v15, 5
+    store v15, 5
     v16 = ptrtoint memptr v15 to i256
     v17 = add v16, 32
-    mstore v17, 0x102030405000000000000000000000000000000000000000000000000000000
+    store v17, 0x102030405000000000000000000000000000000000000000000000000000000
     v18 = memory_slice v0
     v19 = slice_len v18
     v20 = lt 1, v19
@@ -166,7 +166,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v34 = slice_ptr v23
     v35 = ptrtoint memptr v32 to i256
     v36 = add v35, v25
-    mcopy v36, v34, v24 !metadata(memory=heap)
+    copy v36, v34, v24 !metadata(memory=heap)
     v37 = ptrtoint memptr v32 to i256
     v38 = create 0, v37, v26
     v39 = ne v38, i160 0
@@ -188,7 +188,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v47 = lt v46, 32
     icall revert_if<tuple_data_too_short>, v47
     v48 = add 0, 0
-    v49 = mload v48
+    v49 = load v48
     v50 = memory_slice v0
     v51 = slice_len v50
     v52 = lt 0, v51
@@ -200,7 +200,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v56, bb8, bb9
   bb8:
     v57 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v57, 0
+    store v57, 0
     v58 = ptrtoint memptr v57 to i256
     slice_store_word v50, 0, v58
     jump bb9
@@ -229,7 +229,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v72 = lt v71, 32
     icall revert_if<tuple_data_too_short>, v72
     v73 = add 0, 0
-    v74 = mload v73
+    v74 = load v73
     v75 = memory_slice v0
     v76 = slice_len v75
     v77 = lt 1, v76
@@ -241,7 +241,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v81, bb15, bb16
   bb15:
     v82 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v82, 0
+    store v82, 0
     v83 = ptrtoint memptr v82 to i256
     slice_store_word v75, 32, v83
     jump bb16
@@ -269,7 +269,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v98 = lt v97, 32
     icall revert_if<tuple_data_too_short>, v98
     v99 = add 0, 0
-    v100 = mload v99
+    v100 = load v99
     v101 = memory_slice v0
     v102 = slice_len v101
     v103 = lt 0, v102
@@ -281,7 +281,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v107, bb19, bb20
   bb19:
     v108 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v108, 0
+    store v108, 0
     v109 = ptrtoint memptr v108 to i256
     slice_store_word v101, 0, v109
     jump bb20
@@ -301,7 +301,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v120, bb21, bb22
   bb21:
     v121 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v121, 0
+    store v121, 0
     v122 = ptrtoint memptr v121 to i256
     slice_store_word v114, 32, v122
     jump bb22

@@ -64,9 +64,10 @@ pub(super) fn slice_type(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-pub(super) fn address(func: &Function, value: ValueId) -> MirType {
+/// An address operand in `location`: a pointer into it, or a raw word.
+pub(super) fn address(func: &Function, value: ValueId, location: PtrLocation) -> MirType {
     match func.value_ty(value) {
-        Some(MirType::MEMPTR) => MirType::MEMPTR,
+        Some(ty @ MirType::Ptr(actual)) if actual == location => ty,
         _ => MirType::I256,
     }
 }

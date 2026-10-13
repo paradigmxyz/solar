@@ -211,7 +211,7 @@ impl PackedEncoder<'_, '_> {
         while index < pieces.len() {
             if let Some((consumed, length, value)) = self.try_pack_packed_word(&pieces[index..]) {
                 let dest = self.packed_scratch_offset(cursor.or(base), offset);
-                self.builder.mstore(dest, value);
+                self.builder.store(dest, value);
                 offset = offset.checked_add(length)?;
                 index += consumed;
                 continue;
@@ -226,7 +226,7 @@ impl PackedEncoder<'_, '_> {
                         padded[..chunk.len()].copy_from_slice(chunk);
                         let value = self.builder.imm(U256::from_be_bytes(padded));
                         let dest = self.packed_scratch_offset(cursor.or(base), offset);
-                        self.builder.mstore(dest, value);
+                        self.builder.store(dest, value);
                         offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
                     }
                 }
@@ -236,7 +236,7 @@ impl PackedEncoder<'_, '_> {
                     let location = self.builder.func().value_slice_location(*source)?;
                     let source_length = self.builder.slice_len(*source);
                     let pointer = self.builder.slice_ptr(*source);
-                    self.builder.copy_slice_data(location, dest, pointer, source_length);
+                    self.builder.copy_heap(dest, pointer, source_length, location);
                     cursor = Some(self.builder.add(dest, *length));
                     offset = 0;
                 }
@@ -249,7 +249,7 @@ impl PackedEncoder<'_, '_> {
                         self.builder.shl(shift, *value)
                     };
                     let dest = self.packed_scratch_offset(cursor.or(base), offset);
-                    self.builder.mstore(dest, value);
+                    self.builder.store(dest, value);
                     offset = offset.checked_add(*length)?;
                 }
                 PackedPiece::Array { .. } => return None,

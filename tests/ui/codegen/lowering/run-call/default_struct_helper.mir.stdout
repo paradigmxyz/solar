@@ -3,7 +3,7 @@
 fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -119,7 +119,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
 fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v11]
@@ -209,7 +209,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
 fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]

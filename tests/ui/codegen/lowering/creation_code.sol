@@ -8,7 +8,7 @@ contract CreationCodeChild {
 contract CreationCodeFactory {
     // CHECK-LABEL: fn @creationCode{{[( ]}}
     // CHECK: [[CODE:v[0-9]+]] = alloc memorybytes
-    // CHECK: mstore [[CODE]], {{v[0-9]+}}
+    // CHECK: store [[CODE]], {{v[0-9]+}}
     function creationCode() external pure returns (bytes memory) {
         return type(CreationCodeChild).creationCode;
     }

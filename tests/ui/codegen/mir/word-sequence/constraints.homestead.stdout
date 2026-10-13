@@ -15,7 +15,7 @@
     bb0:
       v0 = not arg0
       v1 = not arg1
-      mstore 0, arg0
+      store 0, arg0
       v2 = and v0, v1
       ret v2
   }

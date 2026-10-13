@@ -14,7 +14,7 @@ fn @h(arg0: calldataslice) -> i256 [selector=0x4fc262ac, pure, abi_params=[tuple
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
-    v2 = calldataload v1
+    v2 = load calldata v1
     v3 = shl 192, v2
     v4 = eq v3, 0
     v5 = eq v4, false
@@ -33,7 +33,7 @@ fn @checkField(arg0: calldataslice) [pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
-    v2 = calldataload v1
+    v2 = load calldata v1
     v3 = shl 192, v2
     v4 = eq v3, 0
     v5 = eq v4, false

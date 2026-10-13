@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::mir::{Builtin, Callee};
+use crate::mir::{Builtin, Callee, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -127,7 +127,9 @@ impl InstKind {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }
             Self::AbiDecode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
-            Self::ReturnDataCopy(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
+            Self::Copy(.., PtrLocation::Returndata) => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::Zext(..)
@@ -160,9 +162,9 @@ impl InstKind {
             | Self::SGt(..)
             | Self::Eq(..)
             | Self::Ne(..)
-            | Self::MLoad(..)
-            | Self::MStore(..)
-            | Self::MStore8(..)
+            | Self::Load(..)
+            | Self::Store(..)
+            | Self::Store8(..)
             | Self::MemoryZero(..)
             | Self::MSize
             | Self::Fmp
@@ -176,13 +178,11 @@ impl InstKind {
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }
-            | Self::MCopy(..)
+            | Self::Copy(.., PtrLocation::Memory | PtrLocation::Calldata)
             | Self::SLoad(..)
             | Self::SStore(..)
             | Self::TLoad(..)
             | Self::TStore(..)
-            | Self::CalldataLoad(..)
-            | Self::CalldataCopy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
             | Self::SlicePtr(..)

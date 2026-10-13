@@ -28,16 +28,16 @@ fn @load_storage_bytes(arg0: i256) -> memptr {
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v0, 11
+    store v0, 11
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
-    mstore v2, 0x4e61746976654552433230000000000000000000000000000000000000000000
+    store v2, 0x4e61746976654552433230000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
     v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v3, 6
+    store v3, 6
     v4 = ptrtoint memptr v3 to i256
     v5 = add v4, 32
-    mstore v5, 0x4e45524332300000000000000000000000000000000000000000000000000000
+    store v5, 0x4e45524332300000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 1, v3
     v6 = sload 2 !metadata(storage=slot(2))
     v7 = not 255
@@ -73,7 +73,7 @@ fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -98,7 +98,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -144,7 +144,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v34 = lt v33, 32
     icall revert_if<tuple_data_too_short>, v34
     v35 = add 0, 0
-    v36 = mload v35
+    v36 = load v35
     v37 = shr 8, v36
     v38 = eq v37, 0
     v39 = eq v38, false

@@ -27,8 +27,8 @@
 //! allocations lose their provenance. Facts do not cross caller block boundaries.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
-    ValueId,
+    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Module, PtrLocation,
+    Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
         MemoryLocation,
@@ -173,7 +173,7 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                         )
                     });
                 }
-                if let InstKind::MStore(address, value) = instruction.kind
+                if let InstKind::Store(address, value) = instruction.kind
                     && let Some(word) = operand(func, &env, None, value).and_then(Datum::word)
                     && let Some(address) = alias.memory_address(func, address)
                     && matches!(address.base, MemoryBase::Allocation(_))
@@ -220,7 +220,7 @@ fn scalar(
         InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
             return get(value);
         }
-        InstKind::MLoad(address) => {
+        InstKind::Load(address, PtrLocation::Memory) => {
             let Datum::Pointer(address) = get(address)? else { return None };
             return memory.get(&address).copied().map(Datum::Word);
         }

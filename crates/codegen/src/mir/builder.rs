@@ -255,10 +255,10 @@ impl<'a> FunctionBuilder<'a> {
         // mstore(32, code); mstore(0, Panic.selector); revert(28, 36)
         let code = self.imm(code.as_u64());
         let word = self.imm(32);
-        self.mstore(word, code);
+        self.store(word, code);
         let selector = self.imm(0x4e48_7b71_u64);
         let zero = self.imm(U256::ZERO);
-        self.mstore(zero, selector);
+        self.store(zero, selector);
         let offset = self.imm(28);
         let size = self.imm(36);
         self.revert(offset, size);
@@ -321,20 +321,20 @@ impl<'a> FunctionBuilder<'a> {
         // revert(0, 68 + ceil32(len))
         let selector = self.imm(ERROR_SELECTOR);
         let zero = self.imm(0);
-        self.mstore(zero, selector);
+        self.store(zero, selector);
         let offset = self.imm(4);
         let tuple_offset = self.imm(32);
-        self.mstore(offset, tuple_offset);
+        self.store(offset, tuple_offset);
         let length_offset = self.imm(36);
         let length = self.imm(message.len() as u64);
-        self.mstore(length_offset, length);
+        self.store(length_offset, length);
         let mut data_offset = 68u64;
         for chunk in message.as_bytes().chunks(32) {
             let mut word = [0u8; 32];
             word[..chunk.len()].copy_from_slice(chunk);
             let offset = self.imm(data_offset);
             let word = self.imm(U256::from_be_bytes(word));
-            self.mstore(offset, word);
+            self.store(offset, word);
             data_offset += 32;
         }
         let size = self.imm(data_offset);
@@ -718,14 +718,12 @@ impl<'a> FunctionBuilder<'a> {
             });
         }
         let addr = match *kind {
-            InstKind::MLoad(addr)
-            | InstKind::MStore(addr, _)
-            | InstKind::MStore8(addr, _)
+            InstKind::Load(addr, PtrLocation::Memory)
+            | InstKind::Store(addr, _)
+            | InstKind::Store8(addr, _)
             | InstKind::Keccak256(addr, _) => addr,
-            InstKind::MCopy(dest, _, _)
-            | InstKind::CalldataCopy(dest, _, _)
+            InstKind::Copy(dest, ..)
             | InstKind::CodeCopy(dest, _, _)
-            | InstKind::ReturnDataCopy(dest, _, _)
             | InstKind::ExtCodeCopy(_, dest, _, _) => dest,
             _ => return None,
         };
@@ -878,8 +876,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Writes the length word of a fresh dynamic memory object.
     pub(crate) fn set_memory_len(&mut self, object: ValueId, len: ValueId) {
-        // mstore object, len
-        self.mstore(object, len);
+        // store object, len
+        self.store(object, len);
     }
 
     /// Returns the payload address of a dynamic memory object or memory slice.
@@ -908,9 +906,9 @@ impl<'a> FunctionBuilder<'a> {
         let data = match self.func.value_slice_location(view) {
             Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
                 // data = fmp
-                // copy_slice_data data, source, len
+                // copy data, source, len
                 let data = self.fmp();
-                self.copy_slice_data(location, data, source, len);
+                self.copy_heap(data, source, len, location);
                 data
             }
             _ => source,
@@ -1055,7 +1053,7 @@ impl<'a> FunctionBuilder<'a> {
             // word = calldataload (add (slice_ptr slice), offset)
             let data = self.slice_ptr(slice);
             let address = self.add(data, offset);
-            return self.calldataload(address);
+            return self.load(address, PtrLocation::Calldata);
         }
         self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
     }
@@ -1309,9 +1307,33 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::AbiDecode { data, layout });
     }
 
-    /// Emits an mcopy whose destination is proven to be in the heap.
-    pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) -> InstId {
-        self.emit_void_inst_in_region(InstKind::MCopy(dest, src, len), MemoryRegion::Heap)
+    /// Emits a word load from memory or calldata.
+    pub(crate) fn load(&mut self, ptr: ValueId, location: PtrLocation) -> ValueId {
+        // result = load location ptr
+        self.emit_inst(InstKind::Load(ptr, location), Some(MirType::I256))
+    }
+
+    /// Emits a copy into memory.
+    pub(crate) fn copy(
+        &mut self,
+        dest: ValueId,
+        src: ValueId,
+        len: ValueId,
+        location: PtrLocation,
+    ) {
+        // copy location dest, src, len
+        self.emit_void_inst(InstKind::Copy(dest, src, len, location))
+    }
+
+    /// Emits a copy whose destination is proven to be in the heap.
+    pub(crate) fn copy_heap(
+        &mut self,
+        dest: ValueId,
+        src: ValueId,
+        len: ValueId,
+        location: PtrLocation,
+    ) -> InstId {
+        self.emit_void_inst_in_region(InstKind::Copy(dest, src, len, location), MemoryRegion::Heap)
     }
 
     /// Constructs a logical `(pointer, length, location)` slice.
@@ -1343,14 +1365,6 @@ impl<'a> FunctionBuilder<'a> {
         // result = datasize data, addend[, aligned]
         let size = crate::mir::DataSize { data, addend, aligned };
         self.emit_inst(InstKind::DataSize(size), Some(MirType::I256))
-    }
-
-    /// Emits a calldatacopy whose destination is proven to be in the heap.
-    pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
-        self.emit_void_inst_in_region(
-            InstKind::CalldataCopy(dest, offset, size),
-            MemoryRegion::Heap,
-        );
     }
 
     /// Emits an opaque library address supplied by the linker.
@@ -1394,33 +1408,6 @@ impl<'a> FunctionBuilder<'a> {
         );
     }
 
-    /// Emits a returndatasize instruction.
-    ///
-    /// Copies bytes from a logical slice's address space into memory.
-    pub(crate) fn copy_slice_data(
-        &mut self,
-        location: PtrLocation,
-        dest: ValueId,
-        source: ValueId,
-        size: ValueId,
-    ) {
-        match location {
-            PtrLocation::Memory => {
-                self.mcopy_heap(dest, source, size);
-            }
-            PtrLocation::Calldata => self.calldatacopy_heap(dest, source, size),
-            PtrLocation::Returndata => self.returndatacopy_heap(dest, source, size),
-        }
-    }
-
-    /// Emits a returndatacopy whose destination is proven to be in the heap.
-    pub(crate) fn returndatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
-        self.emit_void_inst_in_region(
-            InstKind::ReturnDataCopy(dest, offset, size),
-            MemoryRegion::Heap,
-        );
-    }
-
     /// Emits a returndata copy that feeds an external return or revert.
     pub(crate) fn returndatacopy_abi_return(
         &mut self,
@@ -1429,7 +1416,7 @@ impl<'a> FunctionBuilder<'a> {
         size: ValueId,
     ) {
         self.emit_void_inst_in_region(
-            InstKind::ReturnDataCopy(dest, offset, size),
+            InstKind::Copy(dest, offset, size, PtrLocation::Returndata),
             MemoryRegion::AbiReturn,
         );
     }

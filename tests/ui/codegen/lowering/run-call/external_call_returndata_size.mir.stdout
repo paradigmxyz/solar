@@ -46,7 +46,7 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -54,7 +54,7 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v11 = mload 64 !metadata(memory=scratch)
+    v11 = load 64 !metadata(memory=scratch)
     v12 = gas
     v13 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
     v14 = slice_ptr v13
@@ -69,8 +69,8 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
-    v21 = mload v20
-    v22 = mload 64 !metadata(memory=scratch)
+    v21 = load v20
+    v22 = load 64 !metadata(memory=scratch)
     v23 = sub v22, v11
     v24 = insert_value struct0, undef struct0, 0, v23
     v25 = insert_value struct0, v24, 1, v21
@@ -88,7 +88,7 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -99,7 +99,7 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     v11 = zext i160 v9 to i256
     v12 = shl 32, v11
     v13 = or v12, 0x26121ff0
-    v14 = mload 64 !metadata(memory=scratch)
+    v14 = load 64 !metadata(memory=scratch)
     v15 = and v13, 0xffffffff
     v16 = shl 224, v15
     v17 = shr 32, v13
@@ -116,8 +116,8 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = mload v25
-    v27 = mload 64 !metadata(memory=scratch)
+    v26 = load v25
+    v27 = load 64 !metadata(memory=scratch)
     v28 = sub v27, v14
     v29 = insert_value struct0, undef struct0, 0, v28
     v30 = insert_value struct0, v29, 1, v26
@@ -135,7 +135,7 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -143,7 +143,7 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v11 = mload 64 !metadata(memory=scratch)
+    v11 = load 64 !metadata(memory=scratch)
     v12 = gas
     v13 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
     v14 = slice_ptr v13
@@ -158,14 +158,14 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     v19 = lt v18, 64
     icall revert_if<tuple_data_too_short>, v19
     v20 = add v14, 0
-    v21 = mload v20
+    v21 = load v20
     v22 = add v14, 32
-    v23 = mload v22
+    v23 = load v22
     v24 = insert_value struct0, undef struct0, 0, v21
     v25 = insert_value struct0, v24, 1, v23
     v26 = extract_value struct0, v25, 0
     v27 = extract_value struct0, v25, 1
-    v28 = mload 64 !metadata(memory=scratch)
+    v28 = load 64 !metadata(memory=scratch)
     v29 = sub v28, v11
     v30 = insert_value struct1, undef struct1, 0, v29
     v31 = insert_value struct1, v30, 1, v26
@@ -184,7 +184,7 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -195,7 +195,7 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     v11 = zext i160 v9 to i256
     v12 = shl 32, v11
     v13 = or v12, 0x26121ff0
-    v14 = mload 64 !metadata(memory=scratch)
+    v14 = load 64 !metadata(memory=scratch)
     v15 = and v13, 0xffffffff
     v16 = shl 224, v15
     v17 = shr 32, v13
@@ -212,10 +212,10 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     v24 = lt v23, 64
     icall revert_if<tuple_data_too_short>, v24
     v25 = add v20, 0
-    v26 = mload v25
+    v26 = load v25
     v27 = add v20, 32
-    v28 = mload v27
-    v29 = mload 64 !metadata(memory=scratch)
+    v28 = load v27
+    v29 = load 64 !metadata(memory=scratch)
     v30 = sub v29, v14
     v31 = insert_value struct1, undef struct1, 0, v30
     v32 = insert_value struct1, v31, 1, v26
@@ -234,7 +234,7 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -256,9 +256,9 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
     v18 = lt v17, 64
     icall revert_if<tuple_data_too_short>, v18
     v19 = add v13, 0
-    v20 = mload v19
+    v20 = load v19
     v21 = add v13, 32
-    v22 = mload v21
+    v22 = load v21
     v23 = insert_value struct0, undef struct0, 0, v20
     v24 = insert_value struct0, v23, 1, v22
     v25 = extract_value struct0, v24, 0
@@ -279,7 +279,7 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -306,9 +306,9 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     v23 = lt v22, 64
     icall revert_if<tuple_data_too_short>, v23
     v24 = add v19, 0
-    v25 = mload v24
+    v25 = load v24
     v26 = add v19, 32
-    v27 = mload v26
+    v27 = load v26
     v28 = insert_value struct0, undef struct0, 0, v25
     v29 = insert_value struct0, v28, 1, v27
     ret v29
@@ -325,7 +325,7 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -347,7 +347,7 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
-    v20 = mload v19
+    v20 = load v19
     v21 = lt v20, 2
     v22 = eq v21, false
     icall revert_if<empty>, v22
@@ -366,7 +366,7 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -393,7 +393,7 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
-    v25 = mload v24
+    v25 = load v24
     v26 = lt v25, 2
     v27 = eq v26, false
     icall revert_if<empty>, v27

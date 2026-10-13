@@ -17,7 +17,7 @@ contract TryCatchFull {
     // TCF-LABEL: fn @full
     // Success path decodes both returns from returndata.
     // TCF: call
-    // TCF: returndatacopy
+    // TCF: copy returndata
     // Error handler matches the selector.
     // TCF: 0x8c379a0
     // Panic handler checks the selector and payload length.
@@ -36,7 +36,7 @@ contract TryCatchFull {
 
     // TCF-LABEL: fn @rethrows
     // An unmatched revert forwards the data unchanged.
-    // TCF: returndatacopy
+    // TCF: copy returndata
     // TCF: revert
     function rethrows(uint256 a) public view returns (uint256 r) {
         try c.f(a) returns (uint256 v, string memory) {

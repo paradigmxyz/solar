@@ -164,7 +164,7 @@ fn @dFixedDyn(arg0: memptr) -> struct5 [selector=0x94edd832, pure, abi_params=[b
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v7, 0
+    store v7, 0
     v8 = ptrtoint memptr v7 to i256
     slice_store_word v1, 0, v8
     jump bb2
@@ -182,7 +182,7 @@ fn @dFixedDyn(arg0: memptr) -> struct5 [selector=0x94edd832, pure, abi_params=[b
     jumpi v17, bb3, bb4
   bb3:
     v18 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v18, 0
+    store v18, 0
     v19 = ptrtoint memptr v18 to i256
     slice_store_word v12, 32, v19
     jump bb4
@@ -208,7 +208,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = calldataload v5
+    v9 = load calldata v5
     v10 = add v4, v9
     v11 = calldatasize
     v12 = sub v11, v4
@@ -219,7 +219,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v16 = make_calldata_slice v10, 32
     v17 = slice_ptr v16
     v18 = add v17, 0
-    v19 = calldataload v18
+    v19 = load calldata v18
     v20 = slice_len arg0
     v21 = lt 1, v20
     v22 = eq v21, false
@@ -230,7 +230,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v26 = sub v25, v24
     v27 = slt v26, 32
     icall revert_if<calldata_tail_too_short>, v27
-    v28 = calldataload v24
+    v28 = load calldata v24
     v29 = add v23, v28
     v30 = calldatasize
     v31 = sub v30, v23
@@ -241,7 +241,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v35 = make_calldata_slice v29, 32
     v36 = slice_ptr v35
     v37 = add v36, 0
-    v38 = calldataload v37
+    v38 = load calldata v37
     v39 = insert_value struct6, undef struct6, 0, v0
     v40 = insert_value struct6, v39, 1, v19
     v41 = insert_value struct6, v40, 2, v38
@@ -280,17 +280,17 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     v14 = make_memory_slice v13, 3
     slice_store_word v14, 0, 42
     v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v15, 2
+    store v15, 2
     v16 = ptrtoint memptr v15 to i256
     v17 = add v16, 32
-    mstore v17, 0x6869000000000000000000000000000000000000000000000000000000000000
+    store v17, 0x6869000000000000000000000000000000000000000000000000000000000000
     v18 = make_memory_slice v0, 3
     v19 = slice_load_word v18, 32, memptr
     v20 = make_memory_slice v19, 3
     v21 = ptrtoint memptr v15 to i256
     slice_store_word v20, 32, v21
     v22 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v22, 2
+    store v22, 2
     v23 = make_memory_slice v0, 3
     v24 = slice_load_word v23, 32, memptr
     v25 = make_memory_slice v24, 3
@@ -317,10 +317,10 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     icall panic_if<0x32>, v42
     slice_store_word v39, 32, 5
     v43 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v43, 3
+    store v43, 3
     v44 = ptrtoint memptr v43 to i256
     v45 = add v44, 32
-    mstore v45, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    store v45, 0x78797a0000000000000000000000000000000000000000000000000000000000
     v46 = make_memory_slice v0, 3
     v47 = ptrtoint memptr v43 to i256
     slice_store_word v46, 64, v47
@@ -338,7 +338,7 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
 fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v8]
@@ -353,15 +353,15 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v11 = make_memory_slice v9, 3
     slice_store_word v11, 0, 42
     v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v12, 2
+    store v12, 2
     v13 = ptrtoint memptr v12 to i256
     v14 = add v13, 32
-    mstore v14, 0x6869000000000000000000000000000000000000000000000000000000000000
+    store v14, 0x6869000000000000000000000000000000000000000000000000000000000000
     v15 = make_memory_slice v9, 3
     v16 = ptrtoint memptr v12 to i256
     slice_store_word v15, 32, v16
     v17 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v17, 2
+    store v17, 2
     v18 = make_memory_slice v9, 3
     v19 = ptrtoint memptr v17 to i256
     slice_store_word v18, 64, v19
@@ -389,15 +389,15 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v34 = make_memory_slice v32, 3
     slice_store_word v34, 0, 43
     v35 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v35, 3
+    store v35, 3
     v36 = ptrtoint memptr v35 to i256
     v37 = add v36, 32
-    mstore v37, 0x6279650000000000000000000000000000000000000000000000000000000000
+    store v37, 0x6279650000000000000000000000000000000000000000000000000000000000
     v38 = make_memory_slice v32, 3
     v39 = ptrtoint memptr v35 to i256
     slice_store_word v38, 32, v39
     v40 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v40, 1
+    store v40, 1
     v41 = make_memory_slice v32, 3
     v42 = ptrtoint memptr v40 to i256
     slice_store_word v41, 64, v42
@@ -459,10 +459,10 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     jumpi v3, bb2, bb3
   bb3:
     v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v6, 1
+    store v6, 1
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
-    mstore v8, 0x100000000000000000000000000000000000000000000000000000000000000
+    store v8, 0x100000000000000000000000000000000000000000000000000000000000000
     v9 = make_memory_slice v0, 2
     v10 = lt 0, 2
     v11 = eq v10, false
@@ -470,10 +470,10 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v12 = ptrtoint memptr v6 to i256
     slice_store_word v9, 0, v12
     v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v13, 2
+    store v13, 2
     v14 = ptrtoint memptr v13 to i256
     v15 = add v14, 32
-    mstore v15, 0x203000000000000000000000000000000000000000000000000000000000000
+    store v15, 0x203000000000000000000000000000000000000000000000000000000000000
     v16 = make_memory_slice v0, 2
     v17 = lt 1, 2
     v18 = eq v17, false
@@ -492,7 +492,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     jumpi v27, bb4, bb5
   bb4:
     v28 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v28, 0
+    store v28, 0
     v29 = ptrtoint memptr v28 to i256
     slice_store_word v22, 0, v29
     jump bb5
@@ -510,7 +510,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     jumpi v38, bb6, bb7
   bb6:
     v39 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v39, 0
+    store v39, 0
     v40 = ptrtoint memptr v39 to i256
     slice_store_word v33, 32, v40
     jump bb7
@@ -545,7 +545,7 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    mstore v11, v6
+    store v11, v6
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
     v14 = slice_len arg0
@@ -709,7 +709,7 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     jumpi v9, bb1, bb2
   bb1:
     v10 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v10, 0
+    store v10, 0
     v11 = ptrtoint memptr v10 to i256
     slice_store_word v3, 0, v11
     jump bb2
@@ -728,7 +728,7 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     jumpi v21, bb3, bb4
   bb3:
     v22 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v22, 0
+    store v22, 0
     v23 = ptrtoint memptr v22 to i256
     slice_store_word v15, 0, v23
     jump bb4
@@ -751,7 +751,7 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     jumpi v36, bb5, bb6
   bb5:
     v37 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v37, 0
+    store v37, 0
     v38 = ptrtoint memptr v37 to i256
     slice_store_word v30, 32, v38
     jump bb6
@@ -888,7 +888,7 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v7, 0
+    store v7, 0
     v8 = ptrtoint memptr v7 to i256
     slice_store_word v1, 0, v8
     jump bb2
@@ -906,7 +906,7 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     jumpi v17, bb3, bb4
   bb3:
     v18 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v18, 0
+    store v18, 0
     v19 = ptrtoint memptr v18 to i256
     slice_store_word v12, 0, v19
     jump bb4
@@ -928,7 +928,7 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     jumpi v31, bb5, bb6
   bb5:
     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v32, 0
+    store v32, 0
     v33 = ptrtoint memptr v32 to i256
     slice_store_word v26, 0, v33
     jump bb6
@@ -950,7 +950,7 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     jumpi v45, bb7, bb8
   bb7:
     v46 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v46, 0
+    store v46, 0
     v47 = ptrtoint memptr v46 to i256
     slice_store_word v40, 32, v47
     jump bb8
@@ -968,7 +968,7 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     jumpi v56, bb9, bb10
   bb9:
     v57 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v57, 0
+    store v57, 0
     v58 = ptrtoint memptr v57 to i256
     slice_store_word v51, 32, v58
     jump bb10
@@ -1005,7 +1005,7 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct6 [selector=0xe931c6df, pure, abi
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    mstore v11, v6
+    store v11, v6
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
     v14 = slice_len arg0
@@ -1057,11 +1057,11 @@ fn @default_struct_1() -> memptr {
     v1 = make_memory_slice v0, 3
     slice_store_word v1, 0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 32, v3
     v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v4, 0
+    store v4, 0
     v5 = ptrtoint memptr v4 to i256
     slice_store_word v1, 64, v5
     ret v0

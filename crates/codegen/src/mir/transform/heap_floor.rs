@@ -24,7 +24,7 @@
 //! zeroings at constant addresses have replaced all of its bytes, as Seaport's token transfers do
 //! when they lay call data out over the slot, or execution ends.
 //!
-//! An `mload` of the slot reads the word as the pointer when the loaded word, or one computed from
+//! A `load` of the slot reads the word as the pointer when the loaded word, or one computed from
 //! it, addresses or sizes memory or becomes the pointer again, in the function, in a callee it is
 //! passed to, or in a caller it is returned to, as every allocation in assembly does; a loaded word
 //! only compared, stored, hashed, encoded, used as a key or an index, or returned from an external
@@ -67,11 +67,11 @@
 //! and before a return to the dispatcher:
 //!
 //! ```text
-//! word = mload 64
+//! word = load 64
 //! floor = heap_floor
 //! below = lt word, floor
 //! clamped = select below, floor, word
-//! mstore 64, clamped
+//! store 64, clamped
 //! ```
 //!
 //! A callee that also reads the slot as data is entered and clamped inside. A helper that stores
@@ -168,7 +168,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
     for (func_id, func) in module.functions.iter_enumerated() {
         for (block, data) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in data.instructions.iter().enumerate() {
-                if let InstKind::MStore(address, value) = func.inst(inst_id).kind
+                if let InstKind::Store(address, value) = func.inst(inst_id).kind
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
                     && uses.address_inputs(func_id)[value] != AddressInput::Other
@@ -206,7 +206,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
 fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
-    let InstKind::MStore(address, value) = func.inst(inst).kind else {
+    let InstKind::Store(address, value) = func.inst(inst).kind else {
         unreachable!("a floor store is an `mstore`")
     };
     let metadata = func.inst(inst).metadata.clone();
@@ -216,8 +216,8 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let (clamp, clamped) = floor_max(func, value, &metadata);
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
-    // mstore 64, clamped
-    func.inst_mut(inst).kind = InstKind::MStore(address, clamped);
+    // store 64, clamped
+    func.inst_mut(inst).kind = InstKind::Store(address, clamped);
 }
 
 /// Raises the words a function's loads read from the slot, and the returned words its calls
@@ -239,7 +239,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
         }
         copies.insert(word, clamped);
-        // word = mload 64 | icall @f | extract_value result, i
+        // word = load 64 | icall @f | extract_value result, i
         // floor = heap_floor
         // below = lt word, floor
         // clamped = select below, floor, word
@@ -294,7 +294,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             UseSite::Inst(inst) => {
                 let slot_store = matches!(
                     func.inst(*inst).kind,
-                    InstKind::MStore(address, _) if is_slot(func, address)
+                    InstKind::Store(address, _) if is_slot(func, address)
                 );
                 let kind = &mut func.inst_mut(*inst).kind;
                 let mut raw = false;
@@ -302,7 +302,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
                     raw = true;
                     swap(operand);
                 });
-                if slot_store && let InstKind::MStore(_, value) = kind {
+                if slot_store && let InstKind::Store(_, value) = kind {
                     swap(value);
                 }
                 if !raw {
@@ -345,16 +345,17 @@ fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
     };
     let slot =
         func.alloc_value(Value::Immediate(Immediate::I256(U256::from(EvmMemoryLayout::FMP_SLOT))));
-    let (load, word) = func.alloc_value_inst(emit(InstKind::MLoad(slot), Some(MirType::I256)));
+    let (load, word) =
+        func.alloc_value_inst(emit(InstKind::Load(slot, PtrLocation::Memory), Some(MirType::I256)));
     let (clamp, clamped) = floor_max(func, word, &metadata);
-    let store = func.alloc_inst(emit(InstKind::MStore(slot, clamped), None));
+    let store = func.alloc_inst(emit(InstKind::Store(slot, clamped), None));
     let position = before
         .map_or(func.blocks[block].instructions.len(), |inst| index_in_block(func, block, inst));
-    // word = mload 64
+    // word = load 64
     // floor = heap_floor
     // below = lt word, floor
     // clamped = select below, floor, word
-    // mstore 64, clamped
+    // store 64, clamped
     let sequence = std::iter::once(load).chain(clamp).chain(std::iter::once(store));
     func.blocks[block].instructions.splice(position..position, sequence);
 }
@@ -664,7 +665,7 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::MemorySlice(..)
         | InstKind::SlicePtr(..)
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
-        InstKind::MLoad(address) => is_slot(func, address),
+        InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
         _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }
@@ -758,7 +759,7 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
         let pointer = is_memory_reference(func.value_ty(word));
         return Reads { pointer, data: !pointer };
     }
-    if let InstKind::MStore(address, value) = *kind
+    if let InstKind::Store(address, value) = *kind
         && is_slot(func, address)
     {
         pointer_uses += usize::from(value == word);
@@ -1290,7 +1291,7 @@ impl<'a> PointerUses<'a> {
         let func = &module.functions[func_id];
         let inst = func.inst(inst_id);
         match inst.kind {
-            InstKind::MLoad(address) if is_slot(func, address) => {
+            InstKind::Load(address, PtrLocation::Memory) if is_slot(func, address) => {
                 let reads = self.load_reads(func_id, inst_id);
                 match (reads.pointer, reads.data) {
                     (true, true) => Effect::LoadsMixed,
@@ -1299,7 +1300,7 @@ impl<'a> PointerUses<'a> {
                     (false, false) => Effect::None,
                 }
             }
-            InstKind::MStore(address, _) if is_slot(func, address) => Effect::Replaces,
+            InstKind::Store(address, _) if is_slot(func, address) => Effect::Replaces,
             InstKind::SetFmp(_) => Effect::Replaces,
             InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
             // The compiler's own pointer reads and allocations, and the builtins and semantic

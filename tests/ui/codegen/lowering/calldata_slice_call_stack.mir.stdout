@@ -26,8 +26,8 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: calldataslice) [selector=0
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
-    mstore 0, arg2 !metadata(memory=scratch)
+    v11 = load v10
+    store 0, arg2 !metadata(memory=scratch)
     v12 = zext i160 arg0 to i256
     v13 = zext i160 arg1 to i256
     log 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v12, v13
@@ -46,7 +46,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: calldataslice) [selector=0
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
-    v24 = mload v23
+    v24 = load v23
     v25 = lt v24, 2
     v26 = eq v25, false
     icall revert_if<empty>, v26
@@ -83,7 +83,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: calldataslice) [selector=0
     v48 = lt v47, 32
     icall revert_if<tuple_data_too_short>, v48
     v49 = add 0, 0
-    v50 = mload v49
+    v50 = load v49
     v51 = gt v38, v50
     jumpi v51, bb9, bb10
   bb10:

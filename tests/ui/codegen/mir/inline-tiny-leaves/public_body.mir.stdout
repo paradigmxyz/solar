@@ -16,7 +16,7 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
     v3 = gt v2, v1
     jumpi v3, bb2, bb3
   bb3:
-    mstore 192, arg0
+    store 192, arg0
     ret
   bb2:
     revert 0, 0
@@ -25,14 +25,14 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
 fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
   bb0:
     v4 = loadimmutable _start
-    mstore 128, v4
+    store 128, v4
     returndata 128, 32
 }
 
 fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
   bb0:
     v3 = loadimmutable _start
-    mstore 128, v3
+    store 128, v3
     returndata 128, 32
 }
 
@@ -42,7 +42,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
   bb1:
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = shr 224, v2
     switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
   bb3:

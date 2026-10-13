@@ -38,7 +38,7 @@ fn @dynamic(arg0: calldataslice) -> memptr [selector=0xd543852a, pure, abi_param
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    mstore v11, v6
+    store v11, v6
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
     v14 = slice_len arg0
@@ -58,7 +58,7 @@ fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_retu
 
 fn @rawAssembly() -> i256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
-    mstore 64, v0 !metadata(memory=scratch)
+    v0 = load 64 !metadata(memory=scratch)
+    store 64, v0 !metadata(memory=scratch)
     ret v0
 }

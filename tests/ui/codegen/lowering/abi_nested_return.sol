@@ -25,7 +25,7 @@ contract AbiNestedReturn {
     // CHECK-LABEL: fn @nestedArray{{[( ]}}
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: [[INNER:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: mstore [[INNER]], arg0
+    // CHECK: store [[INNER]], arg0
     // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[OUT]]
     // CHECK: [[ELEM:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
     // CHECK: slice_store_word [[VIEW]], 0, [[ELEM]]

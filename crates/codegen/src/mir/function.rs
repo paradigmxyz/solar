@@ -286,7 +286,7 @@ impl Function {
     /// `mstore object, len`, also through a pointer cast.
     #[must_use]
     pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
-        let InstKind::MStore(address, len) = self.inst(inst).kind else { return None };
+        let InstKind::Store(address, len) = self.inst(inst).kind else { return None };
         match self.object_address(address) {
             Some((object, 0)) if self.value_ty(object) == Some(MirType::MEMPTR) => {
                 Some((object, len))

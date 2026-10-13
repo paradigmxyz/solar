@@ -9,7 +9,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     v4 = sub v3, v0
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = calldataload v0
+    v6 = load calldata v0
     v7 = add v0, v6
     v8 = calldatasize
     v9 = sub v8, v0
@@ -17,7 +17,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     v11 = slt v6, v10
     v12 = eq v11, false
     icall revert_if<invalid_calldata_tail_offset>, v12
-    v13 = calldataload v7
+    v13 = load calldata v7
     v14 = gt v13, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = mul v13, 32
@@ -39,7 +39,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     v29 = lt v28, 32
     icall panic_if<0x41>, v29
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    mstore v30, v13
+    store v30, v13
     v31 = make_calldata_slice v20, v21
     v32 = ptrtoint memptr v30 to i256
     v33 = add v32, 32
@@ -63,7 +63,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v6 = sub v5, v2
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = calldataload v2
+    v8 = load calldata v2
     v9 = add v2, v8
     v10 = calldatasize
     v11 = sub v10, v2
@@ -71,7 +71,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v9
+    v15 = load calldata v9
     v16 = gt v15, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v16
     v17 = mul v15, 32
@@ -93,7 +93,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v31 = lt v30, 32
     icall panic_if<0x41>, v31
     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, v30
-    mstore v32, v15
+    store v32, v15
     v33 = make_calldata_slice v22, v23
     v34 = ptrtoint memptr v32 to i256
     v35 = add v34, 32

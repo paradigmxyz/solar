@@ -9,15 +9,15 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v4 = icall @encodeFirst.body, v3
-    v40 = mload 64 !metadata(memory=scratch)
+    v40 = load 64 !metadata(memory=scratch)
     v10 = add v40, 32
-    mstore v40, 32
+    store v40, 32
     v38 = ptrtoint memptr v4 to i256
     v17 = ne v38, 0
     v18 = zext i1 v17 to i256
-    v13 = mload v38
+    v13 = load v38
     v19 = mul v13, v18
-    mstore v10, v19
+    store v10, v19
     v21 = add v19, 31
     v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v23 = add v10, 32
@@ -25,18 +25,18 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     jumpi v24, bb4, bb3
   bb3:
     v25 = add v10, v22
-    mstore v25, 0
+    store v25, 0
     jump bb4
   bb4:
     v28 = add v23, v22
     v27 = add v38, 32
-    mcopy v23, v27, v19 !metadata(memory=heap, disjoint)
+    copy v23, v27, v19 !metadata(memory=heap, disjoint)
     v30 = sub v28, v40
     v32 = add v30, 31
     v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = mload 64
+    v41 = load 64
     v42 = add v41, v34
-    mstore 64, v42
+    store 64, v42
     returndata v41, v30
   bb1:
     revert 0, 0
@@ -49,18 +49,18 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v3 = icall @decode_calldata_type
-    v65 = mload 64 !metadata(memory=scratch)
+    v65 = load 64 !metadata(memory=scratch)
     v9 = add v65, 32
     v10 = add v9, 32
-    mstore v9, 32
+    store v9, 32
     v60 = ptrtoint memptr v3 to i256
-    v13 = mload v60
+    v13 = load v60
     v61 = add v60, 32
-    v14 = mload v61
+    v14 = load v61
     v15 = add v10, 64
-    mstore v10, v13
+    store v10, v13
     v16 = add v10, 32
-    mstore v16, 64
+    store v16, 64
     v18 = inttoptr i256 v15 to memptr
     v19 = icall @encode_abi_array, v14, v18
     v20 = add v15, v19
@@ -70,18 +70,18 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v26, bb3, bb4
   bb4:
     v28 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v66 = mload 64
+    v66 = load 64
     v67 = add v66, v28
-    mstore 64, v67
-    mstore v66, v23
-    v68 = mload 64
+    store 64, v67
+    store v66, v23
+    v68 = load 64
     v32 = add v68, 32
-    mstore v68, 32
+    store v68, 32
     v39 = ne v66, 0
     v40 = zext i1 v39 to i256
-    v35 = mload v66
+    v35 = load v66
     v41 = mul v35, v40
-    mstore v32, v41
+    store v32, v41
     v43 = add v41, 31
     v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v45 = add v32, 32
@@ -89,22 +89,22 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v46, bb6, bb5
   bb5:
     v47 = add v32, v44
-    mstore v47, 0
+    store v47, 0
     jump bb6
   bb6:
     v50 = add v45, v44
     v49 = add v66, 32
-    mcopy v45, v49, v41 !metadata(memory=heap, disjoint)
+    copy v45, v49, v41 !metadata(memory=heap, disjoint)
     v52 = sub v50, v68
     v54 = add v52, 31
     v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v69 = mload 64
+    v69 = load 64
     v70 = add v69, v56
-    mstore 64, v70
+    store 64, v70
     returndata v69, v52
   bb3:
-    mstore 32, 65
-    mstore 0, 0x4e487b71
+    store 32, 65
+    store 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0
@@ -114,24 +114,24 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb0:
     v200 = calldatasize
     v201 = lt v200, 68
-    v202 = calldataload 36
+    v202 = load calldata 36
     v203 = add v202, 4
     v204 = add v203, 32
     v205 = gt v202, 0xffffffffffffffff
     v206 = gt v204, v200
     v207 = or v205, v206
     v282 = or v201, v207
-    v209 = calldataload v203
+    v209 = load calldata v203
     v211 = sub v200, v204
     v212 = shr 5, v211
     v213 = gt v209, v212
     v283 = or v282, v213
     jumpi v283, bb10, bb39
   bb39:
-    v280 = mload 64
+    v280 = load 64
     v0 = inttoptr i256 v280 to memptr !metadata(memory=scratch)
     v281 = add v280, 64
-    mstore 64, v281
+    store 64, v281
     v3 = shl 5, v209
     v5 = shr 5, v3
     v9 = ne v5, v209
@@ -146,28 +146,28 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v21 = lt v20, 32
     jumpi v21, bb8, bb12
   bb12:
-    v274 = mload 64
+    v274 = load 64
     v275 = add v274, v20
-    mstore 64, v275
-    mstore v274, v209
+    store 64, v275
+    store v274, v209
     jump bb1
   bb1:
     v23 = phi [bb12: 0], [bb15: v63]
     v24 = lt v23, v209
     jumpi v24, bb2, bb3
   bb3:
-    mstore v280, arg0
+    store v280, arg0
     v218 = add v280, 32
-    mstore v218, v274
+    store v218, v274
     v66 = icall @encodeFirst.body, v0
     v219 = ptrtoint memptr v66 to i256
-    v110 = mload v219
+    v110 = load v219
     v111 = add v219, 32
     v114 = add v111, v110
     v115 = slt v110, 32
     jumpi v115, bb10, bb24
   bb24:
-    v116 = mload v111
+    v116 = load v111
     v117 = add v111, v116
     v119 = gt v116, v110
     v120 = sub v114, v117
@@ -175,13 +175,13 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v285 = or v119, v121
     jumpi v285, bb10, bb25
   bb25:
-    v278 = mload 64
+    v278 = load 64
     v279 = add v278, 64
-    mstore 64, v279
-    v124 = mload v117
-    mstore v278, v124
+    store 64, v279
+    v124 = load v117
+    store v278, v124
     v125 = add v117, 32
-    v126 = mload v125
+    v126 = load v125
     v127 = add v117, v126
     v128 = add v127, 32
     v129 = gt v126, 0xffffffffffffffff
@@ -189,7 +189,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v131 = or v129, v130
     jumpi v131, bb10, bb26
   bb26:
-    v133 = mload v127
+    v133 = load v127
     v135 = add v133, 1
     v136 = eq v135, 0
     jumpi v136, bb8, bb27
@@ -199,15 +199,15 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v143 = ne v139, v135
     jumpi v143, bb8, bb28
   bb28:
-    v258 = mload 64
+    v258 = load 64
     v259 = add v258, v137
     v260 = lt v259, v258
     v261 = gt v259, 0xffffffffffffffff
     v262 = or v260, v261
     jumpi v262, bb8, bb40
   bb40:
-    mstore 64, v259
-    mstore v258, v133
+    store 64, v259
+    store v258, v133
     v148 = lt v133, 0x800000000000000000000000000000000000000000000000000000000000000
     jumpi v148, bb29, bb8
   bb29:
@@ -225,79 +225,79 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v158, bb32, bb33
   bb33:
     v243 = add v278, 32
-    mstore v243, v258
-    v69 = mload v278
-    v72 = mload v258
+    store v243, v258
+    v69 = load v278
+    v72 = load v258
     v74 = gt v72, 0
     jumpi v74, bb17, bb16
   bb17:
     v232 = add v258, 32
-    v76 = mload v232
+    v76 = load v232
     v77 = inttoptr i256 v76 to memptr
     v78 = eq v76, 0
     jumpi v78, bb4, bb5
   bb4:
-    v270 = mload 64 !metadata(memory=scratch)
+    v270 = load 64 !metadata(memory=scratch)
     v79 = inttoptr i256 v270 to memptr !metadata(memory=scratch)
     v271 = add v270, 32
-    mstore 64, v271
-    mstore v270, 0
-    mstore v232, v270
+    store 64, v271
+    store v270, 0
+    store v232, v270
     jump bb5
   bb5:
     v81 = phi [bb17: v77], [bb4: v79]
     v223 = ptrtoint memptr v81 to i256
-    v82 = mload v223
+    v82 = load v223
     v84 = gt v82, 0
     jumpi v84, bb18, bb16
   bb18:
     v234 = add v223, 32
-    v86 = mload v234
+    v86 = load v234
     v106 = add v69, v86
     v107 = lt v106, v69
     jumpi v107, bb21, bb22
   bb22:
-    v254 = mload v243
-    v90 = mload v254
+    v254 = load v243
+    v90 = load v254
     v92 = gt v90, 1
     jumpi v92, bb19, bb16
   bb19:
     v236 = add v254, 64
-    v94 = mload v236
+    v94 = load v236
     v95 = inttoptr i256 v94 to memptr
     v96 = eq v94, 0
     jumpi v96, bb6, bb7
   bb6:
-    v272 = mload 64
+    v272 = load 64
     v97 = inttoptr i256 v272 to memptr !metadata(memory=scratch)
     v273 = add v272, 32
-    mstore 64, v273
-    mstore v272, 0
-    mstore v236, v272
+    store 64, v273
+    store v272, 0
+    store v236, v272
     jump bb7
   bb7:
     v99 = phi [bb19: v95], [bb6: v97]
     v226 = ptrtoint memptr v99 to i256
-    v100 = mload v226
+    v100 = load v226
     v102 = gt v100, 0
     jumpi v102, bb20, bb16
   bb16:
-    mstore 32, 50
-    mstore 0, 0x4e487b71
+    store 32, 50
+    store 0, 0x4e487b71
     revert 28, 36
   bb20:
     v238 = add v226, 32
-    v104 = mload v238
+    v104 = load v238
     v108 = add v106, v104
     v109 = lt v108, v106
     jumpi v109, bb21, bb23
   bb23:
-    mstore 128, v108
+    store 128, v108
     returndata 128, 32
   bb21:
     tail_call @revert_stub
   bb32:
-    v159 = mload v156
+    v159 = load v156
     v160 = add v128, v159
     v161 = add v160, 32
     v162 = gt v159, 0xffffffffffffffff
@@ -305,7 +305,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v164 = or v162, v163
     jumpi v164, bb10, bb34
   bb34:
-    v166 = mload v160
+    v166 = load v160
     v168 = add v166, 1
     v169 = eq v168, 0
     jumpi v169, bb8, bb35
@@ -315,15 +315,15 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v176 = ne v172, v168
     jumpi v176, bb8, bb36
   bb36:
-    v264 = mload 64
+    v264 = load 64
     v265 = add v264, v170
     v266 = lt v265, v264
     v267 = gt v265, 0xffffffffffffffff
     v268 = or v266, v267
     jumpi v268, bb8, bb41
   bb41:
-    mstore 64, v265
-    mstore v264, v166
+    store 64, v265
+    store v264, v166
     v178 = shl 5, v166
     v180 = shr 5, v178
     v184 = ne v180, v166
@@ -335,11 +335,11 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v187, bb10, bb38
   bb38:
     v190 = add v264, 32
-    mcopy v190, v161, v178
+    copy v190, v161, v178
     v194 = shl 5, v157
     v248 = add v258, 32
     v249 = add v248, v194
-    mstore v249, v264
+    store v249, v264
     v196 = sub v155, 1
     v197 = add v156, 32
     v198 = add v157, 1
@@ -352,7 +352,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v29 = slt v28, 32
     jumpi v29, bb10, bb13
   bb13:
-    v30 = calldataload v26
+    v30 = load calldata v26
     v31 = add v204, v30
     v32 = calldatasize
     v33 = sub v32, v204
@@ -360,7 +360,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v35 = slt v30, v34
     jumpi v35, bb14, bb10
   bb14:
-    v37 = calldataload v31
+    v37 = load calldata v31
     v38 = gt v37, 0xffffffffffffffff
     v39 = shl 5, v37
     v40 = add v31, 32
@@ -371,20 +371,20 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v284, bb10, bb15
   bb15:
     v52 = add v39, 32
-    v276 = mload 64
+    v276 = load 64
     v277 = add v276, v52
-    mstore 64, v277
-    mstore v276, v37
+    store 64, v277
+    store v276, v37
     v57 = add v276, 32
-    calldatacopy v57, v40, v39
+    copy calldata v57, v40, v39
     v229 = add v274, 32
     v230 = add v229, v25
-    mstore v230, v276
+    store v230, v276
     v63 = add v23, 1
     jump bb1
   bb8:
-    mstore 32, 65
-    mstore 0, 0x4e487b71
+    store 32, 65
+    store 0, 0x4e487b71
     revert 28, 36
   bb10:
     revert 0, 0
@@ -392,15 +392,15 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload 4
+    v1 = load calldata 4
     v2 = add v1, 4
     v3 = sub v0, 4
     v4 = gt v1, v3
@@ -409,14 +409,14 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v94 = or v4, v6
     jumpi v94, bb1, bb2
   bb2:
-    v92 = mload 64
+    v92 = load 64
     v7 = inttoptr i256 v92 to memptr !metadata(memory=scratch)
     v93 = add v92, 96
-    mstore 64, v93
-    v9 = calldataload v2
-    mstore v92, v9
+    store 64, v93
+    v9 = load calldata v2
+    store v92, v9
     v10 = add v2, 32
-    v11 = calldataload v10
+    v11 = load calldata v10
     v12 = add v2, v11
     v13 = add v12, 32
     v14 = gt v11, 0xffffffffffffffff
@@ -424,7 +424,7 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v16 = or v14, v15
     jumpi v16, bb1, bb3
   bb3:
-    v18 = calldataload v12
+    v18 = load calldata v12
     v20 = shl 5, v18
     v22 = shr 5, v20
     v26 = ne v22, v18
@@ -433,15 +433,15 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v95 = or v26, v28
     jumpi v95, bb4, bb5
   bb5:
-    v80 = mload 64
+    v80 = load 64
     v81 = add v80, v27
     v82 = lt v81, v80
     v83 = gt v81, 0xffffffffffffffff
     v84 = or v82, v83
     jumpi v84, bb4, bb13
   bb13:
-    mstore 64, v81
-    mstore v80, v18
+    store 64, v81
+    store v80, v18
     v30 = sub v0, v13
     v31 = shr 5, v30
     v32 = gt v18, v31
@@ -456,12 +456,12 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     jumpi v36, bb8, bb9
   bb9:
     v72 = add v92, 32
-    mstore v72, v80
+    store v72, v80
     v73 = add v92, 64
-    mstore v73, v2
+    store v73, v2
     ret v7
   bb8:
-    v37 = calldataload v34
+    v37 = load calldata v34
     v38 = add v13, v37
     v39 = add v38, 32
     v40 = gt v37, 0xffffffffffffffff
@@ -469,7 +469,7 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v42 = or v40, v41
     jumpi v42, bb1, bb10
   bb10:
-    v44 = calldataload v38
+    v44 = load calldata v38
     v46 = shl 5, v44
     v48 = shr 5, v46
     v52 = ne v48, v44
@@ -478,33 +478,33 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v96 = or v52, v54
     jumpi v96, bb4, bb11
   bb11:
-    v86 = mload 64
+    v86 = load 64
     v87 = add v86, v53
     v88 = lt v87, v86
     v89 = gt v87, 0xffffffffffffffff
     v90 = or v88, v89
     jumpi v90, bb4, bb14
   bb14:
-    mstore 64, v87
-    mstore v86, v44
+    store 64, v87
+    store v86, v44
     v56 = sub v0, v39
     v57 = shr 5, v56
     v58 = gt v44, v57
     jumpi v58, bb1, bb12
   bb12:
     v61 = add v86, 32
-    calldatacopy v61, v39, v46
+    copy calldata v61, v39, v46
     v65 = shl 5, v35
     v76 = add v80, 32
     v77 = add v76, v65
-    mstore v77, v86
+    store v77, v86
     v67 = sub v33, 1
     v68 = add v34, 32
     v69 = add v35, 1
     jump bb7
   bb4:
-    mstore 32, 65
-    mstore 0, 0x4e487b71
+    store 32, 65
+    store 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0
@@ -512,18 +512,18 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
 
 fn @encodeFirst.body(arg0: memptr) -> memptr [may_return_memory, pure] {
   bb0:
-    v27 = mload 64 !metadata(memory=scratch)
+    v27 = load 64 !metadata(memory=scratch)
     v3 = add v27, 32
     v4 = add v3, 32
-    mstore v3, 32
+    store v3, 32
     v24 = ptrtoint memptr arg0 to i256
-    v7 = mload v24
+    v7 = load v24
     v25 = add v24, 32
-    v8 = mload v25
+    v8 = load v25
     v9 = add v4, 64
-    mstore v4, v7
+    store v4, v7
     v10 = add v4, 32
-    mstore v10, 64
+    store v10, 64
     v12 = inttoptr i256 v9 to memptr
     v13 = icall @encode_abi_array, v8, v12
     v14 = add v9, v13
@@ -533,15 +533,15 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [may_return_memory, pure] {
     jumpi v20, bb1, bb2
   bb2:
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = mload 64
+    v28 = load 64
     v23 = inttoptr i256 v28 to memptr !metadata(memory=scratch)
     v29 = add v28, v22
-    mstore 64, v29
-    mstore v28, v17
+    store 64, v29
+    store v28, v17
     ret v23
   bb1:
-    mstore 32, 65
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 65
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -550,9 +550,9 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v0 = ptrtoint memptr arg1 to i256
     v5 = ne arg0, 0
     v6 = zext i1 v5 to i256
-    v2 = mload arg0
+    v2 = load arg0
     v7 = mul v2, v6
-    mstore v0, v7
+    store v0, v7
     v8 = add v0, 32
     v9 = shl 5, v7
     v10 = add v8, v9
@@ -569,19 +569,19 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v33 = sub v13, v0
     ret v33
   bb2:
-    v17 = mload v15
+    v17 = load v15
     v18 = sub v13, v8
-    mstore v14, v18
+    store v14, v18
     v23 = ne v17, 0
     v24 = zext i1 v23 to i256
-    v20 = mload v17
+    v20 = load v17
     v25 = mul v20, v24
-    mstore v13, v25
+    store v13, v25
     v26 = shl 5, v25
     v27 = add v13, 32
     v29 = add v27, v26
     v28 = add v17, 32
-    mcopy v27, v28, v26 !metadata(memory=heap, disjoint)
+    copy v27, v28, v26 !metadata(memory=heap, disjoint)
     v30 = sub v12, 1
     v31 = add v14, 32
     v32 = add v15, 32
@@ -594,7 +594,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb5, bb1
   bb1:
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = shr 224, v2
     switch v3, default bb5, [0x746047 => bb2, 0x108c1ec5 => bb3, 0xe9a7b169 => bb4]
   bb4:

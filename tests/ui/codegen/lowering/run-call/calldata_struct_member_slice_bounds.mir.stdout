@@ -8,7 +8,7 @@ fn @edge(arg0: calldataslice) -> i256 [selector=0xf583b19b, pure, abi_params=[tu
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -16,7 +16,7 @@ fn @edge(arg0: calldataslice) -> i256 [selector=0xf583b19b, pure, abi_params=[tu
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
@@ -40,7 +40,7 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -48,7 +48,7 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
@@ -74,7 +74,7 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
     v30 = not 31
     v31 = and v28, v30
     v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    mstore v32, v27
+    store v32, v27
     v33 = ptrtoint memptr v32 to i256
     v34 = add v33, 32
     v35 = slice_len v20
@@ -89,7 +89,7 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
 fn @_decodeBatch(arg0: calldataslice) -> calldataslice [pure] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = calldataload v0
+    v1 = load calldata v0
     v2 = slice_ptr arg0
     v3 = add v2, v1
     v4 = slice_len arg0
@@ -101,7 +101,7 @@ fn @_decodeBatch(arg0: calldataslice) -> calldataslice [pure] {
     v10 = slice_ptr v9
     v11 = slice_len v9
     v12 = make_calldata_slice v8, v11
-    v13 = calldataload v3
+    v13 = load calldata v3
     v14 = slice_ptr v12
     v15 = slice_len v12
     v16 = make_calldata_slice v14, v13
@@ -119,6 +119,6 @@ fn @_decodeBatch(arg0: calldataslice) -> calldataslice [pure] {
   bb3:
     ret v16
   bb1:
-    mstore 0, 0xba597e7e !metadata(memory=scratch)
+    store 0, 0xba597e7e !metadata(memory=scratch)
     revert 28, 4
 }

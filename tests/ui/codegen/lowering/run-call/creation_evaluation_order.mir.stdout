@@ -52,7 +52,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v9 = slice_ptr v3
     v10 = ptrtoint memptr v7 to i256
     v11 = add v10, v4
-    mcopy v11, v9, 32 !metadata(memory=heap)
+    copy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
     v13: i256 = create2 v0, v12, v5, v1
     v14 = ne v13, 0

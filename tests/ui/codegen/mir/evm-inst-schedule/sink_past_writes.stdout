@@ -5,9 +5,9 @@
     bb0:
       v0 = add arg0, arg1
 -     v1 = add v0, 2
-      mstore 0, v0
+      store 0, v0
 +     v1 = add v0, 2
-      mstore v1, arg1
+      store v1, arg1
       ret v0
   }
   
@@ -15,8 +15,8 @@
     bb0:
       v0 = add arg0, arg1
       v1 = add v0, 2
-      mstore 0, arg0
-      mstore v1, arg1
+      store 0, arg0
+      store v1, arg1
       ret arg1
   }
   
@@ -33,8 +33,8 @@
   fn @range_check(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = gt arg0, 0xffffffff
-      mstore 0, arg1
-      mstore 32, arg0
+      store 0, arg1
+      store 32, arg0
 +     v0 = gt arg0, 0xffffffff
       jumpi v0, bb1, bb2
     bb2:

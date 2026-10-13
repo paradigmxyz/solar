@@ -4,7 +4,7 @@
 + @phase lowered
   fn @entry() [entry] {
     bb0:
-      v0 = calldataload 0
+      v0 = load calldata 0
       v1 = shr 224, v0
       switch v1, default bb2, [7 => bb1]
     bb1:
@@ -15,7 +15,7 @@
   
   fn @caller() [selector=0x00000007, abi_wrapper] {
     bb0:
-      v0 = calldataload 4
+      v0 = load calldata 4
 -     icall @fused, v0 !metadata(span=10..20, modifier_depth=1)
 -     stop !metadata(span=30..40, modifier_depth=2)
 +     tail_call @fused, v0 !metadata(span=10..20, modifier_depth=1)
@@ -23,7 +23,7 @@
   
   fn @fused(arg0: i256) {
     bb0:
-      mstore 128, arg0
+      store 128, arg0
       returndata 128, 32
     bb1:
       stop
@@ -150,7 +150,7 @@
   
   fn @scalar_fail(arg0: i256) -> i256 {
     bb0:
-      mstore 0, arg0
+      store 0, arg0
       revert 0, 32
   }
   

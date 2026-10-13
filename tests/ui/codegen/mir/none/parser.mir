@@ -41,14 +41,14 @@ fn @callcode(arg0: i256, arg1: i256) -> i256 {
 }
 
 // CHECK-LABEL: @hash
-// CHECK: {{^ +}}mstore 0, 1
-// CHECK: {{^ +}}mstore 32, 2
+// CHECK: {{^ +}}store 0, 1
+// CHECK: {{^ +}}store 32, 2
 // CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^ +}}ret [[HASH]]
 fn @hash() -> i256 {
   bb0:
-    mstore 0, 1
-    mstore 32, 2
+    store 0, 1
+    store 32, 2
     v0 = keccak256 0, 64
     ret v0
 }

@@ -97,7 +97,7 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = mload v7
+    v8 = load v7
     ret v8
 }
 
@@ -116,9 +116,9 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v6 = lt v5, 64
     icall revert_if<tuple_data_too_short>, v6
     v7 = add v1, 0
-    v8 = mload v7
+    v8 = load v7
     v9 = add v1, 32
-    v10 = mload v9
+    v10 = load v9
     v11 = insert_value struct0, undef struct0, 0, v8
     v12 = insert_value struct0, v11, 1, v10
     v13 = extract_value struct0, v12, 0
@@ -168,7 +168,7 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = mload v7
+    v8 = load v7
     v9 = eq v8, 0
     v10 = eq v9, false
     v11 = zext i1 v10 to i256
@@ -220,7 +220,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = mload v7
+    v8 = load v7
     ret v8
 }
 
@@ -239,17 +239,17 @@ fn @dynamicArgument(arg0: memptr) -> struct0 [selector=0x11b8efbf, pure, abi_par
     v6 = lt v5, 192
     icall revert_if<tuple_data_too_short>, v6
     v7 = add v1, 0
-    v8 = mload v7
+    v8 = load v7
     v9 = add v1, 32
-    v10 = mload v9
+    v10 = load v9
     v11 = add v1, 64
-    v12 = mload v11
+    v12 = load v11
     v13 = add v1, 96
-    v14 = mload v13
+    v14 = load v13
     v15 = add v1, 128
-    v16 = mload v15
+    v16 = load v15
     v17 = add v1, 160
-    v18 = mload v17
+    v18 = load v17
     v19 = insert_value struct1, undef struct1, 0, v8
     v20 = insert_value struct1, v19, 1, v10
     v21 = insert_value struct1, v20, 2, v12

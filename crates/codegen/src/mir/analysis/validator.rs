@@ -1125,6 +1125,7 @@ impl<'a> Validator<'a> {
                     InstKind::SliceCopy { source, .. } => {
                         matches!(func.value_ty(*source), Some(MirType::Slice(_)))
                     }
+                    InstKind::Load(_, location) => *location != PtrLocation::Returndata,
                     _ => true,
                 };
                 if !valid {

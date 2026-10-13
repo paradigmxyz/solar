@@ -7,12 +7,12 @@
       v1 = ptrtoint memptr v0 to i256
       v2 = alloc raw, exact, uninitialized, infallible, 32
       v3 = ptrtoint memptr v2 to i256
-      mstore v3, 7
+      store v3, 7
       v4 = add v1, 32
       v5 = sub v4, arg0
       v6 = add arg0, v5
-      mstore v6, 9
-      v7 = mload v3
+      store v6, 9
+      v7 = load v3
       ret v7
   }
   
@@ -22,12 +22,12 @@
       v1 = ptrtoint memptr v0 to i256
       v2 = alloc raw, exact, uninitialized, infallible, 32
       v3 = ptrtoint memptr v2 to i256
-      mstore v3, 7
+      store v3, 7
       v4 = add v1, 31
       v5 = sub v4, arg0
       v6 = add arg0, v5
-      mstore v6, 9
-      v7 = mload v3
+      store v6, 9
+      v7 = load v3
       ret v7
   }
   
@@ -37,12 +37,12 @@
       v1 = ptrtoint memptr v0 to i256
       v2 = alloc raw, exact, uninitialized, infallible, 32
       v3 = ptrtoint memptr v2 to i256
-      mstore v3, 7
+      store v3, 7
       v4 = add v1, 32
       v5 = sub v4, arg0
       v6 = add arg0, v5
-      mstore8 v6, 9
-      v7 = mload v3
+      store8 v6, 9
+      v7 = load v3
       ret v7
   }
   
@@ -52,12 +52,12 @@
       v1 = ptrtoint memptr v0 to i256
       v2 = alloc raw, exact, uninitialized, infallible, 32
       v3 = ptrtoint memptr v2 to i256
-      mstore v3, 7
+      store v3, 7
       v4 = add v1, 0
       v5 = sub v4, arg0
       v6 = add arg0, v5
-      calldatacopy v6, 0, 64
-      v7 = mload v3
+      copy calldata v6, 0, 64
+      v7 = load v3
       ret v7
   }
   

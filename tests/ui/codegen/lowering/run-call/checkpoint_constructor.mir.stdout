@@ -139,7 +139,7 @@ fn @latest(arg0: i256) -> struct0 [view] {
 
 fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    mstore 0, arg0 !metadata(memory=scratch)
+    store 0, arg0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     v1 = add v0, arg1
     ret v1
@@ -153,7 +153,7 @@ fn @mint(arg0: i160, arg1: i96) -> i96 {
     icall @push, 6, v2, arg0
     v3 = zext i96 v0 to i256
     v4 = zext i96 v2 to i256
-    mstore 0, v4 !metadata(memory=scratch)
+    store 0, v4 !metadata(memory=scratch)
     v5 = zext i160 arg0 to i256
     log 0, 32, 0x229942c5a471c3f0451428ffe170bda041510cfed1329d10dc894225df5e352b, v3, v5
     ret v0
@@ -186,7 +186,7 @@ fn @nextId() -> i96 [view] {
 fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    mstore v0, 2
+    store v0, 2
     v1 = memory_slice v0
     v2 = slice_len v1
     v3 = lt 0, v2
@@ -216,7 +216,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v20 = slice_ptr v9
     v21 = ptrtoint memptr v18 to i256
     v22 = add v21, v11
-    mcopy v22, v20, v10 !metadata(memory=heap)
+    copy v22, v20, v10 !metadata(memory=heap)
     v23 = ptrtoint memptr v18 to i256
     v24 = create 0, v23, v12
     v25 = ne v24, i160 0
@@ -238,7 +238,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v33 = lt v32, 32
     icall revert_if<tuple_data_too_short>, v33
     v34 = add 0, 0
-    v35 = mload v34
+    v35 = load v34
     v36 = shr 96, v35
     v37 = eq v36, 0
     v38 = eq v37, false
@@ -258,7 +258,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
@@ -280,7 +280,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
-    v20 = mload v19
+    v20 = load v19
     v21 = shr 8, v20
     v22 = eq v21, 0
     v23 = eq v22, false

@@ -29,7 +29,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x0194db8e, pure, abi_params=[arr
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = add v8, v9
-    v17 = calldataload v16
+    v17 = load calldata v16
     v18 = checked_add u256, v1, v17
     jump bb6
   bb6:
@@ -68,7 +68,7 @@ fn @tail(arg0: calldataslice) -> i256 [selector=0xcfd6ca48, pure, abi_params=[ar
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = add v8, v9
-    v17 = calldataload v16
+    v17 = load calldata v16
     v18 = checked_add u256, v2, v17
     jump bb6
   bb6:
@@ -96,7 +96,7 @@ fn @scan(arg0: calldataslice, arg1: i256) -> i256 [selector=0x8090fa42, pure, ab
     v5 = shl 5, v1
     v6 = slice_ptr v2
     v7 = add v6, v5
-    v8 = calldataload v7
+    v8 = load calldata v7
     v9 = ne v8, 0
     v10 = eq v9, false
     icall revert_if<empty>, v10
@@ -127,7 +127,7 @@ fn @scanFrom1(arg0: calldataslice, arg1: i256) -> i256 [selector=0xa64f2d9f, pur
     v5 = shl 5, v0
     v6 = slice_ptr v1
     v7 = add v6, v5
-    v8 = calldataload v7
+    v8 = load calldata v7
     v9 = ne v8, 0
     v10 = eq v9, false
     icall revert_if<empty>, v10
@@ -169,7 +169,7 @@ fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, ab
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = add v10, v11
-    v19 = calldataload v18
+    v19 = load calldata v18
     v20 = eq v19, v3
     jumpi v20, bb7, bb8
   bb8:
@@ -217,7 +217,7 @@ fn @findFrom1(arg0: calldataslice, arg1: i256) -> i256 [selector=0xb412a3ed, pur
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = add v10, v11
-    v19 = calldataload v18
+    v19 = load calldata v18
     v20 = eq v19, v3
     jumpi v20, bb7, bb8
   bb8:
@@ -264,7 +264,7 @@ fn @stopAt(arg0: calldataslice, arg1: i256) -> i256 [selector=0x828c8292, pure, 
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = add v9, v10
-    v18 = calldataload v17
+    v18 = load calldata v17
     v19 = eq v18, v3
     jumpi v19, bb7, bb8
   bb8:

@@ -24,7 +24,7 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    mstore v11, v6
+    store v11, v6
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
     v14 = slice_len arg1
@@ -46,7 +46,7 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
     v25 = not 31
     v26 = and v23, v25
     v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    mstore v27, v22
+    store v27, v22
     v28 = ptrtoint memptr v27 to i256
     v29 = add v28, 32
     v30 = slice_len arg0
@@ -94,7 +94,7 @@ fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
-    mstore v26, v5
+    store v26, v5
     v27 = make_calldata_slice v6, v17
     v28 = ptrtoint memptr v26 to i256
     v29 = add v28, 32
@@ -110,7 +110,7 @@ fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_
     icall panic_if<0x32>, v36
     v37 = slice_ptr v3
     v38 = add v37, 0
-    v39 = calldataload v38
+    v39 = load calldata v38
     v40 = make_memory_slice v0, 1
     v41 = slice_load_word v40, 0, memptr
     v42 = memory_slice v41
@@ -253,7 +253,7 @@ fn @sliceTuple(arg0: calldataslice) -> struct3 [selector=0x09979d7d, abi_params=
     v29 = lt v28, 32
     icall panic_if<0x41>, v29
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    mstore v30, v9
+    store v30, v9
     v31 = make_calldata_slice v10, v21
     v32 = ptrtoint memptr v30 to i256
     v33 = add v32, 32

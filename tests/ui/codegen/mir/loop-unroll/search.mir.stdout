@@ -29,7 +29,7 @@ fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, ab
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = add v10, v11
-    v19 = calldataload v18
+    v19 = load calldata v18
     v20 = eq v19, v4
     jumpi v20, bb7, bb8
   bb8:
@@ -79,7 +79,7 @@ fn @findReturn(arg0: calldataslice, arg1: i256) -> i256 [selector=0xc77230d0, pu
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = add v9, v10
-    v18 = calldataload v17
+    v18 = load calldata v17
     v19 = eq v18, v0
     jumpi v19, bb7, bb8
   bb8:
@@ -131,7 +131,7 @@ fn @count(arg0: calldataslice, arg1: i256) -> i256 [selector=0xb77153be, pure, a
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add v11, v12
-    v20 = calldataload v19
+    v20 = load calldata v19
     v21 = eq v20, 0
     jumpi v21, bb10, bb11
   bb11:

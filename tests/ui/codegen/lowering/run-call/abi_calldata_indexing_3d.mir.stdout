@@ -24,7 +24,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v14 = sub v13, v12
     v15 = slt v14, 32
     icall revert_if<calldata_tail_too_short>, v15
-    v16 = calldataload v12
+    v16 = load calldata v12
     v17 = add v4, v16
     v18 = calldatasize
     v19 = sub v18, v4
@@ -51,7 +51,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v37 = sub v36, v35
     v38 = slt v37, 32
     icall revert_if<calldata_tail_too_short>, v38
-    v39 = calldataload v35
+    v39 = load calldata v35
     v40 = add v27, v39
     v41 = calldatasize
     v42 = sub v41, v27
@@ -78,7 +78,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v60 = sub v59, v58
     v61 = slt v60, 32
     icall revert_if<calldata_tail_too_short>, v61
-    v62 = calldataload v58
+    v62 = load calldata v58
     v63 = add v50, v62
     v64 = calldatasize
     v65 = sub v64, v50
@@ -86,7 +86,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v67 = slt v62, v66
     v68 = eq v67, false
     icall revert_if<invalid_calldata_tail_offset>, v68
-    v69 = calldataload v63
+    v69 = load calldata v63
     v70 = gt v69, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v70
     v71 = mul v69, 32
@@ -116,7 +116,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v92 = sub v91, v90
     v93 = slt v92, 32
     icall revert_if<calldata_tail_too_short>, v93
-    v94 = calldataload v90
+    v94 = load calldata v90
     v95 = add v82, v94
     v96 = calldatasize
     v97 = sub v96, v82
@@ -143,7 +143,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v115 = sub v114, v113
     v116 = slt v115, 32
     icall revert_if<calldata_tail_too_short>, v116
-    v117 = calldataload v113
+    v117 = load calldata v113
     v118 = add v105, v117
     v119 = calldatasize
     v120 = sub v119, v105
@@ -151,7 +151,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v122 = slt v117, v121
     v123 = eq v122, false
     icall revert_if<invalid_calldata_tail_offset>, v123
-    v124 = calldataload v118
+    v124 = load calldata v118
     v125 = gt v124, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v125
     v126 = mul v124, 32
@@ -176,7 +176,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v143 = eq v142, 0
     icall panic_if<0x41>, v143
     v144 = add v136, v137
-    v145 = calldataload v144
+    v145 = load calldata v144
     v146 = insert_value struct0, undef struct0, 0, v0
     v147 = insert_value struct0, v146, 1, 2
     v148 = insert_value struct0, v147, 2, v78

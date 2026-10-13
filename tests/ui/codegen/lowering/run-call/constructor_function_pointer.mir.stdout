@@ -24,7 +24,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     sstore 0, v11 !metadata(storage=slot(0))
     ret
 }
@@ -40,7 +40,7 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 fn @constructor(arg0: memptr) [constructor, abi_params=[array<1, function>]] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
-    v1 = mload v0
+    v1 = load v0
     sstore 0, v1 !metadata(storage=slot(0))
     ret
 }
@@ -67,7 +67,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v10 = slice_ptr v4
     v11 = ptrtoint memptr v8 to i256
     v12 = add v11, v5
-    mcopy v12, v10, 32 !metadata(memory=heap)
+    copy v12, v10, 32 !metadata(memory=heap)
     v13 = ptrtoint memptr v8 to i256
     v14 = create 0, v13, v6
     v15 = ne v14, i160 0
@@ -89,7 +89,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
-    v25 = mload v24
+    v25 = load v24
     ret v25
 }
 
@@ -118,7 +118,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v16 = slice_ptr v10
     v17 = ptrtoint memptr v14 to i256
     v18 = add v17, v11
-    mcopy v18, v16, 32 !metadata(memory=heap)
+    copy v18, v16, 32 !metadata(memory=heap)
     v19 = ptrtoint memptr v14 to i256
     v20 = create 0, v19, v12
     v21 = ne v20, i160 0
@@ -148,7 +148,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
     v38 = add 0, 0
-    v39 = mload v38
+    v39 = load v38
     v40 = eq v39, v29
     ret v40
 }

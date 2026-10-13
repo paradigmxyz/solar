@@ -8,7 +8,7 @@ fn @readSecond(arg0: calldataslice) -> i8 [selector=0xe9d33e2a, pure, abi_params
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 32
-    v5 = calldataload v4
+    v5 = load calldata v4
     v6 = shr 8, v5
     v7 = eq v6, 0
     v8 = eq v7, false
@@ -25,7 +25,7 @@ fn @readFirst(arg0: calldataslice) -> i8 [selector=0x77c98de5, pure, abi_params=
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
-    v5 = calldataload v4
+    v5 = load calldata v4
     v6 = shr 8, v5
     v7 = eq v6, 0
     v8 = eq v7, false
@@ -54,7 +54,7 @@ fn @nested(arg0: calldataslice) -> i8 [selector=0xf4e4bddf, pure, abi_params=[ar
     icall panic_if<0x32>, v8
     v9 = slice_ptr v5
     v10 = add v9, 32
-    v11 = calldataload v10
+    v11 = load calldata v10
     v12 = shr 8, v11
     v13 = eq v12, 0
     v14 = eq v13, false
@@ -77,7 +77,7 @@ fn @second(arg0: calldataslice) -> i8 [pure] {
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 32
-    v5 = calldataload v4
+    v5 = load calldata v4
     v6 = shr 8, v5
     v7 = eq v6, 0
     v8 = eq v7, false
@@ -115,7 +115,7 @@ fn @copyToMemory(arg0: calldataslice) -> i8 [selector=0x13aac4cb, pure, abi_para
   bb2:
     v7 = mul v5, 32
     v8 = add v0, v7
-    v9 = calldataload v8
+    v9 = load calldata v8
     v10 = shr 8, v9
     v11 = eq v10, 0
     v12 = eq v11, false

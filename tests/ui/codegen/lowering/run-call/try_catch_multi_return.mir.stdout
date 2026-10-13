@@ -11,10 +11,10 @@ fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], ab
     jump bb3
   bb3:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v1, 2
+    store v1, 2
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
-    mstore v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    store v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v4 = insert_value struct0, undef struct0, 0, 13
     v5 = insert_value struct0, v4, 1, v1
     ret v5
@@ -42,7 +42,7 @@ fn @constructor() [constructor] {
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
+    copy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0

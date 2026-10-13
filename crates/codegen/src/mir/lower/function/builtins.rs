@@ -428,7 +428,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::MsgValue => Some(self.builder.callvalue()),
             Builtin::MsgSig => {
                 let offset = self.builder.imm(0);
-                let value = self.builder.calldataload(offset);
+                let value = self.builder.load(offset, PtrLocation::Calldata);
                 let mask = self.builder.imm(U256::MAX << 224);
                 Some(self.builder.and(value, mask))
             }
@@ -720,16 +720,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }};
         }
+        macro_rules! copy {
+            ($location:expr) => {{
+                let [dest, src, size] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.copy(dest, src, size, $location);
+                Some(())
+            }};
+        }
         match builtin {
-            Builtin::YulMstore => lower!(mstore(offset, value)),
-            Builtin::YulMstore8 => lower!(mstore8(offset, value)),
-            Builtin::YulMcopy => lower!(mcopy(dest, src, size)),
+            Builtin::YulMstore => lower!(store(offset, value)),
+            Builtin::YulMstore8 => lower!(store8(offset, value)),
+            Builtin::YulMcopy => copy!(PtrLocation::Memory),
             Builtin::YulSstore => lower!(sstore(slot, value)),
             Builtin::YulTstore => lower!(tstore(slot, value)),
-            Builtin::YulCalldatacopy => lower!(calldatacopy(dest, src, size)),
+            Builtin::YulCalldatacopy => copy!(PtrLocation::Calldata),
             Builtin::YulCodecopy => lower!(codecopy(dest, src, size)),
             Builtin::YulExtcodecopy => lower!(extcodecopy(address, dest, src, size)),
-            Builtin::YulReturndatacopy => lower!(returndatacopy(dest, src, size)),
+            Builtin::YulReturndatacopy => copy!(PtrLocation::Returndata),
             Builtin::YulLog0 => log!(),
             Builtin::YulLog1 => log!(topic1),
             Builtin::YulLog2 => log!(topic1, topic2),
@@ -766,6 +773,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }};
         }
+        macro_rules! load {
+            ($location:expr) => {{
+                let [offset] = self.lower_builtin_args(builtin, &args)?;
+                Some(self.builder.load(offset, $location))
+            }};
+        }
         match builtin {
             Builtin::YulAdd => lower!(add(lhs, rhs)),
             Builtin::YulSub => lower!(sub(lhs, rhs)),
@@ -793,11 +806,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => lower!(clz(value)),
-            Builtin::YulMload => lower!(mload(offset)),
+            Builtin::YulMload => load!(PtrLocation::Memory),
             Builtin::YulMsize => lower!(msize()),
             Builtin::YulSload => lower!(sload(slot)),
             Builtin::YulTload => lower!(tload(slot)),
-            Builtin::YulCalldataload => lower!(calldataload(offset)),
+            Builtin::YulCalldataload => load!(PtrLocation::Calldata),
             Builtin::YulCalldatasize => lower!(calldatasize()),
             Builtin::YulCodesize => lower!(codesize()),
             Builtin::YulExtcodesize => lower!(extcodesize(address)),

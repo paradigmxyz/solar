@@ -17,7 +17,7 @@ fn @overwrite(arg0: i256) -> i256 [selector=0x9dc8c3ab, pure, abi_params=[u256],
     v8 = add v7, 32
     v9 = sub v8, arg0
     v10 = add arg0, v9
-    mstore v10, 9
+    store v10, 9
     v11 = make_memory_slice v2, 1
     v12 = lt 0, 1
     v13 = eq v12, false

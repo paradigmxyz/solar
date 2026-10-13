@@ -5,7 +5,7 @@
     bb0:
 -     memory_zero arg0, arg1
 +     v0 = calldatasize
-+     calldatacopy arg0, v0, arg1
++     copy calldata arg0, v0, arg1
       stop
   }
   

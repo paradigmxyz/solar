@@ -6,10 +6,10 @@
 -     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
 -     ret v0
 +     v1 = alloc raw, exact, uninitialized, infallible, 64
-+     mstore v1, 0x1234567800000000000000000000000000000000000000000000000000000000
++     store v1, 0x1234567800000000000000000000000000000000000000000000000000000000
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = add v2, 4
-+     mstore v3, arg0
++     store v3, arg0
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = make_memory_slice v4, 36
 +     ret v5
@@ -20,12 +20,12 @@
 -     v0 = abi_encode [word, word], object, args arg0, arg1
 -     ret v0
 +     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-+     mstore v1, 64
++     store v1, 64
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = add v2, 32
-+     mstore v3, arg0
++     store v3, arg0
 +     v4 = add v3, 32
-+     mstore v4, arg1
++     store v4, arg1
 +     ret v1
   }
   
@@ -34,13 +34,13 @@
 -     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
 -     ret v0
 +     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-+     mstore v1, 36
++     store v1, 36
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = add v2, 32
-+     mstore v3, 0x1234567800000000000000000000000000000000000000000000000000000000
++     store v3, 0x1234567800000000000000000000000000000000000000000000000000000000
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = add v4, 36
-+     mstore v5, arg0
++     store v5, arg0
 +     ret v1
   }
   
@@ -49,7 +49,7 @@
 -     v0 = abi_encode [word], scratch, args arg0
 -     ret v0
 +     v1 = fmp
-+     mstore v1, arg0
++     store v1, arg0
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = make_memory_slice v2, 32
 +     ret v3
@@ -64,18 +64,18 @@
 +     v3 = add v2, 32
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = sub v3, v4
-+     mstore v1, v5
++     store v1, v5
 +     v6 = slice_len arg0
 +     v7 = not 31
 +     v8 = add v6, 31
 +     v9 = and v8, v7
 +     v10 = add v3, 32
 +     v11 = add v3, v9
-+     mstore v11, 0
-+     mstore v3, v6
++     store v11, 0
++     store v3, v6
 +     v12 = slice_ptr arg0
 +     v13 = add v10, v9
-+     calldatacopy v10, v12, v6 !metadata(memory=heap)
++     copy calldata v10, v12, v6 !metadata(memory=heap)
 +     v14 = ptrtoint memptr v1 to i256
 +     v15 = sub v13, v14
 +     v16 = add v15, 0
@@ -97,7 +97,7 @@
 +     v3 = add v2, 32
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = sub v3, v4
-+     mstore v1, v5
++     store v1, v5
 +     v6 = memory_slice arg0
 +     v7 = slice_len v6
 +     v8 = ptrtoint memptr arg0 to i256
@@ -105,7 +105,7 @@
 +     v10 = eq v9, false
 +     v11 = zext i1 v10 to i256
 +     v12 = mul v7, v11
-+     mstore v3, v12
++     store v3, v12
 +     v13 = add v3, 32
 +     v14 = mul v12, 32
 +     v15 = add v13, v14
@@ -131,9 +131,9 @@
 +     v47 = make_memory_slice v46, v41
 +     ret v47
 +   bb2:
-+     v23 = mload v21
++     v23 = load v21
 +     v24 = sub v19, v13
-+     mstore v20, v24
++     store v20, v24
 +     v25 = inttoptr i256 v23 to memptr
 +     v26 = memory_slice v25
 +     v27 = slice_len v26
@@ -141,12 +141,12 @@
 +     v29 = eq v28, false
 +     v30 = zext i1 v29 to i256
 +     v31 = mul v27, v30
-+     mstore v19, v31
++     store v19, v31
 +     v32 = mul v31, 32
 +     v33 = add v19, 32
 +     v34 = add v23, 32
 +     v35 = add v33, v32
-+     mcopy v33, v34, v32 !metadata(memory=heap, disjoint)
++     copy v33, v34, v32 !metadata(memory=heap, disjoint)
 +     v36 = sub v18, 1
 +     v37 = add v20, 32
 +     v38 = add v21, 32
@@ -162,7 +162,7 @@
 +     v3 = add v2, 32
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = sub v3, v4
-+     mstore v1, v5
++     store v1, v5
 +     v6 = mul 2, 32
 +     v7 = add v3, v6
 +     v8 = ptrtoint memptr arg0 to i256
@@ -186,9 +186,9 @@
 +     v30 = make_memory_slice v29, v24
 +     ret v30
 +   bb2:
-+     v14 = mload v12
++     v14 = load v12
 +     v15 = sub v10, v3
-+     mstore v11, v15
++     store v11, v15
 +     v16 = inttoptr i256 v10 to memptr
 +     v17 = icall @encode_abi_array, v14, v16
 +     v18 = add v10, v17
@@ -209,18 +209,18 @@
 +     v5 = add v4, 32
 +     v6 = ptrtoint memptr v3 to i256
 +     v7 = sub v5, v6
-+     mstore v3, v7
++     store v3, v7
 +     v8 = slice_len v1
 +     v9 = not 31
 +     v10 = add v0, 31
 +     v11 = and v10, v9
 +     v12 = add v5, 32
 +     v13 = add v5, v11
-+     mstore v13, 0
-+     mstore v5, v0
++     store v13, 0
++     store v5, v0
 +     v14 = slice_ptr v1
 +     v15 = add v12, v11
-+     returndatacopy v12, 0, v0
++     copy returndata v12, 0, v0
 +     v16 = ptrtoint memptr v3 to i256
 +     v17 = sub v15, v16
 +     v18 = add v17, 0
@@ -243,14 +243,14 @@
 +     v4 = add v3, 32
 +     v5 = ptrtoint memptr v2 to i256
 +     v6 = sub v4, v5
-+     mstore v2, v6
++     store v2, v6
 +     v7 = slice_len v0
-+     mstore v4, arg0
++     store v4, arg0
 +     v8 = mul arg0, 32
 +     v9 = add v4, 32
 +     v10 = slice_ptr v0
 +     v11 = add v9, v8
-+     returndatacopy v9, 0, v8
++     copy returndata v9, 0, v8
 +     v12 = ptrtoint memptr v2 to i256
 +     v13 = sub v11, v12
 +     v14 = add v13, 0
@@ -273,7 +273,7 @@
 +     v5 = eq v4, false
 +     v6 = zext i1 v5 to i256
 +     v7 = mul v3, v6
-+     mstore v0, v7
++     store v0, v7
 +     v8 = mul v7, 32
 +     v9 = add v0, 32
 +     v10 = add arg0, 32
@@ -285,9 +285,9 @@
 +     v14 = phi [bb0: v7], [bb1: v19]
 +     v15 = phi [bb0: v9], [bb1: v20]
 +     v16 = add v15, v12
-+     v17 = mload v16
++     v17 = load v16
 +     v18 = and v17, 255
-+     mstore v15, v18
++     store v15, v18
 +     v19 = sub v14, 1
 +     v20 = add v15, 32
 +     v21 = ne v19, 0

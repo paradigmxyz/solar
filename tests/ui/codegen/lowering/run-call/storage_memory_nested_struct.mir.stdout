@@ -241,7 +241,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v188 = eq v187, 0
     icall panic_if<0x41>, v188
     v189 = alloc memoryarray<1>, exact, uninitialized, panic, v182
-    mstore v189, v172
+    store v189, v172
     jump bb1
   bb1:
     v190 = phi [bb0: 0], [bb6: v219]
@@ -519,7 +519,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v403, 0, 0
     slice_store_word v403, 32, 0
     v404 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v404, 0
+    store v404, 0
     v405 = ptrtoint memptr v404 to i256
     slice_store_word v403, 64, v405
     v406 = shl 5, v400
@@ -533,7 +533,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v369, 0, 0
     slice_store_word v369, 32, 0
     v370 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v370, 0
+    store v370, 0
     v371 = ptrtoint memptr v370 to i256
     slice_store_word v369, 64, v371
     v372 = shl 5, v366
@@ -547,7 +547,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v335, 0, 0
     slice_store_word v335, 32, 0
     v336 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v336, 0
+    store v336, 0
     v337 = ptrtoint memptr v336 to i256
     slice_store_word v335, 64, v337
     v338 = shl 5, v332
@@ -561,7 +561,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v297, 0, 0
     slice_store_word v297, 32, 0
     v298 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v298, 0
+    store v298, 0
     v299 = ptrtoint memptr v298 to i256
     slice_store_word v297, 64, v299
     v300 = shl 5, v294
@@ -575,7 +575,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v264, 0, 0
     slice_store_word v264, 32, 0
     v265 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v265, 0
+    store v265, 0
     v266 = ptrtoint memptr v265 to i256
     slice_store_word v264, 64, v266
     v267 = shl 5, v261
@@ -589,7 +589,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     slice_store_word v232, 0, 0
     slice_store_word v232, 32, 0
     v233 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v233, 0
+    store v233, 0
     v234 = ptrtoint memptr v233 to i256
     slice_store_word v232, 64, v234
     v235 = shl 5, v229
@@ -653,7 +653,7 @@ fn @default_struct_0() -> memptr {
     slice_store_word v1, 0, 0
     slice_store_word v1, 32, 0
     v2 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    mstore v2, 0
+    store v2, 0
     v3 = ptrtoint memptr v2 to i256
     slice_store_word v1, 64, v3
     ret v0

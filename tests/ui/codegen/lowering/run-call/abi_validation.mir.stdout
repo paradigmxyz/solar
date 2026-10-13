@@ -28,7 +28,7 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     v12 = shr 160, v11
     v13 = eq v12, 0
     v14 = eq v13, false
@@ -60,7 +60,7 @@ fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[byte
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = mload v10
+    v11 = load v10
     ret v11
 }
 
@@ -90,7 +90,7 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u25
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
-    v12 = mload v11
+    v12 = load v11
     ret v12
 }
 

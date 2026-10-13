@@ -64,7 +64,7 @@
   
   fn @memory() -> i256 {
     bb0:
-      v0 = mload 0
+      v0 = load 0
       v1 = loadimmutable start
       v2 = zext i64 v1 to i256
       v3 = add v0, v2
@@ -149,7 +149,7 @@
   
   fn @memory() -> i256 {
     bb0:
-      v0 = mload 0
+      v0 = load 0
       v1 = loadimmutable start
       v2 = zext i64 v1 to i256
       v3 = add v0, v2
@@ -221,7 +221,7 @@
   
   fn @memory() -> i256 {
     bb0:
-      v0 = mload 0
+      v0 = load 0
       v1 = loadimmutable start
       v2 = zext i64 v1 to i256
       v3 = add v0, v2

@@ -117,7 +117,7 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     icall panic_if<0x32>, v4
     slice_store_word v2, 64, 7
     v5 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v5, 1
+    store v5, 1
     v6 = memory_slice v5
     v7 = slice_len v6
     v8 = lt 0, v7
@@ -194,7 +194,7 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v8 = not 31
     v9 = and 95, v8
     v10 = alloc memorybytes, exact, zeroed, panic, v9
-    mstore v10, 32
+    store v10, 32
     v11 = memory_slice v10
     v12 = slice_len v11
     v13 = lt 0, v12
@@ -261,7 +261,7 @@ fn @emptyWideNamedStruct() -> memptr [selector=0x27d08cee, pure, abi_params=[], 
 fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    mstore v0, 1
+    store v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v2 = make_memory_slice v1, 2
     slice_store_word v2, 0, 96
@@ -272,7 +272,7 @@ fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_para
     v5 = not 31
     v6 = and 64, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
-    mstore v7, 1
+    store v7, 1
     v8 = make_memory_slice v1, 2
     v9 = ptrtoint memptr v7 to i256
     slice_store_word v8, 32, v9

@@ -392,7 +392,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             builder.switch_to_block(check_offset);
             let payload_ptr = builder.add_u64_offset(data_ptr, 4);
-            let offset = builder.mload(payload_ptr);
+            let offset = builder.load(payload_ptr, PtrLocation::Memory);
             let max_u64 = builder.imm(u64::MAX);
             let offset_too_large = builder.gt(offset, max_u64);
             let message_data_offset = builder.add_u64_offset(offset, 36);
@@ -402,7 +402,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             builder.switch_to_block(check_length);
             let message_ptr = builder.add(payload_ptr, offset);
-            let length = builder.mload(message_ptr);
+            let length = builder.load(message_ptr, PtrLocation::Memory);
             let length_too_large = builder.gt(length, max_u64);
             let remaining = builder.sub(data_len, message_data_offset);
             let data_out_of_range = builder.gt(length, remaining);

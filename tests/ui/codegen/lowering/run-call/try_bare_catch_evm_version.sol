@@ -61,7 +61,7 @@ contract TryBareCatch {
     // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
     // OSAKA: jumpi [[OK]]
     // OSAKA-NOT: returndata_bytes
-    // OSAKA: mload
+    // OSAKA: {{(^|[^a-z_])}}load
     function live() external returns (uint256 r) {
         try TryTarget(address(new TryCallee())).value() returns (uint256 v) {
             r = v;
@@ -77,7 +77,7 @@ contract TryBareCatch {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
-    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: store [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50

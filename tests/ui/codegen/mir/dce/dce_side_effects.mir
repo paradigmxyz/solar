@@ -81,18 +81,18 @@ fn @memory_observer() -> i256 {
 
 fn @reads_memory() -> i256 {
   bb0:
-    v0 = mload 4096
+    v0 = load 4096
     ret v0
 }
 
 // CHECK-LABEL: fn @callee_observes_memory
-// CHECK: {{^[ +].*}}mload 0x1000
+// CHECK: {{^[ +].*}}load 0x1000
 // CHECK: {{^[ +].*}}icall @observe_memory
 fn @callee_observes_memory(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = mload 4096
+    v0 = load 4096
     jump bb2
   bb2:
     v1 = icall @observe_memory
@@ -149,12 +149,12 @@ fn @unused_storage_array(arg0: i256) {
 }
 
 // CHECK-LABEL: fn @dead_memory_observer
-// CHECK: - {{v[0-9]+}} = mload 0x1000
+// CHECK: - {{v[0-9]+}} = load 0x1000
 // CHECK: - {{v[0-9]+}} = msize
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}}
 fn @dead_memory_observer() {
   bb0:
-    v0 = mload 4096
+    v0 = load 4096
     v1 = msize
     v2 = add v1, v1
     ret

@@ -182,7 +182,7 @@ use crate::{
     backend::evm::op,
     mir::{
         BlockId, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
-        MirType, Module, OpTraits, Terminator, Value, ValueId,
+        MirType, Module, OpTraits, PtrLocation, Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
         utils::rebuild_predecessors,
@@ -406,7 +406,7 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
     let Some(kind) = inst_kind(func, value) else { return true };
     match kind {
         InstKind::Zext(inner) => rebuilt_at_use(func, *inner),
-        InstKind::CalldataLoad(offset) => func.value_u256(*offset).is_some(),
+        InstKind::Load(offset, PtrLocation::Calldata) => func.value_u256(*offset).is_some(),
         _ => {
             let def = kind.op_def();
             def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure

@@ -4,7 +4,7 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
-    v2 = calldataload v1
+    v2 = load calldata v1
     v3 = shr 8, v2
     v4 = eq v3, 0
     v5 = eq v4, false
@@ -21,8 +21,8 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
     v9 = zext i160 v14 to i256
     ret v9
   bb1:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -30,7 +30,7 @@ fn @flat(arg0: calldataslice) -> i256 [selector=0x73a9ddca, pure, abi_params=[tu
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
-    v2 = calldataload v1
+    v2 = load calldata v1
     ret v2
 }
 
@@ -42,7 +42,7 @@ fn @words(arg0: calldataslice) -> i256 [selector=0x6d5f7443, pure, abi_params=[t
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -50,7 +50,7 @@ fn @words(arg0: calldataslice) -> i256 [selector=0x6d5f7443, pure, abi_params=[t
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
@@ -64,15 +64,15 @@ fn @words(arg0: calldataslice) -> i256 [selector=0x6d5f7443, pure, abi_params=[t
     v21 = slice_len v20
     v22 = slice_ptr arg0
     v23 = add v22, 32
-    v24 = calldataload v23
+    v24 = load calldata v23
     v26 = add v21, v24
     v27 = lt v26, v21
     jumpi v27, bb1, bb2
   bb2:
     ret v26
   bb1:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -84,7 +84,7 @@ fn @signedWords(arg0: calldataslice) -> i256 [selector=0x69491962, pure, abi_par
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -92,7 +92,7 @@ fn @signedWords(arg0: calldataslice) -> i256 [selector=0x69491962, pure, abi_par
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
@@ -106,15 +106,15 @@ fn @signedWords(arg0: calldataslice) -> i256 [selector=0x69491962, pure, abi_par
     v21 = slice_len v20
     v22 = slice_ptr arg0
     v23 = add v22, 32
-    v24 = calldataload v23
+    v24 = load calldata v23
     v26 = add v21, v24
     v27 = lt v26, v21
     jumpi v27, bb1, bb2
   bb2:
     ret v26
   bb1:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -126,7 +126,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
     v3 = sub v2, v1
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
-    v5 = calldataload v1
+    v5 = load calldata v1
     v6 = add v0, v5
     v7 = calldatasize
     v8 = sub v7, v0
@@ -134,7 +134,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v6
+    v12 = load calldata v6
     v13 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
@@ -152,7 +152,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
     v25 = sub v24, v23
     v26 = slt v25, 32
     icall revert_if<calldata_tail_too_short>, v26
-    v27 = calldataload v23
+    v27 = load calldata v23
     v28 = add v22, v27
     v29 = calldatasize
     v30 = sub v29, v22
@@ -160,7 +160,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
     v32 = slt v27, v31
     v33 = eq v32, false
     icall revert_if<invalid_calldata_tail_offset>, v33
-    v34 = calldataload v28
+    v34 = load calldata v28
     v35 = gt v34, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v35
     v36 = mul v34, 32
@@ -181,7 +181,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
     v49 = sub v48, v47
     v50 = slt v49, 32
     icall revert_if<calldata_tail_too_short>, v50
-    v51 = calldataload v47
+    v51 = load calldata v47
     v52 = add v46, v51
     v53 = calldatasize
     v54 = sub v53, v46
@@ -189,7 +189,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
     v56 = slt v51, v55
     v57 = eq v56, false
     icall revert_if<invalid_calldata_tail_offset>, v57
-    v58 = calldataload v52
+    v58 = load calldata v52
     v59 = gt v58, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v59
     v60 = mul v58, 32
@@ -207,7 +207,7 @@ fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_par
   bb2:
     ret v69
   bb1:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    store 32, 17 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }

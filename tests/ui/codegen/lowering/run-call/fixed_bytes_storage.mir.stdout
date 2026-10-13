@@ -89,9 +89,9 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 
 fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<u32>], abi_return_params=[bytes4, u32]] {
   bb0:
-    v0 = calldataload 0
+    v0 = load calldata 0
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v2 = calldataload 0
+    v2 = load calldata 0
     v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v4 = shr 224, v3
     v5 = trunc i256 v4 to i32

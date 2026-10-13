@@ -6,16 +6,16 @@
   
   fn @dominating_mload(arg0: i1) -> i256 {
     bb0:
-      mstore 0, 11
--     v0 = mload 0
+      store 0, 11
+-     v0 = load 0
       jumpi arg0, bb1, bb2
     bb2:
-      mstore 0, 22
--     v2 = mload 0
+      store 0, 22
+-     v2 = load 0
 -     ret v2
 +     ret 22
     bb1:
--     v1 = mload 0
+-     v1 = load 0
 -     ret v1
 +     ret 11
   }

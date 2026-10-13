@@ -100,7 +100,7 @@ fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, functio
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    mstore v0, 3
+    store v0, 3
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v19]
@@ -135,7 +135,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v34 = slice_ptr v29
     v35 = ptrtoint memptr v32 to i256
     v36 = add v35, v30
-    mcopy v36, v34, 0 !metadata(memory=heap)
+    copy v36, v34, 0 !metadata(memory=heap)
     v37 = ptrtoint memptr v32 to i256
     v38 = create 0, v37, v30
     v39 = ne v38, i160 0
@@ -183,7 +183,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v67 = lt v66, 32
     icall revert_if<tuple_data_too_short>, v67
     v68 = add 0, 0
-    v69 = mload v68
+    v69 = load v68
     v70 = make_memory_slice v52, 3
     v71 = lt 1, 3
     v72 = eq v71, false
@@ -206,7 +206,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v84 = lt v83, 32
     icall revert_if<tuple_data_too_short>, v84
     v85 = add 0, 0
-    v86 = mload v85
+    v86 = load v85
     v87 = make_memory_slice v52, 3
     v88 = lt 2, 3
     v89 = eq v88, false
@@ -229,7 +229,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v101 = lt v100, 32
     icall revert_if<tuple_data_too_short>, v101
     v102 = add 0, 0
-    v103 = mload v102
+    v103 = load v102
     v104 = insert_value struct0, undef struct0, 0, v69
     v105 = insert_value struct0, v104, 1, v86
     v106 = insert_value struct0, v105, 2, v103
