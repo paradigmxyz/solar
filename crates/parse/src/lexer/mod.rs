@@ -121,6 +121,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     // Opening delimiter is not included into the symbol.
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content = self.str_from(content_start);
+                    self.check_bidi_markers(start, content, "comment");
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
                 }
                 RawTokenKind::BlockComment { is_doc, terminated } => {
@@ -138,6 +139,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content_end = self.pos - (terminated as u32) * 2;
                     let content = self.str_from_to(content_start, content_end);
+                    if terminated {
+                        self.check_bidi_markers(start, content, "comment");
+                    }
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
                 }
                 RawTokenKind::Whitespace => {
@@ -366,7 +370,49 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         let content_start = start + 1 + BytePos(kind.prefix().len() as u32);
         let content_end = end - 1;
         let lit_content = self.str_from_to(content_start, content_end);
+        if kind == StrKind::Unicode {
+            self.check_bidi_markers(start, lit_content, "string literal");
+        }
         self.intern(lit_content)
+    }
+
+    /// Rejects unbalanced Unicode directional embeddings and overrides (U+202A..=U+202E) in a
+    /// comment or unicode string literal, like solc, to defend against "Trojan Source" attacks.
+    ///
+    /// Unlike solc, doc comments are checked too. The isolates (U+2066..=U+2069) are not checked,
+    /// matching solc.
+    fn check_bidi_markers(&self, start: BytePos, content: &str, what: &str) {
+        let bytes = content.as_bytes();
+        let mut depth = 0usize;
+        // The markers are encoded as `E2 80 AA..=AE`.
+        for i in memchr::memchr_iter(0xE2, bytes) {
+            match bytes.get(i + 1..i + 3) {
+                Some([0x80, 0xAA | 0xAB | 0xAD | 0xAE]) => depth += 1,
+                Some([0x80, 0xAC]) if depth == 0 => {
+                    return self.emit_bidi_error(
+                        start,
+                        "unicode direction override underflow",
+                        what,
+                    );
+                }
+                Some([0x80, 0xAC]) => depth -= 1,
+                _ => {}
+            }
+        }
+        if depth > 0 {
+            self.emit_bidi_error(start, "mismatching directional override markers", what);
+        }
+    }
+
+    #[cold]
+    fn emit_bidi_error(&self, start: BytePos, msg: &str, what: &str) {
+        self.dcx()
+            .err(format!("{msg} in {what}"))
+            .code(error_code!(8936))
+            .span(self.new_span(start, self.pos))
+            .note("these codepoints change the order in which text is displayed, so code can render differently from how it compiles")
+            .help("balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them")
+            .emit();
     }
 
     #[inline]

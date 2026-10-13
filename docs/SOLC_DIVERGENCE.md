@@ -69,6 +69,22 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Directional override markers in doc comments
+
+Status: intentional.
+
+Difference: `solar` rejects unbalanced Unicode directional embeddings and
+overrides (U+202A..U+202E) in NatSpec doc comments (`///` and `/** */`), as it
+does in plain comments and unicode string literals. `solc` checks only plain
+comments and unicode string literals.
+
+Rationale: the check defends against "Trojan Source" attacks, where source text
+renders in a different order from how it compiles; a doc comment can hide code
+just as a plain comment can.
+
+Coverage: `tests/ui/lexer/direction_override/markers.sol`;
+[#1844](https://github.com/paradigmxyz/solar/issues/1844).
+
 ## AST Validation
 
 No intentional divergences documented yet.

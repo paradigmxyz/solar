@@ -1,0 +1,24 @@
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/struct_field_checks.sol:LL:CC
+   │
+LL │     function() returns (uint r) f;
+   ╰╴                             ━
+
+error: return parameters in function types may not be named
+   ╭▸ ROOT/tests/ui/resolve/struct_field_checks.sol:LL:CC
+   │
+LL │     function() returns (uint r) f;
+   │                         ━━━━┬─
+   │                             │
+   ╰╴                            help: remove `r`
+
+error: invalid use of underscores in number literal
+   ╭▸ ROOT/tests/ui/resolve/struct_field_checks.sol:LL:CC
+   │
+LL │     uint[1__0] a;
+   │          ━━━━
+   │
+   ╰ help: only 1 consecutive underscore `_` is allowed between digits
+
+error: aborting due to 2 previous errors; 1 warning emitted
+
