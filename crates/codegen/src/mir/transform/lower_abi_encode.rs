@@ -38,12 +38,11 @@
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation,
-        Terminator, Value, ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout,
-        pass::MirPass, transform::utils::redirect_successor_predecessors,
-        utils::resolve_replacement,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, CalldataTail,
+        EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Terminator, Value,
+        ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
+        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
     target::{Cost, Target},
 };
@@ -1414,6 +1413,7 @@ fn encode_calldata_bytes_array(
     let head_bytes = builder.mul(len, word);
     let initial_tail = builder.add(element_area, head_bytes);
     let source_base = builder.slice_ptr(value);
+    let calldata_end = builder.calldatasize();
 
     let preheader = builder.current_block();
     let cond = builder.create_block();
@@ -1431,8 +1431,17 @@ fn encode_calldata_bytes_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let (data, length) = access_calldata_tail(builder, source_base, source_head, 32, Some(1));
-    let length = length.expect("bytes are dynamically sized");
+    // offset = calldataload(source_head)
+    // element_base = calldata_tail_offset(source_base, offset)
+    // length = calldataload(element_base)
+    // data = element_base + 32
+    // check_calldata_tail_length(data, length, 1)
+    let tail = CalldataTail::Encode;
+    let offset = builder.calldataload(source_head);
+    let element_base = builder.calldata_tail_offset(tail, source_base, offset, calldata_end, 32);
+    let length = builder.calldataload(element_base);
+    let data = builder.add_u64_offset(element_base, 32);
+    builder.check_calldata_tail_length(tail, data, length, calldata_end, 1);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,
@@ -1456,55 +1465,6 @@ fn encode_calldata_bytes_array(
 
     builder.switch_to_block(done);
     current_tail
-}
-
-/// Resolves the calldata value whose offset relative to `base` is stored at `head`, with the
-/// checks solc applies when it re-encodes calldata. The offset must leave `tail_size` bytes
-/// before `calldatasize` by a signed compare, so a negative offset that wraps is accepted and
-/// later reads past `calldatasize` see zeros. For a dynamically sized value, `stride` is its
-/// element size: the length and data range are checked, and the data address and length are
-/// returned.
-///
-/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1435-L1475>
-pub(super) fn access_calldata_tail(
-    builder: &mut FunctionBuilder<'_>,
-    base: ValueId,
-    head: ValueId,
-    tail_size: u64,
-    stride: Option<u64>,
-) -> (ValueId, Option<ValueId>) {
-    // offset = calldataload(head)
-    // if !(offset <s calldatasize() - base - (tail_size - 1)) { revert }
-    // value = base + offset
-    let offset = builder.calldataload(head);
-    let calldata_size = builder.calldatasize();
-    let available = builder.sub(calldata_size, base);
-    let slack = builder.imm(tail_size - 1);
-    let bound = builder.sub(available, slack);
-    let valid_offset = builder.slt(offset, bound);
-    let invalid_offset = builder.eq_zero(valid_offset);
-    builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
-    let value = builder.add(base, offset);
-    let Some(stride) = stride else { return (value, None) };
-    // length = calldataload(value)
-    // if length > 0xffffffffffffffff { revert }
-    // data = value + 32
-    // if data >s calldatasize() - length * stride { revert }
-    let length = builder.calldataload(value);
-    let max_length = builder.imm(u64::MAX);
-    let invalid_length = builder.gt(length, max_length);
-    builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
-    let data = builder.add_u64_offset(value, 32);
-    let size = if stride == 1 {
-        length
-    } else {
-        let stride = builder.imm(stride);
-        builder.mul(length, stride)
-    };
-    let limit = builder.sub(calldata_size, size);
-    let short_tail = builder.sgt(data, limit);
-    builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
-    (data, Some(length))
 }
 
 fn encode_word_array(

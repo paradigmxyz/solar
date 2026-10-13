@@ -7,10 +7,10 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
-    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp,
+    ConcatPart, DataId, DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
+    PanicCode, RevertPayload, RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -465,39 +465,6 @@ impl CallResult {
         match self {
             Self::Void => None,
             Self::Value(value) => Some(value),
-        }
-    }
-}
-
-/// The solc helper whose debug messages the checks of a nested calldata value report. Both
-/// helpers apply the same checks.
-#[derive(Clone, Copy)]
-enum CalldataTail {
-    /// `access_calldata_tail`, used for index and member access.
-    Access,
-    /// The ABI encoder's `calldata_access`, used when calldata is re-encoded.
-    Encode,
-}
-
-impl CalldataTail {
-    const fn offset_reason(self) -> RevertReason {
-        match self {
-            Self::Access => RevertReason::InvalidCalldataTailOffset,
-            Self::Encode => RevertReason::InvalidCalldataAccessOffset,
-        }
-    }
-
-    const fn length_reason(self) -> RevertReason {
-        match self {
-            Self::Access => RevertReason::InvalidCalldataTailLength,
-            Self::Encode => RevertReason::InvalidCalldataAccessLength,
-        }
-    }
-
-    const fn stride_reason(self) -> RevertReason {
-        match self {
-            Self::Access => RevertReason::CalldataTailTooShort,
-            Self::Encode => RevertReason::InvalidCalldataAccessStride,
         }
     }
 }

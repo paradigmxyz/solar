@@ -44,23 +44,23 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
     v29 = calldataload v25
-    v30 = add v1, v29
-    v31 = calldatasize
-    v32 = sub v31, v1
+    v30 = calldatasize
+    v31 = add v1, v29
+    v32 = sub v30, v1
     v33 = sub v32, 31
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
-    v36 = calldataload v30
-    v37 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = mul v36, 32
-    v39 = add v30, 32
-    v40 = calldatasize
-    v41 = sub v40, v38
-    v42 = sgt v39, v41
+    v36 = calldataload v31
+    v37 = add v31, 32
+    v38 = calldatasize
+    v39 = gt v36, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v39
+    v40 = mul v36, 32
+    v41 = sub v38, v40
+    v42 = sgt v37, v41
     icall revert_if<calldata_tail_too_short>, v42
-    v43 = add v30, 32
+    v43 = add v31, 32
     v44 = mul v36, 32
     v45 = eq 32, 0
     v46 = div v44, 32
@@ -92,23 +92,23 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     v60 = slt v59, 32
     icall revert_if<calldata_tail_too_short>, v60
     v61 = calldataload v57
-    v62 = add v43, v61
-    v63 = calldatasize
-    v64 = sub v63, v43
+    v62 = calldatasize
+    v63 = add v43, v61
+    v64 = sub v62, v43
     v65 = sub v64, 31
     v66 = slt v61, v65
     v67 = eq v66, false
     icall revert_if<invalid_calldata_tail_offset>, v67
-    v68 = calldataload v62
-    v69 = gt v68, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v69
-    v70 = mul v68, 32
-    v71 = add v62, 32
-    v72 = calldatasize
-    v73 = sub v72, v70
-    v74 = sgt v71, v73
+    v68 = calldataload v63
+    v69 = add v63, 32
+    v70 = calldatasize
+    v71 = gt v68, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v71
+    v72 = mul v68, 32
+    v73 = sub v70, v72
+    v74 = sgt v69, v73
     icall revert_if<calldata_tail_too_short>, v74
-    v75 = add v62, 32
+    v75 = add v63, 32
     v76 = mul v68, 32
     v77 = eq 32, 0
     v78 = div v76, 32
@@ -174,23 +174,23 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
     v29 = calldataload v25
-    v30 = add v1, v29
-    v31 = calldatasize
-    v32 = sub v31, v1
+    v30 = calldatasize
+    v31 = add v1, v29
+    v32 = sub v30, v1
     v33 = sub v32, 31
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
-    v36 = calldataload v30
-    v37 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = mul v36, 64
-    v39 = add v30, 32
-    v40 = calldatasize
-    v41 = sub v40, v38
-    v42 = sgt v39, v41
+    v36 = calldataload v31
+    v37 = add v31, 32
+    v38 = calldatasize
+    v39 = gt v36, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v39
+    v40 = mul v36, 64
+    v41 = sub v38, v40
+    v42 = sgt v37, v41
     icall revert_if<calldata_tail_too_short>, v42
-    v43 = add v30, 32
+    v43 = add v31, 32
     v44 = mul v36, 32
     v45 = eq 32, 0
     v46 = div v44, 32

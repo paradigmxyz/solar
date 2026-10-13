@@ -1257,23 +1257,23 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
     v29 = calldataload v25
-    v30 = add v1, v29
-    v31 = calldatasize
-    v32 = sub v31, v1
+    v30 = calldatasize
+    v31 = add v1, v29
+    v32 = sub v30, v1
     v33 = sub v32, 31
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
-    v36 = calldataload v30
-    v37 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = mul v36, 32
-    v39 = add v30, 32
-    v40 = calldatasize
-    v41 = sub v40, v38
-    v42 = sgt v39, v41
+    v36 = calldataload v31
+    v37 = add v31, 32
+    v38 = calldatasize
+    v39 = gt v36, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v39
+    v40 = mul v36, 32
+    v41 = sub v38, v40
+    v42 = sgt v37, v41
     icall revert_if<calldata_tail_too_short>, v42
-    v43 = add v30, 32
+    v43 = add v31, 32
     v44 = mul v36, 32
     v45 = eq 32, 0
     v46 = div v44, 32

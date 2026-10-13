@@ -308,23 +308,23 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     v34 = slt v33, 32
     icall revert_if<calldata_tail_too_short>, v34
     v35 = calldataload v31
-    v36 = add v7, v35
-    v37 = calldatasize
-    v38 = sub v37, v7
+    v36 = calldatasize
+    v37 = add v7, v35
+    v38 = sub v36, v7
     v39 = sub v38, 31
     v40 = slt v35, v39
     v41 = eq v40, false
     icall revert_if<invalid_calldata_tail_offset>, v41
-    v42 = calldataload v36
-    v43 = gt v42, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v43
-    v44 = mul v42, 32
-    v45 = add v36, 32
-    v46 = calldatasize
-    v47 = sub v46, v44
-    v48 = sgt v45, v47
+    v42 = calldataload v37
+    v43 = add v37, 32
+    v44 = calldatasize
+    v45 = gt v42, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v45
+    v46 = mul v42, 32
+    v47 = sub v44, v46
+    v48 = sgt v43, v47
     icall revert_if<calldata_tail_too_short>, v48
-    v49 = add v36, 32
+    v49 = add v37, 32
     v50 = mul v42, 32
     v51 = eq 32, 0
     v52 = div v50, 32

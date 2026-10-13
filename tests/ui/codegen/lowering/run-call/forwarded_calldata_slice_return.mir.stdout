@@ -45,10 +45,10 @@ fn @delegate(arg0: calldataslice) -> struct0 [selector=0x0ccfac9e, pure, abi_par
     set_memory_object_len memorybytes, v8, v3
     v9 = slice_ptr v2
     v10 = slice_len v2
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
+    v11 = calldatasize
+    v12 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = sub v11, v10
     v14 = sgt v9, v13
     icall revert_if<calldata_tail_too_short>, v14
     memory_object_copy_from_slice memorybytes, v8, v2
@@ -73,10 +73,10 @@ fn @single(arg0: calldataslice) -> struct2 [selector=0xd61d3fe8, pure, abi_param
     set_memory_object_len memorybytes, v9, v4
     v10 = slice_ptr v3
     v11 = slice_len v3
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
+    v12 = calldatasize
+    v13 = gt v11, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = sub v12, v11
     v15 = sgt v10, v14
     icall revert_if<calldata_tail_too_short>, v15
     memory_object_copy_from_slice memorybytes, v9, v3
@@ -102,10 +102,10 @@ fn @nested(arg0: calldataslice) -> struct2 [selector=0xb26b18a9, pure, abi_param
     set_memory_object_len memorybytes, v9, v4
     v10 = slice_ptr v3
     v11 = slice_len v3
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
+    v12 = calldatasize
+    v13 = gt v11, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = sub v12, v11
     v15 = sgt v10, v14
     icall revert_if<calldata_tail_too_short>, v15
     memory_object_copy_from_slice memorybytes, v9, v3
@@ -203,10 +203,10 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v8 = make_calldata_slice v7, v6
     v9 = slice_ptr v8
     v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
+    v11 = calldatasize
+    v12 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = sub v11, v10
     v14 = sgt v9, v13
     icall revert_if<calldata_tail_too_short>, v14
     v15 = slice_len v8
@@ -230,10 +230,10 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v29 = make_calldata_slice v28, v27
     v30 = slice_ptr v29
     v31 = slice_len v29
-    v32 = gt v31, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = calldatasize
-    v34 = sub v33, v31
+    v32 = calldatasize
+    v33 = gt v31, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v33
+    v34 = sub v32, v31
     v35 = sgt v30, v34
     icall revert_if<calldata_tail_too_short>, v35
     v36 = slice_len v29

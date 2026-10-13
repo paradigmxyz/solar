@@ -64,23 +64,23 @@ fn @nestedDynamic(arg0: calldataslice) -> struct0 [selector=0xd5de94f6, pure, ab
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
+    v9 = calldatasize
+    v10 = add v3, v8
+    v11 = sub v9, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v9
-    v16 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v16
-    v17 = mul v15, 32
-    v18 = add v9, 32
-    v19 = calldatasize
-    v20 = sub v19, v17
-    v21 = sgt v18, v20
+    v15 = calldataload v10
+    v16 = add v10, 32
+    v17 = calldatasize
+    v18 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v18
+    v19 = mul v15, 32
+    v20 = sub v17, v19
+    v21 = sgt v16, v20
     icall revert_if<calldata_tail_too_short>, v21
-    v22 = add v9, 32
+    v22 = add v10, 32
     v23 = make_calldata_slice v22, v15
     v24 = slice_ptr v23
     v25 = slice_len v23
@@ -110,39 +110,38 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
+    v9 = calldatasize
+    v10 = add v3, v8
+    v11 = sub v9, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v9
-    v16 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v16
-    v17 = mul v15, 1
-    v18 = add v9, 32
-    v19 = calldatasize
-    v20 = sub v19, v17
-    v21 = sgt v18, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = add v9, 32
-    v23 = make_calldata_slice v22, v15
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = slice_len v23
-    v27 = lt 1, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = slice_ptr v23
-    v30 = calldata_slice_load_word calldata, v23, 1
-    v31 = byte 0, v30
-    v32 = shl 248, v31
-    v33 = shr 248, v32
-    v34 = trunc i256 v33 to i8
-    v35 = zext i8 v34 to i256
-    v36 = insert_value struct0, undef struct0, 0, v24
-    v37 = insert_value struct0, v36, 1, v25
-    v38 = insert_value struct0, v37, 2, v35
-    ret v38
+    v15 = calldataload v10
+    v16 = add v10, 32
+    v17 = calldatasize
+    v18 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v18
+    v19 = sub v17, v15
+    v20 = sgt v16, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = add v10, 32
+    v22 = make_calldata_slice v21, v15
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = slice_len v22
+    v26 = lt 1, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = slice_ptr v22
+    v29 = calldata_slice_load_word calldata, v22, 1
+    v30 = byte 0, v29
+    v31 = shl 248, v30
+    v32 = shr 248, v31
+    v33 = trunc i256 v32 to i8
+    v34 = zext i8 v33 to i256
+    v35 = insert_value struct0, undef struct0, 0, v23
+    v36 = insert_value struct0, v35, 1, v24
+    v37 = insert_value struct0, v36, 2, v34
+    ret v37
 }

@@ -187,6 +187,41 @@ impl RevertReason {
     }
 }
 
+/// The solc helper whose debug messages the checks of a nested calldata value report. Both
+/// helpers apply the same checks; see [`FunctionBuilder::calldata_tail_offset`].
+///
+/// [`FunctionBuilder::calldata_tail_offset`]: super::FunctionBuilder::calldata_tail_offset
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CalldataTail {
+    /// `access_calldata_tail`, used for index and member access.
+    Access,
+    /// The ABI encoder's `calldata_access`, used when calldata is re-encoded.
+    Encode,
+}
+
+impl CalldataTail {
+    pub(crate) const fn offset_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailOffset,
+            Self::Encode => RevertReason::InvalidCalldataAccessOffset,
+        }
+    }
+
+    pub(crate) const fn length_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailLength,
+            Self::Encode => RevertReason::InvalidCalldataAccessLength,
+        }
+    }
+
+    pub(crate) const fn stride_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::CalldataTailTooShort,
+            Self::Encode => RevertReason::InvalidCalldataAccessStride,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RevertKind {
     Panic(PanicCode),

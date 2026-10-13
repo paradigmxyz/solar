@@ -36,10 +36,10 @@ fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns
     set_memory_object_len memorybytes, v12, v7
     v13 = slice_ptr v6
     v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
+    v15 = calldatasize
+    v16 = gt v14, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v16
+    v17 = sub v15, v14
     v18 = sgt v13, v17
     icall revert_if<calldata_tail_too_short>, v18
     memory_object_copy_from_slice memorybytes, v12, v6
@@ -65,10 +65,10 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     set_memory_object_len memorybytes, v12, v7
     v13 = slice_ptr v6
     v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
+    v15 = calldatasize
+    v16 = gt v14, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v16
+    v17 = sub v15, v14
     v18 = sgt v13, v17
     icall revert_if<calldata_tail_too_short>, v18
     memory_object_copy_from_slice memorybytes, v12, v6

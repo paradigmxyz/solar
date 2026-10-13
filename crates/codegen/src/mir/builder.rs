@@ -1,8 +1,8 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, FrameMode, FrameSlotKind,
-    Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, CalldataTail, FrameMode,
+    FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
     InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
     RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
     Value, ValueId,
@@ -291,6 +291,63 @@ impl<'a> FunctionBuilder<'a> {
     /// Reverts for `reason` when `condition` is zero.
     pub(crate) fn revert_if_zero(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
         self.branch_to_revert(condition, true, RevertKind::Reason(reason))
+    }
+
+    /// Returns `base + offset` for a nested calldata value, reverting unless the offset leaves
+    /// `tail_size` bytes before `calldata_end` by a signed compare.
+    ///
+    /// A negative offset may therefore wrap to a valid position, and later reads past
+    /// `calldata_end` see zeros. `tail_size` is the value's length word, or the whole head of a
+    /// statically sized aggregate. solc's `access_calldata_tail` and the ABI encoder's
+    /// `calldata_access` apply the same checks with different messages, chosen by `tail`.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2542-L2569>
+    /// and <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1435-L1475>
+    pub(crate) fn calldata_tail_offset(
+        &mut self,
+        tail: CalldataTail,
+        base: ValueId,
+        offset: ValueId,
+        calldata_end: ValueId,
+        tail_size: u64,
+    ) -> ValueId {
+        // value = base + offset
+        // if !(offset <s calldata_end - base - (tail_size - 1)) { revert }
+        let value = self.add(base, offset);
+        let available = self.sub(calldata_end, base);
+        let slack = self.imm(tail_size - 1);
+        let bound = self.sub(available, slack);
+        let valid = self.slt(offset, bound);
+        let invalid = self.eq_zero(valid);
+        self.revert_if(invalid, tail.offset_reason());
+        value
+    }
+
+    /// Reverts unless `length` fits in 64 bits and `length` elements of `stride` bytes starting at
+    /// `data` end before `calldata_end`, with the signed bound of
+    /// [`Self::calldata_tail_offset`].
+    pub(crate) fn check_calldata_tail_length(
+        &mut self,
+        tail: CalldataTail,
+        data: ValueId,
+        length: ValueId,
+        calldata_end: ValueId,
+        stride: u64,
+    ) {
+        // if length > 0xffffffffffffffff { revert }
+        // if data >s calldata_end - length * stride { revert }
+        let max_length = self.imm(u64::MAX);
+        let too_long = self.gt(length, max_length);
+        self.revert_if(too_long, tail.length_reason());
+        let size = if stride == 1 {
+            length
+        } else {
+            let stride = self.imm(stride);
+            self.mul(length, stride)
+        };
+        let limit = self.sub(calldata_end, size);
+        let short = self.sgt(data, limit);
+        self.revert_if(short, tail.stride_reason());
     }
 
     /// Terminates the current block by reverting for `reason`.

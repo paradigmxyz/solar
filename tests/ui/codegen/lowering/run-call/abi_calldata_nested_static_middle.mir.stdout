@@ -18,14 +18,14 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x664ffb2b, pure, abi_params=[array
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
+    v9 = calldatasize
+    v10 = add v3, v8
+    v11 = sub v9, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = make_calldata_slice v9, 1
+    v15 = make_calldata_slice v10, 1
     ret 42
 }
 
@@ -42,14 +42,14 @@ fn @h(arg0: calldataslice) -> i256 [selector=0xc2e687d8, pure, abi_params=[array
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
+    v9 = calldatasize
+    v10 = add v3, v8
+    v11 = sub v9, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = make_calldata_slice v9, 1
+    v15 = make_calldata_slice v10, 1
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = eq v17, false
@@ -61,23 +61,23 @@ fn @h(arg0: calldataslice) -> i256 [selector=0xc2e687d8, pure, abi_params=[array
     v23 = slt v22, 32
     icall revert_if<calldata_tail_too_short>, v23
     v24 = calldataload v20
-    v25 = add v19, v24
-    v26 = calldatasize
-    v27 = sub v26, v19
+    v25 = calldatasize
+    v26 = add v19, v24
+    v27 = sub v25, v19
     v28 = sub v27, 31
     v29 = slt v24, v28
     v30 = eq v29, false
     icall revert_if<invalid_calldata_tail_offset>, v30
-    v31 = calldataload v25
-    v32 = gt v31, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = mul v31, 32
-    v34 = add v25, 32
-    v35 = calldatasize
-    v36 = sub v35, v33
-    v37 = sgt v34, v36
+    v31 = calldataload v26
+    v32 = add v26, 32
+    v33 = calldatasize
+    v34 = gt v31, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v34
+    v35 = mul v31, 32
+    v36 = sub v33, v35
+    v37 = sgt v32, v36
     icall revert_if<calldata_tail_too_short>, v37
-    v38 = add v25, 32
+    v38 = add v26, 32
     v39 = make_calldata_slice v38, v31
     ret 42
 }
@@ -95,14 +95,14 @@ fn @materialize(arg0: calldataslice) -> i256 [selector=0xaff36081, pure, abi_par
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
+    v9 = calldatasize
+    v10 = add v3, v8
+    v11 = sub v9, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = make_calldata_slice v9, 1
+    v15 = make_calldata_slice v10, 1
     v16 = slice_ptr v15
     v17 = calldatasize
     v18 = sub v17, v16
@@ -140,23 +140,23 @@ fn @materialize(arg0: calldataslice) -> i256 [selector=0xaff36081, pure, abi_par
     v27 = slt v26, 32
     icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
-    v29 = add v16, v28
-    v30 = calldatasize
-    v31 = sub v30, v16
+    v29 = calldatasize
+    v30 = add v16, v28
+    v31 = sub v29, v16
     v32 = sub v31, 31
     v33 = slt v28, v32
     v34 = eq v33, false
     icall revert_if<invalid_calldata_tail_offset>, v34
-    v35 = calldataload v29
-    v36 = gt v35, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v36
-    v37 = mul v35, 32
-    v38 = add v29, 32
-    v39 = calldatasize
-    v40 = sub v39, v37
-    v41 = sgt v38, v40
+    v35 = calldataload v30
+    v36 = add v30, 32
+    v37 = calldatasize
+    v38 = gt v35, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v38
+    v39 = mul v35, 32
+    v40 = sub v37, v39
+    v41 = sgt v36, v40
     icall revert_if<calldata_tail_too_short>, v41
-    v42 = add v29, 32
+    v42 = add v30, 32
     v43 = mul v35, 32
     v44 = eq 32, 0
     v45 = div v43, 32
@@ -191,14 +191,14 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0x51efa653, pure, abi_params=
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = add v3, v8
-    v10 = calldatasize
-    v11 = sub v10, v3
+    v9 = calldatasize
+    v10 = add v3, v8
+    v11 = sub v9, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = make_calldata_slice v9, 1
+    v15 = make_calldata_slice v10, 1
     v16 = slice_ptr v15
     v17 = calldatasize
     v18 = sub v17, v16
@@ -221,23 +221,23 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0x51efa653, pure, abi_params=
     v27 = slt v26, 32
     icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
-    v29 = add v16, v28
-    v30 = calldatasize
-    v31 = sub v30, v16
+    v29 = calldatasize
+    v30 = add v16, v28
+    v31 = sub v29, v16
     v32 = sub v31, 31
     v33 = slt v28, v32
     v34 = eq v33, false
     icall revert_if<invalid_calldata_tail_offset>, v34
-    v35 = calldataload v29
-    v36 = gt v35, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v36
-    v37 = mul v35, 32
-    v38 = add v29, 32
-    v39 = calldatasize
-    v40 = sub v39, v37
-    v41 = sgt v38, v40
+    v35 = calldataload v30
+    v36 = add v30, 32
+    v37 = calldatasize
+    v38 = gt v35, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v38
+    v39 = mul v35, 32
+    v40 = sub v37, v39
+    v41 = sgt v36, v40
     icall revert_if<calldata_tail_too_short>, v41
-    v42 = add v29, 32
+    v42 = add v30, 32
     v43 = mul v35, 32
     v44 = eq 32, 0
     v45 = div v43, 32

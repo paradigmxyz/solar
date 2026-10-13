@@ -26,10 +26,10 @@ fn @adopt(arg0: i1, arg1: calldataslice) -> memptr [selector=0x7b54f632, pure, a
   bb1:
     v3 = slice_ptr arg1
     v4 = slice_len arg1
-    v5 = gt v4, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v5
-    v6 = calldatasize
-    v7 = sub v6, v4
+    v5 = calldatasize
+    v6 = gt v4, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v6
+    v7 = sub v5, v4
     v8 = sgt v3, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = slice_len arg1

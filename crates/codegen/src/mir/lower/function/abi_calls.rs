@@ -580,10 +580,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
                 // value = calldata_slice(position + 32, calldataload(position))
                 let length = self.builder.calldataload(value_pos);
-                if let Some(tail) = checks {
-                    let byte_stride = self.builder.imm(1);
-                    self.validate_calldata_dynamic_tail(value_pos, length, byte_stride, tail);
-                }
+                self.validate_calldata_dynamic_tail(value_pos, length, 1, checks);
                 let data = self.builder.add(value_pos, word);
                 Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
             }
@@ -595,26 +592,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if is_calldata {
                     // value = calldata_slice(position + 32, calldataload(position))
                     let length = self.builder.calldataload(value_pos);
-                    if let Some(tail) = checks {
-                        let element_head_size =
-                            self.builder.imm(self.types.abi_type(element)?.head_size());
-                        self.validate_calldata_dynamic_tail(
-                            value_pos,
-                            length,
-                            element_head_size,
-                            tail,
-                        );
-                    }
+                    let element_head_size = self.types.abi_type(element)?.head_size();
+                    self.validate_calldata_dynamic_tail(
+                        value_pos,
+                        length,
+                        element_head_size,
+                        checks,
+                    );
                     let data = self.builder.add(value_pos, word);
                     return Some(self.builder.make_slice(data, length, SliceLocation::Calldata));
                 }
                 // value = materialize_calldata_array(position)
                 let length = self.builder.calldataload(value_pos);
                 let element_type = self.types.abi_type(element)?;
-                if let Some(tail) = checks {
-                    let element_head_size = self.builder.imm(element_type.head_size());
-                    self.validate_calldata_dynamic_tail(value_pos, length, element_head_size, tail);
-                }
+                self.validate_calldata_dynamic_tail(
+                    value_pos,
+                    length,
+                    element_type.head_size(),
+                    checks,
+                );
                 let data = self.builder.add(value_pos, word);
                 if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
@@ -687,22 +683,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // offset = calldataload(head)
         // position = tuple_base + offset
         let offset = self.builder.calldataload(head);
-        let value_pos = self.builder.add(tuple_base, offset);
-        if let Some(tail) = checks {
-            // Solidity's calldata tail helper uses a signed offset bound and requires the
-            // value's own tail size: its length word, or the whole head of a statically sized
-            // aggregate. Negative ABI offsets may therefore wrap to a valid EVM calldata load,
-            // whose missing bytes read as zero; the tail checks decide whether the resulting
-            // value is valid.
-            let calldata_size = self.builder.calldatasize();
-            let needed = self.builder.imm(abi_type.tail_size() - 1);
-            let available = self.builder.sub(calldata_size, tuple_base);
-            let bound = self.builder.sub(available, needed);
-            let valid = self.builder.slt(offset, bound);
-            let invalid = self.builder.eq_zero(valid);
-            self.builder.revert_if(invalid, tail.offset_reason());
-        }
-        Some(value_pos)
+        let Some(tail) = checks else { return Some(self.builder.add(tuple_base, offset)) };
+        let calldata_size = self.builder.calldatasize();
+        Some(self.builder.calldata_tail_offset(
+            tail,
+            tuple_base,
+            offset,
+            calldata_size,
+            abi_type.tail_size(),
+        ))
     }
 
     /// Reverts unless `size` bytes at `start` lie inside calldata.
@@ -722,20 +711,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         value_pos: ValueId,
         length: ValueId,
-        stride: ValueId,
-        tail: CalldataTail,
+        stride: u64,
+        checks: Option<CalldataTail>,
     ) {
-        // validate(length)
+        let Some(tail) = checks else { return };
         // data = value_pos + 32
-        // check_tail(data, length * stride)
-        self.validate_calldata_length(length, tail);
-
-        let size = self.builder.mul(length, stride);
+        // check_calldata_tail_length(data, length, stride)
         let data = self.builder.add_u64_offset(value_pos, 32);
         let calldata_size = self.builder.calldatasize();
-        let limit = self.builder.sub(calldata_size, size);
-        let out_of_bounds = self.builder.sgt(data, limit);
-        self.builder.revert_if(out_of_bounds, tail.stride_reason());
+        self.builder.check_calldata_tail_length(tail, data, length, calldata_size, stride);
     }
 
     fn decode_calldata_word(
@@ -787,37 +771,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         checks: Option<CalldataTail>,
     ) -> ValueId {
         // len = calldataload(position)
-        // if checks { validate_tail(position, len, 1) }
+        // validate_calldata_dynamic_tail(position, len, 1)
         // slice = calldata(position + 32, len)
         // return materialize_memory_slice(slice)
         let word = self.builder.imm(32);
         let length = self.builder.calldataload(position);
-        if let Some(tail) = checks {
-            let byte_stride = self.builder.imm(1);
-            self.validate_calldata_dynamic_tail(position, length, byte_stride, tail);
-        }
+        self.validate_calldata_dynamic_tail(position, length, 1, checks);
         let data = self.builder.add(position, word);
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
         self.materialize_memory_slice(slice)
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
-        // if length > u64::MAX { revert(0, 0) }
-        // limit = calldatasize() - length
-        // if pointer >s limit { revert(0, 0) }
+        // check_calldata_tail_length(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
-        self.validate_calldata_length(length, CalldataTail::Access);
         let calldata_size = self.builder.calldatasize();
-        let limit = self.builder.sub(calldata_size, length);
-        let out_of_bounds = self.builder.sgt(pointer, limit);
-        self.builder.revert_if(out_of_bounds, RevertReason::CalldataTailTooShort);
-    }
-
-    fn validate_calldata_length(&mut self, length: ValueId, tail: CalldataTail) {
-        let max_length = self.builder.imm(u64::MAX);
-        let too_large = self.builder.gt(length, max_length);
-        self.builder.revert_if(too_large, tail.length_reason());
+        self.builder.check_calldata_tail_length(
+            CalldataTail::Access,
+            pointer,
+            length,
+            calldata_size,
+            1,
+        );
     }
 
     fn materialize_calldata_fixed_array(
