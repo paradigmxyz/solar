@@ -46,11 +46,41 @@ note: other declaration
 LL │     function f(uint) public {}
    ╰╴             ━
 
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(bytes calldata) internal {}
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(bytes memory) internal {}
+   ╰╴             ━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(bytes calldata) internal {}
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(bytes memory) internal {}
+   ╰╴             ━
+
 error[4487]: no unique declarations found
    ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
    │
 LL │         f(s);
    ╰╴        ━
 
-error: aborting due to 5 previous errors
+error[6675]: member `f` not unique on type `type(library Ambiguous)`
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │         Ambiguous.f("abc");
+   ╰╴                  ━
+
+error: aborting due to 8 previous errors
 

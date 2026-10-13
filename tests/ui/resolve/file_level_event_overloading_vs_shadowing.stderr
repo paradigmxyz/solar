@@ -1,0 +1,22 @@
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_overloading_vs_shadowing.sol:LL:CC
+   │
+LL │     event E(uint);
+   │           ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_overloading_vs_shadowing.sol:LL:CC
+   │
+LL │ event E();
+   ╰╴      ━
+
+error: wrong argument count for function call: 0 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_overloading_vs_shadowing.sol:LL:CC
+   │
+LL │         emit E();
+   │         ━━━━━━┬─━
+   │               │
+   ╰╴              expected 1 argument, found 0
+
+error: aborting due to 1 previous error; 1 warning emitted
+

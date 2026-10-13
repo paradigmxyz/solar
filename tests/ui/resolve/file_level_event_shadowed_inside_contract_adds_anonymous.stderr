@@ -1,0 +1,36 @@
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_shadowed_inside_contract_adds_anonymous.sol:LL:CC
+   │
+LL │     event E() anonymous;
+   │           ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_shadowed_inside_contract_adds_anonymous.sol:LL:CC
+   │
+LL │ event E();
+   ╰╴      ━
+
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_shadowed_inside_contract_adds_anonymous.sol:LL:CC
+   │
+LL │     event E() anonymous;
+   │           ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_shadowed_inside_contract_adds_anonymous.sol:LL:CC
+   │
+LL │ event E();
+   ╰╴      ━
+
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_shadowed_inside_contract_adds_anonymous.sol:LL:CC
+   │
+LL │     event E() anonymous;
+   │           ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/resolve/file_level_event_shadowed_inside_contract_adds_anonymous.sol:LL:CC
+   │
+LL │ event E();
+   ╰╴      ━
+

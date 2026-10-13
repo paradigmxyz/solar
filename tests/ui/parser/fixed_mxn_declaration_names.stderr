@@ -76,23 +76,11 @@ error: expected identifier, found keyword `fixed8x8`
 LL │         uint fixed8x8;
    ╰╴             ━━━━━━━━
 
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
-   │
-LL │     event fixed8x1();
-   │           ━━━━━━━━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
-   │
-LL │ contract fixed8x1 {}
-   ╰╴         ━━━━━━━━
-
 error: expected exactly one unnamed argument
    ╭▸ ROOT/tests/ui/parser/fixed_mxn_declaration_names.sol:LL:CC
    │
 LL │         fixed128x18();
    ╰╴                   ━━
 
-error: aborting due to 14 previous errors; 1 warning emitted
+error: aborting due to 14 previous errors
 

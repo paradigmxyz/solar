@@ -23,7 +23,6 @@ contract C {
     uint fixed8x8; //~ ERROR: expected identifier, found keyword `fixed8x8`
 
     event fixed8x1(); //~ ERROR: expected identifier, found keyword `fixed8x1`
-    //~^ WARN: this declaration shadows an existing declaration
     error ufixed8x1(); //~ ERROR: expected identifier, found keyword `ufixed8x1`
 
     modifier fixed16x8() { //~ ERROR: expected identifier, found keyword `fixed16x8`

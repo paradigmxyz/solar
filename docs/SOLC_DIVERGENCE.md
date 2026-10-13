@@ -227,13 +227,15 @@ Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
 Status: parity debt.
 
 Difference: `solc` warns when any declaration shadows an outer one (2519) or a
-builtin (2319), including functions, state variables, parameters and locals.
+builtin (2319), including functions, state variables, parameters and locals,
+and when a declaration shares its name with another in the same scope (8760).
 `solar` warns only when a contract event shadows a file-level declaration.
 
 Rationale: the warnings do not change what code means; the rest are not ported
 yet.
 
-Coverage: `tests/ui/resolve/event_shadowing.sol` and
+Coverage: `tests/ui/resolve/event_shadowing.sol`,
+`tests/ui/resolve/file_level_event_*.sol` and
 `tests/ui/resolve/shadowed_vars.sol`.
 
 ## Type Checking
@@ -457,6 +459,20 @@ the `solc` depth depends on field order. Real code does not nest structs this
 deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+
+### TYPECK-020: Member accesses to duplicate definitions
+
+Status: intentional.
+
+Difference: after reporting a function or event declared twice (1686, 5883),
+both compilers drop the duplicate when an unqualified name picks among
+overloads. `solar` also drops it for member accesses such as `L.f(1)` or
+`emit C.E(1)`, where `solc` adds "member not unique" (6675).
+
+Rationale: the duplicate-declaration error already explains the mistake, and
+the extra error points at correct code.
+
+Coverage: `tests/ui/typeck/duplicate_definition_calls.sol`.
 
 ## Contract-Level Checks
 

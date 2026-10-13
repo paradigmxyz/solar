@@ -1,90 +1,6 @@
 warning[2519]: this declaration shadows an existing declaration
    ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
    │
-LL │     event E();
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │     event E();
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │     event E();
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │     event E() anonymous;
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │     event E() anonymous;
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │     event E() anonymous;
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │     event E(uint);
-   │           ━
-   ╰╴
-note: shadowed declaration is here
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
-LL │ event E();
-   ╰╴      ━
-
-warning[2519]: this declaration shadows an existing declaration
-   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
-   │
 LL │     event Overloaded();
    │           ━━━━━━━━━━
    ╰╴
@@ -164,13 +80,17 @@ note: shadowed declaration is here
 LL │ event Imported();
    ╰╴━━━━━━━━━━━━━━━━━
 
-error: wrong argument count for function call: 0 arguments given but expected 1
+error[2333]: identifier `Conflict` already declared
    ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
    │
-LL │         emit E();
-   │         ━━━━━━┬─━
-   │               │
-   ╰╴              expected 1 argument, found 0
+LL │     event Conflict();
+   │           ━━━━━━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/event_shadowing.sol:LL:CC
+   │
+LL │     uint Conflict;
+   ╰╴         ━━━━━━━━
 
-error: aborting due to 1 previous error; 13 warnings emitted
+error: aborting due to 1 previous error; 6 warnings emitted
 

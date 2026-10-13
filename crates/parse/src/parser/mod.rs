@@ -2,7 +2,7 @@ use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
     self as ast, AstPath, Box, BoxSlice, DocComment, DocComments,
-    token::{Delimiter, Token, TokenKind},
+    token::{self, Delimiter, Token, TokenKind},
 };
 use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
@@ -1095,8 +1095,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else if if self.in_yul {
             self.is_reserved_yul_ident(ident)
         } else {
-            // `[u]fixedMxN` types are keywords outside of Yul.
-            ident.is_reserved(false) || ast::ElementaryType::parse_fixed_mxn(ident.name).is_some()
+            token::is_keyword_like(ident)
         } {
             let err = self.expected_ident_found_err();
             if recover {

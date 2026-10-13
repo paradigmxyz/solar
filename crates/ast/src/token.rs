@@ -804,6 +804,11 @@ impl TokenDescription {
     }
 }
 
+/// Returns `true` if the identifier is a keyword outside of Yul, including `[u]fixedMxN` types.
+pub fn is_keyword_like(id: Ident) -> bool {
+    id.is_reserved(false) || is_fixed_mxn(id)
+}
+
 fn is_fixed_mxn(id: Ident) -> bool {
     ElementaryType::parse_fixed_mxn(id.name).is_some()
 }

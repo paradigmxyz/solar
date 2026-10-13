@@ -677,7 +677,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return self.gcx.mk_ty_misc_err();
                 }
 
-                let possible_members = self.members_named(receiver_ty, ident);
+                let possible_members = self.members_named(receiver_ty, ident.name);
 
                 let ty = match self.select_member_access(&possible_members) {
                     Ok(member) => {
@@ -709,7 +709,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .note("`receive` is only called with empty calldata")
                                 .emit();
                         }
-                        self.register_resolved_member(expr, member);
+                        self.register_resolved_member(expr, &member);
                         member.ty
                     }
                     Err(MemberAccessError::NotFound) => {
@@ -2436,7 +2436,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        let possible_members = self.members_named(receiver_ty, ident);
+        let possible_members = self.members_named(receiver_ty, ident.name);
 
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
@@ -2464,13 +2464,19 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
-    fn select_member_access<'a>(
+    fn members_named(&self, ty: Ty<'gcx>, name: Symbol) -> SmallVec<[members::Member<'gcx>; 4]> {
+        self.gcx.members_of(ty, self.source, self.contract).filter(|m| m.name == name).collect()
+    }
+
+    fn select_member_access(
         &self,
-        members: &'a [members::Member<'gcx>],
-    ) -> Result<&'a members::Member<'gcx>, MemberAccessError> {
-        match members {
+        members: &[members::Member<'gcx>],
+    ) -> Result<members::Member<'gcx>, MemberAccessError> {
+        let mut members = SmallVec::from_slice(members);
+        self.drop_duplicate_definitions(&mut members, |member| member.res);
+        match members.as_slice() {
             [] => Err(MemberAccessError::NotFound),
-            [member] => Ok(member),
+            &[member] => Ok(member),
             // Mirror value-position overload resolution: a public state
             // variable or constant is accompanied by its getter function, and
             // the unique variable candidate wins for a non-call member access.
@@ -2480,7 +2486,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .filter(|member| member.res.is_some_and(|res| res.as_variable().is_some()))
                     .collect::<WantOne<_>>()
                 {
-                    WantOne::One(member) => Ok(member),
+                    WantOne::One(&member) => Ok(member),
                     WantOne::Zero | WantOne::Many => Err(MemberAccessError::Ambiguous),
                 }
             }
@@ -2635,7 +2641,7 @@ impl<'gcx> TypeChecker<'gcx> {
             _ => {}
         }
 
-        let mut selected = WantOne::Zero;
+        let mut selected = SmallVec::<[_; 4]>::new();
         for member in members {
             if let Some(signature) = self.gcx.callable_signature_of_member(receiver_ty, member)
                 && self.call_args_match(args, signature.parameters, signature.param_source)
@@ -2643,26 +2649,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 selected.push(member);
             }
         }
-        match selected {
-            WantOne::Zero => Err(OverloadError::NotFound),
-            WantOne::One(member) => Ok(member),
-            WantOne::Many => Err(OverloadError::Ambiguous),
+        self.drop_duplicate_definitions(&mut selected, |member| member.res);
+        match selected.as_slice() {
+            [] => Err(OverloadError::NotFound),
+            &[member] => Ok(member),
+            _ => Err(OverloadError::Ambiguous),
         }
-    }
-
-    /// Returns the members of `receiver_ty` named `ident`, without reported duplicates.
-    fn members_named(
-        &self,
-        receiver_ty: Ty<'gcx>,
-        ident: Ident,
-    ) -> SmallVec<[members::Member<'gcx>; 4]> {
-        let mut members = self
-            .gcx
-            .members_of(receiver_ty, self.source, self.contract)
-            .filter(|m| m.name == ident.name)
-            .collect();
-        self.drop_duplicate_definitions(&mut members, |member| member.res);
-        members
     }
 
     /// Drops candidates that duplicate another remaining candidate, since the duplicate
@@ -3568,15 +3560,14 @@ impl<'gcx> TypeChecker<'gcx> {
     fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
         let mut res = SmallVec::<[_; 4]>::from_slice(res);
         self.drop_duplicate_definitions(&mut res, |&res| Some(res));
-        let res = res.as_slice();
-        match res {
+        match res.as_slice() {
             [] => unreachable!("no candidates for overload resolution"),
             &[res] => return Ok(res),
             _ => {}
         }
 
         match res.iter().filter(|res| res.as_variable().is_some()).collect::<WantOne<_>>() {
-            WantOne::Zero => self.resolve_override_chain(res).ok_or(OverloadError::NotFound),
+            WantOne::Zero => self.resolve_override_chain(&res).ok_or(OverloadError::NotFound),
             WantOne::One(var) => Ok(*var),
             WantOne::Many => Err(OverloadError::Ambiguous),
         }

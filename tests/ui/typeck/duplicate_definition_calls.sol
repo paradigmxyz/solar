@@ -1,4 +1,6 @@
-// Calls and references that pick among duplicate definitions only report the duplicates.
+// Calls and references that pick among duplicate definitions report only the duplicates.
+// solc merges duplicates only for plain names; for member accesses such as `L.f(1)` and
+// `B.Own.selector` it also reports error 6675 (SOLC_DIVERGENCE.md TYPECK-020).
 
 library L {
     function f(uint) internal {} //~ ERROR: function with same name and parameter types declared twice
@@ -40,5 +42,24 @@ contract C {
 
     function g() public {
         f(s); //~ ERROR: no unique declarations found
+    }
+}
+
+library Ambiguous {
+    function f(bytes calldata) internal {} //~ ERROR: function with same name and parameter types declared twice
+    function f(bytes memory) internal {}
+    function f(string memory) internal {}
+}
+
+library Unique {
+    function f(bytes calldata) internal {} //~ ERROR: function with same name and parameter types declared twice
+    function f(bytes memory) internal {}
+}
+
+contract D {
+    function g() public {
+        // `bytes memory` duplicates `bytes calldata`, which does not take the argument.
+        Ambiguous.f("abc"); //~ ERROR: member `f` not unique on type `type(library Ambiguous)`
+        Unique.f("abc");
     }
 }

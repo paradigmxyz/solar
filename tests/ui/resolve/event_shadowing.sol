@@ -1,43 +1,6 @@
-// ported-from: test/libsolidity/syntaxTests/events/file_level_event_shadowed_inside_contract.sol
-// ported-from: test/libsolidity/syntaxTests/events/file_level_event_shadowed_inside_contract_adds_anonymous.sol
-// ported-from: test/libsolidity/syntaxTests/events/file_level_event_overloading_vs_shadowing.sol
+// Contract events that shadow file-level declarations.
 
 import "./auxiliary/shadowed_event.sol";
-
-event E();
-
-contract C {
-    event E(); //~ WARN: this declaration shadows an existing declaration
-}
-
-library L {
-    event E(); //~ WARN: this declaration shadows an existing declaration
-}
-
-interface I {
-    event E(); //~ WARN: this declaration shadows an existing declaration
-}
-
-contract CAnonymous {
-    event E() anonymous; //~ WARN: this declaration shadows an existing declaration
-}
-
-library LAnonymous {
-    event E() anonymous; //~ WARN: this declaration shadows an existing declaration
-}
-
-interface IAnonymous {
-    event E() anonymous; //~ WARN: this declaration shadows an existing declaration
-}
-
-contract Overloading {
-    event E(uint); //~ WARN: this declaration shadows an existing declaration
-
-    function f() public {
-        emit E(); //~ ERROR: wrong argument count for function call: 0 arguments given but expected 1
-        emit E(1);
-    }
-}
 
 event Overloaded();
 event Overloaded(uint);
@@ -47,6 +10,7 @@ struct S {
 }
 uint constant K = 1;
 error Er();
+event Conflict();
 
 contract OtherDeclarations {
     event Overloaded(); //~ WARN: this declaration shadows an existing declaration
@@ -55,6 +19,11 @@ contract OtherDeclarations {
     event K(); //~ WARN: this declaration shadows an existing declaration
     event Er(); //~ WARN: this declaration shadows an existing declaration
     event Imported(); //~ WARN: this declaration shadows an existing declaration
+}
+
+contract AlreadyDeclared {
+    uint Conflict;
+    event Conflict(); //~ ERROR: identifier `Conflict` already declared
 }
 
 contract Base {

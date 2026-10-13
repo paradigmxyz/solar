@@ -145,15 +145,15 @@ impl super::LoweringContext<'_> {
                         continue;
                     }
                     if let Some(name) = self.hir.item(item_id).name() {
+                        let declared = self.declare_kind_in(&mut scope, name, Res::Item(item_id));
                         // NOTE: solc warns for every declaration that shadows an outer one,
                         // including builtins (2319); we only warn for events so far.
-                        if item_id.is_event() {
+                        if declared.is_ok() && item_id.is_event() {
                             self.check_shadowing(
                                 &self.resolver.source_scopes[contract.source],
                                 name,
                             );
                         }
-                        let _ = self.declare_kind_in(&mut scope, name, Res::Item(item_id));
                     }
                 }
 
@@ -2133,7 +2133,8 @@ impl super::LoweringContext<'_> {
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/NameAndTypeResolver.cpp#L245-L289>
     fn check_shadowing(&self, outer: &Declarations, name: Ident) {
         let Some(shadowed) = outer.resolve_unqualified(name) else { return };
-        if shadowed.iter().any(|decl| decl.res.is_err()) {
+        // The parser already reported keywords used as names.
+        if ast::token::is_keyword_like(name) || shadowed.iter().any(|decl| decl.res.is_err()) {
             return;
         }
         let mut warn = self
