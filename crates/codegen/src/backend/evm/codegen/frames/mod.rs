@@ -850,6 +850,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // A clamped free-memory-pointer store keeps the highest initial pointer of the entries
         // that reach its function; one that no entry reaches never runs.
         for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
+            if self.capture_mir {
+                self.heap_floor_sites.insert(func_id, id);
+            }
             let floor = free_memory_floors
                 .iter()
                 .filter(|&(entry, _)| {
@@ -1474,6 +1477,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MSTORE);
         self.runtime_free_memory_consts.insert(entry, id);
+        if self.capture_mir {
+            self.entry_heap_sites.insert(entry, id);
+        }
     }
 
     /// Records every function whose memory bounds contribute to one runtime entry.

@@ -36,10 +36,6 @@ use std::fmt::Write as _;
 
 pub use crate::mir::utils::interp::{Host, Log};
 
-/// How far [`transact`] moves the regions the interpreter places itself on its second run: an odd
-/// number of words, so that no alignment hides a moved address.
-const MOVED_REGIONS: u64 = 0x2a0;
-
 /// The opcodes whose values a run asks its [`Host`] for, such as `CALLER` and `TIMESTAMP`.
 pub const HOST_READS: &[u8] = &HOST_OPCODES;
 
@@ -52,8 +48,10 @@ pub enum Outcome {
     Success(Vec<u8>),
     /// It reverted with this data.
     Revert(Vec<u8>),
-    /// It reached `INVALID` or another exceptional halt.
+    /// It reached `INVALID`, or `REVERT` before Byzantium.
     Halt,
+    /// A returndata copy exceeded the available bytes.
+    ReturndataOutOfBounds,
     /// The interpreter cannot run it, for this reason.
     Unsupported(String),
 }
@@ -103,10 +101,9 @@ pub struct DumpedModule {
 /// Runs a transaction with `calldata` on the contract whose lowered MIR module `mir` holds, asking
 /// `host` for its context. Fails when `mir` is not a valid lowered module.
 ///
-/// The backend decides where some memory goes, such as the allocations it places itself and the
-/// buffer of a call's further results, so the interpreter picks its own addresses. The
-/// transaction runs again with those regions moved, and a result that changes with them is
-/// unsupported, since the compiled code would see other addresses.
+/// Final dumps carry the backend's resolved allocation and multi-return buffer addresses.
+/// Layout-dependent operations without those records are unsupported; guessing another address
+/// cannot reliably detect pointer comparisons or aliasing.
 pub fn transact(
     mir: &str,
     calldata: &[u8],
@@ -121,15 +118,9 @@ pub fn transact(
             None => &mut (),
         };
         let machine = Machine::new(module);
-        let execution = machine.transact(calldata, host, options.evm_version, 0, limits, meter);
+        let execution = machine.transact(calldata, host, options.evm_version, limits, meter);
         if let Some(tracer) = &mut tracer {
             tracer.flush();
-        }
-        let moved =
-            machine.transact(calldata, host, options.evm_version, MOVED_REGIONS, limits, &mut ());
-        if (&moved.outcome, &moved.effects) != (&execution.outcome, &execution.effects) {
-            let outcome = RunOutcome::Unsupported("a result that depends on the memory layout");
-            return Ok(execution_from(outcome, Effects::default()));
         }
         Ok(execution_from(execution.outcome, execution.effects))
     })
@@ -256,6 +247,7 @@ fn execution_from(outcome: RunOutcome, effects: Effects) -> Execution {
         RunOutcome::Stop => Outcome::Success(Vec::new()),
         RunOutcome::Revert(data) => Outcome::Revert(data),
         RunOutcome::Invalid => Outcome::Halt,
+        RunOutcome::ReturndataOutOfBounds => Outcome::ReturndataOutOfBounds,
         RunOutcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),
         RunOutcome::Limit(Limit::Depth) => Outcome::Unsupported("nests calls too deeply".into()),
         RunOutcome::Limit(Limit::Memory) => {
@@ -493,7 +485,7 @@ fn @f.1(arg0: i256) -> i256 {
         assert_eq!(execution.outcome, Outcome::Revert(Vec::new()));
         assert_eq!((execution.storage, execution.transient, execution.logs), Default::default());
 
-        // The backend places a deferred allocation, so its address must not reach the result.
+        // An allocation without backend placement cannot be executed faithfully.
         let alloc = "  bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
     v1 = ptrtoint memptr v0 to i256
@@ -505,14 +497,16 @@ fn @f.1(arg0: i256) -> i256 {
     returndata 0, 32
 "
         ));
-        let seven = U256::from(7).to_be_bytes::<32>().to_vec();
-        assert_eq!(execution.outcome, Outcome::Success(seven));
+        assert_eq!(
+            execution.outcome,
+            Outcome::Unsupported("reaches `allocation without backend placement`".into())
+        );
         let execution = transact(&format!(
             "{alloc}    mstore 0, v1
     returndata 0, 32
 "
         ));
-        let unsupported = "reaches `a result that depends on the memory layout`".to_owned();
+        let unsupported = "reaches `allocation without backend placement`".to_owned();
         assert_eq!(execution.outcome, Outcome::Unsupported(unsupported));
     }
 

@@ -66,7 +66,10 @@ use solar_sema::hir;
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    parser.parse_module().map_err(PErr::emit)
+    let mut module = parser.parse_module().map_err(PErr::emit)?;
+    module.backend_memory = super::BackendMemory::parse(&module, &source.src)
+        .map_err(|error| sess.dcx.err(error).emit())?;
+    Ok(module)
 }
 
 #[cfg(test)]

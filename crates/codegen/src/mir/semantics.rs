@@ -12,6 +12,7 @@
 //!   args)`, and `checked(op, arithmetic, lhs, rhs)`.
 //! - `allocate(size, kind, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
 //!   constant data copied to memory.
+//! - `heap_floor()`: the initial heap floor resolved by backend placement.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration. Tools interpret it instead of
 //! classifying operations themselves: constant folding evaluates the word operations
@@ -62,6 +63,8 @@ pub(crate) enum Semantics<'a> {
     /// The constant data at the reference, copied to memory at the first operand for the second
     /// operand's byte count.
     DataCopy(DataRef, ValueId, ValueId),
+    /// The initial heap floor of the transaction.
+    HeapFloor,
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -130,6 +133,11 @@ pub(super) mod declare {
     /// Constant data copied to memory.
     pub(crate) fn data_copy(data: &DataRef, dest: &ValueId, size: &ValueId) -> Semantics<'static> {
         Semantics::DataCopy(*data, *dest, *size)
+    }
+
+    /// The initial heap floor of the transaction.
+    pub(crate) fn heap_floor() -> Semantics<'static> {
+        Semantics::HeapFloor
     }
 }
 

@@ -722,3 +722,22 @@ preserves it. Gas-mode outlining keeps loop computations and large pushes
 inline. Tail merging can reuse an existing non-loop tail from a loop, but loop
 blocks do not seed new sharing groups. Index non-loop paths first so their
 position in the block list does not prevent reuse.
+
+### Backend layout in final dumps
+
+`-Zdump=mir-final` runs backend placement and appends versioned
+`// backend-memory-v1` comments to the lowered module. The records give
+static allocation addresses, dynamic FMP increments, published return-buffer
+addresses, entry FMP initialization, heap-floor constants, and return projections kept on the stack.
+They describe the runtime artifact; constructor execution is not modeled.
+Allocation and instruction ordinals follow printed block order (RPO followed
+by unreachable blocks), so the parser
+can recover them even when it renumbers SSA values. Duplicate or malformed
+records are rejected. Stack-return records must independently match the MIR
+buffer offsets and cannot hide an escaping pointer or cross a memory effect.
+
+These records are execution metadata and never affect optimization or emitted
+bytecode. `-O none -Zdump=mir,mir-final` retains both the built and final modules.
+The interpreter declines layout-dependent operations in handwritten MIR that
+omits their placements. It does not infer independence by trying two synthetic
+addresses: both can give the same wrong result for a pointer comparison.

@@ -9,7 +9,8 @@
 //! skipped, and so is one the EVM ends by running out of gas or stack, which the interpreter does
 //! not model.
 //!
-//! With `SOLAR_RUN_CALL_MIR=1`, only a disagreement is reported, as a test failure. Any other
+//! The runner reports checked/skipped counts and skip reasons at the end. With
+//! `SOLAR_RUN_CALL_MIR=1`, disagreements fail the test. Any other
 //! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
 //! or `mismatch`.
 //!
@@ -31,7 +32,8 @@ use solar_codegen::{
 use solar_config::EvmVersion;
 use std::{
     cell::Cell,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
+    fmt::Write as _,
     fs::OpenOptions,
     io::Write,
     process::Command,
@@ -125,10 +127,11 @@ fn storage(evm: &Evm<'_, BaseEvmTypes>, contract: Address) -> HashMap<U256, U256
 
 /// Records the first value the EVM stores at the free memory pointer's slot, which is where the
 /// backend's entry code starts the heap.
-pub(super) struct HeapStart(pub(super) Rc<Cell<Option<U256>>>);
+pub(super) struct HeapStart(pub(super) Rc<Cell<Option<U256>>>, pub(super) Rc<Cell<Option<u8>>>);
 
 impl Inspector<BaseEvmTypes> for HeapStart {
     fn step(&mut self, interpreter: &mut Interpreter<'_, '_, BaseEvmTypes>) {
+        self.1.set(Some(interpreter.opcode()));
         let stack = interpreter.stack();
         if self.0.get().is_none()
             && interpreter.opcode() == op::MSTORE
@@ -147,6 +150,7 @@ pub(super) struct Trace {
     logs: Vec<Log>,
     storage: HashMap<U256, U256>,
     heap_start: Option<U256>,
+    last_opcode: Option<u8>,
 }
 
 impl Trace {
@@ -159,9 +163,18 @@ impl Trace {
         output: &[u8],
         logs: &[Log],
         heap_start: Option<U256>,
+        last_opcode: Option<u8>,
     ) -> Self {
         let storage = storage(evm, before.contract);
-        Self { before, stop, output: output.to_vec(), logs: logs.to_vec(), storage, heap_start }
+        Self {
+            before,
+            stop,
+            output: output.to_vec(),
+            logs: logs.to_vec(),
+            storage,
+            heap_start,
+            last_opcode,
+        }
     }
 }
 
@@ -246,20 +259,6 @@ pub(super) fn check(
         }
         Ok(())
     };
-    let expected = match trace.stop {
-        stop if stop.is_success() => Outcome::Success(trace.output.clone()),
-        InstrStop::Revert => Outcome::Revert(trace.output.clone()),
-        InstrStop::OutOfGas
-        | InstrStop::MemoryOOG
-        | InstrStop::MemoryLimitOOG
-        | InstrStop::PrecompileOOG
-        | InstrStop::InvalidOperandOOG
-        | InstrStop::StackOverflow
-        | InstrStop::CallTooDeep => {
-            return skip(&format!("the EVM ended with {:?}", trace.stop));
-        }
-        _ => Outcome::Halt,
-    };
     let dumps = dumps(config, build_manager);
     let dump = match dumps.as_ref() {
         Ok(dump) => dump,
@@ -279,6 +278,29 @@ pub(super) fn check(
     if deployed != Some(runtime) {
         return skip("the deployed code is not the compiled runtime");
     }
+    let expected = match trace.stop {
+        stop if stop.is_success() => Outcome::Success(trace.output.clone()),
+        InstrStop::Revert => Outcome::Revert(trace.output.clone()),
+        InstrStop::OutOfOffset if trace.last_opcode == Some(op::RETURNDATACOPY) => {
+            Outcome::ReturndataOutOfBounds
+        }
+        InstrStop::OutOfGas
+        | InstrStop::MemoryOOG
+        | InstrStop::MemoryLimitOOG
+        | InstrStop::PrecompileOOG
+        | InstrStop::InvalidOperandOOG
+        | InstrStop::StackOverflow
+        | InstrStop::CallTooDeep => {
+            return skip(&format!("the EVM ended with {:?}", trace.stop));
+        }
+        stop if expected_halt(stop, trace.last_opcode, call.evm_version) => Outcome::Halt,
+        _ => {
+            let error =
+                format!("unexpected EVM halt: {:?} at opcode {:?}", trace.stop, trace.last_opcode);
+            report("mismatch", &error);
+            return Err(error);
+        }
+    };
     let block = BlockEnv::<BaseEvmTypes>::default();
     let heap_start = trace.heap_start;
     let mut host = EvmHost { chain: &trace.before, value: call.value, block, heap_start };
@@ -286,7 +308,9 @@ pub(super) fn check(
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
         Err(reason) => {
-            return skip(&reason);
+            let error = format!("invalid final MIR for `{}`: {reason}", call.contract);
+            report("mismatch", &error);
+            return Err(error);
         }
     };
     if let Outcome::Unsupported(reason) = &execution.outcome {
@@ -355,6 +379,7 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
         (Outcome::Revert(data), _) => format!("reverted with 0x{}", hex::encode(data)),
         (Outcome::Halt, Some(stop)) => format!("halted ({stop:?})"),
         (Outcome::Halt, None) => "halted".into(),
+        (Outcome::ReturndataOutOfBounds, _) => "halted on an out-of-bounds returndata copy".into(),
         (Outcome::Unsupported(reason), _) => format!("could not run: {reason}"),
     }
 }
@@ -370,6 +395,16 @@ fn describe_logs(logs: &[(Vec<U256>, Vec<u8>)]) -> String {
 
 /// Appends one line about `call` to the log file the environment variable names, if any.
 fn record(config: &TestConfig, call: &str, status: &str, detail: &str) {
+    {
+        let mut summary = SUMMARY.lock().unwrap_or_else(|poison| poison.into_inner());
+        let summary = summary.get_or_insert_with(Coverage::default);
+        match status {
+            "checked" => summary.checked += 1,
+            "skipped" => *summary.skipped.entry(detail.to_owned()).or_default() += 1,
+            "mismatch" => summary.mismatches += 1,
+            _ => unreachable!("unknown oracle status"),
+        }
+    }
     static FILE: Mutex<()> = Mutex::new(());
     let Some(path) = std::env::var_os(VARIABLE).filter(|value| value != "1") else { return };
     let _guard = FILE.lock().unwrap_or_else(|poison| poison.into_inner());
@@ -497,5 +532,88 @@ mod tests {
             b"{\n  \"contracts\": {\n    \"a.sol:A\": {\"bin-runtime\": \"6001\"}\n  }\n}\n";
         let dump = parse_dump(stdout).unwrap();
         assert_eq!(dump.runtimes["a.sol:A"], [0x60, 0x01]);
+    }
+}
+
+/// Accept only the explicit invalid instruction or REVERT before its activation.
+fn expected_halt(stop: InstrStop, opcode: Option<u8>, version: EvmVersion) -> bool {
+    (stop == InstrStop::InvalidOpcode && opcode == Some(op::INVALID))
+        || (matches!(stop, InstrStop::NotActivated | InstrStop::InvalidOpcode)
+            && opcode == Some(op::REVERT)
+            && version < EvmVersion::Byzantium)
+}
+
+#[cfg(test)]
+mod halt_tests {
+    use super::*;
+
+    #[test]
+    fn coverage_report() {
+        let summary = Coverage {
+            checked: 9,
+            mismatches: 1,
+            skipped: [("gas".into(), 2), ("call".into(), 3)].into(),
+        };
+        snapbox::assert_data_eq!(
+            summary.report(),
+            snapbox::str![[r#"
+MIR oracle: 9 checked, 5 skipped, 1 mismatches
+  3 skipped: call
+  2 skipped: gas
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn rejects_unexpected_halts() {
+        assert!(expected_halt(InstrStop::InvalidOpcode, Some(op::INVALID), EvmVersion::Osaka));
+        assert!(expected_halt(InstrStop::NotActivated, Some(op::REVERT), EvmVersion::Homestead));
+        for stop in [
+            InstrStop::InvalidJump,
+            InstrStop::StackUnderflow,
+            InstrStop::InvalidOpcode,
+            InstrStop::NotActivated,
+        ] {
+            assert!(!expected_halt(stop, Some(op::JUMP), EvmVersion::Osaka));
+            assert!(!expected_halt(stop, Some(op::REVERT), EvmVersion::Osaka));
+        }
+    }
+}
+
+#[derive(Default)]
+struct Coverage {
+    checked: usize,
+    skipped: BTreeMap<String, usize>,
+    mismatches: usize,
+}
+
+static SUMMARY: Mutex<Option<Coverage>> = Mutex::new(None);
+
+/// Prints checked and skipped calls, including every unsupported reason.
+pub(crate) fn report_summary() {
+    let summary = SUMMARY.lock().unwrap_or_else(|poison| poison.into_inner()).take();
+    let Some(summary) = summary else { return };
+    let report = summary.report();
+    eprint!("{report}");
+    // Nextest captures successful-test output; keep the coverage visible in CI too.
+    if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY")
+        && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
+    {
+        let _ = writeln!(file, "### MIR oracle\n\n```text\n{report}```");
+    }
+}
+
+impl Coverage {
+    fn report(&self) -> String {
+        let skipped = self.skipped.values().sum::<usize>();
+        let mut report = format!(
+            "MIR oracle: {} checked, {skipped} skipped, {} mismatches\n",
+            self.checked, self.mismatches
+        );
+        for (reason, count) in &self.skipped {
+            writeln!(report, "  {count} skipped: {reason}").unwrap();
+        }
+        report
     }
 }

@@ -22,7 +22,7 @@
 //! read their incoming values for the edge taken, all before any of them is assigned.
 //!
 //! Memory is byte-addressed EVM memory, on which the memory opcodes run: `MLOAD`, `MSTORE`,
-//! `MSTORE8`, `MCOPY`, and `KECCAK256`. An access with a nonzero length grows memory to the word
+//! `MSTORE8`, `MCOPY`, `KECCAK256`, and `MSIZE`. An access with a nonzero length grows memory to the word
 //! containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves as if it
 //! copied through a buffer, and `keccak256` hashes the bytes it reads. Memory that nothing wrote
 //! is zero, unless the caller set it before the run.
@@ -30,8 +30,8 @@
 //! Internal calls and tail calls run the callee on the same memory, and a call's result is the
 //! value the callee returns. The backend passes further results through a buffer of its own that
 //! the word at `0x20` points to, so a function run alone may not call a callee returning several
-//! values. A transaction places that buffer at the top of memory, where nothing else reaches,
-//! and reuses it: callers read the results right after the call. `revert`, `returndata`, `stop`,
+//! values. A transaction uses the backend placements recorded in final MIR for each callee.
+//! `revert`, `returndata`, `stop`,
 //! and `invalid` end the whole execution wherever they run, as they end the transaction.
 //!
 //! A transaction follows the backend's conventions for external entries: the free memory pointer
@@ -47,7 +47,7 @@
 //! call depth. Memory ends at [`MEMORY_LIMIT`], past which the EVM runs out of gas under any block
 //! gas limit. Exceeding a limit ends the run with [`Outcome::Limit`]. Operations the interpreter
 //! does not model end it with [`Outcome::Unsupported`]: opcodes on storage, calldata, code, the
-//! environment, external calls, logs, and `msize`, allocations, and operations that declare no
+//! environment, external calls, logs, allocations, and operations that declare no
 //! semantics, such as frame addresses and every semantic operation. A run with a host also runs
 //! the storage, transient storage, and log opcodes and the context reads its host answers. A
 //! transaction also runs the calldata and
@@ -59,9 +59,9 @@
 use crate::{
     backend::evm::op,
     mir::{
-        AllocationKind, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
-        MirPhase, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
-        utils::eval::eval_semantics,
+        AllocationKind, AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function,
+        FunctionId, InstId, InstKind, MirPhase, Module, Semantics, Terminator, Value, ValueId,
+        memory::EvmMemoryLayout, utils::eval::eval_semantics,
     },
 };
 use alloy_primitives::{U256, keccak256};
@@ -81,7 +81,8 @@ pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
 const WORD_BYTES: u64 = 32;
 
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
-const MEMORY_OPCODES: [u8; 5] = [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256];
+const MEMORY_OPCODES: [u8; 6] =
+    [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256, op::MSIZE];
 
 /// The opcodes whose values a run asks its [`Host`] for.
 pub(crate) const HOST_OPCODES: [u8; 21] = [
@@ -108,18 +109,6 @@ pub(crate) const HOST_OPCODES: [u8; 21] = [
     op::SLOTNUM,
 ];
 
-/// Where a transaction places the multi-return buffer the backend keeps in memory of its own:
-/// three quarters of [`MEMORY_LIMIT`], which no execution within a block's gas reaches, plus the
-/// transaction's region offset.
-const MULTI_RETURN_BUFFER: u64 = MEMORY_LIMIT / 4 * 3;
-
-/// Where a transaction starts placing the allocations the backend places itself, below the
-/// multi-return buffer, plus the transaction's region offset.
-const ALLOCATION_REGION: u64 = MEMORY_LIMIT / 2;
-
-/// The largest region offset a transaction takes, which keeps both regions apart and in memory.
-pub(crate) const MAX_REGION_OFFSET: u64 = MEMORY_LIMIT / 8;
-
 /// How an execution ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
@@ -131,9 +120,10 @@ pub(crate) enum Outcome {
     ReturnData(Vec<u8>),
     /// Execution stopped the transaction.
     Stop,
-    /// Execution reached `INVALID`, or another exceptional halt that consumes all gas and
-    /// returns nothing.
+    /// Execution reached `INVALID`, or `REVERT` before Byzantium.
     Invalid,
+    /// A returndata copy exceeded the available bytes.
+    ReturndataOutOfBounds,
     /// Execution exceeded a limit before it ended.
     Limit(Limit),
     /// Execution reached something the interpreter does not model, named here.
@@ -394,24 +384,16 @@ impl<'a> Machine<'a> {
         Execution { outcome, effects }
     }
 
-    /// Runs the module's dispatch entry as a transaction with `calldata` on `evm_version`, asking
-    /// `host` for its context, within `limits`, reporting each operation to `meter`. The memory
-    /// regions the interpreter places itself, for allocations and the multi-return buffer, start
-    /// `region_offset` bytes higher, up to [`MAX_REGION_OFFSET`], so a caller can tell whether a
-    /// result depends on where they are.
+    /// Runs the module's dispatch entry on `calldata` and `evm_version`, with the host's
+    /// initial heap and the final dump's backend memory placements.
     pub(crate) fn transact(
         &self,
         calldata: &[u8],
         host: &mut dyn Host,
         evm_version: EvmVersion,
-        region_offset: u64,
         limits: Limits,
         meter: &mut dyn Meter,
     ) -> TransactionExecution {
-        assert!(
-            region_offset <= MAX_REGION_OFFSET && region_offset.is_multiple_of(WORD_BYTES),
-            "region offset {region_offset:#x} out of range"
-        );
         let Some(entry) = self.module.dispatch_entry() else {
             return TransactionExecution {
                 outcome: Outcome::Unsupported("module without a dispatch entry"),
@@ -420,7 +402,9 @@ impl<'a> Machine<'a> {
         };
         // mstore 0x40, heap start
         let mut memory = Memory::zeroed();
-        memory.set(EvmMemoryLayout::FMP_SLOT, host.free_memory_start());
+        if self.module.backend_memory.is_none() {
+            memory.set(EvmMemoryLayout::FMP_SLOT, host.free_memory_start());
+        }
         let mut run = Run {
             machine: self,
             memory,
@@ -428,12 +412,7 @@ impl<'a> Machine<'a> {
             fuel: 0,
             frames: Vec::new(),
             world: Some(World { host, effects: Effects::default() }),
-            transaction: Some(Transaction {
-                calldata,
-                evm_version,
-                allocations: ALLOCATION_REGION + region_offset,
-                multi_return_buffer: MULTI_RETURN_BUFFER + region_offset,
-            }),
+            transaction: Some(Transaction { calldata, evm_version }),
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[], meter);
         let outcome = match outcome {
@@ -450,11 +429,21 @@ impl<'a> Machine<'a> {
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
         self.module.functions.get(id)
     }
+    fn function_id(&self, body: &Function) -> FunctionId {
+        self.module
+            .functions
+            .iter_enumerated()
+            .find_map(|(id, function)| std::ptr::eq(function, body).then_some(id))
+            .expect("body belongs to module")
+    }
 }
 
 /// The state of one call.
 struct Frame<'a> {
     body: &'a Function,
+    /// The original callee whose caller publishes its return buffer, across tail calls.
+    return_owner: &'a Function,
+    caller_inst: Option<InstId>,
     args: IndexVec<ArgIdx, U256>,
     values: IndexVec<ValueId, Option<U256>>,
     block: BlockId,
@@ -467,7 +456,16 @@ struct Frame<'a> {
 impl<'a> Frame<'a> {
     fn new(body: &'a Function, args: IndexVec<ArgIdx, U256>, result: Option<ValueId>) -> Self {
         let values = index_vec![None; body.num_values()];
-        Self { body, args, values, block: BlockId::ENTRY, next: 0, result }
+        Self {
+            body,
+            return_owner: body,
+            caller_inst: None,
+            args,
+            values,
+            block: BlockId::ENTRY,
+            next: 0,
+            result,
+        }
     }
 
     fn word(&self, value: ValueId) -> Option<U256> {
@@ -509,10 +507,6 @@ struct Transaction<'t> {
     calldata: &'t [u8],
     /// The EVM version the module targets, which decides what `revert` does.
     evm_version: EvmVersion,
-    /// The next free byte of the region holding the allocations the backend places itself.
-    allocations: u64,
-    /// Where the multi-return buffer starts.
-    multi_return_buffer: u64,
 }
 
 /// One execution in progress.
@@ -545,7 +539,16 @@ impl<'a> Run<'_, 'a, '_> {
             match body.blocks[block].instructions.get(next) {
                 Some(&inst) => {
                     self.frame().next += 1;
-                    self.instruction(body, inst, meter)?;
+                    let function = self.machine.function_id(body);
+                    let elided =
+                        self.machine.module.backend_memory.as_ref().is_some_and(|layout| {
+                            layout.stack_returns.iter().any(|(&(owner, _), protocol)| {
+                                owner == function && protocol.elided.contains(&inst)
+                            })
+                        });
+                    if !elided {
+                        self.instruction(body, inst, meter)?;
+                    }
                 }
                 None => self.terminator(body, block, meter)?,
             }
@@ -601,6 +604,17 @@ impl<'a> Run<'_, 'a, '_> {
         if body.blocks.is_empty() {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
+        let function = self.machine.function_id(body);
+        if let Some(floor) = self
+            .machine
+            .module
+            .backend_memory
+            .as_ref()
+            .and_then(|layout| layout.entry_heaps.get(&function))
+        {
+            // mstore 0x40, entry_heap
+            limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
+        }
         self.frames.push(Frame::new(body, args, result));
         ControlFlow::Continue(())
     }
@@ -624,6 +638,21 @@ impl<'a> Run<'_, 'a, '_> {
         let frame = self.frames.last().expect("a run always has a frame");
         meter.instruction(body, inst, &|value| frame.word(value));
         let result = match semantics {
+            Semantics::HeapFloor if self.transaction.is_some() => {
+                let function = self.machine.function_id(body);
+                self.machine
+                    .module
+                    .backend_memory
+                    .as_ref()
+                    .and_then(|layout| layout.heap_floors.get(&function).copied())
+                    .unwrap_or_else(|| {
+                        self.world
+                            .as_mut()
+                            .expect("a transaction has a host")
+                            .host
+                            .free_memory_start()
+                    })
+            }
             Semantics::Phi(_) => {
                 return ControlFlow::Break(Outcome::Unsupported("phi after other instructions"));
             }
@@ -650,7 +679,9 @@ impl<'a> Run<'_, 'a, '_> {
                 let Some(callee) = self.machine.body(id) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
-                return self.call(callee, args, instruction.result());
+                self.call(callee, args, instruction.result())?;
+                self.frame().caller_inst = Some(inst);
+                return ControlFlow::Continue(());
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
             Semantics::DataCopy(data, dest, len) => {
@@ -659,7 +690,7 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Allocate(size, kind, _) if self.transaction.is_some() => {
                 let size = frame.read(size)?;
-                self.allocate(size, kind)?
+                self.allocate(body, inst, size, kind)?
             }
             semantics => match eval_semantics(semantics, |value| frame.word(value).ok_or(())) {
                 Ok(Some(word)) => word,
@@ -684,6 +715,7 @@ impl<'a> Run<'_, 'a, '_> {
         operands: &[U256],
     ) -> ControlFlow<Outcome, Option<U256>> {
         ControlFlow::Continue(match (opcode, operands) {
+            (op::MSIZE, &[]) => Some(U256::from(self.memory.size * WORD_BYTES)),
             (op::MLOAD, &[offset]) => Some(limit(self.memory.load(offset))?),
             (op::MSTORE, &[offset, value]) => {
                 limit(self.memory.store(offset, value))?;
@@ -777,7 +809,7 @@ impl<'a> Run<'_, 'a, '_> {
             // Copying past the end of the return data halts.
             (op::RETURNDATACOPY, &[_, offset, len]) if transaction.is_some() => {
                 if !offset.is_zero() || !len.is_zero() {
-                    return ControlFlow::Break(Outcome::Invalid);
+                    return ControlFlow::Break(Outcome::ReturndataOutOfBounds);
                 }
                 None
             }
@@ -806,40 +838,67 @@ impl<'a> Run<'_, 'a, '_> {
         limit(self.memory.write(dest, bytes))
     }
 
-    /// Places an allocation whose placement the backend decides in the region the transaction
-    /// owns. Such an allocation runs at most once per call, so any fresh region serves while its
-    /// address does not escape, which the transaction's region offset lets a caller check. A fresh
-    /// region is zero, as a zeroed allocation needs, and its alignment and failure rules cannot
-    /// matter for a size that fits.
-    fn allocate(&mut self, size: U256, kind: &AllocationKind) -> ControlFlow<Outcome, U256> {
-        let Some(transaction) = &mut self.transaction else {
+    /// Executes the backend's recorded static address or ordered dynamic FMP bump.
+    /// Missing placements are unsupported, since synthetic pointers can change execution.
+    fn allocate(
+        &mut self,
+        body: &Function,
+        inst: InstId,
+        size: U256,
+        kind: &AllocationKind,
+    ) -> ControlFlow<Outcome, U256> {
+        let Some(_) = &self.transaction else {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         };
         if !matches!(kind, AllocationKind::Raw) || size > U256::from(MEMORY_LIMIT) {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         }
-        // address = next free byte, rounded up to a word after the region
-        let address = transaction.allocations;
-        let end = address + size.to::<u64>().next_multiple_of(WORD_BYTES);
-        if end > transaction.multi_return_buffer {
-            return ControlFlow::Break(Outcome::Limit(Limit::Memory));
+        if let Some(layout) = &self.machine.module.backend_memory {
+            let function = self.machine.function_id(body);
+            let Some(placement) = layout.allocations.get(&(function, inst)) else {
+                return ControlFlow::Break(Outcome::Unsupported(
+                    "missing backend allocation placement",
+                ));
+            };
+            return match placement {
+                AllocationPlacement::Static(address) => ControlFlow::Continue(*address),
+                AllocationPlacement::Dynamic(size) => {
+                    // pointer = mload 0x40
+                    // mstore 0x40, pointer + size
+                    let slot = U256::from(EvmMemoryLayout::FMP_SLOT);
+                    let address = limit(self.memory.load(slot))?;
+                    limit(self.memory.store(slot, address.wrapping_add(*size)))?;
+                    ControlFlow::Continue(address)
+                }
+            };
         }
-        transaction.allocations = end;
-        ControlFlow::Continue(U256::from(address))
+        ControlFlow::Break(Outcome::Unsupported("allocation without backend placement"))
     }
 
     /// Publishes the results after the first of a call returning several values the way the
     /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
-    fn publish_multi_return(&mut self, values: &[U256]) -> ControlFlow<Outcome> {
-        let Some(transaction) = &self.transaction else {
+    fn publish_multi_return(&mut self, body: &Function, values: &[U256]) -> ControlFlow<Outcome> {
+        let Some(_) = &self.transaction else {
             // Further results pass through a memory buffer the backend owns.
             return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
         };
-        let buffer = transaction.multi_return_buffer;
+        let buffer = if let Some(layout) = &self.machine.module.backend_memory {
+            let function = self.machine.function_id(body);
+            let Some(buffer) = layout.returns.get(&function) else {
+                return ControlFlow::Break(Outcome::Unsupported(
+                    "missing backend return buffer placement",
+                ));
+            };
+            *buffer
+        } else {
+            return ControlFlow::Break(Outcome::Unsupported(
+                "return buffer without backend placement",
+            ));
+        };
         // mstore buffer + 32 * k, result k
         // mstore 0x20, buffer
         for (index, &value) in values.iter().enumerate().skip(1) {
-            let offset = U256::from(buffer + index as u64 * WORD_BYTES);
+            let offset = buffer.wrapping_add(U256::from(index as u64 * WORD_BYTES));
             limit(self.memory.store(offset, value))?;
         }
         let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
@@ -882,7 +941,25 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Break(Outcome::Return(values));
                 }
                 if values.len() > 1 {
-                    self.publish_multi_return(&values)?;
+                    let caller_id =
+                        self.machine.function_id(self.frames.last().expect("caller").body);
+                    let protocol = self.machine.module.backend_memory.as_ref().and_then(|layout| {
+                        layout.stack_returns.get(&(caller_id, frame.caller_inst?))
+                    });
+                    if let Some(protocol) = protocol {
+                        if protocol.extras.len() != values.len() - 1 {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "invalid backend return arity",
+                            ));
+                        }
+                        for (value, &word) in protocol.extras.iter().zip(&values[1..]) {
+                            if let Some(value) = value {
+                                self.frame().values[*value] = Some(word);
+                            }
+                        }
+                    } else {
+                        self.publish_multi_return(frame.return_owner, &values)?;
+                    }
                 }
                 let caller = self.frame();
                 if let Some(result) = frame.result {
@@ -918,7 +995,10 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
                 let frame = self.frames.pop().expect("a run always has a frame");
-                self.call(callee, args, frame.result)
+                self.call(callee, args, frame.result)?;
+                self.frame().return_owner = frame.return_owner;
+                self.frame().caller_inst = frame.caller_inst;
+                ControlFlow::Continue(())
             }
             Terminator::SelfDestruct { .. } => {
                 ControlFlow::Break(Outcome::Unsupported("selfdestruct"))
@@ -1201,7 +1281,7 @@ fn @storage(arg0: i256) -> i256 {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(|| {
             let module = parse_module(&sess, source).unwrap();
-            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, 0, LIMITS, &mut ())
+            Machine::new(&module).transact(calldata, &mut TestHost, evm_version, LIMITS, &mut ())
         })
     }
 
@@ -1210,6 +1290,8 @@ fn @storage(arg0: i256) -> i256 {
         let context = transact(
             "@module Tx
 @phase lowered
+// backend-memory-v1
+// backend-return 0 0x200
 @types
   struct0: {i256, i256}
 
@@ -1271,11 +1353,14 @@ fn @entry() [entry] {
 }
 ";
         assert_eq!(transact(module, &[0, 0]).outcome, Outcome::Stop);
-        assert_eq!(transact(module, &[]).outcome, Outcome::Invalid);
+        assert_eq!(transact(module, &[]).outcome, Outcome::ReturndataOutOfBounds);
         assert_eq!(transact(module, &[0]).outcome, Outcome::Unsupported("caller"));
 
         let module = "@module Tx
 @phase lowered
+// backend-memory-v1
+// backend-alloc 0 0 dynamic 0x20
+// backend-entry 0 0x80
 @data
   literal_0: hex\"0102\"
 

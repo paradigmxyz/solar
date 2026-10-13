@@ -7,8 +7,9 @@ use super::{
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
+    backend::assembler::DeferredAllocResolution,
     link::{CodeKind, LibraryTable},
-    mir::{MirPhase, analysis::cold_functions},
+    mir::{AllocationPlacement, BackendMemory, MirPhase, analysis::cold_functions},
 };
 use alloy_primitives::Bytes;
 use solar_interface::Symbol;
@@ -80,11 +81,42 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
         self.schedule_runtime_code(&lowered, &call_graph);
+        let backend_memory = self.capture_mir.then(|| BackendMemory {
+            stack_returns: self.stack_return_sites.clone(),
+            allocations: self
+                .allocation_sites
+                .iter()
+                .filter_map(|(alloc, &site)| {
+                    let placement = match self.asm.deferred_allocations.get(alloc)? {
+                        DeferredAllocResolution::Static(word) => AllocationPlacement::Static(*word),
+                        DeferredAllocResolution::Dynamic(word) => {
+                            AllocationPlacement::Dynamic(*word)
+                        }
+                    };
+                    Some((site, placement))
+                })
+                .collect(),
+            returns: self
+                .return_buffer_sites
+                .iter()
+                .filter_map(|(&func, addr)| Some((func, *self.asm.deferred_values.get(addr)?)))
+                .collect(),
+            entry_heaps: self
+                .entry_heap_sites
+                .iter()
+                .filter_map(|(&func, addr)| Some((func, *self.asm.deferred_values.get(addr)?)))
+                .collect(),
+            heap_floors: self
+                .heap_floor_sites
+                .iter()
+                .filter_map(|(&func, addr)| Some((func, *self.asm.deferred_values.get(addr)?)))
+                .collect(),
+        });
         self.asm.optimize();
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }
-        self.pending_runtime = Some(PendingRuntime { call_graph });
+        self.pending_runtime = Some(PendingRuntime { call_graph, backend_memory });
         true
     }
 
@@ -95,7 +127,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         bytecodes: &EmbeddedBytecodes,
     ) -> EvmArtifact {
-        let PendingRuntime { call_graph } =
+        let PendingRuntime { call_graph, backend_memory } =
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
@@ -180,6 +212,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_evm_ir,
             deployment_debug_info: deploy_code.debug_info,
             runtime_debug_info,
+            backend_memory,
         }
     }
 

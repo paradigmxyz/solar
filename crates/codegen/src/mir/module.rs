@@ -112,6 +112,8 @@ pub struct Module {
     pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// Resolved backend layout, used only by execution tools and final dumps.
+    pub(crate) backend_memory: Option<super::BackendMemory>,
 }
 
 impl Module {
@@ -173,6 +175,7 @@ impl Module {
             is_library: false,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            backend_memory: None,
         }
     }
 
@@ -531,6 +534,9 @@ impl Module {
                 }
                 writeln!(f)?;
             }
+            if let Some(layout) = &self.backend_memory {
+                writeln!(f, "{}", layout.display(self))?;
+            }
             write!(
                 f,
                 "{}",
@@ -551,6 +557,9 @@ impl Module {
     /// Returns this module's DOT-format CFGs.
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
+            if let Some(layout) = &self.backend_memory {
+                writeln!(f, "{}", layout.display(self))?;
+            }
             write!(
                 f,
                 "{}",

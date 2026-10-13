@@ -1649,6 +1649,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(heap_floor())]
     HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(

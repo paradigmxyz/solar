@@ -46,9 +46,11 @@ pub struct ContractArtifact {
     pub deployment_link_references: Vec<LibraryReference>,
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
-    /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
-    /// `-Zdump=mir-final` is absent, and post-pipeline otherwise.
+    /// Captured MIR, built under `-O none` without an explicit pipeline, and
+    /// post-pipeline otherwise.
     pub mir: Option<Module>,
+    /// Lowered MIR retained independently of the built snapshot.
+    pub final_mir: Option<Module>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -264,6 +266,7 @@ pub fn generate_mir_input_bytecode(gcx: Gcx<'_>, module: &mut Module) -> Result<
     codegen.set_capture_mir(true);
     codegen.set_capture_evm_ir(true);
     let artifact = codegen.lower_module(module, &EmbeddedBytecodes::default());
+    module.backend_memory = artifact.backend_memory.clone();
     gcx.dcx().has_errors()?;
     Ok(artifact)
 }
@@ -494,13 +497,6 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
-        let needs_backend = captures.bytecode.contains(contract_id)
-            || captures.evm_ir.contains(contract_id)
-            || captures.debug_info.contains(contract_id)
-            || !graph.dependents[contract_id].is_empty();
-        let runtime_data =
-            captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
-        append_runtime_data(&mut module, runtime_data.as_ref());
         let final_mir = gcx
             .sess
             .opts
@@ -508,22 +504,29 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             .dump
             .as_ref()
             .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal));
+        let needs_backend = captures.bytecode.contains(contract_id)
+            || captures.evm_ir.contains(contract_id)
+            || captures.debug_info.contains(contract_id)
+            || !graph.dependents[contract_id].is_empty()
+            || final_mir;
+        let runtime_data =
+            captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
+        append_runtime_data(&mut module, runtime_data.as_ref());
         let capture_built = capture_mir
             && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && gcx.sess.opts.unstable.mir_pipeline.is_none()
-            && !final_mir;
+            && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
             let mut codegen = Box::new(EvmCodegen::new(gcx));
-            codegen.set_capture_mir(capture_mir && !capture_built);
+            codegen.set_capture_mir(capture_mir && (!capture_built || final_mir));
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
             let scheduled = codegen.schedule_module(&mut module);
             gcx.dcx().has_errors()?;
             scheduled.then_some(codegen)
         } else {
-            if capture_mir && !capture_built {
+            if capture_mir && (!capture_built || final_mir) {
                 let _changed = run_pipeline(gcx, &mut module, None);
                 gcx.dcx().has_errors()?;
             }
@@ -647,6 +650,18 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         );
         let runtime_link_references =
             collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
+        let capture_final = gcx
+            .sess
+            .opts
+            .unstable
+            .dump
+            .as_ref()
+            .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal));
+        let final_mir = (capture_mir && capture_final).then(|| {
+            let mut snapshot = module.clone();
+            snapshot.backend_memory = artifact.backend_memory.clone();
+            snapshot
+        });
         let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
         Ok(ContractArtifact {
@@ -656,6 +671,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             deployment_link_references,
             runtime_link_references,
             mir,
+            final_mir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
             deployment_debug_info: artifact.deployment_debug_info,

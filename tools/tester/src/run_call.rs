@@ -19,6 +19,7 @@ use ui_test::{
 };
 
 mod oracle;
+pub(crate) use oracle::report_summary as report_mir_summary;
 
 const CALLER: Address = Address::repeat_byte(0x22);
 
@@ -801,8 +802,9 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, check_mir: bool) -> Result<
     }
     let before = check_mir.then(|| oracle::Chain::capture(&evm, contract));
     let heap_start = Rc::new(Cell::new(None));
+    let last_opcode = Rc::new(Cell::new(None));
     if before.is_some() {
-        evm.set_inspector(oracle::HeapStart(heap_start.clone()));
+        evm.set_inspector(oracle::HeapStart(heap_start.clone(), last_opcode.clone()));
     }
     let input = Bytes::copy_from_slice(&call.input);
     let gas_limit = call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id));
@@ -810,7 +812,7 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, check_mir: bool) -> Result<
     let trace = before.map(|before| {
         evm.clear_inspector();
         let (stop, output, logs) = (result.stop, &result.output, &result.logs);
-        oracle::Trace::new(before, &evm, stop, output, logs, heap_start.get())
+        oracle::Trace::new(before, &evm, stop, output, logs, heap_start.get(), last_opcode.get())
     });
     Ok(Outcome { trace, ..outcome(result) })
 }

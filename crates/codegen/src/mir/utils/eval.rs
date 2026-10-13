@@ -149,7 +149,8 @@ pub(crate) fn eval_semantics<E>(
         | Semantics::Phi(_)
         | Semantics::Call(..)
         | Semantics::Allocate(..)
-        | Semantics::DataCopy(..) => None,
+        | Semantics::DataCopy(..)
+        | Semantics::HeapFloor => None,
     })
 }
 

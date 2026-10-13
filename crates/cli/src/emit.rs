@@ -564,6 +564,7 @@ fn dump_mir_contract(
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg, first)?;
     }
     if dump.kinds.contains(&DumpKind::MirFinal) {
+        let module = artifacts[&id].final_mir.as_ref().unwrap_or(module);
         write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirFinal, first)?;
     }
     Ok(())

@@ -89,7 +89,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
     let status_emitter = (text_emitter, gha_emitter);
 
-    ui_test::run_tests_generic(
+    let result = ui_test::run_tests_generic(
         configs,
         move |path, config| {
             let cfg = MyConfig::<'static> { mode: mode_from_config(config), tmp_dir };
@@ -100,7 +100,9 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
             per_file_config(config, contents, cfg)
         },
         status_emitter,
-    )?;
+    );
+    run_call::report_mir_summary();
+    result?;
 
     Ok(())
 }

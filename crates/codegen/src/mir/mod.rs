@@ -443,3 +443,6 @@ mod round_trip {
         Ok(())
     }
 }
+
+mod backend_memory;
+pub(crate) use backend_memory::{AllocationPlacement, BackendMemory, StackReturn};
