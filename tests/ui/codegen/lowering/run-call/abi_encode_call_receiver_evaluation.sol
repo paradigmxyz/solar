@@ -3,6 +3,11 @@
 //@ run-call: relay => 1
 //@ run-call-fail: relayLocked()
 //@ run-call: relayThis => 0
+//@ run-call: selector => 1
+//@ run-call: functionAddress => 1
+//@ run-call: encodeWithSelector => 1
+//@ run-call: pointer => 1
+//@ run-call: tryCall => 1
 
 contract Vault {
     uint256 public n;
@@ -39,6 +44,32 @@ contract Vault {
     // CHECK: abi_encode {{.*}} selector 0x117de2fd
     function relayThis() external view returns (uint256) {
         abi.encodeCall(this.payout, (address(0), 1));
+        return n;
+    }
+
+    function selector() external returns (uint256) {
+        gate().payout.selector;
+        return n;
+    }
+
+    function functionAddress() external returns (uint256) {
+        gate().payout.address;
+        return n;
+    }
+
+    function encodeWithSelector() external returns (uint256) {
+        abi.encodeWithSelector(gate().payout.selector, address(0), 1);
+        return n;
+    }
+
+    function pointer() external returns (uint256) {
+        function(address, uint256) external f = gate().payout;
+        abi.encodeCall(f, (address(0), 1));
+        return n;
+    }
+
+    function tryCall() external returns (uint256) {
+        try gate().payout(address(0), 1) {} catch {}
         return n;
     }
 }
