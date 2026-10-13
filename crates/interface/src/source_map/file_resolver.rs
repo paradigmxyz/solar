@@ -331,13 +331,19 @@ impl<'a> FileResolver<'a> {
     /// Reads `unit` from each root once through the file loader, like solc's file reader.
     fn read_roots(&self, path: &Path, unit: &Path) -> Result<Option<String>, ResolveError> {
         let loader = self.source_map().file_loader();
-        let unit = strip_file_url(unit);
         // Ask for a normalized path in each root, so that the result doesn't depend on which
-        // spelling of the name is read first.
+        // spelling of the name is read first. Like solc, keep a `file://` prefix in a name passed
+        // to the callback as is, and strip it from one joined to a root.
         let candidates = if unit.has_root() {
             vec![normalize_unit(unit)]
         } else {
-            self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
+            let stripped = strip_file_url(unit);
+            self.roots()
+                .map(|root| {
+                    let unit = if root.as_os_str().is_empty() { unit } else { stripped };
+                    normalize_unit(&root.join(unit))
+                })
+                .collect()
         };
         let mut found = SmallVec::<[(PathBuf, String); 1]>::new();
         let mut read_error = None;

@@ -161,15 +161,15 @@ fn callback_imports_with_base_path() {
     assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
 }
 
-/// Like solc's file reader, the read callback is asked for a `file://` import without the prefix,
-/// and the source keeps its source unit name.
+/// Like libsolc, the read callback gets a `file://` import as written without a base path, and
+/// like solc's file reader, each root drops the prefix. The source keeps its source unit name.
 #[test]
-fn callback_imports_strip_file_urls() {
-    struct Callback;
+fn callback_imports_strip_file_urls_in_roots() {
+    struct Callback(&'static str);
 
     impl StandardJsonReadCallback for Callback {
         fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
-            assert_eq!((kind, data), ("source", "lib/X.sol"));
+            assert_eq!((kind, data), ("source", self.0));
             ReadCallbackResult::Success("contract X {}".to_string())
         }
     }
@@ -178,12 +178,15 @@ fn callback_imports_strip_file_urls() {
         "language": "Solidity",
         "sources": {"A.sol": {"content": "import \"file://X.sol\"; contract A {}"}},
         "settings": {"outputSelection": {}}
-    });
-    let opts = CompileOpts { base_path: Some("lib".into()), ..Default::default() };
-    let mut output = Vec::new();
-    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
-    let output = serde_json::from_slice::<Value>(&output).unwrap();
-    assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "file://X.sol": {"id": 0}}}));
+    })
+    .to_string();
+    for (base_path, data) in [(None, "file://X.sol"), (Some("lib".into()), "lib/X.sol")] {
+        let opts = CompileOpts { base_path, ..Default::default() };
+        let mut output = Vec::new();
+        compile_standard_json(&input, opts, Some(Arc::new(Callback(data))), &mut output).unwrap();
+        let output = serde_json::from_slice::<Value>(&output).unwrap();
+        assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "file://X.sol": {"id": 0}}}));
+    }
 }
 
 /// The read callback is asked for every root: a file that only an include path serves resolves,
