@@ -10,53 +10,17 @@ error: expected version number
 LL │ pragma solidity "ьь";
    ╰╴                ━━━━
 
-error: unexpected trailing characters
-   ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
-   │
-LL │ pragma solidity "ьь";
-   ╰╴                  ━
-
-error: unexpected trailing characters
-   ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
-   │
-LL │ pragma solidity unicode"1ьa";
-   ╰╴                         ━━
-
-error: unexpected trailing characters
-   ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
-   │
-LL │ pragma solidity "1.2.3.45ь";
-   ╰╴                       ━━━
-
 error: expected version number
    ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
    │
 LL │ pragma s&".ь
    ╰╴        ━
 
-error: unexpected trailing characters
+error: expected `;`, found `<eof>`
    ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
    │
 LL │ pragma s&".ь
-   ╰╴        ━
+   ╰╴         ━━━ expected `;`
 
-error: expected version number
-   ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
-   │
-LL │ pragma s&".ь
-   ╰╴         ━━━
-
-error: expected version number
-   ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
-   │
-LL │ pragma s&".ь
-   ╰╴           ━
-
-error: expected one of `;` or `||`, found `<eof>`
-   ╭▸ ROOT/tests/ui/parser/pragma_multibyte.sol:LL:CC
-   │
-LL │ pragma s&".ь
-   ╰╴         ━━━ expected one of `;` or `||`
-
-error: aborting due to 10 previous errors
+error: aborting due to 4 previous errors
 

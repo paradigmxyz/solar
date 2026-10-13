@@ -194,7 +194,8 @@ impl SemverVersion {
     }
 }
 
-/// A SemVer version requirement. This is a list of components, and is never empty.
+/// A SemVer version requirement. This is a list of components, and is empty only when parsing
+/// it failed.
 #[derive(Debug)]
 pub struct SemverReq<'ast> {
     /// The components of this requirement.
