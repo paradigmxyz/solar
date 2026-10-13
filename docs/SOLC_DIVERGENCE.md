@@ -239,6 +239,18 @@ condition, and real code does not use the construct.
 
 Coverage: `tests/ui/typeck/module_conditional.sol`.
 
+### TYPECK-018: `msg.gas`
+
+Status: intentional.
+
+Difference: `solar` accepts `msg.gas` as `gasleft()` with warning 1400, where
+`solc` rejects it with error 1400.
+
+Rationale: the meaning is unambiguous and we compile it correctly, so a
+warning is enough to steer code to `gasleft()`.
+
+Coverage: `tests/ui/typeck/msg_gas.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Conditionals in storage layout base slots

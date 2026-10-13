@@ -233,6 +233,8 @@ declare_builtins! {
     // `msg`
     MsgSender              => sym::sender
                            => gcx.types.address;
+    MsgGas                 => kw::Gas
+                           => gcx.types.uint(256);
     MsgValue               => sym::value
                            => gcx.types.uint(256);
     MsgData                => sym::data
