@@ -22,3 +22,9 @@ warning[5333]: source file requires different compiler version (current compiler
 LL │ pragma solidity =0.8.0;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━
 
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_version_mismatch.sol:LL:CC
+   │
+LL │ pragma solidity ^4294967295;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
