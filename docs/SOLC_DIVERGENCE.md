@@ -75,10 +75,10 @@ testing.
 
 Status: intentional.
 
-Difference: `solar` checks `pragma solidity` requirements against the emulated
-`solc` version like `solc`, with the same error code 5333, but reports a
-mismatch as a warning instead of a fatal parser error. With `SOLC_WRAPPER=1`,
-`SOLC_WRAPPER_VERSION` replaces the emulated version.
+Difference: `solar` checks `pragma solidity` requirements against the `solc`
+version it implements like `solc`, with the same error code 5333, but reports a
+mismatch as a warning instead of a fatal parser error. `SOLC_WRAPPER_VERSION`
+changes only the version that `--version` reports, not the one checked.
 
 Rationale: a hard error would reject sources pinned to a different `solc`
 release even when `solar` can compile them. The warning still flags sources
