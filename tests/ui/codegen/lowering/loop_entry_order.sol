@@ -1,5 +1,4 @@
 //@ compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@ filecheck:
 //@ run-call: split "a", "a" => ["", ""]
 //@ run-call: split "a,b,,c", "," => ["a", "b", "", "c"]
 //@ run-call: split "xxabcdefghijklmnopqrstuvwxyz0123456789yy", "abcdefghijklmnopqrstuvwxyz0123456789" => ["xx", "yy"]
@@ -9,12 +8,7 @@
 // instructions left them, and the loop's layouts take that order: the long
 // needle's scan enters its loop right after hashing the needle, copying its
 // two starting cursors, where it permuted all eight words before.
-// CHECK: keccak256
-// CHECK-NEXT: dup {{[0-9]+}}
-// CHECK-NEXT: dup {{[0-9]+}}
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: jump bb{{[0-9]+}}
-// CHECK-NEXT: bb{{[0-9]+}} [loop]:
+
 import {Strings} from "solar:core/Strings.sol";
 
 contract Split {

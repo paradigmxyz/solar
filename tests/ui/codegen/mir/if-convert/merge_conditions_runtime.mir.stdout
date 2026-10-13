@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/if-convert/merge_conditions_runtime.sol:MergeConditions ===
 @module MergeConditions
 @types
-  struct0: {i256, i256}
+  struct0: {i1, i256}
 
-fn @search(arg0: memoryarray, arg1: i256) -> struct0 [selector=0xd43fc471, pure, abi_params=[array<_, u256>, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+fn @search(arg0: memptr, arg1: i256) -> struct0 [selector=0xd43fc471, pure, abi_params=[array<_, u256>, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     jump bb1
@@ -94,13 +94,12 @@ fn @search(arg0: memoryarray, arg1: i256) -> struct0 [selector=0xd43fc471, pure,
     jump bb26
   bb26:
     v35 = phi [bb24: v34], [bb25: v28]
-    v36 = zext i1 v32 to i256
-    v37 = insert_value struct0, undef struct0, 0, v36
-    v38 = insert_value struct0, v37, 1, v35
-    ret v38
+    v36 = insert_value struct0, undef struct0, 0, v32
+    v37 = insert_value struct0, v36, 1, v35
+    ret v37
 }
 
-fn @countBoth(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 [selector=0x7ca4e7d6, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @countBoth(arg0: memptr, arg1: i256, arg2: i256) -> i256 [selector=0x7ca4e7d6, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -147,7 +146,7 @@ fn @countBoth(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 [selector=0x7ca
     jump bb1
 }
 
-fn @countEither(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 [selector=0x8bfceda8, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @countEither(arg0: memptr, arg1: i256, arg2: i256) -> i256 [selector=0x8bfceda8, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

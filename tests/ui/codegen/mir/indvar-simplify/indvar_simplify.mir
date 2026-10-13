@@ -700,6 +700,9 @@ fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
     v5 = calldataload v4
     mstore 0, v5
     v6 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
 }
 
 // A counter that only one arm advances reaches its header phi through the
@@ -709,7 +712,7 @@ fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
 // die; the address the exit block builds from the final counter is the
 // pointer as well.
 // CHECK-LABEL: {{^[ +].*}}fn @reduce_conditional_step{{[( ]}}
-// CHECK: {{^ +}}[[BASE:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: {{^ +}}[[BASE:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK-NEXT: {{^ +}}[[BOUND:v[0-9]+]] = and arg1, 0xffffffffffffffff
 // CHECK: + [[SCALED:v[0-9]+]] = shl 5, [[BOUND]]
 // CHECK: + [[END:v[0-9]+]] = add [[BASE]], [[SCALED]]
@@ -723,7 +726,8 @@ fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + [[NEXT]] = phi [bb3: [[STEP]]], [bb2: [[PTR]]]
 fn @reduce_conditional_step(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v14 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v14 = ptrtoint memptr v888 to i256
     v15 = and arg1, 0xffffffffffffffff
     jump bb1
   bb1:
@@ -782,7 +786,7 @@ fn @keep_counter_reset_in_arm(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // An if-converted arm steps the counter by its condition, `i += (u < v)`, a
 // one-bit value: the pointer steps by the condition scaled to the stride.
 // CHECK-LABEL: {{^[ +].*}}fn @reduce_condition_step{{[( ]}}
-// CHECK: {{^ +}}[[BASE2:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: {{^ +}}[[BASE2:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[BASE2]]], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: + {{v[0-9]+}} = mload [[PTR]]
 // CHECK: [[COND:v[0-9]+]] = lt {{v[0-9]+}}, arg2
@@ -791,7 +795,8 @@ fn @keep_counter_reset_in_arm(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // CHECK: + [[NEXT]] = add [[PTR]], [[SCALED]]
 fn @reduce_condition_step(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v16 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v16 = ptrtoint memptr v888 to i256
     v18 = and arg1, 0xffffffffffffffff
     jump bb1
   bb1:
@@ -873,7 +878,7 @@ fn @keep_word_step(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // is a `gt`, the two offsets share one descending pointer, and the write
 // after the loop reads that pointer, so the counter dies.
 // CHECK-LABEL: {{^[ +].*}}fn @reduce_descending_gt{{[( ]}}
-// CHECK: {{^ +}}[[BASE3:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: {{^ +}}[[BASE3:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK: + [[START:v[0-9]+]] = add [[BASE3]], {{v[0-9]+}}
 // CHECK: + [[END:v[0-9]+]] = add [[BASE3]], {{v[0-9]+}}
 // CHECK: - {{v[0-9]+}} = phi [bb0: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
@@ -886,7 +891,8 @@ fn @keep_word_step(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // CHECK: + [[NEXT]] = sub [[PTR]], 32
 fn @reduce_descending_gt(arg0: memptr, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
-    v18 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v18 = ptrtoint memptr v888 to i256
     v19 = and arg1, 0xffffffffffffffff
     v20 = and arg2, 0xffffffffffffffff
     jump bb1
@@ -914,14 +920,15 @@ fn @reduce_descending_gt(arg0: memptr, arg1: i256, arg2: i256, arg3: i256) -> i2
 // A merge phi may be an inner loop's header, which leaves the counter alone
 // around its own back edge; the mirror phi cycles through that latch too.
 // CHECK-LABEL: {{^[ +].*}}fn @reduce_through_inner_header{{[( ]}}
-// CHECK: {{^ +}}[[BASE4:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: {{^ +}}[[BASE4:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[BASE4]]], [bb5: [[INNER:v[0-9]+]]]
 // CHECK: + {{v[0-9]+}} = mload [[PTR]]
 // CHECK: + [[STEP:v[0-9]+]] = add [[PTR]], 32
 // CHECK: + [[INNER]] = phi [bb2: [[STEP]]], [bb4: [[INNER]]]
 fn @reduce_through_inner_header(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v19 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v19 = ptrtoint memptr v888 to i256
     v20 = and arg1, 0xffffffffffffffff
     jump bb1
   bb1:
@@ -953,7 +960,7 @@ fn @reduce_through_inner_header(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // update's mirror sits beside it in the header, so the test compares that
 // mirror with the pointer's end and the counter still dies.
 // CHECK-LABEL: {{^[ +].*}}fn @reduce_tested_update{{[( ]}}
-// CHECK: {{^ +}}[[BASE5:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: {{^ +}}[[BASE5:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK: + [[START:v[0-9]+]] = add [[BASE5]], 32
 // CHECK: + [[END:v[0-9]+]] = add {{v[0-9]+}}, 32
 // CHECK: - [[COUNTER:v[0-9]+]] = phi [bb0: 0], [bb2: [[UPDATE:v[0-9]+]]]
@@ -965,7 +972,8 @@ fn @reduce_through_inner_header(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // CHECK: + {{v[0-9]+}} = mload [[PTR]]
 fn @reduce_tested_update(arg0: memptr, arg1: i256) -> i256 {
   bb0:
-    v20 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v20 = ptrtoint memptr v888 to i256
     v21 = and arg1, 0xffffffffffffffff
     jump bb1
   bb1:
@@ -989,7 +997,7 @@ fn @reduce_tested_update(arg0: memptr, arg1: i256) -> i256 {
 // mirror from both, and the update in the header being the tested value
 // puts that mirror beside it.
 // CHECK-LABEL: {{^[ +].*}}fn @reduce_two_latches{{[( ]}}
-// CHECK: {{^ +}}[[BASE6:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: {{^ +}}[[BASE6:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[BASE6]]], [bb4: [[NEXT:v[0-9]+]]], [bb3: [[NEXT]]]
 // CHECK-NEXT: + [[NEXT]] = add [[PTR]], 32
 // CHECK-NEXT: + {{v[0-9]+}} = gt [[NEXT]],
@@ -997,7 +1005,8 @@ fn @reduce_tested_update(arg0: memptr, arg1: i256) -> i256 {
 // CHECK: + mstore [[PTR]], 0
 fn @reduce_two_latches(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v21 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v21 = ptrtoint memptr v888 to i256
     v22 = and arg1, 0xffffffffffffffff
     jump bb1
   bb1:
@@ -1033,7 +1042,8 @@ fn @reduce_two_latches(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
 // CHECK: + [[NEXT]] = add [[POINTER]], 1
 fn @runtime_byte_scan(arg0: memptr, arg1: i256) -> i256 {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v888 = alloc raw, exact, uninitialized, infallible, 128
+    v0 = ptrtoint memptr v888 to i256
     v1 = mload v0
     v12 = and v1, 0xffffffffffffffff
     v2 = add v0, 32

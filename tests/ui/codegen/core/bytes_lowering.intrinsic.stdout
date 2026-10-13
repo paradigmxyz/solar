@@ -17,16 +17,16 @@ fn @selector() [selector=0xb3b5a8a9, abi_wrapper, pure] {
     jumpi v12, bb3, bb4
   bb4:
     v13 = icall @decode_calldata_type
-    v18 = ptrtoint memptr v13 to i256
-    v0 = mload v18
+    v17 = ptrtoint memptr v13 to i256
+    v0 = mload v17
     v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v17 = add v18, 32
-    v9 = mload v17
+    v16 = add v17, 32
+    v9 = mload v16
     v10 = and v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v10
-    returndata 128, 32
+    mstore 0, v10 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     tail_call @revert_stub
   bb3:
@@ -45,31 +45,26 @@ fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
     jumpi v17, bb5, bb3
   bb5:
     v18 = icall @decode_calldata_type
-    v47 = ptrtoint memptr v18 to i256
-    v0 = mload v47
+    v38 = ptrtoint memptr v18 to i256
+    v0 = mload v38
     v3 = lt v0, 5
     jumpi v3, bb1, bb2
   bb2:
-    v46 = add v47, 32
-    v8 = add v46, 1
+    v37 = add v38, 32
+    v8 = add v37, 1
     v9 = mload v8
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v11 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v12 = or v10, v11
     mstore v8, v12
-    v25 = ne v47, 0
-    v26 = zext i1 v25 to i256
-    v27 = mul v0, v26
-    v29 = add v27, 31
-    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = add v46, v31
-    mstore v33, 0
-    v35 = add v46, 32
-    mcopy v35, v46, v27
-    mstore v47, 32
-    mstore v46, v27
-    v39 = add v31, 64
-    returndata v47, v39
+    v23 = add v0, 31
+    v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = add v37, v0
+    mstore v28, 0
+    v30 = sub v38, 32
+    mstore v30, 32
+    v31 = add v25, 64
+    returndata v30, v31
   bb1:
     tail_call @revert_stub
   bb3:
@@ -83,37 +78,32 @@ fn @move() [selector=0x42e3f4e4, abi_wrapper, pure] {
     jumpi v19, bb3, bb4
   bb4:
     v20 = icall @decode_calldata_type
-    v47 = ptrtoint memptr v20 to i256
-    v0 = mload v47
+    v38 = ptrtoint memptr v20 to i256
+    v0 = mload v38
     v1 = add arg1, arg3
     v2 = lt v1, arg1
     v3 = gt v1, v0
     v4 = or v2, v3
-    v45 = add v47, 32
-    v8 = add v45, arg1
+    v36 = add v38, 32
+    v8 = add v36, arg1
     v10 = add arg2, arg3
     v11 = lt v10, arg2
     v12 = gt v10, v0
     v13 = or v11, v12
-    v48 = or v4, v13
-    jumpi v48, bb1, bb2
+    v39 = or v4, v13
+    jumpi v39, bb1, bb2
   bb2:
-    v17 = add v45, arg2
+    v17 = add v36, arg2
     mcopy v8, v17, arg3
-    v27 = ne v47, 0
-    v28 = zext i1 v27 to i256
-    v24 = mload v47
-    v29 = mul v24, v28
-    v31 = add v29, 31
-    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v45, v33
-    mstore v35, 0
-    v37 = add v47, 64
-    mcopy v37, v45, v29
-    mstore v47, 32
-    mstore v45, v29
-    v41 = add v33, 64
-    returndata v47, v41
+    v24 = mload v38
+    v25 = add v24, 31
+    v27 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v30 = add v36, v24
+    mstore v30, 0
+    v32 = sub v38, 32
+    mstore v32, 32
+    v33 = add v27, 64
+    returndata v32, v33
   bb1:
     tail_call @revert_stub
   bb3:
@@ -127,22 +117,22 @@ fn @blank() [selector=0xc59f587e, abi_wrapper, pure] {
     jumpi v39, bb8, bb9
   bb9:
     v40 = icall @decode_calldata_type
-    v67 = ptrtoint memptr v40 to i256
-    v0 = mload v67
+    v58 = ptrtoint memptr v40 to i256
+    v0 = mload v58
     v3 = gt arg1, v0
     v6 = ne arg1, 0
     v9 = and v6, v3
     jumpi v9, bb6, bb7
   bb7:
-    v66 = add v67, 32
+    v57 = add v58, 32
     v15 = shr 5, arg1
     v34 = gt v15, 0x20000000000000000
     v35 = select v34, 0x20000000000000000, v15
     v36 = shl 5, v35
-    v37 = add v66, v36
+    v37 = add v57, v36
     jump bb1
   bb1:
-    v32 = phi [bb7: v66], [bb2: v33]
+    v32 = phi [bb7: v57], [bb2: v33]
     v17 = ne v32, v37
     jumpi v17, bb2, bb3
   bb3:
@@ -153,7 +143,7 @@ fn @blank() [selector=0xc59f587e, abi_wrapper, pure] {
     v23 = shl 3, v21
     v24 = shr v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v25 = shl 5, v15
-    v26 = add v66, v25
+    v26 = add v57, v25
     v27 = mload v26
     v28 = and v27, v24
     v29 = not v24
@@ -162,20 +152,15 @@ fn @blank() [selector=0xc59f587e, abi_wrapper, pure] {
     mstore v26, v31
     jump bb5
   bb5:
-    v47 = ne v67, 0
-    v48 = zext i1 v47 to i256
-    v44 = mload v67
-    v49 = mul v44, v48
-    v51 = add v49, 31
-    v53 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v55 = add v66, v53
-    mstore v55, 0
-    v57 = add v67, 64
-    mcopy v57, v66, v49
-    mstore v67, 32
-    mstore v66, v49
-    v61 = add v53, 64
-    returndata v67, v61
+    v44 = mload v58
+    v45 = add v44, 31
+    v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v50 = add v57, v44
+    mstore v50, 0
+    v52 = sub v58, 32
+    mstore v52, 32
+    v53 = add v47, 64
+    returndata v52, v53
   bb2:
     mstore v32, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
     v33 = add v32, 32

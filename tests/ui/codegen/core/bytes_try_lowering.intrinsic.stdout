@@ -16,8 +16,8 @@ fn @entry() [entry] {
 fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb0:
     v26 = icall @decode_calldata_type
-    v33 = ptrtoint memptr v26 to i256
-    v0 = mload v33
+    v32 = ptrtoint memptr v26 to i256
+    v0 = mload v32
     v1 = add arg1, 1
     v2 = eq v1, 0
     v3 = gt v1, v0
@@ -25,21 +25,21 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
     v6 = eq v4, false
     v20 = zext i1 v6 to i256
     v7 = mul v20, arg1
-    v35 = add v33, 32
-    v10 = add v35, v7
+    v34 = add v32, 32
+    v10 = add v34, v7
     v11 = mload v10
     v12 = mul v20, v11
     v13 = and v12, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
-    mstore 160, v13
-    returndata 128, 64
+    mstore 0, v20
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
   bb0:
     v26 = icall @decode_calldata_type
-    v33 = ptrtoint memptr v26 to i256
-    v0 = mload v33
+    v32 = ptrtoint memptr v26 to i256
+    v0 = mload v32
     v1 = add arg1, 4
     v2 = lt v1, arg1
     v3 = gt v1, v0
@@ -47,21 +47,21 @@ fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
     v6 = eq v4, false
     v20 = zext i1 v6 to i256
     v7 = mul v20, arg1
-    v35 = add v33, 32
-    v10 = add v35, v7
+    v34 = add v32, 32
+    v10 = add v34, v7
     v11 = mload v10
     v12 = mul v20, v11
     v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v20
-    mstore 160, v13
-    returndata 128, 64
+    mstore 0, v20
+    mstore 32, v13 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
   bb0:
     v25 = icall @decode_calldata_type
-    v32 = ptrtoint memptr v25 to i256
-    v0 = mload v32
+    v31 = ptrtoint memptr v25 to i256
+    v0 = mload v31
     v1 = add arg1, 32
     v2 = lt v1, arg1
     v3 = gt v1, v0
@@ -69,20 +69,20 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
     v6 = eq v4, false
     v19 = zext i1 v6 to i256
     v7 = mul v19, arg1
-    v34 = add v32, 32
-    v10 = add v34, v7
+    v33 = add v31, 32
+    v10 = add v33, v7
     v11 = mload v10
     v12 = mul v19, v11
-    mstore 128, v19
-    mstore 160, v12
-    returndata 128, 64
+    mstore 0, v19
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
   bb0:
     v25 = icall @decode_calldata_type
-    v32 = ptrtoint memptr v25 to i256
-    v0 = mload v32
+    v31 = ptrtoint memptr v25 to i256
+    v0 = mload v31
     v1 = add arg1, 32
     v2 = lt v1, arg1
     v3 = gt v1, v0
@@ -90,26 +90,26 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
     v6 = eq v4, false
     v19 = zext i1 v6 to i256
     v7 = mul v19, arg1
-    v34 = add v32, 32
-    v10 = add v34, v7
+    v33 = add v31, 32
+    v10 = add v33, v7
     v11 = mload v10
     v12 = mul v19, v11
-    mstore 128, v19
-    mstore 160, v12
-    returndata 128, 64
+    mstore 0, v19
+    mstore 32, v12 !metadata(memory=scratch)
+    returndata 0, 64
 }
 
 fn @guarded() [selector=0xd0dcc2fe, abi_wrapper, pure] {
   bb0:
     v43 = icall @decode_calldata_type
-    v53 = mload 64 !metadata(memory=scratch)
-    v54 = add v53, 64
-    mstore 64, v54 !metadata(memory=scratch)
-    mstore v53, 4
-    v49 = add v53, 32
-    mstore v49, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v50 = ptrtoint memptr v43 to i256
-    v3 = mload v50
+    v52 = mload 64 !metadata(memory=scratch)
+    v53 = add v52, 64
+    mstore 64, v53 !metadata(memory=scratch)
+    mstore v52, 4
+    v48 = add v52, 32
+    mstore v48, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v49 = ptrtoint memptr v43 to i256
+    v3 = mload v49
     v4 = add arg1, 4
     v6 = gt v4, v3
     v5 = lt v4, arg1
@@ -117,8 +117,8 @@ fn @guarded() [selector=0xd0dcc2fe, abi_wrapper, pure] {
     v9 = eq v7, false
     v33 = zext i1 v9 to i256
     v10 = mul v33, arg1
-    v52 = add v50, 32
-    v13 = add v52, v10
+    v51 = add v49, 32
+    v13 = add v51, v10
     v14 = mload v13
     v15 = mul v33, v14
     v16 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -127,8 +127,8 @@ fn @guarded() [selector=0xd0dcc2fe, abi_wrapper, pure] {
     v39 = mul v38, v37
     v40 = add v16, v39
     v44 = and v40, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v44
-    returndata 128, 32
+    mstore 0, v44 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @decode_calldata_type() -> memptr [may_return_memory] {

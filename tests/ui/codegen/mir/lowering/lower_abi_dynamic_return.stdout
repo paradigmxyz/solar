@@ -870,7 +870,7 @@
 +   bb3:
 +     jump bb1
 +   bb1:
-+     v2 = abi_encode [memory_bytes], args arg0
++     v2 = abi_encode [memory_bytes], scratch, args arg0
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -903,7 +903,7 @@
       v0 = icall @canonicalAddresses
 -     ret v0
 +     v1 = icall @cleanup_return.40, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -915,7 +915,7 @@
       v0 = icall @canonicalAddresses
 -     ret v0
 +     v1 = icall @cleanup_return.40, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -949,7 +949,7 @@
       v0 = icall @canonicalAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -961,7 +961,7 @@
       v0 = icall @canonicalAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -994,7 +994,7 @@
       v0 = icall @dirtyAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1006,7 +1006,7 @@
       v0 = icall @dirtyAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1108,7 +1108,7 @@
       v0 = icall @dirtyAddressAliases
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1120,7 +1120,7 @@
       v0 = icall @dirtyAddressReloads
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1132,7 +1132,7 @@
       v0 = icall @escapingAddressArrays
 -     ret v0
 +     v1 = icall @cleanup_return.39, v0
-+     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v2 = abi_encode [memory_array<memory_array<word>>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1261,7 +1261,7 @@
       v1 = icall @aliasedAddressContainer, v0, v0
 -     ret v1
 +     v2 = icall @cleanup_return.40, v1
-+     v3 = abi_encode [memory_array<word>], args v2
++     v3 = abi_encode [memory_array<word>], scratch, args v2
 +     v4 = slice_ptr v3
 +     v5 = slice_len v3
 +     returndata v4, v5
@@ -1274,7 +1274,7 @@
       mstore 0, 256
 -     ret v0
 +     v1 = icall @cleanup_return.40, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1392,7 +1392,7 @@
       v0 = icall @bypassedArrayLoop, arg0
 -     ret v0
 +     v5 = icall @cleanup_return.40, v0
-+     v6 = abi_encode [memory_array<word>], args v5
++     v6 = abi_encode [memory_array<word>], scratch, args v5
 +     v7 = slice_ptr v6
 +     v8 = slice_len v6
 +     returndata v7, v8
@@ -1406,7 +1406,7 @@
       v0 = icall @lateArrayLength
 -     ret v0
 +     v1 = icall @cleanup_return.40, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1512,7 +1512,7 @@
     bb0:
       v0 = icall @canonicalStorageAddresses, 0
 -     ret v0
-+     v1 = abi_encode [memory_array<word>], args v0
++     v1 = abi_encode [memory_array<word>], scratch, args v0
 +     v2 = slice_ptr v1
 +     v3 = slice_len v1
 +     returndata v2, v3
@@ -1570,7 +1570,7 @@
       v0 = icall @dirtyStorageAddresses, 0
 -     ret v0
 +     v1 = icall @cleanup_return.40, v0
-+     v2 = abi_encode [memory_array<word>], args v1
++     v2 = abi_encode [memory_array<word>], scratch, args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
@@ -1594,11 +1594,9 @@
       v1 = zext i128 arg0 to i256
       memory_object_store_field memorystruct<1>, v0, 0, v1
 +     v7 = memory_object_load_field memorystruct<1>, v0, 0
-+     mstore 128, v7
-+     v8 = add 128, 32
-+     v9 = add 128, 32
-+     v10 = sub v9, 128
-+     returndata 128, v10
++     mstore 0, v7 !metadata(memory=scratch)
++     v8 = sub 32, 0
++     returndata 0, v8
 +   bb2:
 +     revert 0, 0
 + }

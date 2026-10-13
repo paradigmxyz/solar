@@ -826,7 +826,7 @@ impl CommonSubexprEliminator {
                             if lhs == word && func.value_u64(rhs) == Some(0)))
         };
         if let Some(home) = home(*cached_inst)
-            && ctx.predecessors[block].as_slice() == [home]
+            && func.blocks[block].predecessors.as_slice() == [home]
             && let Some(Terminator::Branch { condition: tested, then_block, else_block }) =
                 &func.blocks[home].terminator
             && tests(tested, cached)
@@ -1434,15 +1434,6 @@ impl CommonSubexprEliminator {
             return false;
         }
         match read.address.base {
-            MemoryBase::Param(value) => matches!(
-                func.value(value),
-                Value::Arg(index) if matches!(
-                    func.arg_ty(*index),
-                    MirType::MemoryObject(
-                        MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray
-                    )
-                )
-            ),
             MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => matches!(
                 func.inst(inst).kind,
                 InstKind::Alloc {

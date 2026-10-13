@@ -43,8 +43,8 @@ fn @leading() [selector=0x3ce23483, abi_wrapper, pure] {
     v31 = eq arg0, 0
     v51 = zext i1 v31 to i256
     v34 = add v30, v51
-    mstore 128, v34
-    returndata 128, 32
+    mstore 0, v34 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
@@ -55,12 +55,12 @@ fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
     v1 = eq arg0, 0
     v36 = zext i1 v1 to i256
     v37 = shl 8, v36
-    v60 = or v37, v40
-    v8 = shr v60, arg0
+    v59 = or v37, v40
+    v8 = shr v59, arg0
     v9 = gt v8, 0xffffffffffffffff
     v42 = zext i1 v9 to i256
     v43 = shl 6, v42
-    v12 = or v60, v43
+    v12 = or v59, v43
     v13 = shr v12, arg0
     v14 = gt v13, 0xffffffff
     v45 = zext i1 v14 to i256
@@ -81,8 +81,8 @@ fn @highest() [selector=0xe076913c, abi_wrapper, pure] {
     v30 = and v29, 31
     v31 = byte v30, 0x706060506020504060203020504030106050205030304010505030400000000
     v34 = or v27, v31
-    mstore 128, v34
-    returndata 128, 32
+    mstore 0, v34 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
@@ -100,8 +100,8 @@ fn @trailing() [selector=0x5b348c5a, abi_wrapper, pure] {
     v10 = and v9, 31
     v11 = byte v10, 0x1f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405
     v12 = or v7, v11
-    mstore 128, v12
-    returndata 128, 32
+    mstore 0, v12 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
@@ -121,8 +121,8 @@ fn @ones() [selector=0xb2f925a4, abi_wrapper, pure] {
     v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v14 = shr 248, v13
     v15 = add v14, v1
-    mstore 128, v15
-    returndata 128, 32
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @entry() [entry] {

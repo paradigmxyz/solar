@@ -8,7 +8,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
 // CHECK: + jump bb4
-fn @copy(arg0: memoryarray) -> memoryarray {
+fn @copy(arg0: memptr) -> memptr {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = shl 5, v0
@@ -38,7 +38,7 @@ fn @copy(arg0: memoryarray) -> memoryarray {
 // Shortening the copy inside the loop changes the length the check reads.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_shortened{{[( ]}}
 // CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb3, bb4
-fn @keep_shortened(arg0: memoryarray) -> memoryarray {
+fn @keep_shortened(arg0: memptr) -> memptr {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = shl 5, v0
@@ -72,7 +72,7 @@ fn @keep_shortened(arg0: memoryarray) -> memoryarray {
 // CHECK-LABEL: {{^[ +].*}}fn @anchored_range{{[( ]}}
 // CHECK: - jumpi {{v[0-9]+}}, bb2, bb3
 // CHECK: + jump bb3
-fn @anchored_range(arg0: i256) -> memorybytes {
+fn @anchored_range(arg0: i256) -> memptr {
   bb0:
     v0 = and arg0, 255
     v1 = add v0, 32
@@ -93,7 +93,7 @@ fn @anchored_range(arg0: i256) -> memorybytes {
 // Without `n > 31` the stored length can be as short as 32.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_short_anchor{{[( ]}}
 // CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb1, bb2
-fn @keep_short_anchor(arg0: i256) -> memorybytes {
+fn @keep_short_anchor(arg0: i256) -> memptr {
   bb0:
     v0 = and arg0, 255
     v1 = add v0, 32

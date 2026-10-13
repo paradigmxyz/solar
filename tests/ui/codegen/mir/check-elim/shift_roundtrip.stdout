@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/shift_roundtrip.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/shift_roundtrip.mir (after check-elim) ===
   @module CheckElimShiftRoundTrip
-  fn @scaled_allocation(arg0: memoryarray) -> i256 {
+  fn @scaled_allocation(arg0: memptr) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = add v0, 1
@@ -28,7 +28,7 @@
       revert 0, 0
   }
   
-  fn @keep_mismatched_shift(arg0: memoryarray) -> i256 {
+  fn @keep_mismatched_shift(arg0: memptr) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = shl 5, v0

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/stepped_cursor.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/stepped_cursor.mir (after check-elim) ===
   @module SteppedCursor
-  fn @nibble_blocks(arg0: memorybytes) -> memorybytes {
+  fn @nibble_blocks(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = add v0, v0
@@ -45,7 +45,7 @@
 +     revert 0, 0
   }
   
-  fn @keep_block_overrun(arg0: memorybytes) -> memorybytes {
+  fn @keep_block_overrun(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = add v0, v0
@@ -73,7 +73,7 @@
       ret v2
   }
   
-  fn @keep_written_parameter(arg0: memorybytes) {
+  fn @keep_written_parameter(arg0: memptr) {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       jump bb1
@@ -102,9 +102,9 @@
       ret v1
   }
   
-  fn @clobber(arg0: memorybytes) {
+  fn @clobber(arg0: memptr) {
     bb0:
-      v0 = ptrtoint memorybytes arg0 to i256
+      v0 = ptrtoint memptr arg0 to i256
       mstore v0, 0
       ret
   }

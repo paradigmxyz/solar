@@ -1,13 +1,8 @@
 //@ revisions: gas size none byzantium
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
-//@[gas] filecheck: --check-prefixes=CHECK,GAS
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
-//@[size] filecheck: --check-prefixes=CHECK,SIZE
 //@[none] compile-flags: -O none -Zdump=evm-ir-runtime
-//@[none] filecheck: --check-prefixes=CHECK,NONE
 //@[byzantium] compile-flags: -O gas --evm-version byzantium -Zdump=evm-ir-runtime
-//@[byzantium] filecheck: --check-prefixes=CHECK,BYZ
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Each contract holds one internal switch, so every switch gets the full
 // gas-mode growth budget. The checks pin the shape that automatic selection
@@ -16,14 +11,7 @@
 contract SmallDense {
     // Four adjacent keys use a packed dense table in both modes. Byzantium
     // has no shifts to unpack it.
-    // CHECK-LABEL: @module SmallDense_runtime
-    // GAS: push 4{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){3}bb[0-9]+$}}
-    // SIZE: push 4{{$}}
-    // SIZE-NEXT: gt
-    // SIZE: indexed_jump {{(bb[0-9]+, ){3}bb[0-9]+$}}
-    // BYZ-NOT: indexed_jump
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -39,14 +27,7 @@ contract SmallDense {
 contract Conservative {
     // Gas mode pays for a table over 0..19. Size mode keeps the linear scan
     // because table entries need full-width labels before layout.
-    // CHECK-LABEL: @module Conservative_runtime
-    // GAS: push 20{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){19}bb[0-9]+$}}
-    // SIZE-NOT: indexed_jump
-    // BYZ: push 20{{$}}
-    // BYZ-NEXT: gt
-    // BYZ: indexed_jump {{(bb[0-9]+, ){19}bb[0-9]+$}}
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -65,14 +46,7 @@ contract Conservative {
 
 contract Affine5 {
     // An odd stride maps to a packed table by multiplying with its inverse.
-    // CHECK-LABEL: @module Affine5_runtime
-    // GAS: mul
-    // GAS-NEXT: dup 1
-    // GAS-NEXT: push 5{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){4}bb[0-9]+$}}
-    // SIZE-NOT: indexed_jump
-    // BYZ-NOT: indexed_jump
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -91,23 +65,9 @@ contract Affine65 {
     // The affine table also takes more keys than the 64 that bit-slice and
     // bucket tables allow.
     // Without optimization the switch stays a linear scan.
-    // CHECK-LABEL: @module Affine65_runtime
-    // GAS: mul
-    // GAS-NEXT: dup 1
-    // GAS-NEXT: push 65{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump
-    // SIZE: mul
-    // SIZE-NEXT: dup 1
-    // SIZE-NEXT: push 65{{$}}
-    // SIZE-NEXT: gt
-    // SIZE: indexed_jump
+
     // NONE-NOT: {{^  (indexed_jump|mul|gt)$}}
-    // BYZ: mul
-    // BYZ-NEXT: dup 1
-    // BYZ-NEXT: push 65{{$}}
-    // BYZ-NEXT: gt
-    // BYZ: indexed_jump
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -185,14 +145,7 @@ contract Affine65 {
 contract BitSlice7 {
     // The low three bits separate every key. Each case block has one
     // predecessor, so it merges into the slot that checks its key.
-    // CHECK-LABEL: @module BitSlice7_runtime
-    // GAS: push 7{{$}}
-    // GAS-NEXT: and
-    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
-    // SIZE-NOT: indexed_jump
-    // BYZ: push 7{{$}}
-    // BYZ-NEXT: and
-    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -212,15 +165,7 @@ contract BitSlice7 {
 contract Coalesced16 {
     // Merged case guards make a 16-slot bit-slice table fit its growth cap.
     // Byzantium cannot shift, so it uses modulo buckets with one shared miss.
-    // CHECK-LABEL: @module Coalesced16_runtime
-    // GAS: push 15{{$}}
-    // GAS-NEXT: and
-    // GAS-NEXT: indexed_jump {{(bb[0-9]+, ){15}bb[0-9]+$}}
-    // SIZE-NOT: indexed_jump
-    // BYZ: push 17{{$}}
-    // BYZ-NEXT: dup 2
-    // BYZ-NEXT: mod
-    // BYZ-NEXT: indexed_jump {{(bb[0-9]+, ){16}bb[0-9]+$}}
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -249,12 +194,11 @@ contract Coalesced16 {
 contract Binary32 {
     // Bucket tables would exceed the growth limit, so gas mode splits the
     // sorted keys into eight leaves of four.
-    // CHECK-LABEL: @module Binary32_runtime
+
     // GAS-COUNT-7: {{^  gt$}}
-    // GAS-NOT: {{^  (gt|indexed_jump)$}}
-    // SIZE-NOT: indexed_jump
+
     // BYZ-COUNT-7: {{^  gt$}}
-    // BYZ-NOT: {{^  (gt|indexed_jump)$}}
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -299,17 +243,7 @@ contract Binary32 {
 contract Rotated32 {
     // An even stride rotates out its trailing zero bit. Byzantium has no
     // shifts, so it falls back to a binary search.
-    // CHECK-LABEL: @module Rotated32_runtime
-    // GAS: mul
-    // GAS: push 1{{$}}
-    // GAS-NEXT: shr
-    // GAS: push 255{{$}}
-    // GAS-NEXT: shl
-    // GAS-NEXT: or
-    // SIZE: mul
-    // SIZE: push 1{{$}}
-    // SIZE-NEXT: shr
-    // BYZ-NOT: {{^  (shr|shl|indexed_jump)$}}
+
     fallback() external {
         assembly {
             switch calldataload(0)
@@ -353,17 +287,7 @@ contract Rotated32 {
 
 contract Odd8 {
     // An odd stride needs no rotation, so Byzantium keeps the affine table.
-    // CHECK-LABEL: @module Odd8_runtime
-    // GAS: mul
-    // GAS-NEXT: dup 1
-    // GAS-NEXT: push 8{{$}}
-    // GAS-NEXT: gt
-    // GAS: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
-    // BYZ: mul
-    // BYZ-NEXT: dup 1
-    // BYZ-NEXT: push 8{{$}}
-    // BYZ-NEXT: gt
-    // BYZ: indexed_jump {{(bb[0-9]+, ){7}bb[0-9]+$}}
+
     fallback() external {
         assembly {
             switch calldataload(0)

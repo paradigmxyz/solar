@@ -133,22 +133,22 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v31 = abi_encode [word<i8>, word<i16>, word<i24>, word<i32>, word<i40>, word<i48>, word<i56>, word<i64>, word<i72>, word<i80>, word<i88>, word<i96>, word<i104>, word<i112>, word<i120>, word<i128>, word<i136>, word<i144>, word<i152>, word<i160>, word<i168>, word<i176>, word<i184>, word<i192>, word<i200>, word<i208>, word<i216>, word<i224>, word<i232>, word<i240>, word<i248>, word], object, args v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
   bb1:
-    v32 = phi [bb0: v31], [bb3: v32]
-    v33 = phi [bb0: 0], [bb3: v43]
-    v34 = phi [bb0: 0], [bb3: v34]
-    v35 = memory_object_len memorybytes, v32
-    v36 = lt v33, v35
+    v32 = phi [bb0: 0], [bb3: v32]
+    v33 = phi [bb0: v31], [bb3: v33]
+    v34 = phi [bb0: 0], [bb3: v43]
+    v35 = memory_object_len memorybytes, v33
+    v36 = lt v34, v35
     jumpi v36, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret true
   bb4:
-    v37 = memory_object_len memorybytes, v32
-    v38 = lt v33, v37
+    v37 = memory_object_len memorybytes, v33
+    v38 = lt v34, v37
     v39 = eq v38, false
     icall panic_if<0x32>, v39
-    v40 = memory_object_load_byte memorybytes, v32, v33
+    v40 = memory_object_load_byte memorybytes, v33, v34
     v41 = shl 248, v40
     v42 = ne v41, 0xff00000000000000000000000000000000000000000000000000000000000000
     jumpi v42, bb7, bb8
@@ -159,7 +159,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
   bb6:
     jump bb3
   bb3:
-    v43 = checked_add u256, v33, 1
+    v43 = checked_add u256, v34, 1
     jump bb1
   bb7:
     ret false

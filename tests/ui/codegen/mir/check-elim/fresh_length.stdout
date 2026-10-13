@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/fresh_length.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/fresh_length.mir (after check-elim) ===
   @module FreshLength
-  fn @copy(arg0: memoryarray) -> memoryarray {
+  fn @copy(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = shl 5, v0
@@ -29,7 +29,7 @@
       revert 0, 0
   }
   
-  fn @keep_shortened(arg0: memoryarray) -> memoryarray {
+  fn @keep_shortened(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = shl 5, v0
@@ -57,7 +57,7 @@
       revert 0, 0
   }
   
-  fn @anchored_range(arg0: i256) -> memorybytes {
+  fn @anchored_range(arg0: i256) -> memptr {
     bb0:
       v0 = and arg0, 255
       v1 = add v0, 32
@@ -76,7 +76,7 @@
       revert 0, 0
   }
   
-  fn @keep_short_anchor(arg0: i256) -> memorybytes {
+  fn @keep_short_anchor(arg0: i256) -> memptr {
     bb0:
       v0 = and arg0, 255
       v1 = add v0, 32

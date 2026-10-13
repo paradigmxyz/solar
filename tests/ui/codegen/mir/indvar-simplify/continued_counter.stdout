@@ -15,25 +15,19 @@
     bb3:
 +     v14 = sub v11, v0
 +     v15 = shr 5, v14
-+     v16 = shl 5, v15
-+     v17 = add v0, v16
-+     v20 = add v0, 256
       jump bb4
     bb4:
 -     v6 = phi [bb3: v1], [bb5: v10]
--     v7 = lt v6, 8
-+     v18 = phi [bb3: v17], [bb5: v19]
-+     v7 = lt v18, v20
++     v6 = phi [bb3: v15], [bb5: v10]
+      v7 = lt v6, 8
       jumpi v7, bb5, bb6
     bb6:
       ret 0
     bb5:
--     v8 = shl 5, v6
--     v9 = add v0, v8
--     mstore v9, 9
--     v10 = add v6, 1
-+     mstore v18, 9
-+     v19 = add v18, 32
+      v8 = shl 5, v6
+      v9 = add v0, v8
+      mstore v9, 9
+      v10 = add v6, 1
       jump bb4
     bb2:
 -     v3 = shl 5, v1

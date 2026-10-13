@@ -16,8 +16,8 @@ fn @checked() [selector=0x1239168b, abi_wrapper, inline_assembly, pure] {
     v6 = lt v5, v3
     jumpi v6, bb1, bb3
   bb3:
-    mstore 128, v5
-    returndata 128, 32
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

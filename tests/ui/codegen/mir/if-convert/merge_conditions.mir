@@ -48,8 +48,7 @@ fn @both(arg0: i256, arg1: i256) -> i256 {
 // test is inverted before the `or`.
 // CHECK-LABEL: {{^[ +].*}}fn @mixed{{[( ]}}
 // CHECK: [[B:v[0-9]+]] = eq arg0, arg2
-// CHECK: + [[W:v[0-9]+]] = zext i1 [[B]] to i256
-// CHECK: + [[N:v[0-9]+]] = eq [[W]], 0
+// CHECK: + [[N:v[0-9]+]] = eq [[B]], false
 // CHECK: + [[C:v[0-9]+]] = or [[A:v[0-9]+]], [[N]]
 // CHECK: + jumpi [[C]], [[ONE:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^[ +].*}}[[ONE]]:

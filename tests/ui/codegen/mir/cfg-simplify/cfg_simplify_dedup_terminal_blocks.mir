@@ -177,7 +177,7 @@ fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memptr {
     stop
 }
 
-fn @consume_array(arg0: memoryarray) {
+fn @consume_array(arg0: memptr) {
   bb0:
     ret
 }

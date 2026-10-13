@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/scratch_write_length.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/scratch_write_length.mir (after check-elim) ===
   @module ScratchWriteLength
-  fn @hash_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @hash_between_reads(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       jump bb1
@@ -26,7 +26,7 @@
       revert 0, 0
   }
   
-  fn @store_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @store_between_reads(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       jump bb1

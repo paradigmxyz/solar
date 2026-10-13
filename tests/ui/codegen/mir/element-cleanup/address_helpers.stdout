@@ -63,11 +63,11 @@
       jump bb9
     bb9:
       v28 = phi [bb5: v2], [bb13: v45]
-      v29 = phi [bb5: v4], [bb13: v46]
-      v30 = phi [bb5: v26], [bb13: v47]
-      v31 = phi [bb5: v3], [bb13: v49]
-      v32 = phi [bb5: v25], [bb13: v50]
-      v33 = phi [bb5: v27], [bb13: v51]
+      v29 = phi [bb5: v3], [bb13: v46]
+      v30 = phi [bb5: v4], [bb13: v47]
+      v31 = phi [bb5: v25], [bb13: v48]
+      v32 = phi [bb5: v26], [bb13: v49]
+      v33 = phi [bb5: v27], [bb13: v50]
       v34 = ne v33, 0
       jumpi v34, bb11, bb12
     bb12:
@@ -85,41 +85,41 @@
       v41 = zext i160 v40 to i256
       v42 = not 188
       v43 = icall checked_mulmod<>, v41, 0x100000000000000000000000000000051, v42
-      v44 = and v43, v30
+      v44 = and v43, v32
       jump bb14
     bb14:
       v45 = phi [bb11: v28], [bb18: v45]
       v46 = phi [bb11: v29], [bb18: v46]
       v47 = phi [bb11: v30], [bb18: v47]
-      v48 = phi [bb11: v44], [bb18: v74]
-      v49 = phi [bb11: v31], [bb18: v49]
-      v50 = phi [bb11: v32], [bb18: v50]
-      v51 = phi [bb11: v35], [bb18: v51]
-      v52 = memory_object_len memoryarray, v50
-      v53 = lt v48, v52
+      v48 = phi [bb11: v31], [bb18: v48]
+      v49 = phi [bb11: v32], [bb18: v49]
+      v50 = phi [bb11: v35], [bb18: v50]
+      v51 = phi [bb11: v44], [bb18: v74]
+      v52 = memory_object_len memoryarray, v48
+      v53 = lt v51, v52
       v54 = eq v53, false
       icall panic_if<0x32>, v54
-      v55 = memory_object_load_element memoryarray<1>, v50, v48
+      v55 = memory_object_load_element memoryarray<1>, v48, v51
       v56 = ne v55, 0
       jumpi v56, bb16, bb17
     bb17:
       jump bb15
     bb15:
-      v75 = checked_add u256, v51, 1
-      v76 = memory_object_len memoryarray, v50
-      v77 = lt v48, v76
+      v75 = checked_add u256, v50, 1
+      v76 = memory_object_len memoryarray, v48
+      v77 = lt v51, v76
       v78 = eq v77, false
       icall panic_if<0x32>, v78
-      memory_object_store_element memoryarray<1>, v50, v48, v75
+      memory_object_store_element memoryarray<1>, v48, v51, v75
       jump bb13
     bb13:
       jump bb9
     bb16:
-      v57 = memory_object_len memoryarray, v50
-      v58 = lt v48, v57
+      v57 = memory_object_len memoryarray, v48
+      v58 = lt v51, v57
       v59 = eq v58, false
       icall panic_if<0x32>, v59
-      v60 = memory_object_load_element memoryarray<1>, v50, v48
+      v60 = memory_object_load_element memoryarray<1>, v48, v51
       v61 = checked_sub u256, v60, 1
       v62 = memory_object_len memoryarray, v45
       v63 = lt v61, v62
@@ -128,18 +128,18 @@
       v65 = memory_object_load_element memoryarray<1>, v45, v61
       v66 = trunc i256 v65 to i160
       v67 = memory_object_len memoryarray, v45
-      v68 = lt v51, v67
+      v68 = lt v50, v67
       v69 = eq v68, false
       icall panic_if<0x32>, v69
-      v70 = memory_object_load_element memoryarray<1>, v45, v51
+      v70 = memory_object_load_element memoryarray<1>, v45, v50
       v71 = trunc i256 v70 to i160
       v72 = eq v66, v71
       jumpi v72, bb19, bb20
     bb20:
       jump bb21
     bb21:
-      v73 = checked_add u256, v48, 1
-      v74 = and v73, v47
+      v73 = checked_add u256, v51, 1
+      v74 = and v73, v49
       jump bb18
     bb18:
       jump bb14
@@ -324,11 +324,11 @@
       jump bb9
     bb9:
       v28 = phi [bb5: v2], [bb13: v45]
-      v29 = phi [bb5: v4], [bb13: v46]
-      v30 = phi [bb5: v26], [bb13: v47]
-      v31 = phi [bb5: v3], [bb13: v49]
-      v32 = phi [bb5: v25], [bb13: v50]
-      v33 = phi [bb5: v27], [bb13: v51]
+      v29 = phi [bb5: v3], [bb13: v46]
+      v30 = phi [bb5: v4], [bb13: v47]
+      v31 = phi [bb5: v25], [bb13: v48]
+      v32 = phi [bb5: v26], [bb13: v49]
+      v33 = phi [bb5: v27], [bb13: v50]
       v34 = ne v33, 0
       jumpi v34, bb11, bb12
     bb12:
@@ -346,41 +346,41 @@
       v41 = zext i160 v40 to i256
       v42 = not 188
       v43 = icall checked_mulmod<>, v41, 0x100000000000000000000000000000051, v42
-      v44 = and v43, v30
+      v44 = and v43, v32
       jump bb14
     bb14:
       v45 = phi [bb11: v28], [bb18: v45]
       v46 = phi [bb11: v29], [bb18: v46]
       v47 = phi [bb11: v30], [bb18: v47]
-      v48 = phi [bb11: v44], [bb18: v74]
-      v49 = phi [bb11: v31], [bb18: v49]
-      v50 = phi [bb11: v32], [bb18: v50]
-      v51 = phi [bb11: v35], [bb18: v51]
-      v52 = memory_object_len memoryarray, v50
-      v53 = lt v48, v52
+      v48 = phi [bb11: v31], [bb18: v48]
+      v49 = phi [bb11: v32], [bb18: v49]
+      v50 = phi [bb11: v35], [bb18: v50]
+      v51 = phi [bb11: v44], [bb18: v74]
+      v52 = memory_object_len memoryarray, v48
+      v53 = lt v51, v52
       v54 = eq v53, false
       icall panic_if<0x32>, v54
-      v55 = memory_object_load_element memoryarray<1>, v50, v48
+      v55 = memory_object_load_element memoryarray<1>, v48, v51
       v56 = ne v55, 0
       jumpi v56, bb16, bb17
     bb17:
       jump bb15
     bb15:
-      v75 = checked_add u256, v51, 1
-      v76 = memory_object_len memoryarray, v50
-      v77 = lt v48, v76
+      v75 = checked_add u256, v50, 1
+      v76 = memory_object_len memoryarray, v48
+      v77 = lt v51, v76
       v78 = eq v77, false
       icall panic_if<0x32>, v78
-      memory_object_store_element memoryarray<1>, v50, v48, v75
+      memory_object_store_element memoryarray<1>, v48, v51, v75
       jump bb13
     bb13:
       jump bb9
     bb16:
-      v57 = memory_object_len memoryarray, v50
-      v58 = lt v48, v57
+      v57 = memory_object_len memoryarray, v48
+      v58 = lt v51, v57
       v59 = eq v58, false
       icall panic_if<0x32>, v59
-      v60 = memory_object_load_element memoryarray<1>, v50, v48
+      v60 = memory_object_load_element memoryarray<1>, v48, v51
       v61 = checked_sub u256, v60, 1
       v62 = memory_object_len memoryarray, v45
       v63 = lt v61, v62
@@ -389,18 +389,18 @@
       v65 = memory_object_load_element memoryarray<1>, v45, v61
       v66 = trunc i256 v65 to i160
       v67 = memory_object_len memoryarray, v45
-      v68 = lt v51, v67
+      v68 = lt v50, v67
       v69 = eq v68, false
       icall panic_if<0x32>, v69
-      v70 = memory_object_load_element memoryarray<1>, v45, v51
+      v70 = memory_object_load_element memoryarray<1>, v45, v50
       v71 = trunc i256 v70 to i160
       v72 = eq v66, v71
       jumpi v72, bb19, bb20
     bb20:
       jump bb21
     bb21:
-      v73 = checked_add u256, v48, 1
-      v74 = and v73, v47
+      v73 = checked_add u256, v51, 1
+      v74 = and v73, v49
       jump bb18
     bb18:
       jump bb14

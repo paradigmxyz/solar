@@ -16,22 +16,22 @@ fn @entry() [entry] {
 
 fn @quad() [selector=0x31dccb6d, abi_wrapper, pure] {
   bb0:
-    v37 = icall @decode_calldata_type, 4
-    v47 = ptrtoint memptr v37 to i256
-    v0 = mload v47
+    v41 = icall @decode_calldata_type
+    v51 = ptrtoint memptr v41 to i256
+    v0 = mload v51
     v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v49 = add v47, 32
-    v9 = mload v49
-    v18 = byte 1, v9
-    v23 = byte 2, v9
-    v28 = byte 3, v9
+    v53 = add v51, 32
+    v9 = mload v53
+    v19 = byte 1, v9
+    v25 = byte 2, v9
+    v31 = byte 3, v9
     v13 = byte 0, v9
     mstore 128, v13
-    mstore 160, v18
-    mstore 192, v23
-    mstore 224, v28
+    mstore 160, v19
+    mstore 192, v25
+    mstore 224, v31
     returndata 128, 128
   bb1:
     tail_call @revert_stub
@@ -39,14 +39,14 @@ fn @quad() [selector=0x31dccb6d, abi_wrapper, pure] {
 
 fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
   bb0:
-    v20 = icall @decode_calldata_type, 4
-    v24 = ptrtoint memptr v20 to i256
-    v0 = mload v24
+    v21 = icall @decode_calldata_type
+    v25 = ptrtoint memptr v21 to i256
+    v0 = mload v25
     v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v26 = add v24, 32
-    v9 = mload v26
+    v27 = add v25, 32
+    v9 = mload v27
     v10 = and v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v13 = byte 1, v10
     mstore 0, v10 !metadata(memory=scratch)
@@ -58,15 +58,15 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = shr 64, v1
@@ -102,8 +102,8 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     calldatacopy v20, v3, v9
     ret v15
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

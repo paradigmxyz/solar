@@ -1456,7 +1456,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::disjoint => {
                     metadata.set_disjoint(true);
-        }
+                }
                 sym::nonnull => {
                     metadata.set_nonnull();
                 }

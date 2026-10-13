@@ -27,13 +27,14 @@
 //! undecided drops any `or` operand proven false and `and` operand proven true,
 //! as the `x == 0` half of a checked product's `x == 0 || x * y / x == y` when
 //! `x` is a counter above zero, and the branch reads what remains. Anything
-//! A width test spelled as a shift, `x >> k` being zero, bounds `x` below `2^k`, and a zero-extended test is zero
-//! exactly when the test is false, so failure words that `or` several tests
-//! still give each test's fact on the passing edge. Explicit integer casts retain range facts only
-//! when their width and sign semantics preserve the bounded values. Semantic checks use the same
-//! facts in instruction order: a passing check refines all later execution, and a proven passing
-//! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
-//! check on one conditional path cannot justify removing a check on another.
+//! not provable stays unchanged. A width test spelled as a shift, `x >> k` being zero, bounds `x`
+//! below `2^k`, and a zero-extended test is zero exactly when the test is false, so failure words
+//! that `or` several tests still give each test's fact on the passing edge. Explicit integer casts
+//! retain range facts only when their width and sign semantics preserve the bounded values.
+//! Semantic checks use the same facts in instruction order: a passing check refines all later
+//! execution, and a proven passing check can be removed before expansion. Facts roll back on
+//! leaving each dominator subtree, so a check on one conditional path cannot justify removing a
+//! check on another.
 //!
 //! The same facts retire cleanups that change nothing in their scope: an `and`
 //! with a low mask `2^k - 1` of a value bounded by the mask, and a `signextend`
@@ -200,11 +201,12 @@
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        ArithmeticKind, CheckedOp, BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId, Immediate,
-        ImmutableEncoding, ImmutableId, InstId, InstKind, MemoryObjectKind, MirType, Module, Terminator, TypeSize,
-        Value, ValueId, ValueLayout,
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
+        FunctionId, Immediate, ImmutableEncoding, ImmutableId, InstId, InstKind, MemoryObjectKind,
+        MirType, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            Access, AddressSpace, AliasAnalysis, Location, MemoryCallSummaries, CallGraphInfo, CfgInfo,
+            Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location,
+            MemoryCallSummaries,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -315,7 +317,14 @@ impl MirPass for IntegerCleanup {
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
             let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
             let facts = index_vec![Facts::default(); func.blocks.len()];
-            let _ = eliminator.collect_folds(func, &cfg, &facts, (&[], &mut Vec::new()), (&[], &mut []), None);
+            let _ = eliminator.collect_folds(
+                func,
+                &cfg,
+                &facts,
+                (&[], &mut Vec::new()),
+                (&[], &mut []),
+                None,
+            );
             if eliminator.redundant_masks.is_empty() {
                 return removed != 0;
             }
@@ -801,7 +810,6 @@ impl MonotonePhi {
     }
 }
 
-
 /// A loop header phi whose updates never move it away from its initial value,
 /// pending a proof of each update in the scope computing it.
 ///
@@ -854,6 +862,8 @@ struct CheckEliminator<'a> {
     /// Functions that never return to their caller; a block that calls one
     /// never reaches its terminator.
     never_returning: Option<Arc<FxHashSet<FunctionId>>>,
+    /// Incoming edges whose direct calls can return.
+    returning_predecessors: Option<IndexVec<BlockId, Vec<BlockId>>>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -938,6 +948,16 @@ impl<'a> CheckEliminator<'a> {
         }
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let removed = invalidate_unreachable_blocks(func, cfg.reachable());
+        self.returning_predecessors = self.never_returning.as_ref().map(|never| {
+            let mut predecessors = index_vec![Vec::new(); func.blocks.len()];
+            for &block in cfg.rpo() {
+                if func.blocks[block].instructions.iter().any(|&id| {
+                    matches!(func.inst(id).kind, InstKind::ICall { function: Callee::Function(callee), .. } if never.contains(&callee))
+                }) { continue; }
+                for &successor in cfg.successors(block) { predecessors[successor].push(block); }
+            }
+            predecessors
+        });
         let relevant = branch_inputs(func, &cfg);
         if relevant.is_empty() {
             return removed;
@@ -1024,7 +1044,7 @@ impl<'a> CheckEliminator<'a> {
             proofs = self.collect_folds(
                 func,
                 &cfg,
-                    &facts,
+                &facts,
                 (&[], &mut Vec::new()),
                 (&[], &mut []),
                 selected,
@@ -1037,7 +1057,12 @@ impl<'a> CheckEliminator<'a> {
         self.relation_undo.clear();
 
         let decided = if selected.is_some() { Vec::new() } else { decided };
-        if folds.is_empty() && checks.is_empty() && cleanups.is_empty() && reductions.is_empty() && decided.is_empty() {
+        if folds.is_empty()
+            && checks.is_empty()
+            && cleanups.is_empty()
+            && reductions.is_empty()
+            && decided.is_empty()
+        {
             return removed;
         }
         // v = op c, ... where the use's scope decides c => v = op true|false, ...
@@ -1157,7 +1182,9 @@ impl<'a> CheckEliminator<'a> {
                     for &relation in &facts[block].relations {
                         self.add_relation(relation);
                     }
-                    if let Some((condition, is_true)) = dominating_edge_fact(func, block) {
+                    if let Some((condition, is_true)) =
+                        dominating_edge_fact(func, block, self.predecessors(func, block))
+                    {
                         self.assume(func, condition, is_true, MAX_DEPTH);
                     }
                     for candidate in candidates.iter().filter(|candidate| candidate.home == block) {
@@ -1287,16 +1314,10 @@ impl<'a> CheckEliminator<'a> {
         }
     }
 
-    /// Whether `block` calls a function that never returns to its caller.
-    fn calls_never_returning(&self, func: &Function, block: BlockId) -> bool {
-        let Some(never_returning) = &self.never_returning else { return false };
-        func.blocks[block].instructions.iter().any(|&inst| {
-            matches!(
-                func.inst(inst).kind,
-                InstKind::ICall { function: Callee::Function(callee), .. }
-                    if never_returning.contains(&callee)
-            )
-        })
+    fn predecessors<'f>(&'f self, func: &'f Function, block: BlockId) -> &'f [BlockId] {
+        self.returning_predecessors
+            .as_ref()
+            .map_or(func.blocks[block].predecessors.as_slice(), |preds| preds[block].as_slice())
     }
 
     /// Returns the operand of a cleanup the scope already proves idle: an `and`
@@ -1406,7 +1427,11 @@ impl<'a> CheckEliminator<'a> {
         // Loop headers: blocks entered by an edge from a block they dominate.
         let mut headers = DenseBitSet::new_empty(func.blocks.len());
         for &block in cfg.rpo() {
-            if func.blocks[block].predecessors.iter().any(|&pred| cfg.dominators().dominates(block, pred)) {
+            if func.blocks[block]
+                .predecessors
+                .iter()
+                .any(|&pred| cfg.dominators().dominates(block, pred))
+            {
                 headers.insert(block);
             }
         }
@@ -1425,7 +1450,7 @@ impl<'a> CheckEliminator<'a> {
                 }
                 let mut merged: Option<Facts> = None;
                 if block != BlockId::ENTRY {
-                    for &pred in &func.blocks[block].predecessors {
+                    for pred in self.predecessors(func, block).to_vec() {
                         cx.ranges.clear();
                         cx.ranges.extend(&exits[pred].ranges);
                         cx.relations.clear();
@@ -1957,7 +1982,11 @@ impl<'a> CheckEliminator<'a> {
         let sum_sound = c2.is_zero()
             || exact
             || self.has_relation(func, Relation::Le(y, b))
-            || self.range_of(func, y, depth).hi.checked_add(c2).is_some_and(|hi| hi <= integer_max(func, b));
+            || self
+                .range_of(func, y, depth)
+                .hi
+                .checked_add(c2)
+                .is_some_and(|hi| hi <= integer_max(func, b));
         if !sum_sound {
             return None;
         }
@@ -2711,20 +2740,6 @@ impl<'a> CheckEliminator<'a> {
         if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
             return Some(truth);
         }
-        // A scaling shift's check `eq (shr k, (shl k, x)), x` holds iff no set bit
-        // of `x` shifts out, which `x < 2^(256 - k)` rules out.
-        for (shifted, expected) in [(a, b), (b, a)] {
-            if let Some(&InstKind::Shr(count, product)) = inst_kind(func, shifted)
-                && let Some(&InstKind::Shl(inner, source)) = inst_kind(func, product)
-                && source == expected
-                && let Some(bits) = const_of(func, count)
-                && const_of(func, inner) == Some(bits)
-                && bits < U256::from(256)
-                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
-            {
-                return Some(true);
-            }
-        }
         // Its doubling form `eq (shr 1, (add x, x)), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
@@ -3413,6 +3428,7 @@ fn step_sum(func: &Function, sum: ValueId, index: ValueId, step: U256) -> Option
 fn natural_loop_blocks(
     header: BlockId,
     latch: BlockId,
+    cfg: &CfgInfo,
     block_count: usize,
 ) -> DenseBitSet<BlockId> {
     let mut blocks = DenseBitSet::new_empty(block_count);
@@ -3719,8 +3735,12 @@ fn collect_updates(
 
 /// Returns the fact implied on the unique dominating edge into `block`:
 /// the branch condition of its sole predecessor and whether it is true.
-fn dominating_edge_fact(func: &Function, block: BlockId) -> Option<(ValueId, bool)> {
-    let &[first] = func.blocks[block].predecessors.as_slice() else { return None };
+fn dominating_edge_fact(
+    func: &Function,
+    block: BlockId,
+    predecessors: &[BlockId],
+) -> Option<(ValueId, bool)> {
+    let &[first] = predecessors else { return None };
     let Terminator::Branch { condition, then_block, else_block } =
         func.blocks[first].terminator.as_ref()?
     else {

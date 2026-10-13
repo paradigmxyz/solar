@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/object_length_bound.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/object_length_bound.mir (after check-elim) ===
   @module CheckElimObjectLengths
-  fn @sum_of_lengths(arg0: memoryarray, arg1: memorybytes) -> i256 {
+  fn @sum_of_lengths(arg0: memptr, arg1: memptr) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = memory_object_len memorybytes, arg1
@@ -15,7 +15,7 @@
       revert 0, 0
   }
   
-  fn @scaled_length(arg0: memoryarray) -> i256 {
+  fn @scaled_length(arg0: memptr) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = mul v0, 32
@@ -31,7 +31,7 @@
 +     revert 0, 0
   }
   
-  fn @keep_word_sum(arg0: memoryarray, arg1: i256) -> i256 {
+  fn @keep_word_sum(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = add v0, arg1

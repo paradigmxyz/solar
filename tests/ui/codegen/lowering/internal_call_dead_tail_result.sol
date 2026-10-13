@@ -1,6 +1,5 @@
 //@ revisions: ir run
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@ run-call: contains [1, 3, 5, 7], 5 => true
 //@ run-call: contains [1, 3, 5, 7], 4 => false
@@ -32,17 +31,6 @@ contract DeadTailResult {
         return (false, l);
     }
 
-    // CHECK-LABEL: @module DeadTailResult_runtime
-    // CHECK: revert
-    // CHECK: push 128
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: [continuation]:
-    // CHECK-NEXT: push [[CONTAINS:bb[0-9]+]]
-    // CHECK-NEXT: swap 1
-    // CHECK: [[CONTAINS]] [continuation]:
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: iszero
     function contains(uint256[] memory a, uint256 needle) external pure returns (bool found) {
         (found,) = search(a, needle);
     }

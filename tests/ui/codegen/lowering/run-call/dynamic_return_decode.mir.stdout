@@ -269,31 +269,31 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v19 = memory_object_len memoryarray, v18
     jump bb5
   bb5:
-    v20 = phi [bb4: 0], [bb7: v31]
-    v21 = phi [bb4: v19], [bb7: v21]
+    v20 = phi [bb4: v19], [bb7: v20]
+    v21 = phi [bb4: 0], [bb7: v30]
     v22 = phi [bb4: v18], [bb7: v22]
-    v23 = phi [bb4: 0], [bb7: v30]
+    v23 = phi [bb4: 0], [bb7: v31]
     v24 = memory_object_len memoryarray, v22
-    v25 = lt v20, v24
+    v25 = lt v23, v24
     jumpi v25, bb8, bb9
   bb9:
     jump bb6
   bb6:
-    v32 = insert_value struct0, undef struct0, 0, v21
-    v33 = insert_value struct0, v32, 1, v23
+    v32 = insert_value struct0, undef struct0, 0, v20
+    v33 = insert_value struct0, v32, 1, v21
     ret v33
   bb8:
     v26 = memory_object_len memoryarray, v22
-    v27 = lt v20, v26
+    v27 = lt v23, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryarray<1>, v22, v20
-    v30 = checked_add u256, v23, v29
+    v29 = memory_object_load_element memoryarray<1>, v22, v23
+    v30 = checked_add u256, v21, v29
     jump bb10
   bb10:
     jump bb7
   bb7:
-    v31 = checked_add u256, v20, 1
+    v31 = checked_add u256, v23, 1
     jump bb5
 }
 

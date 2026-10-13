@@ -66,12 +66,9 @@ bb7:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb46
   jumpi
@@ -203,7 +200,7 @@ bb10 [continuation]:
   push 128
   return
 bb17:
-  push 160
+  push 128
   dup 1
   push 64
   mstore
@@ -273,11 +270,8 @@ bb41:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
   calldatasize
   dup 4
   gt
@@ -305,12 +299,9 @@ bb41:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb46
   jumpi
@@ -378,21 +369,10 @@ bb25 [continuation]:
   swap 1
   swap 2
   mcopy
-  swap 1
+  dup 1
+  swap 2
   sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
   swap 1
-  dup 2
-  add
-  push 64
-  mstore
   return
 bb27:
   push 128

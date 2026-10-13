@@ -35,31 +35,31 @@ fn @equalsAt(arg0: memptr, arg1: i256, arg2: memptr) -> i1 [pure] {
     v8 = phi [bb4: v7], [bb5: arg1]
     jump bb7
   bb7:
-    v9 = phi [bb6: v8], [bb9: v9]
-    v10 = phi [bb6: 0], [bb9: v10]
-    v11 = phi [bb6: 0], [bb9: v28]
-    v12 = phi [bb6: arg0], [bb9: v12]
-    v13 = phi [bb6: arg2], [bb9: v13]
-    v14 = phi [bb6: v0], [bb9: v14]
-    v15 = lt v11, v14
+    v9 = phi [bb6: arg0], [bb9: v9]
+    v10 = phi [bb6: v8], [bb9: v10]
+    v11 = phi [bb6: arg2], [bb9: v11]
+    v12 = phi [bb6: 0], [bb9: v12]
+    v13 = phi [bb6: v0], [bb9: v13]
+    v14 = phi [bb6: 0], [bb9: v28]
+    v15 = lt v14, v13
     jumpi v15, bb10, bb11
   bb11:
     jump bb8
   bb8:
     ret true
   bb10:
-    v16 = checked_add u256, v9, v11
-    v17 = memory_object_len memorybytes, v12
+    v16 = checked_add u256, v10, v14
+    v17 = memory_object_len memorybytes, v9
     v18 = lt v16, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = memory_object_load_byte memorybytes, v12, v16
+    v20 = memory_object_load_byte memorybytes, v9, v16
     v21 = shl 248, v20
-    v22 = memory_object_len memorybytes, v13
-    v23 = lt v11, v22
+    v22 = memory_object_len memorybytes, v11
+    v23 = lt v14, v22
     v24 = eq v23, false
     icall panic_if<0x32>, v24
-    v25 = memory_object_load_byte memorybytes, v13, v11
+    v25 = memory_object_load_byte memorybytes, v11, v14
     v26 = shl 248, v25
     v27 = ne v21, v26
     jumpi v27, bb13, bb14
@@ -70,7 +70,7 @@ fn @equalsAt(arg0: memptr, arg1: i256, arg2: memptr) -> i1 [pure] {
   bb12:
     jump bb9
   bb9:
-    v28 = checked_add u256, v11, 1
+    v28 = checked_add u256, v14, 1
     jump bb7
   bb13:
     ret false

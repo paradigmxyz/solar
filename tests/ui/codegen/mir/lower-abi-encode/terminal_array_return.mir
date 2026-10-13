@@ -68,7 +68,7 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
 // CHECK: [[SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
 // CHECK: + [[END:v[0-9]+]] = add [[SOURCE]], [[LENGTH]]
 // CHECK: + mstore [[END]], 0
-// CHECK: + [[BASE:v[0-9]+]] = ptrtoint memorybytes [[OBJECT]] to i256
+// CHECK: + [[BASE:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK: + [[HEAD:v[0-9]+]] = sub [[BASE]], 32
 // CHECK: + mstore [[HEAD]], 32
 // CHECK-NOT: mcopy

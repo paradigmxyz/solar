@@ -12,7 +12,7 @@
 // CHECK: + jump bb4
 // CHECK: - jumpi {{v[0-9]+}}, bb5, bb7
 // CHECK: + jump bb5
-fn @bounded_writer(arg0: memorybytes) -> memorybytes {
+fn @bounded_writer(arg0: memptr) -> memptr {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_mul u256, v0, 3
@@ -52,7 +52,7 @@ fn @bounded_writer(arg0: memorybytes) -> memorybytes {
 // Reserving two bytes per input cannot justify a three-byte cursor step.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_too_wide_write{{[( ]}}
 // CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb5, bb3
-fn @keep_too_wide_write(arg0: memorybytes) -> memorybytes {
+fn @keep_too_wide_write(arg0: memptr) -> memptr {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_mul u256, v0, 2
@@ -87,7 +87,7 @@ fn @keep_too_wide_write(arg0: memorybytes) -> memorybytes {
 // invariant, even when the mutation happens to store the original value.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mutated_length{{[( ]}}
 // CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb5, bb3
-fn @keep_mutated_length(arg0: memorybytes) -> memorybytes {
+fn @keep_mutated_length(arg0: memptr) -> memptr {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_mul u256, v0, 3

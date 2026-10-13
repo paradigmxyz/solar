@@ -110,15 +110,15 @@ fn @viaHelper() [selector=0xfda51b2f, abi_wrapper, pure] {
     jump bb19
   bb19:
     v99 = phi [bb10: v61], [bb12: v71], [bb17: v96]
-    v100 = zext i1 v99 to i256
     jump bb1
   bb1:
-    v8 = phi [bb9: 1], [bb16: 0], [bb19: v100]
-    mstore 0, v8
+    v8 = phi [bb9: true], [bb16: false], [bb19: v99]
+    v33 = zext i1 v8 to i256
+    mstore 0, v33 !metadata(memory=scratch)
     returndata 0, 32
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     revert 0, 0

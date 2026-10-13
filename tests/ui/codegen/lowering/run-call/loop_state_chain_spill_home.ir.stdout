@@ -137,19 +137,11 @@ bb22 [loop]:
   eq
   push bb26
   jumpi
-  dup 1
-  dup 3
   push 13
+  dup 3
   eq
   iszero
-  dup 2
   mul
-  sub
-  dup 2
-  push 3
-  eq
-  mul
-  add
   jump bb29
 bb28 [loop]:
   dup 1

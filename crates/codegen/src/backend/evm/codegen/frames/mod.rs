@@ -1515,6 +1515,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let mut needed = 0usize;
         for entry in entries {
+            // Assembly may observe the entry's individual heap floor.
+            if call_graph
+                .reachable_callees_from(std::iter::once(entry))
+                .iter()
+                .any(|id| module.functions[id].attributes.inline_assembly)
+            {
+                return;
+            }
             needed += usize::from(self.entry_needs_free_memory(module, call_graph, entry));
         }
         if needed < 2 {

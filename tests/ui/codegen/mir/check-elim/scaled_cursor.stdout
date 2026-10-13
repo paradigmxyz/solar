@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/scaled_cursor.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/scaled_cursor.mir (after check-elim) ===
   @module ScaledCursor
-  fn @bounded_writer(arg0: memorybytes) -> memorybytes {
+  fn @bounded_writer(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = checked_mul u256, v0, 3
@@ -41,7 +41,7 @@
       revert 0, 0
   }
   
-  fn @keep_too_wide_write(arg0: memorybytes) -> memorybytes {
+  fn @keep_too_wide_write(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = checked_mul u256, v0, 2
@@ -72,7 +72,7 @@
       revert 0, 0
   }
   
-  fn @keep_mutated_length(arg0: memorybytes) -> memorybytes {
+  fn @keep_mutated_length(arg0: memptr) -> memptr {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = checked_mul u256, v0, 3

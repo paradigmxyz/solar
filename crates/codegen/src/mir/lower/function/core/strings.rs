@@ -90,7 +90,7 @@ impl FunctionLowerer<'_, '_> {
         if !self.cx.gcx.sess.opts.optimization.is_gas() {
             let cursor = self.lower_core_hex_bytes(value, end);
             let result = self.lower_core_hex_header(cursor, end, prefix_length, leading);
-            return self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes);
+            return self.builder.memory_object_in_allocation(result);
         }
 
         // The lowest byte is spelled first, which finishes one-byte values at
@@ -143,7 +143,7 @@ impl FunctionLowerer<'_, '_> {
             (two_exit, two_result),
             (words_exit, words_result),
         ]);
-        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
+        self.builder.memory_object_in_allocation(result)
     }
 
     /// Spells the fewest whole bytes of `value` two digits at a time through
@@ -318,7 +318,7 @@ impl FunctionLowerer<'_, '_> {
         let header_size = self.builder.imm(32);
         let result = self.builder.sub(start, header_size);
         self.builder.mstore(result, length);
-        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
+        self.builder.memory_object_in_allocation(result)
     }
 
     /// Packs one short string with word operations instead of a byte loop.
@@ -461,10 +461,10 @@ impl FunctionLowerer<'_, '_> {
         // the upper half of that allocation.
         let total_size = self.builder.imm(128);
         let allocation = self.builder.alloc_raw(total_size, AllocationSemantics::INTERNAL);
-        let a = self.builder.memory_object_in_allocation(allocation, MemoryObjectKind::Bytes);
+        let a = self.builder.memory_object_in_allocation(allocation);
         let object_size = self.builder.imm(64);
         let b_ptr = self.builder.add(allocation, object_size);
-        let b = self.builder.memory_object_in_allocation(b_ptr, MemoryObjectKind::Bytes);
+        let b = self.builder.memory_object_in_allocation(b_ptr);
         // Each payload word holds the payload and zeros, as the body's `new bytes` leaves it.
         // mstore(data(a), leading(packed << 8, a_length))
         // mstore(data(b), leading(packed << 8 * (a_length + 2), b_length))

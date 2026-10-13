@@ -9,7 +9,7 @@
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt [[SUM]],
 // CHECK-NEXT: -     jumpi
 // CHECK-NEXT: +     jump
-fn @sum_of_lengths(arg0: memoryarray, arg1: memorybytes) -> i256 {
+fn @sum_of_lengths(arg0: memptr, arg1: memptr) -> i256 {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = memory_object_len memorybytes, arg1
@@ -27,7 +27,7 @@ fn @sum_of_lengths(arg0: memoryarray, arg1: memorybytes) -> i256 {
 // CHECK: {{^ +}}{{v[0-9]+}} = eq
 // CHECK-NEXT: -     jumpi
 // CHECK: +     jump
-fn @scaled_length(arg0: memoryarray) -> i256 {
+fn @scaled_length(arg0: memptr) -> i256 {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = mul v0, 32
@@ -44,7 +44,7 @@ fn @scaled_length(arg0: memoryarray) -> i256 {
 // CHECK-LABEL: @keep_word_sum
 // CHECK: {{^ +}}{{v[0-9]+}} = lt
 // CHECK-NEXT: {{^ +}}jumpi
-fn @keep_word_sum(arg0: memoryarray, arg1: i256) -> i256 {
+fn @keep_word_sum(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = add v0, arg1

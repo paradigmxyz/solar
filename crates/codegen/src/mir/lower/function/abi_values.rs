@@ -403,7 +403,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // A view's bytes are decoded where they are, in memory or in calldata.
             let view = self.lower_view_expr(data_expr)?;
             (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
-        } else if lies_in_calldata(data_ty) {
+        } else if !decoded_types.is_empty() && lies_in_calldata(data_ty) {
             // Calldata is decoded where it lies, as solc decodes it, instead of from a copy: the
             // decode checks its offsets against the data's own length, and reads past the end of
             // the calldata as zeros.
@@ -698,10 +698,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some((input, Some(prefixed)));
         }
         // output = abi_encode_packed(parts)
-        let output = self.builder.emit_inst(
-            InstKind::AbiEncodePacked { parts, hash: false },
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-        );
+        let output = self
+            .builder
+            .emit_inst(InstKind::AbiEncodePacked { parts, hash: false }, Some(MirType::MemPtr));
         Some((output, None))
     }
 

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/binary_search.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/binary_search.mir (after check-elim) ===
   @module CheckElimBinarySearch
-  fn @search(arg0: memoryarray, arg1: i256) -> i256 {
+  fn @search(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       jump bb1
@@ -57,7 +57,7 @@
 +     revert 0, 0
   }
   
-  fn @keep_arbitrary_update(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 {
+  fn @keep_arbitrary_update(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       jump bb1

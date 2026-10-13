@@ -144,7 +144,7 @@ impl MirPass for ElementCleanup {
                 let from_params = func.attributes.returns_param_elements.then(|| {
                     func.params
                         .iter_enumerated()
-                        .filter(|&(_, &ty)| is_array(ty))
+                        .filter(|&(_, &ty)| ty == MirType::MemPtr)
                         .map(|(index, _)| params.get(&(id, index)).copied().unwrap_or(FULL_WIDTH))
                         .fold(reading, u32::max)
                 });

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_length_across_alloc.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_length_across_alloc.mir (after cse) ===
   @module CseLengthAcrossAlloc
-  fn @argument(arg0: memorybytes) -> i256 {
+  fn @argument(arg0: memptr) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = alloc memorybytes, exact, zeroed, panic, 64
@@ -22,7 +22,7 @@
       ret v4
   }
   
-  fn @sized(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @sized(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = alloc memorybytes, exact, zeroed, panic, arg1
@@ -32,7 +32,7 @@
       ret v3
   }
   
-  fn @loop(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @loop(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = alloc memorybytes, exact, zeroed, panic, arg1
@@ -68,7 +68,7 @@
       ret v3
   }
   
-  fn @raw_allocation(arg0: memorybytes, arg1: i256) -> i256 {
+  fn @raw_allocation(arg0: memptr, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       v1 = alloc raw, exact, uninitialized, infallible, arg1

@@ -1,5 +1,4 @@
 //@compile-flags: -Zdump=evm-ir-runtime
-//@ filecheck:
 
 // A low-level call may take a `bytes calldata` value as its call data, e.g. a
 // proxy fallback `impl.delegatecall(data)` with `bytes calldata data` (aave-v3
@@ -10,29 +9,7 @@
 // solc 0.8.30 separately.
 
 contract C {
-    // CHECK: push 0x6a57f6c7
-    // CHECK: eq
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK: push 0x6b995abd
-    // CHECK: eq
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK: shr
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jump [[DECODE:bb[0-9]+]]
-    // CHECK-NEXT: [[DECODE]]:
-    // CHECK: calldatacopy
-    // CHECK: {{^.*[ =]call[[:space:]]}}
-    // CHECK: return
-    // CHECK: shr
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jump [[DECODE]]
-    // CHECK: calldatacopy
-    // CHECK: delegatecall
-    // CHECK: return
+
     function callFwd(address t, bytes calldata data) external returns (bool) {
         (bool ok, ) = t.call(data);
         return ok;

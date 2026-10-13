@@ -8,7 +8,7 @@
 // CHECK: {{^ +}}{{v[0-9]+}} = ne
 // CHECK-NEXT: -     jumpi
 // CHECK: +     jump
-fn @scaled_allocation(arg0: memoryarray) -> i256 {
+fn @scaled_allocation(arg0: memptr) -> i256 {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = add v0, 1
@@ -42,7 +42,7 @@ fn @keep_word(arg0: i256) -> i256 {
 // CHECK-LABEL: @keep_mismatched_shift
 // CHECK: {{^ +}}{{v[0-9]+}} = ne
 // CHECK-NEXT: {{^ +}}jumpi
-fn @keep_mismatched_shift(arg0: memoryarray) -> i256 {
+fn @keep_mismatched_shift(arg0: memptr) -> i256 {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = shl 5, v0

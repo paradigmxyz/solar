@@ -9,7 +9,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @hash_between_reads{{[( ]}}
 // CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
 // CHECK: + jump bb4
-fn @hash_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
+fn @hash_between_reads(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     jump bb1
@@ -36,7 +36,7 @@ fn @hash_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
 // A word stored at 0x80 may be a length word, so the reread stays apart.
 // CHECK-LABEL: {{^[ +].*}}fn @store_between_reads{{[( ]}}
 // CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb3, bb4
-fn @store_between_reads(arg0: memorybytes, arg1: i256) -> i256 {
+fn @store_between_reads(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     jump bb1

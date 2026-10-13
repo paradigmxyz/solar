@@ -10,44 +10,24 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     jumpi v2, bb2, bb3
   bb3:
     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v5 = slice_ptr arg0
-    v6 = slice_len arg0
-    v7 = gt v6, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v7
-    v8 = calldatasize
-    v9 = sub v8, v6
-    v10 = sgt v5, v9
-    icall revert_if<calldata_tail_too_short>, v10
-    v11 = slice_len arg0
+    v5 = slice_len arg0
+    v6 = add v5, 63
+    v7 = not 31
+    v8 = and v6, v7
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    set_memory_object_len memorybytes, v9, v5
+    memory_object_copy_from_slice memorybytes, v9, arg0
+    v10 = ptrtoint memptr v9 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v10
+    v11 = slice_len arg1
     v12 = add v11, 63
-    v13 = lt v12, v11
-    icall panic_if<0x41>, v13
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v16, v11
-    memory_object_copy_from_slice memorybytes, v16, arg0
-    v17 = ptrtoint memptr v16 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v17
-    v18 = slice_ptr arg1
-    v19 = slice_len arg1
-    v20 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = calldatasize
-    v22 = sub v21, v19
-    v23 = sgt v18, v22
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = slice_len arg1
-    v25 = add v24, 63
-    v26 = lt v25, v24
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, v24
-    memory_object_copy_from_slice memorybytes, v29, arg1
-    v30 = ptrtoint memptr v29 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v30
+    v13 = not 31
+    v14 = and v12, v13
+    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
+    set_memory_object_len memorybytes, v15, v11
+    memory_object_copy_from_slice memorybytes, v15, arg1
+    v16 = ptrtoint memptr v15 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v16
     ret v4
   bb2:
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96

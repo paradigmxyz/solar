@@ -8,11 +8,9 @@
 //! ptr = phi [preheader: base + init * stride + constant], [latch: ptr + step * stride]
 //! ```
 //!
-//! The initial implementation is deliberately narrow. It requires canonical
-//! loops with a dedicated preheader, a single latch, and a single additive
-//! induction-variable update. That gives later loop optimizations a real
-//! ScalarEvolution-backed transform without guessing from ad hoc instruction
-//! patterns.
+//! Loops need a dedicated preheader and additive counter updates. Several
+//! latches are supported when they agree on the counter update. Native-width
+//! counters also require a no-wrap proof from integer-aware scalar evolution.
 //!
 //! A counter that only some paths around the loop advance is reduced the same
 //! way. A merge of two sorted inputs steps `i` on the arms that consume `a[i]`
@@ -71,22 +69,25 @@
 //! - require canonical loops with a preheader; several latches must pass one value
 //! - rewrite only affine address expressions derived from the recognized induction variable
 //! - preserve the original address value when it is still used outside the loop
-//! - recognize checked unsigned word updates while retaining their failure checks.
+//! - recognize checked unsigned updates while retaining their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
 use super::{
     check_elim::{object_lengths_bounded, runtime_only_functions},
     egraph::max_bits_with_args,
 };
-use crate::mir::{
-    ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
-    MemoryObjectKind, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
-    analysis::{
-        AffineTerm, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution,
+use crate::{
+    mir::{
+        ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
+        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+        analysis::{
+            AffineTerm, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -168,6 +169,19 @@ impl IndVarSimplifyStats {
     }
 }
 
+/// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
+/// pointer takes over the exit test.
+#[derive(Default)]
+struct ExitReads {
+    /// Blocks outside the loop whose instructions or terminator read the counter.
+    blocks: Vec<BlockId>,
+    /// Phis outside the loop with the counter incoming from a block outside the loop.
+    phis: Vec<(InstId, BlockId)>,
+    /// Edges into a join outside the loop whose phis read the counter, from a loop block or
+    /// from a block that also branches elsewhere: each needs a block of its own to rebuild in.
+    edges: Vec<(BlockId, BlockId)>,
+}
+
 /// Performs conservative induction-variable strength reduction.
 #[derive(Debug)]
 struct IndVarSimplifier {
@@ -178,6 +192,7 @@ struct IndVarSimplifier {
     /// Whether the module keeps every object's length below the allocation limit, which it does
     /// without inline assembly.
     lengths_bounded: bool,
+    exit_splits: Vec<(BlockId, BlockId, BlockId)>,
 }
 
 /// The control-flow region in which one loop counter can be reduced.
@@ -307,7 +322,13 @@ impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
     fn new(alias: Rc<AliasAnalysis>, runtime_only: bool, lengths_bounded: bool) -> Self {
-        Self { stats: IndVarSimplifyStats::default(), alias, runtime_only, lengths_bounded }
+        Self {
+            stats: IndVarSimplifyStats::default(),
+            alias,
+            runtime_only,
+            lengths_bounded,
+            exit_splits: Vec::new(),
+        }
     }
 
     /// Runs induction-variable simplification once over `func`.
@@ -333,6 +354,25 @@ impl IndVarSimplifier {
             }
         }
 
+        if !self.exit_splits.is_empty() {
+            let splits = std::mem::take(&mut self.exit_splits);
+            let mut headers = FxHashSet::default();
+            for (header, from, to) in splits {
+                if func.blocks[from].terminator.as_ref().is_some_and(|term| term.has_successor(to))
+                {
+                    // from -> to  =>  from -> split -> to
+                    mir_utils::split_edge(func, from, to);
+                    self.stats.address_uses_replaced += 1;
+                }
+                headers.insert(header);
+            }
+            let mut analyzer = LoopAnalyzer::new();
+            let info = analyzer.analyze_with_cfg(func, Rc::new(CfgInfo::new(func)));
+            for loop_data in info.loops.values().filter(|data| headers.contains(&data.header)) {
+                self.run_loop(func, &analyzer, loop_data);
+            }
+            self.exit_splits.clear();
+        }
         &self.stats
     }
 
@@ -423,9 +463,6 @@ impl IndVarSimplifier {
     /// every word stored at a dynamic object's first word is a length the module bounds.
     fn is_length_store(&self, func: &Function, slot: ValueId, length: ValueId) -> bool {
         const DEPTH: usize = 8;
-        if let Some(MirType::MemoryObject(kind)) = func.value_ty(slot) {
-            return matches!(kind, MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray);
-        }
         let Some(size) = self.allocation_size(func, slot) else { return false };
         // A constant size is a fixed-size array's or a struct's, and a constant word sizes
         // nothing: it could equal such a size.
@@ -526,6 +563,12 @@ impl IndVarSimplifier {
         for &inst_id in &func.blocks[header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
             let Some(value) = func.inst_result_value(inst_id) else { continue };
+            // Narrow recurrences require the integer analysis's no-wrap proof.
+            if func.value_ty(value) != Some(MirType::I256)
+                && !loop_data.induction_vars.iter().any(|iv| iv.value == value)
+            {
+                continue;
+            }
             let mut init = None;
             let mut latch_value = None;
             let mut agreed = true;
@@ -604,21 +647,21 @@ impl IndVarSimplifier {
             InstKind::Add(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Add,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if a == counter => step(b, false),
             InstKind::Add(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Add,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if b == counter => step(a, false),
             InstKind::Sub(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Sub,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if a == counter => step(b, true),
@@ -696,7 +739,7 @@ impl IndVarSimplifier {
             Some(&InstKind::Add(a, b))
             | Some(&InstKind::CheckedBinary {
                 op: CheckedOp::Add,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             }) => Some((a, b)),
@@ -845,7 +888,59 @@ impl IndVarSimplifier {
                     &addresses,
                 )
         });
-        let test_family = test_family.filter(|_| counter_free);
+        let mut test_family = test_family.filter(|_| counter_free);
+        // A unit-step counter reaches a clamped end exactly, even for a wrapping base.
+        let reaches = if test_family.is_none()
+            && !must_keep_update
+            && counter.phis.is_empty()
+            && counter.leaves.len() == 1
+            && func.value_ty(counter.value) == Some(MirType::I256)
+            && matches!(counter.leaves[0].1, Step::Constant(1))
+        {
+            func.value_u256(counter.init).filter(|start| *start <= U256::from(u64::MAX)).and_then(
+                |start| {
+                    let [test] = exit_tests.as_slice() else { return None };
+                    if !test.subject_first
+                        || test.subject != counter.value
+                        || !matches!(test.comparison, Comparison::Lt)
+                    {
+                        return None;
+                    }
+                    let value = func.inst_result_value(test.condition)?;
+                    let Some(Terminator::Branch { condition, then_block, else_block }) =
+                        &func.blocks[loop_data.header].terminator
+                    else {
+                        return None;
+                    };
+                    if *condition != value
+                        || !loop_data.blocks.contains(*then_block)
+                        || loop_data.blocks.contains(*else_block)
+                    {
+                        return None;
+                    }
+                    let reads = Self::counter_exit_reads(
+                        func,
+                        loop_data,
+                        counter.value,
+                        test.condition,
+                        Some(counter.leaves[0].0),
+                        &addresses,
+                    )?;
+                    let family = families.iter().position(|members| {
+                        let key = &members[0].0;
+                        key.scale > 0
+                            && key.scale <= i128::from(u32::MAX)
+                            && key.invariants.is_empty()
+                    })?;
+                    Some((start, family, reads))
+                },
+            )
+        } else {
+            None
+        };
+        if let Some((_, family, _)) = &reaches {
+            test_family = Some(*family);
+        }
         let reduce_all = test_family.is_some() && {
             let before = families
                 .iter()
@@ -866,6 +961,14 @@ impl IndVarSimplifier {
             before + Self::COUNTER_COST > after
         };
 
+        if reduce_all
+            && let Some((_, _, reads)) = &reaches
+            && !reads.edges.is_empty()
+        {
+            self.exit_splits
+                .extend(reads.edges.iter().map(|&(from, to)| (loop_data.header, from, to)));
+            return;
+        }
         let mut replacements = FxHashMap::default();
         let mut siblings = Vec::new();
         let mut test_pointer = None;
@@ -941,6 +1044,18 @@ impl IndVarSimplifier {
             let mut ends = FxHashMap::default();
             for test in &exit_tests {
                 let Some(&subject) = mirrors.get(&test.subject) else { continue };
+                let bound = if let Some((start, _, _)) = &reaches {
+                    self.clamped_bound(
+                        func,
+                        &CfgInfo::new(func),
+                        preheader,
+                        test.bound,
+                        *start,
+                        key.scale,
+                    )
+                } else {
+                    test.bound
+                };
                 let end = match ends.get(&test.bound) {
                     Some(&end) => end,
                     None => {
@@ -962,9 +1077,9 @@ impl IndVarSimplifier {
                                         func.inst_result_value(inst_id) == Some(test.bound)
                                     })
                                     .map_or(0, |position| position + 1);
-                                self.pointer_at_position(func, block, position, key, test.bound)
+                                self.pointer_at_position(func, block, position, key, bound)
                             }
-                            _ => self.pointer_at(func, preheader, key, test.bound),
+                            _ => self.pointer_at(func, preheader, key, bound),
                         };
                         let Some(end) = end else { continue };
                         ends.insert(test.bound, end);
@@ -972,10 +1087,15 @@ impl IndVarSimplifier {
                     }
                 };
                 let (a, b) = if test.subject_first { (subject, end) } else { (end, subject) };
-                func.inst_mut(test.condition).kind = match test.comparison {
-                    Comparison::Lt => InstKind::Lt(a, b),
-                    Comparison::Gt => InstKind::Gt(a, b),
-                    Comparison::Eq => InstKind::Eq(a, b),
+                func.inst_mut(test.condition).kind = if reaches.is_some() {
+                    // counter < bound => pointer != clamped_end
+                    InstKind::Ne(subject, end)
+                } else {
+                    match test.comparison {
+                        Comparison::Lt => InstKind::Lt(a, b),
+                        Comparison::Gt => InstKind::Gt(a, b),
+                        Comparison::Eq => InstKind::Eq(a, b),
+                    }
                 };
                 self.stats.address_uses_replaced += 1;
                 test_rewritten = true;
@@ -1011,6 +1131,12 @@ impl IndVarSimplifier {
         // The replaced addresses and the index arithmetic only they read are dead now;
         // remove them here so the counter's remaining reads are visible below.
         self.remove_dead_address_arithmetic(func, region);
+        if test_rewritten
+            && let Some((_, _, reads)) = &reaches
+            && let Some((pointer, key, _)) = &test_pointer
+        {
+            self.rebuild_exit_reads(func, preheader, &counter, *pointer, key.scale, reads);
+        }
         if test_rewritten {
             self.remove_dead_counter(func, region, &counter);
         }
@@ -1288,15 +1414,11 @@ impl IndVarSimplifier {
         }
     }
 
-    /// Whether `value` addresses memory, so scaling a bounded index onto it
-    /// cannot wrap: a heap address, or an offset from a memory reference, an
-    /// argument or a call result the lowered MIR no longer classifies by region.
+    /// Whether `value` has proven heap provenance, so scaling a bounded index cannot wrap.
     fn is_heap_address(&self, func: &Function, value: ValueId) -> bool {
-        self.alias.memory_address(func, value).is_some_and(|address| {
-            address.region == MemoryRegion::Heap
-                || matches!(address.base, MemoryBase::Value(base)
-                    if func.value_ty(base).is_some_and(MirType::is_memory_reference))
-        })
+        self.alias
+            .memory_address(func, value)
+            .is_some_and(|address| address.region == MemoryRegion::Heap)
     }
 
     /// Appends to `block` the pointer's value at `index`:
@@ -1312,6 +1434,16 @@ impl IndVarSimplifier {
         for term in &key.invariants {
             let scaled = self.scale_value(func, block, term.value, term.scale)?;
             value = Some(self.add_values(func, block, value, scaled));
+        }
+        // A literal index folds into the offset, as the pointer's start does.
+        if let Some(offset) = self
+            .value_i128(func, index)
+            .and_then(|index| index.checked_mul(key.scale)?.checked_add(key.constant))
+        {
+            return match value {
+                Some(value) => self.add_signed_offset(func, block, value, offset),
+                None => self.offset_value(func, offset),
+            };
         }
         let scaled = self.scale_value(func, block, index, key.scale)?;
         let value = self.add_values(func, block, value, scaled);
@@ -1362,8 +1494,10 @@ impl IndVarSimplifier {
         acc: Option<ValueId>,
         value: ValueId,
     ) -> ValueId {
+        let value = self.word_value(func, block, value);
         match acc {
             Some(acc) => {
+                let acc = self.word_value(func, block, acc);
                 self.append_inst_value(func, block, InstKind::Add(acc, value), Some(MirType::I256))
             }
             None => value,
@@ -1699,6 +1833,7 @@ impl IndVarSimplifier {
         value: ValueId,
         offset: i128,
     ) -> Option<ValueId> {
+        let value = self.word_value(func, block, value);
         if offset == 0 {
             return Some(value);
         }
@@ -1738,6 +1873,8 @@ impl IndVarSimplifier {
         value: ValueId,
         scale: i128,
     ) -> Option<(ValueId, usize)> {
+        let (value, next) = self.widen(func, block, at, value);
+        at = next;
         let magnitude = scale.checked_abs()?.unsigned_abs();
         let scaled = if magnitude == 1 {
             value
@@ -1783,6 +1920,7 @@ impl IndVarSimplifier {
         value: ValueId,
         offset: i128,
     ) -> Option<ValueId> {
+        let value = self.word_value(func, block, value);
         if offset == 0 {
             return Some(value);
         }
@@ -1804,6 +1942,7 @@ impl IndVarSimplifier {
         value: ValueId,
         scale: i128,
     ) -> Option<ValueId> {
+        let value = self.word_value(func, block, value);
         let magnitude = scale.checked_abs()?.unsigned_abs();
         let scaled = if magnitude == 1 {
             value
@@ -1819,6 +1958,247 @@ impl IndVarSimplifier {
         }
         let zero = self.offset_value(func, 0)?;
         Some(self.append_inst_value(func, block, InstKind::Sub(zero, scaled), Some(MirType::I256)))
+    }
+
+    fn counter_exit_reads(
+        func: &Function,
+        loop_data: &Loop,
+        iv: ValueId,
+        condition: InstId,
+        update: Option<InstId>,
+        addresses: &FxHashSet<ValueId>,
+    ) -> Option<ExitReads> {
+        let mut pending = Vec::new();
+        pending.push(iv);
+        let mut visited = DenseBitSet::new_empty(func.num_values());
+        while let Some(value) = pending.pop() {
+            if !visited.insert(value) {
+                continue;
+            }
+            for block_id in loop_data.blocks.iter() {
+                let block = &func.blocks[block_id];
+                if block.terminator.as_ref().is_some_and(|term| term.reads(value)) {
+                    return None;
+                }
+                for &inst_id in &block.instructions {
+                    let inst = func.inst(inst_id);
+                    if !inst.kind.reads(value) {
+                        continue;
+                    }
+                    if inst_id == condition || Some(inst_id) == update {
+                        continue;
+                    }
+                    let result = func.inst_result_value(inst_id)?;
+                    if matches!(inst.kind, InstKind::Phi(_)) {
+                        return None;
+                    }
+                    if addresses.contains(&result) {
+                        continue;
+                    }
+                    if !Self::is_address_builder(&inst.kind) {
+                        return None;
+                    }
+                    pending.push(result);
+                }
+            }
+        }
+        // Outside the loop, besides the exit test and the update, only the counter itself may
+        // be read, which its pointer can rebuild there.
+        let mut reads = ExitReads::default();
+        let derived = |operand: ValueId| operand != iv && visited.contains(operand);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if loop_data.blocks.contains(block_id) {
+                continue;
+            }
+            let mut reads_counter = false;
+            if let Some(term) = &block.terminator {
+                if term.any_operand(derived) {
+                    return None;
+                }
+                reads_counter |= term.reads(iv);
+            }
+            for &inst_id in &block.instructions {
+                if inst_id == condition || Some(inst_id) == update {
+                    continue;
+                }
+                let kind = &func.inst(inst_id).kind;
+                if kind.any_operand(derived) {
+                    return None;
+                }
+                if let InstKind::Phi(incoming) = kind {
+                    for &(from, value) in incoming {
+                        if value != iv {
+                            continue;
+                        }
+                        // The rebuild runs at the end of the block the phi reads it from, so
+                        // every path out of that block would pay for it.
+                        let branches_elsewhere =
+                            func.blocks[from].terminator.as_ref().is_some_and(|term| {
+                                term.successors().iter().any(|&successor| successor != block_id)
+                            });
+                        if loop_data.blocks.contains(from) || branches_elsewhere {
+                            reads.edges.push((from, block_id));
+                        } else {
+                            reads.phis.push((inst_id, from));
+                        }
+                    }
+                } else {
+                    reads_counter |= kind.reads(iv);
+                }
+            }
+            if reads_counter {
+                reads.blocks.push(block_id);
+            }
+        }
+        Some(reads)
+    }
+
+    fn rebuild_exit_reads(
+        &self,
+        func: &mut Function,
+        preheader: BlockId,
+        iv: &Counter,
+        pointer: ValueId,
+        scale: i128,
+        reads: &ExitReads,
+    ) {
+        // The rebuild counts up from the start, as the equality exit's counter does; a counter
+        // left unrebuilt stays alive for its readers.
+        let Some(start) = preheader_value(func, pointer, preheader) else { return };
+        let Ok(magnitude) = u128::try_from(scale) else { return };
+        // counter = init + (ptr - start) >> log2(scale)   or   / scale
+        let rebuild = |this: &Self, func: &mut Function, block: BlockId| -> ValueId {
+            let delta = this.append_inst_value(
+                func,
+                block,
+                InstKind::Sub(pointer, start),
+                Some(MirType::I256),
+            );
+            let steps = if magnitude == 1 {
+                delta
+            } else if magnitude.is_power_of_two() {
+                let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
+                    magnitude.trailing_zeros(),
+                ))));
+                this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Shr(shift, delta),
+                    Some(MirType::I256),
+                )
+            } else {
+                let divisor =
+                    func.alloc_value(Value::Immediate(Immediate::I256(U256::from(magnitude))));
+                this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Div(delta, divisor),
+                    Some(MirType::I256),
+                )
+            };
+            if func.value_u256(iv.init).is_some_and(|init| init.is_zero()) {
+                steps
+            } else {
+                this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Add(iv.init, steps),
+                    Some(MirType::I256),
+                )
+            }
+        };
+        for &(phi, from) in &reads.phis {
+            // from: ...; counter = rebuild; jump  ->  phi [from: counter]
+            let counter = rebuild(self, func, from);
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind {
+                for (block, value) in incoming.iter_mut() {
+                    if *block == from && *value == iv.value {
+                        *value = counter;
+                    }
+                }
+            }
+        }
+        for &block in &reads.blocks {
+            // block: phis; counter = rebuild; ...reads of counter
+            let phis = func.blocks[block]
+                .instructions
+                .iter()
+                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .count();
+            let body = func.blocks[block].instructions.split_off(phis);
+            let counter = rebuild(self, func, block);
+            let rebuilt = func.blocks[block].instructions.split_off(phis);
+            func.blocks[block]
+                .instructions
+                .extend(rebuilt.iter().copied().chain(body.iter().copied()));
+            for &inst_id in &body {
+                func.inst_mut(inst_id).kind.visit_operands_mut(|operand| {
+                    if *operand == iv.value {
+                        *operand = counter;
+                    }
+                });
+            }
+            if let Some(term) = func.blocks[block].terminator.as_mut() {
+                term.visit_operands_mut(|operand| {
+                    if *operand == iv.value {
+                        *operand = counter;
+                    }
+                });
+            }
+        }
+    }
+
+    fn clamped_bound(
+        &self,
+        func: &mut Function,
+        cfg: &CfgInfo,
+        block: BlockId,
+        bound: ValueId,
+        start: U256,
+        scale: i128,
+    ) -> ValueId {
+        let limit = U256::from(1) << (Target::MAX_TRIP_COUNT_BITS + 1);
+        if let Some(value) = func.value_u256(bound) {
+            let clamped = value.max(start).min(limit);
+            return func.alloc_value(Value::Immediate(Immediate::I256(clamped)));
+        }
+        let exact = U256::MAX >> scale.trailing_zeros();
+        let mut clamped = bound;
+        if exact != U256::MAX && !bounded_on_entry(func, cfg, block, bound, exact) {
+            // above = gt bound, 2^65; bound = select above, 2^65, bound
+            let limit = func.alloc_value(Value::Immediate(Immediate::I256(limit)));
+            let above =
+                self.append_inst_value(func, block, InstKind::Gt(bound, limit), Some(MirType::I1));
+            clamped = self.append_inst_value(
+                func,
+                block,
+                InstKind::Select(above, limit, bound),
+                Some(MirType::I256),
+            );
+        }
+        if !start.is_zero() {
+            // below = lt bound, start; bound = select below, start, bound
+            let start = func.alloc_value(Value::Immediate(Immediate::I256(start)));
+            let below = self.append_inst_value(
+                func,
+                block,
+                InstKind::Lt(clamped, start),
+                Some(MirType::I1),
+            );
+            clamped = self.append_inst_value(
+                func,
+                block,
+                InstKind::Select(below, start, clamped),
+                Some(MirType::I256),
+            );
+        }
+        clamped
+    }
+
+    fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block);
+        builder.cast_word(value)
     }
 
     fn offset_value(&self, func: &mut Function, offset: i128) -> Option<ValueId> {
@@ -1856,7 +2236,11 @@ impl IndVarSimplifier {
         }
         matches!(
             func.inst(inst_id).kind,
-            InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)
+            InstKind::Add(_, _)
+                | InstKind::Sub(_, _)
+                | InstKind::Mul(_, _)
+                | InstKind::Shl(_, _)
+                | InstKind::Zext(_)
         )
     }
 
@@ -1885,7 +2269,11 @@ impl IndVarSimplifier {
     fn is_address_builder(kind: &InstKind) -> bool {
         matches!(
             kind,
-            InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)
+            InstKind::Add(_, _)
+                | InstKind::Sub(_, _)
+                | InstKind::Mul(_, _)
+                | InstKind::Shl(_, _)
+                | InstKind::Zext(_)
         )
     }
 
@@ -1919,11 +2307,8 @@ fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
 
 /// The value `value` casts, through any number of pointer and word casts.
 fn uncast(func: &Function, mut value: ValueId) -> ValueId {
-    while let Some(
-        &(InstKind::PtrToInt(operand, _)
-        | InstKind::IntToPtr(operand)
-        | InstKind::Bitcast(operand)),
-    ) = inst_kind(func, value)
+    while let Some(&(InstKind::PtrToInt(operand, _) | InstKind::IntToPtr(operand))) =
+        inst_kind(func, value)
     {
         value = operand;
     }
@@ -1944,4 +2329,105 @@ fn computed_from(func: &Function, value: ValueId, target: ValueId, depth: usize)
 
 fn u256_to_i128(value: U256) -> Option<i128> {
     if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
+}
+
+/// How deep [`bounded_on_entry`] follows a branch condition's operands and a bound's
+/// definition.
+const MAX_FACT_DEPTH: usize = 8;
+
+/// Whether every path into `block` takes a branch edge that keeps `value` at most a word
+/// that cannot exceed `limit`, such as the false edge of an ABI decoder's
+/// `length > (calldatasize - offset) >> 5` check.
+fn bounded_on_entry(
+    func: &Function,
+    cfg: &CfgInfo,
+    block: BlockId,
+    value: ValueId,
+    limit: U256,
+) -> bool {
+    cfg.dominators().self_and_dominators(block).into_iter().any(|block| {
+        // An edge decides a fact on entry only when it is the block's only way in.
+        let &[pred] = cfg.predecessors(block) else { return false };
+        let Some(Terminator::Branch { condition, then_block, .. }) = &func.blocks[pred].terminator
+        else {
+            return false;
+        };
+        implies_at_most(func, *condition, *then_block == block, value, limit, MAX_FACT_DEPTH)
+    })
+}
+
+/// Whether `condition` being nonzero exactly when `nonzero` holds keeps `value` at most a word
+/// that cannot exceed `limit`.
+fn implies_at_most(
+    func: &Function,
+    condition: ValueId,
+    nonzero: bool,
+    value: ValueId,
+    limit: U256,
+    depth: usize,
+) -> bool {
+    let Some(depth) = depth.checked_sub(1) else { return false };
+    let Value::Inst(inst_id) = *func.value(condition) else { return false };
+    let implies =
+        |condition, nonzero| implies_at_most(func, condition, nonzero, value, limit, depth);
+    let is_zero = |operand| func.value_u256(operand).is_some_and(|operand| operand.is_zero());
+    match (&func.inst(inst_id).kind, nonzero) {
+        // value <= x, or value < x
+        (&InstKind::Gt(a, x), false)
+        | (&InstKind::Lt(x, a), false)
+        | (&InstKind::Lt(a, x), true)
+        | (&InstKind::Gt(x, a), true)
+            if a == value =>
+        {
+            upper_bound(func, x, depth).is_some_and(|bound| bound <= limit)
+        }
+        // A zero `or` has zero operands, and a nonzero `and` nonzero ones.
+        (&InstKind::Or(a, b), false) | (&InstKind::And(a, b), true) => {
+            implies(a, nonzero) || implies(b, nonzero)
+        }
+        (&InstKind::Eq(a, b), _) if is_zero(b) => implies(a, !nonzero),
+        (&InstKind::Ne(a, b), _) if is_zero(b) => implies(a, nonzero),
+        (&InstKind::Zext(source), _) => implies(source, nonzero),
+        _ => false,
+    }
+}
+
+/// The largest value a word can take by its definition: literals, comparisons, masks, right
+/// shifts, and quotients by a literal.
+fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
+    if let Some(constant) = func.value_u256(value) {
+        return Some(constant);
+    }
+    let depth = depth.checked_sub(1)?;
+    let Value::Inst(inst_id) = *func.value(value) else { return None };
+    match func.inst(inst_id).kind {
+        InstKind::Lt(..)
+        | InstKind::Gt(..)
+        | InstKind::SLt(..)
+        | InstKind::SGt(..)
+        | InstKind::Eq(..)
+        | InstKind::Ne(..) => Some(U256::from(1)),
+        InstKind::Zext(source) => upper_bound(func, source, depth),
+        InstKind::And(a, b) => match (upper_bound(func, a, depth), upper_bound(func, b, depth)) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (bound, None) | (None, bound) => bound,
+        },
+        InstKind::Shr(shift, source) => {
+            let shift = usize::try_from(func.value_u256(shift)?).ok()?;
+            let source = upper_bound(func, source, depth).unwrap_or(U256::MAX);
+            Some(source.checked_shr(shift).unwrap_or(U256::ZERO))
+        }
+        InstKind::Div(_, divisor) => {
+            let divisor = func.value_u256(divisor)?;
+            Some(U256::MAX.checked_div(divisor).unwrap_or(U256::ZERO))
+        }
+        _ => None,
+    }
+}
+
+/// The value the header phi `phi` takes on entry from `preheader`.
+fn preheader_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<ValueId> {
+    let Value::Inst(inst_id) = *func.value(phi) else { return None };
+    let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { return None };
+    incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
 }

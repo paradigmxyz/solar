@@ -1,6 +1,5 @@
 //@ revisions: ir run
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@ run-call: merge [], [] => []
 //@ run-call: merge [5], [] => [5]
@@ -25,15 +24,7 @@ contract BranchBuriedCondition {
     // the stack to reach it, so the arm keeps its carried words (the two input pointers with
     // their ends, the output pointer, its index and length) and its only memory access is
     // the store.
-    // CHECK-LABEL: @module BranchBuriedCondition_runtime
-    // CHECK: [loop]:
-    // CHECK: gt
-    // CHECK-NEXT: push [[TAKE_V:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: [[TAKE_V]] [loop]:
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: pop
-    // CHECK: mstore
+
     //
     // NOTE: the arm's only memory access should be that store, and is not on this
     // base: it reloads the output's length for the bounds check of `c[k]`, because

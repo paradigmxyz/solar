@@ -140,7 +140,7 @@ bb7:
   dup 1
   return
 bb11:
-  push 160
+  push 128
   push 64
   mstore
   push_immutable 0, 20
@@ -167,8 +167,7 @@ bb11:
   add
   dup 1
   swap 3
-  push 128
-  swap 3
+  dup 3
   push 36
   swap 2
   gas
@@ -223,13 +222,13 @@ bb34:
   jump
 bb14 [continuation]:
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb17:
-  push 160
+  push 128
   push 64
   mstore
   push_immutable 0, 20
@@ -256,8 +255,7 @@ bb17:
   add
   dup 1
   swap 3
-  push 128
-  swap 3
+  dup 3
   push 36
   swap 2
   gas
@@ -293,13 +291,13 @@ bb20 [continuation]:
   iszero
   push bb10
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb26:
-  push 160
+  push 128
   push 64
   mstore
   push_immutable 0, 20
@@ -326,8 +324,7 @@ bb26:
   add
   dup 1
   swap 3
-  push 128
-  swap 3
+  dup 3
   push 36
   swap 2
   gas
@@ -358,8 +355,8 @@ bb29 [continuation]:
   lt
   push bb10
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

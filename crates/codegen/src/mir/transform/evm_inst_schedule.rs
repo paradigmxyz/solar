@@ -53,7 +53,7 @@
 use crate::mir::{
     BlockId, EffectKind, Function, InstId, InstKind, Instruction, Module, Terminator, Value,
     ValueId,
-    analysis::{Liveness, CfgInfo},
+    analysis::{CfgInfo, Liveness},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;

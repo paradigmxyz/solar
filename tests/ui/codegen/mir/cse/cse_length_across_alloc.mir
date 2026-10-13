@@ -15,7 +15,7 @@
 // CHECK-LABEL: fn @argument(
 // CHECK:       [[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
 // CHECK:       {{v[0-9]+}} = memory_object_len memorybytes, arg0
-fn @argument(arg0: memorybytes) -> i256 {
+fn @argument(arg0: memptr) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = alloc memorybytes, exact, zeroed, panic, 64
@@ -50,7 +50,7 @@ fn @earlier(arg0: i256) -> i256 {
 // CHECK:       alloc memorybytes, exact, zeroed, panic, arg1
 // CHECK:       set_memory_object_len memorybytes
 // CHECK:       {{v[0-9]+}} = memory_object_len memorybytes, arg0
-fn @sized(arg0: memorybytes, arg1: i256) -> i256 {
+fn @sized(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = alloc memorybytes, exact, zeroed, panic, arg1
@@ -68,7 +68,7 @@ fn @sized(arg0: memorybytes, arg1: i256) -> i256 {
 // CHECK-LABEL: fn @loop(
 // CHECK:       [[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
 // CHECK:       {{v[0-9]+}} = memory_object_len memorybytes, arg0
-fn @loop(arg0: memorybytes, arg1: i256) -> i256 {
+fn @loop(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = alloc memorybytes, exact, zeroed, panic, arg1
@@ -115,7 +115,7 @@ fn @raw(arg0: i256) -> i256 {
 // CHECK: {{^ +}}[[FIRST:v[0-9]+]] = memory_object_len memorybytes, arg0
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = memory_object_len memorybytes, arg0
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @raw_allocation(arg0: memorybytes, arg1: i256) -> i256 {
+fn @raw_allocation(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = alloc raw, exact, uninitialized, infallible, arg1

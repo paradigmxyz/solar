@@ -33,18 +33,18 @@ fn @built(arg0: i256) -> struct0 [pure] {
     v1 = icall @create, 64
     jump bb1
   bb1:
-    v2 = phi [bb0: v0], [bb3: v2]
-    v3 = phi [bb0: v1], [bb3: v3]
-    v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: memptr 96], [bb3: v5]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: memptr 96], [bb3: v4]
+    v5 = phi [bb0: v1], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v12]
-    v7 = lt v6, v4
+    v7 = lt v6, v2
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v13 = icall @finish.15, v3
-    v14 = insert_value struct0, undef struct0, 0, v2
+    v13 = icall @finish.15, v5
+    v14 = insert_value struct0, undef struct0, 0, v3
     v15 = insert_value struct0, v14, 1, v13
     ret v15
   bb4:
@@ -52,7 +52,7 @@ fn @built(arg0: i256) -> struct0 [pure] {
     v9 = trunc i256 v8 to i8
     v10 = zext i8 v9 to i256
     v11 = shl 248, v10
-    icall @appendByte, v3, v11
+    icall @appendByte, v5, v11
     jump bb6
   bb6:
     jump bb3
@@ -136,19 +136,19 @@ fn @words(arg0: i256) -> struct3 [selector=0x884fc838, abi_params=[u256], abi_re
     v1 = icall @createWords, 8
     jump bb1
   bb1:
-    v2 = phi [bb0: memptr 96], [bb3: v2]
+    v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = phi [bb0: memptr 96], [bb3: v7]
+    v4 = phi [bb0: memptr 96], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: memptr 96], [bb3: v6]
+    v7 = phi [bb0: v1], [bb3: v7]
     v8 = phi [bb0: 0], [bb3: v11]
-    v9 = lt v8, v6
+    v9 = lt v8, v2
     jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v12 = icall @finish.18, v5
+    v12 = icall @finish.18, v7
     v13 = memory_object_len memoryarray, v12
     v14 = sload 1 !metadata(storage=slot(1))
     v15 = gt v14, v13
@@ -192,7 +192,7 @@ fn @words(arg0: i256) -> struct3 [selector=0x884fc838, abi_params=[u256], abi_re
     jump bb9
   bb4:
     v10 = checked_add u256, v8, 1
-    icall @append, v5, v10
+    icall @append, v7, v10
     jump bb6
   bb6:
     jump bb3
@@ -251,34 +251,34 @@ fn @writeBytes1(arg0: memptr, arg1: i256, arg2: i256) [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v14]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
-    v4 = lt v1, 1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v14]
+    v4 = lt v3, 1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret
   bb4:
-    v5 = lt v1, 1
+    v5 = lt v3, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = byte v1, v3
+    v7 = byte v3, v2
     v8 = shl 248, v7
-    v9 = checked_add u256, v0, v1
-    v10 = memory_object_len memorybytes, v2
+    v9 = checked_add u256, v1, v3
+    v10 = memory_object_len memorybytes, v0
     v11 = lt v9, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = byte 0, v8
-    memory_object_store_byte memorybytes, v2, v9, v13
+    memory_object_store_byte memorybytes, v0, v9, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v1, 1
+    v14 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -329,26 +329,26 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pu
     jump bb22
   bb22:
     v37 = phi [bb14: arg0], [bb24: v37]
-    v38 = phi [bb14: v14], [bb24: v38]
-    v39 = phi [bb14: 0], [bb24: v55]
-    v40 = phi [bb14: arg1], [bb24: v40]
-    v41 = phi [bb14: arg3], [bb24: v41]
-    v42 = phi [bb14: arg2], [bb24: v42]
-    v43 = lt v39, v38
+    v38 = phi [bb14: arg1], [bb24: v38]
+    v39 = phi [bb14: arg2], [bb24: v39]
+    v40 = phi [bb14: arg3], [bb24: v40]
+    v41 = phi [bb14: v14], [bb24: v41]
+    v42 = phi [bb14: 0], [bb24: v55]
+    v43 = lt v42, v41
     jumpi v43, bb25, bb26
   bb26:
     jump bb23
   bb23:
     jump bb15
   bb25:
-    v44 = checked_add u256, v41, v39
-    v45 = memory_object_len memorybytes, v42
+    v44 = checked_add u256, v40, v42
+    v45 = memory_object_len memorybytes, v39
     v46 = lt v44, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
-    v48 = memory_object_load_byte memorybytes, v42, v44
+    v48 = memory_object_load_byte memorybytes, v39, v44
     v49 = shl 248, v48
-    v50 = checked_add u256, v40, v39
+    v50 = checked_add u256, v38, v42
     v51 = memory_object_len memorybytes, v37
     v52 = lt v50, v51
     v53 = eq v52, false
@@ -359,18 +359,18 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pu
   bb27:
     jump bb24
   bb24:
-    v55 = checked_add u256, v39, 1
+    v55 = checked_add u256, v42, 1
     jump bb22
   bb13:
     jump bb16
   bb16:
     v16 = phi [bb13: arg0], [bb18: v16]
-    v17 = phi [bb13: v14], [bb18: v17]
-    v18 = phi [bb13: arg1], [bb18: v18]
+    v17 = phi [bb13: arg1], [bb18: v17]
+    v18 = phi [bb13: arg2], [bb18: v18]
     v19 = phi [bb13: arg3], [bb18: v19]
-    v20 = phi [bb13: v14], [bb18: v36]
-    v21 = phi [bb13: arg2], [bb18: v21]
-    v22 = gt v20, 0
+    v20 = phi [bb13: v14], [bb18: v20]
+    v21 = phi [bb13: v14], [bb18: v36]
+    v22 = gt v21, 0
     jumpi v22, bb19, bb20
   bb20:
     jump bb17
@@ -379,20 +379,20 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pu
   bb15:
     v56 = phi [bb17: v16], [bb23: v37]
     v57 = phi [bb17: v17], [bb23: v38]
-    v58 = phi [bb17: v18], [bb23: v40]
-    v59 = phi [bb17: v19], [bb23: v41]
-    v60 = phi [bb17: v21], [bb23: v42]
+    v58 = phi [bb17: v18], [bb23: v39]
+    v59 = phi [bb17: v19], [bb23: v40]
+    v60 = phi [bb17: v20], [bb23: v41]
     ret
   bb19:
-    v23 = checked_add u256, v19, v20
+    v23 = checked_add u256, v19, v21
     v24 = checked_sub u256, v23, 1
-    v25 = memory_object_len memorybytes, v21
+    v25 = memory_object_len memorybytes, v18
     v26 = lt v24, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = memory_object_load_byte memorybytes, v21, v24
+    v28 = memory_object_load_byte memorybytes, v18, v24
     v29 = shl 248, v28
-    v30 = checked_add u256, v18, v20
+    v30 = checked_add u256, v17, v21
     v31 = checked_sub u256, v30, 1
     v32 = memory_object_len memorybytes, v16
     v33 = lt v31, v32
@@ -404,7 +404,7 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pu
   bb21:
     jump bb18
   bb18:
-    v36 = checked_sub u256, v20, 1
+    v36 = checked_sub u256, v21, 1
     jump bb16
 }
 
@@ -635,32 +635,32 @@ fn @_growWords(arg0: memptr, arg1: i256) [pure] {
     set_memory_object_len memoryarray, v21, v4
     jump bb4
   bb4:
-    v22 = phi [bb3: arg1], [bb6: v22]
-    v23 = phi [bb3: v21], [bb6: v23]
-    v24 = phi [bb3: arg0], [bb6: v24]
-    v25 = phi [bb3: v4], [bb6: v25]
+    v22 = phi [bb3: arg0], [bb6: v22]
+    v23 = phi [bb3: arg1], [bb6: v23]
+    v24 = phi [bb3: v4], [bb6: v24]
+    v25 = phi [bb3: v21], [bb6: v25]
     v26 = phi [bb3: 0], [bb6: v37]
-    v27 = memory_object_load_field memorystruct<2>, v24, 1
+    v27 = memory_object_load_field memorystruct<2>, v22, 1
     v28 = lt v26, v27
     jumpi v28, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v38 = ptrtoint memptr v23 to i256
-    memory_object_store_field memorystruct<2>, v24, 0, v38
+    v38 = ptrtoint memptr v25 to i256
+    memory_object_store_field memorystruct<2>, v22, 0, v38
     ret
   bb7:
-    v29 = memory_object_load_field memorystruct<2>, v24, 0, memptr
+    v29 = memory_object_load_field memorystruct<2>, v22, 0, memptr
     v30 = memory_object_len memoryarray, v29
     v31 = lt v26, v30
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryarray<1>, v29, v26
-    v34 = memory_object_len memoryarray, v23
+    v34 = memory_object_len memoryarray, v25
     v35 = lt v26, v34
     v36 = eq v35, false
     icall panic_if<0x32>, v36
-    memory_object_store_element memoryarray<1>, v23, v26, v33
+    memory_object_store_element memoryarray<1>, v25, v26, v33
     jump bb9
   bb9:
     jump bb6

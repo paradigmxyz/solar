@@ -151,8 +151,8 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     v41 = lt v25, v40
     jumpi v41, bb21, bb19
   bb19:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb21:
     mstore v194, v34
@@ -166,12 +166,12 @@ fn @merge() [selector=0x088b9bf6, abi_wrapper, inline_assembly, pure] {
     v195 = add v194, 32
     jump bb1
   bb16:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb26:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb28:
     revert 0, 0
@@ -217,8 +217,8 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     calldatacopy v20, v3, v13
     ret v15
   bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

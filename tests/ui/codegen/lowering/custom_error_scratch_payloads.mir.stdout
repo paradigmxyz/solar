@@ -12,23 +12,19 @@ fn @one(arg0: i256) [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[
     invalid
 }
 
-fn @three(arg0: i256, arg1: i256, arg2: i256) [selector=0x1f65ea94, pure, abi_params=[i8, bytes4, bool], abi_returns=[], abi_return_params=[]] {
+fn @three(arg0: i8, arg1: i256, arg2: i1) [selector=0x1f65ea94, pure, abi_params=[i8, bytes4, bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = signextend 0, arg0
+    v0 = sext i8 arg0 to i256
     v1 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v2 = eq arg2, 0
-    v3 = eq v2, false
-    v4 = zext i1 v3 to i256
-    icall require<custom_error [word<i8>, word<bytes4>, word<bool>]>, false, 0x599e757300000000000000000000000000000000000000000000000000000000, v0, v1, v4
+    v2 = zext i1 arg2 to i256
+    icall require<custom_error [word<i8>, word<bytes4>, word<bool>]>, false, 0x599e757300000000000000000000000000000000000000000000000000000000, v0, v1, v2
     invalid
 }
 
-fn @four(arg0: i256) [selector=0xb00fe555, pure, abi_params=[u160], abi_returns=[], abi_return_params=[]] {
+fn @four(arg0: i160) [selector=0xb00fe555, pure, abi_params=[u160], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v1 = trunc i256 v0 to i160
-    v2 = zext i160 v1 to i256
-    icall require<custom_error [word, word, word, word<u160>]>, false, 0xbfd2e92100000000000000000000000000000000000000000000000000000000, 1, 2, 3, v2
+    v0 = zext i160 arg0 to i256
+    icall require<custom_error [word, word, word, word<u160>]>, false, 0xbfd2e92100000000000000000000000000000000000000000000000000000000, 1, 2, 3, v0
     invalid
 }
 

@@ -40,8 +40,8 @@ fn @copy(arg0: memptr) -> memptr [may_return_memory, pure] {
     v33 = add v20, 1
     jump bb1
   bb5:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -108,8 +108,8 @@ fn @copied() [selector=0x3feb34a9, abi_wrapper, pure] {
     v37 = add v34, 64
     returndata v36, v37
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
     revert 0, 0

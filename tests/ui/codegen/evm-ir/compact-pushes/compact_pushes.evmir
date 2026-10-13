@@ -12,10 +12,7 @@
 // CHECK: + push 1
 // CHECK-NEXT: + push 128
 // CHECK-NEXT: + shl
-// CHECK: + push 0
-// CHECK-NEXT: + not
-// CHECK-NEXT: + push 216
-// CHECK-NEXT: + shr
+// CHECK: {{^[ +].*}}push 0xffffffffff
 // CHECK: + push 1
 // CHECK-NEXT: + push 128
 // CHECK-NEXT: + shl

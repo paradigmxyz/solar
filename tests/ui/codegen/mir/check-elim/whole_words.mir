@@ -44,7 +44,7 @@ fn @wider_mask(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @reread{{[( ]}}
 // CHECK: - jumpi {{v[0-9]+}}, bb2, bb1
 // CHECK: + jump bb1
-fn @reread(arg0: i256) -> memorybytes {
+fn @reread(arg0: i256) -> memptr {
   bb0:
     v1 = and arg0, 255
     v2 = checked_add u256, v1, 32

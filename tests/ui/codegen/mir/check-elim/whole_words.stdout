@@ -30,7 +30,7 @@
       revert 0, 0
   }
   
-  fn @reread(arg0: i256) -> memorybytes {
+  fn @reread(arg0: i256) -> memptr {
     bb0:
       v0 = and arg0, 255
       v1 = checked_add u256, v0, 32

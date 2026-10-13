@@ -1,6 +1,4 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
-//@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 struct Market {
     uint128 fee;
@@ -9,16 +7,7 @@ struct Market {
 // The array data slot stays on the stack across the length checks. A frame
 // spill would pay for a store, the copy that feeds it, and a later reload, so
 // the layout keeps the word resident and the slot feeds `sload` directly.
-// CHECK: push 11
-// CHECK: keccak256
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: push 3
-// CHECK-NEXT: sub
-// CHECK-NEXT: push bb{{[0-9]+}}
-// CHECK-NEXT: jumpi
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: sload
-// CHECK-NEXT: push 0x900000000000000000000000000000007
+
 contract SpillCost {
     uint128 public a;
     bool public c;

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/indvar-simplify/wrapping_bounds.sol:WrappingBounds ===
 @module WrappingBounds
-fn @fill(arg0: i256, arg1: i256) -> memorybytes [selector=0x3c29fc43, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @fill(arg0: i256, arg1: i256) -> memptr [selector=0x3c29fc43, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -44,7 +44,7 @@ fn @fill(arg0: i256, arg1: i256) -> memorybytes [selector=0x3c29fc43, pure, abi_
     jump bb1
 }
 
-fn @fillWords(arg0: i256, arg1: i256) -> memoryarray [selector=0xa534f1f0, pure, abi_params=[u256, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @fillWords(arg0: i256, arg1: i256) -> memptr [selector=0xa534f1f0, pure, abi_params=[u256, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -101,7 +101,7 @@ fn @fillWords(arg0: i256, arg1: i256) -> memoryarray [selector=0xa534f1f0, pure,
     jump bb1
 }
 
-fn @fillFrom(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0xeccb9246, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @fillFrom(arg0: i256, arg1: i256, arg2: i256) -> memptr [selector=0xeccb9246, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -149,7 +149,7 @@ fn @fillFrom(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0xeccb
 fn @sumAfterFirst(arg0: i256) -> i256 [selector=0xa01692fc, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 128
     v2 = lt 0, 4
     v3 = eq v2, false

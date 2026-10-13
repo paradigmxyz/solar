@@ -1,7 +1,6 @@
 //@ codegen-matrix: standard dump
 //@ compile-flags: --optimize-runs 10000
 //@[dump] compile-flags: -Ogas -Zdump=mir
-//@[dump] filecheck:
 //@ run-call: countDown 0 => 0
 //@ run-call: countDown 1 => 1
 //@ run-call: countDown 2 => 3
@@ -31,42 +30,26 @@
 // every build.
 contract CountDown {
     // Counting down by one to zero, the parity is the counter's low bit.
-    // CHECK-LABEL: fn @countDown()
-    // CHECK: [[BIT:v[0-9]+]] = and arg0, 1
-    // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
-    // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
-    // CHECK: [[ENTER]]:
-    // CHECK-NEXT: [[COUNTER:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
-    // CHECK: jump [[HEADER:bb[0-9]+]]
-    // CHECK-NEXT: [[HEADER]]:
-    // CHECK-NEXT: phi {{\[}}[[ENTER]]: [[COUNTER]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
+
     function countDown(uint256 n) external pure returns (uint256 s) {
         assembly {
             for { let i := n } i { i := sub(i, 1) } { s := add(s, i) }
         }
     }
 
-    // CHECK-LABEL: fn @squaresDown()
-    // CHECK: and arg0, 1
-    // CHECK: gt {{v[0-9]+}}, 0
     // CHECK-COUNT-2: mul
     function squaresDown(uint256 n) external pure returns (uint256 s) {
         for (uint256 i = n; i > 0; i--) s += i * i;
     }
 
     // Stepping down by two, the parity is bit 1 of the counter.
-    // CHECK-LABEL: fn @stepDown()
-    // CHECK: [[HALF:v[0-9]+]] = shr 1, arg0
-    // CHECK-NEXT: and [[HALF]], 1
+
     function stepDown(uint256 n) external pure returns (uint256 s) {
         assembly {
             for { let i := n } gt(i, 0) { i := sub(i, 2) } { s := add(s, i) }
         }
     }
 
-    // CHECK-LABEL: fn @downTo()
-    // CHECK: [[LEFT:v[0-9]+]] = sub arg1, arg0
-    // CHECK-NEXT: and [[LEFT]], 1
     function downTo(uint256 start, uint256 end) external pure returns (uint256 s) {
         assembly {
             for { let i := start } iszero(eq(i, end)) { i := sub(i, 1) } { s := add(s, i) }

@@ -38,13 +38,13 @@ fn @maybe() [selector=0x5bab7980, abi_wrapper, pure] {
     v7 = icall @decode_calldata_type
     jumpi arg1, bb1, bb2
   bb2:
-    mstore 128, 7
-    returndata 128, 32
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
-    v10 = ptrtoint memptr v7 to i256
-    v0 = mload v10
-    v12 = add v10, 32
-    revert v12, v0
+    v9 = ptrtoint memptr v7 to i256
+    v0 = mload v9
+    v11 = add v9, 32
+    revert v11, v0
   bb3:
     revert 0, 0
 }

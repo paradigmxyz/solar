@@ -594,36 +594,6 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
     terminal
 }
 
-/// Returns functions whose successful exits return a freshly allocated object.
-/// Internal-call results propagate freshness to thin wrappers. Reverting paths
-/// do not affect the proof.
-pub(super) fn fresh_object_returning_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let mut fresh = DenseBitSet::new_empty(module.functions.len());
-    loop {
-        let mut changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if fresh.contains(func_id) {
-                continue;
-            }
-            let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
-                Some(Terminator::Return { values }) => Some(values.as_slice()),
-                _ => None,
-            });
-            let Some(first) = returns.next() else { continue };
-            if return_values_are_fresh(func, first, &fresh)
-                && returns.all(|values| return_values_are_fresh(func, values, &fresh))
-            {
-                fresh.insert(func_id);
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    fresh
-}
-
 /// Finds functions whose every successful exit returns one real memory object.
 ///
 /// Only a zeroed aggregate slot produces the null default object, so a caller
@@ -705,7 +675,7 @@ fn non_null_memory_object(
                         && non_null_returns.contains(*function)
                 }
                 // A cast lowering marked as addressing its own allocation.
-                InstKind::IntToPtr(_) | InstKind::Bitcast(_) => func.inst(*inst).metadata.nonnull(),
+                InstKind::IntToPtr(_) => func.inst(*inst).metadata.nonnull(),
                 // A phi selects one of its incoming values. A phi reached again
                 // adds none, which also settles loop-carried cycles.
                 InstKind::Phi(incoming) => {
@@ -724,46 +694,6 @@ fn non_null_memory_object(
     }
     true
 }
-
-/// Proves that a successful exit returns one allocation owned by its caller.
-fn return_values_are_fresh(
-    func: &Function,
-    values: &[ValueId],
-    fresh: &DenseBitSet<FunctionId>,
-) -> bool {
-    let [value] = values else { return false };
-    returned_value_is_fresh(func, *value, fresh, 0)
-}
-
-/// A phi of fresh values is fresh to the caller: whichever allocation it
-/// selects was made by this call and is distinct from the caller's objects.
-fn returned_value_is_fresh(
-    func: &Function,
-    value: ValueId,
-    fresh: &DenseBitSet<FunctionId>,
-    depth: usize,
-) -> bool {
-    let Value::Inst(inst) = func.value(value) else { return false };
-    match &func.inst(*inst).kind {
-        InstKind::Alloc { .. } => true,
-        &InstKind::MLoad(address)
-            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
-        {
-            true
-        }
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh.contains(*function)
-        }
-        InstKind::Phi(incoming) if depth < MAX_FRESH_PHI_DEPTH => incoming
-            .iter()
-            .all(|&(_, value)| returned_value_is_fresh(func, value, fresh, depth + 1)),
-        _ => false,
-    }
-}
-
-/// Bounds the phi nesting a freshness proof follows; loops fail it.
-const MAX_FRESH_PHI_DEPTH: usize = 4;
 
 /// A terminal return can encode a real memory object around its own storage:
 /// the words it overwrites below and past the object are never read again.
@@ -854,8 +784,8 @@ fn encode_dynamic_return_in_place(
 /// one exact four-word allocation, with object headers at offsets zero and 64.
 fn adjacent_bounded_bytes_pair_base(func: &Function, args: &[ValueId]) -> Option<ValueId> {
     let [a, b] = args else { return None };
-    if func.value_ty(*a) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-        || func.value_ty(*b) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+    if func.value_ty(*a) != Some(MirType::MemPtr)
+        || func.value_ty(*b) != Some(MirType::MemPtr)
         || !has_bounded_object_length(func, *a, 32)
         || !has_bounded_object_length(func, *b, 32)
     {
@@ -885,7 +815,7 @@ fn same_pointer_base(func: &Function, value: ValueId, base: ValueId) -> bool {
     }
     let Value::Inst(cast) = func.value(value) else { return false };
     match func.inst(*cast).kind {
-        InstKind::PtrToInt(source, _) | InstKind::IntToPtr(source) | InstKind::Bitcast(source) => {
+        InstKind::PtrToInt(source, _) | InstKind::IntToPtr(source) => {
             same_pointer_base(func, source, base)
         }
         _ => false,
@@ -913,9 +843,7 @@ fn bounded_value_max(func: &Function, value: ValueId, depth: usize) -> Option<u6
     let Value::Inst(inst) = func.value(value) else { return None };
     match func.inst(*inst).kind {
         InstKind::Byte(..) => Some(u8::MAX.into()),
-        InstKind::Zext(source) | InstKind::Bitcast(source) => {
-            bounded_value_max(func, source, depth)
-        }
+        InstKind::Zext(source) => bounded_value_max(func, source, depth),
         InstKind::Trunc(_, bits) if (1..=64).contains(&bits) => Some(u64::MAX >> (64 - bits)),
         InstKind::And(a, b) => match (func.value_u64(a), func.value_u64(b)) {
             (Some(mask), None) => bounded_value_max(func, b, depth).map(|max| max.min(mask)),
@@ -958,11 +886,12 @@ fn clamped_max(
     bounded_value_max(func, limit, depth)
 }
 
-/// Strips the pointer-to-object cast emitted by `memory_object_from_ptr`.
+/// Finds the allocation or integer address represented by an opaque object pointer.
 fn object_pointer_source(func: &Function, object: ValueId) -> Option<ValueId> {
-    let Value::Inst(cast) = func.value(object) else { return None };
-    match func.inst(*cast).kind {
-        InstKind::Bitcast(pointer) | InstKind::IntToPtr(pointer) => Some(pointer),
+    let Value::Inst(inst) = func.value(object) else { return None };
+    match func.inst(*inst).kind {
+        InstKind::IntToPtr(pointer) => Some(pointer),
+        InstKind::Alloc { .. } => Some(object),
         _ => None,
     }
 }

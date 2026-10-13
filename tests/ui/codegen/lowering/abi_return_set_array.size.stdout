@@ -130,8 +130,8 @@ fn @core_array_set_union_address(arg0: memptr, arg1: memptr) -> memptr [may_retu
     mstore v80, 0
     ret v13
   bb11:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 
@@ -190,8 +190,8 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
   bb10:
     ret v15
   bb3:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0
@@ -314,8 +314,8 @@ fn @dirtied() [selector=0x0f372961, abi_wrapper, inline_assembly, pure] {
     v24 = add v20, 1
     jump bb6
   bb3:
-    mstore 0, 0x4e487b71
     mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0
@@ -424,12 +424,12 @@ fn @core_array_set_union_address(arg0: memptr, arg1: memptr) -> memptr [may_retu
     mstore v80, 0
     ret v13
   bb12:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb10:
-    mstore 0, 0x4e487b71
     mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
 }
 

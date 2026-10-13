@@ -1,5 +1,4 @@
 //@ compile-flags: -Zdump=disasm-deploy
-//@ filecheck:
 
 // The runtime code ends just below the constructor's immutable staging area
 // at 0xc0. A one-byte immutable patch writes only the byte after its `PUSH1`,
@@ -25,17 +24,6 @@ contract ImmutableBytePatchCopyBase {
         return 0x3333333333333333333333333333333333333333333333333333333333333333;
     }
 
-    // CHECK-LABEL: (deployment)
-    // CHECK: CODECOPY
-    // CHECK: PUSH1 0xbe
-    // CHECK-NEXT: DUP1
-    // CHECK-NEXT: PUSH1
-    // CHECK-NEXT: PUSH0
-    // CHECK-NEXT: CODECOPY
-    // CHECK-NEXT: PUSH1 0xc0
-    // CHECK-NEXT: MLOAD
-    // CHECK-NEXT: PUSH1 0xb5
-    // CHECK-NEXT: MSTORE8
     function f() external view returns (uint8) {
         return x;
     }

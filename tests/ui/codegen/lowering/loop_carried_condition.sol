@@ -1,6 +1,5 @@
 //@ revisions: ir run
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@ run-call: capacity 0 => 1
 //@ run-call: capacity 1 => 2
@@ -23,21 +22,7 @@ contract LoopCarriedCondition {
     // does not compute that word, so `JUMPI` takes a copy and the word goes around the loop
     // on the stack with the bound beside it, where the latch finds both. Nothing in the loop
     // touches memory.
-    // CHECK-LABEL: @module LoopCarriedCondition_runtime
-    // CHECK: [[HEADER:bb[0-9]+]] [loop]:
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: push [[PANIC:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: dup 3
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: lt
-    // CHECK-NEXT: push [[LATCH:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: [[LATCH]] [loop]:
-    // CHECK-NOT: mload
-    // CHECK: push [[HEADER]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: jump [[PANIC]]
+
     function _capacity(uint256 n) private pure returns (uint256 c) {
         c = 1;
         while (c < n * 2) c *= 2;

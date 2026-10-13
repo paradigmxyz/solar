@@ -473,19 +473,6 @@ fn lower_ecrecover(
     builder.mload(zero)
 }
 
-fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    // output = alloc bytes(64), zeroed
-    // memory_object_len output = 32
-    // pointer = memory_object_data output
-    let size = builder.imm(64);
-    let output =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(32);
-    builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(output, MemoryObjectKind::Bytes);
-    (pointer, length)
-}
-
 /// Calls a precompile with the gas left and returns whether the call succeeded.
 fn precompile_call(
     builder: &mut FunctionBuilder<'_>,

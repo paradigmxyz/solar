@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/scaled_cursor_strict.sol:ScaledCursor ===
 @module ScaledCursor
-fn @past(arg0: memorybytes) -> memorybytes [selector=0x281ed5d8, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @past(arg0: memptr) -> memptr [selector=0x281ed5d8, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_mul u256, v0, 3
@@ -47,7 +47,7 @@ fn @past(arg0: memorybytes) -> memorybytes [selector=0x281ed5d8, pure, abi_param
     jump bb1
 }
 
-fn @within(arg0: memorybytes) -> memorybytes [selector=0x47e5e065, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @within(arg0: memptr) -> memptr [selector=0x47e5e065, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_mul u256, v0, 3

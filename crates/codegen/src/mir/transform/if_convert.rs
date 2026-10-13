@@ -81,7 +81,11 @@ use crate::{
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 use std::cmp::Ordering;
 
 /// Function pass that converts small branch diamonds and triangles into selects.

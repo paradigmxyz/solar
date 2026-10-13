@@ -33,6 +33,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let entry = info.entry;
         self.register_stackified_functions(call_graph, info, &plans);
 
+        if self.gcx.sess.opts.optimization.is_size() {
+            let entries = plans.iter_enumerated().filter_map(|(id, plan)| {
+                (id != entry && !info.internal.contains(id) && plan.is_some()).then_some(id)
+            });
+            self.emit_shared_free_memory_start(module, call_graph, entries);
+        }
         self.record_runtime_entry_reachability(call_graph, entry);
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
