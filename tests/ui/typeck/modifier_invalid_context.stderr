@@ -1,0 +1,8 @@
+error[3112]: modifier can only be referenced in function headers
+   ╭▸ ROOT/tests/ui/typeck/modifier_invalid_context.sol:LL:CC
+   │
+LL │         mod  ;
+   ╰╴        ━━━
+
+error: aborting due to 1 previous error
+

@@ -32,8 +32,8 @@
 +   bb4:
 +     ret v11
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -148,8 +148,8 @@
 +     v39 = add v33, 1
 +     jump bb9
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -190,16 +190,16 @@
 +     v15 = lt v14, 3
 +     jumpi v15, bb10, bb9
 +   bb9:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 33 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb10:
 +     memory_object_store_word memorybytes, v1, v12, v14
 +     v16 = add v9, 1
 +     jump bb6
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -262,8 +262,8 @@
 +     v29 = add v24, 1
 +     jump bb10
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -323,8 +323,8 @@
 +     v31 = add v25, 1
 +     jump bb7
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

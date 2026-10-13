@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/evm-ir/final-stack-normalize/debug_info.evmir (before final-stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/final-stack-normalize/debug_info.evmir (after final-stack-normalize) ===
+  @module module
+  bb0:
+    push 0
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    swap 2 !metadata(span=10..11)
+    swap 4 !metadata(span=20..21)
+-   swap 1 !metadata(span=30..31)
+-   swap 3 !metadata(span=40..41)
+-   swap 1 !metadata(span=50..51)
++   exchange 1, 3 !metadata(spans=[30..31, 40..41, 50..51])
+    swap 5 !metadata(span=60..61)
+    stop
+  

@@ -98,7 +98,6 @@ pub(super) enum RecursiveStorageHelper {
 
 #[derive(Default)]
 pub(super) struct LoweringState {
-    pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
@@ -1155,26 +1154,6 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
 fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {
     gcx.dcx().err(message).span(span).emit();
     None
-}
-
-fn resolve_call_target(
-    gcx: Gcx<'_>,
-    contract: hir::ContractId,
-    callee: &hir::Expr<'_>,
-    function: hir::FunctionId,
-) -> hir::FunctionId {
-    if let ExprKind::Member(base, _) = callee.kind
-        && let Some(TyKind::Type(ty)) = gcx.type_of_expr(base.id).map(|ty| ty.kind)
-    {
-        return match ty.kind {
-            TyKind::Contract(_) => function,
-            TyKind::Super(defining_contract) => {
-                gcx.resolve_super_function(contract, defining_contract, function)
-            }
-            _ => gcx.resolve_virtual_function(contract, function),
-        };
-    }
-    gcx.resolve_virtual_function(contract, function)
 }
 
 /// Reinterprets a one-word value that inline assembly retyped from `source` to `target`.

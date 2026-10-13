@@ -14,15 +14,9 @@ bb0:
   shr
   push 4
   calldataload
-  push 224
-  mstore
   push 36
   calldataload
-  push 256
-  mstore
-  dup 1
-  push 288
-  mstore
+  swap 2
   dup 1
   push 0xaca5dfb5
   gt
@@ -34,26 +28,17 @@ bb0:
   push bb2
   jumpi
   pop
-  push 256
-  mload
-  push 224
-  mload
   dup 2
   dup 2
-  xor
-  dup 3
-  dup 3
-  or
-  jump bb12
-bb12:
-  swap 3
-  swap 1
-  swap 2
+  dup 2
+  dup 2
   and
   push 128
   mstore
+  xor
   push 160
   mstore
+  or
   push 192
   mstore
   push 96
@@ -68,17 +53,22 @@ bb2:
   sub
   push bb11
   jumpi
-  push 256
-  mload
-  push 224
-  mload
   dup 2
   dup 2
+  dup 2
+  dup 2
+  and
+  push 128
+  mstore
   or
-  dup 3
-  dup 3
+  push 160
+  mstore
   add
-  jump bb12
+  push 192
+  mstore
+  push 96
+  push 128
+  return
 bb4:
   dup 1
   push 0x966953d1
@@ -86,18 +76,13 @@ bb4:
   push bb5
   jumpi
   pop
-  push 256
-  mload
-  dup 1
-  dup 1
-  push 224
-  mload
-  swap 3
-  dup 4
+  dup 2
+  dup 2
+  dup 2
+  dup 2
   or
   push 128
   mstore
-  dup 3
   xor
   push 160
   mstore
@@ -112,14 +97,19 @@ bb5:
   sub
   push bb11
   jumpi
-  push 256
-  mload
-  push 224
-  mload
   dup 2
   dup 2
+  dup 2
+  dup 2
+  and
+  push 128
+  mstore
   or
-  dup 3
-  dup 3
+  push 160
+  mstore
   xor
-  jump bb12
+  push 192
+  mstore
+  push 96
+  push 128
+  return

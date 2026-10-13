@@ -1,0 +1,86 @@
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         c;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         S storage c;
+   ╰╴        ━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │             c = s;
+   ╰╴            ━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         } while(false);
+   ╰╴                ━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         c;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         S storage c;
+   ╰╴        ━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │                 c = s;
+   ╰╴                ━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         c;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         S storage c;
+   ╰╴        ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         c;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         S storage c;
+   ╰╴        ━━━━━━━━━━━
+
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         c;
+   │         ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │         S storage c;
+   ╰╴        ━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/local_storage_variables/dowhile_declaration_err.sol:LL:CC
+   │
+LL │             c = s;
+   ╰╴            ━━━━━
+
+error: aborting due to 5 previous errors; 4 warnings emitted
+

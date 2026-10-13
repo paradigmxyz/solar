@@ -1,0 +1,14 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:LL:CC
+   │
+LL │           assembly { mstore(128, 9) }
+   │ ┏━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃         return 9;
+   ╰╴┗━━━━━━━━━━━━━━━━┛
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:LL:CC
+   │
+LL │         assembly { mstore(128, 9) }
+   ╰╴                   ━━━━━━━━━━━━━━
+

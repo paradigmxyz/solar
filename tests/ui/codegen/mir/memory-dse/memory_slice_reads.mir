@@ -1,0 +1,52 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module MemorySliceReads
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_reads_slice_range{{[( ]}}
+// CHECK: -     mstore 0, 7
+// CHECK: {{^ .*}}memory_object_copy_from_slice
+// CHECK: {{^ .*}}mstore 0, 8
+fn @copy_reads_slice_range(arg0: memptr) {
+  bb0:
+    v0 = make_memory_slice 128, 32
+    mstore 0, 7
+    memory_object_copy_from_slice memorybytes, arg0, v0
+    mstore 0, 8
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_at_reads_slice_range{{[( ]}}
+// CHECK: -     mstore 0, 7
+// CHECK: {{^ .*}}memory_object_copy_from_slice_at
+// CHECK: {{^ .*}}mstore 0, 8
+fn @copy_at_reads_slice_range(arg0: memptr, arg1: i256) {
+  bb0:
+    v0 = make_memory_slice 128, 32
+    mstore 0, 7
+    memory_object_copy_from_slice_at memorybytes, arg0, arg1, v0
+    mstore 0, 8
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_keeps_read_store{{[( ]}}
+// CHECK: {{^ .*}}mstore 0, 7
+// CHECK: {{^ .*}}memory_object_copy_from_slice
+fn @copy_keeps_read_store(arg0: memptr) {
+  bb0:
+    v0 = make_memory_slice 0, 32
+    mstore 0, 7
+    memory_object_copy_from_slice memorybytes, arg0, v0
+    mstore 0, 8
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_unknown_slice{{[( ]}}
+// CHECK: {{^ .*}}mstore 0, 7
+// CHECK: {{^ .*}}memory_object_copy_from_slice
+fn @copy_unknown_slice(arg0: memptr, arg1: memoryslice) {
+  bb0:
+    mstore 0, 7
+    memory_object_copy_from_slice memorybytes, arg0, arg1
+    mstore 0, 8
+    stop
+}

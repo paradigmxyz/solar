@@ -33,21 +33,28 @@ bb5:
   mstore
   push 4
   calldataload
+  dup 1
   iszero
   jump bb19
 bb19:
-  push bb7
+  push bb11
   jumpi
-  push 4
-  calldataload
   push 128
   mstore
   push 32
   push 128
   return
-bb7 [cold]:
+bb8:
+  push 160
+  push 64
+  mstore
   push 4
   calldataload
+  push 100
+  dup 2
+  lt
+  jump bb19
+bb11 [cold]:
   dup 1
   iszero
   push bb17
@@ -61,10 +68,10 @@ bb7 [cold]:
   eq
   push bb15
   jumpi
-  push 5
   push 0x6f74686572
   push 216
   shl
+  push 5
   jump bb18
 bb18 [cold]:
   push 0x8c379a0
@@ -75,7 +82,6 @@ bb18 [cold]:
   push 32
   push 4
   mstore
-  swap 1
   push 36
   mstore
   push 68
@@ -83,15 +89,6 @@ bb18 [cold]:
   push 100
   push 0
   revert
-bb8:
-  push 160
-  push 64
-  mstore
-  push 100
-  push 4
-  calldataload
-  lt
-  jump bb19
 bb15 [cold]:
   push 0x74776f
   jump bb20
@@ -99,16 +96,13 @@ bb20 [cold]:
   push 232
   shl
   push 3
-  swap 1
   jump bb18
 bb16 [cold]:
-  pop
   push 0x6f6e65
   jump bb20
 bb17 [cold]:
-  pop
-  push 4
   push 0x7a65726f
   push 224
   shl
+  push 4
   jump bb18

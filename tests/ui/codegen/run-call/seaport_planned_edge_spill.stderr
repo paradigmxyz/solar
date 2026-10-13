@@ -1,3 +1,35 @@
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
+   │
+LL │     ) internal returns (bool) {
+   │                         ━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
+   │
+LL │     ) internal returns (Execution[] memory /* executions */) {
+   │                         ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
+   │
+LL │     ) external payable override returns (Execution[] memory /* executions */) {
+   │                                          ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
+   │
+LL │     ) external payable override returns (Execution[] memory /* executions */) {
+   │                                          ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
 warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
    │

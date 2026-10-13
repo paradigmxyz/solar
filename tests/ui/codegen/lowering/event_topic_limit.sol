@@ -1,14 +1,14 @@
 //@compile-flags: -Zdump=mir
 
 contract EventTopicLimit {
-    event Named( //~ ERROR: event cannot have more than 3 indexed parameters
+    event Named( //~ ERROR: more than 3 indexed arguments for event
         uint256 indexed a,
         uint256 indexed b,
         uint256 indexed c,
         uint256 indexed d
     );
 
-    event Anonymous( //~ ERROR: event cannot have more than 4 indexed parameters
+    event Anonymous( //~ ERROR: more than 4 indexed arguments for anonymous event
         uint256 indexed a,
         uint256 indexed b,
         uint256 indexed c,

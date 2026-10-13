@@ -173,15 +173,15 @@
       v1 = ne v0, 0
       jumpi v1, bb2, bb1
     bb1:
-      v2 = icall @constructor_helper, 23
+-     v2 = icall @constructor_helper, 23
 -     sstore 0, v2
 -     ret
-+     invalid
++     tail_call @constructor_helper, 23
     bb2:
-      v3 = icall @constructor_no_args
+-     v3 = icall @constructor_no_args
 -     sstore 0, v3
 -     ret
-+     invalid
++     tail_call @constructor_no_args
   }
   
   fn @constructor_no_args() -> i256 {
@@ -191,9 +191,9 @@
   
   fn @constructor_helper(arg0: i256) -> i256 {
     bb0:
-      v0 = icall @scalar_fail, arg0
+-     v0 = icall @scalar_fail, arg0
 -     ret v0
-+     invalid
++     tail_call @scalar_fail, arg0
   }
   
   fn @maybe_caller(arg0: i1) {

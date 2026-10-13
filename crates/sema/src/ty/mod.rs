@@ -8,7 +8,9 @@ use crate::{
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
+use solar_ast::{
+    DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
+};
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -252,6 +254,17 @@ impl Recursiveness {
     pub fn is_recursive(self) -> bool {
         !self.is_none()
     }
+}
+
+/// How an internal call resolves in the most-derived contract.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallDispatch {
+    /// The call runs the function it names.
+    Static,
+    /// The call runs the most-derived override.
+    Virtual,
+    /// A `super` call from the given contract runs the next override in the linearization.
+    Super(hir::ContractId),
 }
 
 /// Reference to the [global context](GlobalCtxt).
@@ -1360,7 +1373,7 @@ impl<'gcx> Gcx<'gcx> {
         let hir::ItemId::Function(function) = modifier.id else {
             return None;
         };
-        if modifier.span.lo() != modifier.name_span.lo() {
+        if modifier.qualified {
             return Some(function);
         }
         Some(self.resolve_virtual_function(contract, function))
@@ -1385,6 +1398,69 @@ impl<'gcx> Gcx<'gcx> {
         function: hir::FunctionId,
     ) -> hir::FunctionId {
         self.super_function_target((contract, defining_contract, function))
+    }
+
+    /// Resolves an internal call of `function` through `callee` in the context of the
+    /// most-derived contract.
+    pub fn resolve_call_target(
+        self,
+        contract: hir::ContractId,
+        callee: &hir::Expr<'_>,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        self.dispatch_call(contract, function, self.call_dispatch(callee))
+    }
+
+    /// Returns how an internal call through `callee` resolves.
+    ///
+    /// `super` calls resolve to the next base, calls qualified with a contract name are static,
+    /// and other calls are virtual.
+    pub fn call_dispatch(self, callee: &hir::Expr<'_>) -> CallDispatch {
+        if let hir::ExprKind::Member(base, _) = callee.kind
+            && let Some(TyKind::Type(ty)) = self.type_of_expr(base.id).map(|ty| ty.kind)
+        {
+            return match ty.kind {
+                TyKind::Contract(_) => CallDispatch::Static,
+                TyKind::Super(defining_contract) => CallDispatch::Super(defining_contract),
+                _ => CallDispatch::Virtual,
+            };
+        }
+        CallDispatch::Virtual
+    }
+
+    /// Resolves an internal call of `function` with `dispatch` in the context of the
+    /// most-derived contract.
+    pub fn dispatch_call(
+        self,
+        contract: hir::ContractId,
+        function: hir::FunctionId,
+        dispatch: CallDispatch,
+    ) -> hir::FunctionId {
+        match dispatch {
+            CallDispatch::Static => function,
+            CallDispatch::Virtual => self.resolve_virtual_function(contract, function),
+            CallDispatch::Super(defining_contract) => {
+                self.resolve_super_function(contract, defining_contract, function)
+            }
+        }
+    }
+
+    /// Returns the function an internal call through `callee` runs, resolved in the context of
+    /// the most-derived contract, or `None` if `callee` is not an internal function.
+    pub fn internal_call_target(
+        self,
+        contract: Option<hir::ContractId>,
+        callee: &hir::Expr<'_>,
+    ) -> Option<hir::FunctionId> {
+        let TyKind::Fn(ty) = self.type_of_expr(callee.id)?.kind else { return None };
+        if !ty.is_internal() {
+            return None;
+        }
+        let function = ty.function_id.or_else(|| self.resolved_function(callee))?;
+        Some(match contract {
+            Some(contract) => self.resolve_call_target(contract, callee, function),
+            None => function,
+        })
     }
 
     /// Returns all events included in the external interface of the given contract.
@@ -1569,9 +1645,14 @@ fn virtual_function_target(
 ) -> hir::FunctionId {
     let (contract, function) = key;
     debug_assert!(gcx.hir.function(function).virtual_);
+    let name = gcx.hir.function(function).name.map(|name| name.name);
     for &base in gcx.hir.contract(contract).linearized_bases {
         for candidate in gcx.hir.contract(base).functions() {
-            if candidate == function || gcx.function_overrides(candidate, function) {
+            // Compare names first; `function_overrides` is much slower.
+            if candidate == function
+                || (gcx.hir.function(candidate).name.map(|name| name.name) == name
+                    && gcx.function_overrides(candidate, function))
+            {
                 return candidate;
             }
         }
@@ -1682,27 +1763,10 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 result = Err(guar);
                 continue;
             }
-            if !ty.can_be_exported(gcx) {
-                // Library storage pointers cross the ABI as slots, so recursive
-                // structs and mappings are allowed. Their members must still have
-                // interface types: internal function pointers are never exported.
-                let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
-                if library_storage && !ty.has_internal_function(gcx) {
-                    continue;
-                }
-
+            let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+            if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
                 let kind = f.description();
-                // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
-                // recursive struct is rejected before its members are inspected for mappings.
-                let msg = if !library_storage && ty.is_recursive(gcx) {
-                    format!("recursive types cannot be parameter or return types of public {kind}s")
-                } else if !library_storage && ty.has_mapping(gcx) {
-                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.has_internal_function(gcx) {
-                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
-                } else {
-                    format!("this type cannot be parameter or return type of a public {kind}")
-                };
+                let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
                 let span = gcx.hir.variable(var_id).ty.span;
                 result = Err(gcx.dcx().emit_err(span, msg));
             }
@@ -2081,6 +2145,22 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .code(error_code!(1834))
             .span(var.span)
             .emit();
+    }
+
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    if var.is_constant()
+        && !ty.is_value_type()
+        && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
+        && !ty.references_error()
+    {
+        let guar = gcx
+            .dcx()
+            .err("only constants of value type and byte array type are implemented")
+            .code(error_code!(9259))
+            .span(var.span)
+            .emit();
+        return gcx.mk_ty_err(guar);
     }
 
     ty.with_loc_if_ref(gcx, ty_loc)

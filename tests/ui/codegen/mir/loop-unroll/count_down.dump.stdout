@@ -88,8 +88,8 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v39 = sub v16, 1
     jump bb1
   bb4:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb5:
     revert 0, 0

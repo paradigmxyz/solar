@@ -1,6 +1,6 @@
 //@ revisions: ir run
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@[ir] filecheck:
+//@[ir] filecheck: --implicit-check-not=mload
 //@[run] compile-flags: -Ogas
 //@ run-call: carry 43 => 60
 //@ run-call: carry 42 => 65
@@ -12,18 +12,6 @@
 contract CrossBlockStackJoin {
     // Both predecessors carry `kept` and the selected phi through the join without reloading.
     // CHECK-LABEL: @module CrossBlockStackJoin_runtime
-    // CHECK: div
-    // CHECK-NEXT: push 1
-    // CHECK-NOT: mstore
-    // CHECK: sub
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: iszero
-    // CHECK-NEXT: exchange 1, 2
-    // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
-    // CHECK-NEXT: [[JOIN]]:
-    // CHECK-NOT: mload
     // CHECK: return
     function carry(uint256 x) external pure returns (uint256 result) {
         uint256 kept;

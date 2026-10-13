@@ -1,4 +1,4 @@
-error: identifier `S2` already declared
+error[2333]: identifier `S2` already declared
    ╭▸ ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    │
 LL │ struct S2 {

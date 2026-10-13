@@ -9,15 +9,15 @@ contract ModifierStackedReturn {
     uint256 private x;
 
     modifier m() {
-        for (uint256 i; i < 10; ++i) {
+        for (uint256 i; i < 10; ++i) { //~ WARN: unreachable code
             _;
             ++x;
             return;
         }
     }
 
-    function f() public m m m returns (uint256) {
-        for (uint256 i; i < 10; ++i) {
+    function f() public m m m returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
+        for (uint256 i; i < 10; ++i) { //~ WARN: unreachable code
             ++x;
             return 42;
         }

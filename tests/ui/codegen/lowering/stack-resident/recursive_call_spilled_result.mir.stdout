@@ -1,0 +1,89 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/recursive_call_spilled_result.sol:C ===
+@module C
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = checked_sub u256, arg0, 1
+    v2 = icall @f, v1
+    v3 = checked_mul u256, v2, 3
+    v4 = checked_add u256, v3, 1
+    v5 = checked_mul u256, v2, 5
+    v6 = checked_add u256, v5, 2
+    v7 = checked_mul u256, v2, 7
+    v8 = checked_add u256, v7, 3
+    v9 = checked_mul u256, v2, 11
+    v10 = checked_add u256, v9, 4
+    v11 = checked_mul u256, v2, 13
+    v12 = checked_add u256, v11, 5
+    v13 = checked_mul u256, v2, 17
+    v14 = checked_add u256, v13, 6
+    v15 = checked_mul u256, v2, 19
+    v16 = checked_add u256, v15, 7
+    v17 = checked_mul u256, v2, 23
+    v18 = checked_add u256, v17, 8
+    v19 = checked_mul u256, v2, 29
+    v20 = checked_add u256, v19, 9
+    v21 = checked_mul u256, v2, 31
+    v22 = checked_add u256, v21, 10
+    v23 = checked_mul u256, v2, 37
+    v24 = checked_add u256, v23, 11
+    v25 = checked_mul u256, v2, 41
+    v26 = checked_add u256, v25, 12
+    v27 = checked_mul u256, v2, 43
+    v28 = checked_add u256, v27, 13
+    v29 = checked_mul u256, v2, 47
+    v30 = checked_add u256, v29, 14
+    v31 = checked_mul u256, v2, 53
+    v32 = checked_add u256, v31, 15
+    v33 = checked_mul u256, v2, 59
+    v34 = checked_add u256, v33, 16
+    v35 = checked_mul u256, v2, 61
+    v36 = checked_add u256, v35, 17
+    v37 = checked_add u256, v4, v6
+    v38 = checked_add u256, v37, v8
+    v39 = checked_add u256, v38, v10
+    v40 = checked_add u256, v39, v12
+    v41 = checked_add u256, v40, v14
+    v42 = checked_add u256, v41, v16
+    v43 = checked_add u256, v42, v18
+    v44 = checked_add u256, v43, v20
+    v45 = checked_add u256, v44, v22
+    v46 = checked_add u256, v45, v24
+    v47 = checked_add u256, v46, v26
+    v48 = checked_add u256, v47, v28
+    v49 = checked_add u256, v48, v30
+    v50 = checked_add u256, v49, v32
+    v51 = checked_add u256, v50, v34
+    v52 = checked_add u256, v51, v36
+    v53 = xor v36, v34
+    v54 = xor v53, v32
+    v55 = xor v54, v30
+    v56 = xor v55, v28
+    v57 = xor v56, v26
+    v58 = xor v57, v24
+    v59 = xor v58, v22
+    v60 = xor v59, v20
+    v61 = xor v60, v18
+    v62 = xor v61, v16
+    v63 = xor v62, v14
+    v64 = xor v63, v12
+    v65 = xor v64, v10
+    v66 = xor v65, v8
+    v67 = xor v66, v6
+    v68 = xor v67, v4
+    v69 = xor v52, v68
+    v70 = checked_rem u256, v69, 0xf4243
+    ret v70
+  bb1:
+    ret 1
+}
+
+fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @f, arg0
+    ret v0
+}

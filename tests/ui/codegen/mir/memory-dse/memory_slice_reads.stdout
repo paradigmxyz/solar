@@ -1,0 +1,38 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (after memory-dse) ===
+  @module MemorySliceReads
+  fn @copy_reads_slice_range(arg0: memptr) {
+    bb0:
+      v0 = make_memory_slice 128, 32
+-     mstore 0, 7
+      memory_object_copy_from_slice memorybytes, arg0, v0
+      mstore 0, 8
+      stop
+  }
+  
+  fn @copy_at_reads_slice_range(arg0: memptr, arg1: i256) {
+    bb0:
+      v0 = make_memory_slice 128, 32
+-     mstore 0, 7
+      memory_object_copy_from_slice_at memorybytes, arg0, arg1, v0
+      mstore 0, 8
+      stop
+  }
+  
+  fn @copy_keeps_read_store(arg0: memptr) {
+    bb0:
+      v0 = make_memory_slice 0, 32
+      mstore 0, 7
+      memory_object_copy_from_slice memorybytes, arg0, v0
+      mstore 0, 8
+      stop
+  }
+  
+  fn @copy_unknown_slice(arg0: memptr, arg1: memoryslice) {
+    bb0:
+      mstore 0, 7
+      memory_object_copy_from_slice memorybytes, arg0, arg1
+      mstore 0, 8
+      stop
+  }
+  

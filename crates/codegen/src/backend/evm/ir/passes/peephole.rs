@@ -363,9 +363,6 @@ enum Edit {
     },
     DropNonzeroTest,
     EqIszeroJumpi,
-    StackOp {
-        op: op::StackOp,
-    },
     StackOps {
         first: op::StackOp,
         second: op::StackOp,
@@ -469,10 +466,6 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::SUB);
                 instructions.remove(start + 1);
                 overwrite_raw(&mut instructions[start + 2], op::JUMPI);
-            }
-            Self::StackOp { op: stack_op } => {
-                instructions[start] = Instruction::stack_op(stack_op).with_debug_info_dropped();
-                instructions.truncate(start + 1);
             }
             Self::StackOps { first, second } => {
                 instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();

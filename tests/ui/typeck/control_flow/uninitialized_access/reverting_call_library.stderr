@@ -1,0 +1,8 @@
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/reverting_call_library.sol:LL:CC
+   │
+LL │     function test(bool _param) pure external returns(uint256)
+   │                                                      ━━━━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+

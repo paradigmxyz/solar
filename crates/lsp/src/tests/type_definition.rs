@@ -28,11 +28,9 @@ fn resolves_declared_and_referenced_types() {
             mapping(EnumType => First[]) $10values;
             mapping(uint256 => Second) public getterValues;
 
-            function $11pair() public pure returns (First memory, Second memory, First memory) {
-                revert();
-            }
-            function pick(uint256) public pure returns (NumberResult memory) { revert(); }
-            function pick(string memory) public pure returns (TextResult memory) { revert(); }
+            function $11pair() public pure returns (First memory a, Second memory b, First memory c) {}
+            function pick(uint256) public pure returns (NumberResult memory r) {}
+            function pick(string memory) public pure returns (TextResult memory r) {}
 
             function use(First memory $12input) external {
                 First memory $13local = $14input;

@@ -103,8 +103,8 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     mstore 64, v71
     returndata v70, v51
   bb3:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0
@@ -282,8 +282,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v88 = gt v87, 0
     jumpi v88, bb20, bb16
   bb16:
-    mstore 0, 0x4e487b71
     mstore 32, 50
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb20:
     v219 = add v241, 32
@@ -384,8 +384,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v57 = add v23, 1
     jump bb1
   bb8:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb10:
     revert 0, 0
@@ -393,8 +393,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -504,8 +504,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v62 = add v34, 1
     jump bb7
   bb4:
-    mstore 0, 0x4e487b71
     mstore 32, 65
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb1:
     revert 0, 0
@@ -541,8 +541,8 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [may_return_memory, pure] {
     mstore v28, v16
     ret v22
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

@@ -63,25 +63,22 @@ bb11:
   lt
   push bb10
   jumpi
-  push 36
-  calldataload
   push 4
   calldataload
+  push 36
+  calldataload
+  dup 1
+  dup 3
   xor
   jump bb34
 bb34:
-  push 1
-  dup 2
-  add
-  swap 1
+  dup 1
   push 128
   mstore
+  push 1
+  add
   push 160
   mstore
-  push 36
-  calldataload
-  push 4
-  calldataload
   eq
   push 192
   mstore
@@ -98,6 +95,8 @@ bb14:
   calldataload
   push 36
   calldataload
+  dup 2
+  dup 2
   sub
   jump bb34
 bb17:
@@ -106,10 +105,12 @@ bb17:
   lt
   push bb10
   jumpi
-  push 36
-  calldataload
   push 4
   calldataload
+  push 36
+  calldataload
+  dup 1
+  dup 3
   sub
   jump bb34
 bb20:
@@ -118,21 +119,15 @@ bb20:
   lt
   push bb10
   jumpi
+  push 4
+  calldataload
   push 36
   calldataload
-  push 4
-  jump bb36
-bb36:
-  calldataload
+  dup 1
+  dup 3
   sub
-  jump bb35
-bb35:
   push 128
   mstore
-  push 36
-  calldataload
-  push 4
-  calldataload
   eq
   push 160
   mstore
@@ -148,25 +143,47 @@ bb23:
   push 4
   calldataload
   push 36
-  jump bb36
+  calldataload
+  dup 2
+  dup 2
+  sub
+  push 128
+  mstore
+  eq
+  push 160
+  mstore
+  push 64
+  push 128
+  return
 bb26:
   push 68
   calldatasize
   lt
   push bb10
   jumpi
-  push 36
-  calldataload
   push 4
   calldataload
+  push 36
+  calldataload
+  dup 1
+  dup 3
   xor
-  jump bb35
+  push 128
+  mstore
+  eq
+  push 160
+  mstore
+  push 64
+  push 128
+  return
 bb29:
   push 36
   calldatasize
   lt
   push bb10
   jumpi
+  push 4
+  calldataload
   push 0
   jump bb31
 bb33 [loop]:
@@ -174,8 +191,7 @@ bb33 [loop]:
   add
   jump bb31
 bb31 [loop]:
-  push 4
-  calldataload
+  dup 2
   dup 2
   lt
   push bb33

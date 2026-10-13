@@ -9,7 +9,7 @@ pragma abicoder v2;
 contract C {
     function get() public view returns (uint[][] memory) {}
 
-    function test() public view returns (bool) {
+    function test() public view returns (bool) { //~[byzantium] WARN: unnamed return variable can remain unassigned
         uint[][] memory x = this.get();
         //~[homestead]^ ERROR: cannot use the dynamically encoded return value of an external call
     }

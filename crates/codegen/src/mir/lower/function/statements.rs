@@ -294,7 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
         }
-        if let ExprKind::Call(callee, ..) = &expr.kind
+        if let ExprKind::Call(callee, ..) = &expr.peel_parens().kind
             && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
         {
             return Some(false);
@@ -540,20 +540,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         let event = self.cx.gcx.hir.event(event_id);
-        let max_indexed = if event.anonymous { 4 } else { 3 };
         let indexed_count =
             event.parameters.iter().filter(|&&id| self.cx.gcx.hir.variable(id).indexed).count();
-        if indexed_count > max_indexed {
-            if self.cx.state.invalid_event_topics.insert(event_id) {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
-                    .span(event.span)
-                    .emit();
-            }
-            return Some(());
-        }
         if args.len() != event.parameters.len() {
             return self.cx.report_unsupported(args.span, "event argument list");
         }
