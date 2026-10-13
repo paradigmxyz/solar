@@ -22,7 +22,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Session, Span, Symbol,
     config::CompilerStage,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code,
     source_map::{FileName, SourceFile},
     sym,
@@ -513,15 +513,8 @@ impl<'gcx> Gcx<'gcx> {
         bits: u64,
         compatible_fixed_bytes: Option<TypeSize>,
     ) -> Option<Ty<'gcx>> {
-        let bits = bits.max(1);
-        if bits > TypeSize::MAX as u64 {
-            return None;
-        }
-        Some(self.mk_ty(TyKind::IntLiteral(
-            negative,
-            TypeSize::new_literal_bits(bits as u16),
-            compatible_fixed_bytes,
-        )))
+        let bits = u16::try_from(bits.max(1)).ok()?;
+        Some(self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes)))
     }
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
@@ -667,7 +660,7 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> Option<Vec<Vec<hir::Res>>> {
-        self.symbol_resolver.source_path_resolutions(segments, source, contract)
+        self.symbol_resolver.source_path_resolutions(&self.hir, segments, source, contract)
     }
 
     /// Iterates declarations in an existing contract scope.
@@ -1529,6 +1522,11 @@ impl<'gcx> Gcx<'gcx> {
         }
         self.alloc(dependencies)
     }
+
+    /// Builds the error for a literal at `span` that is too large for any integer type.
+    pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        self.dcx().err("literal is too large for any integer type").span(span)
+    }
 }
 
 fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
@@ -1944,29 +1942,14 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         }
 
         for &field_id in s.fields {
-            let field = gcx.hir.variable(field_id);
-            let mut check = |ty: &hir::Type<'_>, dynamic: bool| {
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
-                    match cd.run(other) {
-                        CycleDetectorResult::Continue => {}
-                        CycleDetectorResult::Cycle(_) if dynamic => {
-                            return CycleDetectorResult::Break(Either::Right(()));
-                        }
-                        r => return r,
-                    }
+            let ty = &gcx.hir.variable(field_id).ty;
+            let r = visit_stored_structs(ty, false, &mut |other, dynamic| match cd.run(other) {
+                CycleDetectorResult::Cycle(_) if dynamic => {
+                    ControlFlow::Break(CycleDetectorResult::Break(Either::Right(())))
                 }
-                CycleDetectorResult::Continue
-            };
-            let mut dynamic = false;
-            let mut ty = &field.ty;
-            while let hir::TypeKind::Array(array) = ty.kind {
-                if array.size.is_none() {
-                    dynamic = true;
-                }
-                ty = &array.element;
-            }
-            cdr_try!(check(ty, dynamic));
-            if let ControlFlow::Break(r) = field.ty.visit(&gcx.hir, &mut |ty| check(ty, true).to_controlflow()) {
+                r => r.to_controlflow(),
+            });
+            if let ControlFlow::Break(r) = r {
                 return r;
             }
         }
@@ -2001,6 +1984,16 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
+
+/// Reports a literal operand at `span` that is too large for any integer type, next to a typed
+/// operand.
+///
+/// The type checker and the constant evaluator both find these, so they share one report.
+pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
+    gcx.literal_too_large_err(span)
+        .note("the other operand is typed, so the literal must fit an integer type")
+        .emit()
 }
 
 } // cached!
@@ -2175,6 +2168,29 @@ fn is_value_ns(id: hir::ItemId) -> bool {
             | hir::ItemId::Error(_)
             | hir::ItemId::Event(_)
     )
+}
+
+/// Calls `f` on each struct stored in a value of type `ty`, with whether a dynamic array or a
+/// mapping sits between the value and the struct.
+///
+/// Function types do not store their parameter types, so a struct reached only through one is not
+/// recursive, as in solc's `DeclarationTypeChecker`.
+fn visit_stored_structs<T>(
+    ty: &hir::Type<'_>,
+    dynamic: bool,
+    f: &mut impl FnMut(hir::StructId, bool) -> ControlFlow<T>,
+) -> ControlFlow<T> {
+    match ty.kind {
+        hir::TypeKind::Custom(hir::ItemId::Struct(id)) => f(id, dynamic),
+        hir::TypeKind::Array(array) => {
+            visit_stored_structs(&array.element, dynamic || array.size.is_none(), f)
+        }
+        hir::TypeKind::Mapping(mapping) => {
+            visit_stored_structs(&mapping.key, true, f)?;
+            visit_stored_structs(&mapping.value, true, f)
+        }
+        _ => ControlFlow::Continue(()),
+    }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
