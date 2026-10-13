@@ -552,11 +552,18 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
-                if valid_delete(ty) {
+                // Deleting a storage pointer could mean resetting the pointer or clearing the
+                // storage it points to.
+                let storage_pointer =
+                    ty.is_ref_at(DataLocation::Storage) && self.is_storage_pointer_variable(expr);
+                if valid_delete(ty) && !storage_pointer {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    let mut err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    if storage_pointer {
+                        err = err.note("storage pointers cannot be deleted");
+                    }
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
