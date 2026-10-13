@@ -433,7 +433,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 && self.gcx.try_eval_const(rhs_e).is_ok()
                                 && !self.has_fractional_div(rhs_e) =>
                         {
-                            let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op, false);
+                            let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op);
                             return self.gcx.mk_ty_err(diag.note(err.kind.msg()).emit());
                         }
                         Err(_) => {}
@@ -1169,7 +1169,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        self.gcx.mk_ty_err(self.binop_err(lhs_e, lhs, rhs_e, rhs, op, assign).emit())
+        self.gcx.mk_ty_err(self.binop_err(lhs_e, lhs, rhs_e, rhs, op).emit())
     }
 
     /// Builds the error for a builtin binary operator that does not apply to its operands.
@@ -1180,17 +1180,14 @@ impl<'gcx> TypeChecker<'gcx> {
         rhs_e: &'gcx hir::Expr<'gcx>,
         rhs: Ty<'gcx>,
         op: hir::BinOp,
-        assign: bool,
     ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
-        let code = if assign { error_code!(7366) } else { error_code!(2271) };
         self.dcx()
             .err(msg)
-            .code(code)
             .span(op.span)
             .span_label(lhs_e.span, lhs.display(self.gcx).to_string())
             .span_label(rhs_e.span, rhs.display(self.gcx).to_string())
