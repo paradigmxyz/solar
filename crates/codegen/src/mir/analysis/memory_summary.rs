@@ -715,7 +715,8 @@ fn local_summary(
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
-                InstKind::SliceLoadWord { slice, offset } => {
+                // An element load reads a word of its array and captures nothing.
+                InstKind::SliceLoadWord { slice, offset } if !func.is_word_offset(*offset) => {
                     capture_sources(&mut summary, func, sources, *slice);
                     capture_sources(&mut summary, func, sources, *offset);
                 }

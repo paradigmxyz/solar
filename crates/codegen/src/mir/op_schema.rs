@@ -440,7 +440,8 @@ impl Operands for LogTopics {
 
     #[inline]
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
-        self.values[..usize::from(self.len)].iter_mut().for_each(f);
+        let len = self.len();
+        self.values[..len].iter_mut().for_each(f);
     }
 
     #[inline]

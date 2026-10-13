@@ -201,7 +201,9 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if matches!(inst.kind, InstKind::SliceStoreWord { .. }) {
+                if let InstKind::SliceStoreWord { offset, .. } = inst.kind
+                    && func.word_index(offset).is_some()
+                {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
                 inst.visit_operands(|operand| {

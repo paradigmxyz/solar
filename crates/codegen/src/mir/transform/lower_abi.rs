@@ -1184,12 +1184,11 @@ impl LowerAbiCx {
             values.push(result);
             let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
             for index in 1..return_types.len() {
-                let index_value = builder.imm(index as u64);
                 let value = match return_types[index] {
-                    MirType::MemPtr => builder.memory_load_element_as(
+                    MirType::MemPtr => builder.memory_load_field_as(
                         base,
                         MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
-                        index_value,
+                        index as u64,
                         MirType::MemPtr,
                     ),
                     _ => {
@@ -3607,12 +3606,6 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
     value
 }
 
-/// The word a constant, word-aligned byte offset addresses.
-fn word_slot(func: &Function, offset: ValueId) -> Option<u64> {
-    let offset = func.value_u64(offset)?;
-    offset.is_multiple_of(EvmMemoryLayout::WORD_SIZE).then(|| offset / EvmMemoryLayout::WORD_SIZE)
-}
-
 /// The alias root of the fixed array or struct a view covers.
 fn fixed_view_root(func: &Function, view: ValueId) -> Option<ValueId> {
     func.fixed_view_object(view).map(|object| pointer_alias_root(func, object))
@@ -3950,7 +3943,7 @@ fn is_canonical_return_object(
             InstKind::SliceStoreWord { slice, offset, value }
                 if fixed_view_root(func, *slice) == Some(object) =>
             {
-                let Some(field) = word_slot(func, *offset) else { return false };
+                let Some(field) = func.word_slot(*offset) else { return false };
                 if !initializers.contains(&inst) || stores.insert(field, *value).is_some() {
                     return false;
                 }
@@ -4016,7 +4009,7 @@ fn is_canonical_return_array(
         if let InstKind::SliceStoreWord { slice, offset, value } = func.inst(inst).kind
             && fixed_view_root(func, slice) == Some(object)
         {
-            let Some(index) = word_slot(func, offset) else { return false };
+            let Some(index) = func.word_slot(offset) else { return false };
             if !initializers.contains(&inst) || stores.insert(index, value).is_some() {
                 return false;
             }

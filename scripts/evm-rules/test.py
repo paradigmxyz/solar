@@ -665,14 +665,14 @@ class CallEffectTests(unittest.TestCase):
                 for name in ("Op.Call", "Op.StaticCall", "Op.DelegateCall", "Op.Log")
             )
         ]
-        self.assertEqual(len(rules), 13)
+        self.assertEqual(len(rules), 9)
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
             result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
         for source in (
-            "(rule (rewrite (Op.Log0 offset size)) (Op.Log0 (imm (u256 0)) size))",
+            "(rule (rewrite (Op.Log offset size topics)) (Op.Log (imm (u256 0)) size topics))",
             "(rule (rewrite (Op.StaticCall gas addr offset size out count)) (Op.StaticCall gas addr (imm (u256 0)) size out count))",
         ):
             form, line = forms(source)[0]

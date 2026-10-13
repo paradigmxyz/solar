@@ -69,6 +69,10 @@ def opcode_bindings(source):
         _, (_, pattern), replacement = form
         name, *operands = pattern
         shape, opcode = replacement
+        # An opcode chosen by an extern constructor, such as LOG0 + topic count, is not a
+        # direct binding.
+        if not isinstance(opcode, str):
+            continue
         if name in bindings:
             raise Unsupported(f"multiple instruction-selection rules for {name}")
         bindings[name] = (
@@ -124,11 +128,12 @@ CALL_OPERANDS = {
 
 EFFECT_OPERANDS = {
     **CALL_OPERANDS,
-    **{
-        f"log{count}": ("offset", "size", *(f"topic{i + 1}" for i in range(count)))
-        for count in range(5)
-    },
+    # The topics are one opaque operand that a rewrite must pass through unchanged.
+    "log": ("offset", "size", "topics"),
 }
+
+# Effect operands whose ISLE type is not `Value`.
+EFFECT_OPERAND_TYPES = {"topics": "LogTopics"}
 
 
 class Context:
@@ -207,7 +212,10 @@ class Context:
                 for variants in declarations
                 for variant in variants
             }
-            expected = tuple((field, "Value") for field in EFFECT_OPERANDS[opcode])
+            expected = tuple(
+                (field, EFFECT_OPERAND_TYPES.get(field, "Value"))
+                for field in EFFECT_OPERANDS[opcode]
+            )
             if shapes.get(name) != expected or len(args) != len(expected):
                 raise Unsupported(f"unmodeled or changed call operand schema: {name}")
             return Expr(opcode, tuple(args))

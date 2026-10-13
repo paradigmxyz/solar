@@ -957,8 +957,9 @@ impl<'a> FunctionBuilder<'a> {
         field: u64,
         ty: MirType,
     ) -> ValueId {
-        let index = self.imm(field);
-        self.memory_load_element_as(object, layout, index, ty)
+        let slice = self.memory_object_view(object, layout);
+        let offset = self.imm(field.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        self.slice_load_word_as(slice, offset, ty)
     }
 
     /// Stores a direct struct field.
@@ -969,8 +970,10 @@ impl<'a> FunctionBuilder<'a> {
         field: u64,
         value: ValueId,
     ) {
-        let index = self.imm(field);
-        self.memory_store_element(object, layout, index, value);
+        let slice = self.memory_object_view(object, layout);
+        let offset = self.imm(field.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        // slice_store_word slice, offset, value
+        self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
     }
 
     /// Loads an array element.
@@ -991,9 +994,14 @@ impl<'a> FunctionBuilder<'a> {
         index: ValueId,
         ty: MirType,
     ) -> ValueId {
-        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
         let slice = self.memory_object_view(object, layout);
         let offset = self.word_offset(index);
+        self.slice_load_word_as(slice, offset, ty)
+    }
+
+    /// Loads the word at a byte offset as a `memptr` when `ty` is one, and as a word otherwise.
+    fn slice_load_word_as(&mut self, slice: ValueId, offset: ValueId, ty: MirType) -> ValueId {
+        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
         // result = slice_load_word slice, offset
         self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(result))
     }
@@ -1018,18 +1026,13 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
     }
 
-    /// Returns the byte offset of word `index`: an immediate for a constant index, else
-    /// `shl 5, index`.
+    /// Returns the byte offset of word `index`, folded like [`Self::cast`] for an immediate.
     fn word_offset(&mut self, index: ValueId) -> ValueId {
-        if let Some(offset) = self
-            .func
-            .value_u64(index)
-            .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
-        {
-            return self.imm(offset);
+        if let Some(index) = self.func.value_u64(index) {
+            return self.imm(index.saturating_mul(EvmMemoryLayout::WORD_SIZE));
         }
         // offset = shl 5, index
-        let shift = self.imm(5);
+        let shift = self.imm(u64::from(EvmMemoryLayout::WORD_SIZE.trailing_zeros()));
         self.shl(shift, index)
     }
 

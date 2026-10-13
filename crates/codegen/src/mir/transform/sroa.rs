@@ -170,10 +170,7 @@ impl SroaCx {
             if !views.contains(&slice) {
                 continue;
             }
-            let offset = func.value_u64(offset)?;
-            let slot = Some(offset / EvmMemoryLayout::WORD_SIZE).filter(|&slot| {
-                offset.is_multiple_of(EvmMemoryLayout::WORD_SIZE) && slot < words
-            })?;
+            let slot = func.word_slot(offset).filter(|&slot| slot < words)?;
             slot_of.insert(inst_id, slot);
         }
 

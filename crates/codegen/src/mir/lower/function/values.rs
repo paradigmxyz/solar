@@ -627,11 +627,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if types::TypeLowerer::mir_type(ty) != MirType::MemPtr {
             return self.load_static_abi_return_value(base, index, returns);
         }
-        let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
-        self.builder.memory_load_element_as(
+        self.builder.memory_load_field_as(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
-            index,
+            u64::try_from(index).unwrap_or(u64::MAX),
             MirType::MemPtr,
         )
     }

@@ -61,8 +61,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.materialize_memory_argument(element_ty, value, element.span)?
             };
             let value = self.encode_memory_scalar(element_ty, value);
-            let index = self.builder.imm(index as u64);
-            self.builder.memory_store_element(view, layout, index, value);
+            self.builder.memory_store_field(view, layout, index as u64, value);
         }
         Some(object)
     }

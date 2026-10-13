@@ -237,17 +237,43 @@ impl Function {
     pub(crate) fn word_index(&self, offset: ValueId) -> Option<ValueId> {
         let Value::Inst(inst) = self.value(offset) else { return None };
         match self.inst(*inst).kind {
-            InstKind::Shl(shift, index) if self.value_u64(shift) == Some(5) => Some(index),
+            InstKind::Shl(shift, index)
+                if self.value_u64(shift)
+                    == Some(u64::from(
+                        super::memory::EvmMemoryLayout::WORD_SIZE.trailing_zeros(),
+                    )) =>
+            {
+                Some(index)
+            }
             _ => None,
         }
     }
 
-    /// Whether a byte offset addresses a whole element: a constant multiple of the word size,
-    /// or `shl 5, index`.
+    /// Returns the word a constant, word-aligned byte offset addresses.
+    #[must_use]
+    pub(crate) fn word_slot(&self, offset: ValueId) -> Option<u64> {
+        let offset = self.value_u64(offset)?;
+        let word = super::memory::EvmMemoryLayout::WORD_SIZE;
+        offset.is_multiple_of(word).then_some(offset / word)
+    }
+
+    /// Whether a byte offset is a whole number of words: a constant multiple of the word size,
+    /// a left shift by at least five, or a product with such a constant.
     #[must_use]
     pub(crate) fn is_word_offset(&self, offset: ValueId) -> bool {
-        self.value_u64(offset).is_some_and(|offset| offset.is_multiple_of(32))
-            || self.word_index(offset).is_some()
+        let word = super::memory::EvmMemoryLayout::WORD_SIZE;
+        let aligned = |value| self.value_u64(value).is_some_and(|value| value.is_multiple_of(word));
+        if aligned(offset) {
+            return true;
+        }
+        let Value::Inst(inst) = self.value(offset) else { return false };
+        match self.inst(*inst).kind {
+            InstKind::Shl(shift, _) => {
+                self.value_u64(shift).is_some_and(|shift| shift >= u64::from(word.trailing_zeros()))
+            }
+            InstKind::Mul(lhs, rhs) => aligned(lhs) || aligned(rhs),
+            _ => false,
+        }
     }
 
     /// Whether `kind` reads the length of a `memory_slice` view.

@@ -1076,12 +1076,11 @@ impl AliasAnalysis {
                 }
             }
             // Calldata slices read no memory.
-            InstKind::SliceLoadByte { slice, index }
-            | InstKind::SliceLoadWord { slice, offset: index }
+            InstKind::SliceLoadByte { slice, .. } | InstKind::SliceLoadWord { slice, .. }
                 if func.value_slice_location(slice) == Some(SliceLocation::Memory) =>
             {
                 let offset = match kind {
-                    InstKind::SliceLoadWord { .. } => func.value_u64(index),
+                    InstKind::SliceLoadWord { offset, .. } => func.value_u64(*offset),
                     _ => None,
                 };
                 if let Some(location) = self.slice_data_location(func, inst_id, slice, offset) {
