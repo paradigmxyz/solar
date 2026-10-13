@@ -333,7 +333,7 @@ impl<'a> FileResolver<'a> {
         let loader = self.source_map().file_loader();
         // Ask for a normalized name, so that the result doesn't depend on which spelling of it is
         // read first. Without a base path or include paths, keep a `file://` prefix, like libsolc.
-        // Otherwise strip it and ask for the name in each root, like solc's file reader.
+        // Otherwise strip it, like solc's file reader.
         let unit = if self.roots().all(|root| root.as_os_str().is_empty()) {
             unit
         } else {

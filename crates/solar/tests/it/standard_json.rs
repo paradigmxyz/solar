@@ -161,8 +161,8 @@ fn callback_imports_with_base_path() {
     assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
 }
 
-/// Without a base path or include paths, the read callback gets a `file://` import with the prefix,
-/// like libsolc. Otherwise each root drops it, like solc's file reader. The source keeps its name.
+/// The read callback gets a `file://` import with the prefix when there is no base path or include
+/// path, like libsolc, and without it otherwise, like solc's file reader. The name keeps it.
 #[test]
 fn callback_imports_file_urls() {
     struct Callback(&'static str);
