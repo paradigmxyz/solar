@@ -2037,7 +2037,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 }
             }
             ast::TypeKind::Mapping(mapping) => {
-                self.check_mapping_names(ty.span, mapping);
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
                     key_name: mapping.key_name,
@@ -2055,32 +2054,6 @@ impl<'gcx> ResolveContext<'gcx> {
             },
         };
         hir::Type { kind, span: ty.span }
-    }
-
-    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
-    /// innermost mapping reuses as its value name.
-    ///
-    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
-    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
-        let Some(key_name) = mapping.key_name else { return };
-        let check = |name: Option<Ident>| {
-            if let Some(name) = name
-                && name == key_name
-            {
-                self.dcx()
-                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
-                    .code(error_code!(1809))
-                    .span(span)
-                    .span_note(name.span, "the name is reused here")
-                    .emit();
-            }
-        };
-        let mut inner = mapping;
-        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
-            check(child.key_name);
-            inner = child;
-        }
-        check(inner.value_name);
     }
 
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
