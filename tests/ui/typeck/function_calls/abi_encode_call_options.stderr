@@ -1,0 +1,20 @@
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_options.sol:LL:CC
+   │
+LL │         abi.encode(this.f{value: 2});
+   ╰╴                   ━━━━━━━━━━━━━━━━ found `function () payable external with call options`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_options.sol:LL:CC
+   │
+LL │         abi.encode(this.f{gas: 2});
+   ╰╴                   ━━━━━━━━━━━━━━ found `function () payable external with call options`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_options.sol:LL:CC
+   │
+LL │         abi.encode(this.f{value: 2, gas: 1});
+   ╰╴                   ━━━━━━━━━━━━━━━━━━━━━━━━ found `function () payable external with call options`
+
+error: aborting due to 3 previous errors
+

@@ -9,7 +9,8 @@
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
 //!    when there are internal callers, and
 //! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
-//!    arguments remain lazy ABI head words; dynamic calldata arguments remain logical slices until
+//!    arguments remain lazy ABI head words (up to `MAX_LAZY_ARG_WORDS`), static calldata aggregates
+//!    stay calldata offsets, and dynamic calldata arguments remain logical slices until
 //!    `lower-slices` projects their pointer and length. Value-carrying returns are ABI-encoded
 //!    according to the function's return layout and terminate with `returndata`.
 //!
@@ -64,6 +65,12 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::{Ident, Span, Symbol, sym};
+
+/// Head words that scalar parameters address as lazy arguments.
+///
+/// Lazy arguments index a dense per-word table, so a scalar behind a huge static array loads
+/// its word explicitly instead of growing the table with the array.
+const MAX_LAZY_ARG_WORDS: u64 = 1 << 16;
 
 /// Materializes explicit ABI entries and decoding.
 pub(crate) struct LowerAbi;
@@ -1282,15 +1289,19 @@ impl LowerAbiCx {
             let mut head_offset = 0_u64;
             let mut logical_physical = Vec::with_capacity(layout.types.len());
             for ty in &layout.types {
+                let word = head_offset / 32;
                 logical_physical.push(
-                    ty.is_scalar_word()
-                        .then(|| crate::mir::ArgIdx::new((head_offset / 32) as usize)),
+                    (ty.is_scalar_word() && word < MAX_LAZY_ARG_WORDS)
+                        .then(|| crate::mir::ArgIdx::new(word as usize)),
                 );
                 head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
             }
+            // The table also keeps the original arguments, whose stale `Value::Arg`s
+            // stay typed.
+            let num_params =
+                ((head_offset / 32).min(MAX_LAZY_ARG_WORDS) as usize).max(arg_types.len());
             // ABI words can contain sign bits above the native integer width.
-            let mut params =
-                (0..head_offset / 32).map(|_| MirType::I256).collect::<IndexVec<_, _>>();
+            let mut params = (0..num_params).map(|_| MirType::I256).collect::<IndexVec<_, _>>();
             for (logical, physical) in logical_physical.iter().enumerate() {
                 if let Some(physical) = *physical
                     && let Some(&ty) = arg_types.get(logical)
@@ -1312,20 +1323,6 @@ impl LowerAbiCx {
                 .into_iter()
                 .map(|index| index.map(|index| func.alloc_arg(index)))
                 .collect::<Vec<_>>();
-            for (logical, value) in logical_values.iter().enumerate() {
-                if let Some(value) = value {
-                    if abi_params.and_then(|layout| layout.types.get(logical)).is_some_and(|ty| {
-                        matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                    }) {
-                        continue;
-                    }
-                    for &use_value in
-                        arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
-                    {
-                        replacements.insert(use_value, *value);
-                    }
-                }
-            }
         }
         let guard = {
             let mut builder = self.builder(func);
@@ -1365,7 +1362,12 @@ impl LowerAbiCx {
                 head_offset += abi_type.map_or(32, |ty| {
                     ty.checked_head_size().expect("ABI head size exceeds u64 range")
                 });
-                let Some(validator) = validator else { continue };
+                // A scalar without a lazy argument takes the word it is validated against.
+                let eager = abi_type.is_some_and(AbiParamType::is_scalar_word)
+                    && logical_values.get(index).is_some_and(Option::is_none);
+                if validator.is_none() && !eager {
+                    continue;
+                }
                 builder.switch_to_block(current);
                 // `Value::Arg` values carry the canonicality invariant that this
                 // guard establishes. Read the raw input word so an optimizer
@@ -1376,6 +1378,10 @@ impl LowerAbiCx {
                     builder.imm(4 + head_offset - 32)
                 };
                 let word = Self::load_input_word(&mut builder, offset, constructor);
+                if eager {
+                    logical_values[index] = Some(word);
+                }
+                let Some(validator) = validator else { continue };
                 let valid = validator.condition(&mut builder, word, self.has_bitwise_shifting);
                 let next = builder.create_block();
                 builder.branch(valid, next, validator_revert);
@@ -1515,30 +1521,27 @@ impl LowerAbiCx {
             builder.switch_to_block(current);
             for (logical, value) in logical_values.iter_mut().enumerate() {
                 if let Some(raw) = *value
-                    && let Some(&ty) = arg_types.get(logical)
-                    && matches!(ty, MirType::Int(bits) if bits.get() < 256)
+                    && let Some(abi_ty) = abi_params.and_then(|layout| layout.types.get(logical))
+                    && abi_ty.is_scalar_word()
                 {
-                    // value = cast raw to the declared scalar type
-                    let normalized = builder.cast(raw, ty);
-                    *value = Some(normalized);
+                    let mut replacement = raw;
+                    if let Some(&ty) = arg_types.get(logical)
+                        && matches!(ty, MirType::Int(bits) if bits.get() < 256)
+                    {
+                        // value = cast raw to the declared scalar type
+                        replacement = builder.cast(raw, ty);
+                        *value = Some(replacement);
+                    }
+                    if matches!(abi_ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) {
+                        // value = shr 64, value
+                        let shift = builder.imm(64);
+                        replacement = builder.shr(shift, replacement);
+                    }
                     for &use_value in
                         arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
                     {
-                        replacements.insert(use_value, normalized);
+                        replacements.insert(use_value, replacement);
                     }
-                }
-                if !abi_params.and_then(|layout| layout.types.get(logical)).is_some_and(|ty| {
-                    matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                }) {
-                    continue;
-                }
-                let Some(value) = value else { continue };
-                let shift = builder.imm(64);
-                let value = builder.shr(shift, *value);
-                for &use_value in
-                    arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
-                {
-                    replacements.insert(use_value, value);
                 }
             }
             builder.jump(old_entry);
@@ -2519,9 +2522,9 @@ impl LowerAbiCx {
     /// Forms the absolute address of a dynamically encoded value from its head `offset` and
     /// checks that its first word lies inside the input.
     ///
-    /// In debug mode the check is split like solc's: an unencodable offset reports
-    /// `offset_reason`, and the target range check reports the message of the value's own
-    /// decoder. `to_calldata` selects the message for a struct that stays in calldata.
+    /// In debug mode the check is split: an unencodable offset reports `offset_reason`, and the
+    /// target range check reports the message of the value's own decoder. `to_calldata` selects the
+    /// message for a struct that stays in calldata.
     #[allow(clippy::too_many_arguments)]
     fn guard_input_offset(
         builder: &mut FunctionBuilder<'_>,

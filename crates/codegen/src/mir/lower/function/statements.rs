@@ -52,7 +52,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Some(value) = value.as_u256()
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                    let value = self.lower_const_integer(expr_ty, value);
+                    let value = self.builder.imm(value);
                     self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
@@ -88,9 +88,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if let Some(access) = access {
                             if !ty.is_ref_at(DataLocation::Storage) {
                                 // A storage-reference return declared into a
-                                // non-storage local copies the referenced
-                                // value, matching solc; the reference itself
-                                // only binds to a storage variable.
+                                // non-storage local copies the referenced value;
+                                // the reference itself only binds to a storage
+                                // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, value, span)?;
                                 self.values.insert(*id, value);
@@ -287,14 +287,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. Like solc, a reason that is not a compile-time
-    /// constant string is still evaluated so its side effects and failures are kept; only the
-    /// payload is dropped.
+    /// Custom error payloads are never stripped. A reason that is not a compile-time constant
+    /// string is still evaluated so its side effects and failures are kept; only the payload is
+    /// dropped.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
         }
-        if let ExprKind::Call(callee, ..) = &expr.kind
+        if let ExprKind::Call(callee, ..) = &expr.peel_parens().kind
             && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
         {
             return Some(false);
@@ -540,20 +540,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         let event = self.cx.gcx.hir.event(event_id);
-        let max_indexed = if event.anonymous { 4 } else { 3 };
         let indexed_count =
             event.parameters.iter().filter(|&&id| self.cx.gcx.hir.variable(id).indexed).count();
-        if indexed_count > max_indexed {
-            if self.cx.state.invalid_event_topics.insert(event_id) {
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!("event cannot have more than {max_indexed} indexed parameters"))
-                    .span(event.span)
-                    .emit();
-            }
-            return Some(());
-        }
         if args.len() != event.parameters.len() {
             return self.cx.report_unsupported(args.span, "event argument list");
         }

@@ -1,5 +1,5 @@
 use super::{ExpectedToken, SeqSep};
-use crate::{PResult, Parser};
+use crate::{PErr, PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
@@ -264,8 +264,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                         let msg = visibility_error(visibility, flags.visibilities());
                         self.dcx().emit_err(span, msg);
-                        // Set to the first valid visibility, if any.
-                        v = flags.visibilities().into_iter().flatten().next();
+                        // Recover with the only valid visibility, if there is exactly one.
+                        v = flags.intersection(FunctionFlags::VISIBILITY).into_visibility();
                     }
                     header.visibility = v.map(|v| Spanned { span, data: v });
                 }
@@ -451,7 +451,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         {
             // `pragma <ident> <req>;`
             let ident = self.parse_ident_any()?;
-            let req = self.parse_semver_req()?;
+            let req = self.parse_semver_req().unwrap_or_else(|err| {
+                // Report one error per pragma and skip the rest of it.
+                err.emit();
+                while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
+                    self.bump();
+                }
+                SemverReq { dis: Default::default() }
+            });
             PragmaTokens::Version(ident, req)
         } else if (is_ident_or_strlit(self.token) && self.look_ahead(1).kind == TokenKind::Semi)
             || (is_ident_or_strlit(self.token)
@@ -532,7 +539,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 "not a range: last={:?}",
                 dis.last()
             );
-            return Err(self.dcx().err("ranges can only be combined using the || operator"));
+            let msg = "ranges can only be combined using the || operator";
+            return Err(self.dcx().err(msg).span(self.token.span));
         }
         Ok(self.alloc_vec(dis))
     }
@@ -593,7 +601,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn parse_semver_version(&mut self) -> PResult<'sess, SemverVersion> {
-        Ok(SemverVersionParser::new(self).parse())
+        SemverVersionParser::new(self).parse()
     }
 
     /// Parses an import directive.
@@ -1048,19 +1056,19 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
         Self { p, bumps: 0, pos_inside: 0 }
     }
 
-    fn emit_err(&self, msg: impl Into<DiagMsg>) {
-        self.p.dcx().emit_err(self.current_span(), msg);
+    fn err(&self, msg: impl Into<DiagMsg>) -> PErr<'sess> {
+        self.p.dcx().err(msg).span(self.current_span())
     }
 
-    fn parse(mut self) -> SemverVersion {
+    fn parse(mut self) -> PResult<'sess, SemverVersion> {
         let lo = self.current_span();
-        let major = self.parse_version_part();
+        let major = self.parse_version_part()?;
         let mut minor = None;
         let mut patch = None;
         if self.eat_dot() {
-            minor = Some(self.parse_version_part());
+            minor = Some(self.parse_version_part()?);
             if self.eat_dot() {
-                patch = Some(self.parse_version_part());
+                patch = Some(self.parse_version_part()?);
                 // Solc starts another match component after the third dot.
                 if self.eat_dot() && self.pos_inside > 0 {
                     let suffix = self.current_str().unwrap();
@@ -1074,10 +1082,9 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
             }
         }
         if self.pos_inside > 0 || self.bumps == 0 {
-            self.emit_err("unexpected trailing characters");
-            self.bump_token();
+            return Err(self.err("unexpected trailing characters"));
         }
-        SemverVersion { span: lo.to(self.current_span()), major, minor, patch }
+        Ok(SemverVersion { span: lo.to(self.current_span()), major, minor, patch })
     }
 
     fn eat_dot(&mut self) -> bool {
@@ -1088,11 +1095,11 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
         r
     }
 
-    fn parse_version_part(&mut self) -> SemverVersionNumber {
+    fn parse_version_part(&mut self) -> PResult<'sess, SemverVersionNumber> {
         match self.current_char() {
             Some('*' | 'x' | 'X') => {
                 self.bump_char();
-                SemverVersionNumber::Wildcard
+                Ok(SemverVersionNumber::Wildcard)
             }
             Some('0'..='9') => {
                 let s = self.current_str().unwrap();
@@ -1100,16 +1107,12 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
                 let result = s[..len].parse();
                 self.bump_chars(len as u32);
                 let Ok(n) = result else {
-                    self.emit_err("version number too large");
-                    return SemverVersionNumber::Wildcard;
+                    self.err("version number too large").emit();
+                    return Ok(SemverVersionNumber::Wildcard);
                 };
-                SemverVersionNumber::Number(n)
+                Ok(SemverVersionNumber::Number(n))
             }
-            _ => {
-                self.emit_err("expected version number");
-                self.bump_char();
-                SemverVersionNumber::Wildcard
-            }
+            _ => Err(self.err("expected version number")),
         }
     }
 

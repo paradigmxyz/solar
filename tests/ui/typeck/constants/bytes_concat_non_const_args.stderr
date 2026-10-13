@@ -1,0 +1,20 @@
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/bytes_concat_non_const_args.sol:LL:CC
+   │
+LL │     bytes constant abData = bytes.concat(hex"aaaa", hex"bbbb", msg.data);
+   ╰╴                            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/bytes_concat_non_const_args.sol:LL:CC
+   │
+LL │     bytes constant abgetData = bytes.concat(hex"aaaa", hex"bbbb", getData());
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/constants/bytes_concat_non_const_args.sol:LL:CC
+   │
+LL │     bytes constant abgetDataPure = bytes.concat(hex"aaaa", hex"bbbb", getDataPure());
+   ╰╴                                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

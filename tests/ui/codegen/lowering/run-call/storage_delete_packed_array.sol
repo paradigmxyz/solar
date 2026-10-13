@@ -2,7 +2,7 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: clear => 1, 0, 3
-//@ run-call: clearReference => 0, 0, 0
+//@ run-call: clearReference => 1, 0, 3
 //@ run-call: clearFixed => 0, 0, 0
 //@ run-call: clearDynamicDirtyWord => 0
 //@ run-call: clearFixedDirtyWord => 0
@@ -29,7 +29,7 @@ contract StorageDeletePackedArray {
         fixedValues[1] = 2;
         fixedValues[2] = 3;
         uint8[3] storage valuesRef = fixedValues;
-        delete valuesRef;
+        delete valuesRef[1];
         return (fixedValues[0], fixedValues[1], fixedValues[2]);
     }
 

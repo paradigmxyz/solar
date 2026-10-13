@@ -250,8 +250,8 @@ impl FunctionMemorySummary {
 
     /// Whether an unused call can disappear without losing effects or termination behavior.
     ///
-    /// State reads remain discardable, matching ordinary DCE and solc. Their incidental
-    /// access-list warming does not pin a call whose result is unused.
+    /// State reads remain discardable, matching ordinary DCE. Their incidental access-list
+    /// warming does not pin a call whose result is unused.
     pub(crate) fn can_discard_call(&self, observes_msize: bool) -> bool {
         !(self.observable
             || self.control.any()

@@ -697,11 +697,11 @@ fn borrowed_snippet_boundaries() {
 fn diagnostic_base_path_snapshot() {
     let sm = SourceMap::empty();
     let name = FileName::from(PathBuf::from("base").join("file.sol"));
-    sm.set_base_path(Some(PathBuf::from("base")));
+    sm.set_roots(Some(PathBuf::from("base")), Vec::new(), None);
     let display = sm.filename_for_diagnostics(&name);
-    sm.set_base_path(None);
+    sm.set_roots(None, Vec::new(), None);
     snapbox::assert_data_eq!(display.to_string(), snapbox::str!["file.sol"]);
-    assert!(sm.base_path().is_none());
+    assert!(sm.roots().as_ref().unwrap().base_path.is_none());
 }
 
 #[test]

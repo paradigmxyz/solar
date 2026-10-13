@@ -48,8 +48,9 @@ fn packed_storage_array_position(
 }
 
 /// Builds `store_storage_bytes(slot, object)`, shared by every `bytes`/`string` store into
-/// storage like solc's `copy_byte_array_to_storage`: one body per contract instead of one per
-/// assignment site.
+/// storage: one body per contract instead of one per assignment site.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2064>
 fn build_storage_bytes_store_helper(function: &mut Function) {
     // store_storage_bytes(slot, object); ret
     let mut builder = FunctionBuilder::new_semantic(function);
@@ -129,7 +130,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            TyKind::Elementary(_) => self.cx.gcx.try_eval_const_value(expr).is_ok(),
+            // Constant reads qualify even when they do not fold.
+            TyKind::Elementary(_) => {
+                let gcx = self.cx.gcx;
+                gcx.try_eval_const_value(expr).is_ok()
+                    || gcx
+                        .resolved_variable(expr)
+                        .is_some_and(|id| gcx.hir.variable(id).is_constant())
+            }
             _ => false,
         }
     }
@@ -152,10 +160,66 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_expr(lhs.id)?.peel_refs();
+        // A constant that does not fold can revert, so lower the field values before the
+        // storage access, in the struct constructor's order.
+        let mut values = Vec::new();
+        self.lower_constant_storage_fields(ty, rhs, &mut values)?;
         let Some(access) = self.storage_access(lhs) else {
             return self.cx.report_unsupported(lhs.span, "storage access");
         };
-        self.store_constant_storage_value(ty, access, rhs)
+        self.store_constant_storage_value(ty, access, rhs, &mut values.into_iter())
+    }
+
+    fn lower_constant_storage_fields(
+        &mut self,
+        ty: Ty<'gcx>,
+        expr: &hir::Expr<'_>,
+        values: &mut Vec<ValueId>,
+    ) -> Option<()> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => Some(()),
+            TyKind::Struct(struct_id) => {
+                let (_, args, _) = expr.peel_parens().as_call()?;
+                let fields = self.cx.gcx.hir.strukt(struct_id).fields;
+                let names =
+                    self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
+                let fields_values = self.lower_call_arguments(
+                    *args,
+                    CallArgumentParams {
+                        count: fields.len(),
+                        names: Some(names.as_slice()),
+                        reverse: false,
+                    },
+                    args.span,
+                    "struct constructor argument",
+                    |this, index, argument| {
+                        let field_ty = this.cx.gcx.type_of_item(fields[index].into());
+                        let mut field_values = Vec::new();
+                        this.lower_constant_storage_fields(field_ty, argument, &mut field_values)?;
+                        Some(field_values)
+                    },
+                )?;
+                values.extend(fields_values.into_iter().flatten());
+                Some(())
+            }
+            _ => {
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                let constant = match self.cx.gcx.try_eval_const_value(expr) {
+                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
+                    Ok(ConstValue::Integer(value)) => {
+                        value.as_u256().map(|value| self.builder.imm(value))
+                    }
+                    _ => None,
+                };
+                let value = if let Some(value) = constant {
+                    self.coerce_value(value, expr_ty, ty)
+                } else {
+                    self.lower_typed_expr(expr, ty)?
+                };
+                values.push(value);
+                Some(())
+            }
+        }
     }
 
     fn store_constant_storage_value(
@@ -163,6 +227,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         access: StorageAccess,
         expr: &hir::Expr<'_>,
+        values: &mut std::vec::IntoIter<ValueId>,
     ) -> Option<()> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -194,26 +259,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         field_ty,
                         StorageAccess { slot, location, offset: None },
                         argument,
+                        values,
                     )?;
                 }
                 Some(())
             }
-            _ => {
-                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                let constant = match self.cx.gcx.try_eval_const_value(expr) {
-                    Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
-                    Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
-                    }
-                    _ => None,
-                };
-                let value = if let Some(value) = constant {
-                    self.coerce_value(value, expr_ty, ty)
-                } else {
-                    self.lower_typed_expr(expr, ty)?
-                };
-                self.store_storage_value(ty, access, value, expr.span)
-            }
+            _ => self.store_storage_value(ty, access, values.next()?, expr.span),
         }
     }
 
@@ -414,8 +465,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Appends one zeroed byte to a storage `bytes`/`string` value in place and
-    /// returns the access for the appended element, like solc's
-    /// `array_push_zero` for byte arrays.
+    /// returns the access for the appended element.
     ///
     /// The growth follows Solidity's short/long layout: a value that already is
     /// long only gets a new header, a value that crosses 32 bytes moves its 31
@@ -423,6 +473,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// data in the header. The appended byte is zeroed by the header rewrite in
     /// the short cases and by the data area already being clear in the long
     /// ones, so no extra store is needed.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1801>
     pub(super) fn grow_storage_bytes(&mut self, slot: ValueId) -> StorageAccess {
         // data = sload(slot)
         // old_length = extract_length(data)
@@ -593,8 +645,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(CallResult::Void)
     }
 
-    /// Appends one byte to a storage `bytes`/`string` value in place, like
-    /// solc's `array_push` for byte arrays.
+    /// Appends one byte to a storage `bytes`/`string` value in place.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1730>
     fn lower_storage_bytes_push(
         &mut self,
         receiver: &hir::Expr<'_>,
@@ -736,13 +789,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    /// Removes the last byte of a storage `bytes`/`string` value in place, like
-    /// solc's `byte_array_pop`.
+    /// Removes the last byte of a storage `bytes`/`string` value in place.
     ///
     /// A value that stays short or long only rewrites its header, plus the data
     /// word holding the removed byte when it is long; the long-to-short
     /// transition at 32 bytes moves the remaining 31 bytes back into the header
     /// and clears the data word.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1686>
     fn lower_storage_bytes_pop(&mut self, slot: ValueId, span: Span) -> Option<()> {
         // data = sload(slot)
         // old_length = extract_length(data)
@@ -1750,8 +1804,9 @@ fn decode_storage_bytes_header(
     (header, is_long, length)
 }
 
-/// The data-area slot holding byte `index` of a long storage `bytes` value,
-/// like solc's `long_byte_array_index_access_no_checks`.
+/// The data-area slot holding byte `index` of a long storage `bytes` value.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1637>
 fn long_storage_bytes_byte_slot(
     builder: &mut FunctionBuilder<'_>,
     slot: ValueId,

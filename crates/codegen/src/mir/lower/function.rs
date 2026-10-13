@@ -98,7 +98,6 @@ pub(super) enum RecursiveStorageHelper {
 
 #[derive(Default)]
 pub(super) struct LoweringState {
-    pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
@@ -252,8 +251,10 @@ struct LoweredCallOptions {
     value: ValueId,
     /// Whether the call has an explicit `{value: ...}` option.
     ///
-    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, like
-    /// solc's `valueSet`, because the amount is not known to be zero.
+    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, because
+    /// the amount is not known to be zero.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ExpressionCompiler.cpp#L2923-L2924>
     value_set: bool,
     /// A zero immediate, reusable by the caller.
     zero: ValueId,
@@ -679,9 +680,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !matches!(expr.kind, ExprKind::Lit(_))
             && expr.is_int_literal()
             && let Ok(value) = self.cx.gcx.try_eval_const(expr)
-            && value.bit_len() <= 256
+            && let Some(word) = value.as_evm_word()
         {
-            return Some(self.builder.imm(value.as_evm_word()));
+            return Some(self.builder.imm(word));
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),

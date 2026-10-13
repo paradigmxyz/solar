@@ -1,0 +1,8 @@
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/large_array_in_memory_struct.sol:LL:CC
+   │
+LL │                 S memory s ;
+   ╰╴                ━
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,10 @@
+error: recursion limit reached
+   ╭▸ ROOT/tests/ui/parser/recursion_limit_function_type.sol:LL:CC
+   │
+LL │     function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function(function( // 64
+   │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ─ while parsing type
+LL │     function()
+   ╰╴    ━━━━━━━━
+
+error: aborting due to 1 previous error
+

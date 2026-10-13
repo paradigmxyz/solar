@@ -1042,9 +1042,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if builtin.is_yul() {
                     return this.lower_yul_word_expr(expr);
                 }
-                // Solidity builtins convert every argument to the declared parameter type, like
-                // solc's `expressionAsType`. A narrow local dirtied by inline assembly is cleaned
-                // here, before any semantic check such as the zero-modulus panic observes it.
+                // Solidity builtins convert every argument to the declared parameter type. A
+                // narrow local dirtied by inline assembly is cleaned here, before any semantic
+                // check such as the zero-modulus panic observes it.
                 match parameters.get(index) {
                     Some(&parameter) => this.lower_typed_expr(expr, parameter),
                     None => this.lower_yul_word_expr(expr),
