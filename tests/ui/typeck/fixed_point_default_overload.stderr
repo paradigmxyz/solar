@@ -1,4 +1,4 @@
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/fixed_point_default_overload.sol:LL:CC
    │
 LL │     function f(fixed x) external pure returns (uint) { return 1; }

@@ -1,3 +1,4 @@
+//@ compile-flags: --allow=2519
 // source
 
 event E1(); //~ ERROR: event with same name and parameter types declared twice

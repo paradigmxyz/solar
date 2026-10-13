@@ -10,120 +10,7 @@ error: unresolved symbol `Missing`
 LL │     function f(Missing) internal {}
    ╰╴               ━━━━━━━
 
-error: event with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E1();
-   │       ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E1();
-   ╰╴      ━━
-
-error: event with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E2(uint);
-   │       ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E2(uint);
-   ╰╴      ━━
-
-error: event with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E3(uint);
-   │       ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E3(uint) anonymous;
-   ╰╴      ━━
-
-error: event with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E4(uint);
-   │       ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ event E4(uint indexed);
-   ╰╴      ━━
-
-error: function with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f1() {}
-   │          ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f1() {}
-   ╰╴         ━━
-
-error: function with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f2() {}
-   │          ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f2() {}
-   ╰╴         ━━
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f2() {}
-   ╰╴         ━━
-
-error: function with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f2_2(uint) {}
-   │          ━━━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f2_2(uint) {}
-   ╰╴         ━━━━
-
-error: function with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f5(int) {}
-   │          ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f5(int) {}
-   ╰╴         ━━
-
-error: function with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f6(string memory) {}
-   │          ━━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
-   │
-LL │ function f6(string calldata) {}
-   ╰╴         ━━
-
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event E1();
@@ -135,7 +22,7 @@ note: other declaration
 LL │     event E1();
    ╰╴          ━━
 
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event E2(uint);
@@ -147,7 +34,7 @@ note: other declaration
 LL │     event E2(uint);
    ╰╴          ━━
 
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event E3(uint);
@@ -159,7 +46,7 @@ note: other declaration
 LL │     event E3(uint) anonymous;
    ╰╴          ━━
 
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event E4(uint);
@@ -171,7 +58,7 @@ note: other declaration
 LL │     event E4(uint indexed);
    ╰╴          ━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f1() public {}
@@ -183,7 +70,7 @@ note: other declaration
 LL │     function f1() public {}
    ╰╴             ━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f2() public {}
@@ -200,7 +87,7 @@ note: other declaration
 LL │     function f2() public {}
    ╰╴             ━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f22() public {}
@@ -217,7 +104,7 @@ note: other declaration
 LL │     function f22() public {}
    ╰╴             ━━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f5(int) public {}
@@ -229,7 +116,7 @@ note: other declaration
 LL │     function f5(int) public {}
    ╰╴             ━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f6(string memory) public {}
@@ -241,7 +128,7 @@ note: other declaration
 LL │     function f6(string calldata) public {}
    ╰╴             ━━
 
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event E5() anonymous;
@@ -253,7 +140,7 @@ note: other declaration
 LL │     event E5();
    ╰╴          ━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f(uint) internal pure returns (uint) { return 0; }
@@ -265,7 +152,7 @@ note: other declaration
 LL │     function f(uint) internal view returns (bytes32) { return 0; }
    ╰╴             ━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f(bytes calldata) internal view {}
@@ -277,7 +164,7 @@ note: other declaration
 LL │     function f(bytes memory) internal pure {}
    ╰╴             ━
 
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event Interleaved(uint);
@@ -289,7 +176,7 @@ note: other declaration
 LL │     event Interleaved(uint indexed) anonymous;
    ╰╴          ━━━━━━━━━━━
 
-error: event with same name and parameter types declared twice
+error[5883]: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     event Interleaved(bytes);
@@ -301,7 +188,7 @@ note: other declaration
 LL │     event Interleaved(bytes indexed);
    ╰╴          ━━━━━━━━━━━
 
-error: function with same name and parameter types declared twice
+error[1686]: function with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f(Missing) internal {}
@@ -312,6 +199,119 @@ note: other declaration
    │
 LL │     function f(Missing) internal {}
    ╰╴             ━
+
+error[5883]: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E1();
+   │       ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E1();
+   ╰╴      ━━
+
+error[5883]: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E2(uint);
+   │       ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E2(uint);
+   ╰╴      ━━
+
+error[5883]: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E3(uint);
+   │       ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E3(uint) anonymous;
+   ╰╴      ━━
+
+error[5883]: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E4(uint);
+   │       ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ event E4(uint indexed);
+   ╰╴      ━━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f1() {}
+   │          ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f1() {}
+   ╰╴         ━━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f2() {}
+   │          ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f2() {}
+   ╰╴         ━━
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f2() {}
+   ╰╴         ━━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f2_2(uint) {}
+   │          ━━━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f2_2(uint) {}
+   ╰╴         ━━━━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f5(int) {}
+   │          ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f5(int) {}
+   ╰╴         ━━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f6(string memory) {}
+   │          ━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │ function f6(string calldata) {}
+   ╰╴         ━━
 
 error: aborting due to 26 previous errors
 

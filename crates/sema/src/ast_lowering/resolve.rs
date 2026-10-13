@@ -9,7 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    diagnostics::{DiagCtxt, DiagId, ErrorGuaranteed},
+    diagnostics::{Diag, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, sym,
 };
 use std::fmt;
@@ -145,6 +145,14 @@ impl super::LoweringContext<'_> {
                         continue;
                     }
                     if let Some(name) = self.hir.item(item_id).name() {
+                        // NOTE: solc warns for every declaration that shadows an outer one,
+                        // including builtins (2319); we only warn for events so far.
+                        if item_id.is_event() {
+                            self.check_shadowing(
+                                &self.resolver.source_scopes[contract.source],
+                                name,
+                            );
+                        }
                         let _ = self.declare_kind_in(&mut scope, name, Res::Item(item_id));
                     }
                 }
@@ -2119,6 +2127,32 @@ impl super::LoweringContext<'_> {
     ) -> Result<(), ErrorGuaranteed> {
         scope.declare(self.sess, &self.hir, name, decl)
     }
+
+    /// Warns when `name` shadows a declaration in the enclosing scope `outer`.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/NameAndTypeResolver.cpp#L245-L289>
+    fn check_shadowing(&self, outer: &Declarations, name: Ident) {
+        let Some(shadowed) = outer.resolve_unqualified(name) else { return };
+        if shadowed.iter().any(|decl| decl.res.is_err()) {
+            return;
+        }
+        let mut warn = self
+            .dcx()
+            .warn("this declaration shadows an existing declaration")
+            .code(error_code!(2519))
+            .span(name.span);
+        for &decl in shadowed {
+            let span = note_import(
+                &self.hir,
+                self.sess,
+                &mut warn,
+                decl,
+                "shadowed declaration imported here",
+            );
+            warn = warn.span_note(span, "shadowed declaration is here");
+        }
+        warn.emit();
+    }
 }
 
 struct ResolverError {
@@ -2660,29 +2694,38 @@ pub(super) fn report_conflict(
     sess: &Session,
     name: Symbol,
     decl: Declaration,
-    mut previous: Declaration,
+    previous: Declaration,
     code: DiagId,
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
     let mut err =
         sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
+    let previous_span =
+        note_import(hir, sess, &mut err, previous, "previous declaration imported here");
+    if !previous_span.is_dummy() {
+        err = err.span_note(previous_span, "previous declaration declared here");
+    }
+    err.emit()
+}
 
-    // If `previous` is coming from an import, show both the import and the real span.
-    if let Res::Item(item_id) = previous.res
-        && let Ok(snippet) = sess.source_map().span_to_snippet(previous.span)
+/// Notes the import that brought `decl` into scope, if any, and returns the span to show for the
+/// declaration itself.
+fn note_import(
+    hir: &hir::Hir<'_>,
+    sess: &Session,
+    diag: &mut Diag,
+    decl: Declaration,
+    msg: &'static str,
+) -> Span {
+    if let Res::Item(item_id) = decl.res
+        && let Ok(snippet) = sess.source_map().span_to_snippet(decl.span)
         && snippet.starts_with("import")
     {
-        err = err.span_note(previous.span, "previous declaration imported here");
-        let real_span = hir.item(item_id).span();
-        previous.span = real_span;
+        diag.span_note(decl.span, msg);
+        return hir.item(item_id).span();
     }
-
-    if !previous.span.is_dummy() {
-        err = err.span_note(previous.span, "previous declaration declared here");
-    }
-
-    err.emit()
+    decl.span
 }
 
 /// Reports a declaration named `_`, `super`, or `this`.

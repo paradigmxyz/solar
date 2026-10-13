@@ -222,6 +222,20 @@ and a use of the name there would be ambiguous.
 Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
 `tests/ui/yul_lowering/yul_function_scope.sol`.
 
+### NAME-002: Shadowing warnings cover only contract events
+
+Status: parity debt.
+
+Difference: `solc` warns when any declaration shadows an outer one (2519) or a
+builtin (2319), including functions, state variables, parameters and locals.
+`solar` warns only when a contract event shadows a file-level declaration.
+
+Rationale: the warnings do not change what code means; the rest are not ported
+yet.
+
+Coverage: `tests/ui/resolve/event_shadowing.sol` and
+`tests/ui/resolve/shadowed_vars.sol`.
+
 ## Type Checking
 
 ### TYPECK-001: Called Yul functions in view/pure checking

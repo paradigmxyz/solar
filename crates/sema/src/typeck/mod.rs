@@ -23,6 +23,16 @@ mod view_pure_checker;
 
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
+    let scopes = &gcx.symbol_resolver;
+    let duplicates = gcx
+        .hir
+        .par_contract_ids()
+        .map(|id| &scopes.contract_scopes[id])
+        .chain(gcx.hir.par_source_ids().map(|id| &scopes.source_scopes[id]))
+        .flat_map_iter(|scope| check_duplicate_definitions(gcx, scope))
+        .collect();
+    gcx.duplicate_definitions.set(duplicates).unwrap();
+
     let mut typeck_results = TypeckResults::default();
     parallel!(
         gcx.sess,
@@ -53,7 +63,6 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
-    check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
     check_storage_size_upper_bound(gcx, id);
     check_payable_fallback_without_receive(gcx, id);
     check_storage_layout_inheritance(gcx, id);
@@ -75,7 +84,6 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
 }
 
 fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
-    check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
     check_break_continue(gcx, id);
     for f_id in gcx.hir.source(id).items.iter().filter_map(ItemId::as_function) {
         let f = gcx.hir.function(f_id);
@@ -306,7 +314,10 @@ fn check_storage_layout_inheritance(gcx: Gcx<'_>, contract_id: hir::ContractId) 
 ///
 /// Normalizes parameter types lazily once per declaration in each name group. The pairwise
 /// traversal is retained so diagnostic grouping and ordering remain unchanged.
-fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
+///
+/// Returns the reported `(duplicate, original)` pairs, which overload resolution drops.
+fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) -> Vec<(ItemId, ItemId)> {
+    let mut pairs = Vec::new();
     let mut external_params = Vec::new();
     let mut reported = GrowableBitSet::new_empty();
     for (_name, decls) in scope.iter() {
@@ -356,6 +367,10 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
                 if is_duplicate(i, decl, j, other_decl) {
                     reported.insert(j);
                     duplicates.push(other_decl.span);
+                    if let (Res::Item(original), Res::Item(duplicate)) = (decl.res, other_decl.res)
+                    {
+                        pairs.push((duplicate, original));
+                    }
                 }
             }
             if !duplicates.is_empty() {
@@ -363,7 +378,11 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
                     "{} with same name and parameter types declared twice",
                     decl.description()
                 );
-                let mut err = gcx.dcx().err(msg).span(decl.span);
+                let code = match decl.res {
+                    Res::Item(ItemId::Event(_)) => error_code!(5883),
+                    _ => error_code!(1686),
+                };
+                let mut err = gcx.dcx().err(msg).code(code).span(decl.span);
                 for duplicate in duplicates {
                     err = err.span_note(duplicate, "other declaration");
                 }
@@ -371,6 +390,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
             }
         }
     }
+    pairs
 }
 
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {

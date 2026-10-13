@@ -10,6 +10,6 @@ contract C {
     struct S {
         MyUdvt value;
     }
-    event Ev(MyUdvt value);
+    event Ev(MyUdvt value); //~ WARN: this declaration shadows an existing declaration
     error Er(MyUdvt value);
 }

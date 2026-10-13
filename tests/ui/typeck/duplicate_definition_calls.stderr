@@ -1,0 +1,56 @@
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(uint) internal {}
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(uint) internal {}
+   ╰╴             ━
+
+error[5883]: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     event Inherited(uint indexed);
+   │           ━━━━━━━━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     event Inherited(uint);
+   ╰╴          ━━━━━━━━━
+
+error[5883]: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     event Own(uint);
+   │           ━━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     event Own(uint) anonymous;
+   ╰╴          ━━━
+
+error[1686]: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(uint) public {}
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │     function f(uint) public {}
+   ╰╴             ━
+
+error[4487]: no unique declarations found
+   ╭▸ ROOT/tests/ui/typeck/duplicate_definition_calls.sol:LL:CC
+   │
+LL │         f(s);
+   ╰╴        ━
+
+error: aborting due to 5 previous errors
+

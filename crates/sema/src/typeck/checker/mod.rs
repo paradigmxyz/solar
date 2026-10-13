@@ -677,11 +677,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return self.gcx.mk_ty_misc_err();
                 }
 
-                let possible_members = self
-                    .gcx
-                    .members_of(receiver_ty, self.source, self.contract)
-                    .filter(|m| m.name == ident.name)
-                    .collect::<SmallVec<[_; 4]>>();
+                let possible_members = self.members_named(receiver_ty, ident);
 
                 let ty = match self.select_member_access(&possible_members) {
                     Ok(member) => {
@@ -2440,11 +2436,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        let possible_members = self
-            .gcx
-            .members_of(receiver_ty, self.source, self.contract)
-            .filter(|m| m.name == ident.name)
-            .collect::<SmallVec<[_; 4]>>();
+        let possible_members = self.members_named(receiver_ty, ident);
 
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
@@ -2611,6 +2603,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 selected.push(res);
             }
         }
+        self.drop_duplicate_definitions(&mut selected, |&res| Some(res));
         match selected.as_slice() {
             [] => Err(OverloadError::NotFound),
             [res] => Ok(*res),
@@ -2654,6 +2647,52 @@ impl<'gcx> TypeChecker<'gcx> {
             WantOne::Zero => Err(OverloadError::NotFound),
             WantOne::One(member) => Ok(member),
             WantOne::Many => Err(OverloadError::Ambiguous),
+        }
+    }
+
+    /// Returns the members of `receiver_ty` named `ident`, without reported duplicates.
+    fn members_named(
+        &self,
+        receiver_ty: Ty<'gcx>,
+        ident: Ident,
+    ) -> SmallVec<[members::Member<'gcx>; 4]> {
+        let mut members = self
+            .gcx
+            .members_of(receiver_ty, self.source, self.contract)
+            .filter(|m| m.name == ident.name)
+            .collect();
+        self.drop_duplicate_definitions(&mut members, |member| member.res);
+        members
+    }
+
+    /// Drops candidates that duplicate another remaining candidate, since the duplicate
+    /// definitions check already reports them.
+    fn drop_duplicate_definitions<T>(
+        &self,
+        candidates: &mut SmallVec<[T; 4]>,
+        res: impl Fn(&T) -> Option<hir::Res>,
+    ) {
+        let Some(pairs) = self.gcx.duplicate_definitions.get() else { return };
+        if pairs.is_empty() || candidates.len() < 2 {
+            return;
+        }
+        let item = |candidate: &T| match res(candidate) {
+            Some(hir::Res::Item(id)) => Some(id),
+            _ => None,
+        };
+        let mut i = 0;
+        while i < candidates.len() {
+            let duplicate = item(&candidates[i]).is_some_and(|duplicate| {
+                candidates
+                    .iter()
+                    .filter_map(&item)
+                    .any(|original| pairs.contains(&(duplicate, original)))
+            });
+            if duplicate {
+                candidates.remove(i);
+            } else {
+                i += 1;
+            }
         }
     }
 
@@ -3527,6 +3566,9 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
+        let mut res = SmallVec::<[_; 4]>::from_slice(res);
+        self.drop_duplicate_definitions(&mut res, |&res| Some(res));
+        let res = res.as_slice();
         match res {
             [] => unreachable!("no candidates for overload resolution"),
             &[res] => return Ok(res),

@@ -1,0 +1,12 @@
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/resolve/named_import.sol:LL:CC
+   │
+LL │     event Ev(MyUdvt value);
+   │           ━━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/resolve/named_import.sol:LL:CC
+   │
+LL │ event Ev(MyUdvt value);
+   ╰╴      ━━
+

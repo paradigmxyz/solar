@@ -380,6 +380,8 @@ pub struct GlobalCtxt<'gcx> {
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
+    /// `(duplicate, original)` pairs of definitions reported as declared twice in one scope.
+    pub(crate) duplicate_definitions: OnceLock<FxHashSet<(hir::ItemId, hir::ItemId)>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -416,6 +418,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
             override_index: OnceLock::new(),
+            duplicate_definitions: OnceLock::new(),
         }
     }
 }
