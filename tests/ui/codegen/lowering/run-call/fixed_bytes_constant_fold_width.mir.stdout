@@ -1,0 +1,85 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_fold_width.sol:FixedBytesConstantFoldWidth ===
+@module FixedBytesConstantFoldWidth
+fn @crossWidthLocal() -> i256 [selector=0x7a24c6ed, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @crossWidthConstant() -> i256 [selector=0xb8776813, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @crossWidthStructField() -> i256 [selector=0x3ed4a0f0, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0x700000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<2>, v0, 1, 1
+    v1 = memory_object_load_field memorystruct<2>, v0, 0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = not 0xffff
+    v4 = and v2, v3
+    v5 = shr 240, v1
+    v6 = and v5, 0xffff
+    v7 = or v4, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = add 0, 1
+    v9 = memory_object_load_field memorystruct<2>, v0, 1
+    sstore v8, v9 !metadata(storage=slot(1))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = shl 240, v10
+    ret v11
+}
+
+fn @crossWidthAssembly() -> i256 [selector=0xb9761af7, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+  bb0:
+    ret 0x700000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @crossWidthCompare() -> i1 [selector=0xe7368e98, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x700000000000000000000000000000000000000000000000000000000000000, 0x700000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @crossWidthCompareConstant() -> i1 [selector=0xf6148df3, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq 0x700000000000000000000000000000000000000000000000000000000000000, 0x700000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @shiftRoundTrip() -> i256 [selector=0xabb727a8, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = shl 8, 0x700000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = shr 8, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}
+
+fn @shiftRoundTripConstant() -> i256 [selector=0x7f299607, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = shl 8, 0x700000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = shr 8, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}
+
+fn @bitNotShift() -> i256 [selector=0xf8ef9055, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = not 0x700000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = shr 4, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}
+
+fn @bitNotShiftConstant() -> i256 [selector=0x520d6e25, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = not 0x700000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = shr 4, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}
