@@ -7,6 +7,12 @@ LL │     Missing constant K = 1;
 error: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
    │
+LL │     mapping(uint256 => Missing) badMap;
+   ╰╴                       ━━━━━━━
+
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
+   │
 LL │     function f(Missing[] calldata cd) public view {
    ╰╴               ━━━━━━━
 
@@ -22,5 +28,11 @@ error: unresolved symbol `missing`
 LL │             pop(missing.slot)
    ╰╴                ━━━━━━━
 
-error: aborting due to 4 previous errors
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
+   │
+LL │         mapping(uint256 => Missing) storage ptr = stateMap;
+   ╰╴                           ━━━━━━━
+
+error: aborting due to 6 previous errors
 

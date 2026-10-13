@@ -28,13 +28,15 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks whether a resolved identifier should be treated as an external Solidity reference in
     /// Yul. Returns `Ok(true)` when the identifier was accepted and should be typed as a Yul word,
     /// `Ok(false)` when it is not a Yul external reference and normal typing should continue, and
-    /// `Err` after emitting a diagnostic for invalid external-reference use.
+    /// `Err` when the type already holds an error or after emitting a diagnostic for invalid
+    /// external-reference use.
     pub(super) fn check_yul_external_ident(
         &mut self,
         res: hir::Res,
         ty: Ty<'gcx>,
         span: Span,
     ) -> Result<bool, ErrorGuaranteed> {
+        ty.error_reported()?;
         let hir::Res::Item(item) = res else { return Ok(false) };
         let hir::ItemId::Variable(var_id) = item else {
             if let hir::ItemId::Function(id) = item
@@ -119,8 +121,8 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         let (ty, res) = self.check_yul_member_base(expr);
-        if ty.references_error() {
-            return ty;
+        if let Err(guar) = ty.error_reported() {
+            return self.gcx.mk_ty_err(guar);
         }
 
         let inner = || -> Result<(), ErrorKind> {
