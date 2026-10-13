@@ -1,0 +1,62 @@
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │     function f(uint super) public {
+   ╰╴                    ━━━━━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │     function g(uint this) public {
+   ╰╴                    ━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │     function h(uint _) public {
+   ╰╴                    ━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │     function i() public returns (uint super) {
+   ╰╴                                      ━━━━━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │     function j() public returns (uint this) {
+   ╰╴                                      ━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │     function k() public returns (uint _) {
+   ╰╴                                      ━
+
+error[3726]: the name `super` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │         uint super = 3;
+   ╰╴             ━━━━━
+
+error[3726]: the name `this` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │         uint this = 4;
+   ╰╴             ━━━━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │         uint _ = 8;
+   ╰╴             ━
+
+error[3726]: the name `_` is reserved
+   ╭▸ ROOT/tests/ui/resolve/reserved_names.sol:LL:CC
+   │
+LL │         string memory _ = "";
+   ╰╴                      ━
+
+error: aborting due to 10 previous errors
+

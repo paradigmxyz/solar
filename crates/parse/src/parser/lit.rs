@@ -243,8 +243,9 @@ fn parse_integer<'ast>(
         return Err(LitError::IntegerLeadingZeros);
     }
 
-    // Address literal.
+    // Address literal. A denominated one is a number, which the AST validator rejects.
     if base == Base::Hexadecimal
+        && subdenomination.is_none()
         && s.len() == 42
         && let Ok(address) = s.parse()
     {

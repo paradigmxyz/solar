@@ -1,0 +1,20 @@
+error[2876]: index access for library types is not possible
+   ╭▸ ROOT/tests/ui/typeck/library_index_access.sol:LL:CC
+   │
+LL │         C[0];
+   ╰╴        ━━━━
+
+error: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/library_index_access.sol:LL:CC
+   │
+LL │         C[0];
+   ╰╴          ━
+
+error[2876]: index access for library types is not possible
+   ╭▸ ROOT/tests/ui/typeck/library_index_access.sol:LL:CC
+   │
+LL │         C[1];
+   ╰╴        ━━━━
+
+error: aborting due to 3 previous errors
+

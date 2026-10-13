@@ -2,7 +2,7 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: clearArray => 1, 2, 3, 0, 0, 0
-//@ run-call: clearReference => 1, 2, 3, 0, 0, 0
+//@ run-call: clearReference => 1, 2, 3, 4, 0, 6
 //@ run-call: clearMapping => 0, 0, 0
 //@ run-call: assign => 4, 21862, 7
 //@ run-call: clearDirtyWord => 0
@@ -42,7 +42,7 @@ contract StorageDeletePackedStruct {
         pairs.push();
         pairs[1] = Pair(4, 5, 6);
         Pair storage pair = pairs[1];
-        delete pair;
+        delete pair.middle;
         return (pairs[0].first, pairs[0].middle, pairs[0].last, pairs[1].first, pairs[1].middle, pairs[1].last);
     }
 
