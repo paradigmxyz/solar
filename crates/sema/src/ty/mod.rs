@@ -30,7 +30,6 @@ use solar_interface::{
 };
 use std::{
     fmt,
-    hash::Hash,
     ops::ControlFlow,
     sync::{
         Arc, OnceLock,
@@ -52,6 +51,8 @@ mod call_graph;
 
 mod interner;
 use interner::Interner;
+
+mod caches;
 
 #[allow(clippy::module_inception)]
 mod ty;
@@ -1579,30 +1580,17 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
-macro_rules! cached_key_type {
-    ($key_type:ty) => {
-        $key_type
-    };
-    ($key_type:ty, $cache_key_type:ty) => {
-        $cache_key_type
-    };
-}
-
-macro_rules! cached_key_expr {
-    ($key:expr) => {
-        $key
-    };
-    ($key:expr, $cache_key:expr) => {
-        $cache_key
-    };
-}
-
+/// Defines cached queries on [`Gcx`].
+///
+/// The key type picks the cache that stores the values; see [`caches::QueryKey`]. Values must be
+/// `Copy`, and values in the bump arena never drop, so a value that owns heap memory, such as a
+/// hash map, belongs in its own `OnceLock` field on [`GlobalCtxt`] instead.
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: FxOnceMap<cached_key_type!($key_type $(, $cache_key_type)?), $value>,
+                $name: caches::CacheFor<$key_type, $value>,
             )*
         }
 
@@ -1610,12 +1598,11 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
-                    let cache_key = cached_key_expr!($key $(, $cache_key)?);
                     #[cfg(false)]
-                    let _guard = log_cache_query(stringify!($name), &cache_key);
+                    let _guard = log_cache_query(stringify!($name), &$key);
                     #[cfg(false)]
                     let mut hit = true;
-                    let r = cache_insert(&self.cache.$name, cache_key, |_| {
+                    let r = caches::QueryCache::get_or_insert(&self.cache.$name, &self.hir, $key, || {
                         #[cfg(false)]
                         {
                             hit = false;
@@ -2233,21 +2220,6 @@ fn visit_stored_structs(
         }
         _ => {}
     }
-}
-
-/// `OnceMap::insert` but with `Copy` keys and values.
-#[inline]
-fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
-where
-    K: Copy + Eq + Hash,
-    V: Copy,
-{
-    map.map_insert(key, make_val, cache_insert_with_result)
-}
-
-#[inline]
-fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
-    *v
 }
 
 #[cfg(false)]
