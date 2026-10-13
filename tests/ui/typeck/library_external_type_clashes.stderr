@@ -1,0 +1,26 @@
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/library_external_type_clashes.sol:LL:CC
+   │
+LL │     function f(mapping(A => uint) storage) public {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/library_external_type_clashes.sol:LL:CC
+   │
+LL │     function f(mapping(B => uint) storage) public {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/library_external_type_clashes.sol:LL:CC
+   │
+LL │     function g(S storage) public {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/library_external_type_clashes.sol:LL:CC
+   │
+LL │     function g(T storage) public {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
