@@ -47,22 +47,22 @@ fn @payloads(arg0: memptr) -> memptr [selector=0x3660966b, inline_assembly, pure
     jump bb1
   bb1:
     v21 = phi [bb0: arg0], [bb3: v21]
-    v22 = phi [bb0: v2], [bb3: v22]
-    v23 = phi [bb0: v20], [bb3: v23]
+    v22 = phi [bb0: v20], [bb3: v22]
+    v23 = phi [bb0: v2], [bb3: v23]
     v24 = phi [bb0: 0], [bb3: v42]
-    v25 = memory_object_len memoryarray, v22
+    v25 = memory_object_len memoryarray, v23
     v26 = lt v24, v25
     jumpi v26, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v23
+    ret v22
   bb4:
-    v27 = memory_object_len memoryarray, v22
+    v27 = memory_object_len memoryarray, v23
     v28 = lt v24, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = memory_object_load_element memoryarray<1>, v22, v24
+    v30 = memory_object_load_element memoryarray<1>, v23, v24
     v31 = inttoptr i256 v30 to memptr
     v32 = eq v30, 0
     jumpi v32, bb7, bb8
@@ -70,18 +70,18 @@ fn @payloads(arg0: memptr) -> memptr [selector=0x3660966b, inline_assembly, pure
     v33 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v33, 0
     v34 = ptrtoint memptr v33 to i256
-    memory_object_store_element memoryarray<1>, v22, v24, v34
+    memory_object_store_element memoryarray<1>, v23, v24, v34
     jump bb8
   bb8:
     v35 = phi [bb4: v31], [bb7: v33]
     v36 = ptrtoint memptr v35 to i256
     v37 = add v36, 32
     v38 = mload v37
-    v39 = memory_object_len memoryarray, v23
+    v39 = memory_object_len memoryarray, v22
     v40 = lt v24, v39
     v41 = eq v40, false
     icall panic_if<0x32>, v41
-    memory_object_store_element memoryarray<1>, v23, v24, v38
+    memory_object_store_element memoryarray<1>, v22, v24, v38
     jump bb6
   bb6:
     jump bb3
@@ -119,23 +119,23 @@ fn @dirtyPayloads(arg0: memptr, arg1: memptr) -> memptr [selector=0x376545dc, in
     jump bb1
   bb1:
     v19 = phi [bb0: arg0], [bb3: v19]
-    v20 = phi [bb0: v18], [bb3: v20]
-    v21 = phi [bb0: 0], [bb3: v41]
-    v22 = phi [bb0: arg1], [bb3: v22]
-    v23 = phi [bb0: v0], [bb3: v23]
-    v24 = memory_object_len memoryarray, v23
-    v25 = lt v21, v24
+    v20 = phi [bb0: arg1], [bb3: v20]
+    v21 = phi [bb0: v18], [bb3: v21]
+    v22 = phi [bb0: v0], [bb3: v22]
+    v23 = phi [bb0: 0], [bb3: v41]
+    v24 = memory_object_len memoryarray, v22
+    v25 = lt v23, v24
     jumpi v25, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v20
+    ret v21
   bb4:
-    v26 = memory_object_len memoryarray, v23
-    v27 = lt v21, v26
+    v26 = memory_object_len memoryarray, v22
+    v27 = lt v23, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryarray<1>, v23, v21
+    v29 = memory_object_load_element memoryarray<1>, v22, v23
     v30 = inttoptr i256 v29 to memptr
     v31 = eq v29, 0
     jumpi v31, bb7, bb8
@@ -143,23 +143,23 @@ fn @dirtyPayloads(arg0: memptr, arg1: memptr) -> memptr [selector=0x376545dc, in
     v32 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v32, 0
     v33 = ptrtoint memptr v32 to i256
-    memory_object_store_element memoryarray<1>, v23, v21, v33
+    memory_object_store_element memoryarray<1>, v22, v23, v33
     jump bb8
   bb8:
     v34 = phi [bb4: v30], [bb7: v32]
     v35 = ptrtoint memptr v34 to i256
     v36 = add v35, 32
     v37 = mload v36
-    v38 = memory_object_len memoryarray, v20
-    v39 = lt v21, v38
+    v38 = memory_object_len memoryarray, v21
+    v39 = lt v23, v38
     v40 = eq v39, false
     icall panic_if<0x32>, v40
-    memory_object_store_element memoryarray<1>, v20, v21, v37
+    memory_object_store_element memoryarray<1>, v21, v23, v37
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v41 = checked_add u256, v21, 1
+    v41 = checked_add u256, v23, 1
     jump bb1
 }
 
@@ -246,49 +246,49 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pu
   bb14:
     jump bb22
   bb22:
-    v37 = phi [bb14: arg2], [bb24: v37]
-    v38 = phi [bb14: v14], [bb24: v38]
-    v39 = phi [bb14: 0], [bb24: v55]
-    v40 = phi [bb14: arg1], [bb24: v40]
-    v41 = phi [bb14: arg3], [bb24: v41]
-    v42 = phi [bb14: arg0], [bb24: v42]
-    v43 = lt v39, v38
+    v37 = phi [bb14: arg0], [bb24: v37]
+    v38 = phi [bb14: arg1], [bb24: v38]
+    v39 = phi [bb14: arg2], [bb24: v39]
+    v40 = phi [bb14: arg3], [bb24: v40]
+    v41 = phi [bb14: v14], [bb24: v41]
+    v42 = phi [bb14: 0], [bb24: v55]
+    v43 = lt v42, v41
     jumpi v43, bb25, bb26
   bb26:
     jump bb23
   bb23:
     jump bb15
   bb25:
-    v44 = checked_add u256, v41, v39
-    v45 = memory_object_len memorybytes, v37
+    v44 = checked_add u256, v40, v42
+    v45 = memory_object_len memorybytes, v39
     v46 = lt v44, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
-    v48 = memory_object_load_byte memorybytes, v37, v44
+    v48 = memory_object_load_byte memorybytes, v39, v44
     v49 = shl 248, v48
-    v50 = checked_add u256, v40, v39
-    v51 = memory_object_len memorybytes, v42
+    v50 = checked_add u256, v38, v42
+    v51 = memory_object_len memorybytes, v37
     v52 = lt v50, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = byte 0, v49
-    memory_object_store_byte memorybytes, v42, v50, v54
+    memory_object_store_byte memorybytes, v37, v50, v54
     jump bb27
   bb27:
     jump bb24
   bb24:
-    v55 = checked_add u256, v39, 1
+    v55 = checked_add u256, v42, 1
     jump bb22
   bb13:
     jump bb16
   bb16:
-    v16 = phi [bb13: arg2], [bb18: v16]
-    v17 = phi [bb13: v14], [bb18: v17]
-    v18 = phi [bb13: arg1], [bb18: v18]
+    v16 = phi [bb13: arg0], [bb18: v16]
+    v17 = phi [bb13: arg1], [bb18: v17]
+    v18 = phi [bb13: arg2], [bb18: v18]
     v19 = phi [bb13: arg3], [bb18: v19]
-    v20 = phi [bb13: v14], [bb18: v36]
-    v21 = phi [bb13: arg0], [bb18: v21]
-    v22 = gt v20, 0
+    v20 = phi [bb13: v14], [bb18: v20]
+    v21 = phi [bb13: v14], [bb18: v36]
+    v22 = gt v21, 0
     jumpi v22, bb19, bb20
   bb20:
     jump bb17
@@ -297,32 +297,32 @@ fn @copyInto(arg0: memptr, arg1: i256, arg2: memptr, arg3: i256, arg4: i256) [pu
   bb15:
     v56 = phi [bb17: v16], [bb23: v37]
     v57 = phi [bb17: v17], [bb23: v38]
-    v58 = phi [bb17: v18], [bb23: v40]
-    v59 = phi [bb17: v19], [bb23: v41]
-    v60 = phi [bb17: v21], [bb23: v42]
+    v58 = phi [bb17: v18], [bb23: v39]
+    v59 = phi [bb17: v19], [bb23: v40]
+    v60 = phi [bb17: v20], [bb23: v41]
     ret
   bb19:
-    v23 = checked_add u256, v19, v20
+    v23 = checked_add u256, v19, v21
     v24 = checked_sub u256, v23, 1
-    v25 = memory_object_len memorybytes, v16
+    v25 = memory_object_len memorybytes, v18
     v26 = lt v24, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = memory_object_load_byte memorybytes, v16, v24
+    v28 = memory_object_load_byte memorybytes, v18, v24
     v29 = shl 248, v28
-    v30 = checked_add u256, v18, v20
+    v30 = checked_add u256, v17, v21
     v31 = checked_sub u256, v30, 1
-    v32 = memory_object_len memorybytes, v21
+    v32 = memory_object_len memorybytes, v16
     v33 = lt v31, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = byte 0, v29
-    memory_object_store_byte memorybytes, v21, v31, v35
+    memory_object_store_byte memorybytes, v16, v31, v35
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v36 = checked_sub u256, v20, 1
+    v36 = checked_sub u256, v21, 1
     jump bb16
 }
 
@@ -357,28 +357,28 @@ fn @replace(arg0: memptr, arg1: memptr, arg2: memptr) -> memptr [pure] {
   bb16:
     v64 = phi [bb6: arg0], [bb20: v64]
     v65 = phi [bb6: arg1], [bb20: v65]
-    v66 = phi [bb6: arg1], [bb20: v66]
-    v67 = phi [bb6: arg2], [bb20: v67]
-    v68 = phi [bb6: arg2], [bb20: v68]
-    v69 = phi [bb6: 0], [bb20: v83]
-    v70 = phi [bb6: memptr 96], [bb20: v70]
-    v71 = phi [bb6: arg0], [bb20: v71]
+    v66 = phi [bb6: arg2], [bb20: v66]
+    v67 = phi [bb6: memptr 96], [bb20: v67]
+    v68 = phi [bb6: arg0], [bb20: v68]
+    v69 = phi [bb6: arg1], [bb20: v69]
+    v70 = phi [bb6: arg2], [bb20: v70]
+    v71 = phi [bb6: 0], [bb20: v83]
     v72 = phi [bb6: 0], [bb20: v84]
-    v73 = memory_object_len memorybytes, v66
+    v73 = memory_object_len memorybytes, v69
     v74 = checked_add u256, v72, v73
-    v75 = memory_object_len memorybytes, v64
+    v75 = memory_object_len memorybytes, v68
     v76 = gt v74, v75
     v77 = eq v76, false
     jumpi v77, bb18, bb19
   bb19:
     jump bb17
   bb17:
-    v85 = memory_object_len memorybytes, v64
-    v86 = memory_object_len memorybytes, v68
-    v87 = checked_mul u256, v69, v86
+    v85 = memory_object_len memorybytes, v68
+    v86 = memory_object_len memorybytes, v70
+    v87 = checked_mul u256, v71, v86
     v88 = checked_add u256, v85, v87
-    v89 = memory_object_len memorybytes, v66
-    v90 = checked_mul u256, v69, v89
+    v89 = memory_object_len memorybytes, v69
+    v90 = checked_mul u256, v71, v89
     v91 = checked_sub u256, v88, v90
     v92 = add v91, 63
     v93 = lt v92, v91
@@ -390,91 +390,91 @@ fn @replace(arg0: memptr, arg1: memptr, arg2: memptr) -> memptr [pure] {
     jump bb24
   bb24:
     v97 = phi [bb17: v64], [bb28: v97]
-    v98 = phi [bb17: 0], [bb28: v161]
-    v99 = phi [bb17: v96], [bb28: v99]
-    v100 = phi [bb17: v65], [bb28: v100]
-    v101 = phi [bb17: v66], [bb28: v101]
-    v102 = phi [bb17: v67], [bb28: v102]
-    v103 = phi [bb17: v68], [bb28: v103]
-    v104 = phi [bb17: 0], [bb28: v162]
-    v105 = phi [bb17: v69], [bb28: v105]
-    v106 = phi [bb17: v70], [bb28: v106]
-    v107 = phi [bb17: 0], [bb28: v163]
-    v108 = phi [bb17: v71], [bb28: v108]
-    v109 = phi [bb17: v72], [bb28: v109]
-    v110 = memory_object_len memorybytes, v101
-    v111 = checked_add u256, v104, v110
-    v112 = memory_object_len memorybytes, v97
+    v98 = phi [bb17: v65], [bb28: v98]
+    v99 = phi [bb17: v66], [bb28: v99]
+    v100 = phi [bb17: v67], [bb28: v100]
+    v101 = phi [bb17: v68], [bb28: v101]
+    v102 = phi [bb17: v69], [bb28: v102]
+    v103 = phi [bb17: v70], [bb28: v103]
+    v104 = phi [bb17: v71], [bb28: v104]
+    v105 = phi [bb17: v72], [bb28: v105]
+    v106 = phi [bb17: v96], [bb28: v106]
+    v107 = phi [bb17: 0], [bb28: v161]
+    v108 = phi [bb17: 0], [bb28: v162]
+    v109 = phi [bb17: 0], [bb28: v163]
+    v110 = memory_object_len memorybytes, v102
+    v111 = checked_add u256, v107, v110
+    v112 = memory_object_len memorybytes, v101
     v113 = gt v111, v112
     v114 = eq v113, false
     jumpi v114, bb26, bb27
   bb27:
     jump bb25
   bb25:
-    v164 = memory_object_len memorybytes, v97
-    v165 = checked_sub u256, v164, v107
-    v166 = memory_object_len memorybytes, v99
-    v167 = add v98, v165
-    v168 = lt v167, v98
+    v164 = memory_object_len memorybytes, v101
+    v165 = checked_sub u256, v164, v108
+    v166 = memory_object_len memorybytes, v106
+    v167 = add v109, v165
+    v168 = lt v167, v109
     v169 = gt v167, v166
     v170 = or v168, v169
     v171 = zext i1 v170 to i256
     icall panic_if<0x32>, v170
-    v172 = memory_object_data memorybytes, v99
+    v172 = memory_object_data memorybytes, v106
     v173 = ptrtoint memptr v172 to i256
-    v174 = add v173, v98
-    v175 = memory_object_len memorybytes, v97
-    v176 = add v107, v165
-    v177 = lt v176, v107
+    v174 = add v173, v109
+    v175 = memory_object_len memorybytes, v101
+    v176 = add v108, v165
+    v177 = lt v176, v108
     v178 = gt v176, v175
     v179 = or v177, v178
     v180 = zext i1 v179 to i256
     icall panic_if<0x32>, v179
-    v181 = memory_object_data memorybytes, v97
+    v181 = memory_object_data memorybytes, v101
     v182 = ptrtoint memptr v181 to i256
-    v183 = add v182, v107
+    v183 = add v182, v108
     mcopy v174, v183, v165 !metadata(memory=heap)
-    ret v99
+    ret v106
   bb26:
-    v115 = icall @_matchAt, v97, v101, v104
+    v115 = icall @_matchAt, v101, v102, v107
     jumpi v115, bb29, bb30
   bb30:
-    v160 = checked_add u256, v104, 1
+    v160 = checked_add u256, v107, 1
     jump bb31
   bb29:
-    v116 = checked_sub u256, v104, v107
-    v117 = memory_object_len memorybytes, v99
-    v118 = add v98, v116
-    v119 = lt v118, v98
+    v116 = checked_sub u256, v107, v108
+    v117 = memory_object_len memorybytes, v106
+    v118 = add v109, v116
+    v119 = lt v118, v109
     v120 = gt v118, v117
     v121 = or v119, v120
     v122 = zext i1 v121 to i256
     icall panic_if<0x32>, v121
-    v123 = memory_object_data memorybytes, v99
+    v123 = memory_object_data memorybytes, v106
     v124 = ptrtoint memptr v123 to i256
-    v125 = add v124, v98
-    v126 = memory_object_len memorybytes, v97
-    v127 = add v107, v116
-    v128 = lt v127, v107
+    v125 = add v124, v109
+    v126 = memory_object_len memorybytes, v101
+    v127 = add v108, v116
+    v128 = lt v127, v108
     v129 = gt v127, v126
     v130 = or v128, v129
     v131 = zext i1 v130 to i256
     icall panic_if<0x32>, v130
-    v132 = memory_object_data memorybytes, v97
+    v132 = memory_object_data memorybytes, v101
     v133 = ptrtoint memptr v132 to i256
-    v134 = add v133, v107
+    v134 = add v133, v108
     mcopy v125, v134, v116 !metadata(memory=heap)
-    v135 = checked_sub u256, v104, v107
-    v136 = checked_add u256, v98, v135
+    v135 = checked_sub u256, v107, v108
+    v136 = checked_add u256, v109, v135
     v137 = memory_object_len memorybytes, v103
-    v138 = memory_object_len memorybytes, v99
+    v138 = memory_object_len memorybytes, v106
     v139 = add v136, v137
     v140 = lt v139, v136
     v141 = gt v139, v138
     v142 = or v140, v141
     v143 = zext i1 v142 to i256
     icall panic_if<0x32>, v142
-    v144 = memory_object_data memorybytes, v99
+    v144 = memory_object_data memorybytes, v106
     v145 = ptrtoint memptr v144 to i256
     v146 = add v145, v136
     v147 = memory_object_len memorybytes, v103
@@ -490,29 +490,29 @@ fn @replace(arg0: memptr, arg1: memptr, arg2: memptr) -> memptr [pure] {
     mcopy v146, v155, v137 !metadata(memory=heap)
     v156 = memory_object_len memorybytes, v103
     v157 = checked_add u256, v136, v156
-    v158 = memory_object_len memorybytes, v101
-    v159 = checked_add u256, v104, v158
+    v158 = memory_object_len memorybytes, v102
+    v159 = checked_add u256, v107, v158
     jump bb31
   bb31:
-    v161 = phi [bb29: v157], [bb30: v98]
-    v162 = phi [bb29: v159], [bb30: v160]
-    v163 = phi [bb29: v159], [bb30: v107]
+    v161 = phi [bb29: v159], [bb30: v160]
+    v162 = phi [bb29: v159], [bb30: v108]
+    v163 = phi [bb29: v157], [bb30: v109]
     jump bb28
   bb28:
     jump bb24
   bb18:
-    v78 = icall @_matchAt, v64, v66, v72
+    v78 = icall @_matchAt, v68, v69, v72
     jumpi v78, bb21, bb22
   bb22:
     v82 = checked_add u256, v72, 1
     jump bb23
   bb21:
-    v79 = checked_add u256, v69, 1
-    v80 = memory_object_len memorybytes, v66
+    v79 = checked_add u256, v71, 1
+    v80 = memory_object_len memorybytes, v69
     v81 = checked_add u256, v72, v80
     jump bb23
   bb23:
-    v83 = phi [bb21: v79], [bb22: v69]
+    v83 = phi [bb21: v79], [bb22: v71]
     v84 = phi [bb21: v81], [bb22: v82]
     jump bb20
   bb20:
@@ -534,35 +534,35 @@ fn @replace(arg0: memptr, arg1: memptr, arg2: memptr) -> memptr [pure] {
     jump bb7
   bb7:
     v16 = phi [bb4: arg0], [bb9: v16]
-    v17 = phi [bb4: 0], [bb9: v62]
-    v18 = phi [bb4: arg1], [bb9: v18]
-    v19 = phi [bb4: arg1], [bb9: v19]
-    v20 = phi [bb4: 0], [bb9: v63]
-    v21 = phi [bb4: arg2], [bb9: v21]
+    v17 = phi [bb4: arg1], [bb9: v17]
+    v18 = phi [bb4: arg2], [bb9: v18]
+    v19 = phi [bb4: memptr 96], [bb9: v19]
+    v20 = phi [bb4: arg0], [bb9: v20]
+    v21 = phi [bb4: arg1], [bb9: v21]
     v22 = phi [bb4: arg2], [bb9: v22]
-    v23 = phi [bb4: memptr 96], [bb9: v23]
-    v24 = phi [bb4: v15], [bb9: v24]
-    v25 = phi [bb4: arg0], [bb9: v25]
-    v26 = memory_object_len memorybytes, v16
-    v27 = gt v20, v26
+    v23 = phi [bb4: v15], [bb9: v23]
+    v24 = phi [bb4: 0], [bb9: v62]
+    v25 = phi [bb4: 0], [bb9: v63]
+    v26 = memory_object_len memorybytes, v20
+    v27 = gt v25, v26
     v28 = eq v27, false
     jumpi v28, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v24
+    ret v23
   bb10:
     v29 = memory_object_len memorybytes, v22
-    v30 = memory_object_len memorybytes, v24
-    v31 = add v17, v29
-    v32 = lt v31, v17
+    v30 = memory_object_len memorybytes, v23
+    v31 = add v24, v29
+    v32 = lt v31, v24
     v33 = gt v31, v30
     v34 = or v32, v33
     v35 = zext i1 v34 to i256
     icall panic_if<0x32>, v34
-    v36 = memory_object_data memorybytes, v24
+    v36 = memory_object_data memorybytes, v23
     v37 = ptrtoint memptr v36 to i256
-    v38 = add v37, v17
+    v38 = add v37, v24
     v39 = memory_object_len memorybytes, v22
     v40 = add 0, v29
     v41 = lt v40, 0
@@ -575,26 +575,26 @@ fn @replace(arg0: memptr, arg1: memptr, arg2: memptr) -> memptr [pure] {
     v47 = add v46, 0
     mcopy v38, v47, v29 !metadata(memory=heap)
     v48 = memory_object_len memorybytes, v22
-    v49 = checked_add u256, v17, v48
-    v50 = memory_object_len memorybytes, v16
-    v51 = lt v20, v50
+    v49 = checked_add u256, v24, v48
+    v50 = memory_object_len memorybytes, v20
+    v51 = lt v25, v50
     jumpi v51, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v52 = memory_object_len memorybytes, v16
-    v53 = lt v20, v52
+    v52 = memory_object_len memorybytes, v20
+    v53 = lt v25, v52
     v54 = eq v53, false
     icall panic_if<0x32>, v54
-    v55 = memory_object_load_byte memorybytes, v16, v20
+    v55 = memory_object_load_byte memorybytes, v20, v25
     v56 = shl 248, v55
     v57 = checked_add u256, v49, 1
-    v58 = memory_object_len memorybytes, v24
+    v58 = memory_object_len memorybytes, v23
     v59 = lt v49, v58
     v60 = eq v59, false
     icall panic_if<0x32>, v60
     v61 = byte 0, v56
-    memory_object_store_byte memorybytes, v24, v49, v61
+    memory_object_store_byte memorybytes, v23, v49, v61
     jump bb15
   bb15:
     v62 = phi [bb13: v57], [bb14: v49]
@@ -602,7 +602,7 @@ fn @replace(arg0: memptr, arg1: memptr, arg2: memptr) -> memptr [pure] {
   bb12:
     jump bb9
   bb9:
-    v63 = checked_add u256, v20, 1
+    v63 = checked_add u256, v25, 1
     jump bb7
   bb1:
     ret arg0
@@ -612,12 +612,12 @@ fn @_matchAt(arg0: memptr, arg1: memptr, arg2: i256) -> i1 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v19]
-    v5 = memory_object_len memorybytes, v0
+    v5 = memory_object_len memorybytes, v1
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
   bb5:
@@ -625,18 +625,18 @@ fn @_matchAt(arg0: memptr, arg1: memptr, arg2: i256) -> i1 [pure] {
   bb2:
     ret true
   bb4:
-    v7 = checked_add u256, v3, v4
-    v8 = memory_object_len memorybytes, v2
+    v7 = checked_add u256, v2, v4
+    v8 = memory_object_len memorybytes, v0
     v9 = lt v7, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = memory_object_load_byte memorybytes, v2, v7
+    v11 = memory_object_load_byte memorybytes, v0, v7
     v12 = shl 248, v11
-    v13 = memory_object_len memorybytes, v0
+    v13 = memory_object_len memorybytes, v1
     v14 = lt v4, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
-    v16 = memory_object_load_byte memorybytes, v0, v4
+    v16 = memory_object_load_byte memorybytes, v1, v4
     v17 = shl 248, v16
     v18 = ne v12, v17
     jumpi v18, bb7, bb8
@@ -670,26 +670,26 @@ fn @indicesOf(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb6:
     jump bb13
   bb13:
-    v39 = phi [bb6: 0], [bb17: v56]
-    v40 = phi [bb6: arg0], [bb17: v40]
+    v39 = phi [bb6: arg0], [bb17: v39]
+    v40 = phi [bb6: arg1], [bb17: v40]
     v41 = phi [bb6: memptr 96], [bb17: v41]
-    v42 = phi [bb6: arg1], [bb17: v42]
-    v43 = phi [bb6: 0], [bb17: v57]
-    v44 = phi [bb6: arg1], [bb17: v44]
-    v45 = phi [bb6: arg0], [bb17: v45]
-    v46 = memory_object_len memorybytes, v42
-    v47 = checked_add u256, v43, v46
-    v48 = memory_object_len memorybytes, v45
+    v42 = phi [bb6: arg0], [bb17: v42]
+    v43 = phi [bb6: arg1], [bb17: v43]
+    v44 = phi [bb6: 0], [bb17: v56]
+    v45 = phi [bb6: 0], [bb17: v57]
+    v46 = memory_object_len memorybytes, v43
+    v47 = checked_add u256, v45, v46
+    v48 = memory_object_len memorybytes, v42
     v49 = gt v47, v48
     v50 = eq v49, false
     jumpi v50, bb15, bb16
   bb16:
     jump bb14
   bb14:
-    v58 = mul v39, 1
+    v58 = mul v44, 1
     v59 = eq 1, 0
     v60 = div v58, 1
-    v61 = eq v60, v39
+    v61 = eq v60, v44
     v62 = or v59, v61
     v63 = zext i1 v62 to i256
     v64 = eq v63, 0
@@ -706,20 +706,20 @@ fn @indicesOf(arg0: memptr, arg1: memptr) -> memptr [pure] {
     v73 = eq v72, 0
     icall panic_if<0x41>, v73
     v74 = alloc memoryarray<1>, exact, zeroed, panic, v67
-    set_memory_object_len memoryarray, v74, v39
+    set_memory_object_len memoryarray, v74, v44
     jump bb21
   bb21:
-    v75 = phi [bb14: v74], [bb25: v75]
-    v76 = phi [bb14: v41], [bb25: v76]
-    v77 = phi [bb14: 0], [bb25: v97]
-    v78 = phi [bb14: v45], [bb25: v78]
-    v79 = phi [bb14: 0], [bb25: v98]
-    v80 = phi [bb14: v40], [bb25: v80]
-    v81 = phi [bb14: v42], [bb25: v81]
-    v82 = phi [bb14: v43], [bb25: v82]
-    v83 = phi [bb14: v44], [bb25: v83]
-    v84 = memory_object_len memorybytes, v81
-    v85 = checked_add u256, v77, v84
+    v75 = phi [bb14: v39], [bb25: v75]
+    v76 = phi [bb14: v40], [bb25: v76]
+    v77 = phi [bb14: v41], [bb25: v77]
+    v78 = phi [bb14: v42], [bb25: v78]
+    v79 = phi [bb14: v43], [bb25: v79]
+    v80 = phi [bb14: 0], [bb25: v97]
+    v81 = phi [bb14: v45], [bb25: v81]
+    v82 = phi [bb14: v74], [bb25: v82]
+    v83 = phi [bb14: 0], [bb25: v98]
+    v84 = memory_object_len memorybytes, v79
+    v85 = checked_add u256, v83, v84
     v86 = memory_object_len memorybytes, v78
     v87 = gt v85, v86
     v88 = eq v87, false
@@ -727,42 +727,42 @@ fn @indicesOf(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb24:
     jump bb22
   bb22:
-    ret v75
+    ret v82
   bb23:
-    v89 = icall @_matchAt, v78, v81, v77
+    v89 = icall @_matchAt, v78, v79, v83
     jumpi v89, bb26, bb27
   bb27:
-    v96 = checked_add u256, v77, 1
+    v96 = checked_add u256, v83, 1
     jump bb28
   bb26:
-    v90 = checked_add u256, v79, 1
-    v91 = memory_object_len memoryarray, v75
-    v92 = lt v79, v91
+    v90 = checked_add u256, v80, 1
+    v91 = memory_object_len memoryarray, v82
+    v92 = lt v80, v91
     v93 = eq v92, false
     icall panic_if<0x32>, v93
-    memory_object_store_element memoryarray<1>, v75, v79, v77
-    v94 = memory_object_len memorybytes, v81
-    v95 = checked_add u256, v77, v94
+    memory_object_store_element memoryarray<1>, v82, v80, v83
+    v94 = memory_object_len memorybytes, v79
+    v95 = checked_add u256, v83, v94
     jump bb28
   bb28:
-    v97 = phi [bb26: v95], [bb27: v96]
-    v98 = phi [bb26: v90], [bb27: v79]
+    v97 = phi [bb26: v90], [bb27: v80]
+    v98 = phi [bb26: v95], [bb27: v96]
     jump bb25
   bb25:
     jump bb21
   bb15:
-    v51 = icall @_matchAt, v45, v42, v43
+    v51 = icall @_matchAt, v42, v43, v45
     jumpi v51, bb18, bb19
   bb19:
-    v55 = checked_add u256, v43, 1
+    v55 = checked_add u256, v45, 1
     jump bb20
   bb18:
-    v52 = checked_add u256, v39, 1
-    v53 = memory_object_len memorybytes, v42
-    v54 = checked_add u256, v43, v53
+    v52 = checked_add u256, v44, 1
+    v53 = memory_object_len memorybytes, v43
+    v54 = checked_add u256, v45, v53
     jump bb20
   bb20:
-    v56 = phi [bb18: v52], [bb19: v39]
+    v56 = phi [bb18: v52], [bb19: v44]
     v57 = phi [bb18: v54], [bb19: v55]
     jump bb17
   bb17:
@@ -793,32 +793,32 @@ fn @indicesOf(arg0: memptr, arg1: memptr) -> memptr [pure] {
     set_memory_object_len memoryarray, v24, v7
     jump bb7
   bb7:
-    v25 = phi [bb4: v24], [bb9: v25]
-    v26 = phi [bb4: arg0], [bb9: v26]
+    v25 = phi [bb4: arg0], [bb9: v25]
+    v26 = phi [bb4: arg1], [bb9: v26]
     v27 = phi [bb4: memptr 96], [bb9: v27]
-    v28 = phi [bb4: arg1], [bb9: v28]
-    v29 = phi [bb4: 0], [bb9: v38]
-    v30 = phi [bb4: arg1], [bb9: v30]
-    v31 = phi [bb4: arg0], [bb9: v31]
-    v32 = memory_object_len memorybytes, v31
-    v33 = gt v29, v32
+    v28 = phi [bb4: arg0], [bb9: v28]
+    v29 = phi [bb4: arg1], [bb9: v29]
+    v30 = phi [bb4: v24], [bb9: v30]
+    v31 = phi [bb4: 0], [bb9: v38]
+    v32 = memory_object_len memorybytes, v28
+    v33 = gt v31, v32
     v34 = eq v33, false
     jumpi v34, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v25
+    ret v30
   bb10:
-    v35 = memory_object_len memoryarray, v25
-    v36 = lt v29, v35
+    v35 = memory_object_len memoryarray, v30
+    v36 = lt v31, v35
     v37 = eq v36, false
     icall panic_if<0x32>, v37
-    memory_object_store_element memoryarray<1>, v25, v29, v29
+    memory_object_store_element memoryarray<1>, v30, v31, v31
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v38 = checked_add u256, v29, 1
+    v38 = checked_add u256, v31, 1
     jump bb7
   bb1:
     v3 = alloc memoryarray<1>, exact, zeroed, panic, 32
@@ -866,39 +866,39 @@ fn @split(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb15:
     jump bb16
   bb16:
-    v71 = phi [bb15: arg1], [bb18: v71]
-    v72 = phi [bb15: 0], [bb18: v120]
-    v73 = phi [bb15: arg1], [bb18: v73]
-    v74 = phi [bb15: 0], [bb18: v121]
-    v75 = phi [bb15: v67], [bb18: v75]
-    v76 = phi [bb15: arg0], [bb18: v76]
-    v77 = phi [bb15: v48], [bb18: v77]
-    v78 = phi [bb15: arg0], [bb18: v78]
-    v79 = memory_object_len memoryarray, v77
-    v80 = gt v74, v79
+    v71 = phi [bb15: arg0], [bb18: v71]
+    v72 = phi [bb15: arg1], [bb18: v72]
+    v73 = phi [bb15: v67], [bb18: v73]
+    v74 = phi [bb15: arg0], [bb18: v74]
+    v75 = phi [bb15: arg1], [bb18: v75]
+    v76 = phi [bb15: v48], [bb18: v76]
+    v77 = phi [bb15: 0], [bb18: v120]
+    v78 = phi [bb15: 0], [bb18: v121]
+    v79 = memory_object_len memoryarray, v76
+    v80 = gt v78, v79
     v81 = eq v80, false
     jumpi v81, bb19, bb20
   bb20:
     jump bb17
   bb17:
-    ret v75
+    ret v73
   bb19:
-    v82 = memory_object_len memoryarray, v77
-    v83 = eq v74, v82
+    v82 = memory_object_len memoryarray, v76
+    v83 = eq v78, v82
     jumpi v83, bb22, bb23
   bb23:
-    v85 = memory_object_len memoryarray, v77
-    v86 = lt v74, v85
+    v85 = memory_object_len memoryarray, v76
+    v86 = lt v78, v85
     v87 = eq v86, false
     icall panic_if<0x32>, v87
-    v88 = memory_object_load_element memoryarray<1>, v77, v74
+    v88 = memory_object_load_element memoryarray<1>, v76, v78
     jump bb24
   bb22:
-    v84 = memory_object_len memorybytes, v76
+    v84 = memory_object_len memorybytes, v74
     jump bb24
   bb24:
     v89 = phi [bb22: v84], [bb23: v88]
-    v90 = checked_sub u256, v89, v72
+    v90 = checked_sub u256, v89, v77
     v91 = add v90, 63
     v92 = lt v91, v90
     icall panic_if<0x41>, v92
@@ -917,30 +917,30 @@ fn @split(arg0: memptr, arg1: memptr) -> memptr [pure] {
     v103 = memory_object_data memorybytes, v95
     v104 = ptrtoint memptr v103 to i256
     v105 = add v104, 0
-    v106 = memory_object_len memorybytes, v76
-    v107 = add v72, v96
-    v108 = lt v107, v72
+    v106 = memory_object_len memorybytes, v74
+    v107 = add v77, v96
+    v108 = lt v107, v77
     v109 = gt v107, v106
     v110 = or v108, v109
     v111 = zext i1 v110 to i256
     icall panic_if<0x32>, v110
-    v112 = memory_object_data memorybytes, v76
+    v112 = memory_object_data memorybytes, v74
     v113 = ptrtoint memptr v112 to i256
-    v114 = add v113, v72
+    v114 = add v113, v77
     mcopy v105, v114, v96 !metadata(memory=heap)
-    v115 = memory_object_len memoryarray, v75
-    v116 = lt v74, v115
+    v115 = memory_object_len memoryarray, v73
+    v116 = lt v78, v115
     v117 = eq v116, false
     icall panic_if<0x32>, v117
     v118 = ptrtoint memptr v95 to i256
-    memory_object_store_element memoryarray<1>, v75, v74, v118
-    v119 = memory_object_len memorybytes, v71
+    memory_object_store_element memoryarray<1>, v73, v78, v118
+    v119 = memory_object_len memorybytes, v75
     v120 = checked_add u256, v89, v119
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v121 = checked_add u256, v74, 1
+    v121 = checked_add u256, v78, 1
     jump bb16
   bb14:
     memory_object_store_element memoryarray<1>, v67, v68, 96
@@ -977,29 +977,29 @@ fn @split(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb6:
     jump bb7
   bb7:
-    v23 = phi [bb6: v19], [bb9: v23]
+    v23 = phi [bb6: arg0], [bb9: v23]
     v24 = phi [bb6: arg1], [bb9: v24]
-    v25 = phi [bb6: arg1], [bb9: v25]
+    v25 = phi [bb6: v19], [bb9: v25]
     v26 = phi [bb6: arg0], [bb9: v26]
-    v27 = phi [bb6: 0], [bb9: v47]
-    v28 = phi [bb6: arg0], [bb9: v28]
+    v27 = phi [bb6: arg1], [bb9: v27]
+    v28 = phi [bb6: 0], [bb9: v47]
     v29 = memory_object_len memorybytes, v26
-    v30 = lt v27, v29
+    v30 = lt v28, v29
     jumpi v30, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v23
+    ret v25
   bb10:
     v31 = not 31
     v32 = and 64, v31
     v33 = alloc memorybytes, exact, zeroed, panic, v32
     set_memory_object_len memorybytes, v33, 1
     v34 = memory_object_len memorybytes, v26
-    v35 = lt v27, v34
+    v35 = lt v28, v34
     v36 = eq v35, false
     icall panic_if<0x32>, v36
-    v37 = memory_object_load_byte memorybytes, v26, v27
+    v37 = memory_object_load_byte memorybytes, v26, v28
     v38 = shl 248, v37
     v39 = memory_object_len memorybytes, v33
     v40 = lt 0, v39
@@ -1007,17 +1007,17 @@ fn @split(arg0: memptr, arg1: memptr) -> memptr [pure] {
     icall panic_if<0x32>, v41
     v42 = byte 0, v38
     memory_object_store_byte memorybytes, v33, 0, v42
-    v43 = memory_object_len memoryarray, v23
-    v44 = lt v27, v43
+    v43 = memory_object_len memoryarray, v25
+    v44 = lt v28, v43
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = ptrtoint memptr v33 to i256
-    memory_object_store_element memoryarray<1>, v23, v27, v46
+    memory_object_store_element memoryarray<1>, v25, v28, v46
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v47 = checked_add u256, v27, 1
+    v47 = checked_add u256, v28, 1
     jump bb7
   bb5:
     memory_object_store_element memoryarray<1>, v19, v20, 96

@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/mir/specialize/narrow_literals.mir (before specialize) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/narrow_literals.mir (after specialize) ===
+  @module NarrowLiterals
+  fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+      v0 = icall @leaf, arg0, 0, 0x8000000000000000000000000000000000000000000000000000000000000000
+      ret v0
+  }
+  
+  fn @leaf(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = xor v0, arg2
+      v2 = mul v1, arg0
+      v3 = xor v2, arg2
+      v4 = mul v3, arg0
+      v5 = xor v4, arg2
+      v6 = mul v5, arg0
+      v7 = xor v6, arg2
+      ret v7
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/specialize/narrow_literals.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/narrow_literals.mir (after dead-arg-elim) ===
+  @module NarrowLiterals
+  fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+      v0 = icall @leaf, arg0, 0, 0x8000000000000000000000000000000000000000000000000000000000000000
+      ret v0
+  }
+  
+  fn @leaf(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = xor v0, arg2
+      v2 = mul v1, arg0
+      v3 = xor v2, arg2
+      v4 = mul v3, arg0
+      v5 = xor v4, arg2
+      v6 = mul v5, arg0
+      v7 = xor v6, arg2
+      ret v7
+  }
+  

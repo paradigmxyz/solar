@@ -114,29 +114,29 @@ fn @fill(arg0: memptr, arg1: i256, arg2: i256, arg3: i256) [pure] {
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: arg2], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v11]
-    v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = phi [bb0: arg3], [bb3: v4]
-    v5 = lt v2, v1
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg3], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v11]
+    v5 = lt v4, v2
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret
   bb4:
-    v6 = checked_add u256, v3, v2
+    v6 = checked_add u256, v1, v4
     v7 = memory_object_len memorybytes, v0
     v8 = lt v6, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = byte 0, v4
+    v10 = byte 0, v3
     memory_object_store_byte memorybytes, v0, v6, v10
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v11 = checked_add u256, v2, 1
+    v11 = checked_add u256, v4, 1
     jump bb1
 }
 

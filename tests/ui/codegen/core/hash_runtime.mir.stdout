@@ -51,13 +51,13 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
     set_memory_object_len memorybytes, v12, v7
     jump bb7
   bb7:
-    v13 = phi [bb6: 0], [bb9: v13]
-    v14 = phi [bb6: 0], [bb9: v30]
-    v15 = phi [bb6: arg0], [bb9: v15]
-    v16 = phi [bb6: v7], [bb9: v16]
+    v13 = phi [bb6: arg0], [bb9: v13]
+    v14 = phi [bb6: arg1], [bb9: v14]
+    v15 = phi [bb6: v7], [bb9: v15]
+    v16 = phi [bb6: 0], [bb9: v16]
     v17 = phi [bb6: v12], [bb9: v17]
-    v18 = phi [bb6: arg1], [bb9: v18]
-    v19 = lt v14, v16
+    v18 = phi [bb6: 0], [bb9: v30]
+    v19 = lt v18, v15
     jumpi v19, bb10, bb11
   bb11:
     jump bb8
@@ -65,24 +65,24 @@ fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
     v31 = keccak256_bytes v17
     ret v31
   bb10:
-    v20 = checked_add u256, v18, v14
-    v21 = memory_object_len memorybytes, v15
+    v20 = checked_add u256, v14, v18
+    v21 = memory_object_len memorybytes, v13
     v22 = lt v20, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
-    v24 = memory_object_load_byte memorybytes, v15, v20
+    v24 = memory_object_load_byte memorybytes, v13, v20
     v25 = shl 248, v24
     v26 = memory_object_len memorybytes, v17
-    v27 = lt v14, v26
+    v27 = lt v18, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = byte 0, v25
-    memory_object_store_byte memorybytes, v17, v14, v29
+    memory_object_store_byte memorybytes, v17, v18, v29
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v30 = checked_add u256, v14, 1
+    v30 = checked_add u256, v18, 1
     jump bb7
 }
 

@@ -5,32 +5,32 @@ fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, ab
     v0 = slice_len arg0
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v21]
-    v2 = phi [bb0: arg0], [bb3: v2]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = slice_len v2
-    v6 = lt v1, v5
+    v4 = phi [bb0: 0], [bb3: v21]
+    v5 = slice_len v1
+    v6 = lt v4, v5
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb4:
-    v7 = slice_len v2
-    v8 = lt v1, v7
+    v7 = slice_len v1
+    v8 = lt v4, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_ptr v2
-    v11 = mul v1, 32
+    v10 = slice_ptr v1
+    v11 = mul v4, 32
     v12 = eq 32, 0
     v13 = div v11, 32
-    v14 = eq v13, v1
+    v14 = eq v13, v4
     v15 = or v12, v14
     v16 = zext i1 v15 to i256
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = add v10, v11
     v19 = calldataload v18
-    v20 = eq v19, v4
+    v20 = eq v19, v2
     jumpi v20, bb7, bb8
   bb8:
     jump bb9
@@ -39,11 +39,11 @@ fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, ab
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v1, 1
+    v21 = checked_add u256, v4, 1
     jump bb1
   bb7:
     jump bb2
   bb2:
-    v22 = phi [bb7: v1], [bb5: v3]
+    v22 = phi [bb7: v4], [bb5: v3]
     ret v22
 }

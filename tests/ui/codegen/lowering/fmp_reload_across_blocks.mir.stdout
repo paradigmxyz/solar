@@ -71,10 +71,10 @@ fn @sqrt(arg0: i256) -> i256 [inline_assembly, pure] {
     v3 = div v2, 2
     jump bb4
   bb4:
-    v4 = phi [bb2: v3], [bb8: v12]
-    v5 = phi [bb2: arg0], [bb8: v5]
-    v6 = phi [bb2: arg0], [bb8: v4]
-    v7 = lt v4, v6
+    v4 = phi [bb2: arg0], [bb8: v4]
+    v5 = phi [bb2: arg0], [bb8: v6]
+    v6 = phi [bb2: v3], [bb8: v12]
+    v7 = lt v6, v5
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb6, bb7
@@ -83,15 +83,15 @@ fn @sqrt(arg0: i256) -> i256 [inline_assembly, pure] {
   bb5:
     jump bb1
   bb6:
-    v10 = div v5, v4
-    v11 = add v10, v4
+    v10 = div v4, v6
+    v11 = add v10, v6
     v12 = div v11, 2
     jump bb8
   bb8:
     jump bb4
   bb1:
-    v13 = phi [bb0: arg0], [bb5: v5], [bb3: arg0]
-    v14 = phi [bb0: 0], [bb5: v6], [bb3: 1]
+    v13 = phi [bb0: arg0], [bb5: v4], [bb3: arg0]
+    v14 = phi [bb0: 0], [bb5: v5], [bb3: 1]
     ret v14
 }
 

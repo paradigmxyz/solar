@@ -11,22 +11,22 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v15 = lt v14, 2
     jumpi v15, bb5, bb3
   bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 2
-    v28 = add v29, 32
-    mstore v28, 0x4142000000000000000000000000000000000000000000000000000000000000
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 64
+    mstore 64, v29 !metadata(memory=scratch)
+    mstore v28, 2
+    v27 = add v28, 32
+    mstore v27, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb1:
-    mstore8 v28, 45
+    mstore8 v27, 45
     jump bb2
   bb2:
-    v24 = mload v28
-    v25 = byte 0, v24
-    v11 = shl 248, v25
-    mstore 128, v11
-    returndata 128, 32
+    v23 = mload v27
+    v24 = byte 0, v23
+    v11 = shl 248, v24
+    mstore 0, v11 !metadata(memory=scratch)
+    returndata 0, 32
   bb3:
     revert 0, 0
 }
@@ -38,8 +38,8 @@ fn @store() [selector=0x975057e7, abi_wrapper] {
     v5 = or v2, 45
     sstore 0, v5 !metadata(storage=slot(0))
     v7 = shl 248, v5
-    mstore 128, v7
-    returndata 128, 32
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @entry() [entry] {

@@ -1,0 +1,99 @@
+//@compile-flags: -Zmir-pipeline=licm
+//@filecheck:
+// Slot hashes of a dynamic array's data and of a mapping entry with a word key
+// write only the scratch word they hash, so they move like hashes of their
+// operands. They still need every normal exit of the loop to follow them.
+@module LicmSlotHash
+
+// A do-while body runs whenever the loop is entered, so the hash of the
+// invariant slot moves to the preheader. The range check before it can only
+// revert, which does not block the move.
+// CHECK-LABEL: {{^[ +].*}}fn @dowhile_hash{{[( ]}}
+// CHECK: + [[HASH:v[0-9]+]] = storage_array_data_slot 7
+// CHECK: - [[HASH]] = storage_array_data_slot 7
+fn @dowhile_hash(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb1: v6]
+    v2 = shr 64, v1
+    v3 = ne v2, 0
+    icall panic_if<0x32>, v3
+    v4 = storage_array_data_slot 7
+    v5 = add v4, v1
+    v7 = sload v5
+    v6 = add v1, 1
+    v8 = lt v6, arg0
+    jumpi v8, bb1, bb2
+  bb2:
+    ret v7
+}
+
+// The header's test can leave before the body runs, so a loop that exits at
+// once would pay for a hoisted hash: it stays in the body.
+// CHECK-LABEL: {{^[ +].*}}fn @top_tested_hash{{[( ]}}
+// CHECK-NOT: {{^\+.*}}storage_array_data_slot
+// CHECK: {{^ .*}}storage_array_data_slot 7
+fn @top_tested_hash(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v9 = phi [bb0: 0], [bb2: v7]
+    v8 = lt v1, arg0
+    jumpi v8, bb2, bb3
+  bb2:
+    v4 = storage_array_data_slot 7
+    v5 = add v4, v1
+    v7 = sload v5
+    v6 = add v1, 1
+    jump bb1
+  bb3:
+    ret v9
+}
+
+// A call before the hash may end the execution without reverting, so the
+// hash is not guaranteed to run and stays in the loop.
+// CHECK-LABEL: {{^[ +].*}}fn @call_before_hash{{[( ]}}
+// CHECK-NOT: {{^\+.*}}storage_array_data_slot
+// CHECK: {{^ .*}}storage_array_data_slot 7
+fn @call_before_hash(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb1: v6]
+    icall @opaque, v1
+    v4 = storage_array_data_slot 7
+    v5 = add v4, v1
+    v7 = sload v5
+    v6 = add v1, 1
+    v8 = lt v6, arg0
+    jumpi v8, bb1, bb2
+  bb2:
+    ret v7
+}
+
+// A mapping entry with an invariant word key hashes the same slot every time.
+// CHECK-LABEL: {{^[ +].*}}fn @dowhile_mapping{{[( ]}}
+// CHECK: + [[ENTRY:v[0-9]+]] = mapping_slot arg1, 3
+// CHECK: - [[ENTRY]] = mapping_slot arg1, 3
+fn @dowhile_mapping(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb1: v6]
+    v9 = phi [bb0: 0], [bb1: v7]
+    v4 = mapping_slot arg1, 3
+    v5 = sload v4
+    v7 = add v9, v5
+    v6 = add v1, 1
+    v8 = lt v6, arg0
+    jumpi v8, bb1, bb2
+  bb2:
+    ret v7
+}
+
+fn @opaque(arg0: i256) {
+  bb0:
+    ret
+}

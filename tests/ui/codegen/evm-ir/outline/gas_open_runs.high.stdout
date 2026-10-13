@@ -1,0 +1,32 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/gas_open_runs.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/gas_open_runs.evmir (after outline) ===
+  @module GasOpenRuns
+  bb0:
+    push 0
+    calldataload
+    push 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    and
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    add
+    push 0
+    mstore
+    push 32
+    calldataload
+    push 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    and
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    add
+    push 32
+    mstore
+    push 64
+    calldataload
+    push 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    and
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    add
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  

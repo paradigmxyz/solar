@@ -62,23 +62,23 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
   bb3:
     jump bb4
   bb4:
-    v20 = phi [bb3: arg1], [bb6: v20]
-    v21 = phi [bb3: arg3], [bb6: v21]
-    v22 = phi [bb3: v16], [bb6: v22]
-    v23 = phi [bb3: arg0], [bb6: v23]
-    v24 = phi [bb3: arg2], [bb6: v24]
-    v25 = phi [bb3: 0], [bb6: v49]
-    v26 = phi [bb3: 0], [bb6: v26]
-    v27 = lt v25, v23
+    v20 = phi [bb3: arg0], [bb6: v20]
+    v21 = phi [bb3: arg1], [bb6: v21]
+    v22 = phi [bb3: arg2], [bb6: v22]
+    v23 = phi [bb3: arg3], [bb6: v23]
+    v24 = phi [bb3: 0], [bb6: v24]
+    v25 = phi [bb3: v16], [bb6: v25]
+    v26 = phi [bb3: 0], [bb6: v49]
+    v27 = lt v26, v20
     jumpi v27, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v50 = memory_object_len memoryarray, v22
-    v51 = lt v24, v50
+    v50 = memory_object_len memoryarray, v25
+    v51 = lt v22, v50
     v52 = eq v51, false
     icall panic_if<0x32>, v52
-    v53 = memory_object_load_element memoryarray<1>, v22, v24
+    v53 = memory_object_load_element memoryarray<1>, v25, v22
     v54 = inttoptr i256 v53 to memptr
     v55 = eq v53, 0
     jumpi v55, bb10, bb11
@@ -86,21 +86,21 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v56 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v56, 0
     v57 = ptrtoint memptr v56 to i256
-    memory_object_store_element memoryarray<1>, v22, v24, v57
+    memory_object_store_element memoryarray<1>, v25, v22, v57
     jump bb11
   bb11:
     v58 = phi [bb5: v54], [bb10: v56]
     v59 = memory_object_len memoryarray, v58
-    v60 = lt v21, v59
+    v60 = lt v23, v59
     v61 = eq v60, false
     icall panic_if<0x32>, v61
-    v62 = memory_object_load_element memoryarray<1>, v58, v21
+    v62 = memory_object_load_element memoryarray<1>, v58, v23
     ret v62
   bb7:
-    v28 = mul v20, 1
+    v28 = mul v21, 1
     v29 = eq 1, 0
     v30 = div v28, 1
-    v31 = eq v30, v20
+    v31 = eq v30, v21
     v32 = or v29, v31
     v33 = zext i1 v32 to i256
     v34 = eq v33, 0
@@ -117,18 +117,18 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v43 = eq v42, 0
     icall panic_if<0x41>, v43
     v44 = alloc memoryarray<1>, exact, zeroed, panic, v37
-    set_memory_object_len memoryarray, v44, v20
-    v45 = memory_object_len memoryarray, v22
-    v46 = lt v25, v45
+    set_memory_object_len memoryarray, v44, v21
+    v45 = memory_object_len memoryarray, v25
+    v46 = lt v26, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = ptrtoint memptr v44 to i256
-    memory_object_store_element memoryarray<1>, v22, v25, v48
+    memory_object_store_element memoryarray<1>, v25, v26, v48
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v49 = checked_add u256, v25, 1
+    v49 = checked_add u256, v26, 1
     jump bb4
   bb2:
     memory_object_store_element memoryarray<1>, v16, v17, 96

@@ -20,31 +20,31 @@ fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[u256], abi_r
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v9]
-    v2 = phi [bb0: 0], [bb3: v8]
-    v3 = lt v1, v0
+    v1 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: 0], [bb3: v9]
+    v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v1
   bb4:
-    v4 = checked_rem u256, v1, 2
+    v4 = checked_rem u256, v2, 2
     v5 = eq v4, 1
     jumpi v5, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v6 = icall @helper, v1, v2
-    v7 = checked_add u256, v6, v1
+    v6 = icall @helper, v2, v1
+    v7 = checked_add u256, v6, v2
     jump bb9
   bb9:
-    v8 = phi [bb7: v7], [bb8: v2]
+    v8 = phi [bb7: v7], [bb8: v1]
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v1, 1
+    v9 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -62,29 +62,29 @@ fn @pick(arg0: i256, arg1: i256) -> i256 [selector=0xa62f4550, pure, abi_params=
     v3 = phi [bb1: v1], [bb2: v2]
     jump bb4
   bb4:
-    v4 = phi [bb3: arg1], [bb6: v4]
-    v5 = phi [bb3: v3], [bb6: v5]
-    v6 = phi [bb3: arg0], [bb6: v6]
-    v7 = phi [bb3: 0], [bb6: v14]
+    v4 = phi [bb3: arg0], [bb6: v4]
+    v5 = phi [bb3: arg1], [bb6: v5]
+    v6 = phi [bb3: 0], [bb6: v14]
+    v7 = phi [bb3: v3], [bb6: v7]
     v8 = phi [bb3: 0], [bb6: v15]
-    v9 = lt v8, v4
+    v9 = lt v8, v5
     jumpi v9, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    ret v7
+    ret v6
   bb7:
-    v10 = lt v8, v6
+    v10 = lt v8, v4
     v11 = eq v10, false
     jumpi v11, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v12 = icall @helper, v5, v8
-    v13 = checked_add u256, v7, v12
+    v12 = icall @helper, v7, v8
+    v13 = checked_add u256, v6, v12
     jump bb12
   bb12:
-    v14 = phi [bb10: v13], [bb11: v7]
+    v14 = phi [bb10: v13], [bb11: v6]
     jump bb9
   bb9:
     jump bb6

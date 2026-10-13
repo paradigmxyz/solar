@@ -21,13 +21,17 @@ contract Test {
     }
 
     // The intrinsic reads both lengths from the packed word and stores each
-    // payload, cut to its length, without loading it back.
+    // payload, cut to its length, into one allocation, without loading it back.
     // INTRINSIC-LABEL: fn @unpackPair
-    // INTRINSIC: byte 0
-    // INTRINSIC: mstore
+    // INTRINSIC: byte 0, arg0
     // INTRINSIC: byte {{v[0-9]+}}, arg0
-    // INTRINSIC: mstore
+    // INTRINSIC: [[FMP:v[0-9]+]] = mload 64
+    // INTRINSIC-NEXT: [[END:v[0-9]+]] = add [[FMP]], 128
+    // INTRINSIC-NEXT: mstore 64, [[END]]
+    // INTRINSIC-NOT: mload {{v[0-9]+}}
     // INTRINSIC-NOT: icall @unpackTwo
+    // INTRINSIC-NOT: mcopy
+    // INTRINSIC-LABEL: fn @entry
     // PORTABLE-LABEL: fn @unpackPair
     // PORTABLE: icall @unpackTwo
     function unpackPair(bytes32 packed) public pure returns (string memory, string memory) {

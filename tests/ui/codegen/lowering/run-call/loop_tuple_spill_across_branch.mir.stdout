@@ -41,54 +41,54 @@ fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, 
     v10 = mul v6, v4
     jump bb3
   bb3:
-    v12 = phi [bb1: v10], [bb2: v7]
-    v13 = phi [bb1: v2], [bb2: v11]
+    v12 = phi [bb1: v2], [bb2: v11]
+    v13 = phi [bb1: v10], [bb2: v7]
     jump bb4
   bb4:
-    v14 = phi [bb3: v6], [bb6: v14]
-    v15 = phi [bb3: 0], [bb6: v15]
-    v16 = phi [bb3: v3], [bb6: v30]
-    v17 = phi [bb3: arg0], [bb6: v17]
+    v14 = phi [bb3: arg0], [bb6: v14]
+    v15 = phi [bb3: arg1], [bb6: v15]
+    v16 = phi [bb3: arg2], [bb6: v16]
+    v17 = phi [bb3: 0], [bb6: v17]
     v18 = phi [bb3: v0], [bb6: v18]
-    v19 = phi [bb3: v12], [bb6: v19]
-    v20 = phi [bb3: v4], [bb6: v20]
-    v21 = phi [bb3: arg1], [bb6: v21]
-    v22 = phi [bb3: 0], [bb6: v32]
-    v23 = phi [bb3: v1], [bb6: v23]
-    v24 = phi [bb3: v5], [bb6: v24]
-    v25 = phi [bb3: arg2], [bb6: v25]
-    v26 = phi [bb3: v13], [bb6: v31]
-    v27 = and v20, 3
-    v28 = lt v22, v27
+    v19 = phi [bb3: v1], [bb6: v19]
+    v20 = phi [bb3: v12], [bb6: v31]
+    v21 = phi [bb3: v3], [bb6: v30]
+    v22 = phi [bb3: v4], [bb6: v22]
+    v23 = phi [bb3: v5], [bb6: v23]
+    v24 = phi [bb3: v6], [bb6: v24]
+    v25 = phi [bb3: v13], [bb6: v25]
+    v26 = phi [bb3: 0], [bb6: v32]
+    v27 = and v22, 3
+    v28 = lt v26, v27
     jumpi v28, bb7, bb8
   bb8:
     jump bb5
   bb5:
     v33 = mul v18, 1
-    v34 = mul v23, 2
+    v34 = mul v19, 2
     v35 = xor v33, v34
-    v36 = mul v26, 3
+    v36 = mul v20, 3
     v37 = xor v35, v36
-    v38 = mul v16, 4
+    v38 = mul v21, 4
     v39 = xor v37, v38
-    v40 = mul v20, 5
+    v40 = mul v22, 5
     v41 = xor v39, v40
-    v42 = mul v24, 6
+    v42 = mul v23, 6
     v43 = xor v41, v42
-    v44 = mul v14, 7
+    v44 = mul v24, 7
     v45 = xor v43, v44
-    v46 = mul v19, 8
+    v46 = mul v25, 8
     v47 = xor v45, v46
     ret v47
   bb7:
-    v29 = icall @step, v23, v26
+    v29 = icall @step, v19, v20
     v30 = extract_value struct0, v29, 0
     v31 = extract_value struct0, v29, 1
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v32 = add v22, 1
+    v32 = add v26, 1
     jump bb4
 }
 
@@ -116,50 +116,50 @@ fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb423
     v13 = phi [bb1: v10], [bb2: v7]
     jump bb4
   bb4:
-    v14 = phi [bb3: v4], [bb6: v14]
-    v15 = phi [bb3: 0], [bb6: v33]
-    v16 = phi [bb3: arg1], [bb6: v16]
-    v17 = phi [bb3: v1], [bb6: v17]
-    v18 = phi [bb3: v5], [bb6: v18]
-    v19 = phi [bb3: arg2], [bb6: v19]
+    v14 = phi [bb3: arg0], [bb6: v14]
+    v15 = phi [bb3: arg1], [bb6: v15]
+    v16 = phi [bb3: arg2], [bb6: v16]
+    v17 = phi [bb3: 0], [bb6: v17]
+    v18 = phi [bb3: v0], [bb6: v18]
+    v19 = phi [bb3: v1], [bb6: v19]
     v20 = phi [bb3: v12], [bb6: v32]
-    v21 = phi [bb3: v6], [bb6: v21]
-    v22 = phi [bb3: 0], [bb6: v22]
-    v23 = phi [bb3: v3], [bb6: v30]
-    v24 = phi [bb3: arg0], [bb6: v24]
+    v21 = phi [bb3: v3], [bb6: v30]
+    v22 = phi [bb3: v4], [bb6: v22]
+    v23 = phi [bb3: v5], [bb6: v23]
+    v24 = phi [bb3: v6], [bb6: v24]
     v25 = phi [bb3: v13], [bb6: v25]
-    v26 = phi [bb3: v0], [bb6: v26]
-    v27 = and v14, 3
-    v28 = lt v15, v27
+    v26 = phi [bb3: 0], [bb6: v33]
+    v27 = and v22, 3
+    v28 = lt v26, v27
     jumpi v28, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v34 = mul v26, 1
-    v35 = mul v17, 2
+    v34 = mul v18, 1
+    v35 = mul v19, 2
     v36 = xor v34, v35
     v37 = mul v20, 3
     v38 = xor v36, v37
-    v39 = mul v23, 4
+    v39 = mul v21, 4
     v40 = xor v38, v39
-    v41 = mul v14, 5
+    v41 = mul v22, 5
     v42 = xor v40, v41
-    v43 = mul v18, 6
+    v43 = mul v23, 6
     v44 = xor v42, v43
-    v45 = mul v21, 7
+    v45 = mul v24, 7
     v46 = xor v44, v45
     v47 = mul v25, 8
     v48 = xor v46, v47
     ret v48
   bb7:
-    v29 = mul v17, 3
+    v29 = mul v19, 3
     v30 = add v29, v20
     v31 = shl 1, v20
-    v32 = xor v17, v31
+    v32 = xor v19, v31
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v33 = add v15, 1
+    v33 = add v26, 1
     jump bb4
 }

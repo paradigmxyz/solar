@@ -11,15 +11,15 @@
 // the encoding and reads its length.
 // INTRINSIC-LABEL: fn @fixedSize
 // INTRINSIC-NOT: mload 64
-// INTRINSIC: mstore {{[0-9]+}}, 96
+// INTRINSIC: mstore 0, 96
 // INTRINSIC-LABEL: fn @dynamicSize
 // INTRINSIC-NOT: mload 64
-// INTRINSIC: returndata {{[0-9]+}}, 32
+// INTRINSIC: returndata 0, 32
 // INTRINSIC-LABEL: fn @staged
 // INTRINSIC-NOT: mstore 64
 // INTRINSIC: mload 64
 // INTRINSIC-NOT: mstore 64
-// INTRINSIC: returndata {{[0-9]+}}, 32
+// INTRINSIC: returndata 0, 32
 // PORTABLE-LABEL: fn @fixedSize
 // PORTABLE: mstore 64
 import {Abi} from "solar:core/Abi.sol";

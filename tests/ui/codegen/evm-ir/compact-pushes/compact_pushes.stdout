@@ -6,8 +6,6 @@
 -   push 0xffffffffffffffffffffffffffffffffffffffff
 -   push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe7f
 -   push 0x100000000000000000000000000000000
--   push 0xffffffffff
--   push 0xfffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff
 +   push 0
 +   not
 +   push 0
@@ -19,10 +17,8 @@
 +   push 1
 +   push 128
 +   shl
-+   push 0
-+   not
-+   push 216
-+   shr
+    push 0xffffffffff
+-   push 0xfffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff
 +   push 1
 +   push 128
 +   shl

@@ -168,10 +168,14 @@ fn eligible(func: &Function) -> bool {
         })
         && func.blocks.iter().all(|block| match &block.terminator {
             Some(Terminator::ReturnData { offset, size }) => {
-                func.value_u64(*offset) == Some(EvmMemoryLayout::HEAP_START)
-                    && func.value_u64(*size).is_some_and(|size| {
+                match (func.value_u64(*offset), func.value_u64(*size)) {
+                    (Some(EvmMemoryLayout::HEAP_START), Some(size)) => {
                         size <= MAX_DISPATCH_INSTRUCTIONS as u64 * EvmMemoryLayout::WORD_SIZE
-                    })
+                    }
+                    // A short static return staged in the scratch words.
+                    (Some(0), Some(size)) => size <= EvmMemoryLayout::FMP_SLOT,
+                    _ => false,
+                }
             }
             Some(Terminator::Revert { offset, size }) => func
                 .value_u64(*offset)

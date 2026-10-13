@@ -336,17 +336,17 @@ fn @signedLoop(arg0: i256, arg1: i8) -> i256 [selector=0xd2122ca9, inline_assemb
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: arg1], [bb3: v7]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v8]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v3, v2
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v7]
+    v4 = phi [bb0: 0], [bb3: v8]
+    v5 = lt v4, v0
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb4:
-    v6 = eq v3, 1
+    v6 = eq v4, 1
     jumpi v6, bb7, bb8
   bb8:
     jump bb9
@@ -356,12 +356,12 @@ fn @signedLoop(arg0: i256, arg1: i8) -> i256 [selector=0xd2122ca9, inline_assemb
   bb6:
     jump bb3
   bb3:
-    v8 = checked_add u256, v3, 1
+    v8 = checked_add u256, v4, 1
     jump bb1
   bb7:
     jump bb2
   bb2:
-    v9 = sext i8 v1 to i256
+    v9 = sext i8 v3 to i256
     v10 = slt v9, 0
     v11 = zext i1 v10 to i256
     ret v11

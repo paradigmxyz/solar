@@ -18,12 +18,16 @@
 
 use super::{
     EvmPass,
+    compact_pushes::ImmediatePolicy,
     peephole::{invert_comparison, materialization_cost},
     utils::is_split_point,
 };
-use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
@@ -43,6 +47,7 @@ impl EvmPass for ShareReverts {
 
 fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
+    let policy = ImmediatePolicy::of(Target::new(gcx));
     let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
@@ -117,8 +122,8 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             };
             let previous = block.instructions[start].concrete_immediate().unwrap();
-            let before = materialization_cost(evm_version, previous);
-            let after = materialization_cost(evm_version, bound);
+            let before = materialization_cost(policy, previous);
+            let after = materialization_cost(policy, bound);
             if after.0 > before.0 || after.1 > before.1 {
                 continue;
             }

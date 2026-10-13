@@ -230,6 +230,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         // result = slice(base.data + start * stride, end - start)
         let pointer = self.builder.add(base_ptr, start_offset);
-        Some(self.builder.make_slice(pointer, length, location))
+        let slice = self.builder.make_slice(pointer, length, location);
+        // A range of a slice that lies inside the calldata lies inside it too.
+        if location == SliceLocation::Calldata && self.calldata_in_bounds(source) {
+            self.calldata_in_bounds.insert(slice);
+        }
+        Some(slice)
     }
 }

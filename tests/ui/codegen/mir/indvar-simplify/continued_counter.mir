@@ -2,18 +2,13 @@
 //@filecheck:
 @module ContinuedCounter
 
-// The second loop's counter starts where the first one stops. The first loop's
-// pointer takes over its exit test and rebuilds the counter on the way into the
-// second loop, whose pointer then starts from the rebuilt counter rather than
-// from the dead phi.
+// The second loop starts at the counter rebuilt from the first loop's final pointer.
 // CHECK-LABEL: {{^[ +].*}}fn @continued_counter{{[( ]}}
 // CHECK: + [[FIRST:v[0-9]+]] = phi [bb0: [[BASE:v[0-9]+]]], [bb2: {{v[0-9]+}}]
 // CHECK: bb3:
 // CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[FIRST]], [[BASE]]
 // CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
-// CHECK-NEXT: + [[OFFSET:v[0-9]+]] = shl 5, [[INDEX]]
-// CHECK-NEXT: + [[START:v[0-9]+]] = add [[BASE]], [[OFFSET]]
-// CHECK: + {{v[0-9]+}} = phi [bb3: [[START]]], [bb5: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = phi [bb3: [[INDEX]]], [bb5: {{v[0-9]+}}]
 fn @continued_counter() -> i256 {
   bb0:
     v0 = mload 64

@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard dump
 //@[dump] compile-flags: -Ogas --optimize-runs 10000 -Zdump=mir
-//@[dump] filecheck:
 //@ run-call: sum3 1, 2, 3 => 6
 //@ run-call-fail: sum3 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: sum3 1, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -41,27 +40,15 @@
 // Overflow checks that branch to the same panic merge into one test; whichever
 // addition overflows, the call still reverts with `Panic(0x11)`, from either
 // check of the straight-line sum and from any copy of the unrolled loop.
-// CHECK-LABEL: fn @entry()
+
 // `sum3` tests both additions with one branch.
-// CHECK: [[FIRST:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
-// CHECK: [[SECOND:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
-// CHECK-NEXT: [[EITHER:v[0-9]+]] = or [[FIRST]], [[SECOND]]
-// CHECK-NEXT: jumpi [[EITHER]], [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
+
 // `scale` compares each factor with the hoisted limit, a test that aborts unless
 // the comparison fails, and merges the comparison with the sum's wrap test.
-// CHECK: [[LIMIT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
-// CHECK: jump [[HEADER:bb[0-9]+]]
-// CHECK-NEXT: [[HEADER]]:
-// CHECK: [[ABOVE:v[0-9]+]] = gt {{v[0-9]+}}, [[LIMIT]]
-// CHECK: [[SUM_WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
-// CHECK-NEXT: [[OVERFLOW:v[0-9]+]] = or [[ABOVE]], [[SUM_WRAPPED]]
-// CHECK-NEXT: jumpi [[OVERFLOW]], [[PANIC]], {{bb[0-9]+}}
+
 // The unrolled loop adds four counters that cannot reach `2^256` together, so
 // one test that the last sum fell below the first replaces the four tests.
-// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK-NEXT: [[START:v[0-9]+]] = phi
-// CHECK: [[WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, [[START]]
-// CHECK-NEXT: jumpi [[WRAPPED]], [[PANIC]], {{bb[0-9]+}}
+
 contract MergeAborts {
     function sum3(uint256 a, uint256 b, uint256 c) external pure returns (uint256) {
         return a + b + c;

@@ -4,7 +4,7 @@ error: the view `data` can only be read in place
 LL │         data[0] = 0x01;
    │         ━━━━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, hashing, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
 error: the view `data` can only be read in place
@@ -13,7 +13,7 @@ error: the view `data` can only be read in place
 LL │         return data;
    │                ━━━━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, hashing, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
 error: the view `values` can only be read in place
@@ -22,7 +22,7 @@ error: the view `values` can only be read in place
 LL │         values[0] = 1;
    │         ━━━━━━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, hashing, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: remove the tag to work with a copy
 
 error: the view `pair` can only be read in place
@@ -31,7 +31,7 @@ error: the view `pair` can only be read in place
 LL │         return pair.b;
    │                ━━━━━━
    │
-   ├ note: a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
+   ├ note: a view supports `.length`, indexing, field reads, hashing, `abi.decode`, ABI encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view parameters
    ╰ help: declare a variable for it with `@custom:solar-view` to read it in place, or remove the tag of the view to work with a copy
 
 error: a function with `@custom:solar-view` parameters cannot be used as a value

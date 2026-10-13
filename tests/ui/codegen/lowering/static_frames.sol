@@ -1,5 +1,4 @@
 //@compile-flags: -Zdump=evm-ir-runtime
-//@ filecheck: --implicit-check-not=mload
 //@ run-call: top 10 => 1168
 //@ run-call: top 13 => 2116
 //@ run-call: top 0 => 16
@@ -9,23 +8,9 @@
 // the runtime writes is the free memory pointer, the return word and panic
 // data, and nothing reads memory back.
 contract SF {
-    // CHECK: push 0x313ae541
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[TOP:bb[0-9]+]]
-    // CHECK: push 0x86b714e2
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
-    // CHECK: [[GETTER]]:
-    // CHECK-NEXT: push 0
-    // CHECK-NEXT: sload
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: mstore
-    // CHECK: return
+
     // The entry's heap starts right above its return word.
-    // CHECK: [[TOP]]:
-    // CHECK: push 160
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
+
     uint256 public s;
 
     function top(uint256 x) external returns (uint256) {

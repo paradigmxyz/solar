@@ -9,11 +9,8 @@
 
 fn @mix(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = abi_encode [word, word], scratch, args arg0, arg1
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = keccak256 v1, v2
-    ret v3
+    v0 = keccak256_packed (u256 arg0, u256 arg1)
+    ret v0
 }
 
 fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -24,8 +21,8 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v3 = extract_value struct0, v0, 2
     jump bb1
   bb1:
-    v4 = phi [bb0: arg0], [bb3: v22]
-    v5 = phi [bb0: 0], [bb3: v19]
+    v4 = phi [bb0: arg0], [bb3: v19]
+    v5 = phi [bb0: 0], [bb3: v20]
     v6 = phi [bb0: 0], [bb3: v48]
     v7 = slice_len v1
     v8 = lt v6, v7
@@ -35,9 +32,9 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
   bb2:
     jump bb13
   bb13:
-    v49 = phi [bb2: v5], [bb15: v80]
-    v50 = phi [bb2: v6], [bb15: v50]
-    v51 = phi [bb2: v4], [bb15: v51]
+    v49 = phi [bb2: v4], [bb15: v49]
+    v50 = phi [bb2: v5], [bb15: v80]
+    v51 = phi [bb2: v6], [bb15: v51]
     v52 = phi [bb2: 0], [bb15: v81]
     v53 = slice_len v2
     v54 = lt v52, v53
@@ -47,11 +44,11 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
   bb14:
     jump bb19
   bb19:
-    v82 = phi [bb14: v49], [bb21: v148]
-    v83 = phi [bb14: v50], [bb21: v83]
-    v84 = phi [bb14: 0], [bb21: v149]
-    v85 = phi [bb14: v51], [bb21: v85]
-    v86 = phi [bb14: v52], [bb21: v86]
+    v82 = phi [bb14: v49], [bb21: v82]
+    v83 = phi [bb14: v50], [bb21: v148]
+    v84 = phi [bb14: v51], [bb21: v84]
+    v85 = phi [bb14: v52], [bb21: v85]
+    v86 = phi [bb14: 0], [bb21: v149]
     v87 = memory_slice_load_word memory, v3, 0
     v88 = slice_ptr v3
     v89 = add v88, v87
@@ -59,7 +56,7 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v91 = add v89, 32
     v92 = make_memory_slice v91, v90
     v93 = slice_len v92
-    v94 = lt v84, v93
+    v94 = lt v86, v93
     jumpi v94, bb22, bb23
   bb23:
     jump bb20
@@ -83,7 +80,7 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v164 = mul 1, 32
     v165 = memory_slice_load_word memory, v160, v164
     v166 = xor v157, v165
-    v167 = icall @mix, v82, v166
+    v167 = icall @mix, v83, v166
     v168 = memory_slice_load_word memory, v3, 96
     v169 = slice_ptr v3
     v170 = add v169, v168
@@ -114,10 +111,10 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v99 = add v97, 32
     v100 = make_memory_slice v99, v98
     v101 = slice_len v100
-    v102 = lt v84, v101
+    v102 = lt v86, v101
     v103 = eq v102, false
     icall panic_if<0x32>, v103
-    v104 = mul v84, 32
+    v104 = mul v86, 32
     v105 = memory_slice_load_word memory, v100, v104
     v106 = slice_ptr v100
     v107 = add v106, v105
@@ -125,7 +122,7 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v109 = memory_slice_load_word memory, v108, 0
     v110 = trunc i256 v109 to i8
     v111 = zext i8 v110 to i256
-    v112 = icall @mix, v82, v111
+    v112 = icall @mix, v83, v111
     v113 = memory_slice_load_word memory, v108, 32
     v114 = slice_ptr v108
     v115 = add v114, v113
@@ -173,7 +170,7 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
   bb24:
     jump bb21
   bb21:
-    v149 = checked_add u256, v84, 1
+    v149 = checked_add u256, v86, 1
     jump bb19
   bb16:
     v55 = slice_len v2
@@ -188,7 +185,7 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v63 = add v61, 32
     v64 = make_memory_slice v63, v62
     v65 = slice_len v64
-    v66 = icall @mix, v49, v65
+    v66 = icall @mix, v50, v65
     v67 = slice_len v2
     v68 = lt v52, v67
     v69 = eq v68, false
@@ -224,12 +221,12 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v18 = make_memory_slice v17, v16
     jump bb7
   bb7:
-    v19 = phi [bb4: v5], [bb9: v46]
-    v20 = phi [bb4: v6], [bb9: v20]
-    v21 = phi [bb4: 0], [bb9: v47]
-    v22 = phi [bb4: v4], [bb9: v22]
+    v19 = phi [bb4: v4], [bb9: v19]
+    v20 = phi [bb4: v5], [bb9: v46]
+    v21 = phi [bb4: v6], [bb9: v21]
+    v22 = phi [bb4: 0], [bb9: v47]
     v23 = slice_len v18
-    v24 = lt v21, v23
+    v24 = lt v22, v23
     jumpi v24, bb10, bb11
   bb11:
     jump bb8
@@ -238,20 +235,20 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
   bb6:
     jump bb3
   bb3:
-    v48 = checked_add u256, v20, 1
+    v48 = checked_add u256, v21, 1
     jump bb1
   bb10:
     v25 = slice_len v18
-    v26 = lt v21, v25
+    v26 = lt v22, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = mul v21, 32
+    v28 = mul v22, 32
     v29 = memory_slice_load_word memory, v18, v28
     v30 = slice_len v1
-    v31 = lt v20, v30
+    v31 = lt v21, v30
     v32 = eq v31, false
     icall panic_if<0x32>, v32
-    v33 = mul v20, 32
+    v33 = mul v21, 32
     v34 = memory_slice_load_word memory, v1, v33
     v35 = slice_ptr v1
     v36 = add v35, v34
@@ -259,18 +256,18 @@ fn @nestedMemory(arg0: memptr) -> i256 [selector=0x0ebc8713, pure, abi_params=[b
     v38 = add v36, 32
     v39 = make_memory_slice v38, v37
     v40 = slice_len v39
-    v41 = lt v21, v40
+    v41 = lt v22, v40
     v42 = eq v41, false
     icall panic_if<0x32>, v42
-    v43 = mul v21, 32
+    v43 = mul v22, 32
     v44 = memory_slice_load_word memory, v39, v43
     v45 = checked_add u256, v29, v44
-    v46 = icall @mix, v19, v45
+    v46 = icall @mix, v20, v45
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v47 = checked_add u256, v21, 1
+    v47 = checked_add u256, v22, 1
     jump bb7
 }
 
@@ -282,20 +279,20 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v3 = extract_value struct1, v0, 2
     jump bb1
   bb1:
-    v4 = phi [bb0: arg0], [bb3: v22]
-    v5 = phi [bb0: 0], [bb3: v48]
-    v6 = phi [bb0: 0], [bb3: v19]
+    v4 = phi [bb0: arg0], [bb3: v19]
+    v5 = phi [bb0: 0], [bb3: v20]
+    v6 = phi [bb0: 0], [bb3: v48]
     v7 = slice_len v1
-    v8 = lt v5, v7
+    v8 = lt v6, v7
     jumpi v8, bb4, bb5
   bb5:
     jump bb2
   bb2:
     jump bb13
   bb13:
-    v49 = phi [bb2: v6], [bb15: v83]
-    v50 = phi [bb2: v5], [bb15: v50]
-    v51 = phi [bb2: v4], [bb15: v51]
+    v49 = phi [bb2: v4], [bb15: v49]
+    v50 = phi [bb2: v5], [bb15: v83]
+    v51 = phi [bb2: v6], [bb15: v51]
     v52 = phi [bb2: 0], [bb15: v84]
     v53 = slice_len v2
     v54 = lt v52, v53
@@ -305,11 +302,11 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
   bb14:
     jump bb19
   bb19:
-    v85 = phi [bb14: v49], [bb21: v154]
-    v86 = phi [bb14: v50], [bb21: v86]
-    v87 = phi [bb14: 0], [bb21: v155]
-    v88 = phi [bb14: v51], [bb21: v88]
-    v89 = phi [bb14: v52], [bb21: v89]
+    v85 = phi [bb14: v49], [bb21: v85]
+    v86 = phi [bb14: v50], [bb21: v154]
+    v87 = phi [bb14: v51], [bb21: v87]
+    v88 = phi [bb14: v52], [bb21: v88]
+    v89 = phi [bb14: 0], [bb21: v155]
     v90 = calldata_slice_load_word calldata, v3, 0
     v91 = slice_ptr v3
     v92 = add v91, v90
@@ -317,7 +314,7 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v94 = add v92, 32
     v95 = make_calldata_slice v94, v93
     v96 = slice_len v95
-    v97 = lt v87, v96
+    v97 = lt v89, v96
     jumpi v97, bb22, bb23
   bb23:
     jump bb20
@@ -341,7 +338,7 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v170 = mul 1, 32
     v171 = calldata_slice_load_word calldata, v166, v170
     v172 = xor v163, v171
-    v173 = icall @mix, v85, v172
+    v173 = icall @mix, v86, v172
     v174 = calldata_slice_load_word calldata, v3, 96
     v175 = slice_ptr v3
     v176 = add v175, v174
@@ -376,10 +373,10 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v102 = add v100, 32
     v103 = make_calldata_slice v102, v101
     v104 = slice_len v103
-    v105 = lt v87, v104
+    v105 = lt v89, v104
     v106 = eq v105, false
     icall panic_if<0x32>, v106
-    v107 = mul v87, 32
+    v107 = mul v89, 32
     v108 = calldata_slice_load_word calldata, v103, v107
     v109 = slice_ptr v103
     v110 = add v109, v108
@@ -387,7 +384,7 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v112 = calldata_slice_load_word calldata, v111, 0
     v113 = trunc i256 v112 to i8
     v114 = zext i8 v113 to i256
-    v115 = icall @mix, v85, v114
+    v115 = icall @mix, v86, v114
     v116 = calldata_slice_load_word calldata, v111, 32
     v117 = slice_ptr v111
     v118 = add v117, v116
@@ -439,7 +436,7 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
   bb24:
     jump bb21
   bb21:
-    v155 = checked_add u256, v87, 1
+    v155 = checked_add u256, v89, 1
     jump bb19
   bb16:
     v55 = slice_len v2
@@ -454,7 +451,7 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v63 = add v61, 32
     v64 = make_calldata_slice v63, v62
     v65 = slice_len v64
-    v66 = icall @mix, v49, v65
+    v66 = icall @mix, v50, v65
     v67 = slice_len v2
     v68 = lt v52, v67
     v69 = eq v68, false
@@ -482,10 +479,10 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     jump bb13
   bb4:
     v9 = slice_len v1
-    v10 = lt v5, v9
+    v10 = lt v6, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = mul v5, 32
+    v12 = mul v6, 32
     v13 = calldata_slice_load_word calldata, v1, v12
     v14 = slice_ptr v1
     v15 = add v14, v13
@@ -494,12 +491,12 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v18 = make_calldata_slice v17, v16
     jump bb7
   bb7:
-    v19 = phi [bb4: v6], [bb9: v46]
-    v20 = phi [bb4: v5], [bb9: v20]
-    v21 = phi [bb4: 0], [bb9: v47]
-    v22 = phi [bb4: v4], [bb9: v22]
+    v19 = phi [bb4: v4], [bb9: v19]
+    v20 = phi [bb4: v5], [bb9: v46]
+    v21 = phi [bb4: v6], [bb9: v21]
+    v22 = phi [bb4: 0], [bb9: v47]
     v23 = slice_len v18
-    v24 = lt v21, v23
+    v24 = lt v22, v23
     jumpi v24, bb10, bb11
   bb11:
     jump bb8
@@ -508,20 +505,20 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
   bb6:
     jump bb3
   bb3:
-    v48 = checked_add u256, v20, 1
+    v48 = checked_add u256, v21, 1
     jump bb1
   bb10:
     v25 = slice_len v18
-    v26 = lt v21, v25
+    v26 = lt v22, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = mul v21, 32
+    v28 = mul v22, 32
     v29 = calldata_slice_load_word calldata, v18, v28
     v30 = slice_len v1
-    v31 = lt v20, v30
+    v31 = lt v21, v30
     v32 = eq v31, false
     icall panic_if<0x32>, v32
-    v33 = mul v20, 32
+    v33 = mul v21, 32
     v34 = calldata_slice_load_word calldata, v1, v33
     v35 = slice_ptr v1
     v36 = add v35, v34
@@ -529,18 +526,18 @@ fn @nestedCalldata(arg0: calldataslice) -> i256 [selector=0xfb62d17e, pure, abi_
     v38 = add v36, 32
     v39 = make_calldata_slice v38, v37
     v40 = slice_len v39
-    v41 = lt v21, v40
+    v41 = lt v22, v40
     v42 = eq v41, false
     icall panic_if<0x32>, v42
-    v43 = mul v21, 32
+    v43 = mul v22, 32
     v44 = calldata_slice_load_word calldata, v39, v43
     v45 = checked_add u256, v29, v44
-    v46 = icall @mix, v19, v45
+    v46 = icall @mix, v20, v45
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v47 = checked_add u256, v21, 1
+    v47 = checked_add u256, v22, 1
     jump bb7
 }
 
@@ -553,18 +550,18 @@ fn @points(arg0: calldataslice) -> i256 [selector=0xf85bd8a3, pure, abi_params=[
     jump bb1
   bb1:
     v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v14]
-    v6 = phi [bb0: 0], [bb3: v13]
-    v7 = lt v5, 3
+    v5 = phi [bb0: 0], [bb3: v13]
+    v6 = phi [bb0: 0], [bb3: v14]
+    v7 = lt v6, 3
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
   bb2:
     jump bb7
   bb7:
-    v15 = phi [bb2: v6], [bb9: v36]
-    v16 = phi [bb2: v5], [bb9: v16]
-    v17 = phi [bb2: v4], [bb9: v17]
+    v15 = phi [bb2: v4], [bb9: v15]
+    v16 = phi [bb2: v5], [bb9: v36]
+    v17 = phi [bb2: v6], [bb9: v17]
     v18 = phi [bb2: 0], [bb9: v37]
     v19 = lt v18, 2
     jumpi v19, bb10, bb11
@@ -573,35 +570,35 @@ fn @points(arg0: calldataslice) -> i256 [selector=0xf85bd8a3, pure, abi_params=[
   bb8:
     jump bb13
   bb13:
-    v38 = phi [bb8: v15], [bb15: v77]
-    v39 = phi [bb8: v16], [bb15: v39]
-    v40 = phi [bb8: 0], [bb15: v78]
-    v41 = phi [bb8: v17], [bb15: v41]
-    v42 = phi [bb8: v18], [bb15: v42]
-    v43 = lt v40, 2
+    v38 = phi [bb8: v15], [bb15: v38]
+    v39 = phi [bb8: v16], [bb15: v77]
+    v40 = phi [bb8: v17], [bb15: v40]
+    v41 = phi [bb8: v18], [bb15: v41]
+    v42 = phi [bb8: 0], [bb15: v78]
+    v43 = lt v42, 2
     jumpi v43, bb16, bb17
   bb17:
     jump bb14
   bb14:
-    ret v38
+    ret v39
   bb16:
     v44 = slice_len v3
-    v45 = lt v40, v44
+    v45 = lt v42, v44
     v46 = eq v45, false
     icall panic_if<0x32>, v46
-    v47 = mul v40, 96
+    v47 = mul v42, 96
     v48 = slice_ptr v3
     v49 = add v48, v47
     v50 = make_calldata_slice v49, 96
     v51 = calldata_slice_load_word calldata, v50, 0
     v52 = trunc i256 v51 to i64
     v53 = zext i64 v52 to i256
-    v54 = icall @mix, v38, v53
+    v54 = icall @mix, v39, v53
     v55 = slice_len v3
-    v56 = lt v40, v55
+    v56 = lt v42, v55
     v57 = eq v56, false
     icall panic_if<0x32>, v57
-    v58 = mul v40, 96
+    v58 = mul v42, 96
     v59 = slice_ptr v3
     v60 = add v59, v58
     v61 = make_calldata_slice v60, 96
@@ -610,10 +607,10 @@ fn @points(arg0: calldataslice) -> i256 [selector=0xf85bd8a3, pure, abi_params=[
     v64 = zext i160 v63 to i256
     v65 = icall @mix, v54, v64
     v66 = slice_len v3
-    v67 = lt v40, v66
+    v67 = lt v42, v66
     v68 = eq v67, false
     icall panic_if<0x32>, v68
-    v69 = mul v40, 96
+    v69 = mul v42, 96
     v70 = slice_ptr v3
     v71 = add v70, v69
     v72 = make_calldata_slice v71, 96
@@ -626,7 +623,7 @@ fn @points(arg0: calldataslice) -> i256 [selector=0xf85bd8a3, pure, abi_params=[
   bb18:
     jump bb15
   bb15:
-    v78 = checked_add u256, v40, 1
+    v78 = checked_add u256, v42, 1
     jump bb13
   bb10:
     v20 = slice_len v2
@@ -647,7 +644,7 @@ fn @points(arg0: calldataslice) -> i256 [selector=0xf85bd8a3, pure, abi_params=[
     calldatacopy v33, v30, v31 !metadata(memory=heap)
     v34 = ptrtoint memptr v32 to i256
     v35 = keccak256 v34, v31
-    v36 = icall @mix, v15, v35
+    v36 = icall @mix, v16, v35
     jump bb12
   bb12:
     jump bb9
@@ -656,17 +653,17 @@ fn @points(arg0: calldataslice) -> i256 [selector=0xf85bd8a3, pure, abi_params=[
     jump bb7
   bb4:
     v8 = slice_len v1
-    v9 = lt v5, v8
+    v9 = lt v6, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = mul v5, 32
+    v11 = mul v6, 32
     v12 = calldata_slice_load_word calldata, v1, v11
-    v13 = icall @mix, v6, v12
+    v13 = icall @mix, v5, v12
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v5, 1
+    v14 = checked_add u256, v6, 1
     jump bb1
 }
 
@@ -680,23 +677,23 @@ fn @values(arg0: memptr) -> i256 [selector=0xa0a2050e, pure, abi_params=[bytes],
     v5 = extract_value struct2, v0, 4
     jump bb1
   bb1:
-    v6 = phi [bb0: 0], [bb3: v19]
-    v7 = phi [bb0: arg0], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v18]
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v18]
+    v8 = phi [bb0: 0], [bb3: v19]
     v9 = slice_len v1
-    v10 = lt v6, v9
+    v10 = lt v8, v9
     jumpi v10, bb4, bb5
   bb5:
     jump bb2
   bb2:
     jump bb7
   bb7:
-    v20 = phi [bb2: 0], [bb9: v35]
-    v21 = phi [bb2: v8], [bb9: v34]
-    v22 = phi [bb2: v6], [bb9: v22]
-    v23 = phi [bb2: v7], [bb9: v23]
+    v20 = phi [bb2: v6], [bb9: v20]
+    v21 = phi [bb2: v7], [bb9: v34]
+    v22 = phi [bb2: v8], [bb9: v22]
+    v23 = phi [bb2: 0], [bb9: v35]
     v24 = slice_len v2
-    v25 = lt v20, v24
+    v25 = lt v23, v24
     jumpi v25, bb10, bb11
   bb11:
     jump bb8
@@ -717,62 +714,62 @@ fn @values(arg0: memptr) -> i256 [selector=0xa0a2050e, pure, abi_params=[bytes],
     jump bb22
   bb22:
     v52 = phi [bb17: v36], [bb24: v52]
-    v53 = phi [bb17: 0], [bb24: v66]
-    v54 = phi [bb17: v37], [bb24: v65]
-    v55 = phi [bb17: v38], [bb24: v55]
-    v56 = phi [bb17: v39], [bb24: v56]
-    v57 = phi [bb17: v40], [bb24: v57]
+    v53 = phi [bb17: v37], [bb24: v65]
+    v54 = phi [bb17: v38], [bb24: v54]
+    v55 = phi [bb17: v39], [bb24: v55]
+    v56 = phi [bb17: v40], [bb24: v56]
+    v57 = phi [bb17: 0], [bb24: v66]
     v58 = slice_len v4
-    v59 = lt v53, v58
+    v59 = lt v57, v58
     jumpi v59, bb25, bb26
   bb26:
     jump bb23
   bb23:
     jump bb28
   bb28:
-    v67 = phi [bb23: 0], [bb30: v84]
-    v68 = phi [bb23: v52], [bb30: v68]
-    v69 = phi [bb23: v53], [bb30: v69]
-    v70 = phi [bb23: v54], [bb30: v83]
-    v71 = phi [bb23: v55], [bb30: v71]
-    v72 = phi [bb23: v56], [bb30: v72]
-    v73 = phi [bb23: v57], [bb30: v73]
+    v67 = phi [bb23: v52], [bb30: v67]
+    v68 = phi [bb23: v53], [bb30: v83]
+    v69 = phi [bb23: v54], [bb30: v69]
+    v70 = phi [bb23: v55], [bb30: v70]
+    v71 = phi [bb23: v56], [bb30: v71]
+    v72 = phi [bb23: v57], [bb30: v72]
+    v73 = phi [bb23: 0], [bb30: v84]
     v74 = slice_len v5
-    v75 = lt v67, v74
+    v75 = lt v73, v74
     jumpi v75, bb31, bb32
   bb32:
     jump bb29
   bb29:
-    ret v70
+    ret v68
   bb31:
     v76 = slice_len v5
-    v77 = lt v67, v76
+    v77 = lt v73, v76
     v78 = eq v77, false
     icall panic_if<0x32>, v78
-    v79 = mul v67, 32
+    v79 = mul v73, 32
     v80 = memory_slice_load_word memory, v5, v79
     v81 = trunc i256 v80 to i128
     v82 = zext i128 v81 to i256
-    v83 = icall @mix, v70, v82
+    v83 = icall @mix, v68, v82
     jump bb33
   bb33:
     jump bb30
   bb30:
-    v84 = checked_add u256, v67, 1
+    v84 = checked_add u256, v73, 1
     jump bb28
   bb25:
     v60 = slice_len v4
-    v61 = lt v53, v60
+    v61 = lt v57, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
-    v63 = mul v53, 32
+    v63 = mul v57, 32
     v64 = memory_slice_load_word memory, v4, v63
-    v65 = icall @mix, v54, v64
+    v65 = icall @mix, v53, v64
     jump bb27
   bb27:
     jump bb24
   bb24:
-    v66 = checked_add u256, v53, 1
+    v66 = checked_add u256, v57, 1
     jump bb22
   bb19:
     v43 = slice_len v3
@@ -792,10 +789,10 @@ fn @values(arg0: memptr) -> i256 [selector=0xa0a2050e, pure, abi_params=[bytes],
     jump bb16
   bb10:
     v26 = slice_len v2
-    v27 = lt v20, v26
+    v27 = lt v23, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = mul v20, 32
+    v29 = mul v23, 32
     v30 = memory_slice_load_word memory, v2, v29
     v31 = ne v30, 0
     jumpi v31, bb13, bb14
@@ -811,23 +808,23 @@ fn @values(arg0: memptr) -> i256 [selector=0xa0a2050e, pure, abi_params=[bytes],
   bb12:
     jump bb9
   bb9:
-    v35 = checked_add u256, v20, 1
+    v35 = checked_add u256, v23, 1
     jump bb7
   bb4:
     v11 = slice_len v1
-    v12 = lt v6, v11
+    v12 = lt v8, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = mul v6, 32
+    v14 = mul v8, 32
     v15 = memory_slice_load_word memory, v1, v14
     v16 = trunc i256 v15 to i8
     v17 = zext i8 v16 to i256
-    v18 = icall @mix, v8, v17
+    v18 = icall @mix, v7, v17
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add u256, v6, 1
+    v19 = checked_add u256, v8, 1
     jump bb1
 }
 
@@ -836,8 +833,8 @@ fn @decodeElements(arg0: calldataslice) -> i256 [selector=0x2a5176c3, pure, abi_
     v0 = abi_decode [array<_, bytes>], arg0, views
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v26]
-    v2 = phi [bb0: arg0], [bb3: v2]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v26]
     v3 = phi [bb0: 0], [bb3: v27]
     v4 = slice_len v0
     v5 = lt v3, v4
@@ -845,7 +842,7 @@ fn @decodeElements(arg0: calldataslice) -> i256 [selector=0x2a5176c3, pure, abi_
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v2
   bb4:
     v6 = slice_len v0
     v7 = lt v3, v6
@@ -861,7 +858,7 @@ fn @decodeElements(arg0: calldataslice) -> i256 [selector=0x2a5176c3, pure, abi_
     v16 = abi_decode [u256, bytes], v15, views
     v17 = extract_value struct3, v16, 0
     v18 = extract_value struct3, v16, 1
-    v19 = icall @mix, v1, v17
+    v19 = icall @mix, v2, v17
     v20 = slice_ptr v18
     v21 = slice_len v18
     v22 = fmp

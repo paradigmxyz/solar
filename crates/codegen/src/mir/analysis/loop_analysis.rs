@@ -55,10 +55,10 @@ pub(crate) struct InductionVariable {
     pub init: ValueId,
     /// Step/stride per iteration. The magnitude only; see [`Self::descending`] for the sign.
     pub step: ValueId,
+    /// The instruction that advances the recurrence.
+    pub update_inst: InstId,
     /// Whether the variable decreases by `step` each iteration (`i = i - step`).
     pub descending: bool,
-    /// The recognized instruction that computes the next value.
-    pub update_inst: InstId,
 }
 
 /// Result of loop analysis for a function.
@@ -276,8 +276,8 @@ impl LoopAnalyzer {
                             value: phi_val,
                             init,
                             step: step_amount,
-                            descending,
                             update_inst,
+                            descending,
                         });
                     }
                 }
@@ -357,7 +357,13 @@ impl LoopAnalyzer {
                     if loop_info.invariant_insts.contains(inst_id) {
                         continue;
                     }
-                    if inst.kind.has_side_effects() {
+                    // A slot hash writes only the scratch word it hashes, so its
+                    // result depends on its operands alone.
+                    let slot_hash = matches!(
+                        inst.kind,
+                        InstKind::StorageArrayDataSlot(_) | InstKind::MappingSlot(..)
+                    );
+                    if inst.kind.has_side_effects() && !slot_hash {
                         continue;
                     }
                     if matches!(inst.kind, InstKind::Phi(_)) {

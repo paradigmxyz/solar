@@ -24,7 +24,7 @@
 // NONE-NEXT: push 64
 //
 // GAS-LABEL: @module FmpBlockLocalSpills_runtime
-// GAS: push 160
+// GAS: push 128
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
@@ -33,7 +33,7 @@
 // GAS-NEXT: push 64
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
-// SIZE: push 160
+// SIZE: push 128
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload

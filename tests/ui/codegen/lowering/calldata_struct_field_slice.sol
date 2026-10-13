@@ -60,7 +60,7 @@ contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
     // CDSFS: = lt {{v[0-9]+}}, 32
     // CDSFS: [[WORD:v[0-9]+]] = calldataload
-    // CDSFS-NEXT: mstore 128, [[WORD]]
+    // CDSFS-NEXT: mstore 0, [[WORD]]
     // The hashing helper stays a separate function below the wrappers: the `[20:]` slice is
     // copied into memory and the hash reads that copy directly.
     // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}

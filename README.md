@@ -234,6 +234,16 @@ The wrapper exposes the solc-js-style Standard JSON compile entry point plus
 metadata helpers. Legacy low-level solc-js entry points are intentionally set to
 `null`.
 
+## Semantics
+
+Where solc's legacy and IR code generation pipelines behave differently, we
+generally follow the IR pipeline (`--via-ir`). For example, a calldata `bytes`
+value or array whose offset or length inline assembly set past the end of the
+calldata reverts where the IR pipeline copies it into memory, and reads as
+zeros elsewhere, while the legacy pipeline reads zeros everywhere. Other
+intentional differences from solc are listed in
+[`docs/SOLC_DIVERGENCE.md`](./docs/SOLC_DIVERGENCE.md).
+
 ## Roadmap
 
 You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).

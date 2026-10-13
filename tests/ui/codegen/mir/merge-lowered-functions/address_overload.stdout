@@ -1,0 +1,196 @@
+// === ROOT/tests/ui/codegen/mir/merge-lowered-functions/address_overload.sol:C ===
+@module C
+@phase lowered
+fn @sortedWords() [selector=0x119ca95b, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = shr 64, v3
+    v7 = gt v5, v1
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    v11 = calldataload v4
+    v13 = shr 64, v11
+    v14 = ne v13, 0
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = shl 5, v11
+    v16 = add v15, 32
+    v30 = mload 64
+    v17 = inttoptr i256 v30 to memptr !metadata(memory=scratch)
+    v31 = add v30, v16
+    v32 = lt v31, v30
+    v33 = zext i1 v32 to i256
+    v34 = shr 64, v31
+    v35 = or v33, v34
+    v36 = ne v35, 0
+    jumpi v36, bb3, bb6
+  bb6:
+    mstore 64, v31
+    mstore v30, v11
+    v18 = add v5, v15
+    v19 = gt v18, v1
+    jumpi v19, bb1, bb5
+  bb5:
+    v26 = add v30, 32
+    calldatacopy v26, v5, v15
+    v0 = icall @isSorted.2, v17
+    v23 = zext i1 v0 to i256
+    mstore 0, v23 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    mstore 32, 65
+    mstore 0, 0x4e487b71
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @sortedAddresses() [selector=0xa646facb, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = shr 64, v3
+    v7 = gt v5, v1
+    v8 = zext i1 v7 to i256
+    v9 = or v6, v8
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    v11 = calldataload v4
+    v13 = shr 64, v11
+    v14 = ne v13, 0
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = shl 5, v11
+    v16 = add v15, 32
+    v39 = mload 64
+    v17 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
+    v40 = add v39, v16
+    v41 = lt v40, v39
+    v42 = zext i1 v41 to i256
+    v43 = shr 64, v40
+    v44 = or v42, v43
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb9
+  bb9:
+    mstore 64, v40
+    mstore v39, v11
+    v18 = add v5, v15
+    v19 = gt v18, v1
+    jumpi v19, bb1, bb5
+  bb5:
+    v35 = add v39, 32
+    calldatacopy v35, v5, v15
+    v23 = lt v5, v18
+    jumpi v23, bb6, bb7
+  bb6:
+    v24 = phi [bb5: v5], [bb8: v28]
+    v25 = calldataload v24
+    v26 = shr 160, v25
+    v27 = eq v26, 0
+    jumpi v27, bb8, bb1
+  bb8:
+    v28 = add v24, 32
+    v29 = lt v28, v18
+    jumpi v29, bb6, bb7
+  bb7:
+    v0 = icall @isSorted.3, v17
+    v32 = zext i1 v0 to i256
+    mstore 0, v32 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:
+    mstore 32, 65
+    mstore 0, 0x4e487b71
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @isSorted.2(arg0: memptr) -> i1 [may_return_memory, pure] {
+  bb0:
+    v30 = ptrtoint memptr arg0 to i256
+    v16 = mload v30
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 1], [bb5: v20]
+    v4 = lt v2, v16
+    jumpi v4, bb2, bb3
+  bb3:
+    ret true
+  bb2:
+    v18 = sub v2, 1
+    v23 = add v30, 32
+    v24 = shl 5, v18
+    v25 = add v23, v24
+    v9 = mload v25
+    v28 = shl 5, v2
+    v29 = add v23, v28
+    v13 = mload v29
+    v14 = gt v9, v13
+    jumpi v14, bb4, bb5
+  bb5:
+    v20 = add v2, 1
+    jump bb1
+  bb4:
+    ret false
+}
+
+fn @isSorted.3(arg0: memptr) -> i1 [may_return_memory, pure] {
+  bb0:
+    v32 = ptrtoint memptr arg0 to i256
+    v18 = mload v32
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 1], [bb5: v22]
+    v4 = lt v2, v18
+    jumpi v4, bb2, bb3
+  bb3:
+    ret true
+  bb2:
+    v20 = sub v2, 1
+    v25 = add v32, 32
+    v26 = shl 5, v20
+    v27 = add v25, v26
+    v9 = mload v27
+    v33 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = shl 5, v2
+    v31 = add v25, v30
+    v14 = mload v31
+    v34 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = gt v33, v34
+    jumpi v16, bb4, bb5
+  bb5:
+    v22 = add v2, 1
+    jump bb1
+  bb4:
+    ret false
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x119ca95b => bb3, 0xa646facb => bb4]
+  bb4:
+    tail_call @sortedAddresses
+  bb3:
+    tail_call @sortedWords
+  bb1:
+    revert 0, 0
+}

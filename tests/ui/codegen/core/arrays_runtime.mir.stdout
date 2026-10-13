@@ -28,12 +28,12 @@ fn @throughAlias(arg0: memptr, arg1: i256) -> struct0 [selector=0x55d09b5f, pure
     jump bb1
   bb1:
     v5 = phi [bb0: arg0], [bb3: v5]
-    v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: arg1], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v19]
-    v9 = phi [bb0: v0], [bb3: v9]
-    v10 = phi [bb0: arg0], [bb3: v10]
-    v11 = phi [bb0: v3], [bb3: v11]
+    v6 = phi [bb0: arg1], [bb3: v6]
+    v7 = phi [bb0: v0], [bb3: v7]
+    v8 = phi [bb0: v3], [bb3: v8]
+    v9 = phi [bb0: v4], [bb3: v9]
+    v10 = phi [bb0: 0], [bb3: v19]
+    v11 = phi [bb0: arg0], [bb3: v11]
     v12 = phi [bb0: 0], [bb3: v20]
     v13 = memory_object_len memoryarray, v5
     v14 = lt v12, v13
@@ -41,10 +41,10 @@ fn @throughAlias(arg0: memptr, arg1: i256) -> struct0 [selector=0x55d09b5f, pure
   bb5:
     jump bb2
   bb2:
-    v21 = insert_value struct0, undef struct0, 0, v9
-    v22 = insert_value struct0, v21, 1, v11
-    v23 = insert_value struct0, v22, 2, v6
-    v24 = insert_value struct0, v23, 3, v8
+    v21 = insert_value struct0, undef struct0, 0, v7
+    v22 = insert_value struct0, v21, 1, v8
+    v23 = insert_value struct0, v22, 2, v9
+    v24 = insert_value struct0, v23, 3, v10
     ret v24
   bb4:
     v15 = memory_object_len memoryarray, v5
@@ -52,7 +52,7 @@ fn @throughAlias(arg0: memptr, arg1: i256) -> struct0 [selector=0x55d09b5f, pure
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = memory_object_load_element memoryarray<1>, v5, v12
-    v19 = checked_add u256, v8, v18
+    v19 = checked_add u256, v10, v18
     jump bb6
   bb6:
     jump bb3

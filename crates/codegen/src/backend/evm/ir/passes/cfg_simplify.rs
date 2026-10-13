@@ -1,8 +1,11 @@
 //! Simplify machine-level EVM control flow before block layout and assembly.
 //!
 //! The pass truncates instructions after a terminal opcode, folds branches whose two edges have
-//! the same target, redirects label-only jump thunks, removes unreachable blocks, and merges an
-//! unconditional predecessor into its sole unaddressed successor. It repeats these steps because
+//! the same target or reach halting blocks with identical bodies, directly or through empty
+//! jumps, redirects label-only jump thunks, removes unreachable blocks, and merges an
+//! unconditional predecessor into its sole unaddressed successor. A folded branch's taken copy
+//! lends the surviving block its hotness, loop membership and debug origins, as terminal
+//! deduplication does when it shares equal blocks. It repeats these steps because
 //! each rewrite can expose another. Degenerate branches include both structural
 //! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
 //! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
@@ -41,6 +44,7 @@
 use super::{
     EvmPass,
     block_layout::triangle_arm,
+    terminal_dedup::{absorb_terminal_copy, equal_terminal_bodies},
     utils::{
         FreshLabels, instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks,
     },
@@ -378,7 +382,46 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
-    for block in &mut module.blocks {
+    for block_id in module.blocks.indices() {
+        // A branch whose edges reach equal halting blocks, directly or through empty jumps, runs
+        // the same code either way: fold it into the else edge, whose code the taken copy's
+        // paths then share.
+        let block = &module.blocks[block_id];
+        if let Some(Terminator { kind: TerminatorKind::JumpI { then_block, else_block }, .. }) =
+            block.terminator.as_ref()
+            && then_block != else_block
+            && let (copy, target) =
+                (through_empty_jumps(module, *then_block), through_empty_jumps(module, *else_block))
+            && copy != target
+            && equal_terminal_bodies(module, copy, target)
+        {
+            let target = *else_block;
+            absorb_terminal_copy(module, copy, through_empty_jumps(module, target));
+            let Some(Terminator { kind, .. }) = module.blocks[block_id].terminator.as_mut() else {
+                unreachable!("checked above")
+            };
+            *kind = TerminatorKind::JumpI { then_block: target, else_block: target };
+        }
+        if let Some(TerminatorKind::Jump(target)) =
+            module.blocks[block_id].terminator.as_ref().map(|term| &term.kind)
+            && let [.., pushed, jumpi] = module.blocks[block_id].instructions.as_slice()
+            && let Some(PushValue::Block(pushed_block)) = pushed.value
+            && pushed_block != *target
+            && pushed.is_encoded_push()
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && let (copy, reached) =
+                (through_empty_jumps(module, pushed_block), through_empty_jumps(module, *target))
+            && copy != reached
+            && equal_terminal_bodies(module, copy, reached)
+        {
+            // push copy; jumpi; jump target -> push target; jumpi; jump target
+            let target = *target;
+            absorb_terminal_copy(module, copy, reached);
+            let at = module.blocks[block_id].instructions.len() - 2;
+            module.blocks[block_id].instructions[at].value = Some(PushValue::Block(target));
+        }
+
+        let block = &mut module.blocks[block_id];
         if let Some(Terminator {
             kind: TerminatorKind::JumpI { then_block, else_block },
             metadata,
@@ -414,6 +457,22 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         }
     }
     changed
+}
+
+/// The block that `block` leads to through empty blocks that only jump on.
+fn through_empty_jumps(module: &Module, block: BlockId) -> BlockId {
+    let mut target = block;
+    for _ in 0..module.blocks.len() {
+        let next = &module.blocks[target];
+        let Some(Terminator { kind: TerminatorKind::Jump(to), .. }) = &next.terminator else {
+            break;
+        };
+        if !next.instructions.is_empty() || *to == block {
+            break;
+        }
+        target = *to;
+    }
+    target
 }
 
 fn redirect_jump_thunks(
