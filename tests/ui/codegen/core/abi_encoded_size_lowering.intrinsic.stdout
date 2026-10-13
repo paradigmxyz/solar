@@ -1,0 +1,168 @@
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/Abi.sol>:Abi ===
+@module Abi
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/abi_encoded_size_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @fixedSize() [selector=0x77e15753, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 36
+    v5 = shr 160, v4
+    v6 = eq v5, 0
+    jumpi v6, bb3, bb1
+  bb3:
+    mstore 128, 96
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @dynamicSize() [selector=0x509079b7, abi_wrapper, pure] {
+  bb0:
+    v12 = calldatasize
+    v13 = lt v12, 68
+    v14 = calldataload 4
+    v15 = add v14, 4
+    v16 = add v15, 32
+    v17 = gt v14, 0xffffffffffffffff
+    v18 = gt v16, v12
+    v19 = or v17, v18
+    v21 = calldataload v15
+    v23 = sub v12, v16
+    v24 = gt v21, v23
+    v27 = or v19, v24
+    v44 = or v13, v27
+    v29 = calldataload 36
+    v30 = add v29, 4
+    v31 = add v30, 32
+    v32 = gt v29, 0xffffffffffffffff
+    v33 = gt v31, v12
+    v34 = or v32, v33
+    v45 = or v44, v34
+    v36 = calldataload v30
+    v38 = sub v12, v31
+    v39 = shr 5, v38
+    v40 = gt v36, v39
+    v46 = or v45, v40
+    jumpi v46, bb1, bb2
+  bb2:
+    v2 = add v21, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = shl 5, v36
+    v10 = add v3, v7
+    v9 = add v10, 132
+    mstore 128, v9
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @staged() [selector=0xb73ce65c, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    v4 = calldataload 4
+    v5 = add v4, 4
+    v6 = add v5, 32
+    v7 = gt v4, 0xffffffffffffffff
+    v8 = gt v6, v2
+    v9 = or v7, v8
+    v66 = or v3, v9
+    v11 = calldataload v5
+    v13 = sub v2, v6
+    v14 = shr 5, v13
+    v15 = gt v11, v14
+    v67 = or v66, v15
+    jumpi v67, bb1, bb2
+  bb2:
+    v65 = mload 64 !metadata(memory=scratch)
+    v21 = add v65, 32
+    mstore v65, 32
+    mstore v21, v11
+    v26 = add v21, 32
+    v27 = shl 5, v11
+    v28 = add v26, v27
+    jump bb3
+  bb3:
+    v30 = phi [bb2: v11], [bb6: v57]
+    v31 = phi [bb2: v28], [bb6: v56]
+    v32 = phi [bb2: v26], [bb6: v59]
+    v33 = phi [bb2: v6], [bb6: v58]
+    v34 = gt v30, 0
+    jumpi v34, bb4, bb5
+  bb5:
+    v61 = sub v31, v65
+    mstore 128, v61
+    returndata 128, 32
+  bb4:
+    v35 = calldataload v33
+    v36 = calldatasize
+    v37 = sub v36, v6
+    v38 = sub v37, 31
+    v39 = slt v35, v38
+    v68 = eq v39, false
+    v41 = add v6, v35
+    v42 = calldataload v41
+    v43 = gt v42, 0xffffffffffffffff
+    v69 = or v68, v43
+    v44 = add v41, 32
+    v45 = sub v36, v42
+    v46 = sgt v44, v45
+    v70 = or v69, v46
+    jumpi v70, bb1, bb6
+  bb6:
+    v48 = sub v31, v26
+    mstore v32, v48
+    v51 = add v42, 31
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v53 = add v31, 32
+    v54 = add v31, v52
+    mstore v54, 0
+    mstore v31, v42
+    v56 = add v53, v52
+    calldatacopy v53, v44, v42
+    v57 = sub v30, 1
+    v58 = add v33, 32
+    v59 = add v32, 32
+    jump bb3
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x509079b7 => bb2, 0x77e15753 => bb3, 0xb73ce65c => bb4]
+  bb4:
+    tail_call @staged
+  bb3:
+    tail_call @fixedSize
+  bb2:
+    tail_call @dynamicSize
+  bb5:
+    revert 0, 0
+}

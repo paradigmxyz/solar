@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/count_down.sol:CountDown ===
 @module CountDown
 @phase lowered
-fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
+fn @countDown() [selector=0x3b396421, abi_wrapper, inline_assembly, pure] {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 36
@@ -95,7 +95,7 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
+fn @stepDown() [selector=0x4e0372c8, abi_wrapper, inline_assembly, pure] {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
@@ -131,7 +131,7 @@ fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
+fn @downTo() [selector=0x4930868e, abi_wrapper, inline_assembly, pure] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 68

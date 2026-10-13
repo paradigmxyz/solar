@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/call_result_residency.sol:CallResultResidency ===
 @module CallResultResidency
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = icall @helper
@@ -24,7 +24,7 @@ fn @helper() -> i256 [view] {
     ret v0
 }
 
-fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @read() -> i256 [selector=0x57de26a4, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = sload 1 !metadata(storage=slot(1))

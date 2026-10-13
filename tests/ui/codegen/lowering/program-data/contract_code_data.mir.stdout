@@ -24,7 +24,7 @@ fn @payload() -> memptr [selector=0xa878f858, pure, abi_params=[], abi_returns=[
   CodeTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
   CodeTarget_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
 
-fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployCreationCode() -> i256 [selector=0x5986dddb, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = datasize CodeTarget_creation_code_0
     v1 = datasize CodeTarget_creation_code_0, 63, aligned

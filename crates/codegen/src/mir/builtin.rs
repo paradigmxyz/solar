@@ -88,6 +88,7 @@ impl InstKind {
             .iter()
             .map(|part| match part {
                 ConcatPart::Bytes(_) => ValueLayout::MemoryObject(super::MemoryObjectKind::Bytes),
+                ConcatPart::Slice { location, .. } => ValueLayout::Slice(*location),
                 ConcatPart::Fixed { size, .. } => ValueLayout::FixedBytes(*size),
             })
             .collect();

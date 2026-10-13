@@ -1,0 +1,61 @@
+{
+  "sources": {
+    "<solar:core/Arrays.sol>": {
+      "id": 0
+    },
+    "<solar:core/Bytes.sol>": {
+      "id": 1
+    },
+    "<solar:core/Buffers.sol>": {
+      "id": 2
+    },
+    "<solar:core/Strings.sol>": {
+      "id": 3
+    },
+    "build.sol": {
+      "id": 4
+    }
+  },
+  "contracts": {
+    "build.sol": {
+      "UsesModules": {
+        "solarBuild": {
+          "compiler": {
+            "version": "VERSION",
+            "commit": "COMMIT"
+          },
+          "evmVersion": "cancun",
+          "optimization": "none",
+          "features": {
+            "coreIntrinsics": true
+          },
+          "coreModules": {
+            "solar:core/Arrays.sol": "0xf09d66f716c016f36b21b2cb25df1c139439549e1bb6bc8dd217f3331507a2ad",
+            "solar:core/Buffers.sol": "0xaaa7bd1179bc7b975363b63e7bc4b177dc520d93e375bb1a8897ec13995c27c1",
+            "solar:core/Bytes.sol": "0x27e1301b737d56f34914f7df344850e2ca0ba3bb5cf714968358beaaa96c8a97",
+            "solar:core/Strings.sol": "0x54826894230105221d37a7816a04e297c763b5702ef757505ef2631dea183dfc"
+          }
+        }
+      },
+      "Plain": {
+        "solarBuild": {
+          "compiler": {
+            "version": "VERSION",
+            "commit": "COMMIT"
+          },
+          "evmVersion": "cancun",
+          "optimization": "none",
+          "features": {
+            "coreIntrinsics": true
+          },
+          "coreModules": {
+            "solar:core/Arrays.sol": "0xf09d66f716c016f36b21b2cb25df1c139439549e1bb6bc8dd217f3331507a2ad",
+            "solar:core/Buffers.sol": "0xaaa7bd1179bc7b975363b63e7bc4b177dc520d93e375bb1a8897ec13995c27c1",
+            "solar:core/Bytes.sol": "0x27e1301b737d56f34914f7df344850e2ca0ba3bb5cf714968358beaaa96c8a97",
+            "solar:core/Strings.sol": "0x54826894230105221d37a7816a04e297c763b5702ef757505ef2631dea183dfc"
+          }
+        }
+      }
+    }
+  }
+}

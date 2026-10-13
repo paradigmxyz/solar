@@ -15,9 +15,15 @@ use solar_data_structures::{
 use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code, sym};
 use std::ops::ControlFlow;
 
+mod builders;
+mod call_exits;
 mod checker;
+mod code_views;
 mod control_flow;
+mod erc7201;
 pub(crate) mod override_checker;
+pub(crate) mod safe_profile;
+mod solar_tags;
 mod udvt;
 mod view_pure_checker;
 
@@ -50,6 +56,12 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     view_pure_checker::check(gcx);
+    solar_tags::check(gcx);
+    builders::check(gcx);
+    code_views::check(gcx);
+    erc7201::check(gcx);
+    safe_profile::check(gcx);
+    call_exits::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {

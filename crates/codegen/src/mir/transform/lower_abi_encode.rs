@@ -35,6 +35,12 @@
 //! a second allocation. A module-wide plan selects those sites before shared
 //! tuple helpers are built, so locally cheaper terminal encodings do not leave
 //! an unused shared body.
+//! A dynamic aggregate held in a memory or calldata slice is a `@custom:solar-view`
+//! of its own ABI encoding, validated by the decode that made it, except for the
+//! calldata arrays of words and byte strings encoded from their slices directly.
+//! Its words are copied as they are, and its tails are laid out afresh after the
+//! heads they belong to, so the output is the canonical encoding a copy of it
+//! would have, whatever offsets the input used.
 
 use crate::{
     mir::{
@@ -299,7 +305,10 @@ fn synthesize_array_helpers(
         for inst in func.instructions() {
             let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
             for (&arg, ty) in args.iter().zip(&layout.types) {
-                count_sites(func, ty, Some(arg), 1, &mut counts);
+                // A view's elements are encoded from its encoding, never by a helper.
+                if encoded_view_location(func, ty, arg).is_none() {
+                    count_sites(func, ty, Some(arg), 1, &mut counts);
+                }
             }
         }
     }
@@ -1206,6 +1215,12 @@ fn encode_dynamic_body(
     source: AbiValueSource,
     helpers: &EncodeHelpers,
 ) -> ValueId {
+    if let Some(location) = encoded_view_location(builder.func(), ty, value) {
+        // tail = encode_encoded(ty, value.ptr, value.len)
+        let data = builder.slice_ptr(value);
+        let len = builder.slice_len(value);
+        return encode_encoded(builder, ty, data, len, dest, location, helpers);
+    }
     match ty {
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1284,6 +1299,187 @@ fn encode_dynamic_body(
         }
         AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
     }
+}
+
+/// The location of the ABI encoding that `value`, the dynamic aggregate of type `ty`, is a
+/// `@custom:solar-view` of, when it is one, for [`encode_encoded`].
+///
+/// A dynamic aggregate held in a memory or calldata slice is a view, except for a calldata
+/// argument that [`encode_dynamic_body`] encodes from its slice while checking its offsets and
+/// lengths against the calldata size: a dynamic array of words or of byte strings. Other calldata
+/// aggregates are copied to memory before an encoding takes them.
+fn encoded_view_location(func: &Function, ty: &AbiType, value: ValueId) -> Option<SliceLocation> {
+    if !ty.is_dynamic() || matches!(ty, AbiType::Bytes(_)) {
+        return None;
+    }
+    let location @ (SliceLocation::Memory | SliceLocation::Calldata) =
+        func.value_slice_location(value)?
+    else {
+        return None;
+    };
+    let direct = matches!(
+        ty,
+        AbiType::DynamicArray { element, .. }
+            if matches!(element.as_ref(), AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_))
+    );
+    (location == SliceLocation::Memory || !direct).then_some(location)
+}
+
+/// Encodes at `dest` the dynamic value of type `ty` that a `@custom:solar-view` holds in its ABI
+/// encoding in `location`, and returns the end of what it wrote. `data` and `len` are the view's
+/// slice: the bytes of a `bytes` value, or the element heads of a dynamic array, each with its
+/// length, or the heads of a fixed-size array or a struct.
+///
+/// The decode that made the view validated every word of it, and nothing can change them while
+/// the view is read, so words are copied as they are, with no cleanup. The output is the
+/// canonical encoding the copying decode's objects would have: every value's tail follows the
+/// heads it belongs to in order, whatever offsets the input used.
+fn encode_encoded(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    data: ValueId,
+    len: ValueId,
+    dest: ValueId,
+    location: SliceLocation,
+    helpers: &EncodeHelpers,
+) -> ValueId {
+    match ty {
+        AbiType::Bytes(_) => {
+            // tail = encode_bytes(slice(data, len))
+            let value = builder.make_slice(data, len, location);
+            encode_bytes(builder, value, dest, location, false, helpers.branchless_byte_tails)
+        }
+        AbiType::DynamicArray { element, .. } => {
+            // mstore dest, len
+            // tail = encode_encoded_elements(element, data, len, dest + 32)
+            builder.mstore(dest, len);
+            let heads = offset_ptr(builder, dest, 32);
+            encode_encoded_elements(builder, element, data, len, heads, location, helpers)
+        }
+        AbiType::FixedArray { element, len } => {
+            // tail = encode_encoded_elements(element, data, len, dest)
+            let count = builder.imm(*len);
+            encode_encoded_elements(builder, element, data, count, dest, location, helpers)
+        }
+        AbiType::Tuple(fields) => {
+            let head_size = fields.iter().map(AbiType::head_size).sum::<u64>();
+            let mut tail = offset_ptr(builder, dest, head_size);
+            let mut offset = 0;
+            for field in fields {
+                let source = offset_ptr(builder, data, offset);
+                let head = offset_ptr(builder, dest, offset);
+                if field.is_dynamic() {
+                    // mstore head, tail - dest
+                    // tail = encode_encoded(field at data + load(source))
+                    let relative = builder.sub(tail, dest);
+                    builder.mstore(head, relative);
+                    let (field_data, field_len) =
+                        encoded_value(builder, field, data, source, location);
+                    tail = encode_encoded(
+                        builder, field, field_data, field_len, tail, location, helpers,
+                    );
+                } else {
+                    // copy(head, source, head_size(field))
+                    let size = builder.imm(field.head_size());
+                    builder.copy_slice_data(location, head, source, size);
+                }
+                offset += field.head_size();
+            }
+            tail
+        }
+        AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
+    }
+}
+
+/// The slice, as [`encode_encoded`] takes it, of the dynamic value of type `ty` whose offset
+/// from `base` the head at `head` holds.
+fn encoded_value(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    base: ValueId,
+    head: ValueId,
+    location: SliceLocation,
+) -> (ValueId, ValueId) {
+    // position = base + load(head)
+    let offset = load_slice_word(builder, head, location);
+    let position = builder.add(base, offset);
+    match ty {
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
+            // slice = (position + 32, load(position))
+            let len = load_slice_word(builder, position, location);
+            let data = offset_ptr(builder, position, 32);
+            (data, len)
+        }
+        _ => {
+            // slice = (position, 0)
+            let zero = builder.imm(0);
+            (position, zero)
+        }
+    }
+}
+
+/// Encodes at `dest` the `count` elements of type `element` whose heads a view holds at
+/// `heads`, for [`encode_encoded`], and returns the end of what it wrote.
+fn encode_encoded_elements(
+    builder: &mut FunctionBuilder<'_>,
+    element: &AbiType,
+    heads: ValueId,
+    count: ValueId,
+    dest: ValueId,
+    location: SliceLocation,
+    helpers: &EncodeHelpers,
+) -> ValueId {
+    let head_size = builder.imm(element.head_size());
+    let bytes = builder.mul(count, head_size);
+    let end = builder.add(dest, bytes);
+    if !element.is_dynamic() {
+        // copy(dest, heads, count * head_size)
+        builder.copy_slice_data(location, dest, heads, bytes);
+        return end;
+    }
+    // loop:
+    //   remaining = phi [count, remaining - 1]
+    //   source = phi [heads, source + 32]
+    //   head = phi [dest, head + 32]
+    //   tail = phi [end, next_tail]
+    //   branch remaining > 0, body, done
+    // body:
+    //   mstore head, tail - dest
+    //   next_tail = encode_encoded(element at heads + load(source))
+    let zero = builder.imm(0);
+    let preheader = builder.current_block();
+    let cond = builder.create_block();
+    let body = builder.create_block();
+    let done = builder.create_block();
+    builder.jump(cond);
+
+    builder.switch_to_block(cond);
+    let remaining = builder.phi(vec![(preheader, count)]);
+    let source = builder.phi(vec![(preheader, heads)]);
+    let head = builder.phi(vec![(preheader, dest)]);
+    let tail = builder.phi(vec![(preheader, end)]);
+    let has_next = builder.gt(remaining, zero);
+    builder.branch(has_next, body, done);
+
+    builder.switch_to_block(body);
+    let relative = builder.sub(tail, dest);
+    builder.mstore(head, relative);
+    let (element_data, element_len) = encoded_value(builder, element, heads, source, location);
+    let next_tail =
+        encode_encoded(builder, element, element_data, element_len, tail, location, helpers);
+    let one = builder.imm(1);
+    let next_remaining = builder.sub(remaining, one);
+    let next_source = offset_ptr(builder, source, 32);
+    let next_head = offset_ptr(builder, head, 32);
+    let backedge = builder.current_block();
+    builder.jump(cond);
+    builder.add_phi_incoming(remaining, backedge, next_remaining);
+    builder.add_phi_incoming(source, backedge, next_source);
+    builder.add_phi_incoming(head, backedge, next_head);
+    builder.add_phi_incoming(tail, backedge, next_tail);
+
+    builder.switch_to_block(done);
+    tail
 }
 
 fn effective_slice_location(
@@ -1581,9 +1777,12 @@ fn encode_bytes(
         return builder.add(data, size);
     }
 
-    let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::Bytes),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
+    // A slice in memory is a view of bytes held elsewhere, not an object.
+    let slice = builder.func().value_slice_location(value).is_some();
+    let len = if slice {
+        builder.slice_len(value)
+    } else {
+        memory_object_len(builder, value, MemoryObjectKind::Bytes)
     };
     if !branchless_padding {
         // mstore dest, len
@@ -1619,9 +1818,10 @@ fn encode_bytes(
         builder.jump(copy_block);
         builder.switch_to_block(copy_block);
     }
-    let data_source = match location {
-        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
-        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
+    let data_source = if slice {
+        builder.slice_ptr(value)
+    } else {
+        builder.memory_object_data(value, MemoryObjectKind::Bytes)
     };
     let tail = builder.add(data_dest, padded);
     copy_source_data(builder, location, data_dest, data_source, len);

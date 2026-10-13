@@ -98,7 +98,7 @@ fn @twice(arg0: memptr, arg1: i256) -> memptr [selector=0x5a2aaa96, pure, abi_pa
     ret v1
 }
 
-fn @copy(arg0: memptr, arg1: i256) -> memptr [pure] {
+fn @copy(arg0: memptr, arg1: i256) -> memptr [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = ptrtoint memptr arg0 to i256

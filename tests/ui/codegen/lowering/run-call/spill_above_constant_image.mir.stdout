@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
 @module Registry
-fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, inline_assembly, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     calldatacopy 140, 36, 128
     mstore 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)
@@ -49,7 +49,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
 @data
   Registry_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry"
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize Registry_creation_code_0

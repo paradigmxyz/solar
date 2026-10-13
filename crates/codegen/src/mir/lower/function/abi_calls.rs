@@ -280,6 +280,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
+        if self.is_view_expr(argument) {
+            return self.lower_view_abi_argument(argument, parameter_ty);
+        }
         let value = self.lower_typed_expr(argument, parameter_ty)?;
         let abi_type = self.types.abi_type(parameter_ty)?;
         let abi_type = if self.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {

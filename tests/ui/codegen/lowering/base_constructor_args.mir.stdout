@@ -622,7 +622,7 @@ fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[w
     ret v0
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     sstore 1, 0x5678 !metadata(storage=slot(1))
     v0 = icall @forward, 0x1234
@@ -671,7 +671,7 @@ fn @forward(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     sstore 1, 0x5678 !metadata(storage=slot(1))
     v0 = icall @forward, 0x1234
@@ -700,7 +700,7 @@ fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_poin
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierDerived ===
 @module RawCarrierDerived
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     sstore 1, 0x5678 !metadata(storage=slot(1))
     v0 = icall @forward, 0x1234

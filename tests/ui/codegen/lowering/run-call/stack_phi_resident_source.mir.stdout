@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/stack_phi_resident_source.sol:StackPhiResidentSource ===
 @module StackPhiResidentSource
-fn @constructor() [constructor] {
+fn @constructor() [constructor, inline_assembly] {
   bb0:
     jump bb1
   bb1:
@@ -24,7 +24,7 @@ fn @constructor() [constructor] {
     jump bb1
 }
 
-fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, inline_assembly, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 1 !metadata(storage=slot(1))

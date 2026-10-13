@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_sub_unknown_offset.sol:C ===
 @module C
-fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg2, 1
     v1 = checked_add u256, arg2, 2

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack-resident/callee_low_memory_write.sol:C ===
 @module C
-fn @g(arg0: i256) -> i256 [view] {
+fn @g(arg0: i256) -> i256 [inline_assembly, view] {
   bb0:
     v0 = eq arg0, 0x3039
     jumpi v0, bb1, bb2

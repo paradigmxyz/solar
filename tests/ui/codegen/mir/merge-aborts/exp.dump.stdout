@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/merge-aborts/exp.sol:Exp ===
 @module Exp
 @phase lowered
-fn @checked() [selector=0x1239168b, abi_wrapper, pure] {
+fn @checked() [selector=0x1239168b, abi_wrapper, inline_assembly, pure] {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 132

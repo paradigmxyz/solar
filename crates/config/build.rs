@@ -28,9 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sha = vergen_env("VERGEN_GIT_SHA");
     let sha_short = sha.get(..7).unwrap_or(&sha);
 
-    let is_dev = {
-        let is_dirty = vergen_env("VERGEN_GIT_DIRTY") == "true";
+    let is_dirty = vergen_env("VERGEN_GIT_DIRTY") == "true";
+    let dirty_suffix = if is_dirty { "-dirty" } else { "" };
+    println!("cargo:rustc-env=COMMIT_SHA={sha}{dirty_suffix}");
 
+    let is_dev = {
         // > git describe --always --tags
         // if not on a tag: v0.2.0-beta.3-82-g1939939b
         // if on a tag: v0.2.0-beta.3

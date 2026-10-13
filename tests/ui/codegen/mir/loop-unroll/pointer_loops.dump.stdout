@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_loops.sol:PointerLoops ===
 @module PointerLoops
 @phase lowered
-fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
+fn @toHex() [selector=0xc5bec6fc, abi_wrapper, inline_assembly, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 36
@@ -135,7 +135,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
+fn @sumWords() [selector=0x5a761098, abi_wrapper, inline_assembly, pure] {
   bb0:
     v18 = calldatasize
     v19 = lt v18, 36
@@ -210,7 +210,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
+fn @stepThree() [selector=0xbf2eba92, abi_wrapper, inline_assembly, pure] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 68

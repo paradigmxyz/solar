@@ -28,7 +28,7 @@ fn @inequalities(arg0: i256, arg1: i256, arg2: i1) -> struct0 [selector=0xca51df
     ret v17
 }
 
-fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
+fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = and arg0, arg1
@@ -69,7 +69,7 @@ fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_par
     ret v35
 }
 
-fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = not 0
     v1 = mul arg0, v0
@@ -91,7 +91,7 @@ fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, pure, ab
     ret v16
 }
 
-fn @guards(arg0: i256, arg1: i256) -> struct2 [selector=0x98aa2c32, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @guards(arg0: i256, arg1: i256) -> struct2 [selector=0x98aa2c32, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = mul arg0, 2
     v1 = div v0, 2

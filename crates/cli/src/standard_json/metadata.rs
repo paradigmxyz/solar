@@ -199,7 +199,8 @@ pub(super) fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
     gcx.hir.source(source_id).file.name.display().to_string()
 }
 
-fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {
+/// The sources `root` reaches through its imports, itself included, sorted by name.
+pub(super) fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {
     fn visit(gcx: Gcx<'_>, source_id: SourceId, sources: &mut GrowableBitSet<SourceId>) {
         if !sources.insert(source_id) {
             return;

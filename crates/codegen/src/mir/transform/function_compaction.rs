@@ -21,8 +21,8 @@
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
 use crate::mir::{
-    ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
-    StorageAlias, Terminator, Value, ValueId,
+    ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MemoryRegion,
+    MirType, Module, StorageAlias, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -905,8 +905,12 @@ fn equivalent_functions(
                     rhs_inst.kind.operands(),
                 )
                 || !equivalent_inst_payload(lhs_id, &lhs_inst.kind, rhs_id, &rhs_inst.kind)
-                || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
-                || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
+                // A region the builder could not name says no more than none.
+                || lhs_inst.metadata.memory_region().unwrap_or(MemoryRegion::Unknown)
+                    != rhs_inst.metadata.memory_region().unwrap_or(MemoryRegion::Unknown)
+                // An annotation that repeats the instruction's own effect says nothing more.
+                || lhs_inst.metadata.effect().unwrap_or(lhs_inst.kind.effect_kind())
+                    != rhs_inst.metadata.effect().unwrap_or(rhs_inst.kind.effect_kind())
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
                 || lhs_inst.metadata.deferred_alloc() != rhs_inst.metadata.deferred_alloc()
                 || lhs_inst.metadata.preserves_fmp() != rhs_inst.metadata.preserves_fmp()
@@ -977,9 +981,18 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+        // Assembly can keep pointers no analysis follows, so a merge keeps it visible.
+        && lhs.attributes.inline_assembly == rhs.attributes.inline_assembly
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
+        && lhs.attributes.preserves_array_elements == rhs.attributes.preserves_array_elements
+        && lhs.attributes.returns_param_elements == rhs.attributes.returns_param_elements
+        // Merging a body whose masks element cleanup may drop with one whose
+        // equal masks it must keep would drop them from both.
+        && lhs.attributes.cleans_address_elements == rhs.attributes.cleans_address_elements
+        && lhs.attributes.only_cleans_address_elements
+            == rhs.attributes.only_cleans_address_elements
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make
         // its callers re-clean every returned element.

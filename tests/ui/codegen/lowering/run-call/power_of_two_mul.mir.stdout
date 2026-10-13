@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul ===
 @module PowerOfTwoMul
-fn @exp2(arg0: i256) -> i256 [selector=0xa75826ae, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @exp2(arg0: i256) -> i256 [selector=0xa75826ae, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 2, arg0
     ret v0
@@ -18,13 +18,13 @@ fn @checkedExp2(arg0: i256) -> i256 [selector=0xb10b60bd, pure, abi_params=[u256
     ret v0
 }
 
-fn @mul32(arg0: i256) -> i256 [selector=0xde1efc56, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @mul32(arg0: i256) -> i256 [selector=0xde1efc56, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 32
     ret v0
 }
 
-fn @mulHigh(arg0: i256) -> i256 [selector=0x25ee2d76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @mulHigh(arg0: i256) -> i256 [selector=0x25ee2d76, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul 0x8000000000000000000000000000000000000000000000000000000000000000, arg0
     ret v0

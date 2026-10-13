@@ -4,7 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
-fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, inline_assembly, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = checked_add u256, arg0, 1
@@ -59,7 +59,7 @@ fn @branchBindReturn(arg0: i1, arg1: i256) -> i256 [selector=0x69456020, abi_par
     ret 0
 }
 
-fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, inline_assembly, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     switch arg0, default bb5, [0 => bb2, 1 => bb3, 3 => bb4]
   bb4:

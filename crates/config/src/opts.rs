@@ -347,6 +347,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub no_resolve_imports: bool,
 
+    /// Calls the portable body of every `solar:core/` module function instead of
+    /// lowering it directly, which is how the two are compared.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub no_core_intrinsics: bool,
+
     /// Recovers incomplete input into a partial AST.
     #[cfg_attr(feature = "clap", arg(long))]
     pub recover_incomplete_input: bool,

@@ -98,13 +98,13 @@ fn @widenNarrow(arg0: i256) -> struct0 [selector=0x699a082f, pure, abi_params=[u
     ret v5
 }
 
-fn @callInvalid() -> i256 [selector=0xa0a3185b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callInvalid() -> i256 [selector=0xa0a3185b, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_u256_r_u256, 0x1234, 0
     ret v0
 }
 
-fn @_decodePair(arg0: i256) -> i256 [pure] {
+fn @_decodePair(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = calldataload arg0
@@ -118,7 +118,7 @@ fn @_decodePair(arg0: i256) -> i256 [pure] {
     ret v0
 }
 
-fn @_decodeBytes(arg0: i256) -> i256 [pure] {
+fn @_decodeBytes(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 31
@@ -132,7 +132,7 @@ fn @_decodeBytes(arg0: i256) -> i256 [pure] {
     ret v0
 }
 
-fn @_sumWords(arg0: i256) -> i256 [pure] {
+fn @_sumWords(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = add arg0, 32
     v1 = mload v0
@@ -170,7 +170,7 @@ fn @_isOdd(arg0: i256) -> i1 [pure] {
     ret v1
 }
 
-fn @_rawAndTyped(arg0: i256) -> struct0 [pure] {
+fn @_rawAndTyped(arg0: i256) -> struct0 [inline_assembly, pure] {
   bb0:
     v0 = trunc i256 arg0 to i8
     v1 = zext i8 v0 to i256
@@ -179,38 +179,38 @@ fn @_rawAndTyped(arg0: i256) -> struct0 [pure] {
     ret v3
 }
 
-fn @_toPairReturnType(arg0: i256) -> i256 [pure] {
+fn @_toPairReturnType(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @_toPairDecoder(arg0: memptr) -> memptr [pure] {
+fn @_toPairDecoder(arg0: memptr) -> memptr [inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     ret arg0
 }
 
-fn @_toBytesReturnType(arg0: i256) -> i256 [pure] {
+fn @_toBytesReturnType(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @_toPairInput(arg0: i256) -> i256 [pure] {
+fn @_toPairInput(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @_toPairApply(arg0: i256) -> i256 [pure] {
+fn @_toPairApply(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @_toWideInput(arg0: i256) -> i256 [pure] {
+fn @_toWideInput(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @_toArrayTypes(arg0: i256) -> i256 [pure] {
+fn @_toArrayTypes(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }

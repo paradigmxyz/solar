@@ -6,7 +6,7 @@ fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_r
     ret v0
 }
 
-fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, arg0
     v1 = add v0, v0

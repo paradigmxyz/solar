@@ -14,7 +14,7 @@ fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[wor
     ret v5
 }
 
-fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @firstWord() -> i256 [selector=0x20cb3a4a, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 40

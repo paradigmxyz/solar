@@ -70,7 +70,7 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
+fn @bytesTail() [selector=0x56818b01, abi_wrapper, inline_assembly, pure] {
   bb0:
     v86 = mload 64 !metadata(memory=scratch)
     v87 = add v86, 96
@@ -301,7 +301,7 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
+fn @assembled() [selector=0xd1381062, abi_wrapper, inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 70
@@ -359,7 +359,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
+fn @recycled() [selector=0xa163996f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v82 = mload 64 !metadata(memory=scratch)
     v83 = add v82, 96

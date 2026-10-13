@@ -1,0 +1,38 @@
+//@compile-flags: -Zmir-pipeline=lower-abi
+//@filecheck:
+// A decode with a `views` group makes every `bytes`, array, and struct value
+// a view of the data, in the data's location. Lowering validates each value
+// where it is, as the copying decode validates it, and replays the allocation
+// checks of the copies it does not make against a virtual free memory pointer,
+// so nothing is allocated or copied.
+@module DecodeViews
+
+@types
+  struct0: {calldataslice, calldataslice, i256}
+  struct1: {memoryslice, memoryslice, i256}
+
+// CHECK-LABEL: fn @fromCalldata(
+// CHECK: - {{v[0-9]+}} = abi_decode [array<_, array<_, u256>>, tuple<u256, bytes>, u256], arg0, views
+// CHECK-NOT: + {{.*}}mstore 64
+// CHECK-NOT: + {{.*}}calldatacopy
+// CHECK: + {{v[0-9]+}} = make_calldata_slice
+fn @fromCalldata(arg0: calldataslice) -> i256 [pure] {
+  bb0:
+    v0 = abi_decode [array<_, array<_, u256>>, tuple<u256, bytes>, u256], arg0, views
+    v1 = extract_value struct0, v0, 0
+    v2 = slice_len v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @fromMemory(
+// CHECK: - {{v[0-9]+}} = abi_decode [array<_, array<_, u256>>, tuple<u256, bytes>, u256], arg0, views
+// CHECK-NOT: + {{.*}}mstore 64
+// CHECK-NOT: + {{.*}}mcopy
+// CHECK: + {{v[0-9]+}} = make_memory_slice
+fn @fromMemory(arg0: memoryslice) -> i256 [pure] {
+  bb0:
+    v0 = abi_decode [array<_, array<_, u256>>, tuple<u256, bytes>, u256], arg0, views
+    v1 = extract_value struct1, v0, 1
+    v2 = slice_len v1
+    ret v2
+}

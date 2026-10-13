@@ -12,13 +12,13 @@ fn @mm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x91b121df, pure, a
     ret v0
 }
 
-fn @yulAm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7432e972, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulAm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7432e972, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = addmod arg0, arg1, arg2
     ret v0
 }
 
-fn @yulMm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x97001426, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulMm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x97001426, inline_assembly, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mulmod arg0, arg1, arg2
     ret v0

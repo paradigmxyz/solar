@@ -1,0 +1,1384 @@
+//! `@custom:solar-view` declarations: `Bytes.slice` ranges and decoded values read in place.
+//!
+//! The declarations
+//!
+//! ```solidity
+//! /// @custom:solar-view
+//! bytes memory v = Bytes.slice(source, offset, count);
+//! /// @custom:solar-view
+//! (uint256 id, bytes memory payload) = abi.decode(data, (uint256, bytes));
+//! ```
+//!
+//! mean what they mean to every compiler: `v` and `payload` hold copies, made after the checks
+//! the copies make. Other compilers read the tag as documentation and make the copies. This
+//! compiler instead binds each view to the slice of its bytes where they are and never copies,
+//! which is only equivalent while those bytes cannot change between the declaration and a read
+//! of the view, and while nothing can tell the view from a copy. Both conditions are checked, and
+//! a program that breaks either is rejected rather than compiled with different behavior.
+//!
+//! A decode declaration may decode any type from `bytes` in memory or calldata or from another
+//! view; its values of memory reference types, `bytes`, `string`, arrays, and structs, are the
+//! views, and a view of calldata needs no borrow, since nothing can change calldata. The decode
+//! validates its input exactly as the copying decode does, including the allocation checks each
+//! copy would make (`Panic(0x41)` for a length that cannot be allocated), so every input fails
+//! where it would.
+//!
+//! A view holds its value in the value's ABI encoding. An element or a field of a value type reads
+//! its word, which the decode validated, and one of a memory reference type is itself a view of
+//! the same bytes, which a tagged declaration can name:
+//!
+//! ```solidity
+//! /// @custom:solar-view
+//! (bytes[] memory items, Order memory order) = abi.decode(data, (bytes[], Order));
+//! /// @custom:solar-view
+//! bytes memory first = items[0];
+//! ```
+//!
+//! A view itself can only be read in place: `.length`, indexing, field reads, `keccak256`,
+//! `abi.decode`, the encodings that copy it from where it is into their output (`abi.encode` and
+//! its variants, `abi.encodePacked`, `bytes.concat` and `string.concat`, event and error
+//! arguments, and the arguments of external calls), the reads of `solar:core/Bytes.sol` and
+//! `Hash.sol` that take a range (a view of a view included), and passing it as a view parameter.
+//! Any other use, such as an assignment, a write through the view, passing it to another function
+//! or returning it, is an error at the use, because it could keep the view or write the source
+//! through it. A view of a view, and an element or a field of one, reads the same bytes, so it
+//! extends the enclosing view's borrow instead of starting one.
+//!
+//! `@custom:solar-view data` on an internal function makes its parameter `data`, of a memory
+//! reference type, a view parameter, which the function can only read in place. Other compilers
+//! pass the caller's object, and every internal call does the same with any memory reference; this
+//! compiler passes what the caller holds, without a copy. A `bytes` or `string` parameter takes the
+//! slice of the bytes of a view or of an object, an object's as they are when every argument has
+//! been evaluated, which is when the function would first read them. An array or struct parameter
+//! takes the caller's object, which the function reads as any object is read, or a view of the
+//! encoding the value was decoded from. A call that passes views reaches the copy of the function
+//! that takes each view parameter the way the call passes it, one copy per combination, which reads
+//! them where they are. The function reads a view parameter in memory as a view, borrowed from its
+//! entry on, so none of its writes may reach memory that existed when it was entered while it still
+//! reads the parameter; an object is the caller's own, and calldata cannot change. It cannot be
+//! used as a function pointer, whose calls pass objects.
+//!
+//! `abi.decode(abi.encode(v), (T))`, with `v` a view of type `T`, is the portable spelling of a
+//! copy of the view as an ordinary value: every compiler encodes a value and decodes it to an
+//! equal, independent one. This compiler copies each view into its value directly, without the
+//! encoding in between, since a validated view encodes and decodes to itself; a view that is the
+//! caller's object goes through the encoding like any object.
+//!
+//! Once the contract is lowered, and before any optimization, [`check_view_borrows`] rejects
+//! every instruction that may write the source's payload between the view's creation and a later
+//! read through it, on some path that does not create the view again. The reads are the uses of
+//! every value the view's slice derives through pure operations, other than its length, which the
+//! view fixed when it was made. Writes come from the MIR ModRef analysis, run on a copy of the
+//! function whose trivial loop phis are resolved. A call writes whatever its callee may write of
+//! the memory that exists when it is entered: the objects of some parameters, or anything,
+//! summarized over the call graph to a fixed point.
+//!
+//! A write cannot reach the source's payload when it lands in the reserved words below the heap,
+//! in an internal-call frame, or in memory allocated after the source existed: past any fresh
+//! allocation of the function, or past the free memory pointer, when the source is a parameter's
+//! object, and otherwise past one the view's creation dominates. A write into a parameter's object
+//! cannot reach a source allocated by the function either, as long as it is a semantic object
+//! store, which stays inside its object; a raw store may run past the object's end.
+//!
+//! NOTE: the check relies on the Solidity memory model: objects a variable can reach lie in
+//! allocated memory, so an allocation that no free-memory-pointer reset precedes cannot overlap
+//! one that already exists. It is conservative wherever the analysis loses a write's target, such
+//! as a raw store at a computed offset, and then reports the write. Without intrinsic lowering
+//! (`-Zno-core-intrinsics`) the declaration lowers as the copy and nothing is checked.
+
+use super::{
+    memory_facts::{Analyzed, below_heap},
+    *,
+};
+use crate::mir::{
+    ArgIdx, Callee, EffectKind, InstId, MemoryRegion,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, AliasResult, CfgInfo, LocalSummaryCache, Location,
+        LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
+    },
+    memory::MemoryLayoutPolicy,
+};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    smallvec::SmallVec,
+};
+use solar_interface::diagnostics::{DiagBuilder, ErrorGuaranteed};
+
+/// A view whose source's bytes must not change while the view is still read.
+pub(in crate::mir::lower) struct ViewBorrow {
+    /// The view's memory slice.
+    view: ValueId,
+    /// The `bytes memory` object the view reads.
+    source: ValueId,
+    /// The view variable's declaration.
+    span: Span,
+    /// The view variable's name.
+    name: Symbol,
+}
+
+impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    /// Lowers the declaration of the `@custom:solar-view` variable `id`: the `Bytes.slice` call
+    /// initializing it yields the memory slice of its range instead of a copy.
+    pub(super) fn lower_view_declaration(
+        &mut self,
+        id: VariableId,
+        initializer: &hir::Expr<'_>,
+    ) -> Option<()> {
+        if self.is_view_expr(initializer) {
+            // A view, or an element or a field of one, reads the bytes its view borrows.
+            let view = self.lower_view_expr(initializer)?;
+            self.views.insert(id, view);
+            return Some(());
+        }
+        let call = initializer.peel_parens().id;
+        let previous = self.forming_view.replace((call, id));
+        let value = self.lower_expr(initializer);
+        self.forming_view = previous;
+        let value = value?;
+        if self.builder.func().value_slice_location(value).is_some() {
+            self.views.insert(id, value);
+        } else {
+            // Without intrinsic lowering the call returned the copy the portable body makes.
+            let ty = self.cx.gcx.type_of_item(id.into());
+            let value = self.materialize_call_argument(ty, value, initializer.span)?;
+            self.values.insert(id, value);
+        }
+        Some(())
+    }
+
+    /// Records that the `@custom:solar-view` variable `id` reads `range` of `bytes` in place.
+    ///
+    /// A view of a view narrows bytes the enclosing view already borrows, and its reads derive
+    /// from that view's slice, so only a view of an object starts a borrow.
+    pub(super) fn form_slice_view(&mut self, id: VariableId, range: ValueId, bytes: ValueId) {
+        if self.builder.func().value_slice_location(bytes).is_some() {
+            let root = self.view_roots.get(&bytes).copied().flatten();
+            self.view_roots.insert(range, root);
+            return;
+        }
+        self.view_roots.insert(range, Some(bytes));
+        self.push_view_borrow(id, range, bytes);
+    }
+
+    /// Records that `view`, the slice of the view variable `id`, reads the object `source`.
+    fn push_view_borrow(&mut self, id: VariableId, view: ValueId, source: ValueId) {
+        let variable = self.cx.gcx.hir.variable(id);
+        self.cx.state.view_borrows.push(ViewBorrow {
+            view,
+            source,
+            span: variable.span,
+            name: variable.name.map_or(kw::Empty, |name| name.name),
+        });
+    }
+
+    /// Lowers a `@custom:solar-view` declaration of `ids` initialized by `abi.decode(data,
+    /// (T...))`: value types decode as usual, and every `bytes` or `string` value is a view of
+    /// its bytes in `data`, validated as the copying decode validates it.
+    ///
+    /// The data is decoded where it is: a calldata argument stays in calldata, where nothing can
+    /// change it, and memory data, or a view's slice, is borrowed like any view's source.
+    pub(super) fn lower_view_decode(
+        &mut self,
+        ids: &[Option<VariableId>],
+        call: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let Some((_, args, _)) = call.peel_parens().as_call() else {
+            return self.cx.report_unsupported(call.span, "view decode");
+        };
+        let args = self.builtin_args::<2>(Builtin::AbiDecode, args)?;
+        let types = match args[1].kind {
+            ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
+            _ => return self.cx.report_unsupported(args[1].span, "abi.decode target type"),
+        };
+        let mut decoded = Vec::with_capacity(types.len());
+        for ty_expr in &types {
+            let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
+            else {
+                return self.cx.report_unsupported(ty_expr.span, "abi.decode target type");
+            };
+            decoded.push(ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory));
+        }
+        if decoded.len() != ids.len() {
+            return self.cx.report_unsupported(call.span, "view decode");
+        }
+
+        let data_expr = &args[0];
+        let (data, root) = match self.is_view_expr(data_expr) {
+            true => {
+                // A view of an object reads the object; any other view has its root.
+                let view = self.lower_view_expr(data_expr)?;
+                let root = if self.builder.func().value_slice_location(view).is_none() {
+                    Some(view)
+                } else {
+                    self.view_roots.get(&view).copied().flatten()
+                };
+                (view, root)
+            }
+            false => {
+                let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+                if data_ty.is_ref_at(DataLocation::Calldata) {
+                    let value = self.lower_expr(data_expr)?;
+                    if self.builder.func().value_slice_location(value)
+                        != Some(SliceLocation::Calldata)
+                    {
+                        return self.cx.report_unsupported(data_expr.span, "view decode data");
+                    }
+                    (value, None)
+                } else {
+                    let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                    let value = self.lower_typed_expr(data_expr, memory_ty)?;
+                    let value =
+                        self.materialize_memory_argument(memory_ty, value, data_expr.span)?;
+                    (value, Some(value))
+                }
+            }
+        };
+        let location = match self.builder.func().value_slice_location(data) {
+            Some(SliceLocation::Calldata) => SliceLocation::Calldata,
+            _ => SliceLocation::Memory,
+        };
+        let layout = self.abi_decode_layout(&decoded, call.span)?;
+        let fields = decoded
+            .iter()
+            .zip(&layout.types)
+            .map(|(&ty, abi_type)| {
+                if abi_type.is_scalar_word() {
+                    types::TypeLowerer::mir_type(ty)
+                } else {
+                    MirType::Slice(location)
+                }
+            })
+            .collect::<Vec<_>>();
+        let layout = self.cx.module.intern_abi_param_layout(layout);
+        let result_ty = self.cx.module.intern_return_type(fields.clone())?;
+        // result = abi_decode layout, data
+        let result = self.builder.abi_decode(layout, data, result_ty);
+        let values = match result_ty {
+            MirType::Struct(id) => fields
+                .iter()
+                .enumerate()
+                // value = extract_value result, index
+                .map(|(index, &field)| self.builder.extract_value(id, result, index as u32, field))
+                .collect::<Vec<_>>(),
+            _ => vec![result],
+        };
+        for ((&id, value), field) in ids.iter().zip(values).zip(fields) {
+            let Some(id) = id else { continue };
+            if !matches!(field, MirType::Slice(_)) {
+                self.values.insert(id, value);
+                continue;
+            }
+            // Decoding ends what derives from the data, so each view borrows the data itself.
+            self.views.insert(id, value);
+            self.view_roots.insert(value, root);
+            if let Some(root) = root {
+                self.push_view_borrow(id, value, root);
+            }
+        }
+        Some(())
+    }
+
+    /// Whether `initializer` of a `@custom:solar-view` declaration is an `abi.decode` whose
+    /// `bytes` and `string` values become views. Without intrinsic lowering, the declaration
+    /// decodes copies, like every view.
+    pub(super) fn is_view_decode(&self, initializer: &hir::Expr<'_>) -> bool {
+        !self.cx.gcx.sess.opts.unstable.no_core_intrinsics
+            && initializer.peel_parens().as_call().is_some_and(|(callee, ..)| {
+                self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiDecode)
+            })
+    }
+
+    /// Whether `expr` reads a view in place: a `@custom:solar-view` variable, or an element or a
+    /// field of a view that is itself a memory reference, as in `items[i]` or `order.payload`,
+    /// through any conversion between `bytes` and `string`.
+    pub(super) fn is_view_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        if self.views.is_empty() {
+            return false;
+        }
+        let expr = self.peel_bytes_conversion(expr);
+        match expr.kind {
+            ExprKind::Index(receiver, Some(_)) | ExprKind::Member(receiver, _) => {
+                self.cx
+                    .gcx
+                    .type_of_expr(expr.id)
+                    .is_some_and(|ty| ty.is_ref_at(DataLocation::Memory))
+                    && self.is_view_aggregate(receiver)
+            }
+            _ => self.cx.gcx.resolved_variable(expr).is_some_and(|id| self.views.contains_key(&id)),
+        }
+    }
+
+    /// Whether `expr` reads an array or a struct view in place, whose elements or fields are read
+    /// through the view.
+    pub(super) fn is_view_aggregate(&self, expr: &hir::Expr<'_>) -> bool {
+        self.is_view_expr(expr)
+            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+                matches!(
+                    ty.peel_refs().kind,
+                    TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Struct(_)
+                )
+            })
+    }
+
+    /// Lowers `expr`, which [`Self::is_view_expr`] accepts, to the slice of the view it reads.
+    pub(super) fn lower_view_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let expr = self.peel_bytes_conversion(expr);
+        if let ExprKind::Index(..) | ExprKind::Member(..) = expr.kind {
+            return self.lower_view_item(expr);
+        }
+        self.views.get(&self.cx.gcx.resolved_variable(expr)?).copied()
+    }
+
+    /// Lowers `expr`, or yields the slice of the view it reads.
+    pub(super) fn lower_view_or_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if self.is_view_expr(expr) { self.lower_view_expr(expr) } else { self.lower_expr(expr) }
+    }
+
+    /// Lowers `expr`, which [`Self::is_view_expr`] accepts, as a value of type `ty` an ABI
+    /// encoding takes: the view itself, which the encoding copies from where it reads, in the
+    /// canonical form a copy of it would have.
+    pub(super) fn lower_view_abi_argument(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<(ValueId, AbiType)> {
+        let view = self.lower_view_expr(expr)?;
+        let ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let abi_type = self.types.abi_type(ty)?;
+        Some((view, self.abi_type_for_value(view, abi_type)))
+    }
+
+    /// Copies the value of type `ty` that `view` holds into the memory objects the copying decode
+    /// would have made, for the uses that take objects.
+    pub(super) fn materialize_view(
+        &mut self,
+        ty: Ty<'gcx>,
+        view: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        if self.builder.func().value_slice_location(view).is_none() {
+            // An aggregate view parameter's own form is the caller's object already.
+            return Some(view);
+        }
+        let ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(self.materialize_memory_slice(view))
+            }
+            TyKind::DynArray(element) => {
+                // object = word_array(view.len)
+                // object[i] = copy(view[i]), for each element
+                let length = self.builder.slice_len(view);
+                let (object, layout) =
+                    self.builder.alloc_dynamic_word_array(length, AllocationSemantics::INTERNAL);
+                self.materialize_view_elements(element, view, length, (object, layout), span)?;
+                Some(object)
+            }
+            TyKind::Array(element, len) => {
+                // object = word_array(len)
+                // object[i] = copy(view[i]), for each element
+                let len = u64::try_from(len).ok()?;
+                let object = self.builder.alloc_word_array(len, AllocationSemantics::INTERNAL);
+                let length = self.builder.imm(len);
+                self.materialize_view_elements(element, view, length, object, span)?;
+                Some(object.0)
+            }
+            TyKind::Struct(id) => {
+                // object = struct(fields)
+                // object.field = copy(view.field), for each field
+                let fields = self.cx.gcx.hir.strukt(id).fields;
+                let AbiType::Tuple(abi_fields) = self.types.abi_type(ty)? else {
+                    return self.cx.report_unsupported(span, "view copy");
+                };
+                let (object, layout) = self
+                    .builder
+                    .alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
+                let mut offset = 0;
+                for (index, (&field, abi)) in fields.iter().zip(&abi_fields).enumerate() {
+                    let field_ty = self
+                        .cx
+                        .gcx
+                        .type_of_item(field.into())
+                        .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                    let head = self.builder.imm(offset);
+                    let value = self.view_item(view, head, field_ty, span)?;
+                    let value = self.materialize_view_value(field_ty, value, span)?;
+                    self.builder.memory_object_store_field(object, layout, index as u64, value);
+                    offset += abi.head_size();
+                }
+                Some(object)
+            }
+            _ => self.cx.report_unsupported(span, "view copy"),
+        }
+    }
+
+    /// Lowers `abi.decode(abi.encode(views...), (types...))`, where each view has the type it is
+    /// decoded as, to copies of the views: a validated view encodes and decodes to itself, so the
+    /// encoding in between is skipped. A view that is the caller's object, as an aggregate view
+    /// parameter's own form is, goes through the encoding like any object, which makes the copy.
+    pub(super) fn lower_view_materialization(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<ValueId> {
+        let mut values = Vec::with_capacity(types.len());
+        for (expr, &ty) in exprs.iter().zip(types) {
+            let view = self.lower_view_expr(expr)?;
+            let value = if self.builder.func().value_slice_location(view).is_some() {
+                // value = copy(view)
+                self.materialize_view(ty, view, expr.span)?
+            } else {
+                // value = abi_decode(abi_encode(object), ty)
+                let abi_type = self.types.abi_type(ty)?;
+                let layout = Arc::new(AbiLayout::new([abi_type]));
+                let encoded = self.builder.abi_encode_bytes(layout, None, [view]);
+                let layout = self.abi_decode_layout(&[ty], span)?;
+                let layout = self.cx.module.intern_abi_param_layout(layout);
+                let result_ty = types::TypeLowerer::mir_type(ty);
+                self.builder.abi_decode(layout, encoded, result_ty)
+            };
+            values.push(value);
+        }
+        Some(self.pack_return_values(values, types))
+    }
+
+    /// Copies the `length` elements of type `element` of the array `view` into `object`, an
+    /// array object with its layout, for [`Self::materialize_view`].
+    fn materialize_view_elements(
+        &mut self,
+        element: Ty<'gcx>,
+        view: ValueId,
+        length: ValueId,
+        (object, layout): (ValueId, MemoryObjectLayout),
+        span: Span,
+    ) -> Option<()> {
+        let element = element.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let head_size = self.types.abi_type(element)?.head_size();
+        self.counted_loop(length, |this, index| {
+            // object[index] = copy(view_item(view, index * head_size))
+            let size = this.builder.imm(head_size);
+            let head = this.builder.mul(index, size);
+            let value = this.view_item(view, head, element, span)?;
+            let value = this.materialize_view_value(element, value, span)?;
+            this.builder.memory_object_store_element(object, layout, index, value);
+            Some(())
+        })
+    }
+
+    /// The word an object holds for `value`, an item of type `ty` that [`Self::view_item`] read:
+    /// a copy of a view, or the memory form of a value.
+    fn materialize_view_value(
+        &mut self,
+        ty: Ty<'gcx>,
+        value: ValueId,
+        span: Span,
+    ) -> Option<ValueId> {
+        if ty.is_ref_at(DataLocation::Memory) {
+            self.materialize_view(ty, value, span)
+        } else {
+            Some(self.encode_memory_scalar(ty, value))
+        }
+    }
+
+    /// Lowers `expr`, an element or a field of a view whose type is a value type, to its value.
+    /// A memory reference element is a view, which only the reads of a view can use.
+    pub(super) fn lower_view_read(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Memory) {
+            return self.report_view_expr_use(expr);
+        }
+        self.lower_view_item(expr)
+    }
+
+    /// Lowers the element or the field `expr` of a view: the value of a value type, or the view
+    /// of a memory reference, which reads the same bytes as the view it is part of.
+    ///
+    /// A view holds a value where the decode found it, in its ABI encoding, which the decode
+    /// validated: a `bytes` or `string` view is the slice of the bytes, an array view the slice of
+    /// its element heads with the element count as its length, and a struct view the slice of its
+    /// head. A value type is its head's word, and any other item lies at the offset its head holds
+    /// when it is dynamic, relative to the start of the heads, and at the head otherwise.
+    fn lower_view_item(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let (receiver, head) = match expr.kind {
+            ExprKind::Index(receiver, Some(index)) => {
+                // Like solc, the array is evaluated before the index.
+                let view = self.lower_view_expr(receiver)?;
+                let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+                if self.builder.func().value_slice_location(view).is_none() {
+                    return self.object_view_element(expr, receiver, view, index);
+                }
+                let element = self.array_element_type(self.cx.gcx.type_of_expr(receiver.id)?)?;
+                // bounds_check(index, view.len)
+                // head = index * element_head_size
+                let length = self.builder.slice_len(view);
+                self.builder.bounds_check(index, length);
+                let size = self.builder.imm(self.types.abi_type(element)?.head_size());
+                (view, self.builder.mul(index, size))
+            }
+            ExprKind::Member(receiver, _) => {
+                let field = self
+                    .cx
+                    .gcx
+                    .resolved_expr(expr)
+                    .and_then(|resolved| resolved.struct_field_index(&self.cx.gcx.hir))
+                    .or_else(|| self.cx.report_unsupported(expr.span, "view member"))?;
+                let view = self.lower_view_expr(receiver)?;
+                if self.builder.func().value_slice_location(view).is_none() {
+                    return self.object_view_field(expr, receiver, view, field);
+                }
+                let AbiType::Tuple(fields) =
+                    self.types.abi_type(self.cx.gcx.type_of_expr(receiver.id)?)?
+                else {
+                    return self.cx.report_unsupported(expr.span, "view member");
+                };
+                // head = field_offset
+                let offset = fields[..field].iter().map(AbiType::head_size).sum::<u64>();
+                (view, self.builder.imm(offset))
+            }
+            _ => return self.cx.report_unsupported(expr.span, "view item"),
+        };
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        let item = self.view_item(receiver, head, ty, expr.span)?;
+        if ty.is_ref_at(DataLocation::Memory) {
+            let root = self.view_roots.get(&receiver).copied().flatten();
+            self.view_roots.insert(item, root);
+        }
+        Some(item)
+    }
+
+    /// Reads the element `index` of `object`, the array object an array view parameter's own form
+    /// holds or an element or a field of one, as any read of an array object does, for
+    /// [`Self::lower_view_item`]. Such a view is the caller's object, read where it is.
+    fn object_view_element(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        object: ValueId,
+        index: ValueId,
+    ) -> Option<ValueId> {
+        let receiver_ty = self
+            .cx
+            .gcx
+            .type_of_expr(receiver.id)?
+            .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let layout = self.types.memory_layout(receiver_ty)?;
+        let Some((element, length)) = self.array_element_and_length(receiver_ty, object, layout)
+        else {
+            return self.cx.report_unsupported(expr.span, "view item");
+        };
+        // bounds_check(index, object.length)
+        // value = load_element(object, index)
+        self.builder.bounds_check(index, length);
+        let value = self.builder.memory_object_load_element(object, layout, index);
+        if self.types.memory_layout(element).is_some() {
+            return self.materialize_array_element(object, layout, index, element, value);
+        }
+        Some(self.normalize_memory_scalar(element, value))
+    }
+
+    /// Reads the field `field` of `object`, the struct object a struct view parameter's own form
+    /// holds or an element or a field of one, as any read of a struct object does, for
+    /// [`Self::lower_view_item`].
+    fn object_view_field(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        object: ValueId,
+        field: usize,
+    ) -> Option<ValueId> {
+        let receiver_ty = self
+            .cx
+            .gcx
+            .type_of_expr(receiver.id)?
+            .with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let layout = self.types.memory_layout(receiver_ty)?;
+        let field_ty =
+            self.cx.gcx.type_of_expr(expr.id)?.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        // value = load_field(object, field)
+        if types::TypeLowerer::mir_type(field_ty) == MirType::MemPtr {
+            return Some(self.builder.memory_object_load_field_as(
+                object,
+                layout,
+                field as u64,
+                MirType::MemPtr,
+            ));
+        }
+        let value = self.builder.memory_object_load_field(object, layout, field as u64);
+        Some(self.normalize_memory_scalar(field_ty, value))
+    }
+
+    /// The hash of the bytes of the `bytes` or `string` view `view`: a range in memory or calldata,
+    /// or an object an aggregate view parameter's own form holds.
+    pub(super) fn hash_view(&mut self, view: ValueId) -> ValueId {
+        if self.builder.func().value_slice_location(view).is_none() {
+            // hash = keccak256_bytes(view)
+            return self.builder.keccak256_bytes(view);
+        }
+        // hash = keccak256(view.ptr, view.len), from scratch for calldata
+        let pointer = self.builder.slice_ptr(view);
+        let length = self.builder.slice_len(view);
+        self.core_hash_range(view, pointer, length)
+    }
+
+    /// Reads the item of type `ty` whose head lies at offset `head` of `view`, for
+    /// [`Self::lower_view_item`].
+    fn view_item(
+        &mut self,
+        view: ValueId,
+        head: ValueId,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<ValueId> {
+        let Some(location @ (SliceLocation::Memory | SliceLocation::Calldata)) =
+            self.builder.func().value_slice_location(view)
+        else {
+            return self.cx.report_unsupported(span, "view item");
+        };
+        let abi = self.types.abi_type(ty)?;
+        if !ty.is_ref_at(DataLocation::Memory) {
+            // value = load_word(view, head)
+            let word = self.load_view_word(view, location, head);
+            return Some(self.view_scalar(ty, word));
+        }
+        // position = load_word(view, head) when dynamic, else head
+        // start = view.ptr + position
+        let position =
+            if abi.is_dynamic() { self.load_view_word(view, location, head) } else { head };
+        let pointer = self.builder.slice_ptr(view);
+        let start = self.builder.add(pointer, position);
+        Some(match ty.peel_refs().kind {
+            TyKind::Array(_, len) => {
+                // item = slice(start, len)
+                let len = self.builder.imm(u64::try_from(len).ok()?);
+                self.builder.make_slice(start, len, location)
+            }
+            TyKind::Struct(_) => {
+                // item = slice(start, head_size)
+                let AbiType::Tuple(fields) = abi else {
+                    return self.cx.report_unsupported(span, "view item");
+                };
+                let size = self.builder.imm(fields.iter().map(AbiType::head_size).sum::<u64>());
+                self.builder.make_slice(start, size, location)
+            }
+            _ => {
+                // bytes, string, and dynamic arrays:
+                // item = slice(start + 32, load_word(view, position))
+                let length = self.load_view_word(view, location, position);
+                let data = self.builder.add_u64_offset(start, 32);
+                self.builder.make_slice(data, length, location)
+            }
+        })
+    }
+
+    /// Loads the word at byte `offset` of `view`, which lies in `location`.
+    fn load_view_word(
+        &mut self,
+        view: ValueId,
+        location: SliceLocation,
+        offset: ValueId,
+    ) -> ValueId {
+        match location {
+            SliceLocation::Calldata => self.builder.calldata_slice_load_word(view, offset),
+            _ => self.builder.memory_slice_load_word(view, offset),
+        }
+    }
+
+    /// The value of type `ty` a view's word holds. The decode validated the word, and nothing
+    /// can change it while the view is read, so it needs no cleanup.
+    fn view_scalar(&mut self, ty: Ty<'gcx>, word: ValueId) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Udvt(inner, _) => self.view_scalar(inner, word),
+            TyKind::Fn(function) if function.is_external() => {
+                // function = word >> 64
+                let shift = self.builder.imm(64);
+                self.builder.shr(shift, word)
+            }
+            // value = cast word to the type's representation
+            _ => self.builder.cast(word, types::TypeLowerer::mir_type(ty)),
+        }
+    }
+
+    /// Binds the `@custom:solar-view` parameter `id` to `value`, the slice of its bytes. The
+    /// function reads the bytes where the caller keeps them, so none of its writes may reach
+    /// memory that existed when it was entered while it still reads them; bytes in calldata need
+    /// no borrow. A memory parameter is its own root, which the views decoded from it borrow.
+    pub(super) fn bind_view_parameter(&mut self, id: VariableId, value: ValueId) {
+        self.views.insert(id, value);
+        let memory = self.builder.func().value_slice_location(value) == Some(SliceLocation::Memory);
+        self.view_roots.insert(value, memory.then_some(value));
+        if memory {
+            self.push_view_borrow(id, value, value);
+        }
+    }
+
+    /// Lowers `argument` for a `@custom:solar-view` parameter of type `ty`, without a copy: a
+    /// view passes itself, in memory or in calldata, and any other array or struct its object.
+    /// Any other `bytes` or `string` passes its object here, which [`Self::view_argument`] turns
+    /// into the slice of its bytes once every argument is evaluated. [`Self::view_callee`] picks
+    /// the function that takes them.
+    pub(super) fn lower_view_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
+        if self.is_view_expr(argument) {
+            return self.lower_view_expr(argument);
+        }
+        let value = self.lower_typed_expr(argument, ty)?;
+        self.materialize_call_argument(ty, value, argument.span)
+    }
+
+    /// The value a `@custom:solar-view` parameter of type `ty` takes for `value`, which
+    /// [`Self::lower_view_argument`] lowered: a `bytes` or `string` object, a `bytes` view held
+    /// as an object included, passes the slice of its bytes. The call makes the slice after every
+    /// argument is evaluated, so it has the length the function would read from the object, even
+    /// when a later argument changed it.
+    pub(super) fn view_argument(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
+        if !is_bytes_view(ty) || self.builder.func().value_slice_location(value).is_some() {
+            return value;
+        }
+        // slice = make_memory_slice(object.data, object.len)
+        let data = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
+        let data = self.builder.cast(data, MirType::I256);
+        let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
+        self.builder.make_slice(data, length, SliceLocation::Memory)
+    }
+
+    /// The function a call reaches that passes `values` to the function `id`, lowered as
+    /// `mir_id`: that function, or the copy of it that takes its view parameters as the views
+    /// passed to them, which reads them where they are, like the caller.
+    pub(super) fn view_callee(
+        &mut self,
+        id: hir::FunctionId,
+        mir_id: FunctionId,
+        values: &[ValueId],
+    ) -> FunctionId {
+        let parameters = self.cx.gcx.hir.function(id).parameters;
+        let passes = values
+            .iter()
+            .enumerate()
+            .map(|(index, &value)| {
+                if !is_view_parameter(self.cx.gcx, id, index) {
+                    return ViewPass::Own;
+                }
+                let ty = self.cx.gcx.type_of_item(parameters[index].into());
+                match self.builder.func().value_slice_location(value) {
+                    Some(SliceLocation::Calldata) => ViewPass::Calldata,
+                    Some(SliceLocation::Memory) if !is_bytes_view(ty) => ViewPass::Memory,
+                    _ => ViewPass::Own,
+                }
+            })
+            .collect::<Box<[_]>>();
+        if passes.iter().all(|&pass| pass == ViewPass::Own) {
+            return mir_id;
+        }
+        if let Some(&clone) = self.cx.state.view_clones.get(&(id, passes.clone())) {
+            return clone;
+        }
+        // The contract driver lowers the copy once the functions it knows are lowered.
+        let mut declaration = contract::declaration(self.cx.gcx, id, self.cx.gcx.hir.function(id));
+        declaration.selector = None;
+        let clone = self.cx.module.add_function(declaration);
+        self.cx.state.view_clones.insert((id, passes.clone()), clone);
+        self.cx.state.pending_view_clones.push((id, passes, clone));
+        clone
+    }
+
+    /// Reports a use of a `@custom:solar-view` variable that could keep it or write through it.
+    pub(super) fn report_view_use<T>(&self, id: VariableId, span: Span) -> Option<T> {
+        self.view_use_error(id, span).help("remove the tag to work with a copy").emit();
+        None
+    }
+
+    /// Reports a use of `expr`, an element or a field of a view that is itself a view, that could
+    /// keep it or write through it.
+    fn report_view_expr_use<T>(&self, expr: &hir::Expr<'_>) -> Option<T> {
+        self.view_use_error(self.view_root(expr)?, expr.span)
+            .help(
+                "declare a variable for it with `@custom:solar-view` to read it in place, or \
+                 remove the tag of the view to work with a copy",
+            )
+            .emit();
+        None
+    }
+
+    /// The view variable whose view `expr`, which [`Self::is_view_expr`] accepts, is part of.
+    pub(super) fn view_root(&self, expr: &hir::Expr<'_>) -> Option<VariableId> {
+        let mut root = self.peel_bytes_conversion(expr);
+        while let ExprKind::Index(receiver, _) | ExprKind::Member(receiver, _) = root.kind {
+            root = self.peel_bytes_conversion(receiver);
+        }
+        self.cx.gcx.resolved_variable(root)
+    }
+
+    fn view_use_error(&self, id: VariableId, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        let name = self.cx.gcx.hir.variable(id).name.map_or(kw::Empty, |name| name.name);
+        self.cx
+            .gcx
+            .dcx()
+            .err(format!("the view `{name}` can only be read in place"))
+            .span(span)
+            .note(
+                "a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI \
+                 encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view \
+                 parameters",
+            )
+    }
+}
+
+/// Whether parameter `index` of the function `id` is a `@custom:solar-view` parameter, which the
+/// function takes as the memory slice of its bytes. Without intrinsic lowering it takes the object,
+/// like every view.
+pub(in crate::mir::lower) fn is_view_parameter(
+    gcx: Gcx<'_>,
+    id: hir::FunctionId,
+    index: usize,
+) -> bool {
+    !gcx.sess.opts.unstable.no_core_intrinsics && gcx.hir.is_solar_view_parameter(id, index)
+}
+
+/// How a call passes a `@custom:solar-view` parameter, which picks the copy of the function it
+/// reaches.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub(in crate::mir::lower) enum ViewPass {
+    /// The function's own form: the memory slice of the bytes of a `bytes` or `string` value, or
+    /// the memory object of an array or a struct.
+    #[default]
+    Own,
+    /// A view of an array or a struct in the ABI encoding it was decoded from, in memory.
+    Memory,
+    /// A view in calldata.
+    Calldata,
+}
+
+/// The MIR type parameter `index` of type `ty` of the function `id` takes, in the copy of the
+/// function that takes its view parameters as `passes` gives, one per parameter. A parameter that
+/// is not a view, and a view of an array or a struct in its own form, take `carrier`, the type that
+/// carries the parameter's value.
+pub(in crate::mir::lower) fn parameter_type(
+    gcx: Gcx<'_>,
+    id: hir::FunctionId,
+    index: usize,
+    ty: Ty<'_>,
+    carrier: MirType,
+    passes: &[ViewPass],
+) -> MirType {
+    if !is_view_parameter(gcx, id, index) {
+        return carrier;
+    }
+    match passes.get(index).copied().unwrap_or_default() {
+        ViewPass::Calldata => MirType::Slice(SliceLocation::Calldata),
+        ViewPass::Memory => MirType::Slice(SliceLocation::Memory),
+        ViewPass::Own if is_bytes_view(ty) => MirType::Slice(SliceLocation::Memory),
+        ViewPass::Own => carrier,
+    }
+}
+
+/// Whether a view of type `ty` holds the bytes of a `bytes` or `string` value, which read the same
+/// in an object and in an encoding.
+fn is_bytes_view(ty: Ty<'_>) -> bool {
+    matches!(
+        ty.peel_refs().kind,
+        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+    )
+}
+
+/// Rejects every write that may change bytes a `@custom:solar-view` variable still reads.
+pub(in crate::mir::lower) fn check_view_borrows(
+    gcx: Gcx<'_>,
+    module: &Module,
+    borrows: &[(FunctionId, ViewBorrow)],
+) {
+    if borrows.is_empty() {
+        return;
+    }
+    // Which callees may reset the free memory pointer, and so end the freshness of the
+    // allocations after a call to them.
+    let calls =
+        Arc::new(MemoryCallSummaries::new_cached(module, &mut LocalSummaryCache::default()));
+    let summaries =
+        EntryWrites::compute(module, &calls, borrows.iter().map(|&(function, _)| function));
+    // The driver claims each function's borrows together.
+    for group in borrows.chunk_by(|a, b| a.0 == b.0) {
+        let facts = FunctionFacts::new(module.function(group[0].0), &calls, &summaries);
+        for (_, borrow) in group {
+            facts.check(gcx, borrow);
+        }
+    }
+}
+
+/// Memory an instruction may write.
+#[derive(Clone, Copy)]
+enum Target {
+    /// Anything, including memory that existed before the function was entered.
+    Anything,
+    /// A range whose base the alias analysis knows.
+    Range {
+        location: MemoryLocation,
+        /// Whether the write stays inside the object its base names, rather than possibly
+        /// running past its end.
+        contained: bool,
+    },
+}
+
+/// Where the bytes a view reads came from.
+#[derive(Clone, Copy)]
+enum Origin {
+    /// A parameter: memory that exists before the function is entered.
+    Entry,
+    /// An allocation site of the function.
+    Site(InstId),
+    /// Anything else.
+    Unknown,
+}
+
+/// The memory that exists when a function is entered and that the function may write.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct EntryWrites {
+    /// Parameters whose memory the function may write, anywhere in the objects they point to.
+    params: SmallVec<[ArgIdx; 2]>,
+    /// Whether the function may write other memory that exists when it is entered.
+    other: bool,
+}
+
+impl EntryWrites {
+    /// Summarizes every function the `roots` may call, to a fixed point over the call graph.
+    fn compute(
+        module: &Module,
+        calls: &Arc<MemoryCallSummaries>,
+        roots: impl Iterator<Item = FunctionId>,
+    ) -> FxHashMap<FunctionId, Self> {
+        let mut order = Vec::new();
+        let mut seen = FxHashSet::default();
+        let mut stack = roots.collect::<Vec<_>>();
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            order.push(id);
+            let func = module.function(id);
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    stack.push(callee);
+                }
+            }
+        }
+        let analyzed = order
+            .iter()
+            .map(|&id| (id, Analyzed::new(module.function(id), calls)))
+            .collect::<FxHashMap<_, _>>();
+        let mut summaries =
+            order.iter().map(|&id| (id, Self::default())).collect::<FxHashMap<_, _>>();
+        // Summaries only grow, so the iteration ends.
+        loop {
+            let mut changed = false;
+            for &id in &order {
+                let summary = Self::of(&analyzed[&id], &summaries);
+                if summaries[&id] != summary {
+                    summaries.insert(id, summary);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return summaries;
+            }
+        }
+    }
+
+    /// Summarizes a function given the summaries of its callees.
+    fn of(function: &Analyzed, summaries: &FxHashMap<FunctionId, Self>) -> Self {
+        let func = &function.func;
+        let mut writes = Self::default();
+        let mut record = |target| {
+            let Target::Range { location, .. } = target else {
+                writes.other = true;
+                return;
+            };
+            match location.address.base {
+                MemoryBase::Absolute => writes.other |= !below_heap(location),
+                // Frames and fresh allocations belong to this call.
+                MemoryBase::InternalFrame
+                | MemoryBase::Allocation(_)
+                | MemoryBase::DynamicAllocation(_) => {}
+                MemoryBase::Value(value) => match *func.value(value) {
+                    Value::Arg(index) => {
+                        if !writes.params.contains(&index) {
+                            writes.params.push(index);
+                            writes.params.sort_unstable();
+                        }
+                    }
+                    // Past a fresh allocation or the free memory pointer lies only memory
+                    // allocated after it.
+                    _ if function.fresh_start(value).is_some() => {}
+                    _ => writes.other = true,
+                },
+            }
+        };
+        for inst in func.instructions() {
+            for target in write_targets(func, &function.aa, inst, summaries) {
+                record(target);
+            }
+        }
+        for block in &func.blocks {
+            let Some(terminator) = &block.terminator else { continue };
+            for &access in function.aa.terminator_mod_ref(func, terminator).writes() {
+                match access {
+                    Access::Any(AddressSpace::Memory) => record(Target::Anything),
+                    Access::Location(Location::Memory(location)) => {
+                        record(Target::Range { location, contained: false })
+                    }
+                    _ => {}
+                }
+            }
+        }
+        writes
+    }
+}
+
+/// The memory `inst` may write.
+fn write_targets(
+    func: &Function,
+    aa: &AliasAnalysis,
+    inst: InstId,
+    summaries: &FxHashMap<FunctionId, EntryWrites>,
+) -> SmallVec<[Target; 2]> {
+    let mut targets = SmallVec::new();
+    match &func.inst(inst).kind {
+        InstKind::ICall { function: Callee::Function(callee), args } => {
+            let Some(callee) = summaries.get(callee) else {
+                targets.push(Target::Anything);
+                return targets;
+            };
+            if callee.other {
+                targets.push(Target::Anything);
+            }
+            for &param in &callee.params {
+                let Some(mut address) =
+                    args.get(param.index()).and_then(|&arg| aa.memory_address(func, arg))
+                else {
+                    targets.push(Target::Anything);
+                    continue;
+                };
+                // The callee may write anywhere in the object it is passed, and perhaps past its
+                // end: for a fresh allocation, into the memory allocated after it.
+                if let MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) =
+                    address.base
+                    && let Some(result) = func.inst_result_value(site)
+                {
+                    address.base = MemoryBase::Value(result);
+                }
+                let location = MemoryLocation::new(address, LocationSize::Unknown);
+                targets.push(Target::Range { location, contained: false });
+            }
+        }
+        // Each of these writes only memory it allocates, or memory past the free memory pointer
+        // that it leaves unallocated.
+        InstKind::AbiEncode { .. }
+        | InstKind::AbiEncodePacked { .. }
+        | InstKind::AbiDecode { .. }
+        | InstKind::StorageBytesLoad(..)
+        | InstKind::StorageArrayLoad { .. }
+        | InstKind::ICall {
+            function:
+                Callee::Builtin(crate::mir::Builtin::Concat(_) | crate::mir::Builtin::ReturndataBytes),
+            ..
+        } => {}
+        kind => {
+            // Lowering emits a semantic object store only inside the object's allocation, after
+            // any bounds check it needs; a raw store may run past the object it starts in.
+            let contained = matches!(
+                kind,
+                InstKind::Alloc { .. }
+                    | InstKind::SetMemoryObjectLen(..)
+                    | InstKind::MemoryObjectStoreField { .. }
+                    | InstKind::MemoryObjectStoreElement { .. }
+                    | InstKind::MemoryObjectStoreByte { .. }
+                    | InstKind::MemoryObjectStoreWord { .. }
+                    | InstKind::MemoryObjectCopyFromSlice { .. }
+                    | InstKind::MemoryObjectCopyFromSliceAt { .. }
+            );
+            for &access in aa.instruction_mod_ref(func, inst).writes() {
+                match access {
+                    Access::Any(AddressSpace::Memory) => targets.push(Target::Anything),
+                    Access::Location(Location::Memory(location)) => {
+                        targets.push(Target::Range { location, contained })
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    targets
+}
+
+/// Where one use of a value happens.
+#[derive(Clone, Copy)]
+enum User {
+    Inst(InstId),
+    Terminator(BlockId),
+}
+
+/// The per-function facts every borrow in a function shares.
+struct FunctionFacts {
+    function: Analyzed,
+    cfg: CfgInfo,
+    predecessors: IndexVec<BlockId, Vec<BlockId>>,
+    /// Each instruction's block and index in it.
+    positions: FxHashMap<InstId, (BlockId, usize)>,
+    users: FxHashMap<ValueId, Vec<User>>,
+    /// Every instruction that may write memory, with what it may write.
+    writes: Vec<(InstId, SmallVec<[Target; 2]>)>,
+}
+
+impl FunctionFacts {
+    fn new(
+        func: &Function,
+        calls: &Arc<MemoryCallSummaries>,
+        summaries: &FxHashMap<FunctionId, EntryWrites>,
+    ) -> Self {
+        let function = Analyzed::new(func, calls);
+        let func = &function.func;
+        let aa = &function.aa;
+        let cfg = CfgInfo::new(func);
+        let mut predecessors = index_vec![Vec::new(); func.blocks.len()];
+        let mut positions = FxHashMap::default();
+        let mut users = FxHashMap::<_, Vec<_>>::default();
+        let mut writes = Vec::new();
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &successor in cfg.successors(block) {
+                predecessors[successor].push(block);
+            }
+            for (index, &inst) in data.instructions.iter().enumerate() {
+                positions.insert(inst, (block, index));
+                for operand in func.inst(inst).operands() {
+                    users.entry(operand).or_default().push(User::Inst(inst));
+                }
+                let targets = write_targets(func, aa, inst, summaries);
+                if !targets.is_empty() {
+                    writes.push((inst, targets));
+                }
+            }
+            if let Some(terminator) = &data.terminator {
+                terminator.visit_operands(|operand| {
+                    users.entry(operand).or_default().push(User::Terminator(block));
+                });
+            }
+        }
+        Self { function, cfg, predecessors, positions, users, writes }
+    }
+
+    /// Reports each write that may change the bytes `borrow` reads before a read through it.
+    fn check(&self, gcx: Gcx<'_>, borrow: &ViewBorrow) {
+        let func = &self.function.func;
+        let view = self.function.resolve(borrow.view);
+        // Where the view is made: an instruction, or the entry for a view parameter, which reads
+        // memory that exists when the function is entered.
+        let (def, payload, origin) = match *func.value(view) {
+            // A view decoded from a view parameter reads the parameter's bytes, where the caller
+            // keeps them.
+            Value::Inst(def)
+                if let source = self.function.resolve(borrow.source)
+                    && matches!(func.value(source), Value::Arg(_))
+                    && func.value_slice_location(source).is_some() =>
+            {
+                let Some(&position) = self.positions.get(&def) else { return };
+                let start = MemoryAddress::symbolic(source, MemoryRegion::Heap);
+                (
+                    Some((def, position)),
+                    MemoryLocation::new(start, LocationSize::Unknown),
+                    Origin::Entry,
+                )
+            }
+            Value::Inst(def) => {
+                let Some(&position) = self.positions.get(&def) else { return };
+                let source = self.function.resolve(borrow.source);
+                let Some(start) =
+                    self.function.aa.memory_address(func, source).and_then(|address| {
+                        address.checked_add(EvmMemoryLayout::object_data_offset(
+                            MemoryObjectKind::Bytes,
+                        ))
+                    })
+                else {
+                    return;
+                };
+                let origin = match start.base {
+                    MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => {
+                        Origin::Site(site)
+                    }
+                    MemoryBase::Value(value) if matches!(func.value(value), Value::Arg(_)) => {
+                        Origin::Entry
+                    }
+                    _ => Origin::Unknown,
+                };
+                (Some((def, position)), MemoryLocation::new(start, LocationSize::Unknown), origin)
+            }
+            Value::Arg(_) => {
+                let start = MemoryAddress::symbolic(view, MemoryRegion::Heap);
+                (None, MemoryLocation::new(start, LocationSize::Unknown), Origin::Entry)
+            }
+            _ => return,
+        };
+        let def_block = def.map(|(_, (block, _))| block);
+
+        // The last read through the view in each block that has one.
+        let reads = self.reads(view);
+        // Blocks from whose start a read is reachable without creating the view again.
+        let mut live = DenseBitSet::new_empty(func.blocks.len());
+        let mut worklist =
+            reads.keys().copied().filter(|&block| Some(block) != def_block).collect::<Vec<_>>();
+        for &block in &worklist {
+            live.insert(block);
+        }
+        while let Some(block) = worklist.pop() {
+            for &predecessor in &self.predecessors[block] {
+                if Some(predecessor) != def_block && live.insert(predecessor) {
+                    worklist.push(predecessor);
+                }
+            }
+        }
+        // Blocks reachable from the view without creating it again.
+        let mut after = DenseBitSet::new_empty(func.blocks.len());
+        if let Some(def_block) = def_block {
+            let mut worklist = vec![def_block];
+            while let Some(block) = worklist.pop() {
+                for &successor in self.cfg.successors(block) {
+                    if successor != def_block && after.insert(successor) {
+                        worklist.push(successor);
+                    }
+                }
+            }
+        }
+
+        let mut reported = FxHashSet::default();
+        for (inst, targets) in &self.writes {
+            let (block, index) = self.positions[inst];
+            let started = match def {
+                Some((_, (def_block, def_index))) if block == def_block => index > def_index,
+                Some(_) => after.contains(block),
+                // A parameter is a view from the entry on.
+                None => true,
+            };
+            let read_later = reads.get(&block).is_some_and(|&last| last > index)
+                || self
+                    .cfg
+                    .successors(block)
+                    .iter()
+                    .any(|&successor| Some(successor) != def_block && live.contains(successor));
+            if !started
+                || !read_later
+                || !targets
+                    .iter()
+                    .any(|&target| self.may_hit(target, payload, origin, def.map(|(def, _)| def)))
+            {
+                continue;
+            }
+            let span = func.inst(*inst).metadata.source_span().unwrap_or(borrow.span);
+            if reported.insert(span) {
+                gcx.dcx()
+                    .err(format!("this may change bytes that the view `{}` still reads", borrow.name))
+                    .span(span)
+                    .span_note(
+                        borrow.span,
+                        format!("`{}` reads the bytes in place and is read after this", borrow.name),
+                    )
+                    .help("finish reading the view first, or remove `@custom:solar-view` to read a copy")
+                    .emit();
+            }
+        }
+    }
+
+    /// The last read through `view` in each block that has one; a terminator reads after every
+    /// instruction of its block.
+    ///
+    /// The reads are the uses of every value `view` derives through pure operations, other than
+    /// its length, which is fixed once the view exists.
+    fn reads(&self, view: ValueId) -> FxHashMap<BlockId, usize> {
+        let func = &self.function.func;
+        let mut last = FxHashMap::<BlockId, usize>::default();
+        let mut derived = FxHashSet::from_iter([view]);
+        let mut stack = vec![view];
+        while let Some(value) = stack.pop() {
+            for &user in self.users.get(&value).into_iter().flatten() {
+                let (block, index) = match user {
+                    User::Terminator(block) => (block, func.blocks[block].instructions.len()),
+                    User::Inst(inst) => {
+                        let kind = &func.inst(inst).kind;
+                        if kind.effect_kind() == EffectKind::Pure
+                            && !matches!(kind, InstKind::SliceLen(_))
+                        {
+                            if let Some(result) = func.inst_result_value(inst)
+                                && derived.insert(result)
+                            {
+                                stack.push(result);
+                            }
+                            continue;
+                        }
+                        self.positions[&inst]
+                    }
+                };
+                let entry = last.entry(block).or_insert(index);
+                *entry = (*entry).max(index);
+            }
+        }
+        last
+    }
+
+    /// Whether a write of `target` may change the view's `payload`, which came from `origin` and
+    /// was borrowed at `def`.
+    fn may_hit(
+        &self,
+        target: Target,
+        payload: MemoryLocation,
+        origin: Origin,
+        def: Option<InstId>,
+    ) -> bool {
+        let Target::Range { location, contained } = target else { return true };
+        if AliasAnalysis::memory_alias_locations(location, payload) == AliasResult::NoAlias {
+            return false;
+        }
+        match location.address.base {
+            MemoryBase::Absolute => !below_heap(location),
+            MemoryBase::InternalFrame => false,
+            // The alias analysis keeps an allocation as the base only of an access inside it,
+            // and an allocation made after the source existed cannot overlap it.
+            MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site) => match origin {
+                Origin::Entry => false,
+                Origin::Site(source) => site == source,
+                Origin::Unknown => !self.strictly_dominates(def, site),
+            },
+            // A parameter's object lies below every allocation of this function, so only a
+            // write that may run past its end reaches one.
+            MemoryBase::Value(value)
+                if matches!(self.function.func.value(value), Value::Arg(_)) =>
+            {
+                !(contained && matches!(origin, Origin::Site(_)))
+            }
+            MemoryBase::Value(value) => match self.function.fresh_start(value) {
+                // Past a fresh allocation or the free memory pointer lies only memory allocated
+                // after it.
+                Some(site) => match origin {
+                    Origin::Entry => false,
+                    Origin::Site(_) | Origin::Unknown => !self.strictly_dominates(def, site),
+                },
+                None => true,
+            },
+        }
+    }
+
+    /// Whether every path to `inst` passes `def` first.
+    fn strictly_dominates(&self, def: Option<InstId>, inst: InstId) -> bool {
+        let (Some(&(def_block, def_index)), Some(&(block, index))) =
+            (def.and_then(|def| self.positions.get(&def)), self.positions.get(&inst))
+        else {
+            return false;
+        };
+        if def_block == block {
+            index > def_index
+        } else {
+            self.cfg.dominators().dominates(def_block, block)
+        }
+    }
+}

@@ -30,6 +30,132 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_encode_scratch(layout, selector, values))
     }
 
+    /// The builtin and arguments of `expr` when it is an `abi.encode`, `abi.encodeWithSelector`,
+    /// `abi.encodeWithSignature`, or `abi.encodeCall` call.
+    pub(super) fn encoding_call<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<(Builtin, hir::CallArgs<'a>)> {
+        let (callee, args, _) = expr.peel_parens().as_call()?;
+        let builtin = self.cx.gcx.resolved_builtin(callee)?;
+        matches!(
+            builtin,
+            Builtin::AbiEncode
+                | Builtin::AbiEncodeWithSelector
+                | Builtin::AbiEncodeWithSignature
+                | Builtin::AbiEncodeCall
+        )
+        .then_some((builtin, *args))
+    }
+
+    /// Lowers the call [`Self::encoding_call`] found to its encoding, staged past the free
+    /// memory pointer without reserving it. The encoding must be consumed before anything
+    /// allocates.
+    pub(super) fn lower_abi_encode_call_scratch(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        match builtin {
+            Builtin::AbiEncode => {
+                let exprs = self.variadic_builtin_args(builtin, &args)?;
+                self.lower_abi_encode_scratch(exprs, None)
+            }
+            Builtin::AbiEncodeWithSelector => {
+                let (selector, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_selector_word(&selector[0])?;
+                self.lower_abi_encode_scratch(rest, Some(selector))
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let (signature, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                let selector = self.lower_signature_selector(&signature[0])?;
+                self.lower_abi_encode_scratch(rest, Some(selector))
+            }
+            Builtin::AbiEncodeCall => self.lower_abi_encode_call_in(args, true),
+            _ => None,
+        }
+    }
+
+    /// The length of the encoding the call [`Self::encoding_call`] found would produce, from its
+    /// arguments' lengths without encoding them when every argument is a value, a byte string,
+    /// an array of values or a static aggregate, and none holds an enum or is a calldata array of
+    /// narrow values, which the encoding checks. Otherwise the encoding is staged past the free
+    /// memory pointer, without reserving it, and measured. The arguments are evaluated either
+    /// way.
+    pub(super) fn lower_abi_encoded_size(
+        &mut self,
+        builtin: Builtin,
+        args: hir::CallArgs<'_>,
+    ) -> Option<ValueId> {
+        let (selector, exprs) = match builtin {
+            Builtin::AbiEncode => (None, self.variadic_builtin_args(builtin, &args)?),
+            Builtin::AbiEncodeWithSelector => {
+                let (selector, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                (Some(self.lower_selector_word(&selector[0])?), rest)
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let (signature, rest) = self.builtin_args_with_rest::<1>(builtin, &args)?;
+                (Some(self.lower_signature_selector(&signature[0])?), rest)
+            }
+            _ => {
+                // size = len(abi_encode_scratch(...))
+                let staged = self.lower_abi_encode_call_scratch(builtin, args)?;
+                return Some(self.builder.slice_len(staged));
+            }
+        };
+        let (layout, values) = self.lower_abi_encode_arguments(exprs)?;
+        // A calldata array of narrow values is validated as it is encoded.
+        let measurable = |ty: &AbiType| {
+            !checks_enum_range(ty)
+                && match ty {
+                    AbiType::Bytes(_) => true,
+                    AbiType::DynamicArray { element, location: SliceLocation::Calldata } => {
+                        !element.is_dynamic() && !validates_words(element)
+                    }
+                    AbiType::DynamicArray { element, .. } => !element.is_dynamic(),
+                    _ => !ty.is_dynamic(),
+                }
+        };
+        if !layout.types.iter().all(measurable) {
+            // size = len(abi_encode_scratch(layout, selector, values))
+            let staged = self.builder.abi_encode_scratch(layout, selector, values);
+            return Some(self.builder.slice_len(staged));
+        }
+        // size = selector_size + head_size + Σ 32 + round_up(len(bytes)) + Σ 32 + len(array) *
+        // element_size
+        let prefix = if selector.is_some() { 4 } else { 0 };
+        let mut size = self.builder.imm(prefix + layout.head_size());
+        for (ty, &value) in layout.types.iter().zip(&values) {
+            let tail = match ty {
+                AbiType::Bytes(_) => {
+                    let length = self.abi_value_len(value, MemoryObjectKind::Bytes);
+                    let rounded = self.builder.add_u64_offset(length, 31);
+                    let mask = self.builder.imm(U256::MAX << 5);
+                    let padded = self.builder.and(rounded, mask);
+                    self.builder.add_u64_offset(padded, 32)
+                }
+                AbiType::DynamicArray { element, .. } => {
+                    let length = self.abi_value_len(value, MemoryObjectKind::DynamicArray);
+                    let element_size = self.builder.imm(element.head_size());
+                    let elements = self.builder.mul(length, element_size);
+                    self.builder.add_u64_offset(elements, 32)
+                }
+                _ => continue,
+            };
+            size = self.builder.add(size, tail);
+        }
+        Some(size)
+    }
+
+    /// The length of a dynamic ABI argument: a slice's, or a memory object's.
+    fn abi_value_len(&mut self, value: ValueId, kind: MemoryObjectKind) -> ValueId {
+        if self.builder.func().value_slice_location(value).is_some() {
+            self.builder.slice_len(value)
+        } else {
+            self.builder.memory_object_len(value, kind)
+        }
+    }
+
     fn lower_abi_encode_arguments(
         &mut self,
         exprs: &[hir::Expr<'_>],
@@ -43,6 +169,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             exprs.iter().enumerate(),
             |this, _, expr| {
                 let ty = this.cx.gcx.type_of_expr(expr.id)?;
+                if this.is_view_expr(expr) {
+                    return this.lower_view_abi_argument(expr, ty);
+                }
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 let value = this.lower_typed_expr(expr, memory_ty)?;
                 let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
@@ -136,7 +265,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_encode_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // data = abi_encode_bytes(parameter_layout, function.selector, values)
+        self.lower_abi_encode_call_in(args, false)
+    }
+
+    /// `abi.encodeCall(f, (args))`, into a fresh bytes object, or staged past the free memory
+    /// pointer when `scratch`.
+    fn lower_abi_encode_call_in(
+        &mut self,
+        args: hir::CallArgs<'_>,
+        scratch: bool,
+    ) -> Option<ValueId> {
+        // data = abi_encode_bytes | abi_encode_scratch(parameter_layout, function.selector, values)
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
         let tuple = &args[1];
@@ -181,6 +320,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, expr| {
                 let ty = parameter_types[index];
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
+                if this.is_view_expr(expr) {
+                    return this.lower_view_abi_argument(expr, memory_ty);
+                }
                 let value = this.lower_typed_expr(expr, memory_ty)?;
                 let abi_type = this.types.abi_type(memory_ty)?;
                 this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
@@ -188,7 +330,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )?;
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
+        let values = values.into_boxed_slice();
+        Some(if scratch {
+            self.builder.abi_encode_scratch(layout, Some(selector), values)
+        } else {
+            self.builder.abi_encode_bytes(layout, Some(selector), values)
+        })
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
@@ -238,11 +385,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let data_expr = &args[0];
-        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let data = self.lower_typed_expr(data_expr, memory_ty)?;
-        let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
-        let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
+        if let Some((Builtin::AbiEncode, encode_args)) = self.encoding_call(data_expr)
+            && let Some(exprs) = self.variadic_builtin_args(Builtin::AbiEncode, &encode_args)
+            && exprs.len() == decoded_types.len()
+            && exprs.iter().zip(&decoded_types).all(|(expr, &ty)| {
+                self.is_view_expr(expr)
+                    && self.cx.gcx.type_of_expr(expr.id).is_some_and(|view_ty| {
+                        view_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory) == ty
+                    })
+            })
+        {
+            return self
+                .lower_view_materialization(exprs, &decoded_types, args[1].span)
+                .map(CallResult::Value);
+        }
+        let (data, layout) = if self.is_view_expr(data_expr) {
+            // A view's bytes are decoded where they are, in memory or in calldata.
+            let view = self.lower_view_expr(data_expr)?;
+            (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
+        } else {
+            let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+            let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+            let data = self.lower_typed_expr(data_expr, memory_ty)?;
+            let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
+            self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
+        };
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let Some(result_ty) = self.cx.module.intern_return_type(fields) else {
@@ -265,6 +432,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => data,
         };
+        Some((data, self.abi_decode_layout(types, span)?))
+    }
+
+    /// The ABI layout of a decode of `types`.
+    pub(super) fn abi_decode_layout(
+        &mut self,
+        types: &[Ty<'gcx>],
+        span: Span,
+    ) -> Option<AbiParamLayout> {
         let mut abi_types = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(abi_type) = self.types.abi_param_type(ty) else {
@@ -272,7 +448,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             abi_types.push(abi_type);
         }
-        Some((data, AbiParamLayout::new(abi_types.into_boxed_slice())))
+        Some(AbiParamLayout::new(abi_types.into_boxed_slice()))
     }
 
     pub(super) fn lower_abi_decode_values(
@@ -503,6 +679,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
                 parts.push(PackedPart::Literal(bytes.as_byte_str().to_vec().into()));
+                continue;
+            }
+            if self.is_view_expr(expr) {
+                // A view's bytes or words are packed from where it reads them.
+                let value = self.lower_view_expr(expr)?;
+                if self.is_dynamic_bytes_type(ty) {
+                    parts.push(PackedPart::Bytes(value));
+                } else if let Some((element, source)) = self.packed_array_shape(ty, value) {
+                    parts.push(PackedPart::Array { value, element, source });
+                } else {
+                    return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
+                }
                 continue;
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
@@ -994,5 +1182,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
             Some(MirType::I256),
         ))
+    }
+}
+
+/// Whether encoding a value of type `ty` checks an enum's range, which fails with `Panic(0x21)`
+/// for a word out of range.
+fn checks_enum_range(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(validator) => matches!(validator, Some(AbiWordValidator::EnumRange(_))),
+        AbiType::Function | AbiType::Bytes(_) => false,
+        AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => {
+            checks_enum_range(element)
+        }
+        AbiType::Tuple(fields) => fields.iter().any(checks_enum_range),
+    }
+}
+
+/// Whether `ty` holds a word whose encoding validates it, such as a narrow integer or an address.
+fn validates_words(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(validator) => validator.is_some(),
+        AbiType::Function | AbiType::Bytes(_) => false,
+        AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => {
+            validates_words(element)
+        }
+        AbiType::Tuple(fields) => fields.iter().any(validates_words),
     }
 }

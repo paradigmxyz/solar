@@ -57,9 +57,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(index) = index else {
             return self.cx.report_unsupported(expr.span, "index");
         };
+        if self.is_view_aggregate(receiver) {
+            // value = element of the view, read in place
+            return self.lower_view_read(expr);
+        }
         let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let object = self.lower_expr(receiver)?;
+        let object = self.lower_view_or_expr(receiver)?;
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             receiver_ty.peel_refs().kind
         {

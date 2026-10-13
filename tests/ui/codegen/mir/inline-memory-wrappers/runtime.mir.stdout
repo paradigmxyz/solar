@@ -19,7 +19,7 @@ fn @twice(arg0: memptr) -> struct0 [selector=0xff491092, pure, abi_params=[bytes
     ret v4
 }
 
-fn @wrap(arg0: memptr) -> memptr [pure] {
+fn @wrap(arg0: memptr) -> memptr [inline_assembly, pure] {
   bb0:
     v0 = icall @copy, arg0
     v1 = ptrtoint memptr v0 to i256

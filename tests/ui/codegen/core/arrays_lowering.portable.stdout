@@ -1,0 +1,104 @@
+// === <solar:core/Arrays.sol>:Arrays ===
+@module Arrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/arrays_lowering.sol:Test ===
+@module Test
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @shorten() [selector=0xf0187838, abi_wrapper, inline_assembly, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 68
+    v6 = calldataload 4
+    v7 = add v6, 4
+    v8 = add v7, 32
+    v9 = gt v6, 0xffffffffffffffff
+    v10 = gt v8, v4
+    v11 = or v9, v10
+    v45 = or v5, v11
+    jumpi v45, bb1, bb2
+  bb2:
+    v13 = calldataload v7
+    v15 = shl 5, v13
+    v17 = shr 5, v15
+    v21 = ne v17, v13
+    v22 = add v15, 32
+    v23 = lt v22, v15
+    v46 = or v21, v23
+    jumpi v46, bb3, bb4
+  bb4:
+    v39 = mload 64 !metadata(memory=scratch)
+    v24 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
+    v40 = add v39, v22
+    v41 = lt v40, v39
+    v42 = gt v40, 0xffffffffffffffff
+    v43 = or v41, v42
+    jumpi v43, bb3, bb6
+  bb6:
+    mstore 64, v40 !metadata(memory=scratch)
+    mstore v39, v13
+    v25 = sub v4, v8
+    v26 = shr 5, v25
+    v27 = gt v13, v26
+    jumpi v27, bb1, bb5
+  bb5:
+    v33 = add v39, 32
+    calldatacopy v33, v8, v15
+    v47 = ptrtoint memptr v24 to i256
+    v48 = mload v47
+    v49 = gt arg1, v48
+    jumpi v49, bb8, bb7
+  bb7:
+    mstore v47, arg1
+    v1 = mload v39
+    mstore 128, v13
+    mstore 160, v1
+    returndata 128, 64
+  bb8:
+    v50 = mload 64
+    v51 = add v50, 32
+    v52 = lt v51, v50
+    v53 = gt v51, 0xffffffffffffffff
+    v54 = or v52, v53
+    jumpi v54, bb10, bb9
+  bb9:
+    mstore 64, v51
+    mstore v50, 0
+    mstore v50, 0
+    mstore 32, 50
+    mstore 0, 0x4e487b71
+    revert 28, 36
+  bb10:
+    mstore 32, 65
+    mstore 0, 0x4e487b71
+    revert 28, 36
+  bb3:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xf0187838 => bb2]
+  bb2:
+    tail_call @shorten
+  bb3:
+    revert 0, 0
+}
