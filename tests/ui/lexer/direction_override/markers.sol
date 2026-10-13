@@ -18,6 +18,8 @@ contract C {
         s = unicode"escapes \u202E";
         s = unicode"‬";
         //~^ ERROR: unicode direction override underflow in string literal
+        s = unicode"‮";
+        //~^ ERROR: mismatching directional override markers in string literal
         s;
     }
 }

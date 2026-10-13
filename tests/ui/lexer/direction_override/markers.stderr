@@ -43,5 +43,14 @@ LL │         s = unicode"�";
    ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
    ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
 
-error: aborting due to 5 previous errors
+error[8936]: mismatching directional override markers in string literal
+   ╭▸ ROOT/tests/ui/lexer/direction_override/markers.sol:LL:CC
+   │
+LL │         s = unicode"�";
+   │             ━━━━━━━━━━
+   │
+   ├ note: these codepoints change the order in which text is displayed, so code can render differently from how it compiles
+   ╰ help: balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them
+
+error: aborting due to 6 previous errors
 
