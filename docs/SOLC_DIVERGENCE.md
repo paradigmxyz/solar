@@ -444,7 +444,7 @@ deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 
-### TYPECK-020: Repeated Yul multi-assignment targets
+### TYPECK-021: Repeated Yul multi-assignment targets
 
 Status: intentional.
 

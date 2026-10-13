@@ -2,7 +2,7 @@
 //@ run-call: member [8, 7, 6] => 1, 8
 
 // A Yul multi-assignment may repeat a target, and the leftmost value wins.
-// solc rejects repeated targets with error 9005; see TYPECK-020 in
+// solc rejects repeated targets with error 9005; see TYPECK-021 in
 // docs/SOLC_DIVERGENCE.md.
 
 contract YulMultiAssignmentDuplicateTargets {
