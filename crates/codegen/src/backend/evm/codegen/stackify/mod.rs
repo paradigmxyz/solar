@@ -748,7 +748,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return height;
             }
             let Some(plan) = &plans[func_id] else { return 0 };
-            // Recursive activations are unbounded by construction, like solc.
+            // Recursive activations are unbounded by construction.
             memo[func_id] = Some((plan.peak, None));
             let mut result = (plan.peak, None);
             for &(callee, base) in &plan.calls {

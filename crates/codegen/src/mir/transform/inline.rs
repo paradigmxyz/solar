@@ -954,10 +954,12 @@ impl MirInliner {
         self.inline_lifetime_cost_improves(summary, site, single_call)
     }
 
-    /// Applies the same economic model as solc's assembly inliner: compare
-    /// runtime protocol savings over the expected contract lifetime with the
-    /// bytecode deposit cost of cloning the body. The body itself executes in
-    /// both alternatives and therefore contributes only to deposited bytes.
+    /// Compares runtime protocol savings over the expected contract lifetime
+    /// with the bytecode deposit cost of cloning the body. The body itself
+    /// executes in both alternatives and therefore contributes only to
+    /// deposited bytes.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libevmasm/Inliner.cpp#L139>
     fn inline_lifetime_cost_improves(
         &self,
         summary: MirInlineSummary,

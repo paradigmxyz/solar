@@ -233,7 +233,7 @@ impl AbiParamType {
 pub(crate) enum AbiType {
     /// A scalar encoded as one word, with the cleanup its type requires when the word is read
     /// from memory: narrow integers are masked or sign-extended, booleans canonicalized, and
-    /// enums range-checked during encoding, like solc. `None` is a full word.
+    /// enums range-checked during encoding. `None` is a full word.
     Word(Option<AbiWordValidator>),
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
@@ -280,7 +280,9 @@ impl AbiType {
 
     /// Returns the size of the value's own encoding where a tail offset points: the length
     /// word of a dynamically sized value, or the whole head area of a statically sized one.
-    /// This is solc's `calldataEncodedTailSize`, the length its calldata tail access requires.
+    /// This is the length a calldata tail access requires.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.h#L263>
     #[must_use]
     pub(crate) fn tail_size(&self) -> u64 {
         match self {

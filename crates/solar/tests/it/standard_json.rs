@@ -38,7 +38,7 @@ fn base_path_keeps_source_keys() {
 }
 
 /// Files loaded through the read callback are named by the source unit name the callback receives,
-/// as in solc, not by a path joined with the current directory.
+/// not by a path joined with the current directory.
 #[test]
 fn callback_imports_keep_source_unit_names() {
     struct Callback;
@@ -136,8 +136,7 @@ fn leading_parent_segments_keep_source_unit_names() {
     );
 }
 
-/// The read callback receives a path in the base path, and the file keeps its source unit name, as
-/// with solc's file reader.
+/// The read callback receives a path in the base path, and the file keeps its source unit name.
 #[test]
 fn callback_imports_with_base_path() {
     struct Callback;

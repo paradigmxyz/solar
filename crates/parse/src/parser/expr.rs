@@ -123,7 +123,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
     }
 
-    /// Parses the operand of a prefix operator, which counts toward the recursion limit like solc.
+    /// Parses the operand of a prefix operator, which counts toward the recursion limit.
     fn parse_prefix_operand(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         self.with_recursion_limit("expression", |this| this.parse_unary_expr(None))
     }
