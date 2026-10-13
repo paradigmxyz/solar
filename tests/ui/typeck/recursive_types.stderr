@@ -1,4 +1,4 @@
-error: recursive struct definition
+error[2046]: recursive struct definition
    ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    │
 LL │ ┏     struct A {
@@ -6,7 +6,7 @@ LL │ ┃         B b;
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
-error: recursive struct definition
+error[2046]: recursive struct definition
    ╭▸ ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    │
 LL │ ┏     struct B {
