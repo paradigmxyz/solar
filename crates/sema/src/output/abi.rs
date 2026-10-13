@@ -96,11 +96,11 @@ impl<'gcx> Gcx<'gcx> {
             ty: self.print_abi_param_ty(ty, in_library),
             name,
             components: match struct_id {
-                ControlFlow::Break(id) => self
+                ControlFlow::Break(id) if !self.struct_recursiveness(id).is_recursive() => self
                     .item_fields(id)
                     .map(|(ty, f)| self.param_abi(ty, self.item_name(f).to_string(), in_library))
                     .collect(),
-                ControlFlow::Continue(()) => vec![],
+                _ => vec![],
             },
             internal_type: Some(json::InternalType::parse(&self.print_solc_param_ty(ty)).unwrap()),
         }
