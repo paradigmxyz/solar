@@ -1,0 +1,56 @@
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │         function(uint a) external f;
+   ╰╴                      ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     event E(function(uint a) external f, uint a);
+   ╰╴                          ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │         function(bool K) external cb;
+   ╰╴                      ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     function g(uint R, function(bool R) external cb) public pure returns (uint) {
+   ╰╴                                     ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     function h(function(bool K) external cb, bool K) public pure returns (bool) {
+   ╰╴                             ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     function i(function(uint a, uint a) external cb) public pure {
+   ╰╴                             ━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     function i(function(uint a, uint a) external cb) public pure {
+   ╰╴                                     ━
+
+error[2333]: identifier `a` already declared
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     function i(function(uint a, uint a) external cb) public pure {
+   │                                      ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/func_ty_param_scope.sol:LL:CC
+   │
+LL │     function i(function(uint a, uint a) external cb) public pure {
+   ╰╴                             ━
+
+error: aborting due to 1 previous error; 7 warnings emitted
+
