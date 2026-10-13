@@ -1,0 +1,20 @@
+error[5153]: type conversions cannot take named arguments
+   ╭▸ ROOT/tests/ui/typeck/explicit_cast_named_argument_forms.sol:LL:CC
+   │
+LL │         payable({value: a});
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error[5153]: type conversions cannot take named arguments
+   ╭▸ ROOT/tests/ui/typeck/explicit_cast_named_argument_forms.sol:LL:CC
+   │
+LL │         address({value: a});
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error[5153]: type conversions cannot take named arguments
+   ╭▸ ROOT/tests/ui/typeck/explicit_cast_named_argument_forms.sol:LL:CC
+   │
+LL │         C({value: a});
+   ╰╴        ━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

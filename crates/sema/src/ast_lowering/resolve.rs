@@ -9,7 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, sym,
 };
 use std::fmt;
@@ -336,6 +336,14 @@ impl<'gcx> ResolveContext<'gcx> {
             );
         }
 
+        // Enum variants are resolved as members, so they are declared only to report duplicates.
+        for id in self.hir.enumm_ids() {
+            let enumm = self.hir.enumm(id);
+            let variants = enumm.variants;
+            init_cx!(enumm);
+            self.declare_variables(variants);
+        }
+
         for id in self.hir.error_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Error(id)];
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
@@ -450,6 +458,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         name_span: modifier.name.last().span,
                         id,
                         args,
+                        qualified: modifier.name.get_ident().is_none(),
                     });
                 }
                 self.arena.alloc_smallvec(modifiers)
@@ -621,6 +630,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     name_span: ast_base.name.last().span,
                     id: base_id.into(),
                     args: self.lower_call_args(&ast_base.arguments),
+                    qualified: ast_base.name.get_ident().is_none(),
                 }
             }),
         );
@@ -1882,8 +1892,18 @@ impl<'gcx> ResolveContext<'gcx> {
                 {
                     break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                 }
-                let msg = "expected exactly one unnamed argument";
-                let guar = self.sess.dcx.emit_err(expr.span, msg);
+                let guar = if let ast::CallArgsKind::Named(args) = &args.kind
+                    && args.len() == 1
+                {
+                    self.dcx()
+                        .err("type conversions cannot take named arguments")
+                        .code(error_code!(5153))
+                        .span(expr.span)
+                        .emit()
+                } else {
+                    let msg = "expected exactly one unnamed argument";
+                    self.sess.dcx.emit_err(expr.span, msg)
+                };
                 hir::ExprKind::Err(guar)
             }
             ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
@@ -1981,7 +2001,12 @@ impl<'gcx> ResolveContext<'gcx> {
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
             ast::TypeKind::Function(f) => {
-                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
+                // The AST validator reports invalid visibilities; lower them as internal.
+                let visibility = if f.visibility() == Some(ast::Visibility::External) {
+                    ast::Visibility::External
+                } else {
+                    ast::Visibility::Internal
+                };
                 hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
@@ -1998,6 +2023,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 }))
             }
             ast::TypeKind::Mapping(mapping) => {
+                self.check_mapping_names(ty.span, mapping);
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
                     key_name: mapping.key_name,
@@ -2015,6 +2041,32 @@ impl<'gcx> ResolveContext<'gcx> {
             },
         };
         hir::Type { kind, span: ty.span }
+    }
+
+    /// Reports a mapping key name that a nested mapping reuses as its key name, or that the
+    /// innermost mapping reuses as its value name.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L281-L321>
+    fn check_mapping_names(&self, span: Span, mapping: &ast::TypeMapping<'_>) {
+        let Some(key_name) = mapping.key_name else { return };
+        let check = |name: Option<Ident>| {
+            if let Some(name) = name
+                && name == key_name
+            {
+                self.dcx()
+                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
+                    .code(error_code!(1809))
+                    .span(span)
+                    .span_note(name.span, "the name is reused here")
+                    .emit();
+            }
+        };
+        let mut inner = mapping;
+        while let ast::TypeKind::Mapping(child) = &inner.value.kind {
+            check(child.key_name);
+            inner = child;
+        }
+        check(inner.value_name);
     }
 
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
@@ -2512,11 +2564,12 @@ impl Declarations {
     ) -> Result<(), ErrorGuaranteed> {
         self.try_declare(hir, name, decl).map_err(|conflict| {
             // Like solc, report the declaration that comes later in the source.
-            if conflict.span.lo() > decl.span.lo() {
-                report_conflict(hir, sess, name, conflict, decl)
+            let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
+                (conflict, decl)
             } else {
-                report_conflict(hir, sess, name, decl, conflict)
-            }
+                (decl, conflict)
+            };
+            report_conflict(hir, sess, name, later, earlier, error_code!(2333))
         })
     }
 
@@ -2561,25 +2614,26 @@ impl Declarations {
         }
 
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
-        if matches!(decl.res, Item(Function(_) | Event(_))) {
-            let mut getter = None;
-            if let Item(Function(id)) = decl.res {
-                getter = Some(id);
-                let f = hir.function(id);
-                if !f.kind.is_ordinary() {
+        match decl.res {
+            Item(Function(id)) => {
+                if !hir.function(id).is_ordinary() {
                     return Some(declarations[0]);
                 }
+                // A function goes only with functions and with the variable it is the getter of.
+                declarations
+                    .iter()
+                    .find(|decl2| match decl2.res {
+                        Item(Variable(v)) => hir.variable(v).getter != Some(id),
+                        Item(Function(f)) => !hir.function(f).is_ordinary(),
+                        _ => true,
+                    })
+                    .copied()
             }
-            let same_kind = |decl2: &Declaration| match decl2.res {
-                Item(Variable(v)) => hir.variable(v).getter == getter,
-                Item(Function(f)) => hir.function(f).kind.is_ordinary(),
-                ref k => k.matches(&decl.res),
-            };
-            declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
-        } else if declarations == [decl] {
-            None
-        } else {
-            Some(declarations[0])
+            Item(Event(_)) => {
+                declarations.iter().find(|decl2| !matches!(decl2.res, Item(Event(_)))).copied()
+            }
+            _ if declarations == [decl] => None,
+            _ => Some(declarations[0]),
         }
     }
 }
@@ -2614,10 +2668,12 @@ pub(super) fn report_conflict(
     name: Symbol,
     decl: Declaration,
     mut previous: Declaration,
+    code: DiagId,
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
-    let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
+    let mut err =
+        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
