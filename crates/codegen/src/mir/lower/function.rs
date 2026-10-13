@@ -322,6 +322,21 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
+    YulMember { id: VariableId, member: YulMember, span: Span },
+}
+
+/// A Yul suffix on a variable, such as `x.offset` or `x.slot`.
+///
+/// Loads and stores read the variable when they run, so later writes see
+/// earlier ones in a multi-assignment.
+#[derive(Clone, Copy)]
+enum YulMember {
+    CalldataOffset,
+    CalldataLength,
+    FunctionAddress,
+    FunctionSelector,
+    StorageSlot,
+    StorageOffset,
 }
 
 #[derive(Clone, Copy)]
@@ -969,7 +984,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values),
             ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
-            ExprKind::YulMember(receiver, name) => self.lower_yul_member(expr, receiver, *name),
+            ExprKind::YulMember(..) => {
+                let place = self.resolve_lvalue_place(expr)?;
+                self.load_lvalue_place(&place)
+            }
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),

@@ -227,14 +227,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         for (id, value) in return_ids.into_iter().zip(values) {
                             let ty = self.cx.gcx.type_of_item(id.into());
                             if ty.is_ref_at(DataLocation::Storage) {
-                                let access =
-                                    self.storage_refs.get(&id).copied().unwrap_or(StorageAccess {
-                                        slot: value,
-                                        location: StorageLocation::word(U256::ZERO),
-                                        offset: None,
-                                    });
-                                self.storage_refs
-                                    .insert(id, StorageAccess { slot: value, ..access });
+                                self.set_storage_ref_slot(id, value);
                             } else {
                                 let value =
                                     self.materialize_scalar_carrier(id, value, stmt.span)?;
