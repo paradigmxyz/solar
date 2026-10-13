@@ -1130,7 +1130,8 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let functions = self.collect_yul_function_decls(stmts);
         for &(function, id) in &functions {
-            self.declare_yul_function(function, id);
+            let res = Res::Item(hir::ItemId::Function(id));
+            let _ = self.scopes.declare_yul(self.dcx(), function.name, res);
         }
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
@@ -1153,16 +1154,6 @@ impl<'gcx> ResolveContext<'gcx> {
         functions
     }
 
-    fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        let res = Res::Item(hir::ItemId::Function(id));
-        let _ = self.scopes.current_scope().declare_res(
-            self.lcx.sess,
-            &self.lcx.hir,
-            function.name,
-            res,
-        );
-    }
-
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
         let previous_function = self.function_id.replace(id);
         self.scopes.enter();
@@ -1170,9 +1161,9 @@ impl<'gcx> ResolveContext<'gcx> {
         let previous_yul_function_scope = self.yul_function_scope.replace(function_scope);
 
         self.hir.functions[id].parameters =
-            self.lower_yul_function_variables(id, function.parameters, hir::VarKind::FunctionParam);
+            self.lower_yul_function_variables(function.parameters, hir::VarKind::FunctionParam);
         self.hir.functions[id].returns =
-            self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
+            self.lower_yul_function_variables(function.returns, hir::VarKind::FunctionReturn);
 
         let block = self.lower_yul_block(&function.body);
         let unchecked = self.hir_builder().stmt(hir::StmtKind::AssemblyBlock(block), block.span);
@@ -1186,32 +1177,12 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_function_variables(
         &mut self,
-        function: hir::FunctionId,
         idents: &[Ident],
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
         self.arena.alloc_slice_fill_iter(
-            idents.iter().map(|&ident| self.lower_yul_function_variable(function, ident, kind)),
+            idents.iter().map(|&ident| self.lower_yul_variable(ident, kind).0),
         )
-    }
-
-    fn lower_yul_function_variable(
-        &mut self,
-        function: hir::FunctionId,
-        name: Ident,
-        kind: hir::VarKind,
-    ) -> hir::VariableId {
-        let var = self.mk_yul_var(
-            Some(function),
-            name.span,
-            self.yul_uint_type(name.span),
-            Some(name),
-            kind,
-        );
-        let id = self.hir.variables.push(var);
-        let res = Res::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        id
     }
 
     fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
@@ -1271,7 +1242,7 @@ impl<'gcx> ResolveContext<'gcx> {
     ) -> hir::StmtKind<'gcx> {
         let vars = idents
             .iter()
-            .map(|&ident| self.lower_yul_variable(ident))
+            .map(|&ident| self.lower_yul_variable(ident, hir::VarKind::Statement))
             .collect::<SmallVec<[_; 4]>>();
         if let Some(guar) = vars.iter().find_map(|(_, result)| result.err()) {
             return hir::StmtKind::Err(guar);
@@ -1300,19 +1271,20 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_variable(
         &mut self,
         name: Ident,
+        kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
-        let var = self.mk_yul_var(
-            self.function_id,
+        let mut var = self.mk_var(
+            self.function_id.map(Into::into),
             name.span,
             self.yul_uint_type(name.span),
             Some(name),
-            hir::VarKind::Statement,
+            kind,
         );
+        var.source = self.scopes.source.unwrap_or(self.current_source_id);
+        var.contract = self.scopes.contract;
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result =
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        (id, result)
+        (id, self.scopes.declare_yul(self.dcx(), name, res))
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
@@ -1588,20 +1560,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::TypeSize::new_int_bits(256),
             )),
         }
-    }
-
-    fn mk_yul_var(
-        &mut self,
-        function: Option<hir::FunctionId>,
-        span: Span,
-        ty: hir::Type<'gcx>,
-        name: Option<Ident>,
-        kind: hir::VarKind,
-    ) -> hir::Variable<'gcx> {
-        let mut var = self.mk_var(function.map(Into::into), span, ty, name, kind);
-        var.source = self.scopes.source.unwrap_or(self.current_source_id);
-        var.contract = self.scopes.contract;
-        var
     }
 
     fn lower_try_catch_clause(
@@ -2037,23 +1995,25 @@ impl<'gcx> ResolveContext<'gcx> {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => {
+            // Like solc, a function type opens its own scope for its parameter and return names.
+            ast::TypeKind::Function(f) => self.in_scope(|this| {
                 let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
-                    parameters: self.lower_variables_hidden(
+                let parent = this.function_id.map(hir::ItemId::Function);
+                hir::TypeKind::Function(this.arena.alloc(hir::TypeFunction {
+                    parameters: this.lower_variables_hidden(
                         *f.parameters,
-                        self.function_id.map(hir::ItemId::Function),
+                        parent,
                         hir::VarKind::FunctionTyParam(visibility),
                     ),
                     visibility,
                     state_mutability: f.state_mutability(),
-                    returns: self.lower_variables_hidden(
+                    returns: this.lower_variables_hidden(
                         f.returns(),
-                        self.function_id.map(hir::ItemId::Function),
+                        parent,
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
                 }))
-            }
+            }),
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
@@ -2419,6 +2379,33 @@ impl SymbolResolverScopes {
         let scope = self.scopes.pop().expect("unbalanced enter/exit");
         self.pool.push(scope);
     }
+
+    /// Declares a Yul function or variable in the current scope.
+    ///
+    /// Like solc, Yul has no overloads, so a name can be declared only once per scope.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libyul/ScopeFiller.cpp#L136-L163>
+    fn declare_yul(
+        &mut self,
+        dcx: &DiagCtxt,
+        name: Ident,
+        res: Res,
+    ) -> Result<(), ErrorGuaranteed> {
+        let decl = Declaration { res, span: name.span };
+        if let Err(previous) = self.current_scope().declare_new(name.name, decl) {
+            let (kind, code) = match res {
+                Res::Item(hir::ItemId::Function(_)) => ("function", error_code!(6052)),
+                _ => ("variable", error_code!(1395)),
+            };
+            return Err(dcx
+                .err(format!("{kind} name `{name}` already taken in this scope"))
+                .code(code)
+                .span(name.span)
+                .span_note(previous.span, "previous declaration declared here")
+                .emit());
+        }
+        Ok(())
+    }
 }
 
 pub(crate) struct Declarations {
@@ -2506,6 +2493,18 @@ impl Declarations {
     /// Declares `name => decl` without checking for conflicts.
     pub(crate) fn declare_unchecked(&mut self, name: Symbol, decl: Declaration) {
         self.declarations.entry(name).or_default().push(decl, true);
+    }
+
+    /// Declares `name => decl` if `name` is not declared yet, otherwise returns its first
+    /// declaration.
+    fn declare_new(&mut self, name: Symbol, decl: Declaration) -> Result<(), Declaration> {
+        match self.declarations.entry(name) {
+            IndexEntry::Occupied(entry) => Err(entry.get().all[0]),
+            IndexEntry::Vacant(entry) => {
+                entry.insert(DeclarationsInner::default()).push(decl, true);
+                Ok(())
+            }
+        }
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to

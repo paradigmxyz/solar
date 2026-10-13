@@ -1,0 +1,26 @@
+error[2056]: `encodePacked` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_internal_functions.sol:LL:CC
+   │
+LL │         bytes32 h = keccak256(abi.encodePacked(keccak256, f, this.f{value: 2}, blockhash));
+   ╰╴                                               ━━━━━━━━━ found `function (bytes memory) pure returns (bytes32)`
+
+error[2056]: `encodePacked` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_internal_functions.sol:LL:CC
+   │
+LL │         bytes32 h = keccak256(abi.encodePacked(keccak256, f, this.f{value: 2}, blockhash));
+   ╰╴                                                          ━ found `function ()`
+
+error[2056]: `encodePacked` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_internal_functions.sol:LL:CC
+   │
+LL │         bytes32 h = keccak256(abi.encodePacked(keccak256, f, this.f{value: 2}, blockhash));
+   ╰╴                                                             ━━━━━━━━━━━━━━━━ found `function () payable external with call options`
+
+error[2056]: `encodePacked` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_internal_functions.sol:LL:CC
+   │
+LL │         bytes32 h = keccak256(abi.encodePacked(keccak256, f, this.f{value: 2}, blockhash));
+   ╰╴                                                                               ━━━━━━━━━ found `function (uint256) view returns (bytes32)`
+
+error: aborting due to 4 previous errors
+
