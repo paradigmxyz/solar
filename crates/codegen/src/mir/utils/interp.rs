@@ -22,10 +22,10 @@
 //! read their incoming values for the edge taken, all before any of them is assigned.
 //!
 //! Memory is byte-addressed EVM memory, on which the memory opcodes run: `MLOAD`, `MSTORE`,
-//! `MSTORE8`, `MCOPY`, `KECCAK256`, and `MSIZE`. An access with a nonzero length grows memory to the word
-//! containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves as if it
-//! copied through a buffer, and `keccak256` hashes the bytes it reads. Memory that nothing wrote
-//! is zero, unless the caller set it before the run.
+//! `MSTORE8`, `MCOPY`, `KECCAK256`, and `MSIZE`. An access with a nonzero length grows memory to
+//! the word containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves
+//! as if it copied through a buffer, and `keccak256` hashes the bytes it reads. Memory that nothing
+//! wrote is zero, unless the caller set it before the run.
 //!
 //! Internal calls and tail calls run the callee on the same memory, and a call's result is the
 //! value the callee returns. The backend passes further results through a buffer of its own that
