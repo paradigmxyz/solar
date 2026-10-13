@@ -9,6 +9,9 @@ mod debug_outputs;
 mod lsp;
 
 #[cfg(feature = "cli")]
+mod paths;
+
+#[cfg(feature = "cli")]
 mod standard_json;
 
 #[cfg(feature = "cli")]

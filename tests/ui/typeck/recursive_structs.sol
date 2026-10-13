@@ -1,6 +1,4 @@
 struct A { //~ ERROR: recursive struct definition
-    //~^ ERROR: recursive struct definition
-    // TODO: Cache the check so we don't emit the error twice.
     A a;
 }
 
@@ -12,7 +10,7 @@ struct B {
     B[] b;
 }
 
-struct C {
+struct C { //~ ERROR: recursive struct definition
     A a;
 }
 
