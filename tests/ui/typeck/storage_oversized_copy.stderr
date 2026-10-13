@@ -46,6 +46,14 @@ LL │         target = source;
    │
    ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
 
+error[1534]: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │     function tupleReturn() external view returns (uint256[1 << 64][] memory, uint256) {
+   │                                                   ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: each head of an ABI encoding must be smaller than 2^32 - 1 bytes
+
 error: array is too large to copy or encode
    ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
    │
@@ -70,5 +78,5 @@ LL │         target = source;
    │
    ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
 
-error: aborting due to 9 previous errors
+error: aborting due to 10 previous errors
 

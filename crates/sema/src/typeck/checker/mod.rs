@@ -2084,7 +2084,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 )));
                 continue;
             }
-            result = result.and(self.check_array_copy_size(ty, expr.span));
+            // Packed encoding has no heads.
+            result = result.and(self.check_array_copy_size(ty, expr.span).and_then(|()| {
+                let msg = "type too large to ABI-encode";
+                if is_packed { Ok(()) } else { self.check_abi_heads(ty, expr.span, msg, None) }
+            }));
             if !valid_abi_encodable_arg(ty, self.gcx) {
                 result = result.and(Err(self
                     .dcx()
@@ -2396,6 +2400,13 @@ impl<'gcx> TypeChecker<'gcx> {
                     .span(type_expr.span)
                     .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
                     .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            let msg = "type too large to ABI-decode";
+            if let Err(guar) =
+                self.check_abi_heads(ty, type_expr.span, msg, Some(error_code!(6118)))
+            {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -3049,6 +3060,8 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    /// Checks a variable's type against the size limit of its location and, when it crosses the
+    /// ABI, each head of its encoding.
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
         if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
             && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
@@ -3059,6 +3072,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 .code(error_code!(1534))
                 .span(var.ty.span)
                 .emit();
+        } else if !self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty())
+            && self.crosses_abi(var, ty)
+        {
+            self.abi_heads_error(
+                var.ty.span,
+                "type too large for calldata",
+                Some(error_code!(1534)),
+            );
         }
     }
 
@@ -3089,6 +3110,103 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
             _ => Some(U256::from(32)),
+        }
+    }
+
+    /// Checks that each head of `ty`'s ABI encoding stays below the 32-bit size limit.
+    fn check_abi_heads(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty()) {
+            return Ok(());
+        }
+        Err(self.abi_heads_error(span, msg, code))
+    }
+
+    /// Reports a type with an ABI head of 2^32 - 1 bytes or more.
+    fn abi_heads_error(
+        &self,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> ErrorGuaranteed {
+        let mut err = self
+            .dcx()
+            .err(msg)
+            .span(span)
+            .note("each head of an ABI encoding must be smaller than 2^32 - 1 bytes");
+        if let Some(code) = code {
+            err = err.code(code);
+        }
+        err.emit()
+    }
+
+    /// Returns whether `var`'s value is ABI-encoded: a calldata variable, a parameter of an event,
+    /// an error or a non-abstract contract's constructor, or a parameter or return of a public or
+    /// external function or function type. Library storage pointers cross the ABI as slots.
+    fn crosses_abi(&self, var: &hir::Variable<'_>, ty: Ty<'gcx>) -> bool {
+        if ty.encodes_as_slot() {
+            return false;
+        }
+        let crosses = ty.is_ref_at(DataLocation::Calldata)
+            || match var.kind {
+                hir::VarKind::Event | hir::VarKind::Error => true,
+                hir::VarKind::FunctionTyParam(vis) | hir::VarKind::FunctionTyReturn(vis) => {
+                    vis >= hir::Visibility::Public
+                }
+                hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn => {
+                    var.parent.and_then(|parent| parent.as_function()).is_some_and(|f| {
+                        let f = self.gcx.hir.function(f);
+                        if f.is_constructor() {
+                            !f.contract.is_some_and(|c| self.gcx.hir.contract(c).is_abstract())
+                        } else {
+                            f.is_part_of_external_interface()
+                        }
+                    })
+                }
+                _ => false,
+            };
+        crosses && ty.interface_type_error(false, self.gcx).is_none()
+    }
+
+    /// Returns whether each head in `ty`'s ABI encoding, including the heads in the tails of its
+    /// dynamic parts, stays below the 32-bit size limit.
+    ///
+    /// This is stricter than solc, which bounds only arrays: a struct's head sums its members, and
+    /// the backend computes head sizes in 64 bits. See TYPECK-016 in `docs/SOLC_DIVERGENCE.md`.
+    fn ty_abi_heads_fit(&self, ty: Ty<'gcx>, visited: &mut GrowableBitSet<hir::StructId>) -> bool {
+        if let Some(size) = ty.abi_static_size(self.gcx) {
+            return size < u32::MAX;
+        }
+        match ty.peel_refs().kind {
+            // The element is dynamically encoded too, so each one takes a word in the head.
+            TyKind::Array(elem, len) => {
+                len.saturating_mul(U256::from(32)) < u32::MAX
+                    && self.ty_abi_heads_fit(elem, visited)
+            }
+            TyKind::DynArray(elem) => self.ty_abi_heads_fit(elem, visited),
+            // A struct seen before has passed or is still being checked.
+            TyKind::Struct(id) => {
+                if !visited.insert(id) {
+                    return true;
+                }
+                let mut head = U256::ZERO;
+                for &field in self.gcx.struct_field_types(id) {
+                    // A dynamically encoded field takes a word in the head.
+                    let size = match field.abi_static_size(self.gcx) {
+                        Some(size) => size,
+                        None if self.ty_abi_heads_fit(field, visited) => U256::from(32),
+                        None => return false,
+                    };
+                    head = head.saturating_add(size);
+                }
+                head < u32::MAX
+            }
+            _ => true,
         }
     }
 

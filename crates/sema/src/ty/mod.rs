@@ -1966,6 +1966,18 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
+/// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.
+///
+/// A struct on any cycle is dynamically encoded, so the recursion ends on infinite structs too.
+pub fn struct_abi_static_size(gcx: _, id: hir::StructId) -> Option<U256> {
+    if gcx.struct_recursiveness(id).is_recursive() {
+        return None;
+    }
+    gcx.struct_field_types(id)
+        .iter()
+        .try_fold(U256::ZERO, |size, ty| Some(size.saturating_add(ty.abi_static_size(gcx)?)))
+}
+
 fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::native_members(gcx, ty)
 }

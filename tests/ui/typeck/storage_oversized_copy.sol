@@ -40,6 +40,7 @@ contract NestedOversizedCopy {
     }
 
     function tupleReturn() external view returns (uint256[1 << 64][] memory, uint256) {
+        //~^ ERROR: type too large for calldata
         return (source, 1); //~ ERROR: array is too large to copy or encode
     }
 

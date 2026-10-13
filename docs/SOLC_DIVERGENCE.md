@@ -281,6 +281,28 @@ should accept the names.
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
 and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
 
+### TYPECK-016: ABI heads are bounded as a whole
+
+Status: intentional.
+
+Difference: `solar` rejects a type when any head of its ABI encoding, including
+the heads inside the tails of dynamic parts, takes `2^32 - 1` bytes or more. A
+struct's head counts all its members together. The check covers calldata
+variables; parameters of constructors, events, errors and external function
+types; parameters and returns of public and external functions; arguments of
+`abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
+types. `solc` 0.8.37 checks only constructor and public callable parameters
+against calldata, and sizes structs one member at a time, so it accepts, for
+example, an external function that takes a calldata struct with two
+`uint256[134217727]` members.
+
+Rationale: the backend computes head sizes in 64 bits, and larger heads exhaust
+memory or overflow during lowering. No transaction can pass or return such a
+value within a block gas limit.
+
+Coverage: `tests/ui/typeck/abi_head_size.sol` and
+`tests/ui/typeck/public_param_calldata_size.sol`.
+
 ### TYPECK-018: `msg.gas`
 
 Status: intentional.
