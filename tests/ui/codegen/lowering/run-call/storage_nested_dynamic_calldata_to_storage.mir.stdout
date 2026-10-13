@@ -13,23 +13,23 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = calldatasize
-    v10 = add v3, v8
-    v11 = sub v9, v3
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v10
-    v16 = add v10, 32
-    v17 = calldatasize
-    v18 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = mul v15, 32
-    v20 = sub v17, v19
-    v21 = sgt v16, v20
+    v15 = calldataload v9
+    v16 = calldatasize
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = mul v15, 32
+    v19 = add v9, 32
+    v20 = sub v16, v18
+    v21 = sgt v19, v20
     icall revert_if<calldata_tail_too_short>, v21
-    v22 = add v10, 32
+    v22 = add v9, 32
     v23 = make_calldata_slice v22, v15
     v24 = slice_len v23
     v25 = slice_ptr v23
@@ -284,23 +284,23 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v52 = slt v51, 32
     icall revert_if<calldata_tail_too_short>, v52
     v53 = calldataload v49
-    v54 = calldatasize
-    v55 = add v25, v53
-    v56 = sub v54, v25
+    v54 = add v25, v53
+    v55 = calldatasize
+    v56 = sub v55, v25
     v57 = sub v56, 31
     v58 = slt v53, v57
     v59 = eq v58, false
     icall revert_if<invalid_calldata_tail_offset>, v59
-    v60 = calldataload v55
-    v61 = add v55, 32
-    v62 = calldatasize
-    v63 = gt v60, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v63
-    v64 = mul v60, 32
-    v65 = sub v62, v64
-    v66 = sgt v61, v65
+    v60 = calldataload v54
+    v61 = calldatasize
+    v62 = gt v60, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v62
+    v63 = mul v60, 32
+    v64 = add v54, 32
+    v65 = sub v61, v63
+    v66 = sgt v64, v65
     icall revert_if<calldata_tail_too_short>, v66
-    v67 = add v55, 32
+    v67 = add v54, 32
     v68 = mul v60, 32
     v69 = eq 32, 0
     v70 = div v68, 32
@@ -672,23 +672,23 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v136 = slt v135, 32
     icall revert_if<calldata_tail_too_short>, v136
     v137 = calldataload v133
-    v138 = calldatasize
-    v139 = add v109, v137
-    v140 = sub v138, v109
+    v138 = add v109, v137
+    v139 = calldatasize
+    v140 = sub v139, v109
     v141 = sub v140, 31
     v142 = slt v137, v141
     v143 = eq v142, false
     icall revert_if<invalid_calldata_tail_offset>, v143
-    v144 = calldataload v139
-    v145 = add v139, 32
-    v146 = calldatasize
-    v147 = gt v144, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v147
-    v148 = mul v144, 32
-    v149 = sub v146, v148
-    v150 = sgt v145, v149
+    v144 = calldataload v138
+    v145 = calldatasize
+    v146 = gt v144, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v146
+    v147 = mul v144, 32
+    v148 = add v138, 32
+    v149 = sub v145, v147
+    v150 = sgt v148, v149
     icall revert_if<calldata_tail_too_short>, v150
-    v151 = add v139, 32
+    v151 = add v138, 32
     v152 = mul v144, 32
     v153 = eq 32, 0
     v154 = div v152, 32

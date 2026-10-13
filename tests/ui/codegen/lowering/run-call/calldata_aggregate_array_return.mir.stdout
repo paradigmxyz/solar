@@ -78,23 +78,23 @@ fn @row(arg0: calldataslice, arg1: i256) -> calldataslice [selector=0x538f7fda, 
     v15 = slt v14, 32
     icall revert_if<calldata_tail_too_short>, v15
     v16 = calldataload v12
-    v17 = calldatasize
-    v18 = add v4, v16
-    v19 = sub v17, v4
+    v17 = add v4, v16
+    v18 = calldatasize
+    v19 = sub v18, v4
     v20 = sub v19, 31
     v21 = slt v16, v20
     v22 = eq v21, false
     icall revert_if<invalid_calldata_tail_offset>, v22
-    v23 = calldataload v18
-    v24 = add v18, 32
-    v25 = calldatasize
-    v26 = gt v23, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = mul v23, 64
-    v28 = sub v25, v27
-    v29 = sgt v24, v28
+    v23 = calldataload v17
+    v24 = calldatasize
+    v25 = gt v23, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v25
+    v26 = mul v23, 64
+    v27 = add v17, 32
+    v28 = sub v24, v26
+    v29 = sgt v27, v28
     icall revert_if<calldata_tail_too_short>, v29
-    v30 = add v18, 32
+    v30 = add v17, 32
     v31 = make_calldata_slice v30, v23
     ret v31
 }
@@ -109,23 +109,23 @@ fn @member(arg0: calldataslice) -> calldataslice [selector=0xef3fa208, pure, abi
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
     v6 = calldataload v2
-    v7 = calldatasize
-    v8 = add v1, v6
-    v9 = sub v7, v1
+    v7 = add v1, v6
+    v8 = calldatasize
+    v9 = sub v8, v1
     v10 = sub v9, 31
     v11 = slt v6, v10
     v12 = eq v11, false
     icall revert_if<invalid_calldata_tail_offset>, v12
-    v13 = calldataload v8
-    v14 = add v8, 32
-    v15 = calldatasize
-    v16 = gt v13, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v16
-    v17 = mul v13, 64
-    v18 = sub v15, v17
-    v19 = sgt v14, v18
+    v13 = calldataload v7
+    v14 = calldatasize
+    v15 = gt v13, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v15
+    v16 = mul v13, 64
+    v17 = add v7, 32
+    v18 = sub v14, v16
+    v19 = sgt v17, v18
     icall revert_if<calldata_tail_too_short>, v19
-    v20 = add v8, 32
+    v20 = add v7, 32
     v21 = make_calldata_slice v20, v13
     ret v21
 }

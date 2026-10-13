@@ -682,16 +682,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // offset = calldataload(head)
         // position = tuple_base + offset
+        // check_calldata_tail_offset(tuple_base, offset)
         let offset = self.builder.calldataload(head);
-        let Some(tail) = checks else { return Some(self.builder.add(tuple_base, offset)) };
-        let calldata_size = self.builder.calldatasize();
-        Some(self.builder.calldata_tail_offset(
-            tail,
-            tuple_base,
-            offset,
-            calldata_size,
-            abi_type.tail_size(),
-        ))
+        let position = self.builder.add(tuple_base, offset);
+        if let Some(tail) = checks {
+            let calldata_size = self.builder.calldatasize();
+            let tail_size = abi_type.tail_size();
+            self.builder.check_calldata_tail_offset(
+                tail,
+                tuple_base,
+                offset,
+                calldata_size,
+                tail_size,
+            );
+        }
+        Some(position)
     }
 
     /// Reverts unless `size` bytes at `start` lie inside calldata.
@@ -715,11 +720,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         checks: Option<CalldataTail>,
     ) {
         let Some(tail) = checks else { return };
-        // data = value_pos + 32
-        // check_calldata_tail_length(data, length, stride)
-        let data = self.builder.add_u64_offset(value_pos, 32);
+        // calldata_tail_data(value_pos + 32, length, stride)
         let calldata_size = self.builder.calldatasize();
-        self.builder.check_calldata_tail_length(tail, data, length, calldata_size, stride);
+        self.builder.calldata_tail_data(tail, value_pos, 32, length, calldata_size, stride);
     }
 
     fn decode_calldata_word(
@@ -783,17 +786,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn validate_calldata_bytes_slice(&mut self, slice: ValueId) {
-        // check_calldata_tail_length(pointer, length, 1)
+        // calldata_tail_data(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
         let calldata_size = self.builder.calldatasize();
-        self.builder.check_calldata_tail_length(
-            CalldataTail::Access,
-            pointer,
-            length,
-            calldata_size,
-            1,
-        );
+        self.builder.calldata_tail_data(CalldataTail::Access, pointer, 0, length, calldata_size, 1);
     }
 
     fn materialize_calldata_fixed_array(

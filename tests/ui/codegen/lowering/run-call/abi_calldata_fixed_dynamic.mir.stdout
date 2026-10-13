@@ -13,22 +13,22 @@ fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = calldatasize
-    v10 = add v3, v8
-    v11 = sub v9, v3
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v10
-    v16 = add v10, 32
-    v17 = calldatasize
-    v18 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = sub v17, v15
-    v20 = sgt v16, v19
+    v15 = calldataload v9
+    v16 = calldatasize
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v9, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
-    v21 = add v10, 32
+    v21 = add v9, 32
     v22 = make_calldata_slice v21, v15
     v23 = slice_len v22
     v24 = slice_len arg0
@@ -42,22 +42,22 @@ fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=
     v31 = slt v30, 32
     icall revert_if<calldata_tail_too_short>, v31
     v32 = calldataload v28
-    v33 = calldatasize
-    v34 = add v27, v32
-    v35 = sub v33, v27
+    v33 = add v27, v32
+    v34 = calldatasize
+    v35 = sub v34, v27
     v36 = sub v35, 31
     v37 = slt v32, v36
     v38 = eq v37, false
     icall revert_if<invalid_calldata_tail_offset>, v38
-    v39 = calldataload v34
-    v40 = add v34, 32
-    v41 = calldatasize
-    v42 = gt v39, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v42
-    v43 = sub v41, v39
-    v44 = sgt v40, v43
+    v39 = calldataload v33
+    v40 = calldatasize
+    v41 = gt v39, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v41
+    v42 = add v33, 32
+    v43 = sub v40, v39
+    v44 = sgt v42, v43
     icall revert_if<calldata_tail_too_short>, v44
-    v45 = add v34, 32
+    v45 = add v33, 32
     v46 = make_calldata_slice v45, v39
     v47 = slice_len v46
     v48 = checked_add u256, v23, v47

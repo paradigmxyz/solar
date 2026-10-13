@@ -22,23 +22,23 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v9 = slt v8, 32
     icall revert_if<calldata_tail_too_short>, v9
     v10 = calldataload v6
-    v11 = calldatasize
-    v12 = add v5, v10
-    v13 = sub v11, v5
+    v11 = add v5, v10
+    v12 = calldatasize
+    v13 = sub v12, v5
     v14 = sub v13, 31
     v15 = slt v10, v14
     v16 = eq v15, false
     icall revert_if<invalid_calldata_tail_offset>, v16
-    v17 = calldataload v12
-    v18 = add v12, 32
-    v19 = calldatasize
-    v20 = gt v17, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = mul v17, 32
-    v22 = sub v19, v21
-    v23 = sgt v18, v22
+    v17 = calldataload v11
+    v18 = calldatasize
+    v19 = gt v17, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v19
+    v20 = mul v17, 32
+    v21 = add v11, 32
+    v22 = sub v18, v20
+    v23 = sgt v21, v22
     icall revert_if<calldata_tail_too_short>, v23
-    v24 = add v12, 32
+    v24 = add v11, 32
     v25 = make_calldata_slice v24, v17
     v26 = slice_len v25
     jump bb3
@@ -60,23 +60,23 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v36 = slt v35, 32
     icall revert_if<calldata_tail_too_short>, v36
     v37 = calldataload v33
-    v38 = calldatasize
-    v39 = add v32, v37
-    v40 = sub v38, v32
+    v38 = add v32, v37
+    v39 = calldatasize
+    v40 = sub v39, v32
     v41 = sub v40, 31
     v42 = slt v37, v41
     v43 = eq v42, false
     icall revert_if<invalid_calldata_tail_offset>, v43
-    v44 = calldataload v39
-    v45 = add v39, 32
-    v46 = calldatasize
-    v47 = gt v44, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v47
-    v48 = mul v44, 32
-    v49 = sub v46, v48
-    v50 = sgt v45, v49
+    v44 = calldataload v38
+    v45 = calldatasize
+    v46 = gt v44, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v46
+    v47 = mul v44, 32
+    v48 = add v38, 32
+    v49 = sub v45, v47
+    v50 = sgt v48, v49
     icall revert_if<calldata_tail_too_short>, v50
-    v51 = add v39, 32
+    v51 = add v38, 32
     v52 = make_calldata_slice v51, v44
     v53 = slice_len v52
     jump bb6

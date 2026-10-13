@@ -163,22 +163,22 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v76 = slt v75, 32
     icall revert_if<calldata_tail_too_short>, v76
     v77 = calldataload v73
-    v78 = calldatasize
-    v79 = add v65, v77
-    v80 = sub v78, v65
+    v78 = add v65, v77
+    v79 = calldatasize
+    v80 = sub v79, v65
     v81 = sub v80, 31
     v82 = slt v77, v81
     v83 = eq v82, false
     icall revert_if<invalid_calldata_tail_offset>, v83
-    v84 = calldataload v79
-    v85 = add v79, 32
-    v86 = calldatasize
-    v87 = gt v84, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v87
-    v88 = sub v86, v84
-    v89 = sgt v85, v88
+    v84 = calldataload v78
+    v85 = calldatasize
+    v86 = gt v84, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v86
+    v87 = add v78, 32
+    v88 = sub v85, v84
+    v89 = sgt v87, v88
     icall revert_if<calldata_tail_too_short>, v89
-    v90 = add v79, 32
+    v90 = add v78, 32
     v91 = make_calldata_slice v90, v84
     v92 = slice_ptr v91
     v93 = slice_len v91

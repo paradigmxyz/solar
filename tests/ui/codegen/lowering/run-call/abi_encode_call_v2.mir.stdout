@@ -9,23 +9,23 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v4 = slt v3, 32
     icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
-    v6 = calldatasize
-    v7 = add v0, v5
-    v8 = sub v6, v0
+    v6 = add v0, v5
+    v7 = calldatasize
+    v8 = sub v7, v0
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
-    v12 = calldataload v7
-    v13 = add v7, 32
-    v14 = calldatasize
-    v15 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = mul v12, 32
-    v17 = sub v14, v16
-    v18 = sgt v13, v17
+    v12 = calldataload v6
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = mul v12, 32
+    v16 = add v6, 32
+    v17 = sub v13, v15
+    v18 = sgt v16, v17
     icall revert_if<calldata_tail_too_short>, v18
-    v19 = add v7, 32
+    v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_len v20
     v22 = eq v21, 3
@@ -38,23 +38,23 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
     v29 = calldataload v25
-    v30 = calldatasize
-    v31 = add v24, v29
-    v32 = sub v30, v24
+    v30 = add v24, v29
+    v31 = calldatasize
+    v32 = sub v31, v24
     v33 = sub v32, 31
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
-    v36 = calldataload v31
-    v37 = add v31, 32
-    v38 = calldatasize
-    v39 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v39
-    v40 = mul v36, 32
-    v41 = sub v38, v40
-    v42 = sgt v37, v41
+    v36 = calldataload v30
+    v37 = calldatasize
+    v38 = gt v36, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v38
+    v39 = mul v36, 32
+    v40 = add v30, 32
+    v41 = sub v37, v39
+    v42 = sgt v40, v41
     icall revert_if<calldata_tail_too_short>, v42
-    v43 = add v31, 32
+    v43 = add v30, 32
     v44 = make_calldata_slice v43, v36
     v45 = slice_len v44
     v46 = lt 0, v45
@@ -73,23 +73,23 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v57 = slt v56, 32
     icall revert_if<calldata_tail_too_short>, v57
     v58 = calldataload v54
-    v59 = calldatasize
-    v60 = add v53, v58
-    v61 = sub v59, v53
+    v59 = add v53, v58
+    v60 = calldatasize
+    v61 = sub v60, v53
     v62 = sub v61, 31
     v63 = slt v58, v62
     v64 = eq v63, false
     icall revert_if<invalid_calldata_tail_offset>, v64
-    v65 = calldataload v60
-    v66 = add v60, 32
-    v67 = calldatasize
-    v68 = gt v65, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v68
-    v69 = mul v65, 32
-    v70 = sub v67, v69
-    v71 = sgt v66, v70
+    v65 = calldataload v59
+    v66 = calldatasize
+    v67 = gt v65, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v67
+    v68 = mul v65, 32
+    v69 = add v59, 32
+    v70 = sub v66, v68
+    v71 = sgt v69, v70
     icall revert_if<calldata_tail_too_short>, v71
-    v72 = add v60, 32
+    v72 = add v59, 32
     v73 = make_calldata_slice v72, v65
     v74 = slice_len v73
     v75 = lt 1, v74
@@ -108,23 +108,23 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v86 = slt v85, 32
     icall revert_if<calldata_tail_too_short>, v86
     v87 = calldataload v83
-    v88 = calldatasize
-    v89 = add v82, v87
-    v90 = sub v88, v82
+    v88 = add v82, v87
+    v89 = calldatasize
+    v90 = sub v89, v82
     v91 = sub v90, 31
     v92 = slt v87, v91
     v93 = eq v92, false
     icall revert_if<invalid_calldata_tail_offset>, v93
-    v94 = calldataload v89
-    v95 = add v89, 32
-    v96 = calldatasize
-    v97 = gt v94, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v97
-    v98 = mul v94, 32
-    v99 = sub v96, v98
-    v100 = sgt v95, v99
+    v94 = calldataload v88
+    v95 = calldatasize
+    v96 = gt v94, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v96
+    v97 = mul v94, 32
+    v98 = add v88, 32
+    v99 = sub v95, v97
+    v100 = sgt v98, v99
     icall revert_if<calldata_tail_too_short>, v100
-    v101 = add v89, 32
+    v101 = add v88, 32
     v102 = make_calldata_slice v101, v94
     v103 = slice_len v102
     v104 = lt 2, v103
@@ -149,22 +149,22 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v120 = slt v119, 32
     icall revert_if<calldata_tail_too_short>, v120
     v121 = calldataload v117
-    v122 = calldatasize
-    v123 = add v116, v121
-    v124 = sub v122, v116
+    v122 = add v116, v121
+    v123 = calldatasize
+    v124 = sub v123, v116
     v125 = sub v124, 31
     v126 = slt v121, v125
     v127 = eq v126, false
     icall revert_if<invalid_calldata_tail_offset>, v127
-    v128 = calldataload v123
-    v129 = add v123, 32
-    v130 = calldatasize
-    v131 = gt v128, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v131
-    v132 = sub v130, v128
-    v133 = sgt v129, v132
+    v128 = calldataload v122
+    v129 = calldatasize
+    v130 = gt v128, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v130
+    v131 = add v122, 32
+    v132 = sub v129, v128
+    v133 = sgt v131, v132
     icall revert_if<calldata_tail_too_short>, v133
-    v134 = add v123, 32
+    v134 = add v122, 32
     v135 = make_calldata_slice v134, v128
     v136 = slice_ptr v135
     v137 = slice_len v135
@@ -194,22 +194,22 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v155 = slt v154, 32
     icall revert_if<calldata_tail_too_short>, v155
     v156 = calldataload v152
-    v157 = calldatasize
-    v158 = add v151, v156
-    v159 = sub v157, v151
+    v157 = add v151, v156
+    v158 = calldatasize
+    v159 = sub v158, v151
     v160 = sub v159, 31
     v161 = slt v156, v160
     v162 = eq v161, false
     icall revert_if<invalid_calldata_tail_offset>, v162
-    v163 = calldataload v158
-    v164 = add v158, 32
-    v165 = calldatasize
-    v166 = gt v163, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v166
-    v167 = sub v165, v163
-    v168 = sgt v164, v167
+    v163 = calldataload v157
+    v164 = calldatasize
+    v165 = gt v163, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v165
+    v166 = add v157, 32
+    v167 = sub v164, v163
+    v168 = sgt v166, v167
     icall revert_if<calldata_tail_too_short>, v168
-    v169 = add v158, 32
+    v169 = add v157, 32
     v170 = make_calldata_slice v169, v163
     v171 = slice_ptr v170
     v172 = slice_len v170

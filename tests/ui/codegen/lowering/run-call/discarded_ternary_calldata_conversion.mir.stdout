@@ -58,23 +58,23 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     v32 = slt v31, 32
     icall revert_if<calldata_tail_too_short>, v32
     v33 = calldataload v29
-    v34 = calldatasize
-    v35 = add v5, v33
-    v36 = sub v34, v5
+    v34 = add v5, v33
+    v35 = calldatasize
+    v36 = sub v35, v5
     v37 = sub v36, 31
     v38 = slt v33, v37
     v39 = eq v38, false
     icall revert_if<invalid_calldata_tail_offset>, v39
-    v40 = calldataload v35
-    v41 = add v35, 32
-    v42 = calldatasize
-    v43 = gt v40, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v43
-    v44 = mul v40, 32
-    v45 = sub v42, v44
-    v46 = sgt v41, v45
+    v40 = calldataload v34
+    v41 = calldatasize
+    v42 = gt v40, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v42
+    v43 = mul v40, 32
+    v44 = add v34, 32
+    v45 = sub v41, v43
+    v46 = sgt v44, v45
     icall revert_if<calldata_tail_too_short>, v46
-    v47 = add v35, 32
+    v47 = add v34, 32
     v48 = mul v40, 32
     v49 = eq 32, 0
     v50 = div v48, 32

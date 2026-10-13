@@ -4521,8 +4521,8 @@ fn materialize_calldata_return(
 
 /// Copies a calldata value to memory with the checks solc applies when it re-encodes calldata
 /// rather than those of the ABI decoder: nested offsets go through
-/// [`FunctionBuilder::calldata_tail_offset`], which accepts negative offsets that wrap, an inner
-/// length above `2**64 - 1` reverts before anything is allocated, and narrow words are
+/// [`FunctionBuilder::check_calldata_tail_offset`], which accepts negative offsets that wrap, an
+/// inner length above `2**64 - 1` reverts before anything is allocated, and narrow words are
 /// validated. `position` is the value's head, or the data address of a dynamically sized value
 /// whose `length` the caller resolved.
 fn copy_calldata_value(
@@ -4606,19 +4606,20 @@ fn copy_calldata_member(
         return copy_calldata_value(builder, ty, head, None, options);
     }
     // offset = calldataload(head)
-    // position = calldata_tail_offset(base, offset)
+    // check_calldata_tail_offset(base, offset)
+    // position = base + offset
     let tail = CalldataTail::Encode;
     let offset = builder.calldataload(head);
-    let position =
-        builder.calldata_tail_offset(tail, base, offset, options.input_end, ty.data_head_size());
+    // A fresh `calldatasize` keeps `options.input_end` from staying live across copy loops.
+    let end = builder.calldatasize();
+    builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
+    let position = builder.add(base, offset);
     let Some(stride) = ty.calldata_stride() else {
         return copy_calldata_value(builder, ty, position, None, options);
     };
     // length = calldataload(position)
-    // data = position + 32
-    // check_calldata_tail_length(data, length, stride)
+    // data = calldata_tail_data(position + 32, length, stride)
     let length = builder.calldataload(position);
-    let data = builder.add_u64_offset(position, 32);
-    builder.check_calldata_tail_length(tail, data, length, options.input_end, stride);
+    let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
     copy_calldata_value(builder, ty, data, Some(length), options)
 }

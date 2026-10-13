@@ -13,22 +13,22 @@ fn @first(arg0: calldataslice) -> memptr [selector=0xcf452bd8, pure, abi_params=
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
-    v9 = calldatasize
-    v10 = add v3, v8
-    v11 = sub v9, v3
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = calldataload v10
-    v16 = add v10, 32
-    v17 = calldatasize
-    v18 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = sub v17, v15
-    v20 = sgt v16, v19
+    v15 = calldataload v9
+    v16 = calldatasize
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v9, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
-    v21 = add v10, 32
+    v21 = add v9, 32
     v22 = make_calldata_slice v21, v15
     v23 = slice_ptr v22
     v24 = slice_len v22

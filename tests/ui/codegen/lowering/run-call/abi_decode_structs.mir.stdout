@@ -186,14 +186,14 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
-    v10 = calldatasize
-    v11 = add v4, v9
-    v12 = sub v10, v4
+    v10 = add v4, v9
+    v11 = calldatasize
+    v12 = sub v11, v4
     v13 = sub v12, 95
     v14 = slt v9, v13
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
-    v16 = make_calldata_slice v11, 32
+    v16 = make_calldata_slice v10, 32
     v17 = slice_ptr v16
     v18 = add v17, 0
     v19 = calldataload v18
@@ -208,14 +208,14 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v27 = slt v26, 32
     icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
-    v29 = calldatasize
-    v30 = add v23, v28
-    v31 = sub v29, v23
+    v29 = add v23, v28
+    v30 = calldatasize
+    v31 = sub v30, v23
     v32 = sub v31, 95
     v33 = slt v28, v32
     v34 = eq v33, false
     icall revert_if<invalid_calldata_tail_offset>, v34
-    v35 = make_calldata_slice v30, 32
+    v35 = make_calldata_slice v29, 32
     v36 = slice_ptr v35
     v37 = add v36, 0
     v38 = calldataload v37

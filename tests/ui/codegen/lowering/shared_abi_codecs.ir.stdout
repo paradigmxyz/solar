@@ -353,30 +353,30 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v29, bb10, bb13
   bb13:
     v30 = calldataload v26
-    v31 = calldatasize
-    v32 = add v185, v30
-    v33 = sub v31, v185
+    v31 = add v185, v30
+    v32 = calldatasize
+    v33 = sub v32, v185
     v34 = sub v33, 31
     v35 = slt v30, v34
     jumpi v35, bb14, bb10
   bb14:
-    v37 = calldataload v32
-    v38 = add v32, 32
-    v39 = calldatasize
-    v40 = gt v37, 0xffffffffffffffff
-    v41 = shl 5, v37
-    v42 = sub v39, v41
-    v43 = sgt v38, v42
-    v276 = or v40, v43
+    v37 = calldataload v31
+    v38 = calldatasize
+    v39 = gt v37, 0xffffffffffffffff
+    v40 = shl 5, v37
+    v41 = add v31, 32
+    v42 = sub v38, v40
+    v43 = sgt v41, v42
+    v276 = or v39, v43
     jumpi v276, bb10, bb15
   bb15:
-    v52 = add v41, 32
+    v52 = add v40, 32
     v268 = mload 64
     v269 = add v268, v52
     mstore 64, v269
     mstore v268, v37
     v205 = add v268, 32
-    calldatacopy v205, v38, v41
+    calldatacopy v205, v41, v40
     v209 = add v266, 32
     v210 = shl 5, v23
     v211 = add v209, v210

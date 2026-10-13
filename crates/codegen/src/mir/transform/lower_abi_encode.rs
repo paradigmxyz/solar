@@ -1432,16 +1432,16 @@ fn encode_calldata_bytes_array(
 
     builder.switch_to_block(body);
     // offset = calldataload(source_head)
-    // element_base = calldata_tail_offset(source_base, offset)
+    // check_calldata_tail_offset(source_base, offset)
+    // element_base = source_base + offset
     // length = calldataload(element_base)
-    // data = element_base + 32
-    // check_calldata_tail_length(data, length, 1)
+    // data = calldata_tail_data(element_base + 32, length, 1)
     let tail = CalldataTail::Encode;
     let offset = builder.calldataload(source_head);
-    let element_base = builder.calldata_tail_offset(tail, source_base, offset, calldata_end, 32);
+    builder.check_calldata_tail_offset(tail, source_base, offset, calldata_end, 32);
+    let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
-    let data = builder.add_u64_offset(element_base, 32);
-    builder.check_calldata_tail_length(tail, data, length, calldata_end, 1);
+    let data = builder.calldata_tail_data(tail, element_base, 32, length, calldata_end, 1);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,

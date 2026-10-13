@@ -48,23 +48,23 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
     v29 = calldataload v25
-    v30 = calldatasize
-    v31 = add v1, v29
-    v32 = sub v30, v1
+    v30 = add v1, v29
+    v31 = calldatasize
+    v32 = sub v31, v1
     v33 = sub v32, 31
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_access_offset>, v35
-    v36 = calldataload v31
-    v37 = add v31, 32
-    v38 = calldatasize
-    v39 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_access_length>, v39
-    v40 = mul v36, 32
-    v41 = sub v38, v40
-    v42 = sgt v37, v41
+    v36 = calldataload v30
+    v37 = calldatasize
+    v38 = gt v36, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_access_length>, v38
+    v39 = mul v36, 32
+    v40 = add v30, 32
+    v41 = sub v37, v39
+    v42 = sgt v40, v41
     icall revert_if<invalid_calldata_access_stride>, v42
-    v43 = add v31, 32
+    v43 = add v30, 32
     v44 = mul v36, 32
     v45 = eq 32, 0
     v46 = div v44, 32
@@ -96,23 +96,23 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v60 = slt v59, 32
     icall revert_if<calldata_tail_too_short>, v60
     v61 = calldataload v57
-    v62 = calldatasize
-    v63 = add v43, v61
-    v64 = sub v62, v43
+    v62 = add v43, v61
+    v63 = calldatasize
+    v64 = sub v63, v43
     v65 = sub v64, 31
     v66 = slt v61, v65
     v67 = eq v66, false
     icall revert_if<invalid_calldata_access_offset>, v67
-    v68 = calldataload v63
-    v69 = add v63, 32
-    v70 = calldatasize
-    v71 = gt v68, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_access_length>, v71
-    v72 = mul v68, 32
-    v73 = sub v70, v72
-    v74 = sgt v69, v73
+    v68 = calldataload v62
+    v69 = calldatasize
+    v70 = gt v68, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_access_length>, v70
+    v71 = mul v68, 32
+    v72 = add v62, 32
+    v73 = sub v69, v71
+    v74 = sgt v72, v73
     icall revert_if<invalid_calldata_access_stride>, v74
-    v75 = add v63, 32
+    v75 = add v62, 32
     v76 = mul v68, 32
     v77 = eq 32, 0
     v78 = div v76, 32
@@ -197,15 +197,15 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
     v29 = calldataload v25
-    v30 = calldatasize
-    v31 = add v1, v29
-    v32 = sub v30, v1
+    v30 = add v1, v29
+    v31 = calldatasize
+    v32 = sub v31, v1
     v33 = sub v32, 63
     v34 = slt v29, v33
     v35 = eq v34, false
     icall revert_if<invalid_calldata_access_offset>, v35
     v36 = calldatasize
-    v37 = sub v36, v31
+    v37 = sub v36, v30
     v38 = slt v37, 64
     icall revert_if<calldata_tail_too_short>, v38
     v39 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -221,29 +221,29 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     jump bb1
   bb5:
     v42 = mul v40, 32
-    v43 = add v31, v42
+    v43 = add v30, v42
     v44 = calldatasize
     v45 = sub v44, v43
     v46 = slt v45, 32
     icall revert_if<calldata_tail_too_short>, v46
     v47 = calldataload v43
-    v48 = calldatasize
-    v49 = add v31, v47
-    v50 = sub v48, v31
+    v48 = add v30, v47
+    v49 = calldatasize
+    v50 = sub v49, v30
     v51 = sub v50, 31
     v52 = slt v47, v51
     v53 = eq v52, false
     icall revert_if<invalid_calldata_access_offset>, v53
-    v54 = calldataload v49
-    v55 = add v49, 32
-    v56 = calldatasize
-    v57 = gt v54, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_access_length>, v57
-    v58 = mul v54, 32
-    v59 = sub v56, v58
-    v60 = sgt v55, v59
+    v54 = calldataload v48
+    v55 = calldatasize
+    v56 = gt v54, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_access_length>, v56
+    v57 = mul v54, 32
+    v58 = add v48, 32
+    v59 = sub v55, v57
+    v60 = sgt v58, v59
     icall revert_if<invalid_calldata_access_stride>, v60
-    v61 = add v49, 32
+    v61 = add v48, 32
     v62 = mul v54, 32
     v63 = eq 32, 0
     v64 = div v62, 32
