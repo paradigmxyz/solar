@@ -84,10 +84,11 @@ tools such as Foundry preload sources under relative names and pass absolute
 remapping targets, which must resolve to the preloaded sources
 ([#1628](https://github.com/paradigmxyz/solar/pull/1628)).
 
-Coverage: `callback_imports_merge_spellings` in
+Coverage: `callback_imports_merge_spellings` and `callback_imports_file_urls` in
 `crates/solar/tests/it/standard_json.rs`,
-`absolute_remapping_reuses_preloaded_source_unit_name` and
-`direct_import_reuses_preloaded_source_unit_name` in
+`absolute_remapping_reuses_preloaded_source_unit_name`,
+`direct_import_reuses_preloaded_source_unit_name` and
+`file_url_imports_load_from_disk` in
 `crates/interface/src/source_map/file_resolver.rs`.
 
 ### IMPORT-002: Names of files in nested include paths

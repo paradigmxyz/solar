@@ -161,31 +161,40 @@ fn callback_imports_with_base_path() {
     assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
 }
 
-/// Like libsolc, the read callback gets a `file://` import as written without a base path, and
-/// like solc's file reader, each root drops the prefix. The source keeps its source unit name.
+/// Without a base path or include paths, the read callback gets a `file://` import with the prefix,
+/// like libsolc. Otherwise each root drops it, like solc's file reader. The source keeps its name.
 #[test]
-fn callback_imports_strip_file_urls_in_roots() {
+fn callback_imports_file_urls() {
     struct Callback(&'static str);
 
     impl StandardJsonReadCallback for Callback {
         fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
-            assert_eq!((kind, data), ("source", self.0));
-            ReadCallbackResult::Success("contract X {}".to_string())
+            assert_eq!(kind, "source");
+            if data == self.0 {
+                ReadCallbackResult::Success("contract X {}".to_string())
+            } else {
+                ReadCallbackResult::Error(format!("`{data}` not found"))
+            }
         }
     }
 
-    let input = json!({
-        "language": "Solidity",
-        "sources": {"A.sol": {"content": "import \"file://X.sol\"; contract A {}"}},
-        "settings": {"outputSelection": {}}
-    })
-    .to_string();
-    for (base_path, data) in [(None, "file://X.sol"), (Some("lib".into()), "lib/X.sol")] {
-        let opts = CompileOpts { base_path, ..Default::default() };
+    for (import, base_path, include_paths, data) in [
+        ("file://X.sol", None, vec![], "file://X.sol"),
+        ("file://X.sol", Some("lib".into()), vec![], "lib/X.sol"),
+        ("file://X.sol", None, vec!["inc".into()], "inc/X.sol"),
+        ("file:///abs/X.sol", None, vec!["inc".into()], "/abs/X.sol"),
+    ] {
+        let input = json!({
+            "language": "Solidity",
+            "sources": {"A.sol": {"content": format!("import \"{import}\"; contract A {{}}")}},
+            "settings": {"outputSelection": {}}
+        });
+        let opts = CompileOpts { base_path, include_paths, ..Default::default() };
         let mut output = Vec::new();
-        compile_standard_json(&input, opts, Some(Arc::new(Callback(data))), &mut output).unwrap();
+        let callback = Arc::new(Callback(data));
+        compile_standard_json(&input.to_string(), opts, Some(callback), &mut output).unwrap();
         let output = serde_json::from_slice::<Value>(&output).unwrap();
-        assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "file://X.sol": {"id": 0}}}));
+        assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, import: {"id": 0}}}), "{import}");
     }
 }
 
