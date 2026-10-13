@@ -1,6 +1,10 @@
+//@ revisions: sema bin
+//@[bin] compile-flags: --emit=bin
 // A deployable contract that gives a parameterized base constructor no
 // arguments would deploy with the base constructor, and the state-variable
-// initializers it runs, skipped.
+// initializers it runs, skipped. The `bin` revision keeps codegen running on
+// the rejected source: lowering must not emit bytecode for it and must add no
+// diagnostics of its own.
 contract Parameterized {
     uint256 public x = 7;
 
