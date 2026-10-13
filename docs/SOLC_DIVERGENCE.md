@@ -75,7 +75,23 @@ No intentional divergences documented yet.
 
 ## Name Resolution
 
-No intentional divergences documented yet.
+### NAME-001: Yul declarations can shadow enclosing Yul names
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul variable or function whose name is already
+declared in any enclosing Yul scope, including across function boundaries and
+`for` loop parts, with errors 1395 and 6052. `solar` rejects only a name that
+is already declared in the same Yul scope, so `{ let x := 1 { let x := 2 } }`
+compiles and the inner `x` shadows the outer one.
+
+Rationale: an inner declaration resolves without ambiguity to the innermost
+scope, as in Solidity, so the code compiles to the same program the author
+wrote. Duplicates within one scope stay errors because Yul has no overloads,
+and a use of the name there would be ambiguous.
+
+Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
+`tests/ui/yul_lowering/yul_function_scope.sol`.
 
 ## Type Checking
 
@@ -211,9 +227,72 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
+
+### TYPECK-013: Inline assembly names and constants
+
+Status: intentional.
+
+Difference: `solar` accepts inline assembly that `solc` rejects:
+
+- reads of value-type constants whose value is not a number literal, such as
+  `uint(7)`, `true ? 5 : 6`, `three + 1`, `~uint(0)` or `keccak256("abc")`
+  (`solc` error 7615);
+- Yul declarations that shadow a Solidity declaration outside the block, such
+  as a parameter, contract, function or `msg` (`solc` error 3859);
+- the Yul names `this`, `super` and `_` (`solc` error 4113);
+- Yul names reserved for EVM instructions and pure Yul builtins, such as `pc`,
+  `dup1` or `datasize` (`solc` error 5017);
+- a Yul variable inside a Yul function that shares its name with a Solidity
+  local, such as `function g() -> x` in a function that returns `x` (`solc`
+  error 6578).
+
+Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
+resolves the inner declaration first, and constant folding gives assembly the
+same value Solidity sees. The parser also serves formatters and linters, which
+should accept the names.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
+and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+
+### TYPECK-018: `msg.gas`
+
+Status: intentional.
+
+Difference: `solar` accepts `msg.gas` as `gasleft()` with warning 1400, where
+`solc` rejects it with error 1400.
+
+Rationale: the meaning is unambiguous and we compile it correctly, so a
+warning is enough to steer code to `gasleft()`.
+
+Coverage: `tests/ui/typeck/msg_gas.sol`.
+
 ## Contract-Level Checks
 
-No intentional divergences documented yet.
+### CONTRACT-001: Conditionals in storage layout base slots
+
+Status: intentional.
+
+Difference: `solar` accepts conditionals in the base slot of a storage layout
+specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
+`solc` rejects them with error 1505 because its constant evaluator does not
+support conditionals.
+
+Rationale: our constant evaluator folds conditionals, so the base slot has a
+well-defined value.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
+`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
@@ -438,14 +517,14 @@ No intentional divergences documented yet.
 - Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
   encoders and decoders for that source unit. `solar` warns that ABI coder v1
   is not supported and always generates ABI coder v2 code. Calldata decoding
-  validates and cleans arguments like v2, so malformed input that v1 accepts,
-  such as a `bool` argument of `2` or an array that runs past the end of
-  calldata, reverts. The type checker also does not apply v1's restrictions,
-  so v1 source units may use structs and nested dynamic arrays at ABI
-  boundaries, which `solc` rejects.
+  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
+  `address` argument with dirty high bits reverts, where v1 cleans it and
+  continues. The type checker also does not apply v1's restrictions, so v1
+  source units may use structs and nested dynamic arrays at ABI boundaries,
+  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
+  `--allow 9511` also hides this change.
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
   accepts the same way. A second coder would only change how malformed input
   fails and which types compile.
-- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol`,
-  `tests/ui/codegen/lowering/run-call/abi_calldata_v1_validation.sol`, and
+- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
   `tests/ui/parser/pragma_valid.sol`.

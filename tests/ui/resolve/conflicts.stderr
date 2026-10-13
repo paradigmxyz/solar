@@ -1,4 +1,4 @@
-error: identifier `Er1` already declared
+error[2333]: identifier `Er1` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │ error Er1(int);
@@ -10,7 +10,7 @@ note: previous declaration declared here
 LL │ error Er1(uint);
    ╰╴      ━━━
 
-error: identifier `C` already declared
+error[2333]: identifier `C` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │ contract C {}
@@ -22,7 +22,7 @@ note: previous declaration declared here
 LL │ contract C {
    ╰╴         ━
 
-error: identifier `m` already declared
+error[2333]: identifier `m` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │     modifier m(int) { _; }
@@ -34,7 +34,7 @@ note: previous declaration declared here
 LL │     modifier m(uint) { _; }
    ╰╴             ━
 
-error: identifier `Er2` already declared
+error[2333]: identifier `Er2` already declared
    ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    │
 LL │     error Er2(int);
@@ -46,5 +46,53 @@ note: previous declaration declared here
 LL │     error Er2(uint);
    ╰╴          ━━━
 
-error: aborting due to 4 previous errors
+error[2333]: identifier `dup` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event dup();
+   │           ━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     function dup() public {}
+   ╰╴             ━━━
+
+error[2333]: identifier `dup` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     function dup() public {}
+   │              ━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event dup();
+   ╰╴          ━━━
+
+error[2333]: identifier `x` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event x();
+   │           ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     uint x;
+   ╰╴         ━
+
+error[2333]: identifier `y` already declared
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     event y();
+   │           ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/conflicts.sol:LL:CC
+   │
+LL │     uint public y;
+   ╰╴                ━
+
+error: aborting due to 8 previous errors
 

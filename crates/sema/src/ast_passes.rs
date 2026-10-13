@@ -25,6 +25,7 @@ struct AstValidator<'sess, 'ast> {
     in_unchecked_block: bool,
     placeholder_count: u32,
     yul_for_part: YulForPart,
+    in_yul_function: bool,
 }
 
 impl<'sess, 'ast> AstValidator<'sess, 'ast> {
@@ -37,6 +38,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             in_unchecked_block: false,
             placeholder_count: 0,
             yul_for_part: YulForPart::None,
+            in_yul_function: false,
         }
     }
 
@@ -195,7 +197,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        ControlFlow::Continue(())
+        self.walk_item_struct(item)
     }
 
     fn visit_item_enum(
@@ -307,6 +309,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         match &stmt.kind {
             ast::yul::StmtKind::Break => self.check_yul_break_continue(stmt.span, "break"),
             ast::yul::StmtKind::Continue => self.check_yul_break_continue(stmt.span, "continue"),
+            ast::yul::StmtKind::Leave if !self.in_yul_function => {
+                self.dcx()
+                    .err("keyword `leave` can only be used inside a function")
+                    .code(error_code!(8149))
+                    .span(stmt.span)
+                    .emit();
+            }
             ast::yul::StmtKind::For(ast::yul::StmtFor { init, cond, step, body }) => {
                 self.visit_yul_block_in(YulForPart::Init, init)?;
                 self.visit_yul_expr(cond)?;
@@ -321,9 +330,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .span(function.name.span)
                         .emit();
                 }
-                let prev = std::mem::replace(&mut self.yul_for_part, YulForPart::None);
+                let prev = (
+                    std::mem::replace(&mut self.yul_for_part, YulForPart::None),
+                    std::mem::replace(&mut self.in_yul_function, true),
+                );
                 let r = self.walk_yul_stmt(stmt);
-                self.yul_for_part = prev;
+                (self.yul_for_part, self.in_yul_function) = prev;
                 return r;
             }
             _ => {}
@@ -516,6 +528,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         )
                         .emit();
                 }
+            }
+            if let Some(vis) = f.visibility
+                && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
+            {
+                self.dcx()
+                    .err("invalid visibility, can only be `external` or `internal`")
+                    .code(error_code!(6012))
+                    .span(vis.span)
+                    .emit();
             }
         }
         self.walk_ty(ty)

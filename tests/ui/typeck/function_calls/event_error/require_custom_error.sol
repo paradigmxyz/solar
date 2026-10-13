@@ -6,10 +6,14 @@ contract RequireCustomError {
         require(condition, EmptyError());
         require(condition, MyError(1, "failed"));
         require(condition, MyError({code: 1, message: "failed"}));
+        require(condition, (EmptyError()));
+        require(condition, ((MyError(1, "failed"))));
+        require(condition, ("failed"));
     }
 
     function invalidErrorArgs(bool condition) public pure {
         require(condition, MyError(1)); //~ ERROR: wrong argument count
+        require(condition, (MyError(1))); //~ ERROR: wrong argument count
     }
 
     function nestedErrorStillRejected(bool condition) public pure {

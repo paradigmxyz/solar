@@ -1384,7 +1384,7 @@ impl<'gcx> Gcx<'gcx> {
         let hir::ItemId::Function(function) = modifier.id else {
             return None;
         };
-        if modifier.span.lo() != modifier.name_span.lo() {
+        if modifier.qualified {
             return Some(function);
         }
         Some(self.resolve_virtual_function(contract, function))
@@ -1981,21 +1981,12 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
         let (mut direct_refs, mut any_refs) = (SmallVec::new(), SmallVec::new());
         for &field_id in gcx.hir.strukt(id).fields {
             let ty = &gcx.hir.variable(field_id).ty;
-            // Direct references skip only fixed-size arrays, like solc.
-            let mut element = ty;
-            while let hir::TypeKind::Array(array) = element.kind
-                && array.size.is_some()
-            {
-                element = &array.element;
-            }
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = element.kind {
-                direct_refs.push(other);
-            }
-            let _ = ty.visit(&gcx.hir, &mut |ty| {
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
-                    any_refs.push(other);
+            visit_stored_structs(ty, false, &mut |other, dynamic| {
+                // Direct references skip only fixed-size arrays, like solc.
+                if !dynamic {
+                    direct_refs.push(other);
                 }
-                ControlFlow::<()>::Continue(())
+                any_refs.push(other);
             });
         }
         direct.push(direct_refs);
@@ -2199,6 +2190,29 @@ fn is_value_ns(id: hir::ItemId) -> bool {
             | hir::ItemId::Error(_)
             | hir::ItemId::Event(_)
     )
+}
+
+/// Calls `f` on each struct stored in a value of type `ty`, with whether a dynamic array or a
+/// mapping sits between the value and the struct.
+///
+/// Function types do not store their parameter types, so a struct reached only through one is not
+/// recursive, as in solc's `DeclarationTypeChecker`.
+fn visit_stored_structs(
+    ty: &hir::Type<'_>,
+    dynamic: bool,
+    f: &mut impl FnMut(hir::StructId, bool),
+) {
+    match ty.kind {
+        hir::TypeKind::Custom(hir::ItemId::Struct(id)) => f(id, dynamic),
+        hir::TypeKind::Array(array) => {
+            visit_stored_structs(&array.element, dynamic || array.size.is_none(), f)
+        }
+        hir::TypeKind::Mapping(mapping) => {
+            visit_stored_structs(&mapping.key, true, f);
+            visit_stored_structs(&mapping.value, true, f);
+        }
+        _ => {}
+    }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
