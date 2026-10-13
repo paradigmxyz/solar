@@ -52,7 +52,9 @@
 //! the storage, transient storage, and log opcodes and the context reads its host answers. A
 //! transaction also runs the calldata and
 //! return data opcodes and places the allocations the backend would place, but not `gas`, calls,
-//! or contract creation. The interpreter relies on the validator only for the existence of the
+//! or contract creation. It runs `msize` only once memory reaches the end of the frames and spill
+//! slots the backend records for the entries it entered, since the backend writes them without
+//! MIR showing it. The interpreter relies on the validator only for the existence of the
 //! instructions, values, and blocks a function names, and checks the rest as it runs, so a value
 //! used before its definition or a phi missing an edge also ends a run as unsupported.
 
@@ -377,6 +379,7 @@ impl<'a> Machine<'a> {
             frames: Vec::new(),
             world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
+            frames_end: U256::ZERO,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args, meter);
         let effects = run.world.map(|world| world.effects).unwrap_or_default();
@@ -413,6 +416,7 @@ impl<'a> Machine<'a> {
             frames: Vec::new(),
             world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction { calldata, evm_version }),
+            frames_end: U256::ZERO,
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[], meter);
         let outcome = match outcome {
@@ -520,6 +524,9 @@ struct Run<'m, 'a, 't> {
     world: Option<World<'t>>,
     /// The transaction a run of the dispatch entry executes, which always has a world.
     transaction: Option<Transaction<'t>>,
+    /// The end of the frames and spill slots of the runtime entries the run entered, which the
+    /// backend writes without MIR showing it.
+    frames_end: U256,
 }
 
 impl<'a> Run<'_, 'a, '_> {
@@ -605,15 +612,14 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
         let function = self.machine.function_id(body);
-        if let Some(floor) = self
-            .machine
-            .module
-            .backend_memory
-            .as_ref()
-            .and_then(|layout| layout.entry_heaps.get(&function))
-        {
-            // mstore 0x40, entry_heap
-            limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
+        if let Some(layout) = &self.machine.module.backend_memory {
+            if let Some(&end) = layout.frame_ends.get(&function) {
+                self.frames_end = self.frames_end.max(end);
+            }
+            if let Some(floor) = layout.entry_heaps.get(&function) {
+                // mstore 0x40, entry_heap
+                limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
+            }
         }
         self.frames.push(Frame::new(body, args, result));
         ControlFlow::Continue(())
@@ -715,7 +721,24 @@ impl<'a> Run<'_, 'a, '_> {
         operands: &[U256],
     ) -> ControlFlow<Outcome, Option<U256>> {
         ControlFlow::Continue(match (opcode, operands) {
-            (op::MSIZE, &[]) => Some(U256::from(self.memory.size * WORD_BYTES)),
+            (op::MSIZE, &[]) => {
+                let size = U256::from(self.memory.size * WORD_BYTES);
+                // Spills and frame writes MIR does not show may have grown EVM memory up to the
+                // end of the backend's frames, which a transaction needs its layout to know.
+                if self.transaction.is_some() {
+                    if self.machine.module.backend_memory.is_none() {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "msize without backend layout",
+                        ));
+                    }
+                    if size < self.frames_end {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "msize below backend frames",
+                        ));
+                    }
+                }
+                Some(size)
+            }
             (op::MLOAD, &[offset]) => Some(limit(self.memory.load(offset))?),
             (op::MSTORE, &[offset, value]) => {
                 limit(self.memory.store(offset, value))?;

@@ -28,6 +28,9 @@ pub(crate) struct BackendMemory {
     pub(crate) stack_returns: FxHashMap<(FunctionId, InstId), StackReturn>,
     pub(crate) entry_heaps: FxHashMap<FunctionId, U256>,
     pub(crate) heap_floors: FxHashMap<FunctionId, U256>,
+    /// The end of the frames and spill slots a runtime entry reaches, which the backend writes
+    /// without MIR showing it.
+    pub(crate) frame_ends: FxHashMap<FunctionId, U256>,
 }
 
 /// Buffer protocol instructions replaced by stack-returned results.
@@ -96,6 +99,9 @@ impl BackendMemory {
                 }
                 if let Some(word) = self.heap_floors.get(&id) {
                     writeln!(f, "// backend-floor {} {word:#x}", id.index())?;
+                }
+                if let Some(word) = self.frame_ends.get(&id) {
+                    writeln!(f, "// backend-frames {} {word:#x}", id.index())?;
                 }
             }
             Ok(())
@@ -176,14 +182,13 @@ impl BackendMemory {
                         return Err("duplicate backend stack return".into());
                     }
                 }
-                [kind @ ("return" | "floor" | "entry"), _, word] => {
+                [kind @ ("return" | "floor" | "entry" | "frames"), _, word] => {
                     let word = word.parse::<U256>().map_err(|_| "invalid backend memory word")?;
-                    let map = if *kind == "return" {
-                        &mut layout.returns
-                    } else if *kind == "entry" {
-                        &mut layout.entry_heaps
-                    } else {
-                        &mut layout.heap_floors
+                    let map = match *kind {
+                        "return" => &mut layout.returns,
+                        "entry" => &mut layout.entry_heaps,
+                        "floor" => &mut layout.heap_floors,
+                        _ => &mut layout.frame_ends,
                     };
                     if map.insert(function, word).is_some() {
                         return Err("duplicate backend memory word".into());

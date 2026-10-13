@@ -704,9 +704,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        let mut spill_ends = FxHashMap::default();
         for (func_id, spills) in self.external_spill_addr_consts.drain() {
             let base =
                 entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
+            if self.capture_mir && !spills.is_empty() {
+                spill_ends.insert(func_id, base + spills.len() as u64 * WORD_BYTES as u64);
+            }
             for (rank, (id, _)) in spills.into_iter().enumerate() {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * WORD_BYTES as u64));
             }
@@ -811,23 +815,33 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
             self.asm.set_deferred_const(id, U256::from(frame_bases[&func_id] + offset));
         }
+        let reachable_frames_end = |entry| {
+            self.runtime_entry_reachability
+                .get(&entry)
+                .into_iter()
+                .flat_map(|reachable| reachable.iter())
+                .filter_map(|func| {
+                    frame_bases.get(&func).map(|base| base + self.emitted_frame_size(module, func))
+                })
+                .max()
+        };
+        let entry_frame_ends = if self.capture_mir {
+            entry_ends
+                .keys()
+                .filter_map(|&entry| {
+                    let end = reachable_frames_end(entry).max(spill_ends.get(&entry).copied());
+                    Some((entry, end?))
+                })
+                .collect()
+        } else {
+            FxHashMap::default()
+        };
         let free_memory_floors: FxHashMap<FunctionId, u64> = self
             .runtime_free_memory_consts
             .keys()
             .copied()
             .map(|entry| {
-                let static_end = self
-                    .runtime_entry_reachability
-                    .get(&entry)
-                    .into_iter()
-                    .flat_map(|reachable| reachable.iter())
-                    .filter_map(|func| {
-                        frame_bases
-                            .get(&func)
-                            .map(|base| base + self.emitted_frame_size(module, func))
-                    })
-                    .max()
-                    .unwrap_or(low_memory_end);
+                let static_end = reachable_frames_end(entry).unwrap_or(low_memory_end);
                 let floor = entry_ends
                     .get(&entry)
                     .copied()
@@ -843,6 +857,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
             .collect();
+        self.entry_frame_ends = entry_frame_ends;
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));

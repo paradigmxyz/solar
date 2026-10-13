@@ -531,4 +531,26 @@ fn @f.1(arg0: i256) -> i256 {
         assert_eq!(modules[0].name, "Interpret");
         assert_eq!(modules[0].mir, MODULE);
     }
+
+    #[test]
+    fn memory_size_below_backend_frames() {
+        let run = |records: &str, body: &str| {
+            let module = format!(
+                "@module Tx\n@phase lowered\n{records}fn @entry() [entry] {{\n  bb0:\n{body}    v0 = msize
+    mstore 0, v0
+    returndata 0, 32
+}}\n"
+            );
+            transact(&module, &[], &mut Zero, Options::default()).unwrap().outcome
+        };
+        let unsupported = |reason: &str| Outcome::Unsupported(format!("reaches `{reason}`"));
+        assert_eq!(run("", ""), unsupported("msize without backend layout"));
+        // Spills below the frame end may have grown EVM memory past what MIR shows.
+        let frames = "// backend-memory-v1\n// backend-frames 0 0x100\n";
+        assert_eq!(run(frames, ""), unsupported("msize below backend frames"));
+        assert_eq!(
+            run(frames, "    mstore 0xe0, 1\n"),
+            Outcome::Success(U256::from(0x100).to_be_bytes_vec())
+        );
+    }
 }

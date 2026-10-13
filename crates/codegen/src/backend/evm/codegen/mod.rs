@@ -166,6 +166,9 @@ pub struct EvmCodegen<'gcx> {
     entry_heap_sites: FxHashMap<FunctionId, DeferredConst>,
     /// Return-buffer protocols removed by the selected stack plan.
     stack_return_sites: FxHashMap<(FunctionId, InstId), crate::mir::StackReturn>,
+    /// The end of the frames and spill slots each runtime entry reaches, retained only when
+    /// capturing MIR.
+    entry_frame_ends: FxHashMap<FunctionId, u64>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -218,6 +221,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             heap_floor_sites: FxHashMap::default(),
             entry_heap_sites: FxHashMap::default(),
             stack_return_sites: FxHashMap::default(),
+            entry_frame_ends: FxHashMap::default(),
         }
     }
 
@@ -260,6 +264,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_floor_sites.clear();
         self.entry_heap_sites.clear();
         self.stack_return_sites.clear();
+        self.entry_frame_ends.clear();
         self.runtime_free_memory_consts.clear();
         self.fmp_floor_consts.clear();
         self.runtime_entry_reachability.clear();

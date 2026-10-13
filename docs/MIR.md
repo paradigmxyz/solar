@@ -90,10 +90,7 @@ or types a module may contain.
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
-until the scheduler. A tail call is a jump the backend never expects back, so its
-target in lowered MIR never returns, or is an external entry, whose return ends
-the transaction; a function that returns what it calls calls and returns
-instead. Label addresses, immutable references, and proven static
+until the scheduler. Label addresses, immutable references, and proven static
 allocation addresses may remain as a small, explicitly verified set of backend
 placeholders. A remaining allocation must not hide an unlowered runtime check,
 initialization, or free-memory-pointer update.
@@ -728,7 +725,9 @@ position in the block list does not prevent reuse.
 `-Zdump=mir-final` runs backend placement and appends versioned
 `// backend-memory-v1` comments to the lowered module. The records give
 static allocation addresses, dynamic FMP increments, published return-buffer
-addresses, entry FMP initialization, heap-floor constants, and return projections kept on the stack.
+addresses, entry FMP initialization, heap-floor constants, the end of the
+frames and spill slots each runtime entry reaches, and return projections kept
+on the stack.
 They describe the runtime artifact; constructor execution is not modeled.
 Allocation and instruction ordinals follow printed block order (RPO followed
 by unreachable blocks), so the parser
@@ -739,5 +738,6 @@ buffer offsets and cannot hide an escaping pointer or cross a memory effect.
 These records are execution metadata and never affect optimization or emitted
 bytecode. `-O none -Zdump=mir,mir-final` retains both the built and final modules.
 The interpreter declines layout-dependent operations in handwritten MIR that
-omits their placements. It does not infer independence by trying two synthetic
-addresses: both can give the same wrong result for a pointer comparison.
+omits their placements, and `msize` until memory reaches the recorded frame end.
+It does not infer independence by trying two synthetic addresses: both can give
+the same wrong result for a pointer comparison.

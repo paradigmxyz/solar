@@ -111,6 +111,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .iter()
                 .filter_map(|(&func, addr)| Some((func, *self.asm.deferred_values.get(addr)?)))
                 .collect(),
+            frame_ends: self
+                .entry_frame_ends
+                .iter()
+                .map(|(&func, &end)| (func, U256::from(end)))
+                .collect(),
         });
         self.asm.optimize();
         if self.gcx.dcx().has_errors().is_err() {
