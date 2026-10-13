@@ -2001,8 +2001,13 @@ impl<'gcx> ResolveContext<'gcx> {
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
             ast::TypeKind::Function(f) => {
-                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
+                // Invalid visibilities are reported below; lower them as internal.
+                let visibility = if f.visibility() == Some(ast::Visibility::External) {
+                    ast::Visibility::External
+                } else {
+                    ast::Visibility::Internal
+                };
+                let function = hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
                         self.function_id.map(hir::ItemId::Function),
@@ -2015,7 +2020,21 @@ impl<'gcx> ResolveContext<'gcx> {
                         self.function_id.map(hir::ItemId::Function),
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
-                }))
+                };
+                match f.visibility {
+                    Some(vis)
+                        if matches!(*vis, ast::Visibility::Private | ast::Visibility::Public) =>
+                    {
+                        hir::TypeKind::Err(
+                            self.dcx()
+                                .err("invalid visibility, can only be `external` or `internal`")
+                                .code(error_code!(6012))
+                                .span(vis.span)
+                                .emit(),
+                        )
+                    }
+                    _ => hir::TypeKind::Function(self.arena.alloc(function)),
+                }
             }
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
