@@ -15,7 +15,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::or_list,
     graph,
-    index::{IndexSlice, IndexVec},
+    index::IndexVec,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -1638,6 +1638,12 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self $(, $key: $key_type)?) -> cached_return_type!($value $(, $key_type)?) {
+                    $(const {
+                        assert!(
+                            size_of::<$key_type>() != 0,
+                            "use a query without a key instead of a zero-sized key",
+                        );
+                    })?
                     let cache_key = cached_key_expr!($($key)? $(, $cache_key)?);
                     #[cfg(false)]
                     let _guard = log_cache_query(stringify!($name), &cache_key);
@@ -1970,7 +1976,7 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 
 /// Returns the recursiveness of the given struct.
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
-    let chains = gcx.struct_chains(())[id];
+    let chains = gcx.struct_chains()[id];
     // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists.
     // Report at `id`, like solc, so that each struct reports at most once.
     let (code, msg) = match chains.direct_depth {
@@ -1983,7 +1989,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
 }
 
 /// Returns the reference chains of every struct.
-fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChains]> {
+fn struct_chains(gcx: _) -> IndexVec<hir::StructId, StructChains> {
     type Edges = IndexVec<hir::StructId, SmallVec<[hir::StructId; 2]>>;
 
     /// Returns the number of structs in the longest chain of references from each struct, or
@@ -2021,7 +2027,7 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
     let chains = chain_depths(&direct).into_iter().zip(chain_depths(&any)).map(|(direct, any)| {
         StructChains { direct_depth: direct, reaches_cycle: any.is_none() }
     });
-    IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
+    chains.collect()
 }
 
 /// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.
