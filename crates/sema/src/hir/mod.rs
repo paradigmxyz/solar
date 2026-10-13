@@ -979,6 +979,8 @@ pub struct Modifier<'hir> {
     pub id: ItemId,
     /// The arguments to the modifier or base class call.
     pub args: CallArgs<'hir>,
+    /// Whether the call names its target through a contract, as in `B.m`.
+    pub qualified: bool,
 }
 
 /// A resolved `using for` directive.
