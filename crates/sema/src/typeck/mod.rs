@@ -232,10 +232,6 @@ fn check_using_function<'gcx>(
 }
 
 fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
-    if gcx.hir.contract(contract_id).kind.is_library() {
-        return;
-    }
-
     let mut external_declarations: FxIndexMap<B256, Vec<ItemId>> = FxIndexMap::default();
 
     for item_id in gcx.hir.contract_item_ids(contract_id) {

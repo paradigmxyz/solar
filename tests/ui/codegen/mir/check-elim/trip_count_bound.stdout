@@ -153,3 +153,17 @@
       revert 0, 0
   }
   
+  fn @narrow_signed_counter() -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: i24 0xffffce], [bb2: v2]
+      v1 = slt v0, i24 50
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = add v0, i24 1
+      jump bb1
+  }
+  
