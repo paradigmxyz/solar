@@ -1,0 +1,11 @@
+error[1835]: cannot call unimplemented modifier
+   ╭▸ ROOT/tests/ui/typeck/modifier_unimplemented_static.sol:LL:CC
+   │
+LL │     function f() B.m public {}
+   │                  ━━━
+   │
+   ├ note: the modifier has no implementation in the referenced contract
+   ╰ help: refer to it by its unqualified name to call the implementation in the most derived contract
+
+error: aborting due to 1 previous error
+
