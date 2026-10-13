@@ -34,17 +34,29 @@ error: member `baseVar` not found on type `type(contract super PublicStateVarDer
 LL │         super.baseVar();
    ╰╴              ━━━━━━━
 
+error: member `selfVar` not found on type `type(contract PublicStateVarDerived)`
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
+   │
+LL │         PublicStateVarDerived.selfVar;
+   ╰╴                              ━━━━━━━
+
 error: member `baseVar` not found on type `type(contract PublicStateVarDerived)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
    │
 LL │         PublicStateVarDerived.baseVar;
    ╰╴                              ━━━━━━━
 
-error: cannot call function via contract type name
+error: member `baseVar` not found on type `type(contract PublicStateVarBase)`
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
+   │
+LL │         PublicStateVarBase.baseVar;
+   ╰╴                           ━━━━━━━
+
+error: member `selfVar` not found on type `type(contract PublicStateVarDerived)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
    │
 LL │         PublicStateVarDerived.selfVar();
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴                              ━━━━━━━
 
 error: member `baseVar` not found on type `type(contract PublicStateVarDerived)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
@@ -52,11 +64,11 @@ error: member `baseVar` not found on type `type(contract PublicStateVarDerived)`
 LL │         PublicStateVarDerived.baseVar();
    ╰╴                              ━━━━━━━
 
-error: cannot call function via contract type name
+error: member `baseVar` not found on type `type(contract PublicStateVarBase)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
    │
 LL │         PublicStateVarBase.baseVar();
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴                           ━━━━━━━
 
 error: cannot assign to a constant variable
    ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
@@ -80,5 +92,5 @@ LL │         QualifiedLvalueDerived.derivedImmutable = 5;
    │
    ╰ help: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
 
-error: aborting due to 11 previous errors
+error: aborting due to 13 previous errors
 
