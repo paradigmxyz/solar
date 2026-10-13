@@ -130,6 +130,25 @@
 +     revert 0, 0
   }
   
+- fn @read_after_huge(arg0: memptr, arg1: i256) -> i256 [selector=0x12345686, abi_params=[array<134217727, u256>, u256], abi_returns=[word]] {
++ fn @read_after_huge() [selector=0x12345686, abi_wrapper] {
+    bb0:
+-     ret arg1
++     v0 = calldatasize
++     v1 = lt v0, 0x100000004
++     jumpi v1, bb2, bb3
++   bb3:
++     v2 = calldataload 0xffffffe4
++     jump bb1
++   bb1:
++     mstore 128, v2
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
++   bb2:
++     revert 0, 0
+  }
+  
 - fn @address_is_zero(arg0: i256) -> i1 [selector=0x12345681, abi_params=[address], abi_returns=[word]] {
 + fn @address_is_zero() [selector=0x12345681, abi_wrapper] {
     bb0:
