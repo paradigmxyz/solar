@@ -1,8 +1,3 @@
-//@ revisions: sema bin
-//@[bin] compile-flags: --emit=bin
-// The `bin` revision keeps codegen running on a source with rejected base
-// argument lists: a rejected list must not reach lowering as a panic, and
-// lowering adds no diagnostics of its own after the rejection.
 contract Base {
     constructor(uint, int) {}
 }

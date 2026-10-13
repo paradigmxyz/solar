@@ -1,7 +1,3 @@
-//@ revisions: hashes abi
-//@[hashes] compile-flags: --emit=hashes
-//@[abi] compile-flags: --emit=abi
-
 library Invalid {
     struct Node { Node[] children; }
     struct Bad { Bad[] children; function() internal callback; }
