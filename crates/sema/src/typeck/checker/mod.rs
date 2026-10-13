@@ -551,7 +551,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let err = self.dcx().err(msg).span(expr.span);
+                    let err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
@@ -701,12 +701,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.gcx.mk_ty_err(err.emit())
                     }
                     Err(MemberAccessError::Ambiguous) => {
-                        let msg = format!(
-                            "member `{ident}` not unique on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        );
-                        let err = self.dcx().err(msg).span(ident.span);
-                        self.gcx.mk_ty_err(err.emit())
+                        self.report_ambiguous_member(ident, receiver_ty)
                     }
                 };
 
@@ -1258,6 +1253,15 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if matches!(args.kind, hir::CallArgsKind::Named(_)) {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("type conversions cannot take named arguments")
+                    .code(error_code!(5153))
+                    .span(span)
+                    .emit(),
+            );
+        }
         if from.references_error() {
             return from;
         }
@@ -1981,13 +1985,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let selected = match self.select_call_overload(&error_res, args) {
             Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
+            Err(e) => self.report_call_overload_error(e, callee.span),
         };
         let callee_ty = self.type_of_res(selected);
         let TyKind::Error(param_tys, _) = callee_ty.kind else {
@@ -2389,24 +2387,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 self.member_call_ty(receiver_ty, member)
             }
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound if possible_members.is_empty() => format!(
-                        "member `{ident}` not found on type `{}`",
-                        receiver_ty.display(self.gcx)
-                    ),
-                    OverloadError::NotFound => {
-                        format!(
-                            "no matching member `{ident}` found on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        )
-                    }
-                    OverloadError::Ambiguous => {
-                        format!(
-                            "member `{ident}` not unique on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        )
-                    }
+            Err(OverloadError::Ambiguous) => self.report_ambiguous_member(ident, receiver_ty),
+            Err(OverloadError::NotFound) => {
+                let receiver = receiver_ty.display(self.gcx);
+                let msg = if possible_members.is_empty() {
+                    format!("member `{ident}` not found on type `{receiver}`")
+                } else {
+                    format!("no matching member `{ident}` found on type `{receiver}`")
                 };
                 self.gcx.mk_ty_err(self.dcx().emit_err(ident.span, msg))
             }
@@ -2467,19 +2454,29 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let res = match self.select_call_overload(res, args) {
             Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
+            Err(e) => self.report_call_overload_error(e, callee.span),
         };
         self.check_res_evm_version(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
         ty
+    }
+
+    /// Reports a call whose argument types select no overload or several.
+    fn report_call_overload_error(&self, e: OverloadError, span: Span) -> hir::Res {
+        let (msg, code) = match e {
+            OverloadError::NotFound => ("no matching declarations found", error_code!(9322)),
+            OverloadError::Ambiguous => ("no unique declarations found", error_code!(4487)),
+        };
+        hir::Res::Err(self.dcx().err(msg).code(code).span(span).emit())
+    }
+
+    /// Reports a member access or call that several members match.
+    fn report_ambiguous_member(&self, ident: Ident, receiver_ty: Ty<'gcx>) -> Ty<'gcx> {
+        let msg =
+            format!("member `{ident}` not unique on type `{}`", receiver_ty.display(self.gcx));
+        self.gcx.mk_ty_err(self.dcx().err(msg).code(error_code!(6675)).span(ident.span).emit())
     }
 
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
@@ -3285,11 +3282,14 @@ impl<'gcx> TypeChecker<'gcx> {
         let res = match self.try_resolve_overloads(resolutions) {
             Ok(res) => res,
             Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
+                let (msg, code) = match e {
+                    _ if self.in_yul => ("multiple matching identifiers", error_code!(4718)),
+                    OverloadError::NotFound => {
+                        ("no matching declarations found", error_code!(2144))
+                    }
+                    OverloadError::Ambiguous => ("no unique declarations found", error_code!(7589)),
                 };
-                hir::Res::Err(self.dcx().emit_err(expr.span, msg))
+                hir::Res::Err(self.dcx().err(msg).code(code).span(expr.span).emit())
             }
         };
         if resolutions.len() > 1 {
@@ -3797,7 +3797,8 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
     match ty.kind {
         TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
-        TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
+        TyKind::Ref(_, DataLocation::Calldata) => false,
+        TyKind::Ref(inner, _) => !matches!(inner.kind, TyKind::Mapping(..)),
 
         TyKind::Err(_) => true,
 
