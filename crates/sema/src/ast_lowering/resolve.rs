@@ -9,7 +9,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, sym,
 };
 use std::fmt;
@@ -2522,11 +2522,12 @@ impl Declarations {
     ) -> Result<(), ErrorGuaranteed> {
         self.try_declare(hir, name, decl).map_err(|conflict| {
             // Like solc, report the declaration that comes later in the source.
-            if conflict.span.lo() > decl.span.lo() {
-                report_conflict(hir, sess, name, conflict, decl)
+            let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
+                (conflict, decl)
             } else {
-                report_conflict(hir, sess, name, decl, conflict)
-            }
+                (decl, conflict)
+            };
+            report_conflict(hir, sess, name, later, earlier, error_code!(2333))
         })
     }
 
@@ -2624,10 +2625,12 @@ pub(super) fn report_conflict(
     name: Symbol,
     decl: Declaration,
     mut previous: Declaration,
+    code: DiagId,
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
-    let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
+    let mut err =
+        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
