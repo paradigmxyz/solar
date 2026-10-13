@@ -252,7 +252,8 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().emit_err(name.span, msg);
-                } else if let version = solc_semver_version()
+                } else if !req.dis.is_empty()
+                    && let version = solc_semver_version()
                     && !req.matches(&version.into())
                 {
                     let msg = format!(
