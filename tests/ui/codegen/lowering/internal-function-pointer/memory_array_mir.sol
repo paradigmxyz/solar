@@ -25,12 +25,13 @@ contract FunctionPointerMemoryArray {
     }
 
     // CHECK-LABEL: fn @callArray(
-    // CHECK: slice_store_element {{v[0-9]+}}, 0, [[A:[0-9]+]]
-    // CHECK: slice_store_element {{v[0-9]+}}, 1, [[B:[0-9]+]]
-    // CHECK: slice_store_element {{v[0-9]+}}, 2, [[C:[0-9]+]]
-    // CHECK: slice_store_element {{v[0-9]+}}, 3, [[D:[0-9]+]]
-    // CHECK: slice_store_element {{v[0-9]+}}, 4, [[E:[0-9]+]]
-    // CHECK: [[ARRAY_FN:v[0-9]+]] = slice_load_element {{v[0-9]+}}, arg1
+    // CHECK: slice_store_word {{v[0-9]+}}, 0, [[A:[0-9]+]]
+    // CHECK: slice_store_word {{v[0-9]+}}, 32, [[B:[0-9]+]]
+    // CHECK: slice_store_word {{v[0-9]+}}, 64, [[C:[0-9]+]]
+    // CHECK: slice_store_word {{v[0-9]+}}, 96, [[D:[0-9]+]]
+    // CHECK: slice_store_word {{v[0-9]+}}, 128, [[E:[0-9]+]]
+    // CHECK: [[OFF1:v[0-9]+]] = shl 5, arg1
+    // CHECK: [[ARRAY_FN:v[0-9]+]] = slice_load_word {{v[0-9]+}}, [[OFF1]]
     // CHECK: icall @internal_dispatcher{{.*}}, [[ARRAY_FN]], arg0
     // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, [[A]]

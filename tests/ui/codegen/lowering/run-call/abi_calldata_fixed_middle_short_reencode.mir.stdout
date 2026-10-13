@@ -38,25 +38,25 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     mstore v23, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb6: v84]
+    v24 = phi [bb0: 0], [bb6: v86]
     v25 = lt v24, v2
     jumpi v25, bb2, bb3
   bb3:
-    v85 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v23
-    v86 = slice_ptr v85
-    v87 = slice_len v85
-    v88 = zext i160 v0 to i256
-    v89 = staticcall v1, v88, v86, v87, 0, 32
-    jumpi v89, bb8, bb7
+    v87 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v23
+    v88 = slice_ptr v87
+    v89 = slice_len v87
+    v90 = zext i160 v0 to i256
+    v91 = staticcall v1, v90, v88, v89, 0, 32
+    jumpi v91, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v90 = returndatasize
-    v91 = lt v90, 32
-    icall revert_if<tuple_data_too_short>, v91
-    v92 = add 0, 0
-    v93 = mload v92
-    ret v93
+    v92 = returndatasize
+    v93 = lt v92, 32
+    icall revert_if<tuple_data_too_short>, v93
+    v94 = add 0, 0
+    v95 = mload v94
+    ret v95
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
@@ -80,14 +80,15 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v42 = make_memory_slice v41, 2
     jump bb4
   bb4:
-    v43 = phi [bb2: 0], [bb5: v81]
+    v43 = phi [bb2: 0], [bb5: v82]
     v44 = lt v43, 2
     jumpi v44, bb5, bb6
   bb6:
-    v82 = ptrtoint memptr v41 to i256
-    v83 = memory_slice v23
-    slice_store_element v83, v24, v82
-    v84 = add v24, 1
+    v83 = ptrtoint memptr v41 to i256
+    v84 = memory_slice v23
+    v85 = shl 5, v24
+    slice_store_word v84, v85, v83
+    v86 = add v24, 1
     jump bb1
   bb5:
     v45 = mul v43, 32
@@ -134,7 +135,8 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v79 = make_memory_slice v77, v78
     slice_copy v79, 0, v75
     v80 = ptrtoint memptr v74 to i256
-    slice_store_element v42, v43, v80
-    v81 = add v43, 1
+    v81 = shl 5, v43
+    slice_store_word v42, v81, v80
+    v82 = add v43, 1
     jump bb4
 }

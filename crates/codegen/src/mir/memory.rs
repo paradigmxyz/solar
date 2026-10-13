@@ -7,9 +7,6 @@
 /// Policy interface between semantic memory-object MIR and a physical target
 /// memory representation.
 pub(crate) trait MemoryLayoutPolicy {
-    /// Target word size in bytes.
-    const WORD_SIZE: u64;
-
     /// Size of the length header in front of a dynamic object's payload.
     const DYNAMIC_HEADER_SIZE: u64;
 }
@@ -53,6 +50,5 @@ impl EvmMemoryLayout {
 }
 
 impl MemoryLayoutPolicy for EvmMemoryLayout {
-    const WORD_SIZE: u64 = Self::WORD_SIZE;
     const DYNAMIC_HEADER_SIZE: u64 = Self::DYNAMIC_HEADER_SIZE;
 }

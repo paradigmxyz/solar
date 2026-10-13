@@ -94,18 +94,18 @@ fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_para
     mstore v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v2 = make_memory_slice v1, 2
-    slice_store_element v2, 0, 96
-    slice_store_element v2, 1, 96
+    slice_store_word v2, 0, 96
+    slice_store_word v2, 32, 96
     v3 = make_memory_slice v1, 2
     v4 = ptrtoint memptr v0 to i256
-    slice_store_element v3, 0, v4
+    slice_store_word v3, 0, v4
     v5 = not 31
     v6 = and 64, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
     mstore v7, 1
     v8 = make_memory_slice v1, 2
     v9 = ptrtoint memptr v7 to i256
-    slice_store_element v8, 1, v9
+    slice_store_word v8, 32, v9
     ret v1
 }
 

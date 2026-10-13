@@ -13,7 +13,7 @@ fn @check(arg0: i256, arg1: i256) {
     v3 = abi_encode [word, word], args arg0, arg1
     v4 = slice_ptr v3
     v5 = slice_len v3
-    log1 v4, v5, 0xb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc
+    log v4, v5, 0xb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc
     ret
   bb1:
     ret

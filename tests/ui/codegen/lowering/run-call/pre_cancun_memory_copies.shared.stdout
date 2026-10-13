@@ -72,30 +72,30 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
 
 fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
   bb0:
-    v88 = mload 64 !metadata(memory=scratch)
-    v89 = add v88, 96
-    v90 = lt v89, v88
-    v91 = gt v89, 0xffffffffffffffff
-    v92 = or v90, v91
-    jumpi v92, bb8, bb10
+    v87 = mload 64 !metadata(memory=scratch)
+    v88 = add v87, 96
+    v89 = lt v88, v87
+    v90 = gt v88, 0xffffffffffffffff
+    v91 = or v89, v90
+    jumpi v91, bb8, bb10
   bb10:
-    mstore 64, v89
-    v97 = calldatasize
-    calldatacopy v88, v97, 96
-    mstore v88, 33
+    mstore 64, v88
+    v96 = calldatasize
+    calldatacopy v87, v96, 96
+    mstore v87, 33
     jump bb1
   bb1:
     v4 = phi [bb10: 0], [bb2: v35]
     v6 = lt v4, 33
     jumpi v6, bb2, bb3
   bb3:
-    v94 = mload 64
-    v51 = add v94, 32
+    v93 = mload 64
+    v51 = add v93, 32
     v52 = add v51, 32
     mstore v51, 32
-    v58 = ne v88, 0
+    v58 = ne v87, 0
     v59 = zext i1 v58 to i256
-    v54 = mload v88
+    v54 = mload v87
     v60 = mul v54, v59
     mstore v52, v60
     v62 = add v60, 31
@@ -109,7 +109,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     jump bb7
   bb7:
     v69 = add v64, v63
-    v68 = add v88, 32
+    v68 = add v87, 32
     icall @mcopy_words, v64, v68, v60 !metadata(memory=heap, effect=memory_write)
     v70 = sub v69, v51
     v72 = add v70, 63
@@ -117,19 +117,19 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     jumpi v73, bb8, bb9
   bb9:
     v75 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v95 = mload 64
-    v96 = add v95, v75
-    mstore 64, v96
-    mstore v95, v70
-    v19 = add v95, 128
+    v94 = mload 64
+    v95 = add v94, v75
+    mstore 64, v95
+    mstore v94, v70
+    v19 = add v94, 128
     v20 = mload v19
     v23 = eq v70, 128
     jumpi v23, bb4, bb5
   bb4:
-    v83 = add v95, 96
-    v84 = mload v83
-    v85 = byte 0, v84
-    v30 = eq v85, 1
+    v82 = add v94, 96
+    v83 = mload v82
+    v84 = byte 0, v83
+    v30 = eq v84, 1
     jump bb5
   bb5:
     v31 = phi [bb4: v30], [bb9: false]
@@ -141,7 +141,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     returndata 128, 32
   bb2:
     v35 = add v4, 1
-    v78 = add v88, 32
+    v78 = add v87, 32
     v79 = add v78, v4
     mstore8 v79, v35
     jump bb1

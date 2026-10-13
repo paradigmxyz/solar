@@ -4,7 +4,7 @@
   fn @effects(arg0: i256, arg1: i256) {
     bb0:
       sstore arg0, arg1
-      log0 0, 32
+      log 0, 32
 -     v0 = add arg0, arg1
       stop
   }
@@ -38,7 +38,7 @@
   
   fn @logs() {
     bb0:
-      log0 0, 0
+      log 0, 0
       ret
   }
   
@@ -88,7 +88,7 @@
   fn @abi_dependency(arg0: memptr) {
     bb0:
       v0 = make_memory_slice arg0, 1
-      v1 = slice_load_element v0, 0
+      v1 = slice_load_word v0, 0
       validate_abi v1
       ret
   }

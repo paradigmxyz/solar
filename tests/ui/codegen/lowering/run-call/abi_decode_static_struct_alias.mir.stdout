@@ -11,7 +11,7 @@ fn @mutateFirst(arg0: memptr) -> i256 [selector=0x781f0687, pure, abi_params=[by
     v5 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
     slice_store_byte v1, 31, v5
     v6 = make_memory_slice v0, 1
-    v7 = slice_load_element v6, 0
+    v7 = slice_load_word v6, 0
     ret v7
 }
 
@@ -26,7 +26,7 @@ fn @mutateSecond(arg0: memptr) -> i256 [selector=0xe7eeece1, pure, abi_params=[b
     v5 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
     slice_store_byte v1, 31, v5
     v6 = make_memory_slice v0, 1
-    v7 = slice_load_element v6, 0
+    v7 = slice_load_word v6, 0
     ret v7
 }
 
@@ -54,7 +54,7 @@ fn @mutateAliasInner(arg0: memptr, arg1: memptr) -> i256 [pure] {
     v8 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
     slice_store_byte v4, 31, v8
     v9 = make_memory_slice v0, 1
-    v10 = slice_load_element v9, 0
+    v10 = slice_load_word v9, 0
     ret v10
   bb1:
     ret 0

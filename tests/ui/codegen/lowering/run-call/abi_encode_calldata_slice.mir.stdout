@@ -233,12 +233,12 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selec
     mstore v37, v16
     jump bb1
   bb1:
-    v38 = phi [bb0: 0], [bb2: v47]
+    v38 = phi [bb0: 0], [bb2: v48]
     v39 = lt v38, v16
     jumpi v39, bb2, bb3
   bb3:
-    v48 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
-    ret v48
+    v49 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
+    ret v49
   bb2:
     v40 = mul v38, 32
     v41 = add v17, v40
@@ -248,8 +248,9 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selec
     v45 = eq v44, false
     icall revert_if<empty>, v45
     v46 = memory_slice v37
-    slice_store_element v46, v38, v42
-    v47 = add v38, 1
+    v47 = shl 5, v38
+    slice_store_word v46, v47, v42
+    v48 = add v38, 1
     jump bb1
 }
 
@@ -432,19 +433,19 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v1, 0, 65
+    slice_store_word v1, 0, 65
     v5 = memory_slice v0
     v6 = slice_len v5
     v7 = lt 1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    slice_store_element v5, 1, 66
+    slice_store_word v5, 32, 66
     v9 = memory_slice v0
     v10 = slice_len v9
     v11 = lt 2, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    slice_store_element v9, 2, 66
+    slice_store_word v9, 64, 66
     jump bb1
   bb1:
     v13 = phi [bb0: v0], [bb3: v18]

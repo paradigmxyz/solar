@@ -8,27 +8,27 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v2 = make_memory_slice v1, 2
-    slice_store_element v2, 0, arg2
-    slice_store_element v2, 1, arg3
+    slice_store_word v2, 0, arg2
+    slice_store_word v2, 32, arg3
     v3 = ptrtoint memptr v1 to i256
     v4 = make_memory_slice v0, 3
-    slice_store_element v4, 0, arg1
-    slice_store_element v4, 1, v3
-    slice_store_element v4, 2, arg4
+    slice_store_word v4, 0, arg1
+    slice_store_word v4, 32, v3
+    slice_store_word v4, 64, arg4
     v5 = mapping_slot arg0, 0
     v6 = make_memory_slice v0, 3
-    v7 = slice_load_element v6, 0
+    v7 = slice_load_word v6, 0
     sstore v5, v7 !metadata(storage=symbolic(v5))
     v8 = add v5, 1
-    v9 = slice_load_element v6, 1
+    v9 = slice_load_word v6, 32
     v10 = make_memory_slice v9, 2
-    v11 = slice_load_element v10, 0
+    v11 = slice_load_word v10, 0
     sstore v8, v11 !metadata(storage=offset(v5, 1))
     v12 = add v8, 1
-    v13 = slice_load_element v10, 1
+    v13 = slice_load_word v10, 32
     sstore v12, v13 !metadata(storage=offset(v5, 2))
     v14 = add v5, 3
-    v15 = slice_load_element v6, 2
+    v15 = slice_load_word v6, 64
     sstore v14, v15 !metadata(storage=offset(v5, 3))
     ret
 }
@@ -39,32 +39,32 @@ fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     v1 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v2 = make_memory_slice v1, 3
     v3 = sload v0 !metadata(storage=symbolic(v0))
-    slice_store_element v2, 0, v3
+    slice_store_word v2, 0, v3
     v4 = add v0, 1
     v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v6 = make_memory_slice v5, 2
     v7 = sload v4 !metadata(storage=offset(v0, 1))
-    slice_store_element v6, 0, v7
+    slice_store_word v6, 0, v7
     v8 = add v4, 1
     v9 = sload v8 !metadata(storage=offset(v0, 2))
-    slice_store_element v6, 1, v9
+    slice_store_word v6, 32, v9
     v10 = ptrtoint memptr v5 to i256
-    slice_store_element v2, 1, v10
+    slice_store_word v2, 32, v10
     v11 = add v0, 3
     v12 = sload v11 !metadata(storage=offset(v0, 3))
-    slice_store_element v2, 2, v12
+    slice_store_word v2, 64, v12
     v13 = make_memory_slice v1, 3
-    v14 = slice_load_element v13, 0
+    v14 = slice_load_word v13, 0
     v15 = make_memory_slice v1, 3
-    v16 = slice_load_element v15, 1, memptr
+    v16 = slice_load_word v15, 32, memptr
     v17 = make_memory_slice v16, 2
-    v18 = slice_load_element v17, 0
+    v18 = slice_load_word v17, 0
     v19 = make_memory_slice v1, 3
-    v20 = slice_load_element v19, 1, memptr
+    v20 = slice_load_word v19, 32, memptr
     v21 = make_memory_slice v20, 2
-    v22 = slice_load_element v21, 1
+    v22 = slice_load_word v21, 32
     v23 = make_memory_slice v1, 3
-    v24 = slice_load_element v23, 2
+    v24 = slice_load_word v23, 64
     v25 = insert_value struct0, undef struct0, 0, v14
     v26 = insert_value struct0, v25, 1, v18
     v27 = insert_value struct0, v26, 2, v22

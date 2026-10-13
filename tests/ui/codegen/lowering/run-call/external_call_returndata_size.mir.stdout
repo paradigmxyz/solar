@@ -9,12 +9,12 @@ fn @f() -> memptr [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<
     v3 = lt 0, 20
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v2, 0, 42
+    slice_store_word v2, 0, 42
     v5 = make_memory_slice v0, 20
     v6 = lt 1, 20
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    slice_store_element v5, 1, 43
+    slice_store_word v5, 32, 43
     ret v0
 }
 

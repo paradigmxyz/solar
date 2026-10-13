@@ -5,9 +5,9 @@
 + fn @constructor(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [abi_wrapper, constructor] {
     bb0:
 -     v0 = make_memory_slice arg0, 2
-+     v27 = callvalue
-+     v28 = ne v27, 0
-+     jumpi v28, bb11, bb1
++     v29 = callvalue
++     v30 = ne v29, 0
++     jumpi v30, bb11, bb1
 +   bb1:
 +     v6 = constructor_args_base
 +     v7 = constructor_args_end
@@ -19,17 +19,17 @@
 +     v11 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
 +     jump bb5
 +   bb5:
-+     v12 = phi [bb4: 0], [bb10: v26]
++     v12 = phi [bb4: 0], [bb10: v28]
 +     v13 = lt v12, 2
 +     jumpi v13, bb6, bb7
 +   bb7:
 +     jump bb2
 +   bb2:
 +     v0 = make_memory_slice v11, 2
-      v1 = slice_load_element v0, 1
+      v1 = slice_load_word v0, 32
       v2 = inttoptr i256 v1 to memptr
       v3 = make_memory_slice v2, 2
-      v4 = slice_load_element v3, 0
+      v4 = slice_load_word v3, 0
 -     v5 = add v4, arg1
 +     v5 = add v4, arg4
       mstore 0, v5
@@ -40,22 +40,24 @@
 +     v16 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
 +     jump bb8
 +   bb8:
-+     v17 = phi [bb6: 0], [bb9: v23]
++     v17 = phi [bb6: 0], [bb9: v24]
 +     v18 = lt v17, 2
 +     jumpi v18, bb9, bb10
 +   bb10:
-+     v24 = make_memory_slice v11, 2
-+     v25 = ptrtoint memptr v16 to i256
-+     slice_store_element v24, v12, v25
-+     v26 = add v12, 1
++     v25 = make_memory_slice v11, 2
++     v26 = shl 5, v12
++     v27 = ptrtoint memptr v16 to i256
++     slice_store_word v25, v26, v27
++     v28 = add v12, 1
 +     jump bb5
 +   bb9:
 +     v19 = mul v17, 32
 +     v20 = add v15, v19
 +     v21 = mload v20
 +     v22 = make_memory_slice v16, 2
-+     slice_store_element v22, v17, v21
-+     v23 = add v17, 1
++     v23 = shl 5, v17
++     slice_store_word v22, v23, v21
++     v24 = add v17, 1
 +     jump bb8
 +   bb3:
 +     revert 0, 0

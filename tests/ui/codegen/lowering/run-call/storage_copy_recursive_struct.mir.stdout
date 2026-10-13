@@ -103,15 +103,15 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v79 = sload 0 !metadata(storage=slot(0))
     v80 = trunc i256 v79 to i128
     v81 = zext i128 v80 to i256
-    slice_store_element v78, 0, v81
+    slice_store_word v78, 0, v81
     v82 = add 0, 1
     v83 = icall @load_storage_bytes, v82
     v84 = ptrtoint memptr v83 to i256
-    slice_store_element v78, 1, v84
+    slice_store_word v78, 32, v84
     v85 = add 0, 2
     v86 = icall @load_storage_struct_array_0, v85
     v87 = ptrtoint memptr v86 to i256
-    slice_store_element v78, 2, v87
+    slice_store_word v78, 64, v87
     v88 = sload 6 !metadata(storage=slot(6))
     v89 = gt v88, 0xffffffffffffffff
     icall panic_if<0x41>, v89
@@ -156,15 +156,15 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v120 = sload 0 !metadata(storage=slot(0))
     v121 = trunc i256 v120 to i128
     v122 = zext i128 v121 to i256
-    slice_store_element v119, 0, v122
+    slice_store_word v119, 0, v122
     v123 = add 0, 1
     v124 = icall @load_storage_bytes, v123
     v125 = ptrtoint memptr v124 to i256
-    slice_store_element v119, 1, v125
+    slice_store_word v119, 32, v125
     v126 = add 0, 2
     v127 = icall @load_storage_struct_array_0, v126
     v128 = ptrtoint memptr v127 to i256
-    slice_store_element v119, 2, v128
+    slice_store_word v119, 64, v128
     v129 = sload 6 !metadata(storage=slot(6))
     v130 = gt v129, 0xffffffffffffffff
     icall panic_if<0x41>, v130
@@ -200,15 +200,15 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v155 = sload 0 !metadata(storage=slot(0))
     v156 = trunc i256 v155 to i128
     v157 = zext i128 v156 to i256
-    slice_store_element v154, 0, v157
+    slice_store_word v154, 0, v157
     v158 = add 0, 1
     v159 = icall @load_storage_bytes, v158
     v160 = ptrtoint memptr v159 to i256
-    slice_store_element v154, 1, v160
+    slice_store_word v154, 32, v160
     v161 = add 0, 2
     v162 = icall @load_storage_struct_array_0, v161
     v163 = ptrtoint memptr v162 to i256
-    slice_store_element v154, 2, v163
+    slice_store_word v154, 64, v163
     v164 = ptrtoint memptr v153 to i256
     icall @store_recursive_storage_0_0, v152, v153
     v165 = alloc memorystruct<3>, exact, uninitialized, panic, 96
@@ -216,15 +216,15 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v167 = sload 3 !metadata(storage=slot(3))
     v168 = trunc i256 v167 to i128
     v169 = zext i128 v168 to i256
-    slice_store_element v166, 0, v169
+    slice_store_word v166, 0, v169
     v170 = add 3, 1
     v171 = icall @load_storage_bytes, v170
     v172 = ptrtoint memptr v171 to i256
-    slice_store_element v166, 1, v172
+    slice_store_word v166, 32, v172
     v173 = add 3, 2
     v174 = icall @load_storage_struct_array_0, v173
     v175 = ptrtoint memptr v174 to i256
-    slice_store_element v166, 2, v175
+    slice_store_word v166, 64, v175
     v176 = sload 6 !metadata(storage=slot(6))
     v177 = gt v176, 0xffffffffffffffff
     icall panic_if<0x41>, v177
@@ -408,8 +408,8 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     v11 = storage_array_data_slot arg0
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v28]
-    v13 = phi [bb0: v11], [bb2: v29]
+    v12 = phi [bb0: 0], [bb2: v29]
+    v13 = phi [bb0: v11], [bb2: v30]
     v14 = lt v12, v0
     jumpi v14, bb2, bb3
   bb3:
@@ -420,27 +420,28 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     v17 = sload v13 !metadata(storage=symbolic(v13))
     v18 = trunc i256 v17 to i128
     v19 = zext i128 v18 to i256
-    slice_store_element v16, 0, v19
+    slice_store_word v16, 0, v19
     v20 = add v13, 1
     v21 = icall @load_storage_bytes, v20
     v22 = ptrtoint memptr v21 to i256
-    slice_store_element v16, 1, v22
+    slice_store_word v16, 32, v22
     v23 = add v13, 2
     v24 = icall @load_storage_struct_array_0, v23
     v25 = ptrtoint memptr v24 to i256
-    slice_store_element v16, 2, v25
+    slice_store_word v16, 64, v25
     v26 = memory_slice v10
-    v27 = ptrtoint memptr v15 to i256
-    slice_store_element v26, v12, v27
-    v28 = add v12, 1
-    v29 = add v13, 3
+    v27 = shl 5, v12
+    v28 = ptrtoint memptr v15 to i256
+    slice_store_word v26, v27, v28
+    v29 = add v12, 1
+    v30 = add v13, 3
     jump bb1
 }
 
 fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
   bb0:
     v0 = make_memory_slice arg1, 3
-    v1 = slice_load_element v0, 0
+    v1 = slice_load_word v0, 0
     v2 = sload arg0 !metadata(storage=symbolic(arg0))
     v3 = not 0xffffffffffffffffffffffffffffffff
     v4 = and v2, v3
@@ -448,11 +449,11 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
     v6 = or v4, v5
     sstore arg0, v6 !metadata(storage=symbolic(arg0))
     v7 = add arg0, 1
-    v8 = slice_load_element v0, 1
+    v8 = slice_load_word v0, 32
     v9 = inttoptr i256 v8 to memptr
     icall @store_storage_bytes, v7, v9
     v10 = add arg0, 2
-    v11 = slice_load_element v0, 2
+    v11 = slice_load_word v0, 64
     v12 = inttoptr i256 v11 to memptr
     v13 = memory_slice v12
     v14 = slice_len v13
@@ -473,28 +474,30 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
     v24 = memory_slice v23
     jump bb6
   bb6:
-    v25 = phi [bb2: 0], [bb10: v36]
+    v25 = phi [bb2: 0], [bb10: v38]
     v26 = lt v25, v14
     jumpi v26, bb7, bb8
   bb8:
     ret
   bb7:
-    v27 = slice_load_element v24, v25
-    v28 = inttoptr i256 v27 to memptr
-    v29 = eq v27, 0
-    jumpi v29, bb9, bb10
+    v27 = shl 5, v25
+    v28 = slice_load_word v24, v27
+    v29 = inttoptr i256 v28 to memptr
+    v30 = eq v28, 0
+    jumpi v30, bb9, bb10
   bb9:
-    v30 = icall @default_struct_0
-    v31 = ptrtoint memptr v30 to i256
-    slice_store_element v24, v25, v31
+    v31 = icall @default_struct_0
+    v32 = shl 5, v25
+    v33 = ptrtoint memptr v31 to i256
+    slice_store_word v24, v32, v33
     jump bb10
   bb10:
-    v32 = phi [bb7: v28], [bb9: v30]
-    v33 = storage_array_data_slot v10
-    v34 = mul v25, 3
-    v35 = add v33, v34
-    icall @store_recursive_storage_0_0, v35, v32
-    v36 = add v25, 1
+    v34 = phi [bb7: v29], [bb9: v31]
+    v35 = storage_array_data_slot v10
+    v36 = mul v25, 3
+    v37 = add v35, v36
+    icall @store_recursive_storage_0_0, v37, v34
+    v38 = add v25, 1
     jump bb6
   bb4:
     v19 = storage_array_data_slot v10
@@ -554,14 +557,14 @@ fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = make_memory_slice v0, 3
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
     mstore v2, 0
     v3 = ptrtoint memptr v2 to i256
-    slice_store_element v1, 1, v3
+    slice_store_word v1, 32, v3
     v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     mstore v4, 0
     v5 = ptrtoint memptr v4 to i256
-    slice_store_element v1, 2, v5
+    slice_store_word v1, 64, v5
     ret v0
 }

@@ -394,6 +394,78 @@ impl Operands for Box<[PackedPart]> {
     }
 }
 
+/// The indexed topics of a log, at most four.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct LogTopics {
+    len: u8,
+    values: [ValueId; 4],
+}
+
+impl LogTopics {
+    /// The most topics a log carries.
+    pub(crate) const MAX: usize = 4;
+
+    /// Collects topics, returning `None` when there are more than [`Self::MAX`].
+    pub(crate) fn new(topics: &[ValueId]) -> Option<Self> {
+        let mut values = [ValueId::new(0); Self::MAX];
+        values.get_mut(..topics.len())?.copy_from_slice(topics);
+        Some(Self { len: topics.len() as u8, values })
+    }
+
+    /// The topics in order.
+    pub(crate) fn as_slice(&self) -> &[ValueId] {
+        &self.values[..usize::from(self.len)]
+    }
+
+    /// The number of topics.
+    pub(crate) fn len(&self) -> usize {
+        usize::from(self.len)
+    }
+}
+
+impl Operands for LogTopics {
+    type View = Self;
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "LogTopics";
+
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend_from_slice(self.as_slice());
+    }
+
+    #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.as_slice().iter().copied().for_each(f);
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        self.values[..usize::from(self.len)].iter_mut().for_each(f);
+    }
+
+    #[inline]
+    fn view(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn map_view(mut view: Self, f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
+        view.visit_mut(&mut |value| *value = f(*value));
+        view
+    }
+
+    #[inline]
+    fn from_view(view: Self) -> Option<Self> {
+        Some(view)
+    }
+
+    const IS_OPERAND: bool = false;
+
+    fn from_operand(_: ValueId) -> Self {
+        unreachable!("log topics are not built from one value")
+    }
+}
+
 /// Declares field types that never hold value operands.
 macro_rules! attributes {
     ($($ty:ty),+ $(,)?) => {
@@ -1607,42 +1679,6 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     MemorySlice(object: ValueId),
-    /// Load one word-sized element from a slice.
-    #[mir_op(
-        mnemonic = "slice_load_element",
-        result = Word,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryRead,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = false,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice), MirType::I256]))]
-    SliceLoadElement {
-        /// Memory or calldata slice.
-        slice: ValueId,
-        /// Runtime element index.
-        index: ValueId,
-    },
-    /// Store one word-sized element in a memory slice.
-    #[mir_op(
-        mnemonic = "slice_store_element",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::MEMORY_OBJECT,
-        side_effects = true,
-        category = Some("memory-object")
-    )]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256, MirType::I256]))]
-    SliceStoreElement {
-        /// Memory slice.
-        slice: ValueId,
-        /// Runtime element index.
-        index: ValueId,
-        /// Value to store.
-        value: ValueId,
-    },
     /// Load one byte from a slice.
     #[mir_op(
         mnemonic = "slice_load_byte",
@@ -1679,7 +1715,7 @@ define_mir_ops! {
         /// Low byte to store.
         value: ValueId,
     },
-    /// Store one word at a byte offset in a memory slice.
+    /// Store one word at a byte offset in a memory slice; an element `i` is the word at `shl 5, i`.
     #[mir_op(
         mnemonic = "slice_store_word",
         result = None,
@@ -1698,19 +1734,19 @@ define_mir_ops! {
         /// Word to store.
         value: ValueId,
     },
-    /// Load one word at a byte offset from a memory slice.
+    /// Load one word at a byte offset from a slice; an element `i` is the word at `shl 5, i`.
     #[mir_op(
         mnemonic = "slice_load_word",
-        result = I256,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice), MirType::I256]))]
     SliceLoadWord {
-        /// Memory slice.
+        /// Memory or calldata slice.
         slice: ValueId,
         /// Runtime byte offset from the slice start.
         offset: ValueId,
@@ -2697,10 +2733,9 @@ define_mir_ops! {
     Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
     // Log operations
-    // TODO(codegen): Consider unifying log0..log4 as one instruction with a topic list.
-    /// Log with no topics: `log0(offset, size)`
+    /// Log with up to four topics: `log(offset, size, topics...)`
     #[mir_op(
-        mnemonic = "log0",
+        mnemonic = "log",
         result = None,
         phases = PhaseSet::ALL,
         effect = Log,
@@ -2709,60 +2744,15 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
-    Log0(offset: ValueId, size: ValueId),
-    /// Log with 1 topic: `log1(offset, size, topic1)`
-    #[mir_op(
-        mnemonic = "log1",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = Log,
-        traits = OpTraits::EGRAPH_REWRITE,
-        side_effects = true,
-        category = None
-    )]
-    #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    Log1(offset: ValueId, size: ValueId, topic1: ValueId),
-    /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
-    #[mir_op(
-        mnemonic = "log2",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = Log,
-        traits = OpTraits::EGRAPH_REWRITE,
-        side_effects = true,
-        category = None
-    )]
-    #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
-    Log2(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId),
-    /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
-    #[mir_op(
-        mnemonic = "log3",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = Log,
-        traits = OpTraits::EGRAPH_REWRITE,
-        side_effects = true,
-        category = None
-    )]
-    #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
-    Log3(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId),
-    /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
-    #[mir_op(
-        mnemonic = "log4",
-        result = None,
-        phases = PhaseSet::ALL,
-        effect = Log,
-        traits = OpTraits::EGRAPH_REWRITE,
-        side_effects = true,
-        category = None
-    )]
-    #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
-    Log4(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId, topic4: ValueId),
+    #[operand_types(func => Some(smallvec![MirType::I256; 2 + topics.len()]))]
+    Log {
+        /// Start of the logged data.
+        offset: ValueId,
+        /// Byte length of the logged data.
+        size: ValueId,
+        /// Indexed topics, at most four.
+        topics: LogTopics,
+    },
 
     // SSA operations
     /// Phi node: merge values from different predecessors.

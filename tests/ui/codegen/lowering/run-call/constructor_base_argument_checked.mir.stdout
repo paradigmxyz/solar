@@ -202,8 +202,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     v2 = lt arg0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_load_element v1, arg0
-    sstore 0, v4 !metadata(storage=slot(0))
+    v4 = shl 5, arg0
+    v5 = slice_load_word v1, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     jump bb1
   bb1:
     jump bb2
@@ -220,12 +221,12 @@ fn @table() -> memptr [pure] {
     v3 = lt 0, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v2, 0, 5
+    slice_store_word v2, 0, 5
     v5 = make_memory_slice v0, 2
     v6 = lt 1, 2
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    slice_store_element v5, 1, 6
+    slice_store_word v5, 32, 6
     ret v0
 }
 

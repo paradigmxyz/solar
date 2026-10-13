@@ -168,9 +168,7 @@ impl InstKind {
             | Self::Fmp
             | Self::SetFmp(..)
             | Self::MemorySlice(..)
-            | Self::SliceLoadElement { .. }
             | Self::SliceLoadByte { .. }
-            | Self::SliceStoreElement { .. }
             | Self::SliceStoreByte { .. }
             | Self::SliceStoreWord { .. }
             | Self::SliceLoadWord { .. }
@@ -239,11 +237,7 @@ impl InstKind {
             | Self::DelegateCall { .. }
             | Self::Create(..)
             | Self::Create2(..)
-            | Self::Log0(..)
-            | Self::Log1(..)
-            | Self::Log2(..)
-            | Self::Log3(..)
-            | Self::Log4(..)
+            | Self::Log { .. }
             | Self::Phi(..)
             | Self::Select(..)
             | Self::SignExtend(..) => ControlEffects::NONE,

@@ -384,18 +384,12 @@ fn candidate_uses_are_safe(
                     operand == addr && !derived.contains_key(&value) && in_range(off, 32)
                 }
                 InstKind::Keccak256(addr, size)
-                | InstKind::Log0(addr, size)
+                | InstKind::Log { offset: addr, size, .. }
                 | InstKind::MemoryZero(addr, size)
                 | InstKind::CalldataCopy(addr, _, size)
                 | InstKind::DataCopy(_, addr, size)
                 | InstKind::ReturnDataCopy(addr, _, size)
                 | InstKind::CodeCopy(addr, _, size) => {
-                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                }
-                InstKind::Log1(addr, size, _)
-                | InstKind::Log2(addr, size, _, _)
-                | InstKind::Log3(addr, size, _, _, _)
-                | InstKind::Log4(addr, size, _, _, _, _) => {
                     operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
                 }
                 InstKind::MCopy(dest, src, size) => {
@@ -418,24 +412,13 @@ fn candidate_uses_are_safe(
                         && in_range(off, 32)
                 }
                 InstKind::SliceLen(_) => true,
-                InstKind::SliceLoadElement { slice, index } => {
+                InstKind::SliceLoadWord { slice, offset } => {
                     operand == slice
-                        && func
-                            .value_u64(index)
-                            .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
+                        && func.value_u64(offset).is_some_and(|offset| in_range_at(off, offset, 32))
                 }
                 InstKind::SliceLoadByte { slice, index } => {
                     operand == slice
                         && func.value_u64(index).is_some_and(|index| in_range_at(off, index, 1))
-                }
-                InstKind::SliceStoreElement { slice, index, value } => {
-                    operand == slice
-                        && !derived.contains_key(&value)
-                        && func
-                            .value_u64(index)
-                            .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
-                            .is_some_and(|offset| in_range_at(off, offset, 32))
                 }
                 InstKind::SliceStoreByte { slice, index, value } => {
                     operand == slice

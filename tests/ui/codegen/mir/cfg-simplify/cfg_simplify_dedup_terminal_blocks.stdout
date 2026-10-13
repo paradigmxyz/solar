@@ -113,12 +113,12 @@
       stop
     bb3:
       v4 = make_memory_slice arg2, 2
-      v5 = slice_load_element v4, 1
+      v5 = slice_load_word v4, 32
       mstore 0, v5
       revert 0, 32
     bb1:
       v1 = make_memory_slice arg2, 2
-      v2 = slice_load_element v1, 0
+      v2 = slice_load_word v1, 0
       mstore 0, v2
       revert 0, 32
   }

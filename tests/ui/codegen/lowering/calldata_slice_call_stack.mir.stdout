@@ -30,7 +30,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: calldataslice) [selector=0
     mstore 0, arg2 !metadata(memory=scratch)
     v12 = zext i160 arg0 to i256
     v13 = zext i160 arg1 to i256
-    log3 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v12, v13
+    log 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v12, v13
     v14 = gas
     v15 = zext i160 arg0 to i256
     v16 = abi_encode [word<u160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v15, arg2

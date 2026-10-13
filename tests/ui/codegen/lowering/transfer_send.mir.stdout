@@ -2,13 +2,13 @@
 @module GasReceiver
 fn @receive() [receive, payable] {
   bb0:
-    log0 0, 0
-    log0 0, 0
-    log0 0, 0
-    log0 0, 0
-    log0 0, 0
-    log0 0, 0
-    log0 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
+    log 0, 0
     ret
 }
 

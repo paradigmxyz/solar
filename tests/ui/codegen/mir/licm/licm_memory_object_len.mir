@@ -21,7 +21,8 @@ fn @hoist_len_over_element_stores(arg0: memptr) {
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
-    slice_store_element v4, v0, v0
+    v109 = shl 5, v0
+    slice_store_word v4, v109, v0
     v3 = add v0, 1
     jump bb1
   bb3:

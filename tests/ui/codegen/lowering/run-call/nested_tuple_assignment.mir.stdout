@@ -51,13 +51,13 @@ fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[boo
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    slice_store_element v2, 0, 7
+    slice_store_word v2, 0, 7
     v6 = memory_slice v1
     v7 = slice_len v6
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    slice_store_element v6, 0, 9
+    slice_store_word v6, 0, 9
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
@@ -72,7 +72,7 @@ fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[boo
     v15 = lt 0, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = slice_load_element v13, 0
+    v17 = slice_load_word v13, 0
     v18 = insert_value struct2, undef struct2, 0, v17
     v19 = insert_value struct2, v18, 1, v12
     ret v19

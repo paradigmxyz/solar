@@ -50,8 +50,9 @@ fn @readDynamic(arg0: memptr, arg1: i256) -> i256 [selector=0xcd97b1f2, pure, ab
     v2 = lt arg1, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_load_element v0, arg1
-    ret v4
+    v4 = shl 5, arg1
+    v5 = slice_load_word v0, v4
+    ret v5
 }
 
 fn @readDynamicCalldata(arg0: calldataslice, arg1: i256) -> i256 [selector=0x55cc55da, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -104,7 +105,7 @@ fn @readBytesCalldata(arg0: calldataslice) -> i256 [selector=0x4bc2c5d5, pure, a
 fn @readPair(arg0: memptr) -> i256 [selector=0x5d4d7bfe, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0
+    v1 = slice_load_word v0, 0
     v2 = trunc i256 v1 to i8
     v3 = zext i8 v2 to i256
     ret v3
@@ -113,9 +114,9 @@ fn @readPair(arg0: memptr) -> i256 [selector=0x5d4d7bfe, pure, abi_params=[tuple
 fn @readDynamicPair(arg0: memptr) -> i256 [selector=0x96a23d6f, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0
+    v1 = slice_load_word v0, 0
     v2 = make_memory_slice arg0, 2
-    v3 = slice_load_element v2, 1, memptr
+    v3 = slice_load_word v2, 32, memptr
     v4 = memory_slice v3
     v5 = slice_len v4
     v6 = checked_add u256, v1, v5
@@ -125,11 +126,11 @@ fn @readDynamicPair(arg0: memptr) -> i256 [selector=0x96a23d6f, pure, abi_params
 fn @readWordList(arg0: memptr) -> i256 [selector=0xb5e6ddb8, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0, memptr
+    v1 = slice_load_word v0, 0, memptr
     v2 = memory_slice v1
     v3 = slice_len v2
     v4 = make_memory_slice arg0, 2
-    v5 = slice_load_element v4, 1
+    v5 = slice_load_word v4, 32
     v6 = checked_add u256, v3, v5
     ret v6
 }
@@ -137,11 +138,11 @@ fn @readWordList(arg0: memptr) -> i256 [selector=0xb5e6ddb8, pure, abi_params=[t
 fn @readSignedList(arg0: memptr) -> i256 [selector=0xa15ab30e, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0, memptr
+    v1 = slice_load_word v0, 0, memptr
     v2 = memory_slice v1
     v3 = slice_len v2
     v4 = make_memory_slice arg0, 2
-    v5 = slice_load_element v4, 1
+    v5 = slice_load_word v4, 32
     v6 = checked_add u256, v3, v5
     ret v6
 }
@@ -149,17 +150,17 @@ fn @readSignedList(arg0: memptr) -> i256 [selector=0xa15ab30e, pure, abi_params=
 fn @readNestedList(arg0: memptr) -> i256 [selector=0x2fc71376, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 1
-    v1 = slice_load_element v0, 0, memptr
+    v1 = slice_load_word v0, 0, memptr
     v2 = memory_slice v1
     v3 = slice_len v2
     v4 = make_memory_slice arg0, 1
-    v5 = slice_load_element v4, 0, memptr
+    v5 = slice_load_word v4, 0, memptr
     v6 = memory_slice v5
     v7 = slice_len v6
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_load_element v6, 0
+    v10 = slice_load_word v6, 0
     v11 = inttoptr i256 v10 to memptr
     v12 = eq v10, 0
     jumpi v12, bb1, bb2
@@ -167,7 +168,7 @@ fn @readNestedList(arg0: memptr) -> i256 [selector=0x2fc71376, pure, abi_params=
     v13 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     mstore v13, 0
     v14 = ptrtoint memptr v13 to i256
-    slice_store_element v6, 0, v14
+    slice_store_word v6, 0, v14
     jump bb2
   bb2:
     v15 = phi [bb0: v11], [bb1: v13]
@@ -180,14 +181,14 @@ fn @readNestedList(arg0: memptr) -> i256 [selector=0x2fc71376, pure, abi_params=
 fn @readEnumPair(arg0: memptr) -> i256 [selector=0xaea50307, pure, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0
+    v1 = slice_load_word v0, 0
     v2 = lt v1, 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
     v4 = trunc i256 v1 to i8
     v5 = zext i8 v4 to i256
     v6 = make_memory_slice arg0, 2
-    v7 = slice_load_element v6, 1
+    v7 = slice_load_word v6, 32
     v8 = checked_add u256, v5, v7
     ret v8
 }
@@ -198,7 +199,7 @@ fn @readEnumArray(arg0: memptr) -> i256 [selector=0xf8507bf5, pure, abi_params=[
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_load_element v0, 0
+    v3 = slice_load_word v0, 0
     v4 = lt v3, 2
     v5 = eq v4, false
     icall panic_if<0x21>, v5
@@ -216,14 +217,14 @@ fn @readMode(arg0: i8) -> i256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u
 fn @readNestedArray(arg0: memptr) -> i256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0, memptr
+    v1 = slice_load_word v0, 0, memptr
     v2 = make_memory_slice v1, 2
     v3 = lt 1, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = slice_load_element v2, 1
+    v5 = slice_load_word v2, 32
     v6 = make_memory_slice arg0, 2
-    v7 = slice_load_element v6, 1
+    v7 = slice_load_word v6, 32
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256
     v10 = checked_add u256, v5, v9
@@ -233,12 +234,12 @@ fn @readNestedArray(arg0: memptr) -> i256 [selector=0x8a855eb4, pure, abi_params
 fn @readNestedBytes(arg0: memptr) -> i256 [selector=0x8516eaf9, pure, abi_params=[tuple<array<2, bytes>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_memory_slice arg0, 1
-    v1 = slice_load_element v0, 0, memptr
+    v1 = slice_load_word v0, 0, memptr
     v2 = make_memory_slice v1, 2
     v3 = lt 0, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = slice_load_element v2, 0
+    v5 = slice_load_word v2, 0
     v6 = inttoptr i256 v5 to memptr
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
@@ -246,19 +247,19 @@ fn @readNestedBytes(arg0: memptr) -> i256 [selector=0x8516eaf9, pure, abi_params
     v8 = alloc memorybytes, exact, uninitialized, infallible, 32
     mstore v8, 0
     v9 = ptrtoint memptr v8 to i256
-    slice_store_element v2, 0, v9
+    slice_store_word v2, 0, v9
     jump bb2
   bb2:
     v10 = phi [bb0: v6], [bb1: v8]
     v11 = memory_slice v10
     v12 = slice_len v11
     v13 = make_memory_slice arg0, 1
-    v14 = slice_load_element v13, 0, memptr
+    v14 = slice_load_word v13, 0, memptr
     v15 = make_memory_slice v14, 2
     v16 = lt 1, 2
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = slice_load_element v15, 1
+    v18 = slice_load_word v15, 32
     v19 = inttoptr i256 v18 to memptr
     v20 = eq v18, 0
     jumpi v20, bb3, bb4
@@ -266,7 +267,7 @@ fn @readNestedBytes(arg0: memptr) -> i256 [selector=0x8516eaf9, pure, abi_params
     v21 = alloc memorybytes, exact, uninitialized, infallible, 32
     mstore v21, 0
     v22 = ptrtoint memptr v21 to i256
-    slice_store_element v15, 1, v22
+    slice_store_word v15, 32, v22
     jump bb4
   bb4:
     v23 = phi [bb2: v19], [bb3: v21]
@@ -299,7 +300,7 @@ fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<2, arr
     v1 = lt 1, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_load_element v0, 1
+    v3 = slice_load_word v0, 32
     v4 = inttoptr i256 v3 to memptr
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
@@ -308,7 +309,7 @@ fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<2, arr
     v7 = ptrtoint memptr v6 to i256
     memory_zero v7, 64
     v8 = ptrtoint memptr v6 to i256
-    slice_store_element v0, 1, v8
+    slice_store_word v0, 32, v8
     jump bb2
   bb2:
     v9 = phi [bb0: v4], [bb1: v6]
@@ -316,7 +317,7 @@ fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<2, arr
     v11 = lt 0, 2
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = slice_load_element v10, 0
+    v13 = slice_load_word v10, 0
     v14 = checked_add u256, v13, arg1
     sstore 0, v14 !metadata(storage=slot(0))
     ret
@@ -337,7 +338,7 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u
     v2 = lt 1, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_load_element v0, 1
+    v4 = slice_load_word v0, 32
     v5 = memory_slice arg1
     v6 = slice_len v5
     v7 = checked_add u256, v4, v6
@@ -360,7 +361,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, u256>]] {
     v2 = lt 1, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_load_element v0, 1
+    v4 = slice_load_word v0, 32
     sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
@@ -392,9 +393,9 @@ fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
 fn @constructor(arg0: memptr) [constructor, abi_params=[tuple<u256, bytes>]] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0
+    v1 = slice_load_word v0, 0
     v2 = make_memory_slice arg0, 2
-    v3 = slice_load_element v2, 1, memptr
+    v3 = slice_load_word v2, 32, memptr
     v4 = memory_slice v3
     v5 = slice_len v4
     v6 = checked_add u256, v1, v5

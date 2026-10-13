@@ -37,7 +37,7 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
     jump bb6
   bb6:
     mstore 108, v9 !metadata(memory=scratch)
-    log4 108, 96, 0x79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf88722, arg0, arg3, arg4
+    log 108, 96, 0x79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf88722, arg0, arg3, arg4
     returndata 108, 32
   bb4:
     mstore 0, 0x20188a59 !metadata(memory=scratch)

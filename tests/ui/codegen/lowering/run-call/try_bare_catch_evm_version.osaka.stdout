@@ -24,12 +24,12 @@ fn @agg() -> memptr [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[arra
     v3 = lt 0, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v2, 0, 11
+    slice_store_word v2, 0, 11
     v5 = make_memory_slice v0, 2
     v6 = lt 1, 2
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    slice_store_element v5, 1, 22
+    slice_store_word v5, 32, 22
     ret v0
 }
 
@@ -188,12 +188,12 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v25 = lt 0, 2
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = slice_load_element v24, 0
+    v27 = slice_load_word v24, 0
     v28 = make_memory_slice v23, 2
     v29 = lt 1, 2
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = slice_load_element v28, 1
+    v31 = slice_load_word v28, 32
     v32 = checked_add u256, v27, v31
     jump bb5
   bb5:

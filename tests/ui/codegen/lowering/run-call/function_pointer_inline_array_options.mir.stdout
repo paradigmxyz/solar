@@ -27,18 +27,18 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v4 = shl 32, v3
     v5 = or v4, 0x26121ff0
     v6 = shl 64, v5
-    slice_store_element v1, 0, v6
+    slice_store_word v1, 0, v6
     v7 = address
     v8 = zext i160 v7 to i256
     v9 = shl 32, v8
     v10 = or v9, 0xe2179b8e
     v11 = shl 64, v10
-    slice_store_element v1, 1, v11
+    slice_store_word v1, 32, v11
     v12 = make_memory_slice v0, 2
     v13 = lt 0, 2
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = slice_load_element v12, 0
+    v15 = slice_load_word v12, 0
     v16 = shr 64, v15
     v17 = and v16, 0xffffffff
     v18 = shl 224, v17

@@ -60,19 +60,19 @@ fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i2
     slice_copy v44, 0, arg2
     v45 = ptrtoint memptr v40 to i256
     v46 = make_memory_slice v0, 3
-    slice_store_element v46, 0, arg0
-    slice_store_element v46, 1, v28
-    slice_store_element v46, 2, v45
+    slice_store_word v46, 0, arg0
+    slice_store_word v46, 32, v28
+    slice_store_word v46, 64, v45
     v47 = make_memory_slice v0, 3
-    v48 = slice_load_element v47, 0
+    v48 = slice_load_word v47, 0
     v49 = make_memory_slice v0, 3
-    v50 = slice_load_element v49, 1, memptr
+    v50 = slice_load_word v49, 32, memptr
     v51 = memory_slice v50
     v52 = slice_len v51
     v53 = checked_mul u256, v52, 10
     v54 = checked_add u256, v48, v53
     v55 = make_memory_slice v0, 3
-    v56 = slice_load_element v55, 2, memptr
+    v56 = slice_load_word v55, 64, memptr
     v57 = memory_slice v56
     v58 = slice_len v57
     v59 = checked_mul u256, v58, 100

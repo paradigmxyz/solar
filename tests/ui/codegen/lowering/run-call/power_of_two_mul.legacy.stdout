@@ -275,7 +275,9 @@ bb29:
   push bb36
   jumpi
   swap 1
-  push 32
+  push 5
+  push 2
+  exp
   mul
   add
   mload

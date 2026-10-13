@@ -21,11 +21,13 @@ fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
     v6 = slice_ptr v15
     mstore8 v6, v5
     v11 = make_memory_slice arg2, 2
-    slice_store_element v11, 1, v5
+    slice_store_word v11, 32, v5
     v12 = memory_slice arg1
-    slice_store_element v12, v5, v5
+    v115 = shl 5, v5
+    slice_store_word v12, v115, v5
     v13 = make_memory_slice arg3, 4
-    slice_store_element v13, v5, v5
+    v116 = shl 5, v5
+    slice_store_word v13, v116, v5
     stop
 }
 

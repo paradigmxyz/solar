@@ -10,30 +10,30 @@ fn @aggregate() -> memptr [selector=0xaf36778b, pure, abi_params=[], abi_returns
     v5 = ptrtoint memptr v4 to i256
     memory_zero v5, 64
     v6 = ptrtoint memptr v4 to i256
-    slice_store_element v3, 0, v6
+    slice_store_word v3, 0, v6
     v7 = ptrtoint memptr v2 to i256
-    slice_store_element v1, 0, v7
-    slice_store_element v1, 1, 0
+    slice_store_word v1, 0, v7
+    slice_store_word v1, 32, 0
     v8 = make_memory_slice v0, 2
-    v9 = slice_load_element v8, 0, memptr
+    v9 = slice_load_word v8, 0, memptr
     v10 = make_memory_slice v9, 1
-    v11 = slice_load_element v10, 0, memptr
+    v11 = slice_load_word v10, 0, memptr
     v12 = make_memory_slice v11, 2
     v13 = lt 0, 2
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    slice_store_element v12, 0, 11
+    slice_store_word v12, 0, 11
     v15 = make_memory_slice v0, 2
-    v16 = slice_load_element v15, 0, memptr
+    v16 = slice_load_word v15, 0, memptr
     v17 = make_memory_slice v16, 1
-    v18 = slice_load_element v17, 0, memptr
+    v18 = slice_load_word v17, 0, memptr
     v19 = make_memory_slice v18, 2
     v20 = lt 1, 2
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    slice_store_element v19, 1, 22
+    slice_store_word v19, 32, 22
     v22 = make_memory_slice v0, 2
-    slice_store_element v22, 1, 33
+    slice_store_word v22, 32, 33
     ret v0
 }
 
@@ -58,29 +58,29 @@ fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_return
 fn @check(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0, memptr
+    v1 = slice_load_word v0, 0, memptr
     v2 = make_memory_slice v1, 1
-    v3 = slice_load_element v2, 0, memptr
+    v3 = slice_load_word v2, 0, memptr
     v4 = make_memory_slice v3, 2
     v5 = lt 0, 2
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = slice_load_element v4, 0
+    v7 = slice_load_word v4, 0
     v8 = eq v7, 11
     icall require<short_string>, v8, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
     v9 = make_memory_slice arg0, 2
-    v10 = slice_load_element v9, 0, memptr
+    v10 = slice_load_word v9, 0, memptr
     v11 = make_memory_slice v10, 1
-    v12 = slice_load_element v11, 0, memptr
+    v12 = slice_load_word v11, 0, memptr
     v13 = make_memory_slice v12, 2
     v14 = lt 1, 2
     v15 = eq v14, false
     icall panic_if<0x32>, v15
-    v16 = slice_load_element v13, 1
+    v16 = slice_load_word v13, 32
     v17 = eq v16, 22
     icall require<short_string>, v17, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
     v18 = make_memory_slice arg0, 2
-    v19 = slice_load_element v18, 1
+    v19 = slice_load_word v18, 32
     v20 = eq v19, 33
     icall require<short_string>, v20, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     ret 1
@@ -165,14 +165,14 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v22 = make_memory_slice v21, 96
     v23 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v22
     v24 = make_memory_slice v23, 2
-    v25 = slice_load_element v24, 0, memptr
+    v25 = slice_load_word v24, 0, memptr
     v26 = make_memory_slice v25, 1
-    v27 = slice_load_element v26, 0, memptr
+    v27 = slice_load_word v26, 0, memptr
     v28 = make_memory_slice v27, 2
     v29 = lt 1, 2
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = slice_load_element v28, 1
+    v31 = slice_load_word v28, 32
     ret v31
 }
 

@@ -83,13 +83,13 @@
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       v1 = make_memory_slice v0, 1
-      v2 = slice_load_element v1, 0
+      v2 = slice_load_word v1, 0
       v3 = ne v2, 0
       jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
-      v4 = slice_load_element v1, 0
+      v4 = slice_load_word v1, 0
       v5 = add v2, v4
       ret v5
   }

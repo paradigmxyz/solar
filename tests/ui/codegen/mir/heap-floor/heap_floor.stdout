@@ -531,14 +531,15 @@
       v2 = calldataload 36
       mstore 64, v2
       v3 = memory_slice v0
-      v4 = slice_load_element v3, v1
-+     v6 = mload 64 !metadata(memory=scratch)
-+     v7 = heap_floor
-+     v8 = lt v6, v7
-+     v9 = select v8, v7, v6
-+     mstore 64, v9 !metadata(memory=scratch)
-      v5 = alloc memorybytes, exact, zeroed, panic, 64
-      ret v4
+      v4 = shl 5, v1
+      v5 = slice_load_word v3, v4
++     v7 = mload 64 !metadata(memory=scratch)
++     v8 = heap_floor
++     v9 = lt v7, v8
++     v10 = select v9, v8, v7
++     mstore 64, v10 !metadata(memory=scratch)
+      v6 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v5
   }
   
   fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
@@ -576,8 +577,8 @@
       v3 = mload 64
       mstore 64, v1
       v4 = memory_slice v0
-      slice_store_element v4, 0, v3
-      v5 = slice_load_element v4, 0
+      slice_store_word v4, 0, v3
+      v5 = slice_load_word v4, 0
       ret v5
   }
   

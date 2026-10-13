@@ -682,7 +682,8 @@ fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
 // So can an element at a computed index.
 // CHECK-LABEL: {{^[ +].*}}fn @element_at_computed_index{{[( ]}}
 // CHECK: mstore 64, {{v[0-9]+}}
-// CHECK: slice_load_element {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: [[OFF1:v[0-9]+]] = shl 5, {{v[0-9]+}}
+// CHECK: slice_load_word {{v[0-9]+}}, [[OFF1]]
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK: alloc memorybytes
@@ -693,7 +694,8 @@ fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
     v2 = calldataload 36
     mstore 64, v2
     v5 = memory_slice v0
-    v3 = slice_load_element v5, v1
+    v105 = shl 5, v1
+    v3 = slice_load_word v5, v105
     v4 = alloc memorybytes, exact, zeroed, panic, 64
     ret v3
 }
@@ -744,8 +746,8 @@ fn @store_scratch_element() -> i256 [selector=0x12345691] {
     v3 = mload 64
     mstore 64, v1
     v5 = memory_slice v0
-    slice_store_element v5, 0, v3
-    v4 = slice_load_element v5, 0
+    slice_store_word v5, 0, v3
+    v4 = slice_load_word v5, 0
     ret v4
 }
 

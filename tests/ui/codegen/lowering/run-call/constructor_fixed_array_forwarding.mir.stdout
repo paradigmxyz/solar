@@ -21,7 +21,7 @@ fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, array<
     v0 = make_memory_slice arg1, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb6: v6]
+    v1 = phi [bb0: 0], [bb6: v7]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
   bb3:
@@ -34,10 +34,11 @@ fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, array<
     sstore v3, 0 !metadata(storage=offset(v1, 1))
     jump bb6
   bb4:
-    v5 = slice_load_element v0, v1
-    sstore v3, v5 !metadata(storage=offset(v1, 1))
+    v5 = shl 5, v1
+    v6 = slice_load_word v0, v5
+    sstore v3, v6 !metadata(storage=offset(v1, 1))
     jump bb6
   bb6:
-    v6 = add v1, 1
+    v7 = add v1, 1
     jump bb1
 }

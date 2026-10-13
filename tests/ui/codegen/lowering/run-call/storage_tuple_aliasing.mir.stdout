@@ -43,16 +43,16 @@ fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns
     v22 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v23 = make_memory_slice v22, 1
     v24 = sload v13 !metadata(storage=symbolic(v10))
-    slice_store_element v23, 0, v24
+    slice_store_word v23, 0, v24
     v25 = make_memory_slice v22, 1
-    v26 = slice_load_element v25, 0
+    v26 = slice_load_word v25, 0
     sstore v21, v26 !metadata(storage=symbolic(v18))
     v27 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v28 = make_memory_slice v27, 1
     v29 = sload v9 !metadata(storage=symbolic(v6))
-    slice_store_element v28, 0, v29
+    slice_store_word v28, 0, v29
     v30 = make_memory_slice v27, 1
-    v31 = slice_load_element v30, 0
+    v31 = slice_load_word v30, 0
     sstore v17, v31 !metadata(storage=symbolic(v14))
     v32 = lt 0, 3
     v33 = eq v32, false
@@ -105,16 +105,16 @@ fn @lhsMutation() -> struct1 [selector=0x8bbab81c, abi_params=[], abi_returns=[w
     v19 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v20 = make_memory_slice v19, 1
     v21 = sload v11 !metadata(storage=slot(1))
-    slice_store_element v20, 0, v21
+    slice_store_word v20, 0, v21
     v22 = make_memory_slice v19, 1
-    v23 = slice_load_element v22, 0
+    v23 = slice_load_word v22, 0
     sstore v18, v23 !metadata(storage=slot(1))
     v24 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v25 = make_memory_slice v24, 1
     v26 = sload v8 !metadata(storage=slot(0))
-    slice_store_element v25, 0, v26
+    slice_store_word v25, 0, v26
     v27 = make_memory_slice v24, 1
-    v28 = slice_load_element v27, 0
+    v28 = slice_load_word v27, 0
     sstore v15, v28 !metadata(storage=symbolic(v12))
     v29 = lt 0, 3
     v30 = eq v29, false
@@ -140,7 +140,7 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     sstore v2, 10 !metadata(storage=slot(0))
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v4 = make_memory_slice v3, 1
-    slice_store_element v4, 0, 0
+    slice_store_word v4, 0, 0
     v5 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v6 = ptrtoint memptr v5 to i256
     memory_zero v6, 32
@@ -153,21 +153,22 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     v12 = lt v10, 1
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    slice_store_element v11, v10, 1
-    v14 = alloc memorystruct<1>, exact, uninitialized, panic, 32
-    v15 = make_memory_slice v14, 1
-    v16 = sload v9 !metadata(storage=slot(0))
-    slice_store_element v15, 0, v16
-    v17 = make_memory_slice v14, 1
-    v18 = slice_load_element v17, 0
-    v19 = lt 0, 3
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = add 0, 0
-    v22 = sload v21 !metadata(storage=slot(0))
-    v23 = insert_value struct1, undef struct1, 0, v18
-    v24 = insert_value struct1, v23, 1, v22
-    ret v24
+    v14 = shl 5, v10
+    slice_store_word v11, v14, 1
+    v15 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+    v16 = make_memory_slice v15, 1
+    v17 = sload v9 !metadata(storage=slot(0))
+    slice_store_word v16, 0, v17
+    v18 = make_memory_slice v15, 1
+    v19 = slice_load_word v18, 0
+    v20 = lt 0, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = add 0, 0
+    v23 = sload v22 !metadata(storage=slot(0))
+    v24 = insert_value struct1, undef struct1, 0, v19
+    v25 = insert_value struct1, v24, 1, v23
+    ret v25
 }
 
 fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -196,16 +197,16 @@ fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_ret
     v15 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v16 = make_memory_slice v15, 1
     v17 = sload v8 !metadata(storage=symbolic(v8))
-    slice_store_element v16, 0, v17
+    slice_store_word v16, 0, v17
     v18 = make_memory_slice v15, 1
-    v19 = slice_load_element v18, 0
+    v19 = slice_load_word v18, 0
     sstore v14, v19 !metadata(storage=slot(1))
     v20 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v21 = make_memory_slice v20, 1
     v22 = sload v7 !metadata(storage=symbolic(v7))
-    slice_store_element v21, 0, v22
+    slice_store_word v21, 0, v22
     v23 = make_memory_slice v20, 1
-    v24 = slice_load_element v23, 0
+    v24 = slice_load_word v23, 0
     sstore v11, v24 !metadata(storage=slot(0))
     v25 = lt 0, 3
     v26 = eq v25, false
@@ -256,23 +257,23 @@ fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], a
     v21 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v22 = make_memory_slice v21, 1
     v23 = sload v11 !metadata(storage=slot(1))
-    slice_store_element v22, 0, v23
+    slice_store_word v22, 0, v23
     v24 = make_memory_slice v21, 1
-    v25 = slice_load_element v24, 0
+    v25 = slice_load_word v24, 0
     sstore v20, v25 !metadata(storage=slot(2))
     v26 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v27 = make_memory_slice v26, 1
     v28 = sload v8 !metadata(storage=symbolic(v8))
-    slice_store_element v27, 0, v28
+    slice_store_word v27, 0, v28
     v29 = make_memory_slice v26, 1
-    v30 = slice_load_element v29, 0
+    v30 = slice_load_word v29, 0
     sstore v17, v30 !metadata(storage=slot(1))
     v31 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v32 = make_memory_slice v31, 1
     v33 = sload v7 !metadata(storage=symbolic(v7))
-    slice_store_element v32, 0, v33
+    slice_store_word v32, 0, v33
     v34 = make_memory_slice v31, 1
-    v35 = slice_load_element v34, 0
+    v35 = slice_load_word v34, 0
     sstore v14, v35 !metadata(storage=slot(0))
     v36 = lt 0, 3
     v37 = eq v36, false
@@ -356,73 +357,75 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v37 = memory_slice v27
     jump bb12
   bb12:
-    v38 = phi [bb8: 0], [bb13: v43]
+    v38 = phi [bb8: 0], [bb13: v44]
     v39 = lt v38, v29
     jumpi v39, bb13, bb14
   bb14:
-    v44 = icall @load_storage_word_array, 6
-    v45 = memory_slice v44
-    v46 = slice_len v45
-    v47 = sload 5 !metadata(storage=slot(5))
-    v48 = gt v47, v46
-    jumpi v48, bb15, bb16
+    v45 = icall @load_storage_word_array, 6
+    v46 = memory_slice v45
+    v47 = slice_len v46
+    v48 = sload 5 !metadata(storage=slot(5))
+    v49 = gt v48, v47
+    jumpi v49, bb15, bb16
   bb15:
     jump bb17
   bb17:
-    v49 = phi [bb15: v46], [bb18: v53]
-    v50 = lt v49, v47
-    jumpi v50, bb18, bb19
+    v50 = phi [bb15: v47], [bb18: v54]
+    v51 = lt v50, v48
+    jumpi v51, bb18, bb19
   bb19:
     jump bb16
   bb16:
-    sstore 5, v46 !metadata(storage=slot(5))
-    v54 = memory_slice v44
+    sstore 5, v47 !metadata(storage=slot(5))
+    v55 = memory_slice v45
     jump bb20
   bb20:
-    v55 = phi [bb16: 0], [bb21: v60]
-    v56 = lt v55, v46
-    jumpi v56, bb21, bb22
+    v56 = phi [bb16: 0], [bb21: v62]
+    v57 = lt v56, v47
+    jumpi v57, bb21, bb22
   bb22:
-    v61 = sload 5 !metadata(storage=slot(5))
-    v62 = sload 5 !metadata(storage=slot(5))
-    v63 = lt 0, v62
-    v64 = eq v63, false
-    icall panic_if<0x32>, v64
-    v65 = storage_array_data_slot 5
-    v66 = add v65, 0
-    v67 = sload v66 !metadata(storage=symbolic(v65))
-    v68 = sload 6 !metadata(storage=slot(6))
-    v69 = sload 6 !metadata(storage=slot(6))
-    v70 = lt 0, v69
-    v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = storage_array_data_slot 6
-    v73 = add v72, 0
-    v74 = sload v73 !metadata(storage=symbolic(v72))
-    v75 = insert_value struct0, undef struct0, 0, v61
-    v76 = insert_value struct0, v75, 1, v67
-    v77 = insert_value struct0, v76, 2, v68
-    v78 = insert_value struct0, v77, 3, v74
-    ret v78
+    v63 = sload 5 !metadata(storage=slot(5))
+    v64 = sload 5 !metadata(storage=slot(5))
+    v65 = lt 0, v64
+    v66 = eq v65, false
+    icall panic_if<0x32>, v66
+    v67 = storage_array_data_slot 5
+    v68 = add v67, 0
+    v69 = sload v68 !metadata(storage=symbolic(v67))
+    v70 = sload 6 !metadata(storage=slot(6))
+    v71 = sload 6 !metadata(storage=slot(6))
+    v72 = lt 0, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = storage_array_data_slot 6
+    v75 = add v74, 0
+    v76 = sload v75 !metadata(storage=symbolic(v74))
+    v77 = insert_value struct0, undef struct0, 0, v63
+    v78 = insert_value struct0, v77, 1, v69
+    v79 = insert_value struct0, v78, 2, v70
+    v80 = insert_value struct0, v79, 3, v76
+    ret v80
   bb21:
-    v57 = slice_load_element v54, v55
-    v58 = storage_array_data_slot 5
-    v59 = add v58, v55
-    sstore v59, v57 !metadata(storage=symbolic(v59))
-    v60 = add v55, 1
+    v58 = shl 5, v56
+    v59 = slice_load_word v55, v58
+    v60 = storage_array_data_slot 5
+    v61 = add v60, v56
+    sstore v61, v59 !metadata(storage=symbolic(v61))
+    v62 = add v56, 1
     jump bb20
   bb18:
-    v51 = storage_array_data_slot 5
-    v52 = add v51, v49
-    sstore v52, 0 !metadata(storage=symbolic(v52))
-    v53 = add v49, 1
+    v52 = storage_array_data_slot 5
+    v53 = add v52, v50
+    sstore v53, 0 !metadata(storage=symbolic(v53))
+    v54 = add v50, 1
     jump bb17
   bb13:
-    v40 = slice_load_element v37, v38
-    v41 = storage_array_data_slot 6
-    v42 = add v41, v38
-    sstore v42, v40 !metadata(storage=symbolic(v42))
-    v43 = add v38, 1
+    v40 = shl 5, v38
+    v41 = slice_load_word v37, v40
+    v42 = storage_array_data_slot 6
+    v43 = add v42, v38
+    sstore v43, v41 !metadata(storage=symbolic(v43))
+    v44 = add v38, 1
     jump bb12
   bb10:
     v34 = storage_array_data_slot 6

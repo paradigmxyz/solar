@@ -11,7 +11,7 @@ fn @approve(arg0: i160, arg1: i256) [selector=0x095ea7b3, payable, abi_params=[a
     v0 = caller
     v1 = zext i160 v0 to i256
     v2 = zext i160 arg0 to i256
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v1, v2, arg1
+    log 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v1, v2, arg1
     sstore 0, arg1 !metadata(storage=slot(0))
     ret
 }
@@ -42,7 +42,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v11 = address
     v12 = zext i160 v11 to i256
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v12, 0xbeef, 7
+    log 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v12, 0xbeef, 7
     v13 = gas
     v14 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args 0xbeef, 7
     v15 = slice_ptr v14

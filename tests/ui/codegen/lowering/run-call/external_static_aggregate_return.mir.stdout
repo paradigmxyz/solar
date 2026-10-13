@@ -7,13 +7,13 @@ fn @makeStruct(arg0: i256) -> memptr [selector=0x62dc8436, pure, abi_params=[u25
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
-    slice_store_element v1, 1, 0
+    slice_store_word v1, 0, 0
+    slice_store_word v1, 32, 0
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v3 = checked_add u256, arg0, 1
     v4 = make_memory_slice v2, 2
-    slice_store_element v4, 0, arg0
-    slice_store_element v4, 1, v3
+    slice_store_word v4, 0, arg0
+    slice_store_word v4, 32, v3
     ret v2
 }
 
@@ -24,11 +24,11 @@ fn @makeArray(arg0: i256) -> memptr [selector=0x9510f212, pure, abi_params=[u256
     memory_zero v1, 96
     v2 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v3 = make_memory_slice v2, 3
-    slice_store_element v3, 0, arg0
+    slice_store_word v3, 0, arg0
     v4 = checked_add u256, arg0, 1
-    slice_store_element v3, 1, v4
+    slice_store_word v3, 32, v4
     v5 = checked_add u256, arg0, 2
-    slice_store_element v3, 2, v5
+    slice_store_word v3, 64, v5
     ret v2
 }
 
@@ -36,13 +36,13 @@ fn @makePair(arg0: i256) -> struct0 [selector=0xf4d7be11, pure, abi_params=[u256
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
-    slice_store_element v1, 1, 0
+    slice_store_word v1, 0, 0
+    slice_store_word v1, 32, 0
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v3 = checked_add u256, arg0, 1
     v4 = make_memory_slice v2, 2
-    slice_store_element v4, 0, arg0
-    slice_store_element v4, 1, v3
+    slice_store_word v4, 0, arg0
+    slice_store_word v4, 32, v3
     v5 = checked_add u256, arg0, 2
     v6 = insert_value struct0, undef struct0, 0, v2
     v7 = insert_value struct0, v6, 1, v5
@@ -76,9 +76,9 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u25
     v12 = make_memory_slice v11, 64
     v13 = abi_decode [tuple<u256, u256>], v12
     v14 = make_memory_slice v13, 2
-    v15 = slice_load_element v14, 0
+    v15 = slice_load_word v14, 0
     v16 = make_memory_slice v13, 2
-    v17 = slice_load_element v16, 1
+    v17 = slice_load_word v16, 32
     v18 = checked_add u256, v15, v17
     ret v18
 }
@@ -108,18 +108,18 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256
     v15 = lt 0, 3
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = slice_load_element v14, 0
+    v17 = slice_load_word v14, 0
     v18 = make_memory_slice v13, 3
     v19 = lt 1, 3
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = slice_load_element v18, 1
+    v21 = slice_load_word v18, 32
     v22 = checked_add u256, v17, v21
     v23 = make_memory_slice v13, 3
     v24 = lt 2, 3
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = slice_load_element v23, 2
+    v26 = slice_load_word v23, 64
     v27 = checked_add u256, v22, v26
     ret v27
 }
@@ -151,9 +151,9 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v12 = make_memory_slice v11, 64
     v13 = abi_decode [tuple<u256, u256>], v12
     v14 = make_memory_slice v13, 2
-    v15 = slice_load_element v14, 0
+    v15 = slice_load_word v14, 0
     v16 = make_memory_slice v13, 2
-    v17 = slice_load_element v16, 1
+    v17 = slice_load_word v16, 32
     v18 = checked_add u256, v15, v17
     ret v18
   bb3:
@@ -188,9 +188,9 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256]
     v18 = extract_value struct0, v17, 0
     v19 = extract_value struct0, v17, 1
     v20 = make_memory_slice v18, 2
-    v21 = slice_load_element v20, 0
+    v21 = slice_load_word v20, 0
     v22 = make_memory_slice v18, 2
-    v23 = slice_load_element v22, 1
+    v23 = slice_load_word v22, 32
     v24 = checked_add u256, v21, v23
     v25 = checked_add u256, v24, v19
     ret v25
@@ -218,9 +218,9 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v12 = make_memory_slice v11, 64
     v13 = abi_decode [tuple<u256, u256>], v12
     v14 = make_memory_slice v13, 2
-    v15 = slice_load_element v14, 0
+    v15 = slice_load_word v14, 0
     v16 = make_memory_slice v13, 2
-    v17 = slice_load_element v16, 1
+    v17 = slice_load_word v16, 32
     v18 = checked_add u256, v15, v17
     ret v18
 }

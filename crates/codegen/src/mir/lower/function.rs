@@ -8,7 +8,7 @@ use super::{
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
     AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, DataId, DataRef,
-    Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
+    Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics, MemoryObjectKind,
     MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
     RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };

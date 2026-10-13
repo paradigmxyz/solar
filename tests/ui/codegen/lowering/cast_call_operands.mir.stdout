@@ -169,28 +169,28 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v3 = sload v0 !metadata(storage=symbolic(v0))
     v4 = trunc i256 v3 to i160
     v5 = zext i160 v4 to i256
-    slice_store_element v2, 0, v5
+    slice_store_word v2, 0, v5
     v6 = add v0, 1
     v7 = sload v6 !metadata(storage=offset(v0, 1))
     v8 = trunc i256 v7 to i160
     v9 = zext i160 v8 to i256
-    slice_store_element v2, 1, v9
+    slice_store_word v2, 32, v9
     v10 = add v0, 1
     v11 = sload v10 !metadata(storage=offset(v0, 1))
     v12 = shr 160, v11
     v13 = signextend 2, v12
-    slice_store_element v2, 2, v13
+    slice_store_word v2, 64, v13
     v14 = add v0, 1
     v15 = sload v14 !metadata(storage=offset(v0, 1))
     v16 = shr 184, v15
     v17 = signextend 2, v16
-    slice_store_element v2, 3, v17
+    slice_store_word v2, 96, v17
     v18 = add v0, 2
     v19 = sload v18 !metadata(storage=offset(v0, 2))
-    slice_store_element v2, 4, v19
+    slice_store_word v2, 128, v19
     v20 = add v0, 3
     v21 = sload v20 !metadata(storage=offset(v0, 3))
-    slice_store_element v2, 5, v21
+    slice_store_word v2, 160, v21
     v22 = lt arg0, arg1
     jumpi v22, bb1, bb2
   bb2:
@@ -253,12 +253,12 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     jumpi v22, bb11, bb12
   bb12:
     v60 = make_memory_slice v1, 6
-    v61 = slice_load_element v60, 1
+    v61 = slice_load_word v60, 32
     v62 = trunc i256 v61 to i160
     jump bb13
   bb11:
     v57 = make_memory_slice v1, 6
-    v58 = slice_load_element v57, 0
+    v58 = slice_load_word v57, 0
     v59 = trunc i256 v58 to i160
     jump bb13
   bb13:
@@ -266,20 +266,20 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     jumpi v22, bb14, bb15
   bb15:
     v70 = make_memory_slice v1, 6
-    v71 = slice_load_element v70, 3
+    v71 = slice_load_word v70, 96
     v72 = trunc i256 v71 to i24
     v73 = checked_sub i24, i24 0, v72
     v74 = make_memory_slice v1, 6
-    v75 = slice_load_element v74, 2
+    v75 = slice_load_word v74, 64
     v76 = trunc i256 v75 to i24
     v77 = checked_sub i24, i24 0, v76
     jump bb16
   bb14:
     v64 = make_memory_slice v1, 6
-    v65 = slice_load_element v64, 2
+    v65 = slice_load_word v64, 64
     v66 = trunc i256 v65 to i24
     v67 = make_memory_slice v1, 6
-    v68 = slice_load_element v67, 3
+    v68 = slice_load_word v67, 96
     v69 = trunc i256 v68 to i24
     jump bb16
   bb16:
@@ -288,22 +288,22 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     jumpi v22, bb17, bb18
   bb18:
     v82 = make_memory_slice v1, 6
-    v83 = slice_load_element v82, 5
+    v83 = slice_load_word v82, 160
     jump bb19
   bb17:
     v80 = make_memory_slice v1, 6
-    v81 = slice_load_element v80, 4
+    v81 = slice_load_word v80, 128
     jump bb19
   bb19:
     v84 = phi [bb17: v81], [bb18: v83]
     jumpi v22, bb20, bb21
   bb21:
     v87 = make_memory_slice v1, 6
-    v88 = slice_load_element v87, 4
+    v88 = slice_load_word v87, 128
     jump bb22
   bb20:
     v85 = make_memory_slice v1, 6
-    v86 = slice_load_element v85, 5
+    v86 = slice_load_word v85, 160
     jump bb22
   bb22:
     v89 = phi [bb20: v86], [bb21: v88]
@@ -336,12 +336,12 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v110 = sext i24 v78 to i256
     v111 = sext i24 v79 to i256
     v112 = make_memory_slice v107, 6
-    slice_store_element v112, 0, v108
-    slice_store_element v112, 1, v109
-    slice_store_element v112, 2, v110
-    slice_store_element v112, 3, v111
-    slice_store_element v112, 4, v84
-    slice_store_element v112, 5, v89
+    slice_store_word v112, 0, v108
+    slice_store_word v112, 32, v109
+    slice_store_word v112, 64, v110
+    slice_store_word v112, 96, v111
+    slice_store_word v112, 128, v84
+    slice_store_word v112, 160, v89
     v113 = abi_encode [tuple<word<u160>, word<u160>, word<i24>, word<i24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v107
     v114 = slice_ptr v113
     v115 = slice_len v113

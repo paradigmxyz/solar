@@ -7,7 +7,7 @@ fn @fill() -> memptr [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[mem
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: 0], [bb3: v9]
     v3 = lt v2, 2
     jumpi v3, bb4, bb5
   bb5:
@@ -15,48 +15,50 @@ fn @fill() -> memptr [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[mem
   bb2:
     jump bb7
   bb7:
-    v9 = phi [bb2: v1], [bb9: v9]
-    v10 = phi [bb2: v2], [bb9: v16]
-    v11 = lt v10, 5
-    jumpi v11, bb10, bb11
+    v10 = phi [bb2: v1], [bb9: v10]
+    v11 = phi [bb2: v2], [bb9: v18]
+    v12 = lt v11, 5
+    jumpi v12, bb10, bb11
   bb11:
     jump bb8
   bb8:
     jump bb13
   bb13:
-    v17 = phi [bb8: v9], [bb15: v17]
-    v18 = phi [bb8: v10], [bb15: v24]
-    v19 = lt v18, 6
-    jumpi v19, bb16, bb17
+    v19 = phi [bb8: v10], [bb15: v19]
+    v20 = phi [bb8: v11], [bb15: v27]
+    v21 = lt v20, 6
+    jumpi v21, bb16, bb17
   bb17:
     jump bb14
   bb14:
-    ret v17
+    ret v19
   bb16:
-    v20 = memory_slice v17
-    v21 = slice_len v20
-    v22 = lt v18, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    slice_store_element v20, v18, 7
+    v22 = memory_slice v19
+    v23 = slice_len v22
+    v24 = lt v20, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl 5, v20
+    slice_store_word v22, v26, 7
     jump bb18
   bb18:
     jump bb15
   bb15:
-    v24 = checked_add u256, v18, 1
+    v27 = checked_add u256, v20, 1
     jump bb13
   bb10:
-    v12 = memory_slice v9
-    v13 = slice_len v12
-    v14 = lt v10, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    slice_store_element v12, v10, 9
+    v13 = memory_slice v10
+    v14 = slice_len v13
+    v15 = lt v11, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = shl 5, v11
+    slice_store_word v13, v17, 9
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v16 = checked_add u256, v10, 1
+    v18 = checked_add u256, v11, 1
     jump bb7
   bb4:
     v4 = memory_slice v1
@@ -64,12 +66,13 @@ fn @fill() -> memptr [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[mem
     v6 = lt v2, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    slice_store_element v4, v2, 8
+    v8 = shl 5, v2
+    slice_store_word v4, v8, 8
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = checked_add u256, v2, 1
+    v9 = checked_add u256, v2, 1
     jump bb1
 }
 
@@ -136,15 +139,15 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
   bb17:
     v77 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v78 = make_memory_slice v77, 2
-    slice_store_element v78, 0, 0
-    slice_store_element v78, 1, 0
+    slice_store_word v78, 0, 0
+    slice_store_word v78, 32, 0
     v79 = lt 4, 5
     v80 = eq v79, false
     icall panic_if<0x32>, v80
     v81 = mul 4, 2
     v82 = add v48, v81
     v83 = make_memory_slice v77, 2
-    v84 = slice_load_element v83, 0
+    v84 = slice_load_word v83, 0
     v85 = sload v82 !metadata(storage=symbolic(v82))
     v86 = not 0xffffffffffffffffffffffffffffffffffffffff
     v87 = and v85, v86
@@ -152,7 +155,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v89 = or v87, v88
     sstore v82, v89 !metadata(storage=symbolic(v82))
     v90 = add v82, 1
-    v91 = slice_load_element v83, 1
+    v91 = slice_load_word v83, 32
     sstore v90, v91 !metadata(storage=offset(v82, 1))
     jump bb8
   bb8:
@@ -210,13 +213,13 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v61 = sload v54 !metadata(storage=symbolic(v54))
     v62 = trunc i256 v61 to i160
     v63 = zext i160 v62 to i256
-    slice_store_element v60, 0, v63
+    slice_store_word v60, 0, v63
     v64 = add v54, 1
     v65 = sload v64 !metadata(storage=offset(v54, 1))
-    slice_store_element v60, 1, v65
+    slice_store_word v60, 32, v65
     v66 = ptrtoint memptr v59 to i256
     v67 = make_memory_slice v66, 2
-    v68 = slice_load_element v67, 0
+    v68 = slice_load_word v67, 0
     v69 = sload v58 !metadata(storage=symbolic(v58))
     v70 = not 0xffffffffffffffffffffffffffffffffffffffff
     v71 = and v69, v70
@@ -224,7 +227,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v73 = or v71, v72
     sstore v58, v73 !metadata(storage=symbolic(v58))
     v74 = add v58, 1
-    v75 = slice_load_element v67, 1
+    v75 = slice_load_word v67, 32
     sstore v74, v75 !metadata(storage=offset(v58, 1))
     jump bb21
   bb21:
@@ -239,8 +242,8 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v10 = checked_add u160, v2, i160 1
     v11 = zext i160 v10 to i256
     v12 = make_memory_slice v7, 2
-    slice_store_element v12, 0, v9
-    slice_store_element v12, 1, v11
+    slice_store_word v12, 0, v9
+    slice_store_word v12, 32, v11
     v13 = lt v2, i160 5
     v14 = eq v13, false
     icall panic_if<0x32>, v14
@@ -248,7 +251,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v16 = mul v15, 2
     v17 = add v5, v16
     v18 = make_memory_slice v7, 2
-    v19 = slice_load_element v18, 0
+    v19 = slice_load_word v18, 0
     v20 = sload v17 !metadata(storage=symbolic(v17))
     v21 = not 0xffffffffffffffffffffffffffffffffffffffff
     v22 = and v20, v21
@@ -256,7 +259,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v24 = or v22, v23
     sstore v17, v24 !metadata(storage=symbolic(v17))
     v25 = add v17, 1
-    v26 = slice_load_element v18, 1
+    v26 = slice_load_word v18, 32
     sstore v25, v26 !metadata(storage=offset(v17, 1))
     jump bb6
   bb6:

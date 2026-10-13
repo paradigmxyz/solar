@@ -32,7 +32,7 @@ error: [fn16] [bb0, inst0] `zext` has incompatible scalar types; use an explicit
 
 error: [fn17] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an explicit cast
 
-error: [fn18] [bb0, inst1] `slice_load_element` has incompatible scalar types; use an explicit cast
+error: [fn18] [bb0, inst1] `slice_load_word` has incompatible scalar types; use an explicit cast
 
 error: [fn19] [bb0, inst1] `slice_store_word` has incompatible scalar types; use an explicit cast
 

@@ -12,8 +12,9 @@ fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<134217
     v1 = lt arg1, 0x7ffffff
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_load_element v0, arg1
-    sstore 0, v3 !metadata(storage=slot(0))
+    v3 = shl 5, arg1
+    v4 = slice_load_word v0, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -31,7 +32,7 @@ fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<3, u25
     v1 = lt 2, 3
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_load_element v0, 2
+    v3 = slice_load_word v0, 64
     v4 = checked_add u256, v3, arg1
     v5 = checked_sub u256, v4, 3
     sstore 0, v5 !metadata(storage=slot(0))

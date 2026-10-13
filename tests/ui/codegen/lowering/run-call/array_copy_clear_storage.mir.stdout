@@ -41,7 +41,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v23 = lt 0, v22
     v24 = eq v23, false
     icall panic_if<0x32>, v24
-    slice_store_element v21, 0, 23
+    slice_store_word v21, 0, 23
     v25 = memory_slice v20
     v26 = slice_len v25
     v27 = sload 0 !metadata(storage=slot(0))
@@ -60,45 +60,46 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v34 = memory_slice v20
     jump bb6
   bb6:
-    v35 = phi [bb2: 0], [bb7: v40]
+    v35 = phi [bb2: 0], [bb7: v41]
     v36 = lt v35, v26
     jumpi v36, bb7, bb8
   bb8:
     sstore 0, 4 !metadata(storage=slot(0))
-    v41 = sload 0 !metadata(storage=slot(0))
-    v42 = lt 1, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = storage_array_data_slot 0
-    v45 = add v44, 1
-    v46 = sload v45 !metadata(storage=offset(v44, 1))
-    v47 = eq v46, 0
-    v48 = eq v47, false
-    icall panic_if<0x1>, v48
-    v49 = sload 0 !metadata(storage=slot(0))
-    v50 = lt 2, v49
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = storage_array_data_slot 0
-    v53 = add v52, 2
-    v54 = sload v53 !metadata(storage=offset(v52, 2))
-    v55 = eq v54, 0
-    v56 = eq v55, false
-    icall panic_if<0x1>, v56
-    v57 = sload 0 !metadata(storage=slot(0))
-    v58 = lt 3, v57
-    v59 = eq v58, false
-    icall panic_if<0x32>, v59
-    v60 = storage_array_data_slot 0
-    v61 = add v60, 3
-    v62 = sload v61 !metadata(storage=offset(v60, 3))
-    ret v62
+    v42 = sload 0 !metadata(storage=slot(0))
+    v43 = lt 1, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = storage_array_data_slot 0
+    v46 = add v45, 1
+    v47 = sload v46 !metadata(storage=offset(v45, 1))
+    v48 = eq v47, 0
+    v49 = eq v48, false
+    icall panic_if<0x1>, v49
+    v50 = sload 0 !metadata(storage=slot(0))
+    v51 = lt 2, v50
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = storage_array_data_slot 0
+    v54 = add v53, 2
+    v55 = sload v54 !metadata(storage=offset(v53, 2))
+    v56 = eq v55, 0
+    v57 = eq v56, false
+    icall panic_if<0x1>, v57
+    v58 = sload 0 !metadata(storage=slot(0))
+    v59 = lt 3, v58
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = storage_array_data_slot 0
+    v62 = add v61, 3
+    v63 = sload v62 !metadata(storage=offset(v61, 3))
+    ret v63
   bb7:
-    v37 = slice_load_element v34, v35
-    v38 = storage_array_data_slot 0
-    v39 = add v38, v35
-    sstore v39, v37 !metadata(storage=symbolic(v39))
-    v40 = add v35, 1
+    v37 = shl 5, v35
+    v38 = slice_load_word v34, v37
+    v39 = storage_array_data_slot 0
+    v40 = add v39, v35
+    sstore v40, v38 !metadata(storage=symbolic(v40))
+    v41 = add v35, 1
     jump bb6
   bb4:
     v31 = storage_array_data_slot 0

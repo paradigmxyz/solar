@@ -408,30 +408,30 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = sext i24 60 to i256
     v2 = make_memory_slice v0, 5
-    slice_store_element v2, 0, 1
-    slice_store_element v2, 1, 2
-    slice_store_element v2, 2, 0xbb8
-    slice_store_element v2, 3, v1
-    slice_store_element v2, 4, 3
+    slice_store_word v2, 0, 1
+    slice_store_word v2, 32, 2
+    slice_store_word v2, 64, 0xbb8
+    slice_store_word v2, 96, v1
+    slice_store_word v2, 128, 3
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v4 = make_memory_slice v3, 3
-    slice_store_element v4, 0, 1
-    slice_store_element v4, 1, 101
-    slice_store_element v4, 2, 99
+    slice_store_word v4, 0, 1
+    slice_store_word v4, 32, 101
+    slice_store_word v4, 64, 99
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     mstore v5, 4
     v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
     mstore v7, 0x1234567800000000000000000000000000000000000000000000000000000000
     v8 = make_memory_slice v0, 5
-    v9 = slice_load_element v8, 0
+    v9 = slice_load_word v8, 0
     v10 = trunc i256 v9 to i160
     v11 = icall @fetchRich, v10
     v12 = extract_value struct0, v11, 0
     v13 = extract_value struct0, v11, 1
     v14 = extract_value struct0, v11, 2
     v15 = make_memory_slice v0, 5
-    v16 = slice_load_element v15, 1
+    v16 = slice_load_word v15, 32
     v17 = trunc i256 v16 to i160
     v18 = icall @fetchRich, v17
     v19 = extract_value struct0, v18, 0
@@ -459,32 +459,32 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v34 = add 0, 0
     v35 = mload v34
     v36 = make_memory_slice v0, 5
-    v37 = slice_load_element v36, 0
+    v37 = slice_load_word v36, 0
     v38 = trunc i256 v37 to i160
     v39 = icall @fetchRich, v38
     v40 = extract_value struct0, v39, 0
     v41 = extract_value struct0, v39, 1
     v42 = extract_value struct0, v39, 2
     v43 = make_memory_slice v0, 5
-    v44 = slice_load_element v43, 1
+    v44 = slice_load_word v43, 32
     v45 = trunc i256 v44 to i160
     v46 = icall @fetchRich, v45
     v47 = extract_value struct0, v46, 0
     v48 = extract_value struct0, v46, 1
     v49 = extract_value struct0, v46, 2
     v50 = make_memory_slice v3, 3
-    v51 = slice_load_element v50, 0
+    v51 = slice_load_word v50, 0
     v52 = eq v51, 0
     v53 = eq v52, false
     jumpi v53, bb3, bb4
   bb4:
     v69 = make_memory_slice v3, 3
-    v70 = slice_load_element v69, 1
+    v70 = slice_load_word v69, 32
     v71 = slt v70, 0
     jumpi v71, bb9, bb10
   bb10:
     v78 = make_memory_slice v3, 3
-    v79 = slice_load_element v78, 1
+    v79 = slice_load_word v78, 32
     v80 = sgt v49, v79
     v81 = eq v80, false
     icall require<short_string>, v81, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
@@ -494,7 +494,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     jump bb11
   bb9:
     v72 = make_memory_slice v3, 3
-    v73 = slice_load_element v72, 1
+    v73 = slice_load_word v72, 32
     v74 = slt v49, v73
     v75 = eq v74, false
     icall require<short_string>, v75, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
@@ -506,7 +506,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     jump bb5
   bb3:
     v54 = make_memory_slice v3, 3
-    v55 = slice_load_element v54, 1
+    v55 = slice_load_word v54, 32
     v56 = slt v55, 0
     jumpi v56, bb6, bb7
   bb7:
@@ -514,14 +514,14 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v64 = eq v63, false
     icall require<short_string>, v64, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
     v65 = make_memory_slice v3, 3
-    v66 = slice_load_element v65, 1
+    v66 = slice_load_word v65, 32
     v67 = sgt v49, v66
     v68 = eq v67, false
     icall require<short_string>, v68, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     jump bb8
   bb6:
     v57 = make_memory_slice v3, 3
-    v58 = slice_load_element v57, 1
+    v58 = slice_load_word v57, 32
     v59 = slt v42, v58
     v60 = eq v59, false
     icall require<short_string>, v60, 1, 0x6100000000000000000000000000000000000000000000000000000000000000

@@ -97,7 +97,7 @@ fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_re
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = sext i16 0xffff to i256
-    slice_store_element v1, 0, v5
+    slice_store_word v1, 0, v5
     v6 = ptrtoint memptr v0 to i256
     v7 = add v6, 32
     v8 = mload v7

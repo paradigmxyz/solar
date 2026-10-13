@@ -14,9 +14,9 @@
       v2 = make_memory_slice arg1, arg1
       v3 = abi_decode [tuple<u256, u256>], v2
       v4 = make_memory_slice v1, 2
-      v5 = slice_load_element v4, 0
+      v5 = slice_load_word v4, 0
       v6 = make_memory_slice v3, 2
-      v7 = slice_load_element v6, 1
+      v7 = slice_load_word v6, 32
       v8 = add v5, v7
       ret v8
   }

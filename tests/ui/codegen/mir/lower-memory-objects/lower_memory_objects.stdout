@@ -13,29 +13,31 @@
 -     v4 = slice_ptr v2
 -     mstore8 v4, v3
 -     v5 = make_memory_slice arg2, 2
--     slice_store_element v5, 1, v3
+-     slice_store_word v5, 32, v3
 -     v6 = memory_slice arg1
--     slice_store_element v6, v3, v3
--     v7 = make_memory_slice arg3, 4
--     slice_store_element v7, v3, v3
-+     v8 = ptrtoint memptr v0 to i256
-+     v2 = mload v8
-+     v9 = ptrtoint memptr v0 to i256
-+     v4 = add v9, 32
+-     v7 = shl 5, v3
+-     slice_store_word v6, v7, v3
+-     v8 = make_memory_slice arg3, 4
+-     v9 = shl 5, v3
+-     slice_store_word v8, v9, v3
++     v10 = ptrtoint memptr v0 to i256
++     v2 = mload v10
++     v11 = ptrtoint memptr v0 to i256
++     v4 = add v11, 32
 +     mstore8 v4, v2
-+     v10 = ptrtoint memptr arg2 to i256
-+     v5 = make_memory_slice v10, 2
-+     v11 = add v10, 32
-+     mstore v11, v2
-+     v12 = ptrtoint memptr arg1 to i256
++     v12 = ptrtoint memptr arg2 to i256
++     v5 = make_memory_slice v12, 2
 +     v13 = add v12, 32
-+     v14 = mul v2, 32
-+     v15 = add v13, v14
-+     mstore v15, v2
-+     v16 = ptrtoint memptr arg3 to i256
-+     v7 = make_memory_slice v16, 4
-+     v17 = mul v2, 32
-+     v18 = add v16, v17
++     mstore v13, v2
++     v7 = shl 5, v2
++     v14 = ptrtoint memptr arg1 to i256
++     v15 = add v14, 32
++     v16 = add v15, v7
++     mstore v16, v2
++     v17 = ptrtoint memptr arg3 to i256
++     v8 = make_memory_slice v17, 4
++     v9 = shl 5, v2
++     v18 = add v17, v9
 +     mstore v18, v2
       stop
   }

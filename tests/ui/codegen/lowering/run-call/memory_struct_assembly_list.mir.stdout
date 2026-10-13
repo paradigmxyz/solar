@@ -7,7 +7,7 @@ fn @empty() -> memptr [pure] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     ret v0
 }
 
@@ -16,9 +16,9 @@ fn @append.1(arg0: memptr, arg1: i256) -> memptr [pure] {
     v0 = shl 48, arg1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v2 = make_memory_slice v1, 1
-    slice_store_element v2, 0, 0
+    slice_store_word v2, 0, 0
     v3 = make_memory_slice v1, 1
-    slice_store_element v3, 0, v0
+    slice_store_word v3, 0, v0
     icall @updateTail, arg0, v1
     ret arg0
 }
@@ -31,7 +31,7 @@ fn @append.2(arg0: memptr, arg1: memptr) -> memptr [pure] {
     v3 = shl 40, v2
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v5 = make_memory_slice v4, 1
-    slice_store_element v5, 0, 0
+    slice_store_word v5, 0, 0
     v6 = ptrtoint memptr v4 to i256
     mstore v6, v3
     icall @updateTail, arg0, v4
@@ -56,7 +56,7 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     icall @dirtyFreeMemory
     v2 = ptrtoint memptr v0 to i256
     v3 = mload v2
@@ -80,7 +80,7 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     icall @dirtyFreeMemory
     v2 = icall @append.1, v0, 7
     v3 = ptrtoint memptr v2 to i256
@@ -106,7 +106,7 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     icall @dirtyFreeMemory
     v2 = icall @append.1, v0, 7
     v3 = icall @append.1, v2, 9
@@ -141,7 +141,7 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     v2 = icall @empty
     v3 = icall @append.2, v0, v2
     v4 = icall @empty

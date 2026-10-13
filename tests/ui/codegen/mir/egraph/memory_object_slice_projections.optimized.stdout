@@ -12,7 +12,7 @@
   
   fn @memory_field(arg0: memoryslice) -> i256 {
     bb0:
-      v0 = slice_load_element arg0, 0
+      v0 = slice_load_word arg0, 0
       ret v0
   }
   
@@ -37,7 +37,7 @@
 - fn @memory_field(arg0: memoryslice) -> i256 {
 + fn @memory_field(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
--     v0 = slice_load_element arg0, 0
+-     v0 = slice_load_word arg0, 0
 +     v1 = slice_ptr arg0
 +     v0 = mload v1
       ret v0

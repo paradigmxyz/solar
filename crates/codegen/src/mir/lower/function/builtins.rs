@@ -713,6 +713,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }};
         }
+        macro_rules! log {
+            ($($topic:ident),*) => {{
+                let [offset, size, $($topic),*] = self.lower_builtin_args(builtin, &args)?;
+                self.builder.log(offset, size, &[$($topic),*]);
+                Some(())
+            }};
+        }
         match builtin {
             Builtin::YulMstore => lower!(mstore(offset, value)),
             Builtin::YulMstore8 => lower!(mstore8(offset, value)),
@@ -723,11 +730,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulCodecopy => lower!(codecopy(dest, src, size)),
             Builtin::YulExtcodecopy => lower!(extcodecopy(address, dest, src, size)),
             Builtin::YulReturndatacopy => lower!(returndatacopy(dest, src, size)),
-            Builtin::YulLog0 => lower!(log0(offset, size)),
-            Builtin::YulLog1 => lower!(log1(offset, size, topic1)),
-            Builtin::YulLog2 => lower!(log2(offset, size, topic1, topic2)),
-            Builtin::YulLog3 => lower!(log3(offset, size, topic1, topic2, topic3)),
-            Builtin::YulLog4 => lower!(log4(offset, size, topic1, topic2, topic3, topic4)),
+            Builtin::YulLog0 => log!(),
+            Builtin::YulLog1 => log!(topic1),
+            Builtin::YulLog2 => log!(topic1, topic2),
+            Builtin::YulLog3 => log!(topic1, topic2, topic3),
+            Builtin::YulLog4 => log!(topic1, topic2, topic3, topic4),
             Builtin::YulRevert => lower!(revert(offset, size)),
             Builtin::YulReturn => lower!(ret_data(offset, size)),
             Builtin::YulStop => lower!(stop()),

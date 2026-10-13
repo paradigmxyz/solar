@@ -14,7 +14,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v7]
+      v3 = phi [bb0: 0], [bb2: v8]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -22,8 +22,9 @@
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v3, v5
-      v7 = add v3, 1
+      v7 = shl 5, v3
+      slice_store_word v6, v7, v5
+      v8 = add v3, 1
       jump bb1
   }
   
@@ -47,7 +48,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v10]
+      v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -58,8 +59,9 @@
       v7 = inttoptr i256 v6 to memptr
       v8 = ptrtoint memptr v7 to i256
       v9 = memory_slice v0
-      slice_store_element v9, v3, v8
-      v10 = add v3, 1
+      v10 = shl 5, v3
+      slice_store_word v9, v10, v8
+      v11 = add v3, 1
       jump bb1
   }
   
@@ -83,7 +85,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v9]
+      v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -91,11 +93,12 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = memory_slice v5
-      slice_store_element v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v7 = ptrtoint memptr v5 to i256
       v8 = memory_slice v0
-      slice_store_element v8, v3, v7
-      v9 = add v3, 1
+      v9 = shl 5, v3
+      slice_store_word v8, v9, v7
+      v10 = add v3, 1
       jump bb1
   }
   
@@ -127,7 +130,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v10]
+      v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -137,10 +140,11 @@
       v6 = ptrtoint memptr v5 to i256
       v7 = inttoptr i256 v6 to memptr
       v8 = memory_slice v7
-      slice_store_element v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v9 = memory_slice v0
-      slice_store_element v9, v3, v6
-      v10 = add v3, 1
+      v10 = shl 5, v3
+      slice_store_word v9, v10, v6
+      v11 = add v3, 1
       jump bb1
   }
   
@@ -152,7 +156,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v12]
+      v3 = phi [bb0: 0], [bb2: v14]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -161,13 +165,15 @@
       v5 = icall @canonicalAddresses
       v6 = ptrtoint memptr v5 to i256
       v7 = memory_slice v0
-      slice_store_element v7, v3, v6
-      v8 = memory_slice v0
-      v9 = slice_load_element v8, v3
-      v10 = inttoptr i256 v9 to memptr
-      v11 = memory_slice v10
-      slice_store_element v11, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v12 = add v3, 1
+      v8 = shl 5, v3
+      slice_store_word v7, v8, v6
+      v9 = memory_slice v0
+      v10 = shl 5, v3
+      v11 = slice_load_word v9, v10
+      v12 = inttoptr i256 v11 to memptr
+      v13 = memory_slice v12
+      slice_store_word v13, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v14 = add v3, 1
       jump bb1
   }
   
@@ -179,7 +185,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v8]
+      v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -188,19 +194,20 @@
       v5 = icall @canonicalAddresses
       v6 = ptrtoint memptr v5 to i256
       v7 = memory_slice v0
-      slice_store_element v7, v3, v6
+      v8 = shl 5, v3
+      slice_store_word v7, v8, v6
       icall @dirtyNestedArray, v0
-      v8 = add v3, 1
+      v9 = add v3, 1
       jump bb1
   }
   
   fn @dirtyNestedArray(arg0: memptr) {
     bb0:
       v0 = memory_slice arg0
-      v1 = slice_load_element v0, 0
+      v1 = slice_load_word v0, 0
       v2 = inttoptr i256 v1 to memptr
       v3 = memory_slice v2
-      slice_store_element v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret
   }
   
@@ -228,7 +235,7 @@
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = make_memory_slice v0, 1
-      slice_store_element v2, 0, 256
+      slice_store_word v2, 0, 256
       ret v0
   }
   
@@ -258,7 +265,7 @@
       jumpi arg0, bb1, bb2
     bb1:
       v1 = make_memory_slice v0, 1
-      slice_store_element v1, 0, 1
+      slice_store_word v1, 0, 1
       jump bb2
     bb2:
       ret v0
@@ -269,12 +276,12 @@
       v0 = icall @canonicalAddresses
       v1 = ptrtoint memptr v0 to i256
       v2 = make_memory_slice arg0, 1
-      slice_store_element v2, 0, v1
+      slice_store_word v2, 0, v1
       v3 = make_memory_slice arg1, 1
-      v4 = slice_load_element v3, 0
+      v4 = slice_load_word v3, 0
       v5 = inttoptr i256 v4 to memptr
       v6 = memory_slice v5
-      slice_store_element v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v0
   }
   
@@ -298,7 +305,7 @@
       jumpi arg0, bb1, bb2
     bb1:
       v1 = make_memory_slice v0, 1
-      slice_store_element v1, 0, 1
+      slice_store_word v1, 0, 1
       jump bb2
     bb2:
       ret v0
@@ -318,7 +325,7 @@
       mstore v2, v1
       jumpi arg0, bb1, bb3
     bb1:
-      v3 = phi [bb0: 0], [bb2: v7]
+      v3 = phi [bb0: 0], [bb2: v8]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -326,8 +333,9 @@
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v3, v5
-      v7 = add v3, 1
+      v7 = shl 5, v3
+      slice_store_word v6, v7, v5
+      v8 = add v3, 1
       jump bb1
   }
   
@@ -337,7 +345,7 @@
       v1 = add 2, 0
       jump bb1
     bb1:
-      v2 = phi [bb0: 0], [bb2: v7]
+      v2 = phi [bb0: 0], [bb2: v8]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
     bb3:
@@ -347,8 +355,9 @@
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v2, v5
-      v7 = add v2, 1
+      v7 = shl 5, v2
+      slice_store_word v6, v7, v5
+      v8 = add v2, 1
       jump bb1
   }
   
@@ -369,9 +378,9 @@
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
       v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v2 = make_memory_slice v1, 1
-      slice_store_element v2, 0, 1
+      slice_store_word v2, 0, 1
       v3 = make_memory_slice v0, 1
-      slice_store_element v3, 1, 256
+      slice_store_word v3, 32, 256
       ret v1
   }
   
@@ -407,7 +416,7 @@
       v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v1 = zext i128 arg0 to i256
       v2 = make_memory_slice v0, 1
-      slice_store_element v2, 0, v1
+      slice_store_word v2, 0, v1
       ret v0
   }
   
@@ -427,7 +436,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v7]
+      v3 = phi [bb0: 0], [bb2: v8]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -435,8 +444,9 @@
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v3, v5
-      v7 = add v3, 1
+      v7 = shl 5, v3
+      slice_store_word v6, v7, v5
+      v8 = add v3, 1
       jump bb1
   }
   
@@ -460,7 +470,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v10]
+      v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -471,8 +481,9 @@
       v7 = inttoptr i256 v6 to memptr
       v8 = ptrtoint memptr v7 to i256
       v9 = memory_slice v0
-      slice_store_element v9, v3, v8
-      v10 = add v3, 1
+      v10 = shl 5, v3
+      slice_store_word v9, v10, v8
+      v11 = add v3, 1
       jump bb1
   }
   
@@ -496,7 +507,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v9]
+      v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -504,11 +515,12 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = memory_slice v5
-      slice_store_element v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v7 = ptrtoint memptr v5 to i256
       v8 = memory_slice v0
-      slice_store_element v8, v3, v7
-      v9 = add v3, 1
+      v9 = shl 5, v3
+      slice_store_word v8, v9, v7
+      v10 = add v3, 1
       jump bb1
   }
   
@@ -540,7 +552,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v10]
+      v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -550,10 +562,11 @@
       v6 = ptrtoint memptr v5 to i256
       v7 = inttoptr i256 v6 to memptr
       v8 = memory_slice v7
-      slice_store_element v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v9 = memory_slice v0
-      slice_store_element v9, v3, v6
-      v10 = add v3, 1
+      v10 = shl 5, v3
+      slice_store_word v9, v10, v6
+      v11 = add v3, 1
       jump bb1
   }
   
@@ -565,7 +578,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v12]
+      v3 = phi [bb0: 0], [bb2: v14]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -574,13 +587,15 @@
       v5 = icall @canonicalAddresses
       v6 = ptrtoint memptr v5 to i256
       v7 = memory_slice v0
-      slice_store_element v7, v3, v6
-      v8 = memory_slice v0
-      v9 = slice_load_element v8, v3
-      v10 = inttoptr i256 v9 to memptr
-      v11 = memory_slice v10
-      slice_store_element v11, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v12 = add v3, 1
+      v8 = shl 5, v3
+      slice_store_word v7, v8, v6
+      v9 = memory_slice v0
+      v10 = shl 5, v3
+      v11 = slice_load_word v9, v10
+      v12 = inttoptr i256 v11 to memptr
+      v13 = memory_slice v12
+      slice_store_word v13, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v14 = add v3, 1
       jump bb1
   }
   
@@ -592,7 +607,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v8]
+      v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -601,19 +616,20 @@
       v5 = icall @canonicalAddresses
       v6 = ptrtoint memptr v5 to i256
       v7 = memory_slice v0
-      slice_store_element v7, v3, v6
+      v8 = shl 5, v3
+      slice_store_word v7, v8, v6
       icall @dirtyNestedArray, v0
-      v8 = add v3, 1
+      v9 = add v3, 1
       jump bb1
   }
   
   fn @dirtyNestedArray(arg0: memptr) {
     bb0:
       v0 = memory_slice arg0
-      v1 = slice_load_element v0, 0
+      v1 = slice_load_word v0, 0
       v2 = inttoptr i256 v1 to memptr
       v3 = memory_slice v2
-      slice_store_element v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret
   }
   
@@ -641,7 +657,7 @@
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = make_memory_slice v0, 1
-      slice_store_element v2, 0, 256
+      slice_store_word v2, 0, 256
       ret v0
   }
   
@@ -671,7 +687,7 @@
       jumpi arg0, bb1, bb2
     bb1:
       v1 = make_memory_slice v0, 1
-      slice_store_element v1, 0, 1
+      slice_store_word v1, 0, 1
       jump bb2
     bb2:
       ret v0
@@ -682,12 +698,12 @@
       v0 = icall @canonicalAddresses
       v1 = ptrtoint memptr v0 to i256
       v2 = make_memory_slice arg0, 1
-      slice_store_element v2, 0, v1
+      slice_store_word v2, 0, v1
       v3 = make_memory_slice arg1, 1
-      v4 = slice_load_element v3, 0
+      v4 = slice_load_word v3, 0
       v5 = inttoptr i256 v4 to memptr
       v6 = memory_slice v5
-      slice_store_element v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v0
   }
   
@@ -711,7 +727,7 @@
       jumpi arg0, bb1, bb2
     bb1:
       v1 = make_memory_slice v0, 1
-      slice_store_element v1, 0, 1
+      slice_store_word v1, 0, 1
       jump bb2
     bb2:
       ret v0
@@ -731,7 +747,7 @@
       mstore v2, v1
       jumpi arg0, bb1, bb3
     bb1:
-      v3 = phi [bb0: 0], [bb2: v7]
+      v3 = phi [bb0: 0], [bb2: v8]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -739,8 +755,9 @@
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v3, v5
-      v7 = add v3, 1
+      v7 = shl 5, v3
+      slice_store_word v6, v7, v5
+      v8 = add v3, 1
       jump bb1
   }
   
@@ -750,7 +767,7 @@
       v1 = add 2, 0
       jump bb1
     bb1:
-      v2 = phi [bb0: 0], [bb2: v7]
+      v2 = phi [bb0: 0], [bb2: v8]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
     bb3:
@@ -760,8 +777,9 @@
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v2, v5
-      v7 = add v2, 1
+      v7 = shl 5, v2
+      slice_store_word v6, v7, v5
+      v8 = add v2, 1
       jump bb1
   }
   
@@ -782,9 +800,9 @@
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
       v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v2 = make_memory_slice v1, 1
-      slice_store_element v2, 0, 1
+      slice_store_word v2, 0, 1
       v3 = make_memory_slice v0, 1
-      slice_store_element v3, 1, 256
+      slice_store_word v3, 32, 256
       ret v1
   }
   
@@ -811,7 +829,7 @@
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb5: v23]
++     v13 = phi [bb3: 0], [bb5: v24]
 +     v14 = lt v13, v1
 +     jumpi v14, bb5, bb6
 +   bb6:
@@ -825,8 +843,9 @@
 +     v20 = shr v19, v17
 +     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
 +     v22 = memory_slice v11
-+     slice_store_element v22, v13, v21
-+     v23 = add v13, 1
++     v23 = shl 5, v13
++     slice_store_word v22, v23, v21
++     v24 = add v13, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -863,7 +882,7 @@
 +     v14 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v15 = phi [bb3: 0], [bb5: v25]
++     v15 = phi [bb3: 0], [bb5: v26]
 +     v16 = lt v15, v3
 +     jumpi v16, bb5, bb6
 +   bb6:
@@ -881,8 +900,9 @@
 +     v22 = shr v21, v19
 +     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
 +     v24 = memory_slice v13
-+     slice_store_element v24, v15, v23
-+     v25 = add v15, 1
++     v25 = shl 5, v15
++     slice_store_word v24, v25, v23
++     v26 = add v15, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -901,7 +921,7 @@
       v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v1 = zext i128 arg0 to i256
       v2 = make_memory_slice v0, 1
-      slice_store_element v2, 0, v1
+      slice_store_word v2, 0, v1
       ret v0
   }
   
@@ -934,7 +954,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v7]
+      v3 = phi [bb0: 0], [bb2: v8]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -942,8 +962,9 @@
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v3, v5
-      v7 = add v3, 1
+      v7 = shl 5, v3
+      slice_store_word v6, v7, v5
+      v8 = add v3, 1
       jump bb1
   }
   
@@ -979,7 +1000,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v10]
+      v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -990,8 +1011,9 @@
       v7 = inttoptr i256 v6 to memptr
       v8 = ptrtoint memptr v7 to i256
       v9 = memory_slice v0
-      slice_store_element v9, v3, v8
-      v10 = add v3, 1
+      v10 = shl 5, v3
+      slice_store_word v9, v10, v8
+      v11 = add v3, 1
       jump bb1
   }
   
@@ -1027,7 +1049,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v9]
+      v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -1035,11 +1057,12 @@
     bb2:
       v5 = icall @canonicalAddresses
       v6 = memory_slice v5
-      slice_store_element v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v7 = ptrtoint memptr v5 to i256
       v8 = memory_slice v0
-      slice_store_element v8, v3, v7
-      v9 = add v3, 1
+      v9 = shl 5, v3
+      slice_store_word v8, v9, v7
+      v10 = add v3, 1
       jump bb1
   }
   
@@ -1075,10 +1098,10 @@
       memory_zero v1, 64
 -     ret v0
 +     v2 = make_memory_slice v0, 2
-+     v3 = slice_load_element v2, 0
++     v3 = slice_load_word v2, 0
 +     mstore 128, v3
 +     v4 = add 128, 32
-+     v5 = slice_load_element v2, 1
++     v5 = slice_load_word v2, 32
 +     mstore v4, v5
 +     v6 = add v4, 32
 +     v7 = add 128, 64
@@ -1094,7 +1117,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v10]
+      v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -1104,10 +1127,11 @@
       v6 = ptrtoint memptr v5 to i256
       v7 = inttoptr i256 v6 to memptr
       v8 = memory_slice v7
-      slice_store_element v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v9 = memory_slice v0
-      slice_store_element v9, v3, v6
-      v10 = add v3, 1
+      v10 = shl 5, v3
+      slice_store_word v9, v10, v6
+      v11 = add v3, 1
       jump bb1
   }
   
@@ -1119,7 +1143,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v12]
+      v3 = phi [bb0: 0], [bb2: v14]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -1128,13 +1152,15 @@
       v5 = icall @canonicalAddresses
       v6 = ptrtoint memptr v5 to i256
       v7 = memory_slice v0
-      slice_store_element v7, v3, v6
-      v8 = memory_slice v0
-      v9 = slice_load_element v8, v3
-      v10 = inttoptr i256 v9 to memptr
-      v11 = memory_slice v10
-      slice_store_element v11, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v12 = add v3, 1
+      v8 = shl 5, v3
+      slice_store_word v7, v8, v6
+      v9 = memory_slice v0
+      v10 = shl 5, v3
+      v11 = slice_load_word v9, v10
+      v12 = inttoptr i256 v11 to memptr
+      v13 = memory_slice v12
+      slice_store_word v13, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v14 = add v3, 1
       jump bb1
   }
   
@@ -1146,7 +1172,7 @@
       mstore v2, v1
       jump bb1
     bb1:
-      v3 = phi [bb0: 0], [bb2: v8]
+      v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -1155,19 +1181,20 @@
       v5 = icall @canonicalAddresses
       v6 = ptrtoint memptr v5 to i256
       v7 = memory_slice v0
-      slice_store_element v7, v3, v6
+      v8 = shl 5, v3
+      slice_store_word v7, v8, v6
       icall @dirtyNestedArray, v0
-      v8 = add v3, 1
+      v9 = add v3, 1
       jump bb1
   }
   
   fn @dirtyNestedArray(arg0: memptr) {
     bb0:
       v0 = memory_slice arg0
-      v1 = slice_load_element v0, 0
+      v1 = slice_load_word v0, 0
       v2 = inttoptr i256 v1 to memptr
       v3 = memory_slice v2
-      slice_store_element v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret
   }
   
@@ -1214,11 +1241,11 @@
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = make_memory_slice v0, 1
-      slice_store_element v2, 0, 256
+      slice_store_word v2, 0, 256
 -     ret v0
 +     v3 = icall @cleanup_return.38, v0
 +     v4 = make_memory_slice v3, 1
-+     v5 = slice_load_element v4, 0
++     v5 = slice_load_word v4, 0
 +     mstore 128, v5
 +     v6 = add 128, 32
 +     v7 = add 128, 32
@@ -1236,17 +1263,17 @@
 +     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
 +     v3 = make_memory_slice v0, 2
 +     v4 = make_memory_slice v2, 2
-+     v5 = slice_load_element v3, 0
++     v5 = slice_load_word v3, 0
 +     v6 = and v5, 255
-+     slice_store_element v4, 0, v6
-+     v7 = slice_load_element v3, 1
++     slice_store_word v4, 0, v6
++     v7 = slice_load_word v3, 32
 +     v8 = and v7, 255
-+     slice_store_element v4, 1, v8
++     slice_store_word v4, 32, v8
 +     v9 = make_memory_slice v2, 2
-+     v10 = slice_load_element v9, 0
++     v10 = slice_load_word v9, 0
 +     mstore 128, v10
 +     v11 = add 128, 32
-+     v12 = slice_load_element v9, 1
++     v12 = slice_load_word v9, 32
 +     mstore v11, v12
 +     v13 = add v11, 32
 +     v14 = add 128, 64
@@ -1281,7 +1308,7 @@
 +   bb3:
 +     v6 = icall @cleanup_return.38, v0
 +     v7 = make_memory_slice v6, 1
-+     v8 = slice_load_element v7, 0
++     v8 = slice_load_word v7, 0
 +     mstore 128, v8
 +     v9 = add 128, 32
 +     v10 = add 128, 32
@@ -1310,7 +1337,7 @@
 +     jumpi arg0, bb2, bb3
 +   bb2:
       v1 = make_memory_slice v0, 1
-      slice_store_element v1, 0, 1
+      slice_store_word v1, 0, 1
 -     jump bb2
 -   bb2:
 -     ret v0
@@ -1318,7 +1345,7 @@
 +   bb3:
 +     v6 = icall @cleanup_return.38, v0
 +     v7 = make_memory_slice v6, 1
-+     v8 = slice_load_element v7, 0
++     v8 = slice_load_word v7, 0
 +     mstore 128, v8
 +     v9 = add 128, 32
 +     v10 = add 128, 32
@@ -1333,12 +1360,12 @@
       v0 = icall @canonicalAddresses
       v1 = ptrtoint memptr v0 to i256
       v2 = make_memory_slice arg0, 1
-      slice_store_element v2, 0, v1
+      slice_store_word v2, 0, v1
       v3 = make_memory_slice arg1, 1
-      v4 = slice_load_element v3, 0
+      v4 = slice_load_word v3, 0
       v5 = inttoptr i256 v4 to memptr
       v6 = memory_slice v5
-      slice_store_element v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      slice_store_word v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v0
   }
   
@@ -1374,7 +1401,7 @@
       jumpi arg0, bb1, bb2
     bb1:
       v1 = make_memory_slice v0, 1
-      slice_store_element v1, 0, 1
+      slice_store_word v1, 0, 1
       jump bb2
     bb2:
       ret v0
@@ -1400,32 +1427,35 @@
 +     v7 = make_memory_slice v5, 1
 +     jump bb5
 +   bb5:
-+     v8 = phi [bb1: 0], [bb6: v12]
++     v8 = phi [bb1: 0], [bb6: v14]
 +     v9 = lt v8, 1
 +     jumpi v9, bb6, bb7
 +   bb7:
-+     v13 = make_memory_slice v5, 1
++     v15 = make_memory_slice v5, 1
 +     jump bb8
 +   bb8:
-+     v14 = phi [bb7: 0], [bb9: v19]
-+     v15 = lt v14, 1
-+     jumpi v15, bb9, bb10
++     v16 = phi [bb7: 0], [bb9: v22]
++     v17 = lt v16, 1
++     jumpi v17, bb9, bb10
 +   bb10:
-+     v20 = add 128, 32
-+     v21 = sub v20, 128
-+     returndata 128, v21
++     v23 = add 128, 32
++     v24 = sub v23, 128
++     returndata 128, v24
 +   bb9:
-+     v16 = slice_load_element v13, v14
-+     v17 = mul v14, 32
-+     v18 = add 128, v17
-+     mstore v18, v16
-+     v19 = add v14, 1
++     v18 = shl 5, v16
++     v19 = slice_load_word v15, v18
++     v20 = mul v16, 32
++     v21 = add 128, v20
++     mstore v21, v19
++     v22 = add v16, 1
 +     jump bb8
 +   bb6:
-+     v10 = slice_load_element v6, v8
-+     v11 = and v10, 255
-+     slice_store_element v7, v8, v11
-+     v12 = add v8, 1
++     v10 = shl 5, v8
++     v11 = slice_load_word v6, v10
++     v12 = and v11, 255
++     v13 = shl 5, v8
++     slice_store_word v7, v13, v12
++     v14 = add v8, 1
 +     jump bb5
 +   bb2:
 +     revert 0, 0
@@ -1439,7 +1469,7 @@
       mstore v2, v1
       jumpi arg0, bb1, bb3
     bb1:
-      v3 = phi [bb0: 0], [bb2: v7]
+      v3 = phi [bb0: 0], [bb2: v8]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
     bb3:
@@ -1447,8 +1477,9 @@
     bb2:
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v3, v5
-      v7 = add v3, 1
+      v7 = shl 5, v3
+      slice_store_word v6, v7, v5
+      v8 = add v3, 1
       jump bb1
   }
   
@@ -1458,7 +1489,7 @@
       v1 = add 2, 0
       jump bb1
     bb1:
-      v2 = phi [bb0: 0], [bb2: v7]
+      v2 = phi [bb0: 0], [bb2: v8]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
     bb3:
@@ -1468,8 +1499,9 @@
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = memory_slice v0
-      slice_store_element v6, v2, v5
-      v7 = add v2, 1
+      v7 = shl 5, v2
+      slice_store_word v6, v7, v5
+      v8 = add v2, 1
       jump bb1
   }
   
@@ -1515,13 +1547,13 @@
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
       v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v2 = make_memory_slice v1, 1
-      slice_store_element v2, 0, 1
+      slice_store_word v2, 0, 1
       v3 = make_memory_slice v0, 1
-      slice_store_element v3, 1, 256
+      slice_store_word v3, 32, 256
 -     ret v1
 +     v4 = icall @cleanup_return.38, v1
 +     v5 = make_memory_slice v4, 1
-+     v6 = slice_load_element v5, 0
++     v6 = slice_load_word v5, 0
 +     mstore 128, v6
 +     v7 = add 128, 32
 +     v8 = add 128, 32
@@ -1550,7 +1582,7 @@
       v12 = storage_array_data_slot arg0
       jump bb4
     bb4:
-      v13 = phi [bb3: 0], [bb5: v23]
+      v13 = phi [bb3: 0], [bb5: v24]
       v14 = lt v13, v1
       jumpi v14, bb5, bb6
     bb6:
@@ -1564,8 +1596,9 @@
       v20 = shr v19, v17
       v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
       v22 = memory_slice v11
-      slice_store_element v22, v13, v21
-      v23 = add v13, 1
+      v23 = shl 5, v13
+      slice_store_word v22, v23, v21
+      v24 = add v13, 1
       jump bb4
     bb1:
       mstore 32, 65 !metadata(memory=scratch)
@@ -1605,7 +1638,7 @@
       v14 = storage_array_data_slot arg0
       jump bb4
     bb4:
-      v15 = phi [bb3: 0], [bb5: v25]
+      v15 = phi [bb3: 0], [bb5: v26]
       v16 = lt v15, v3
       jumpi v16, bb5, bb6
     bb6:
@@ -1622,8 +1655,9 @@
       v22 = shr v21, v19
       v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
       v24 = memory_slice v13
-      slice_store_element v24, v15, v23
-      v25 = add v15, 1
+      v25 = shl 5, v15
+      slice_store_word v24, v25, v23
+      v26 = add v15, 1
       jump bb4
     bb1:
       mstore 32, 65 !metadata(memory=scratch)
@@ -1660,9 +1694,9 @@
       v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v1 = zext i128 arg0 to i256
       v2 = make_memory_slice v0, 1
-      slice_store_element v2, 0, v1
+      slice_store_word v2, 0, v1
 +     v8 = make_memory_slice v0, 1
-+     v9 = slice_load_element v8, 0
++     v9 = slice_load_word v8, 0
 +     mstore 128, v9
 +     v10 = add 128, 32
 +     v11 = add 128, 32
@@ -1693,57 +1727,61 @@
 +     mstore v11, v1
 +     jump bb4
 +   bb4:
-+     v12 = phi [bb3: 0], [bb11: v45]
++     v12 = phi [bb3: 0], [bb11: v49]
 +     v13 = lt v12, v1
 +     jumpi v13, bb5, bb6
 +   bb6:
 +     ret v11
 +   bb5:
 +     v14 = memory_slice arg0
-+     v15 = slice_load_element v14, v12
-+     v16 = inttoptr i256 v15 to memptr
-+     v17 = memory_slice v16
-+     v18 = slice_len v17
-+     v19 = eq v15, 0
-+     v20 = eq v19, false
-+     v21 = zext i1 v20 to i256
-+     v22 = mul v18, v21
-+     v23 = add v22, 1
-+     v24 = lt v23, v22
-+     jumpi v24, bb1, bb7
++     v15 = shl 5, v12
++     v16 = slice_load_word v14, v15
++     v17 = inttoptr i256 v16 to memptr
++     v18 = memory_slice v17
++     v19 = slice_len v18
++     v20 = eq v16, 0
++     v21 = eq v20, false
++     v22 = zext i1 v21 to i256
++     v23 = mul v19, v22
++     v24 = add v23, 1
++     v25 = lt v24, v23
++     jumpi v25, bb1, bb7
 +   bb7:
-+     v25 = mul v23, 32
-+     v26 = eq 32, 0
-+     v27 = div v25, 32
-+     v28 = eq v27, v23
-+     v29 = or v26, v28
-+     v30 = zext i1 v29 to i256
-+     v31 = eq v30, 0
-+     jumpi v31, bb1, bb8
++     v26 = mul v24, 32
++     v27 = eq 32, 0
++     v28 = div v26, 32
++     v29 = eq v28, v24
++     v30 = or v27, v29
++     v31 = zext i1 v30 to i256
++     v32 = eq v31, 0
++     jumpi v32, bb1, bb8
 +   bb8:
-+     v32 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-+     mstore v32, v22
++     v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
++     mstore v33, v23
 +     jump bb9
 +   bb9:
-+     v33 = phi [bb8: 0], [bb10: v42]
-+     v34 = lt v33, v22
-+     jumpi v34, bb10, bb11
++     v34 = phi [bb8: 0], [bb10: v45]
++     v35 = lt v34, v23
++     jumpi v35, bb10, bb11
 +   bb11:
-+     v43 = memory_slice v11
-+     v44 = ptrtoint memptr v32 to i256
-+     slice_store_element v43, v12, v44
-+     v45 = add v12, 1
++     v46 = memory_slice v11
++     v47 = shl 5, v12
++     v48 = ptrtoint memptr v33 to i256
++     slice_store_word v46, v47, v48
++     v49 = add v12, 1
 +     jump bb4
 +   bb10:
-+     v35 = inttoptr i256 v15 to memptr
-+     v36 = memory_slice v35
-+     v37 = slice_load_element v36, v33
-+     v38 = zext i1 v20 to i256
-+     v39 = mul v37, v38
-+     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffff
-+     v41 = memory_slice v32
-+     slice_store_element v41, v33, v40
-+     v42 = add v33, 1
++     v36 = inttoptr i256 v16 to memptr
++     v37 = memory_slice v36
++     v38 = shl 5, v34
++     v39 = slice_load_word v37, v38
++     v40 = zext i1 v21 to i256
++     v41 = mul v39, v40
++     v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffff
++     v43 = memory_slice v33
++     v44 = shl 5, v34
++     slice_store_word v43, v44, v42
++     v45 = add v34, 1
 +     jump bb9
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -1756,9 +1794,9 @@
 +     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
 +     v1 = make_memory_slice arg0, 1
 +     v2 = make_memory_slice v0, 1
-+     v3 = slice_load_element v1, 0
++     v3 = slice_load_word v1, 0
 +     v4 = and v3, 255
-+     slice_store_element v2, 0, v4
++     slice_store_word v2, 0, v4
       ret v0
 + }
 + 
@@ -1783,18 +1821,20 @@
 +     mstore v11, v1
 +     jump bb4
 +   bb4:
-+     v12 = phi [bb3: 0], [bb5: v18]
++     v12 = phi [bb3: 0], [bb5: v20]
 +     v13 = lt v12, v1
 +     jumpi v13, bb5, bb6
 +   bb6:
 +     ret v11
 +   bb5:
 +     v14 = memory_slice arg0
-+     v15 = slice_load_element v14, v12
-+     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-+     v17 = memory_slice v11
-+     slice_store_element v17, v12, v16
-+     v18 = add v12, 1
++     v15 = shl 5, v12
++     v16 = slice_load_word v14, v15
++     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
++     v18 = memory_slice v11
++     v19 = shl 5, v12
++     slice_store_word v18, v19, v17
++     v20 = add v12, 1
 +     jump bb4
 +   bb1:
 +     mstore 32, 65 !metadata(memory=scratch)

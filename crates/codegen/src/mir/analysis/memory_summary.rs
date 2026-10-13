@@ -710,7 +710,6 @@ fn local_summary(
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value)
                 | InstKind::SetFmp(value)
-                | InstKind::SliceStoreElement { value, .. }
                 | InstKind::SliceStoreByte { value, .. }
                 | InstKind::SliceStoreWord { value, .. }
                 | InstKind::FrameStore { value, .. } => {
@@ -1089,7 +1088,6 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::SLoad(_)
             | InstKind::TLoad(_)
             | InstKind::Keccak256(_, _)
-            | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
             | InstKind::MemorySlice(_)
             | InstKind::SliceLoadWord { .. }

@@ -152,10 +152,10 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v102 = zext i24 v101 to i256
     v103 = sload 6 !metadata(storage=slot(6))
     v104 = make_memory_slice v100, 2
-    slice_store_element v104, 0, v102
-    slice_store_element v104, 1, v103
+    slice_store_word v104, 0, v102
+    slice_store_word v104, 32, v103
     v105 = make_memory_slice v100, 2
-    v106 = slice_load_element v105, 0
+    v106 = slice_load_word v105, 0
     v107 = trunc i256 v106 to i24
     v108 = sload 0 !metadata(storage=slot(0))
     v109 = lt v0, v108

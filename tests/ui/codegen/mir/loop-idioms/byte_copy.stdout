@@ -135,51 +135,51 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
 
 fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
   bb0:
-    v49 = mload 64 !metadata(memory=scratch)
-    v50 = add v49, 64
-    v51 = lt v50, v49
-    v52 = gt v50, 0xffffffffffffffff
-    v53 = or v51, v52
-    jumpi v53, bb8, bb7
+    v48 = mload 64 !metadata(memory=scratch)
+    v49 = add v48, 64
+    v50 = lt v49, v48
+    v51 = gt v49, 0xffffffffffffffff
+    v52 = or v50, v51
+    jumpi v52, bb8, bb7
   bb7:
-    mstore 64, v50 !metadata(memory=scratch)
-    v61 = calldatasize
-    calldatacopy v49, v61, 64
-    mstore v49, 32
-    v55 = mload 64 !metadata(memory=scratch)
-    v56 = add v55, 128
-    v57 = lt v56, v55
-    v58 = gt v56, 0xffffffffffffffff
-    v59 = or v57, v58
-    jumpi v59, bb8, bb9
+    mstore 64, v49 !metadata(memory=scratch)
+    v60 = calldatasize
+    calldatacopy v48, v60, 64
+    mstore v48, 32
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, 128
+    v56 = lt v55, v54
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb8, bb9
   bb9:
-    mstore 64, v56 !metadata(memory=scratch)
-    v62 = calldatasize
-    calldatacopy v55, v62, 128
-    mstore v55, 65
-    v6 = mload v49
+    mstore 64, v55 !metadata(memory=scratch)
+    v61 = calldatasize
+    calldatacopy v54, v61, 128
+    mstore v54, 65
+    v6 = mload v48
     v8 = gt v6, 0
     jumpi v8, bb5, bb4
   bb5:
-    v41 = add v49, 32
+    v41 = add v48, 32
     mstore8 v41, 65
-    v24 = add v55, 32
+    v24 = add v54, 32
     jump bb1
   bb1:
     v11 = phi [bb5: 0], [bb3: v26]
     v15 = lt v11, 65
     jumpi v15, bb3, bb2
   bb2:
-    v27 = mload v55
+    v27 = mload v54
     v29 = gt v27, 64
     jumpi v29, bb6, bb4
   bb4:
     tail_call @revert_stub
   bb6:
-    v44 = add v24, 64
-    v45 = mload v44
-    v46 = byte 0, v45
-    mstore 128, v46
+    v43 = add v54, 96
+    v44 = mload v43
+    v45 = byte 0, v44
+    mstore 128, v45
     returndata 128, 32
   bb3:
     v20 = add v41, v11

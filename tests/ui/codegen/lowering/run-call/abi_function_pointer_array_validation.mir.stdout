@@ -64,7 +64,7 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = shl 64, v4
-    slice_store_element v5, 0, v9
+    slice_store_word v5, 0, v9
     v10 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
   bb2:

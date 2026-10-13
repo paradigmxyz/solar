@@ -165,10 +165,10 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
 
 fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb0:
-    v37 = icall @decode_calldata_type
-    v40 = ptrtoint memptr v37 to i256
-    v14 = mload v40
-    v15 = add v40, 32
+    v38 = icall @decode_calldata_type
+    v41 = ptrtoint memptr v38 to i256
+    v14 = mload v41
+    v15 = add v41, 32
     v18 = add v15, v14
     v19 = slt v14, 32
     jumpi v19, bb3, bb4
@@ -187,9 +187,9 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v59 = add v53, 64
     jump bb6
   bb6:
-    v55 = phi [bb5: v53], [bb7: v56]
-    v57 = phi [bb5: v21], [bb7: v58]
-    v28 = lt v55, v59
+    v55 = phi [bb5: v21], [bb7: v56]
+    v57 = phi [bb5: v53], [bb7: v58]
+    v28 = lt v57, v59
     jumpi v28, bb7, bb8
   bb8:
     v51 = add v53, 32
@@ -216,16 +216,16 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     jump bb2
   bb2:
     v9 = phi [bb8: v5], [bb1: v62]
-    v44 = ptrtoint memptr v9 to i256
-    v45 = add v44, 64
-    v52 = mload v45
+    v45 = ptrtoint memptr v9 to i256
+    v46 = add v45, 64
+    v52 = mload v46
     v12 = mload v52
     mstore 128, v12
     returndata 128, 32
   bb7:
-    v31 = icall @decode_memory_type, v57, v21, v18
-    v33 = ptrtoint memptr v31 to i256
-    mstore v55, v33
+    v31 = icall @decode_memory_type, v55, v21, v18
+    v34 = ptrtoint memptr v31 to i256
+    mstore v57, v34
     v56 = add v55, 32
     v58 = add v57, 32
     jump bb6
@@ -235,10 +235,10 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
 
 fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb0:
-    v50 = icall @decode_calldata_type
-    v53 = ptrtoint memptr v50 to i256
-    v3 = mload v53
-    v4 = add v53, 32
+    v51 = icall @decode_calldata_type
+    v54 = ptrtoint memptr v51 to i256
+    v3 = mload v54
+    v4 = add v54, 32
     v7 = add v4, v3
     v8 = slt v3, 32
     jumpi v8, bb1, bb2
@@ -280,9 +280,9 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb8:
     jump bb9
   bb9:
-    v38 = phi [bb8: v16], [bb10: v45]
-    v39 = phi [bb8: v11], [bb10: v46]
-    v40 = phi [bb8: 0], [bb10: v47]
+    v38 = phi [bb8: v16], [bb10: v46]
+    v39 = phi [bb8: v11], [bb10: v47]
+    v40 = phi [bb8: 0], [bb10: v48]
     v41 = gt v38, 0
     jumpi v41, bb10, bb11
   bb11:
@@ -291,14 +291,14 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     returndata 128, 32
   bb10:
     v42 = icall @decode_memory_type, v39, v11, v7
-    v44 = ptrtoint memptr v42 to i256
-    v56 = add v61, 32
-    v57 = shl 5, v40
-    v58 = add v56, v57
-    mstore v58, v44
-    v45 = sub v38, 1
-    v46 = add v39, 32
-    v47 = add v40, 1
+    v45 = ptrtoint memptr v42 to i256
+    v44 = shl 5, v40
+    v57 = add v61, 32
+    v58 = add v57, v44
+    mstore v58, v45
+    v46 = sub v38, 1
+    v47 = add v39, 32
+    v48 = add v40, 1
     jump bb9
   bb4:
     mstore 32, 65 !metadata(memory=scratch)

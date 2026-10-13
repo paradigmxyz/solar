@@ -1273,11 +1273,7 @@ fn summarize_function(
                 }
                 InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
                 InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
-                InstKind::Log0(..)
-                | InstKind::Log1(..)
-                | InstKind::Log2(..)
-                | InstKind::Log3(..)
-                | InstKind::Log4(..) => summary.has_log = true,
+                InstKind::Log { .. } => summary.has_log = true,
                 _ => {}
             }
         }
@@ -1616,13 +1612,13 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
 }
 
-/// The opcodes that address a slice element: a constant index folds into the address, and the
-/// first element of a view that starts at its object needs none.
-fn slice_element_address(func: &Function, slice: ValueId, index: ValueId) -> &'static [u8] {
-    match func.value_u64(index) {
-        Some(0) if func.memory_slice_object(slice).is_none() => &[],
-        Some(_) => &[op::ADD],
-        None => &[op::MUL, op::ADD],
+/// The opcodes that add a slice word's byte offset to its data address: none for the first word
+/// of a view that starts at its object. The offset is priced as its own instruction.
+fn slice_word_address(func: &Function, slice: ValueId, offset: ValueId) -> &'static [u8] {
+    if func.value_u64(offset) == Some(0) && func.memory_slice_object(slice).is_none() {
+        &[]
+    } else {
+        &[op::ADD]
     }
 }
 
@@ -1661,16 +1657,14 @@ fn estimate_inst_cost(
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
-        InstKind::SliceLoadElement { slice, index } => {
-            seq(slice_element_address(func, *slice, *index)).plus(seq(&[op::MLOAD]))
+        InstKind::SliceLoadWord { slice, offset } => {
+            seq(slice_word_address(func, *slice, *offset)).plus(seq(&[op::MLOAD]))
         }
-        InstKind::SliceStoreElement { slice, index, .. } => {
-            seq(slice_element_address(func, *slice, *index)).plus(seq(&[op::MSTORE]))
+        InstKind::SliceStoreWord { slice, offset, .. } => {
+            seq(slice_word_address(func, *slice, *offset)).plus(seq(&[op::MSTORE]))
         }
         InstKind::SliceLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
         InstKind::SliceStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
-        InstKind::SliceStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
-        InstKind::SliceLoadWord { .. } => seq(&[op::MLOAD]),
         InstKind::SliceCopy { .. } => seq(&[op::MCOPY]),
         InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
         InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),

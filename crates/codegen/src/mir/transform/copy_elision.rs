@@ -142,9 +142,10 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        let InstKind::SliceStoreElement { slice, index, .. } = func.inst(inst).kind else {
+        let InstKind::SliceStoreWord { slice, offset, .. } = func.inst(inst).kind else {
             return None;
         };
+        let index = func.word_index(offset)?;
         // A dynamic object's elements follow its length word; a fixed one's start at it.
         let (target, data_offset) = match func.memory_slice_object(slice) {
             Some(object) => (object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE),
@@ -200,7 +201,7 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if matches!(inst.kind, InstKind::SliceStoreElement { .. }) {
+                if matches!(inst.kind, InstKind::SliceStoreWord { .. }) {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
                 inst.visit_operands(|operand| {
@@ -282,8 +283,7 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::SliceStoreElement { slice: object, index, value }
-                    | InstKind::SliceStoreByte { slice: object, index, value }
+                    InstKind::SliceStoreByte { slice: object, index, value }
                     | InstKind::SliceStoreWord { slice: object, offset: index, value } => {
                         if derived.contains(index) || derived.contains(value) {
                             return None;

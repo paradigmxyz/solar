@@ -340,9 +340,9 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = make_memory_slice v0, 3
-    slice_store_element v1, 0, 4
-    slice_store_element v1, 1, 0x5566
-    slice_store_element v1, 2, 7
+    slice_store_word v1, 0, 4
+    slice_store_word v1, 32, 0x5566
+    slice_store_word v1, 64, 7
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, 0xffffffffffffffff
     icall panic_if<0x41>, v3
@@ -357,14 +357,14 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v10 = storage_array_data_slot 0
     v11 = add v10, 0
     v12 = make_memory_slice v0, 3
-    v13 = slice_load_element v12, 0
+    v13 = slice_load_word v12, 0
     v14 = sload v11 !metadata(storage=symbolic(v10))
     v15 = not 255
     v16 = and v14, v15
     v17 = and v13, 255
     v18 = or v16, v17
     sstore v11, v18 !metadata(storage=symbolic(v10))
-    v19 = slice_load_element v12, 1
+    v19 = slice_load_word v12, 32
     v20 = shl 8, 0xffff
     v21 = sload v11 !metadata(storage=symbolic(v10))
     v22 = not v20
@@ -373,7 +373,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v25 = shl 8, v24
     v26 = or v23, v25
     sstore v11, v26 !metadata(storage=symbolic(v10))
-    v27 = slice_load_element v12, 2
+    v27 = slice_load_word v12, 64
     v28 = shl 24, 255
     v29 = sload v11 !metadata(storage=symbolic(v10))
     v30 = not v28

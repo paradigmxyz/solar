@@ -3,8 +3,9 @@
 use super::{
     AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, FrameMode, FrameSlotKind,
     Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
-    InstructionMetadata, MemoryObjectLayout, MemoryRegion, MirType, PanicCode, RevertKind,
-    RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator, Value, ValueId,
+    InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
+    RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
+    Value, ValueId,
 };
 use crate::{
     link::LibraryId,
@@ -992,8 +993,9 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
         let slice = self.memory_object_view(object, layout);
-        // result = slice_load_element slice, index
-        self.emit_inst(InstKind::SliceLoadElement { slice, index }, Some(result))
+        let offset = self.word_offset(index);
+        // result = slice_load_word slice, offset
+        self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(result))
     }
 
     /// Loads one byte from a bytes object or slice.
@@ -1011,8 +1013,24 @@ impl<'a> FunctionBuilder<'a> {
         value: ValueId,
     ) {
         let slice = self.memory_object_view(object, layout);
-        // slice_store_element slice, index, value
-        self.emit_void_inst(InstKind::SliceStoreElement { slice, index, value });
+        let offset = self.word_offset(index);
+        // slice_store_word slice, offset, value
+        self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
+    }
+
+    /// Returns the byte offset of word `index`: an immediate for a constant index, else
+    /// `shl 5, index`.
+    fn word_offset(&mut self, index: ValueId) -> ValueId {
+        if let Some(offset) = self
+            .func
+            .value_u64(index)
+            .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE))
+        {
+            return self.imm(offset);
+        }
+        // offset = shl 5, index
+        let shift = self.imm(5);
+        self.shl(shift, index)
     }
 
     /// Stores one byte in a bytes object.
@@ -1583,50 +1601,10 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::I256))
     }
 
-    /// Emits a log0 instruction (event with no topics).
-    pub(crate) fn log0(&mut self, offset: ValueId, size: ValueId) {
-        self.emit_void_inst(InstKind::Log0(offset, size));
-    }
-
-    /// Emits a log1 instruction (event with 1 topic).
-    pub(crate) fn log1(&mut self, offset: ValueId, size: ValueId, topic1: ValueId) {
-        self.emit_void_inst(InstKind::Log1(offset, size, topic1));
-    }
-
-    /// Emits a log2 instruction (event with 2 topics).
-    pub(crate) fn log2(
-        &mut self,
-        offset: ValueId,
-        size: ValueId,
-        topic1: ValueId,
-        topic2: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::Log2(offset, size, topic1, topic2));
-    }
-
-    /// Emits a log3 instruction (event with 3 topics).
-    pub(crate) fn log3(
-        &mut self,
-        offset: ValueId,
-        size: ValueId,
-        topic1: ValueId,
-        topic2: ValueId,
-        topic3: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::Log3(offset, size, topic1, topic2, topic3));
-    }
-
-    /// Emits a log4 instruction (event with 4 topics).
-    pub(crate) fn log4(
-        &mut self,
-        offset: ValueId,
-        size: ValueId,
-        topic1: ValueId,
-        topic2: ValueId,
-        topic3: ValueId,
-        topic4: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::Log4(offset, size, topic1, topic2, topic3, topic4));
+    /// Emits a log with at most four topics.
+    pub(crate) fn log(&mut self, offset: ValueId, size: ValueId, topics: &[ValueId]) {
+        let topics = LogTopics::new(topics).expect("a log has at most four topics");
+        self.emit_void_inst(InstKind::Log { offset, size, topics });
     }
 
     /// Emits a select instruction.

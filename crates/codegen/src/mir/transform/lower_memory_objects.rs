@@ -146,17 +146,6 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let offset = builder.imm(P::DYNAMIC_HEADER_SIZE);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(header, offset);
                     }
-                    InstKind::SliceLoadElement { slice, index } => {
-                        let Some(location) = slice_location(builder.func(), &views, slice) else {
-                            return true;
-                        };
-                        let address =
-                            slice_element_address::<P>(&mut builder, &views, slice, index);
-                        let Some(kind) = slice_load_kind(location, address) else {
-                            return true;
-                        };
-                        builder.func_mut().inst_mut(inst).kind = kind;
-                    }
                     InstKind::SliceLoadByte { slice, index } => {
                         let Some(load) = slice_word_load::<P>(&mut builder, &views, slice, index)
                         else {
@@ -170,19 +159,13 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         }
                         return false;
                     }
-                    InstKind::SliceStoreElement { slice, index, value } => {
-                        let address =
-                            slice_element_address::<P>(&mut builder, &views, slice, index);
-                        builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
-                    }
                     InstKind::SliceStoreByte { slice, index, value } => {
                         let base = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, base, index);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
                     }
                     InstKind::SliceStoreWord { slice, offset, value } => {
-                        let base = slice_data::<P>(&mut builder, &views, slice);
-                        let address = dynamic_offset_address(&mut builder, base, offset);
+                        let address = slice_word_address::<P>(&mut builder, &views, slice, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::SliceLoadWord { slice, offset } => {
@@ -415,9 +398,7 @@ fn local_views(
             kind,
             InstKind::SliceLen(_)
                 | InstKind::SlicePtr(_)
-                | InstKind::SliceLoadElement { .. }
                 | InstKind::SliceLoadByte { .. }
-                | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }
                 | InstKind::SliceLoadWord { .. }
@@ -477,37 +458,30 @@ fn slice_word_load<P: MemoryLayoutPolicy>(
     offset: crate::mir::ValueId,
 ) -> Option<InstKind> {
     let location = slice_location(builder.func(), views, slice)?;
-    let source = slice_data::<P>(builder, views, slice);
-    let address = dynamic_offset_address(builder, source, offset);
+    let address = slice_word_address::<P>(builder, views, slice, offset);
     slice_load_kind(location, address)
 }
 
-fn slice_element_address<P: MemoryLayoutPolicy>(
+/// Returns the address of the word at a byte offset into a slice. A local view at a constant
+/// offset addresses its object directly, so its data address does not stay live.
+fn slice_word_address<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
     views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
     slice: crate::mir::ValueId,
-    index: crate::mir::ValueId,
+    offset: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
     if let Some(&object) = views.get(&slice)
         && let Some(offset) = builder
             .func()
-            .value_u64(index)
-            .and_then(|index| index.checked_mul(P::WORD_SIZE)?.checked_add(P::DYNAMIC_HEADER_SIZE))
+            .value_u64(offset)
+            .and_then(|offset| offset.checked_add(P::DYNAMIC_HEADER_SIZE))
     {
-        // address = add (ptrtoint object), header + index * stride
+        // address = add (ptrtoint object), header + offset
         let header = builder.cast(object, MirType::I256);
         return builder.add_u64_offset(header, offset);
     }
     let base = slice_data::<P>(builder, views, slice);
-    if let Some(index) = builder.func().value_u64(index)
-        && let Some(offset) = index.checked_mul(P::WORD_SIZE)
-    {
-        builder.add_u64_offset(base, offset)
-    } else {
-        let stride = builder.imm(P::WORD_SIZE);
-        let offset = builder.mul(index, stride);
-        builder.add(base, offset)
-    }
+    dynamic_offset_address(builder, base, offset)
 }
 
 fn lower_slice_copy<P: MemoryLayoutPolicy>(

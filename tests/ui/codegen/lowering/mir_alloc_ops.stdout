@@ -12,12 +12,12 @@ fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, pure, abi_params=[u256]
     v3 = lt 0, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v2, 0, arg0
+    slice_store_word v2, 0, arg0
     v5 = make_memory_slice v0, 2
     v6 = lt 0, 2
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = slice_load_element v5, 0
+    v8 = slice_load_word v5, 0
     ret v8
 }
 

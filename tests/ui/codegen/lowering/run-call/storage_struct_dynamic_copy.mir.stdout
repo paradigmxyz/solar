@@ -10,24 +10,24 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v2 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v3 = make_memory_slice v2, 3
     v4 = sload 0 !metadata(storage=slot(0))
-    slice_store_element v3, 0, v4
+    slice_store_word v3, 0, v4
     v5 = add 0, 1
     v6 = icall @load_storage_bytes, v5
     v7 = ptrtoint memptr v6 to i256
-    slice_store_element v3, 1, v7
+    slice_store_word v3, 32, v7
     v8 = add 0, 2
     v9 = sload v8 !metadata(storage=slot(2))
-    slice_store_element v3, 2, v9
+    slice_store_word v3, 64, v9
     v10 = ptrtoint memptr v2 to i256
     v11 = make_memory_slice v10, 3
-    v12 = slice_load_element v11, 0
+    v12 = slice_load_word v11, 0
     sstore 3, v12 !metadata(storage=slot(3))
     v13 = add 3, 1
-    v14 = slice_load_element v11, 1
+    v14 = slice_load_word v11, 32
     v15 = inttoptr i256 v14 to memptr
     icall @store_storage_bytes, v13, v15
     v16 = add 3, 2
-    v17 = slice_load_element v11, 2
+    v17 = slice_load_word v11, 64
     sstore v16, v17 !metadata(storage=slot(5))
     sstore 0, 9 !metadata(storage=slot(0))
     v18 = add 0, 1
@@ -209,24 +209,24 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v47 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v48 = make_memory_slice v47, 3
     v49 = sload v40 !metadata(storage=symbolic(v40))
-    slice_store_element v48, 0, v49
+    slice_store_word v48, 0, v49
     v50 = add v40, 1
     v51 = icall @load_storage_bytes, v50
     v52 = ptrtoint memptr v51 to i256
-    slice_store_element v48, 1, v52
+    slice_store_word v48, 32, v52
     v53 = add v40, 2
     v54 = sload v53 !metadata(storage=offset(v40, 2))
-    slice_store_element v48, 2, v54
+    slice_store_word v48, 64, v54
     v55 = ptrtoint memptr v47 to i256
     v56 = make_memory_slice v55, 3
-    v57 = slice_load_element v56, 0
+    v57 = slice_load_word v56, 0
     sstore v46, v57 !metadata(storage=symbolic(v46))
     v58 = add v46, 1
-    v59 = slice_load_element v56, 1
+    v59 = slice_load_word v56, 32
     v60 = inttoptr i256 v59 to memptr
     icall @store_storage_bytes, v58, v60
     v61 = add v46, 2
-    v62 = slice_load_element v56, 2
+    v62 = slice_load_word v56, 64
     sstore v61, v62 !metadata(storage=offset(v46, 2))
     v63 = sload 6 !metadata(storage=slot(6))
     v64 = lt 0, v63

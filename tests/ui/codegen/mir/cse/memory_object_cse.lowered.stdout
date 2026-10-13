@@ -112,7 +112,7 @@
     bb0:
 -     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
 -     v1 = make_memory_slice v0, 1
--     v2 = slice_load_element v1, 0
+-     v2 = slice_load_word v1, 0
 +     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v6 = ptrtoint memptr v0 to i256
 +     v1 = make_memory_slice v6, 1
@@ -122,7 +122,7 @@
     bb2:
       ret 0
     bb1:
--     v4 = slice_load_element v1, 0
+-     v4 = slice_load_word v1, 0
 +     v4 = mload v6
       v5 = add v2, v4
       ret v5

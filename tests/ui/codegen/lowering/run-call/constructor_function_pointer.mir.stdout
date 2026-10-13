@@ -107,7 +107,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = shl 64, v5
-    slice_store_element v6, 0, v9
+    slice_store_word v6, 0, v9
     v10 = abi_encode [array<1, function>], args v0
     v11 = datasize ArrayTarget_creation_code_1
     v12 = datasize ArrayTarget_creation_code_1, 32

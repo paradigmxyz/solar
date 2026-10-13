@@ -46,13 +46,13 @@ fn @makePair(arg0: i256) -> memptr [pure] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
-    slice_store_element v1, 1, 0
+    slice_store_word v1, 0, 0
+    slice_store_word v1, 32, 0
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v3 = checked_add u256, arg0, 1
     v4 = make_memory_slice v2, 2
-    slice_store_element v4, 0, arg0
-    slice_store_element v4, 1, v3
+    slice_store_word v4, 0, arg0
+    slice_store_word v4, 32, v3
     ret v2
 }
 
@@ -61,10 +61,10 @@ fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = checked_add u256, 2, 1
     v2 = make_memory_slice v0, 2
-    slice_store_element v2, 0, 2
-    slice_store_element v2, 1, v1
+    slice_store_word v2, 0, 2
+    slice_store_word v2, 32, v1
     v3 = make_memory_slice v0, 2
-    v4 = slice_load_element v3, 1
+    v4 = slice_load_word v3, 32
     ret v4
 }
 

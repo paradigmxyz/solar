@@ -9,15 +9,15 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
-    slice_store_element v1, 1, 96
+    slice_store_word v1, 0, 0
+    slice_store_word v1, 32, 96
     v2 = address
     v3 = zext i160 v2 to i256
     v4 = shl 32, v3
     v5 = or v4, 0xd4b83992
     v6 = make_memory_slice v0, 2
     v7 = shl 64, v5
-    slice_store_element v6, 0, v7
+    slice_store_word v6, 0, v7
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     mstore v8, 1
     v9 = ptrtoint memptr v8 to i256
@@ -25,10 +25,10 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     mstore v10, 0x7800000000000000000000000000000000000000000000000000000000000000
     v11 = make_memory_slice v0, 2
     v12 = ptrtoint memptr v8 to i256
-    slice_store_element v11, 1, v12
+    slice_store_word v11, 32, v12
     v13 = make_memory_slice v0, 2
-    v14 = slice_load_element v13, 0
-    v15 = slice_load_element v13, 1
+    v14 = slice_load_word v13, 0
+    v15 = slice_load_word v13, 32
     v16 = inttoptr i256 v15 to memptr
     v17 = memory_slice v16
     v18 = slice_len v17
@@ -59,11 +59,11 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v39 = alloc memorybytes, exact, uninitialized, infallible, v37
     mstore v39, v30
     v40 = make_memory_slice v0, 2
-    v41 = slice_load_element v40, 0
+    v41 = slice_load_word v40, 0
     v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v43 = memory_slice v39
     slice_store_word v43, 0, v42
-    v44 = slice_load_element v40, 1
+    v44 = slice_load_word v40, 32
     v45 = inttoptr i256 v44 to memptr
     v46 = memory_slice v45
     v47 = slice_len v46
@@ -97,6 +97,6 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v68 = slice_ptr v67
     v69 = slice_len v67
     v70 = keccak256 v68, v69
-    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v70
+    log 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v70
     ret
 }

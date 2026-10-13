@@ -9,19 +9,19 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v1, 0, 1
+    slice_store_word v1, 0, 1
     v5 = memory_slice v0
     v6 = slice_len v5
     v7 = lt 1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    slice_store_element v5, 1, 2
+    slice_store_word v5, 32, 2
     v9 = memory_slice v0
     v10 = slice_len v9
     v11 = lt 2, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    slice_store_element v9, 2, 3
+    slice_store_word v9, 64, 3
     v13 = abi_encode [memory_array<word>], scratch, args v0
     v14 = slice_ptr v13
     v15 = slice_len v13
@@ -187,19 +187,19 @@ fn @fresh() -> memptr [selector=0xb466b76f, pure, abi_params=[], abi_returns=[me
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v1, 0, 1
+    slice_store_word v1, 0, 1
     v5 = memory_slice v0
     v6 = slice_len v5
     v7 = lt 1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    slice_store_element v5, 1, 2
+    slice_store_word v5, 32, 2
     v9 = memory_slice v0
     v10 = slice_len v9
     v11 = lt 2, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    slice_store_element v9, 2, 3
+    slice_store_word v9, 64, 3
     ret v0
 }
 

@@ -128,7 +128,7 @@ fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
     jumpi v2, bb1, bb2
   bb1:
     v4 = make_memory_slice arg2, 2
-    v0 = slice_load_element v4, 0
+    v0 = slice_load_word v4, 0
     mstore 0, v0
     revert 0, 32
   bb2:
@@ -136,7 +136,7 @@ fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
     jumpi v3, bb3, bb4
   bb3:
     v5 = make_memory_slice arg2, 2
-    v1 = slice_load_element v5, 1
+    v1 = slice_load_word v5, 32
     mstore 0, v1
     revert 0, 32
   bb4:

@@ -191,7 +191,10 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
 /// The array a word element load or store accesses.
 fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
     match func.inst(inst).kind {
-        InstKind::SliceLoadElement { slice, .. } | InstKind::SliceStoreElement { slice, .. } => {
+        InstKind::SliceLoadWord { slice, offset }
+        | InstKind::SliceStoreWord { slice, offset, .. }
+            if func.is_word_offset(offset) =>
+        {
             func.view_object(slice)
         }
         _ => None,
@@ -222,7 +225,7 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            InstKind::SliceStoreElement { value, .. }
+            InstKind::SliceStoreWord { value, .. }
                 if word_element_object(func, inst).is_some_and(|object| {
                     objects.is_none_or(|objects| {
                         objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)

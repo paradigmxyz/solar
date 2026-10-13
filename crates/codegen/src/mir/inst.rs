@@ -754,9 +754,7 @@ impl Instruction {
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
             InstKind::MemorySlice(..)
-            | InstKind::SliceLoadElement { .. }
             | InstKind::SliceLoadByte { .. }
-            | InstKind::SliceStoreElement { .. }
             | InstKind::SliceStoreByte { .. }
             | InstKind::SliceStoreWord { .. }
             | InstKind::SliceLoadWord { .. }
@@ -849,11 +847,7 @@ impl Instruction {
             | InstKind::ICall { function: Callee::Function(_), .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)
-            | InstKind::Log0(..)
-            | InstKind::Log1(..)
-            | InstKind::Log2(..)
-            | InstKind::Log3(..)
-            | InstKind::Log4(..)
+            | InstKind::Log { .. }
             | InstKind::Phi(..)
             | InstKind::Select(..)
             | InstKind::SignExtend(..) => None,
@@ -1142,9 +1136,7 @@ impl InstKind {
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
                 | Self::MemorySlice(..)
-                | Self::SliceLoadElement { .. }
                 | Self::SliceLoadByte { .. }
-                | Self::SliceStoreElement { .. }
                 | Self::SliceStoreByte { .. }
                 | Self::SliceStoreWord { .. }
                 | Self::SliceLoadWord { .. }

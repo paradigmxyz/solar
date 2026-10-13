@@ -13,13 +13,13 @@ slices. A `memptr` carries a 256-bit memory address without implying validity,
 heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
 values too, and every access goes through a slice view. A fixed array or struct
 has no length word, so `make_memory_slice v0, 3` views its three words from the
-object itself, and `slice_load_element` and `slice_store_element` reach a field
-or element by index.
+object itself, and `slice_load_word` and `slice_store_word` reach field or
+element `i` at byte offset `32 * i`, written `shl 5, i` for a runtime index.
 
 A dynamic memory object (`bytes`, `string`, `T[] memory`) is a `memptr` to its
 length word, which assembly can read and rewrite. Code reads it through a
 `slice<memory>` view: `memory_slice v0` loads the length word and yields the
-payload pointer and length, and `slice_len`, `slice_load_element`,
+payload pointer and length, and `slice_len`, `slice_load_word`,
 `slice_store_byte`, `slice_copy`, and the other slice operations work on views,
 calldata, and returndata alike. A view captures the length when it is made, so
 lowering builds one at each use rather than carrying the length in SSA across

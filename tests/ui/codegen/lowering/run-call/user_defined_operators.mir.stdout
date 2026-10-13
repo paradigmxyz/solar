@@ -7,14 +7,14 @@ fn @addressEq(arg0: memptr) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_load_element v0, 0
+    v4 = slice_load_word v0, 0
     v5 = trunc i256 v4 to i160
     v6 = memory_slice arg0
     v7 = slice_len v6
     v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_load_element v6, 1
+    v10 = slice_load_word v6, 32
     v11 = trunc i256 v10 to i160
     v12 = icall @sameAccount, v5, v11
     ret v12

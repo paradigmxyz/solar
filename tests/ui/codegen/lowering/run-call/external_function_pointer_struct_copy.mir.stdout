@@ -4,7 +4,7 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 96
+    slice_store_word v1, 0, 96
     v2 = slice_len arg0
     v3 = slice_ptr arg0
     v4 = mul v2, 32
@@ -34,16 +34,16 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
     mstore v23, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v35]
+    v24 = phi [bb0: 0], [bb2: v36]
     v25 = lt v24, v2
     jumpi v25, bb2, bb3
   bb3:
-    v36 = make_memory_slice v0, 1
-    v37 = ptrtoint memptr v23 to i256
-    slice_store_element v36, 0, v37
-    v38 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v39 = make_memory_slice v38, 1
-    slice_store_element v39, 0, 96
+    v37 = make_memory_slice v0, 1
+    v38 = ptrtoint memptr v23 to i256
+    slice_store_word v37, 0, v38
+    v39 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v40 = make_memory_slice v39, 1
+    slice_store_word v40, 0, 96
     ret v0
   bb2:
     v26 = mul v24, 32
@@ -56,8 +56,9 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
     v32 = shr 64, v28
     v33 = shl 64, v32
     v34 = memory_slice v23
-    slice_store_element v34, v24, v33
-    v35 = add v24, 1
+    v35 = shl 5, v24
+    slice_store_word v34, v35, v33
+    v36 = add v24, 1
     jump bb1
 }
 
@@ -109,7 +110,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = shl 64, v4
-    slice_store_element v5, 0, v9
+    slice_store_word v5, 0, v9
     v10 = address
     v11 = zext i160 v10 to i256
     v12 = shl 32, v11
@@ -120,7 +121,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = shl 64, v13
-    slice_store_element v14, 1, v18
+    slice_store_word v14, 32, v18
     v19 = address
     v20 = zext i160 v19 to i256
     v21 = shl 32, v20
@@ -131,7 +132,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = shl 64, v22
-    slice_store_element v23, 2, v27
+    slice_store_word v23, 64, v27
     v28 = sload 0 !metadata(storage=slot(0))
     v29 = trunc i256 v28 to i160
     v30 = gas
@@ -147,20 +148,20 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v36 = icall returndata_bytes<>
     v37 = abi_decode [tuple<array<_, function>>], v36
     v38 = make_memory_slice v37, 1
-    v39 = slice_load_element v38, 0, memptr
+    v39 = slice_load_word v38, 0, memptr
     v40 = memory_slice v39
     v41 = slice_len v40
     v42 = eq v41, 3
     v43 = eq v42, false
     icall revert_if<empty>, v43
     v44 = make_memory_slice v37, 1
-    v45 = slice_load_element v44, 0, memptr
+    v45 = slice_load_word v44, 0, memptr
     v46 = memory_slice v45
     v47 = slice_len v46
     v48 = lt 0, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = slice_load_element v46, 0
+    v50 = slice_load_word v46, 0
     v51 = shr 64, v50
     v52 = address
     v53 = zext i160 v52 to i256
@@ -170,13 +171,13 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v57 = eq v56, false
     icall revert_if<empty>, v57
     v58 = make_memory_slice v37, 1
-    v59 = slice_load_element v58, 0, memptr
+    v59 = slice_load_word v58, 0, memptr
     v60 = memory_slice v59
     v61 = slice_len v60
     v62 = lt 1, v61
     v63 = eq v62, false
     icall panic_if<0x32>, v63
-    v64 = slice_load_element v60, 1
+    v64 = slice_load_word v60, 32
     v65 = shr 64, v64
     v66 = address
     v67 = zext i160 v66 to i256
@@ -186,13 +187,13 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v71 = eq v70, false
     icall revert_if<empty>, v71
     v72 = make_memory_slice v37, 1
-    v73 = slice_load_element v72, 0, memptr
+    v73 = slice_load_word v72, 0, memptr
     v74 = memory_slice v73
     v75 = slice_len v74
     v76 = lt 2, v75
     v77 = eq v76, false
     icall panic_if<0x32>, v77
-    v78 = slice_load_element v74, 2
+    v78 = slice_load_word v74, 64
     v79 = shr 64, v78
     v80 = address
     v81 = zext i160 v80 to i256

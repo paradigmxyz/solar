@@ -12,7 +12,7 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[w
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v1, 0, 7
+    slice_store_word v1, 0, 7
     v5 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     mstore v5, 0
     v6 = memory_slice v5
@@ -24,7 +24,7 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[w
     v12 = lt 0, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = slice_load_element v10, 0
+    v14 = slice_load_word v10, 0
     v15 = insert_value struct0, undef struct0, 0, v7
     v16 = insert_value struct0, v15, 1, v9
     v17 = insert_value struct0, v16, 2, v14

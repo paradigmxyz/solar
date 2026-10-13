@@ -47,7 +47,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     v35 = make_memory_slice v33, v34
     slice_copy v35, 0, v31
     v36 = ptrtoint memptr v30 to i256
-    slice_store_element v2, 0, v36
+    slice_store_word v2, 0, v36
     v37 = abi_encode [tuple<memory_array<word>>], object, args v1
     ret v37
 }
@@ -101,7 +101,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v37 = make_memory_slice v35, v36
     slice_copy v37, 0, v33
     v38 = ptrtoint memptr v32 to i256
-    slice_store_element v4, 0, v38
+    slice_store_word v4, 0, v38
     v39 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
     v40 = slice_ptr v39
     v41 = slice_len v39

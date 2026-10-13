@@ -7,11 +7,11 @@ fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[
     v2 = eq v1, false
     icall panic_if<0x21>, v2
     v3 = make_memory_slice v0, 1
-    slice_store_element v3, 0, 0
+    slice_store_word v3, 0, 0
     v4 = ptrtoint memptr v0 to i256
     mstore v4, 2
     v5 = make_memory_slice v0, 1
-    v6 = slice_load_element v5, 0
+    v6 = slice_load_word v5, 0
     v7 = lt v6, 2
     v8 = eq v7, false
     icall panic_if<0x21>, v8
@@ -33,7 +33,7 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     v4 = lt 0, 1
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = slice_load_element v3, 0
+    v6 = slice_load_word v3, 0
     v7 = lt v6, 2
     v8 = eq v7, false
     icall panic_if<0x21>, v8
@@ -56,7 +56,7 @@ fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_r
     v5 = lt 0, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = slice_load_element v3, 0
+    v7 = slice_load_word v3, 0
     v8 = lt v7, 2
     v9 = eq v8, false
     icall panic_if<0x21>, v9

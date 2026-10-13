@@ -440,11 +440,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
                 overlaps(*offset, *size)
             }
-            InstKind::Log0(offset, size)
-            | InstKind::Log1(offset, size, _)
-            | InstKind::Log2(offset, size, _, _)
-            | InstKind::Log3(offset, size, _, _, _)
-            | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
+            InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
             // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands

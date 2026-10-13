@@ -486,10 +486,9 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
 /// arithmetic, to reach the element, byte, or word it reads or writes.
 fn object_access_index(kind: &InstKind) -> Option<ValueId> {
     match *kind {
-        InstKind::SliceLoadElement { index, .. }
-        | InstKind::SliceStoreElement { index, .. }
-        | InstKind::SliceLoadByte { index, .. }
-        | InstKind::SliceStoreByte { index, .. } => Some(index),
+        InstKind::SliceLoadByte { index, .. } | InstKind::SliceStoreByte { index, .. } => {
+            Some(index)
+        }
         InstKind::SliceStoreWord { offset, .. }
         | InstKind::SliceLoadWord { offset, .. }
         | InstKind::SliceCopy { offset, .. } => Some(offset),
@@ -508,8 +507,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
                 | InstKind::FrameStore { .. }
                 | InstKind::MemoryZero(..)
                 | InstKind::MemorySlice(..)
-                | InstKind::SliceLoadElement { .. }
-                | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceLoadByte { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }

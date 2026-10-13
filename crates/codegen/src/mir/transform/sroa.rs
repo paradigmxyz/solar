@@ -155,10 +155,10 @@ impl SroaCx {
                 continue;
             }
             let kind = &func.inst(inst_id).kind;
-            let (slice, index) = match *kind {
-                InstKind::SliceLoadElement { slice, index } => (slice, index),
-                InstKind::SliceStoreElement { slice, index, value } if !views.contains(&value) => {
-                    (slice, index)
+            let (slice, offset) = match *kind {
+                InstKind::SliceLoadWord { slice, offset } => (slice, offset),
+                InstKind::SliceStoreWord { slice, offset, value } if !views.contains(&value) => {
+                    (slice, offset)
                 }
                 _ => {
                     if kind.any_operand(|value| views.contains(&value)) {
@@ -170,7 +170,10 @@ impl SroaCx {
             if !views.contains(&slice) {
                 continue;
             }
-            let slot = func.value_u64(index).filter(|&slot| slot < words)?;
+            let offset = func.value_u64(offset)?;
+            let slot = Some(offset / EvmMemoryLayout::WORD_SIZE).filter(|&slot| {
+                offset.is_multiple_of(EvmMemoryLayout::WORD_SIZE) && slot < words
+            })?;
             slot_of.insert(inst_id, slot);
         }
 
@@ -232,11 +235,11 @@ impl SroaCx {
                     }
                 }
                 match func.inst(inst).kind {
-                    InstKind::SliceStoreElement { value, .. } if slot_of.contains_key(&inst) => {
+                    InstKind::SliceStoreWord { value, .. } if slot_of.contains_key(&inst) => {
                         let index = fields.binary_search(&slot_of[&inst]).ok()?;
                         slots[index].note_store(block, inst, value);
                     }
-                    InstKind::SliceLoadElement { .. } if slot_of.contains_key(&inst) => {
+                    InstKind::SliceLoadWord { .. } if slot_of.contains_key(&inst) => {
                         let index = fields.binary_search(&slot_of[&inst]).ok()?;
                         slots[index].note_load(block, inst);
                     }

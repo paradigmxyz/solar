@@ -90,7 +90,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, layout, field, ty } => {
                 // view = make_memory_slice object, fields
-                // value = slice_load_element view, field
+                // value = slice_load_word view, field * 32
                 let value = self.builder.memory_load_field_as(
                     object,
                     layout,
@@ -101,7 +101,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
                 // view = make_memory_slice object, len | memory_slice object
-                // value = slice_load_element view, index
+                // value = slice_load_word view, shl 5, index
                 let value = self.builder.memory_load_element_as(
                     object,
                     layout,

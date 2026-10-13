@@ -56,7 +56,7 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v1, 0, 7
+    slice_store_word v1, 0, 7
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     mstore v5, 1
     v6 = ptrtoint memptr v5 to i256
@@ -262,7 +262,7 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = slice_load_element v30, 0
+    v34 = slice_load_word v30, 0
     v35 = checked_sub u256, v26, 7
     v36 = checked_add u256, v34, v35
     v37 = memory_slice v27

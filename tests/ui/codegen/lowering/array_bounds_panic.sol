@@ -30,7 +30,8 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: slice_load_element {{v[0-9]+}}, arg0
+    // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
+    // CHECK-NEXT: slice_load_word {{v[0-9]+}}, [[OFF1]]
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
         x[1] = 20;
@@ -40,7 +41,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
     // CHECK: lt 2, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK: slice_load_element {{v[0-9]+}}, 2
+    // CHECK: slice_load_word {{v[0-9]+}}, 64
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -50,7 +51,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
     // CHECK: lt 5, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK: slice_load_element {{v[0-9]+}}, 5
+    // CHECK: slice_load_word {{v[0-9]+}}, 160
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];

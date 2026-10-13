@@ -499,8 +499,7 @@ impl LoopOptimizer {
             // These semantic memory reads lower to `mload` after LICM. Keep them in
             // place until their physical address and width are explicit so a store
             // in the loop cannot be missed by the dependence check above.
-            InstKind::SliceLoadElement { .. }
-            | InstKind::SliceLoadByte { .. }
+            InstKind::SliceLoadByte { .. }
             | InstKind::SliceLoadWord { .. }
             | InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {

@@ -43,9 +43,9 @@ fn @assignmentStruct() -> memptr [selector=0x2e58a5e6, abi_params=[], abi_return
     v1 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v2 = ptrtoint memptr v1 to i256
     v3 = make_memory_slice v0, 1
-    slice_store_element v3, 0, v2
+    slice_store_word v3, 0, v2
     v4 = make_memory_slice v0, 1
-    v5 = slice_load_element v4, 0
+    v5 = slice_load_word v4, 0
     v6 = inttoptr i256 v5 to memptr
     icall @store_storage_bytes, 0, v6
     v7 = load_storage_bytes 0

@@ -100,7 +100,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     jump bb20
   bb18:
     mstore 0, v28 !metadata(memory=scratch)
-    log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
+    log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
     jump bb20
   bb20:
     jump bb5
@@ -193,7 +193,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v100 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v99, v61, v92, v25, v21
     v101 = slice_ptr v100
     v102 = slice_len v100
-    log3 v101, v102, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
+    log v101, v102, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
     jump bb17
   bb17:
     jump bb14

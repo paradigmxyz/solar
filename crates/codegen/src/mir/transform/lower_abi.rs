@@ -1638,8 +1638,9 @@ impl LowerAbiCx {
                 continue;
             }
             match &inst.kind {
-                InstKind::SliceStoreElement { slice: destination, index, value }
-                    if func.memory_slice_object(*destination) == Some(object) =>
+                InstKind::SliceStoreWord { slice: destination, offset, value }
+                    if func.memory_slice_object(*destination) == Some(object)
+                        && let Some(index) = func.word_index(*offset) =>
                 {
                     let Value::Inst(and) = func.value(*value) else { return None };
                     let InstKind::And(lhs, rhs) = &func.inst(*and).kind else { return None };
@@ -1651,12 +1652,12 @@ impl LowerAbiCx {
                         return None;
                     };
                     let Value::Inst(load) = func.value(load) else { return None };
-                    let InstKind::SliceLoadElement { slice: source_object, index: load_index } =
+                    let InstKind::SliceLoadWord { slice: source_object, offset: load_offset } =
                         &func.inst(*load).kind
                     else {
                         return None;
                     };
-                    if load_index != index {
+                    if func.word_index(*load_offset) != Some(index) {
                         return None;
                     }
                     if let Some(previous) = source
@@ -2769,7 +2770,6 @@ impl LowerAbiCx {
             }
             let (invalid, propagates) = match &inst.kind {
                 InstKind::SlicePtr(object)
-                | InstKind::SliceStoreElement { slice: object, .. }
                 | InstKind::SliceStoreByte { slice: object, .. }
                 | InstKind::SliceStoreWord { slice: object, .. }
                 | InstKind::SliceCopy { destination: object, .. }
@@ -2785,8 +2785,7 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
-                InstKind::SliceStoreElement { value, .. }
-                | InstKind::SliceStoreByte { value, .. }
+                InstKind::SliceStoreByte { value, .. }
                 | InstKind::SliceStoreWord { value, .. }
                 | InstKind::MStore(_, value)
                 | InstKind::MStore8(_, value)
@@ -2801,10 +2800,10 @@ impl LowerAbiCx {
                 }
                 InstKind::SliceLen(object)
                 | InstKind::SliceLoadByte { slice: object, .. }
-                | InstKind::SliceLoadElement { slice: object, .. }
+                | InstKind::SliceLoadWord { slice: object, .. }
                     if tainted.contains(*object) =>
                 {
-                    (!Self::can_read_calldata_slice_use(&inst.kind, ty), false)
+                    (!Self::can_read_calldata_slice_use(func, &inst.kind, ty), false)
                 }
                 InstKind::AbiEncode { args, .. }
                     if args.iter().any(|&arg| tainted.contains(arg))
@@ -2951,13 +2950,21 @@ impl LowerAbiCx {
         func.replace_uses_canonicalized(&replacements);
     }
 
-    fn can_read_calldata_slice_use(kind: &InstKind, ty: &crate::mir::AbiParamType) -> bool {
+    fn can_read_calldata_slice_use(
+        func: &Function,
+        kind: &InstKind,
+        ty: &crate::mir::AbiParamType,
+    ) -> bool {
         match kind {
             InstKind::SliceLen(..) => {
                 matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty)
             }
             InstKind::SliceLoadByte { .. } => matches!(ty, crate::mir::AbiParamType::Bytes),
-            InstKind::SliceLoadElement { .. } => Self::is_scalar_array(ty),
+            // A calldata word past the slice's end is not the zero padding memory holds, so
+            // only whole elements read the same.
+            InstKind::SliceLoadWord { offset, .. } => {
+                func.is_word_offset(*offset) && Self::is_scalar_array(ty)
+            }
             _ => false,
         }
     }
@@ -3017,11 +3024,10 @@ impl LowerAbiCx {
                     });
                     !preserves_calldata
                 }
-                InstKind::SliceLen(_)
-                | InstKind::SlicePtr(_)
-                | InstKind::SliceLoadWord { .. }
-                | InstKind::SliceLoadByte { .. } => false,
-                InstKind::SliceLoadElement { .. } => result.is_some_and(|value| {
+                InstKind::SliceLen(_) | InstKind::SlicePtr(_) | InstKind::SliceLoadByte { .. } => {
+                    false
+                }
+                InstKind::SliceLoadWord { .. } => result.is_some_and(|value| {
                     func.value_ty(value)
                         .is_some_and(|ty| matches!(ty, MirType::MemPtr | MirType::Slice(_)))
                 }),
@@ -3601,6 +3607,12 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
     value
 }
 
+/// The word a constant, word-aligned byte offset addresses.
+fn word_slot(func: &Function, offset: ValueId) -> Option<u64> {
+    let offset = func.value_u64(offset)?;
+    offset.is_multiple_of(EvmMemoryLayout::WORD_SIZE).then(|| offset / EvmMemoryLayout::WORD_SIZE)
+}
+
 /// The alias root of the fixed array or struct a view covers.
 fn fixed_view_root(func: &Function, view: ValueId) -> Option<ValueId> {
     func.fixed_view_object(view).map(|object| pointer_alias_root(func, object))
@@ -3650,14 +3662,9 @@ fn memory_writes_stay_private(
                             aliases.memory_object_length_location(func, inst, object)
                         })
                     }
-                    InstKind::SliceStoreElement { slice, index, .. } => {
-                        func.value_u64(index).and_then(|index| {
-                            aliases.slice_data_location(
-                                func,
-                                inst,
-                                slice,
-                                Some(index.checked_mul(EvmMemoryLayout::WORD_SIZE)?),
-                            )
+                    InstKind::SliceStoreWord { slice, offset, .. } => {
+                        func.value_u64(offset).and_then(|offset| {
+                            aliases.slice_data_location(func, inst, slice, Some(offset))
                         })
                     }
                     _ => None,
@@ -3716,7 +3723,7 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
                 continue;
             }
             match *kind {
-                InstKind::SliceStoreElement { slice: base, value, .. } => {
+                InstKind::SliceStoreWord { slice: base, value, .. } => {
                     if pointer_alias_root(func, value) == object {
                         pending.push(pointer_alias_root(func, base));
                     } else if pointer_alias_root(func, base) != object {
@@ -3754,7 +3761,7 @@ fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> b
         match func.inst(inst).kind {
             InstKind::SliceLen(object) | InstKind::SliceLoadByte { slice: object, .. }
                 if pointer_alias_root(func, object) == value => {}
-            InstKind::SliceStoreElement { slice: object, value: stored, .. }
+            InstKind::SliceStoreWord { slice: object, value: stored, .. }
                 if pointer_alias_root(func, stored) == value
                     && pointer_alias_root(func, object) != value
                     && container_keeps_pointer_private(func, object) => {}
@@ -3862,7 +3869,8 @@ fn is_canonical_return_scalar(
     // An element of an array parameter whose words element cleanup proved
     // narrower than the mask is canonical without one.
     if let Value::Inst(inst) = func.value(value)
-        && let InstKind::SliceLoadElement { slice, .. } = func.inst(*inst).kind
+        && let InstKind::SliceLoadWord { slice, offset } = func.inst(*inst).kind
+        && func.is_word_offset(offset)
         && let Some(object) = func.view_object(slice)
         && let Value::Arg(index) = func.value(object)
         && func
@@ -3939,15 +3947,15 @@ fn is_canonical_return_object(
                 }
                 zeroed = true;
             }
-            InstKind::SliceStoreElement { slice, index, value }
+            InstKind::SliceStoreWord { slice, offset, value }
                 if fixed_view_root(func, *slice) == Some(object) =>
             {
-                let Some(field) = func.value_u64(*index) else { return false };
+                let Some(field) = word_slot(func, *offset) else { return false };
                 if !initializers.contains(&inst) || stores.insert(field, *value).is_some() {
                     return false;
                 }
             }
-            InstKind::SliceStoreElement { slice: base, value: stored, .. }
+            InstKind::SliceStoreWord { slice: base, value: stored, .. }
                 if pointer_alias_root(func, *stored) == object
                     && container_keeps_pointer_private(func, *base) => {}
             _ if func
@@ -4005,14 +4013,14 @@ fn is_canonical_return_array(
     let Some(initializers) = allocation_initializers(func, *alloc) else { return false };
     let mut stores = FxHashMap::default();
     for inst in func.instructions() {
-        if let InstKind::SliceStoreElement { slice, index, value } = func.inst(inst).kind
+        if let InstKind::SliceStoreWord { slice, offset, value } = func.inst(inst).kind
             && fixed_view_root(func, slice) == Some(object)
         {
-            let Some(index) = func.value_u64(index) else { return false };
+            let Some(index) = word_slot(func, offset) else { return false };
             if !initializers.contains(&inst) || stores.insert(index, value).is_some() {
                 return false;
             }
-        } else if let InstKind::SliceStoreElement { slice: base, value: stored, .. } =
+        } else if let InstKind::SliceStoreWord { slice: base, value: stored, .. } =
             func.inst(inst).kind
             && pointer_alias_root(func, stored) == object
             && container_keeps_pointer_private(func, base)

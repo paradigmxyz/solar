@@ -10,55 +10,56 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     mstore v0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v5, 2
-    v6 = ptrtoint memptr v5 to i256
-    v7 = add v6, 32
-    mstore v7, 0x1122000000000000000000000000000000000000000000000000000000000000
-    v8 = memory_slice v0
-    v9 = slice_len v8
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptrtoint memptr v5 to i256
-    slice_store_element v8, 0, v12
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v13, 3
-    v14 = ptrtoint memptr v13 to i256
-    v15 = add v14, 32
-    mstore v15, 0x3344550000000000000000000000000000000000000000000000000000000000
-    v16 = memory_slice v0
-    v17 = slice_len v16
-    v18 = lt 1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptrtoint memptr v13 to i256
-    slice_store_element v16, 1, v20
-    v21 = address
-    v22 = gas
-    v23 = abi_encode [memory_array<memory_bytes>], selector 0xe3db0bf300000000000000000000000000000000000000000000000000000000, args v0
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = zext i160 v21 to i256
-    v27 = staticcall v22, v26, v24, v25, 0, 32
-    jumpi v27, bb5, bb4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v6, 2
+    v7 = ptrtoint memptr v6 to i256
+    v8 = add v7, 32
+    mstore v8, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v9 = memory_slice v0
+    v10 = slice_len v9
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptrtoint memptr v6 to i256
+    slice_store_word v9, 0, v13
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v14, 3
+    v15 = ptrtoint memptr v14 to i256
+    v16 = add v15, 32
+    mstore v16, 0x3344550000000000000000000000000000000000000000000000000000000000
+    v17 = memory_slice v0
+    v18 = slice_len v17
+    v19 = lt 1, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = ptrtoint memptr v14 to i256
+    slice_store_word v17, 32, v21
+    v22 = address
+    v23 = gas
+    v24 = abi_encode [memory_array<memory_bytes>], selector 0xe3db0bf300000000000000000000000000000000000000000000000000000000, args v0
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = zext i160 v22 to i256
+    v28 = staticcall v23, v27, v25, v26, 0, 32
+    jumpi v28, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v28 = returndatasize
-    v29 = lt v28, 32
-    icall revert_if<tuple_data_too_short>, v29
-    v30 = add 0, 0
-    v31 = mload v30
-    ret v31
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = add 0, 0
+    v32 = mload v31
+    ret v32
   bb2:
     v3 = memory_slice v0
-    slice_store_element v3, v1, 96
-    v4 = add v1, 1
+    v4 = shl 5, v1
+    slice_store_word v3, v4, 96
+    v5 = add v1, 1
     jump bb1
 }
 
@@ -130,67 +131,68 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     mstore v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v7]
+    v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v8 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v9, 3
-    v10 = ptrtoint memptr v9 to i256
-    v11 = add v10, 32
-    mstore v11, 0xabcdef0000000000000000000000000000000000000000000000000000000000
-    v12 = ptrtoint memptr v9 to i256
-    v13 = make_memory_slice v8, 3
-    slice_store_element v13, 0, 1
-    slice_store_element v13, 1, 2
-    slice_store_element v13, 2, v12
-    v14 = memory_slice v0
-    v15 = slice_len v14
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = ptrtoint memptr v8 to i256
-    slice_store_element v14, 0, v18
-    v19 = address
-    v20 = gas
-    v21 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v19 to i256
-    v25 = staticcall v20, v24, v22, v23, v22, 64
-    jumpi v25, bb5, bb4
+    v9 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v10, 3
+    v11 = ptrtoint memptr v10 to i256
+    v12 = add v11, 32
+    mstore v12, 0xabcdef0000000000000000000000000000000000000000000000000000000000
+    v13 = ptrtoint memptr v10 to i256
+    v14 = make_memory_slice v9, 3
+    slice_store_word v14, 0, 1
+    slice_store_word v14, 32, 2
+    slice_store_word v14, 64, v13
+    v15 = memory_slice v0
+    v16 = slice_len v15
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptrtoint memptr v9 to i256
+    slice_store_word v15, 0, v19
+    v20 = address
+    v21 = gas
+    v22 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = zext i160 v20 to i256
+    v26 = staticcall v21, v25, v23, v24, v23, 64
+    jumpi v26, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v26 = returndatasize
-    v27 = lt v26, 64
-    icall revert_if<tuple_data_too_short>, v27
-    v28 = add v22, 0
-    v29 = mload v28
-    v30 = add v22, 32
-    v31 = mload v30
-    v32 = lt v31, 2
-    v33 = eq v32, false
-    icall revert_if<empty>, v33
-    v34 = ne v31, 0
-    v35 = insert_value struct0, undef struct0, 0, v29
-    v36 = insert_value struct0, v35, 1, v34
-    v37 = extract_value struct0, v36, 0
-    v38 = extract_value struct0, v36, 1
-    v39 = insert_value struct0, undef struct0, 0, v37
-    v40 = insert_value struct0, v39, 1, v38
-    ret v40
+    v27 = returndatasize
+    v28 = lt v27, 64
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = add v23, 0
+    v30 = mload v29
+    v31 = add v23, 32
+    v32 = mload v31
+    v33 = lt v32, 2
+    v34 = eq v33, false
+    icall revert_if<empty>, v34
+    v35 = ne v32, 0
+    v36 = insert_value struct0, undef struct0, 0, v30
+    v37 = insert_value struct0, v36, 1, v35
+    v38 = extract_value struct0, v37, 0
+    v39 = extract_value struct0, v37, 1
+    v40 = insert_value struct0, undef struct0, 0, v38
+    v41 = insert_value struct0, v40, 1, v39
+    ret v41
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v4 = make_memory_slice v3, 3
-    slice_store_element v4, 0, 0
-    slice_store_element v4, 1, 0
-    slice_store_element v4, 2, 96
+    slice_store_word v4, 0, 0
+    slice_store_word v4, 32, 0
+    slice_store_word v4, 64, 96
     v5 = memory_slice v0
-    v6 = ptrtoint memptr v3 to i256
-    slice_store_element v5, v1, v6
-    v7 = add v1, 1
+    v6 = shl 5, v1
+    v7 = ptrtoint memptr v3 to i256
+    slice_store_word v5, v6, v7
+    v8 = add v1, 1
     jump bb1
 }
 

@@ -666,19 +666,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
             (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
         };
-        // log0..log4(data.data, data.length, topics...)
-        match topics.as_slice() {
-            [] => self.builder.log0(data_ptr, data_size),
-            &[topic] => self.builder.log1(data_ptr, data_size, topic),
-            &[topic1, topic2] => self.builder.log2(data_ptr, data_size, topic1, topic2),
-            &[topic1, topic2, topic3] => {
-                self.builder.log3(data_ptr, data_size, topic1, topic2, topic3)
-            }
-            &[topic1, topic2, topic3, topic4] => {
-                self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
-            }
-            _ => return self.cx.report_unsupported(args.span, "event topic list"),
+        // log data.data, data.length, topics...
+        if topics.len() > LogTopics::MAX {
+            return self.cx.report_unsupported(args.span, "event topic list");
         }
+        self.builder.log(data_ptr, data_size, &topics);
         Some(())
     }
 

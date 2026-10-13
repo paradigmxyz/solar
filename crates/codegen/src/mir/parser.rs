@@ -38,7 +38,7 @@ use super::{
     AbiType, AddressCallKind, AllocationAlignment, AllocationFailure, AllocationInitialization,
     AllocationKind, AllocationSemantics, BlockId, DataId, DataRef, DataSize, Disambiguator,
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate,
-    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol,
+    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MangledSymbol,
     MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
     StorageLayout, StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
 };
@@ -1708,8 +1708,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_slice => {
                 inst!(MemorySlice(object) => MirType::Slice(SliceLocation::Memory))
             }
-            sym::slice_load_element => {
-                operands!(slice, index);
+            sym::slice_load_word => {
+                operands!(slice, offset);
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
                     if ty != MirType::MemPtr {
@@ -1719,15 +1719,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     MirType::I256
                 };
-                (InstKind::SliceLoadElement { slice, index }, Some(ty))
+                (InstKind::SliceLoadWord { slice, offset }, Some(ty))
             }
             sym::slice_load_byte => {
                 operands!(slice, index);
                 (InstKind::SliceLoadByte { slice, index }, Some(MirType::I256))
-            }
-            sym::slice_store_element => {
-                operands!(slice, index, value);
-                (InstKind::SliceStoreElement { slice, index, value }, None)
             }
             sym::slice_store_byte => {
                 operands!(slice, index, value);
@@ -1736,10 +1732,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::slice_store_word => {
                 operands!(slice, offset, value);
                 (InstKind::SliceStoreWord { slice, offset, value }, None)
-            }
-            sym::slice_load_word => {
-                operands!(slice, offset);
-                (InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
             }
             sym::slice_copy => {
                 operands!(destination, offset, source);
@@ -2157,11 +2149,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
 
             // Logs and SSA operations.
-            kw::Log0 => inst!(Log0(a, b)),
-            kw::Log1 => inst!(Log1(a, b, c)),
-            kw::Log2 => inst!(Log2(a, b, c, d)),
-            kw::Log3 => inst!(Log3(a, b, c, d, e)),
-            kw::Log4 => inst!(Log4(a, b, c, d, e, f)),
+            sym::log => {
+                let offset = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let size = self.parse_value(builder)?;
+                let mut topics = SmallVec::<[ValueId; LogTopics::MAX]>::new();
+                while self.parser.eat(TokenKind::Comma) {
+                    topics.push(self.parse_value(builder)?);
+                }
+                let topics = LogTopics::new(&topics)
+                    .ok_or_else(|| self.parser.error("a log has at most four topics"))?;
+                (InstKind::Log { offset, size, topics }, None)
+            }
             sym::select => {
                 let condition = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;

@@ -7,7 +7,7 @@
 // CHECK: - storage_to_memory
 // CHECK: + [[FIELDS:v[0-9]+]] = make_memory_slice [[OBJECT]], 3
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
-// CHECK: + slice_store_element [[FIELDS]], 0, [[VALUE]]
+// CHECK: + slice_store_word [[FIELDS]], 0, [[VALUE]]
 fn @storage_to_memory(arg0: i256, arg1: i256) {
   bb0:
     v0 = inttoptr i256 arg1 to memptr
@@ -19,7 +19,7 @@ fn @storage_to_memory(arg0: i256, arg1: i256) {
 // CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to memptr
 // CHECK: - memory_to_storage
 // CHECK: + [[FIELDS:v[0-9]+]] = make_memory_slice [[OBJECT]], 3
-// CHECK: + [[VALUE:v[0-9]+]] = slice_load_element [[FIELDS]], 0
+// CHECK: + [[VALUE:v[0-9]+]] = slice_load_word [[FIELDS]], 0
 // CHECK: + sstore arg1, [[VALUE]]
 fn @memory_to_storage(arg0: i256, arg1: i256) {
   bb0:

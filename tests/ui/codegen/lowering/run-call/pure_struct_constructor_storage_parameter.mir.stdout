@@ -7,15 +7,15 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = make_memory_slice v0, 3
-    slice_store_element v1, 0, 7
-    slice_store_element v1, 1, 7
-    slice_store_element v1, 2, 1
+    slice_store_word v1, 0, 7
+    slice_store_word v1, 32, 7
+    slice_store_word v1, 64, 1
     v2 = mapping_slot 3, 0
     v3 = make_memory_slice v0, 3
-    v4 = slice_load_element v3, 0
+    v4 = slice_load_word v3, 0
     sstore v2, v4 !metadata(storage=symbolic(v2))
     v5 = add v2, 1
-    v6 = slice_load_element v3, 1
+    v6 = slice_load_word v3, 32
     v7 = sload v5 !metadata(storage=offset(v2, 1))
     v8 = not 0xffffffffffffffffffffffffffffffffffffffff
     v9 = and v7, v8
@@ -23,7 +23,7 @@ fn @constructor() [constructor] {
     v11 = or v9, v10
     sstore v5, v11 !metadata(storage=offset(v2, 1))
     v12 = add v2, 1
-    v13 = slice_load_element v3, 2
+    v13 = slice_load_word v3, 64
     v14 = shl 160, 255
     v15 = sload v12 !metadata(storage=offset(v2, 1))
     v16 = not v14
@@ -39,34 +39,34 @@ fn @build(arg0: i256, arg1: i256) -> memptr [pure] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     v2 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v3 = make_memory_slice v2, 3
-    slice_store_element v3, 0, 0
-    slice_store_element v3, 1, 0
-    slice_store_element v3, 2, 0
+    slice_store_word v3, 0, 0
+    slice_store_word v3, 32, 0
+    slice_store_word v3, 64, 0
     v4 = ptrtoint memptr v2 to i256
-    slice_store_element v1, 1, v4
+    slice_store_word v1, 32, v4
     v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v6 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v7 = make_memory_slice v6, 3
     v8 = sload arg1 !metadata(storage=symbolic(arg1))
-    slice_store_element v7, 0, v8
+    slice_store_word v7, 0, v8
     v9 = add arg1, 1
     v10 = sload v9 !metadata(storage=offset(arg1, 1))
     v11 = trunc i256 v10 to i160
     v12 = zext i160 v11 to i256
-    slice_store_element v7, 1, v12
+    slice_store_word v7, 32, v12
     v13 = add arg1, 1
     v14 = sload v13 !metadata(storage=offset(arg1, 1))
     v15 = shr 160, v14
     v16 = trunc i256 v15 to i8
     v17 = zext i8 v16 to i256
-    slice_store_element v7, 2, v17
+    slice_store_word v7, 64, v17
     v18 = ptrtoint memptr v6 to i256
     v19 = make_memory_slice v5, 2
-    slice_store_element v19, 0, arg0
-    slice_store_element v19, 1, v18
+    slice_store_word v19, 0, arg0
+    slice_store_word v19, 32, v18
     ret v5
 }
 
@@ -77,38 +77,38 @@ fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_
     v2 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v3 = make_memory_slice v2, 3
     v4 = sload v0 !metadata(storage=symbolic(v0))
-    slice_store_element v3, 0, v4
+    slice_store_word v3, 0, v4
     v5 = add v0, 1
     v6 = sload v5 !metadata(storage=offset(v0, 1))
     v7 = trunc i256 v6 to i160
     v8 = zext i160 v7 to i256
-    slice_store_element v3, 1, v8
+    slice_store_word v3, 32, v8
     v9 = add v0, 1
     v10 = sload v9 !metadata(storage=offset(v0, 1))
     v11 = shr 160, v10
     v12 = trunc i256 v11 to i8
     v13 = zext i8 v12 to i256
-    slice_store_element v3, 2, v13
+    slice_store_word v3, 64, v13
     v14 = ptrtoint memptr v2 to i256
     v15 = make_memory_slice v1, 2
-    slice_store_element v15, 0, arg0
-    slice_store_element v15, 1, v14
+    slice_store_word v15, 0, arg0
+    slice_store_word v15, 32, v14
     v16 = make_memory_slice v1, 2
-    v17 = slice_load_element v16, 0
+    v17 = slice_load_word v16, 0
     v18 = make_memory_slice v1, 2
-    v19 = slice_load_element v18, 1, memptr
+    v19 = slice_load_word v18, 32, memptr
     v20 = make_memory_slice v19, 3
-    v21 = slice_load_element v20, 0
+    v21 = slice_load_word v20, 0
     v22 = checked_add u256, v17, v21
     v23 = make_memory_slice v1, 2
-    v24 = slice_load_element v23, 1, memptr
+    v24 = slice_load_word v23, 32, memptr
     v25 = make_memory_slice v24, 3
-    v26 = slice_load_element v25, 1
+    v26 = slice_load_word v25, 32
     v27 = trunc i256 v26 to i160
     v28 = make_memory_slice v1, 2
-    v29 = slice_load_element v28, 1, memptr
+    v29 = slice_load_word v28, 32, memptr
     v30 = make_memory_slice v29, 3
-    v31 = slice_load_element v30, 2
+    v31 = slice_load_word v30, 64
     v32 = eq v31, 0
     v33 = eq v32, false
     v34 = insert_value struct0, undef struct0, 0, v22

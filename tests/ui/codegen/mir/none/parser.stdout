@@ -64,7 +64,7 @@
   fn @select_and_log(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = select arg0, arg1, arg2
-      log1 0, 32, v0
+      log 0, 32, v0
       ret v0
   }
   

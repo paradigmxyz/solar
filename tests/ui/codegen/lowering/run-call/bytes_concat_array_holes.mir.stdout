@@ -10,44 +10,45 @@ fn @chunksAndHash() -> struct0 [pure] {
     mstore v0, 20
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 20
     jumpi v2, bb2, bb3
   bb3:
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    mstore v5, 40
-    v6 = ptrtoint memptr v5 to i256
-    v7 = add v6, 32
-    mstore v7, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    v8 = add v6, 64
-    mstore v8, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptrtoint memptr v5 to i256
-    slice_store_element v9, 0, v13
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    mstore v14, 4
-    v15 = ptrtoint memptr v14 to i256
-    v16 = add v15, 32
-    mstore v16, 0x7461696c00000000000000000000000000000000000000000000000000000000
-    v17 = memory_slice v0
-    v18 = slice_len v17
-    v19 = lt 15, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptrtoint memptr v14 to i256
-    slice_store_element v17, 15, v21
-    v22 = shl 0, 7
-    v23 = insert_value struct0, undef struct0, 0, v0
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    mstore v6, 40
+    v7 = ptrtoint memptr v6 to i256
+    v8 = add v7, 32
+    mstore v8, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
+    v9 = add v7, 64
+    mstore v9, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
+    v10 = memory_slice v0
+    v11 = slice_len v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptrtoint memptr v6 to i256
+    slice_store_word v10, 0, v14
+    v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    mstore v15, 4
+    v16 = ptrtoint memptr v15 to i256
+    v17 = add v16, 32
+    mstore v17, 0x7461696c00000000000000000000000000000000000000000000000000000000
+    v18 = memory_slice v0
+    v19 = slice_len v18
+    v20 = lt 15, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptrtoint memptr v15 to i256
+    slice_store_word v18, 480, v22
+    v23 = shl 0, 7
+    v24 = insert_value struct0, undef struct0, 0, v0
+    v25 = insert_value struct0, v24, 1, v23
+    ret v25
   bb2:
     v3 = memory_slice v0
-    slice_store_element v3, v1, 96
-    v4 = add v1, 1
+    v4 = shl 5, v1
+    slice_store_word v3, v4, 96
+    v5 = add v1, 1
     jump bb1
 }
 
@@ -59,9 +60,9 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: memptr 96], [bb3: v21]
+    v4 = phi [bb0: memptr 96], [bb3: v23]
     v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v22]
+    v6 = phi [bb0: 0], [bb3: v24]
     v7 = phi [bb0: 0], [bb3: v7]
     v8 = memory_slice v5
     v9 = slice_len v8
@@ -70,36 +71,38 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb5:
     jump bb2
   bb2:
-    v23 = memory_slice v4
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = keccak256 v24, v25
-    v27 = insert_value struct1, undef struct1, 0, v26
-    v28 = insert_value struct1, v27, 1, v3
-    ret v28
+    v25 = memory_slice v4
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = keccak256 v26, v27
+    v29 = insert_value struct1, undef struct1, 0, v28
+    v30 = insert_value struct1, v29, 1, v3
+    ret v30
   bb4:
     v11 = memory_slice v5
     v12 = slice_len v11
     v13 = lt v6, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = slice_load_element v11, v6
-    v16 = inttoptr i256 v15 to memptr
-    v17 = eq v15, 0
-    jumpi v17, bb7, bb8
+    v15 = shl 5, v6
+    v16 = slice_load_word v11, v15
+    v17 = inttoptr i256 v16 to memptr
+    v18 = eq v16, 0
+    jumpi v18, bb7, bb8
   bb7:
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
-    mstore v18, 0
-    v19 = ptrtoint memptr v18 to i256
-    slice_store_element v11, v6, v19
+    v19 = alloc memorybytes, exact, uninitialized, infallible, 32
+    mstore v19, 0
+    v20 = shl 5, v6
+    v21 = ptrtoint memptr v19 to i256
+    slice_store_word v11, v20, v21
     jump bb8
   bb8:
-    v20 = phi [bb4: v16], [bb7: v18]
-    v21 = abi_encode_packed (bytes v4, bytes v20)
+    v22 = phi [bb4: v17], [bb7: v19]
+    v23 = abi_encode_packed (bytes v4, bytes v22)
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v6, 1
+    v24 = checked_add u256, v6, 1
     jump bb1
 }

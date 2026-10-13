@@ -10,9 +10,9 @@ fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, ab
     v0 = icall @_toPairReturnType, 11
     v1 = icall @internal_dispatcher_asm_p_u256_r_memorystruct, v0, 4
     v2 = make_memory_slice v1, 2
-    v3 = slice_load_element v2, 0
+    v3 = slice_load_word v2, 0
     v4 = make_memory_slice v1, 2
-    v5 = slice_load_element v4, 1
+    v5 = slice_load_word v4, 32
     v6 = insert_value struct0, undef struct0, 0, v3
     v7 = insert_value struct0, v6, 1, v5
     ret v7
@@ -23,10 +23,10 @@ fn @decodePairLater(arg0: i256, arg1: i256) -> i256 [selector=0x4186506d, pure, 
     v0 = icall @_toPairReturnType, 11
     v1 = icall @internal_dispatcher_asm_p_u256_r_memorystruct, v0, 4
     v2 = make_memory_slice v1, 2
-    v3 = slice_load_element v2, 0
+    v3 = slice_load_word v2, 0
     v4 = checked_mul u256, v3, 10
     v5 = make_memory_slice v1, 2
-    v6 = slice_load_element v5, 1
+    v6 = slice_load_word v5, 32
     v7 = checked_add u256, v4, v6
     ret v7
 }
@@ -35,15 +35,15 @@ fn @decodePairField(arg0: i256, arg1: i256) -> struct0 [selector=0x3c031c90, pur
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 11
+    slice_store_word v1, 0, 11
     v2 = icall @_toPairDecoder, v0
     v3 = make_memory_slice v2, 1
-    v4 = slice_load_element v3, 0
+    v4 = slice_load_word v3, 0
     v5 = icall @internal_dispatcher_asm_p_u256_r_memorystruct, v4, 4
     v6 = make_memory_slice v5, 2
-    v7 = slice_load_element v6, 0
+    v7 = slice_load_word v6, 0
     v8 = make_memory_slice v5, 2
-    v9 = slice_load_element v8, 1
+    v9 = slice_load_word v8, 32
     v10 = insert_value struct0, undef struct0, 0, v7
     v11 = insert_value struct0, v10, 1, v9
     ret v11
@@ -61,8 +61,8 @@ fn @sumPair(arg0: i256, arg1: i256) -> i256 [selector=0xc766468d, pure, abi_para
     v0 = icall @_toPairInput, 13
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v2 = make_memory_slice v1, 2
-    slice_store_element v2, 0, arg0
-    slice_store_element v2, 1, arg1
+    slice_store_word v2, 0, arg0
+    slice_store_word v2, 32, arg1
     v3 = icall @internal_dispatcher_asm_p_memorystruct_r_u256, v0, v1
     ret v3
 }
@@ -85,8 +85,8 @@ fn @applyPair(arg0: i256, arg1: i256) -> i256 [selector=0x91b58050, pure, abi_pa
     v0 = icall @_toPairApply, 15
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v2 = make_memory_slice v1, 2
-    slice_store_element v2, 0, arg0
-    slice_store_element v2, 1, arg1
+    slice_store_word v2, 0, arg0
+    slice_store_word v2, 32, arg1
     v3 = icall @internal_dispatcher_asm_p_memorystruct_function_r_u256, v0, v1, 16
     ret v3
 }
@@ -168,9 +168,9 @@ fn @_applyWord(arg0: i256, arg1: i256) -> i256 [pure] {
 fn @_productOf(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = make_memory_slice arg0, 2
-    v1 = slice_load_element v0, 0
+    v1 = slice_load_word v0, 0
     v2 = make_memory_slice arg0, 2
-    v3 = slice_load_element v2, 1
+    v3 = slice_load_word v2, 32
     v4 = checked_mul u256, v1, v3
     ret v4
 }

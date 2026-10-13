@@ -45,7 +45,7 @@ fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[],
     v3 = lt 1, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = slice_load_element v1, 1
+    v5 = slice_load_word v1, 32
     ret
 }
 
@@ -112,7 +112,7 @@ fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns
     v3 = lt 1, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = slice_load_element v1, 1
+    v5 = slice_load_word v1, 32
     ret
 }
 

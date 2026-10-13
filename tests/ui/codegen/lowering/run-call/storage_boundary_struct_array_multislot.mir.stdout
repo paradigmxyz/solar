@@ -40,111 +40,112 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v39 = make_memory_slice v38, 3
     jump bb7
   bb7:
-    v40 = phi [bb2: 0], [bb8: v52]
+    v40 = phi [bb2: 0], [bb8: v53]
     v41 = lt v40, 3
     jumpi v41, bb8, bb9
   bb9:
-    v53 = ptrtoint memptr v38 to i256
-    v54 = make_memory_slice v53, 3
+    v54 = ptrtoint memptr v38 to i256
+    v55 = make_memory_slice v54, 3
     jump bb10
   bb10:
-    v55 = phi [bb9: 0], [bb15: v75]
-    v56 = lt v55, 3
-    jumpi v56, bb11, bb12
+    v56 = phi [bb9: 0], [bb15: v77]
+    v57 = lt v56, 3
+    jumpi v57, bb11, bb12
   bb12:
     jump bb16
   bb16:
-    v76 = phi [bb12: v2], [bb18: v113]
-    v77 = phi [bb12: v3], [bb18: v77]
-    v78 = phi [bb12: 0], [bb18: v114]
-    v79 = phi [bb12: v4], [bb18: v79]
-    v80 = phi [bb12: v5], [bb18: v80]
-    v81 = lt v78, 3
-    jumpi v81, bb19, bb20
+    v78 = phi [bb12: v2], [bb18: v115]
+    v79 = phi [bb12: v3], [bb18: v79]
+    v80 = phi [bb12: 0], [bb18: v116]
+    v81 = phi [bb12: v4], [bb18: v81]
+    v82 = phi [bb12: v5], [bb18: v82]
+    v83 = lt v80, 3
+    jumpi v83, bb19, bb20
   bb20:
     jump bb17
   bb17:
-    ret v76
+    ret v78
   bb19:
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = mul 0, 9
-    v85 = add v80, v84
-    v86 = lt v78, 3
-    v87 = eq v86, false
-    icall panic_if<0x32>, v87
-    v88 = mul v78, 3
-    v89 = add v85, v88
-    v90 = sload v89 !metadata(storage=symbolic(v89))
-    v91 = lt 0, 1
-    v92 = eq v91, false
-    icall panic_if<0x32>, v92
-    v93 = mul 0, 9
-    v94 = add v80, v93
-    v95 = lt v78, 3
-    v96 = eq v95, false
-    icall panic_if<0x32>, v96
-    v97 = mul v78, 3
-    v98 = add v94, v97
-    v99 = add v98, 1
-    v100 = sload v99 !metadata(storage=offset(v98, 1))
-    v101 = checked_add u256, v90, v100
-    v102 = lt 0, 1
-    v103 = eq v102, false
-    icall panic_if<0x32>, v103
-    v104 = mul 0, 9
-    v105 = add v80, v104
-    v106 = lt v78, 3
-    v107 = eq v106, false
-    icall panic_if<0x32>, v107
-    v108 = mul v78, 3
-    v109 = add v105, v108
-    v110 = add v109, 2
-    v111 = sload v110 !metadata(storage=offset(v109, 2))
-    v112 = checked_add u256, v101, v111
-    v113 = checked_add u256, v76, v112
+    v84 = lt 0, 1
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = mul 0, 9
+    v87 = add v82, v86
+    v88 = lt v80, 3
+    v89 = eq v88, false
+    icall panic_if<0x32>, v89
+    v90 = mul v80, 3
+    v91 = add v87, v90
+    v92 = sload v91 !metadata(storage=symbolic(v91))
+    v93 = lt 0, 1
+    v94 = eq v93, false
+    icall panic_if<0x32>, v94
+    v95 = mul 0, 9
+    v96 = add v82, v95
+    v97 = lt v80, 3
+    v98 = eq v97, false
+    icall panic_if<0x32>, v98
+    v99 = mul v80, 3
+    v100 = add v96, v99
+    v101 = add v100, 1
+    v102 = sload v101 !metadata(storage=offset(v100, 1))
+    v103 = checked_add u256, v92, v102
+    v104 = lt 0, 1
+    v105 = eq v104, false
+    icall panic_if<0x32>, v105
+    v106 = mul 0, 9
+    v107 = add v82, v106
+    v108 = lt v80, 3
+    v109 = eq v108, false
+    icall panic_if<0x32>, v109
+    v110 = mul v80, 3
+    v111 = add v107, v110
+    v112 = add v111, 2
+    v113 = sload v112 !metadata(storage=offset(v111, 2))
+    v114 = checked_add u256, v103, v113
+    v115 = checked_add u256, v78, v114
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v114 = checked_add u256, v78, 1
+    v116 = checked_add u256, v80, 1
     jump bb16
   bb11:
-    v57 = mul v55, 3
-    v58 = add v37, v57
-    v59 = lt v55, 3
-    jumpi v59, bb13, bb14
+    v58 = mul v56, 3
+    v59 = add v37, v58
+    v60 = lt v56, 3
+    jumpi v60, bb13, bb14
   bb14:
-    v67 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v68 = make_memory_slice v67, 3
-    slice_store_element v68, 0, 0
-    slice_store_element v68, 1, 0
-    slice_store_element v68, 2, 0
-    v69 = make_memory_slice v67, 3
-    v70 = slice_load_element v69, 0
-    sstore v58, v70 !metadata(storage=symbolic(v58))
-    v71 = add v58, 1
-    v72 = slice_load_element v69, 1
-    sstore v71, v72 !metadata(storage=offset(v58, 1))
-    v73 = add v58, 2
-    v74 = slice_load_element v69, 2
-    sstore v73, v74 !metadata(storage=offset(v58, 2))
+    v69 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v70 = make_memory_slice v69, 3
+    slice_store_word v70, 0, 0
+    slice_store_word v70, 32, 0
+    slice_store_word v70, 64, 0
+    v71 = make_memory_slice v69, 3
+    v72 = slice_load_word v71, 0
+    sstore v59, v72 !metadata(storage=symbolic(v59))
+    v73 = add v59, 1
+    v74 = slice_load_word v71, 32
+    sstore v73, v74 !metadata(storage=offset(v59, 1))
+    v75 = add v59, 2
+    v76 = slice_load_word v71, 64
+    sstore v75, v76 !metadata(storage=offset(v59, 2))
     jump bb15
   bb13:
-    v60 = slice_load_element v54, v55
-    v61 = make_memory_slice v60, 3
-    v62 = slice_load_element v61, 0
-    sstore v58, v62 !metadata(storage=symbolic(v58))
-    v63 = add v58, 1
-    v64 = slice_load_element v61, 1
-    sstore v63, v64 !metadata(storage=offset(v58, 1))
-    v65 = add v58, 2
-    v66 = slice_load_element v61, 2
-    sstore v65, v66 !metadata(storage=offset(v58, 2))
+    v61 = shl 5, v56
+    v62 = slice_load_word v55, v61
+    v63 = make_memory_slice v62, 3
+    v64 = slice_load_word v63, 0
+    sstore v59, v64 !metadata(storage=symbolic(v59))
+    v65 = add v59, 1
+    v66 = slice_load_word v63, 32
+    sstore v65, v66 !metadata(storage=offset(v59, 1))
+    v67 = add v59, 2
+    v68 = slice_load_word v63, 64
+    sstore v67, v68 !metadata(storage=offset(v59, 2))
     jump bb15
   bb15:
-    v75 = add v55, 1
+    v77 = add v56, 1
     jump bb10
   bb8:
     v42 = mul v40, 3
@@ -152,16 +153,17 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v44 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v45 = make_memory_slice v44, 3
     v46 = sload v43 !metadata(storage=symbolic(v43))
-    slice_store_element v45, 0, v46
+    slice_store_word v45, 0, v46
     v47 = add v43, 1
     v48 = sload v47 !metadata(storage=offset(v43, 1))
-    slice_store_element v45, 1, v48
+    slice_store_word v45, 32, v48
     v49 = add v43, 2
     v50 = sload v49 !metadata(storage=offset(v43, 2))
-    slice_store_element v45, 2, v50
+    slice_store_word v45, 64, v50
     v51 = ptrtoint memptr v44 to i256
-    slice_store_element v39, v40, v51
-    v52 = add v40, 1
+    v52 = shl 5, v40
+    slice_store_word v39, v52, v51
+    v53 = add v40, 1
     jump bb7
   bb4:
     v7 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -172,9 +174,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v12 = checked_mul u256, v3, 3
     v13 = checked_add u256, v12, 3
     v14 = make_memory_slice v7, 3
-    slice_store_element v14, 0, v9
-    slice_store_element v14, 1, v11
-    slice_store_element v14, 2, v13
+    slice_store_word v14, 0, v9
+    slice_store_word v14, 32, v11
+    slice_store_word v14, 64, v13
     v15 = lt 0, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
@@ -186,13 +188,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v21 = mul v3, 3
     v22 = add v18, v21
     v23 = make_memory_slice v7, 3
-    v24 = slice_load_element v23, 0
+    v24 = slice_load_word v23, 0
     sstore v22, v24 !metadata(storage=symbolic(v22))
     v25 = add v22, 1
-    v26 = slice_load_element v23, 1
+    v26 = slice_load_word v23, 32
     sstore v25, v26 !metadata(storage=offset(v22, 1))
     v27 = add v22, 2
-    v28 = slice_load_element v23, 2
+    v28 = slice_load_word v23, 64
     sstore v27, v28 !metadata(storage=offset(v22, 2))
     jump bb6
   bb6:

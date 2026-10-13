@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
     v3 = abi_encode [memory_bytes], args v0
     v4 = slice_ptr v3
     v5 = slice_len v3
-    log1 v4, v5, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
+    log v4, v5, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
     ret
 }
 

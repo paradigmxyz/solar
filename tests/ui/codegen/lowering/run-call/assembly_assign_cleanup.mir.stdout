@@ -86,7 +86,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     icall panic_if<0x32>, v5
     v6 = trunc i256 v0 to i160
     v7 = zext i160 v6 to i256
-    slice_store_element v2, 0, v7
+    slice_store_word v2, 0, v7
     v8 = shl 160, 1
     v9 = sub v8, 1
     v10 = ptrtoint memptr v1 to i256

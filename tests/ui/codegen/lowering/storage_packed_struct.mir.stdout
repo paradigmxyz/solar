@@ -183,23 +183,23 @@ fn @copyValues() -> struct0 [selector=0xd888038d, view, abi_params=[], abi_retur
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = trunc i256 v2 to i8
     v4 = zext i8 v3 to i256
-    slice_store_element v1, 0, v4
+    slice_store_word v1, 0, v4
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = shr 8, v5
     v7 = trunc i256 v6 to i8
     v8 = zext i8 v7 to i256
-    slice_store_element v1, 1, v8
+    slice_store_word v1, 32, v8
     v9 = add 0, 1
     v10 = sload v9 !metadata(storage=slot(1))
-    slice_store_element v1, 2, v10
+    slice_store_word v1, 64, v10
     v11 = make_memory_slice v0, 3
-    v12 = slice_load_element v11, 0
+    v12 = slice_load_word v11, 0
     v13 = trunc i256 v12 to i8
     v14 = make_memory_slice v0, 3
-    v15 = slice_load_element v14, 1
+    v15 = slice_load_word v14, 32
     v16 = trunc i256 v15 to i8
     v17 = make_memory_slice v0, 3
-    v18 = slice_load_element v17, 2
+    v18 = slice_load_word v17, 64
     v19 = insert_value struct0, undef struct0, 0, v13
     v20 = insert_value struct0, v19, 1, v16
     v21 = insert_value struct0, v20, 2, v18
@@ -251,18 +251,18 @@ fn @replace(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0xcde69356, abi
     v1 = zext i8 arg0 to i256
     v2 = zext i8 arg1 to i256
     v3 = make_memory_slice v0, 3
-    slice_store_element v3, 0, v1
-    slice_store_element v3, 1, v2
-    slice_store_element v3, 2, arg2
+    slice_store_word v3, 0, v1
+    slice_store_word v3, 32, v2
+    slice_store_word v3, 64, arg2
     v4 = make_memory_slice v0, 3
-    v5 = slice_load_element v4, 0
+    v5 = slice_load_word v4, 0
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = not 255
     v8 = and v6, v7
     v9 = and v5, 255
     v10 = or v8, v9
     sstore 0, v10 !metadata(storage=slot(0))
-    v11 = slice_load_element v4, 1
+    v11 = slice_load_word v4, 32
     v12 = shl 8, 255
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = not v12
@@ -272,7 +272,7 @@ fn @replace(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0xcde69356, abi
     v18 = or v15, v17
     sstore 0, v18 !metadata(storage=slot(0))
     v19 = add 0, 1
-    v20 = slice_load_element v4, 2
+    v20 = slice_load_word v4, 64
     sstore v19, v20 !metadata(storage=slot(1))
     v21 = sload 0 !metadata(storage=slot(0))
     v22 = trunc i256 v21 to i8
@@ -500,78 +500,78 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v3 = lt 0, 4
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v2, 0, 5
+    slice_store_word v2, 0, 5
     v5 = make_memory_slice v0, 4
     v6 = lt 1, 4
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    slice_store_element v5, 1, 6
+    slice_store_word v5, 32, 6
     v8 = make_memory_slice v0, 4
     v9 = lt 2, 4
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    slice_store_element v8, 2, 7
+    slice_store_word v8, 64, 7
     v11 = make_memory_slice v0, 4
     v12 = lt 3, 4
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    slice_store_element v11, 3, 8
+    slice_store_word v11, 96, 8
     v14 = make_memory_slice v0, 4
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb6: v39]
+    v15 = phi [bb0: 0], [bb6: v40]
     v16 = lt v15, 4
     jumpi v16, bb2, bb3
   bb3:
-    v40 = lt 0, 4
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = div 0, 32
-    v43 = add 2, v42
-    v44 = mod 0, 32
-    v45 = mul v44, 1
-    v46 = sload v43 !metadata(storage=offset(v42, 2))
-    v47 = mul v45, 8
-    v48 = shr v47, v46
-    v49 = trunc i256 v48 to i8
-    v50 = lt 1, 4
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = div 1, 32
-    v53 = add 2, v52
-    v54 = mod 1, 32
-    v55 = mul v54, 1
-    v56 = sload v53 !metadata(storage=offset(v52, 2))
-    v57 = mul v55, 8
-    v58 = shr v57, v56
-    v59 = trunc i256 v58 to i8
-    v60 = lt 2, 4
-    v61 = eq v60, false
-    icall panic_if<0x32>, v61
-    v62 = div 2, 32
-    v63 = add 2, v62
-    v64 = mod 2, 32
-    v65 = mul v64, 1
-    v66 = sload v63 !metadata(storage=offset(v62, 2))
-    v67 = mul v65, 8
-    v68 = shr v67, v66
-    v69 = trunc i256 v68 to i8
-    v70 = lt 3, 4
-    v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = div 3, 32
-    v73 = add 2, v72
-    v74 = mod 3, 32
-    v75 = mul v74, 1
-    v76 = sload v73 !metadata(storage=offset(v72, 2))
-    v77 = mul v75, 8
-    v78 = shr v77, v76
-    v79 = trunc i256 v78 to i8
-    v80 = insert_value struct3, undef struct3, 0, v49
-    v81 = insert_value struct3, v80, 1, v59
-    v82 = insert_value struct3, v81, 2, v69
-    v83 = insert_value struct3, v82, 3, v79
-    ret v83
+    v41 = lt 0, 4
+    v42 = eq v41, false
+    icall panic_if<0x32>, v42
+    v43 = div 0, 32
+    v44 = add 2, v43
+    v45 = mod 0, 32
+    v46 = mul v45, 1
+    v47 = sload v44 !metadata(storage=offset(v43, 2))
+    v48 = mul v46, 8
+    v49 = shr v48, v47
+    v50 = trunc i256 v49 to i8
+    v51 = lt 1, 4
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = div 1, 32
+    v54 = add 2, v53
+    v55 = mod 1, 32
+    v56 = mul v55, 1
+    v57 = sload v54 !metadata(storage=offset(v53, 2))
+    v58 = mul v56, 8
+    v59 = shr v58, v57
+    v60 = trunc i256 v59 to i8
+    v61 = lt 2, 4
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = div 2, 32
+    v64 = add 2, v63
+    v65 = mod 2, 32
+    v66 = mul v65, 1
+    v67 = sload v64 !metadata(storage=offset(v63, 2))
+    v68 = mul v66, 8
+    v69 = shr v68, v67
+    v70 = trunc i256 v69 to i8
+    v71 = lt 3, 4
+    v72 = eq v71, false
+    icall panic_if<0x32>, v72
+    v73 = div 3, 32
+    v74 = add 2, v73
+    v75 = mod 3, 32
+    v76 = mul v75, 1
+    v77 = sload v74 !metadata(storage=offset(v73, 2))
+    v78 = mul v76, 8
+    v79 = shr v78, v77
+    v80 = trunc i256 v79 to i8
+    v81 = insert_value struct3, undef struct3, 0, v50
+    v82 = insert_value struct3, v81, 1, v60
+    v83 = insert_value struct3, v82, 2, v70
+    v84 = insert_value struct3, v83, 3, v80
+    ret v84
   bb2:
     v17 = div v15, 32
     v18 = add 2, v17
@@ -580,29 +580,30 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v21 = lt v15, 4
     jumpi v21, bb4, bb5
   bb5:
-    v31 = mul v20, 8
-    v32 = shl v31, 255
-    v33 = sload v18 !metadata(storage=offset(v17, 2))
-    v34 = not v32
-    v35 = and v33, v34
-    v36 = and 0, 255
-    v37 = shl v31, v36
-    v38 = or v35, v37
-    sstore v18, v38 !metadata(storage=offset(v17, 2))
+    v32 = mul v20, 8
+    v33 = shl v32, 255
+    v34 = sload v18 !metadata(storage=offset(v17, 2))
+    v35 = not v33
+    v36 = and v34, v35
+    v37 = and 0, 255
+    v38 = shl v32, v37
+    v39 = or v36, v38
+    sstore v18, v39 !metadata(storage=offset(v17, 2))
     jump bb6
   bb4:
-    v22 = slice_load_element v14, v15
-    v23 = mul v20, 8
-    v24 = shl v23, 255
-    v25 = sload v18 !metadata(storage=offset(v17, 2))
-    v26 = not v24
-    v27 = and v25, v26
-    v28 = and v22, 255
-    v29 = shl v23, v28
-    v30 = or v27, v29
-    sstore v18, v30 !metadata(storage=offset(v17, 2))
+    v22 = shl 5, v15
+    v23 = slice_load_word v14, v22
+    v24 = mul v20, 8
+    v25 = shl v24, 255
+    v26 = sload v18 !metadata(storage=offset(v17, 2))
+    v27 = not v25
+    v28 = and v26, v27
+    v29 = and v23, 255
+    v30 = shl v24, v29
+    v31 = or v28, v30
+    sstore v18, v31 !metadata(storage=offset(v17, 2))
     jump bb6
   bb6:
-    v39 = add v15, 1
+    v40 = add v15, 1
     jump bb1
 }

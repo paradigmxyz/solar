@@ -60,16 +60,16 @@ fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_p
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
-    slice_store_element v1, 1, 0
+    slice_store_word v1, 0, 0
+    slice_store_word v1, 32, 0
     jumpi arg0, bb1, bb2
   bb2:
     v3 = make_memory_slice v0, 2
-    slice_store_element v3, 0, 11
+    slice_store_word v3, 0, 11
     jump bb3
   bb1:
     v2 = make_memory_slice v0, 2
-    slice_store_element v2, 0, 7
+    slice_store_word v2, 0, 7
     jump bb3
   bb3:
     jump bb4
@@ -86,21 +86,21 @@ fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_p
     jump bb5
   bb5:
     v20 = make_memory_slice v6, 2
-    v21 = slice_load_element v20, 1
+    v21 = slice_load_word v20, 32
     v22 = insert_value struct0, undef struct0, 0, v21
     v23 = insert_value struct0, v22, 1, v5
     ret v23
   bb7:
     v11 = make_memory_slice v6, 2
-    v12 = slice_load_element v11, 0
+    v12 = slice_load_word v11, 0
     v13 = checked_add u256, v12, v4
-    slice_store_element v11, 0, v13
+    slice_store_word v11, 0, v13
     v14 = make_memory_slice v6, 2
-    v15 = slice_load_element v14, 0
+    v15 = slice_load_word v14, 0
     v16 = make_memory_slice v6, 2
-    v17 = slice_load_element v16, 1
+    v17 = slice_load_word v16, 32
     v18 = checked_add u256, v17, v15
-    slice_store_element v16, 1, v18
+    slice_store_word v16, 32, v18
     jump bb9
   bb9:
     jump bb6

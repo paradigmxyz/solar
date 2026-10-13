@@ -54,29 +54,28 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
   bb2:
-    v22 = add v30, 128
-    mstore v22, v6
+    v23 = add v30, 128
+    mstore v23, v6
     v8 = add arg0, 2
     v9 = lt v8, arg0
     jumpi v9, bb1, bb3
   bb3:
-    v24 = add v30, 160
-    mstore v24, v8
+    v25 = add v30, 160
+    mstore v25, v8
     jump bb6
   bb6:
-    v13 = phi [bb3: 0], [bb7: v18]
+    v13 = phi [bb3: 0], [bb7: v19]
     v14 = lt v13, 3
     jumpi v14, bb7, bb8
   bb8:
     returndata 128, 96
   bb7:
-    v26 = shl 5, v13
-    v27 = add v29, v26
-    v15 = mload v27
-    v16 = shl 5, v13
-    v17 = add v16, 128
-    mstore v17, v15
-    v18 = add v13, 1
+    v15 = shl 5, v13
+    v27 = add v29, v15
+    v16 = mload v27
+    v18 = add v15, 128
+    mstore v18, v16
+    v19 = add v13, 1
     jump bb6
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
@@ -180,9 +179,9 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
 
 fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
   bb0:
-    v47 = calldatasize
-    v48 = lt v47, 36
-    jumpi v48, bb3, bb11
+    v48 = calldatasize
+    v49 = lt v48, 36
+    jumpi v49, bb3, bb11
   bb11:
     v0: i256 = address
     v1 = gas
@@ -190,16 +189,16 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v67 = add v66, 160
     mstore 64, v67 !metadata(memory=scratch)
     mstore v66, 0x9510f21200000000000000000000000000000000000000000000000000000000
-    v53 = add v66, 4
-    mstore v53, arg0
+    v54 = add v66, 4
+    mstore v54, arg0
     v63 = add v66, 64
     v8 = staticcall v1, v0, v66, 36, v63, 96
     jumpi v8, bb2, bb1
   bb1:
-    v45 = returndatasize
-    returndatacopy 0, 0, v45 !metadata(memory=abi_return)
     v46 = returndatasize
-    revert 0, v46
+    returndatacopy 0, 0, v46 !metadata(memory=abi_return)
+    v47 = returndatasize
+    revert 0, v47
   bb2:
     v9 = returndatasize
     v10 = lt v9, 96
@@ -223,8 +222,8 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v29 = lt v28, v17
     jumpi v29, bb5, bb6
   bb6:
-    v57 = add v64, 64
-    v26 = mload v57
+    v58 = add v64, 64
+    v26 = mload v58
     v30 = add v28, v26
     v31 = lt v30, v28
     jumpi v31, bb5, bb7

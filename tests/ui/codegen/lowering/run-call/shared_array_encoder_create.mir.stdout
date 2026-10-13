@@ -37,28 +37,29 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, address>]] {
     v20 = memory_slice arg0
     jump bb6
   bb6:
-    v21 = phi [bb2: 0], [bb7: v37]
+    v21 = phi [bb2: 0], [bb7: v38]
     v22 = lt v21, v1
     jumpi v22, bb7, bb8
   bb8:
     ret
   bb7:
-    v23 = slice_load_element v20, v21
-    v24 = storage_array_data_slot 0
-    v25 = div v21, 1
-    v26 = add v24, v25
-    v27 = mod v21, 1
-    v28 = mul v27, 20
-    v29 = mul v28, 8
-    v30 = shl v29, 0xffffffffffffffffffffffffffffffffffffffff
-    v31 = sload v26 !metadata(storage=symbolic(v26))
-    v32 = not v30
-    v33 = and v31, v32
-    v34 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v35 = shl v29, v34
-    v36 = or v33, v35
-    sstore v26, v36 !metadata(storage=symbolic(v26))
-    v37 = add v21, 1
+    v23 = shl 5, v21
+    v24 = slice_load_word v20, v23
+    v25 = storage_array_data_slot 0
+    v26 = div v21, 1
+    v27 = add v25, v26
+    v28 = mod v21, 1
+    v29 = mul v28, 20
+    v30 = mul v29, 8
+    v31 = shl v30, 0xffffffffffffffffffffffffffffffffffffffff
+    v32 = sload v27 !metadata(storage=symbolic(v27))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v36 = shl v30, v35
+    v37 = or v34, v36
+    sstore v27, v37 !metadata(storage=symbolic(v27))
+    v38 = add v21, 1
     jump bb6
   bb4:
     v6 = storage_array_data_slot 0
@@ -121,14 +122,14 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = zext i160 arg0 to i256
-    slice_store_element v1, 0, v5
+    slice_store_word v1, 0, v5
     v6 = memory_slice v0
     v7 = slice_len v6
     v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = zext i160 arg1 to i256
-    slice_store_element v6, 1, v10
+    slice_store_word v6, 32, v10
     v11 = abi_encode [memory_array<word<u160>>], args v0
     v12 = slice_len v11
     v13 = datasize Child_creation_code_0
@@ -167,21 +168,21 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = zext i160 arg0 to i256
-    slice_store_element v1, 0, v5
+    slice_store_word v1, 0, v5
     v6 = memory_slice v0
     v7 = slice_len v6
     v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = zext i160 arg1 to i256
-    slice_store_element v6, 1, v10
+    slice_store_word v6, 32, v10
     v11 = memory_slice v0
     v12 = slice_len v11
     v13 = lt 2, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = zext i160 arg2 to i256
-    slice_store_element v11, 2, v15
+    slice_store_word v11, 64, v15
     v16 = abi_encode [memory_array<word<u160>>], args v0
     v17 = slice_len v16
     v18 = datasize Child_creation_code_0

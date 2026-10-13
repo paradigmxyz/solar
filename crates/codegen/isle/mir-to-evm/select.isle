@@ -18,6 +18,10 @@
 
 (decl partial select_opcode (Op) OpcodeLowering)
 
+;; LOG0 through LOG4, by topic count.
+(decl pure log_opcode (LogTopics) u8)
+(extern constructor log_opcode log_opcode)
+
 (rule (select_opcode (Op.Add _ _)) (OpcodeLowering.Binary $ADD))
 (rule (select_opcode (Op.Sub _ _)) (OpcodeLowering.Binary $SUB))
 (rule (select_opcode (Op.Mul _ _)) (OpcodeLowering.Binary $MUL))
@@ -79,11 +83,7 @@
 (rule (select_opcode (Op.SignExtend _ _)) (OpcodeLowering.Binary $SIGNEXTEND))
 (rule (select_opcode (Op.Create _ _ _)) (OpcodeLowering.Nary $CREATE))
 (rule (select_opcode (Op.Create2 _ _ _ _)) (OpcodeLowering.Nary $CREATE2))
-(rule (select_opcode (Op.Log0 _ _)) (OpcodeLowering.Log $LOG0))
-(rule (select_opcode (Op.Log1 _ _ _)) (OpcodeLowering.Log $LOG1))
-(rule (select_opcode (Op.Log2 _ _ _ _)) (OpcodeLowering.Log $LOG2))
-(rule (select_opcode (Op.Log3 _ _ _ _ _)) (OpcodeLowering.Log $LOG3))
-(rule (select_opcode (Op.Log4 _ _ _ _ _ _)) (OpcodeLowering.Log $LOG4))
+(rule (select_opcode (Op.Log _ _ topics)) (OpcodeLowering.Log (log_opcode topics)))
 (rule (select_opcode (Op.CalldataCopy _ _ _)) (OpcodeLowering.MemoryCopy $CALLDATACOPY))
 (rule (select_opcode (Op.CodeCopy _ _ _)) (OpcodeLowering.MemoryCopy $CODECOPY))
 (rule (select_opcode (Op.ReturnDataCopy _ _ _)) (OpcodeLowering.MemoryCopy $RETURNDATACOPY))

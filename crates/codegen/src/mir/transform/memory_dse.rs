@@ -599,19 +599,7 @@ impl MemoryStoreEliminator {
                 },
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
-                InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
-                }
-                InstKind::Log1(offset, size, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
-                }
-                InstKind::Log2(offset, size, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
-                }
-                InstKind::Log3(offset, size, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
-                }
-                InstKind::Log4(offset, size, _, _, _, _) => {
+                InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
                     Self::mark_read(func, &mut live, *offset, *size);
                 }
                 // Byte stores never fully define a word (so cannot make an
@@ -989,12 +977,9 @@ impl MemoryStoreEliminator {
 
     fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {
         match kind {
-            InstKind::Keccak256(offset, size)
-            | InstKind::Log0(offset, size)
-            | InstKind::Log1(offset, size, _)
-            | InstKind::Log2(offset, size, _, _)
-            | InstKind::Log3(offset, size, _, _, _)
-            | InstKind::Log4(offset, size, _, _, _, _) => Some((*offset, *size)),
+            InstKind::Keccak256(offset, size) | InstKind::Log { offset, size, .. } => {
+                Some((*offset, *size))
+            }
             _ => None,
         }
     }

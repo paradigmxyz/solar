@@ -11,16 +11,16 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v0 = icall @getArray
     v1 = alloc memoryfixedarray<10, 1>, exact, uninitialized, infallible, 320
     v2 = make_memory_slice v1, 10
-    slice_store_element v2, 0, 1
-    slice_store_element v2, 1, 2
-    slice_store_element v2, 2, 3
-    slice_store_element v2, 3, 4
-    slice_store_element v2, 4, 5
-    slice_store_element v2, 5, 6
-    slice_store_element v2, 6, 7
-    slice_store_element v2, 7, 8
-    slice_store_element v2, 8, 9
-    slice_store_element v2, 9, 10
+    slice_store_word v2, 0, 1
+    slice_store_word v2, 32, 2
+    slice_store_word v2, 64, 3
+    slice_store_word v2, 96, 4
+    slice_store_word v2, 128, 5
+    slice_store_word v2, 160, 6
+    slice_store_word v2, 192, 7
+    slice_store_word v2, 224, 8
+    slice_store_word v2, 256, 9
+    slice_store_word v2, 288, 10
     v3 = lt 0, 1
     v4 = eq v3, false
     icall panic_if<0x32>, v4
@@ -29,43 +29,43 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v7 = make_memory_slice v1, 10
     jump bb1
   bb1:
-    v8 = phi [bb0: 0], [bb6: v13]
+    v8 = phi [bb0: 0], [bb6: v14]
     v9 = lt v8, 10
     jumpi v9, bb2, bb3
   bb3:
     jump bb7
   bb7:
-    v14 = phi [bb3: 0], [bb9: v31]
-    v15 = phi [bb3: 0], [bb9: v30]
-    v16 = phi [bb3: v0], [bb9: v16]
-    v17 = lt 0, 1
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = mul 0, 10
-    v20 = add v16, v19
-    v21 = lt v14, 10
-    jumpi v21, bb10, bb11
+    v15 = phi [bb3: 0], [bb9: v32]
+    v16 = phi [bb3: 0], [bb9: v31]
+    v17 = phi [bb3: v0], [bb9: v17]
+    v18 = lt 0, 1
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = mul 0, 10
+    v21 = add v17, v20
+    v22 = lt v15, 10
+    jumpi v22, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v15
+    ret v16
   bb10:
-    v22 = lt 0, 1
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = mul 0, 10
-    v25 = add v16, v24
-    v26 = lt v14, 10
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = add v25, v14
-    v29 = sload v28 !metadata(storage=symbolic(v28))
-    v30 = checked_add u256, v15, v29
+    v23 = lt 0, 1
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = mul 0, 10
+    v26 = add v17, v25
+    v27 = lt v15, 10
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = add v26, v15
+    v30 = sload v29 !metadata(storage=symbolic(v29))
+    v31 = checked_add u256, v16, v30
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v31 = checked_add u256, v14, 1
+    v32 = checked_add u256, v15, 1
     jump bb7
   bb2:
     v10 = add v6, v8
@@ -75,10 +75,11 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v12 = slice_load_element v7, v8
-    sstore v10, v12 !metadata(storage=symbolic(v10))
+    v12 = shl 5, v8
+    v13 = slice_load_word v7, v12
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     jump bb6
   bb6:
-    v13 = add v8, 1
+    v14 = add v8, 1
     jump bb1
 }

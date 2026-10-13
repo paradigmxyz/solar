@@ -89,7 +89,7 @@ fn @write_past_allocation() -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @guarded_loop{{[( ]}}
 // CHECK: alloc memoryfixedarray<2, 1>
-// CHECK: slice_store_element
+// CHECK: slice_store_word
 fn @guarded_loop() -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -100,7 +100,8 @@ fn @guarded_loop() -> i256 {
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb2:
-    slice_store_element v4, v1, 7
+    v111 = shl 5, v1
+    slice_store_word v4, v111, 7
     v3 = add v1, 1
     jump bb1
   bb3:
@@ -108,7 +109,7 @@ fn @guarded_loop() -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @guarded_overrun{{[( ]}}
-// CHECK: {{^[ +].*}}slice_store_element
+// CHECK: {{^[ +].*}}slice_store_word
 fn @guarded_overrun(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -116,14 +117,15 @@ fn @guarded_overrun(arg0: i256) -> i256 {
     v1 = lt arg0, 3
     jumpi v1, bb1, bb2
   bb1:
-    slice_store_element v2, arg0, 7
+    v112 = shl 5, arg0
+    slice_store_word v2, v112, 7
     jump bb2
   bb2:
     ret 0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @unguarded_join{{[( ]}}
-// CHECK: {{^[ +].*}}slice_store_element
+// CHECK: {{^[ +].*}}slice_store_word
 fn @unguarded_join(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
@@ -135,6 +137,7 @@ fn @unguarded_join(arg0: i256) -> i256 {
   bb2:
     jump bb3
   bb3:
-    slice_store_element v2, arg0, 7
+    v113 = shl 5, arg0
+    slice_store_word v2, v113, 7
     ret 0
 }

@@ -49,8 +49,8 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
     v33 = mload v32
     v34 = byte 0, v33
     v12 = shl 8, v34
-    v39 = byte 2, v33
-    v22 = or v12, v39
+    v38 = byte 2, v33
+    v22 = or v12, v38
     mstore 128, v22
     returndata 128, 32
   bb1:
@@ -72,12 +72,12 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     v12 = shl 16, v50
     v53 = add v48, 1
     mstore8 v53, 74
-    v57 = mload v53
-    v58 = byte 0, v57
-    v27 = shl 8, v58
+    v56 = mload v53
+    v57 = byte 0, v56
+    v27 = shl 8, v57
     v28 = or v12, v27
-    v63 = byte 1, v57
-    v38 = or v28, v63
+    v61 = byte 1, v56
+    v38 = or v28, v61
     mstore 128, v38
     returndata 128, 32
   bb1:

@@ -7,13 +7,13 @@ fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     v1 = make_memory_slice v0, 1
     jumpi arg0, bb1, bb2
   bb1:
-    slice_store_element v1, 0, arg1
+    slice_store_word v1, 0, arg1
     jump bb3
   bb2:
-    slice_store_element v1, 0, arg2
+    slice_store_word v1, 0, arg2
     jump bb3
   bb3:
-    v2 = slice_load_element v1, 0
+    v2 = slice_load_word v1, 0
     ret v2
 }
 
@@ -25,12 +25,12 @@ fn @loop(arg0: i256) -> i256 {
     v1 = make_memory_slice v0, 1
     jump bb1
   bb1:
-    v2 = slice_load_element v1, 0
+    v2 = slice_load_word v1, 0
     v3 = lt v2, arg0
     jumpi v3, bb2, bb3
   bb2:
     v4 = add v2, 1
-    slice_store_element v1, 0, v4
+    slice_store_word v1, 0, v4
     jump bb1
   bb3:
     ret v2
@@ -42,10 +42,10 @@ fn @missing_definition(arg0: i1) -> i256 {
     v1 = make_memory_slice v0, 1
     jumpi arg0, bb1, bb2
   bb1:
-    slice_store_element v1, 0, 7
+    slice_store_word v1, 0, 7
     jump bb2
   bb2:
-    v2 = slice_load_element v1, 0
+    v2 = slice_load_word v1, 0
     ret v2
 }
 
@@ -57,12 +57,12 @@ fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     v1 = make_memory_slice v0, 2
     jumpi arg0, bb1, bb2
   bb1:
-    slice_store_element v1, 0, arg1
-    v3 = slice_load_element v1, 0
-    slice_store_element v1, 1, v3
+    slice_store_word v1, 0, arg1
+    v3 = slice_load_word v1, 0
+    slice_store_word v1, 32, v3
     jump bb2
   bb2:
-    v4 = slice_load_element v1, 1
+    v4 = slice_load_word v1, 32
     ret v4
 }
 
@@ -72,7 +72,7 @@ fn @observe_size() -> i256 {
     v12 = ptrtoint memptr v0 to i256
     memory_zero v12, 32
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 7
+    slice_store_word v1, 0, 7
     v2 = msize
     ret v2
 }
@@ -83,6 +83,6 @@ fn @outside_object() -> i256 {
     v12 = ptrtoint memptr v0 to i256
     memory_zero v12, 32
     v1 = make_memory_slice v0, 1
-    v2 = slice_load_element v1, 1
+    v2 = slice_load_word v1, 32
     ret v2
 }

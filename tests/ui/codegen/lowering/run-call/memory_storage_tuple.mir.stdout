@@ -21,18 +21,18 @@ fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], 
     v4 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v5 = make_memory_slice v4, 2
     v6 = sload v3 !metadata(storage=symbolic(v3))
-    slice_store_element v5, 0, v6
+    slice_store_word v5, 0, v6
     v7 = add v3, 1
     v8 = sload v7 !metadata(storage=offset(v3, 1))
-    slice_store_element v5, 1, v8
+    slice_store_word v5, 32, v8
     sstore 0, 99 !metadata(storage=slot(0))
     v9 = checked_mul u256, v2, 0x3e8
     v10 = make_memory_slice v4, 2
-    v11 = slice_load_element v10, 0
+    v11 = slice_load_word v10, 0
     v12 = checked_mul u256, v11, 10
     v13 = checked_add u256, v9, v12
     v14 = make_memory_slice v4, 2
-    v15 = slice_load_element v14, 1
+    v15 = slice_load_word v14, 32
     v16 = checked_add u256, v13, v15
     ret v16
 }
@@ -44,29 +44,29 @@ fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], 
     sstore v0, 22 !metadata(storage=slot(1))
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v2 = make_memory_slice v1, 2
-    slice_store_element v2, 0, 1
-    slice_store_element v2, 1, 2
+    slice_store_word v2, 0, 1
+    slice_store_word v2, 32, 2
     v3 = icall @f
     v4 = extract_value struct0, v3, 0
     v5 = extract_value struct0, v3, 1
     v6 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v7 = make_memory_slice v6, 2
     v8 = sload v5 !metadata(storage=symbolic(v5))
-    slice_store_element v7, 0, v8
+    slice_store_word v7, 0, v8
     v9 = add v5, 1
     v10 = sload v9 !metadata(storage=offset(v5, 1))
-    slice_store_element v7, 1, v10
+    slice_store_word v7, 32, v10
     sstore 2, v4 !metadata(storage=slot(2))
     v11 = add 0, 1
     sstore v11, 77 !metadata(storage=slot(1))
     v12 = sload 2 !metadata(storage=slot(2))
     v13 = checked_mul u256, v12, 0x2710
     v14 = make_memory_slice v6, 2
-    v15 = slice_load_element v14, 0
+    v15 = slice_load_word v14, 0
     v16 = checked_mul u256, v15, 100
     v17 = checked_add u256, v13, v16
     v18 = make_memory_slice v6, 2
-    v19 = slice_load_element v18, 1
+    v19 = slice_load_word v18, 32
     v20 = checked_add u256, v17, v19
     ret v20
 }

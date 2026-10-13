@@ -866,13 +866,11 @@ impl AliasAnalysis {
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(_, 256) => false,
             InstKind::MLoad(address) | InstKind::MemorySlice(address) => operand != *address,
-            InstKind::SliceLoadElement { slice: object, .. }
-            | InstKind::SliceLoadByte { slice: object, .. } => operand != *object,
+            InstKind::SliceLoadByte { slice: object, .. } => operand != *object,
             InstKind::MStore(address, _)
             | InstKind::MStore8(address, _)
             | InstKind::MemoryZero(address, _) => operand != *address,
-            InstKind::SliceStoreElement { slice, index, value }
-            | InstKind::SliceStoreByte { slice, index, value }
+            InstKind::SliceStoreByte { slice, index, value }
             | InstKind::SliceStoreWord { slice, offset: index, value } => {
                 operand != *slice && operand != *index && operand != *value
             }
@@ -892,12 +890,8 @@ impl AliasAnalysis {
             | InstKind::CodeCopy(dest, _, _)
             | InstKind::ReturnDataCopy(dest, _, _)
             | InstKind::Keccak256(dest, _)
-            | InstKind::Log0(dest, _) => operand != *dest,
+            | InstKind::Log { offset: dest, .. } => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
-            InstKind::Log1(address, _, _)
-            | InstKind::Log2(address, _, _, _)
-            | InstKind::Log3(address, _, _, _, _)
-            | InstKind::Log4(address, _, _, _, _, _) => operand != *address,
             InstKind::AddressCall { input, .. } => operand != *input,
             InstKind::Call { args_offset, ret_offset, .. }
             | InstKind::CallCode { args_offset, ret_offset, .. }
@@ -1082,15 +1076,11 @@ impl AliasAnalysis {
                 }
             }
             // Calldata slices read no memory.
-            InstKind::SliceLoadElement { slice, index }
-            | InstKind::SliceLoadByte { slice, index }
+            InstKind::SliceLoadByte { slice, index }
             | InstKind::SliceLoadWord { slice, offset: index }
                 if func.value_slice_location(slice) == Some(SliceLocation::Memory) =>
             {
                 let offset = match kind {
-                    InstKind::SliceLoadElement { .. } => func
-                        .value_u64(index)
-                        .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE)),
                     InstKind::SliceLoadWord { .. } => func.value_u64(index),
                     _ => None,
                 };
@@ -1100,17 +1090,15 @@ impl AliasAnalysis {
                     effects.read_any(AddressSpace::Memory);
                 }
             }
-            InstKind::SliceStoreElement { slice, index, .. } => {
-                let offset = func
-                    .value_u64(index)
-                    .and_then(|index| index.checked_mul(EvmMemoryLayout::WORD_SIZE));
+            InstKind::SliceStoreWord { slice, offset, .. } => {
+                let offset = func.value_u64(offset);
                 if let Some(location) = self.slice_data_location(func, inst_id, slice, offset) {
                     effects.write(Access::Location(Location::Memory(location)));
                 } else {
                     effects.write_any(AddressSpace::Memory);
                 }
             }
-            InstKind::SliceStoreByte { slice, .. } | InstKind::SliceStoreWord { slice, .. } => {
+            InstKind::SliceStoreByte { slice, .. } => {
                 if let Some(location) = self.slice_data_location(func, inst_id, slice, None) {
                     effects.write(Access::Location(Location::Memory(location)));
                 } else {
@@ -1275,13 +1263,7 @@ impl AliasAnalysis {
             InstKind::ExtCodeCopy(_, dest, _, size) => {
                 write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
-            InstKind::Keccak256(address, size) | InstKind::Log0(address, size) => {
-                read_memory(&mut effects, address, SizeOperand::Value(size));
-            }
-            InstKind::Log1(address, size, _)
-            | InstKind::Log2(address, size, _, _)
-            | InstKind::Log3(address, size, _, _, _)
-            | InstKind::Log4(address, size, _, _, _, _) => {
+            InstKind::Keccak256(address, size) | InstKind::Log { offset: address, size, .. } => {
                 read_memory(&mut effects, address, SizeOperand::Value(size));
             }
             InstKind::MappingSlotBytes(key, _) => {
@@ -1915,8 +1897,7 @@ impl AliasAnalysis {
                 .is_none_or(|summary| summary.may_reset_fmp()),
             InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
             InstKind::MStore8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
-            InstKind::SliceStoreElement { slice: object, .. }
-            | InstKind::SliceStoreByte { slice: object, .. }
+            InstKind::SliceStoreByte { slice: object, .. }
             | InstKind::SliceStoreWord { slice: object, .. }
             | InstKind::SliceCopy { destination: object, .. } => {
                 // Object layouts do not prove ownership: any pointer can be accessed

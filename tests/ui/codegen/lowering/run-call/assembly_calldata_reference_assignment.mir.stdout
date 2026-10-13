@@ -183,7 +183,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memptr [selector=0x71cafd78, pure, abi_
     mstore v27, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v45]
+    v28 = phi [bb0: 0], [bb2: v46]
     v29 = lt v28, v6
     jumpi v29, bb2, bb3
   bb3:
@@ -206,8 +206,9 @@ fn @dynamicFixed(arg0: calldataslice) -> memptr [selector=0x71cafd78, pure, abi_
     slice_copy v42, 0, v39
     v43 = ptrtoint memptr v38 to i256
     v44 = memory_slice v27
-    slice_store_element v44, v28, v43
-    v45 = add v28, 1
+    v45 = shl 5, v28
+    slice_store_word v44, v45, v43
+    v46 = add v28, 1
     jump bb1
 }
 
@@ -248,7 +249,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, pure, abi
     mstore v27, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v37]
+    v28 = phi [bb0: 0], [bb2: v38]
     v29 = lt v28, v6
     jumpi v29, bb2, bb3
   bb3:
@@ -262,8 +263,9 @@ fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, pure, abi
     v35 = eq v34, false
     icall revert_if<empty>, v35
     v36 = memory_slice v27
-    slice_store_element v36, v28, v32
-    v37 = add v28, 1
+    v37 = shl 5, v28
+    slice_store_word v36, v37, v32
+    v38 = add v28, 1
     jump bb1
 }
 
@@ -304,7 +306,7 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     mstore v27, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v67]
+    v28 = phi [bb0: 0], [bb2: v68]
     v29 = lt v28, v6
     jumpi v29, bb2, bb3
   bb3:
@@ -355,8 +357,9 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     slice_copy v64, 0, v60
     v65 = ptrtoint memptr v59 to i256
     v66 = memory_slice v27
-    slice_store_element v66, v28, v65
-    v67 = add v28, 1
+    v67 = shl 5, v28
+    slice_store_word v66, v67, v65
+    v68 = add v28, 1
     jump bb1
 }
 

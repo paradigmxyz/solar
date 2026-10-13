@@ -15,8 +15,8 @@ fn @echoHolder(arg0: memptr) -> memptr [selector=0x030fb1b2, pure, abi_params=[t
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 2
-    slice_store_element v1, 0, 0
-    slice_store_element v1, 1, 0
+    slice_store_word v1, 0, 0
+    slice_store_word v1, 32, 0
     ret arg0
 }
 
@@ -73,8 +73,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = shl 64, v3
     v36 = make_memory_slice v34, 2
-    slice_store_element v36, 0, v35
-    slice_store_element v36, 1, 7
+    slice_store_word v36, 0, v35
+    slice_store_word v36, 32, 7
     v37 = address
     v38 = gas
     v39 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v34
@@ -95,7 +95,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v49 = make_memory_slice v48, 64
     v50 = abi_decode [tuple<function, u256>], v49
     v51 = make_memory_slice v50, 2
-    v52 = slice_load_element v51, 0
+    v52 = slice_load_word v51, 0
     v53 = shr 64, v52
     v54 = shr 32, v53
     v55 = and v54, 0xffffffffffffffffffffffffffffffffffffffff
@@ -104,14 +104,14 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v58 = eq v56, v57
     icall require<short_string>, v58, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
     v59 = make_memory_slice v50, 2
-    v60 = slice_load_element v59, 0
+    v60 = slice_load_word v59, 0
     v61 = shr 64, v60
     v62 = and v61, 0xffffffff
     v63 = shl 224, v62
     v64 = eq v63, 0x9811c7c100000000000000000000000000000000000000000000000000000000
     icall require<short_string>, v64, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
     v65 = make_memory_slice v50, 2
-    v66 = slice_load_element v65, 1
+    v66 = slice_load_word v65, 32
     v67 = eq v66, 7
     icall require<short_string>, v67, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
     v68 = alloc memoryarray<1>, exact, zeroed, panic, 64
@@ -122,7 +122,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v72 = eq v71, false
     icall panic_if<0x32>, v72
     v73 = shl 64, v3
-    slice_store_element v69, 0, v73
+    slice_store_word v69, 0, v73
     v74 = address
     v75 = gas
     v76 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v68
@@ -141,7 +141,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v85 = lt 0, v84
     v86 = eq v85, false
     icall panic_if<0x32>, v86
-    v87 = slice_load_element v83, 0
+    v87 = slice_load_word v83, 0
     v88 = shr 64, v87
     v89 = shr 32, v88
     v90 = and v89, 0xffffffffffffffffffffffffffffffffffffffff
@@ -154,7 +154,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v96 = lt 0, v95
     v97 = eq v96, false
     icall panic_if<0x32>, v97
-    v98 = slice_load_element v94, 0
+    v98 = slice_load_word v94, 0
     v99 = shr 64, v98
     v100 = and v99, 0xffffffff
     v101 = shl 224, v100

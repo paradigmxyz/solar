@@ -86,22 +86,6 @@
 ;; Requires: out != 0.
 (rule (rewrite (Op.DelegateCall gas addr offset size out (and empty (zero)))) (if-let false (same_value out empty)) (Op.DelegateCall gas addr offset size empty empty))
 
-;; log0(offset, 0) => log0(0, 0).
+;; log(offset, 0, topics) => log(0, 0, topics).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Log0 offset (and empty (zero)) )) (if-let false (same_value offset empty)) (Op.Log0 empty empty ))
-
-;; log1(offset, 0, t0) => log1(0, 0, t0).
-;; Requires: offset != 0.
-(rule (rewrite (Op.Log1 offset (and empty (zero)) t0)) (if-let false (same_value offset empty)) (Op.Log1 empty empty t0))
-
-;; log2(offset, 0, t0, t1) => log2(0, 0, t0, t1).
-;; Requires: offset != 0.
-(rule (rewrite (Op.Log2 offset (and empty (zero)) t0 t1)) (if-let false (same_value offset empty)) (Op.Log2 empty empty t0 t1))
-
-;; log3(offset, 0, t0, t1, t2) => log3(0, 0, t0, t1, t2).
-;; Requires: offset != 0.
-(rule (rewrite (Op.Log3 offset (and empty (zero)) t0 t1 t2)) (if-let false (same_value offset empty)) (Op.Log3 empty empty t0 t1 t2))
-
-;; log4(offset, 0, t0, t1, t2, t3) => log4(0, 0, t0, t1, t2, t3).
-;; Requires: offset != 0.
-(rule (rewrite (Op.Log4 offset (and empty (zero)) t0 t1 t2 t3)) (if-let false (same_value offset empty)) (Op.Log4 empty empty t0 t1 t2 t3))
+(rule (rewrite (Op.Log offset (and empty (zero)) topics)) (if-let false (same_value offset empty)) (Op.Log empty empty topics))

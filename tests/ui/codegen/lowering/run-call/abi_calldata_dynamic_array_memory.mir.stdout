@@ -31,7 +31,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     mstore v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v61]
+    v22 = phi [bb0: 0], [bb2: v62]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -82,8 +82,9 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     slice_copy v58, 0, v54
     v59 = ptrtoint memptr v53 to i256
     v60 = memory_slice v21
-    slice_store_element v60, v22, v59
-    v61 = add v22, 1
+    v61 = shl 5, v22
+    slice_store_word v60, v61, v59
+    v62 = add v22, 1
     jump bb1
 }
 
@@ -101,13 +102,13 @@ fn @sumMemory(arg0: memptr) -> i256 [selector=0x13201b5d, pure, abi_params=[arra
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_load_element v0, 0
+    v4 = slice_load_word v0, 0
     v5 = memory_slice arg0
     v6 = slice_len v5
     v7 = lt 1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = slice_load_element v5, 1
+    v9 = slice_load_word v5, 32
     v10 = checked_add u256, v4, v9
     ret v10
 }

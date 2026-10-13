@@ -83,11 +83,11 @@ fn @f4() -> memptr [selector=0xc3f90202, abi_params=[], abi_returns=[memory_byte
     v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v14 = make_memory_slice v13, 2
     v15 = sload 0 !metadata(storage=slot(0))
-    slice_store_element v14, 0, v15
+    slice_store_word v14, 0, v15
     v16 = add 0, 1
     v17 = icall @load_storage_word_array, v16
     v18 = ptrtoint memptr v17 to i256
-    slice_store_element v14, 1, v18
+    slice_store_word v14, 32, v18
     v19 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
     v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     mstore v20, 3

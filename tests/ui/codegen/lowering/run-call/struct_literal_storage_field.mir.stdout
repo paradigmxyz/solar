@@ -48,33 +48,33 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     v37 = icall @load_storage_packed_array_4_2, 0
     v38 = ptrtoint memptr v37 to i256
     v39 = make_memory_slice v34, 2
-    slice_store_element v39, 0, v36
-    slice_store_element v39, 1, v38
+    slice_store_word v39, 0, v36
+    slice_store_word v39, 32, v38
     v40 = make_memory_slice v34, 2
-    v41 = slice_load_element v40, 1, memptr
+    v41 = slice_load_word v40, 32, memptr
     v42 = memory_slice v41
     v43 = slice_len v42
     v44 = eq v43, 2
     icall require<short_string>, v44, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
     v45 = make_memory_slice v34, 2
-    v46 = slice_load_element v45, 1, memptr
+    v46 = slice_load_word v45, 32, memptr
     v47 = memory_slice v46
     v48 = slice_len v47
     v49 = lt 0, v48
     v50 = eq v49, false
     icall panic_if<0x32>, v50
-    v51 = slice_load_element v47, 0
+    v51 = slice_load_word v47, 0
     v52 = and v51, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v53 = eq v52, 0x3938b4c800000000000000000000000000000000000000000000000000000000
     icall require<short_string>, v53, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
     v54 = make_memory_slice v34, 2
-    v55 = slice_load_element v54, 1, memptr
+    v55 = slice_load_word v54, 32, memptr
     v56 = memory_slice v55
     v57 = slice_len v56
     v58 = lt 1, v57
     v59 = eq v58, false
     icall panic_if<0x32>, v59
-    v60 = slice_load_element v56, 1
+    v60 = slice_load_word v56, 32
     v61 = and v60, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v62 = eq v61, 0x3442156e00000000000000000000000000000000000000000000000000000000
     icall require<short_string>, v62, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
@@ -103,20 +103,20 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v15 = sload 4 !metadata(storage=slot(4))
     v16 = trunc i256 v15 to i64
     v17 = zext i64 v16 to i256
-    slice_store_element v14, 0, v17
+    slice_store_word v14, 0, v17
     v18 = sload 4 !metadata(storage=slot(4))
     v19 = shr 64, v18
     v20 = trunc i256 v19 to i64
     v21 = zext i64 v20 to i256
-    slice_store_element v14, 1, v21
+    slice_store_word v14, 32, v21
     v22 = ptrtoint memptr v13 to i256
     v23 = make_memory_slice v12, 2
-    slice_store_element v23, 0, 1
-    slice_store_element v23, 1, v22
+    slice_store_word v23, 0, 1
+    slice_store_word v23, 32, v22
     v24 = make_memory_slice v12, 2
-    v25 = slice_load_element v24, 1, memptr
+    v25 = slice_load_word v24, 32, memptr
     v26 = make_memory_slice v25, 2
-    v27 = slice_load_element v26, 0
+    v27 = slice_load_word v26, 0
     v28 = trunc i256 v27 to i64
     v29 = eq v28, i64 7
     jumpi v29, bb1, bb2
@@ -124,9 +124,9 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     jump bb3
   bb1:
     v30 = make_memory_slice v12, 2
-    v31 = slice_load_element v30, 1, memptr
+    v31 = slice_load_word v30, 32, memptr
     v32 = make_memory_slice v31, 2
-    v33 = slice_load_element v32, 1
+    v33 = slice_load_word v32, 32
     v34 = trunc i256 v33 to i64
     v35 = eq v34, i64 9
     jump bb3
@@ -140,9 +140,9 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v41 = or v39, v40
     sstore 4, v41 !metadata(storage=slot(4))
     v42 = make_memory_slice v12, 2
-    v43 = slice_load_element v42, 1, memptr
+    v43 = slice_load_word v42, 32, memptr
     v44 = make_memory_slice v43, 2
-    v45 = slice_load_element v44, 0
+    v45 = slice_load_word v44, 0
     v46 = trunc i256 v45 to i64
     v47 = eq v46, i64 7
     icall require<short_string>, v47, 4, 0x636f707900000000000000000000000000000000000000000000000000000000
@@ -171,59 +171,60 @@ fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     v11 = make_memory_slice v10, 3
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v16]
+    v12 = phi [bb0: 0], [bb2: v17]
     v13 = lt v12, 3
     jumpi v13, bb2, bb3
   bb3:
-    v17 = ptrtoint memptr v10 to i256
-    v18 = make_memory_slice v9, 2
-    slice_store_element v18, 0, 2
-    slice_store_element v18, 1, v17
+    v18 = ptrtoint memptr v10 to i256
     v19 = make_memory_slice v9, 2
-    v20 = slice_load_element v19, 1, memptr
-    v21 = make_memory_slice v20, 3
-    v22 = lt 0, 3
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = slice_load_element v21, 0
-    v25 = eq v24, 11
-    jumpi v25, bb4, bb5
+    slice_store_word v19, 0, 2
+    slice_store_word v19, 32, v18
+    v20 = make_memory_slice v9, 2
+    v21 = slice_load_word v20, 32, memptr
+    v22 = make_memory_slice v21, 3
+    v23 = lt 0, 3
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = slice_load_word v22, 0
+    v26 = eq v25, 11
+    jumpi v26, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v26 = make_memory_slice v9, 2
-    v27 = slice_load_element v26, 1, memptr
-    v28 = make_memory_slice v27, 3
-    v29 = lt 1, 3
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = slice_load_element v28, 1
-    v32 = eq v31, 22
+    v27 = make_memory_slice v9, 2
+    v28 = slice_load_word v27, 32, memptr
+    v29 = make_memory_slice v28, 3
+    v30 = lt 1, 3
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = slice_load_word v29, 32
+    v33 = eq v32, 22
     jump bb6
   bb6:
-    v33 = phi [bb4: v32], [bb5: false]
-    jumpi v33, bb7, bb8
+    v34 = phi [bb4: v33], [bb5: false]
+    jumpi v34, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v34 = make_memory_slice v9, 2
-    v35 = slice_load_element v34, 1, memptr
-    v36 = make_memory_slice v35, 3
-    v37 = lt 2, 3
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = slice_load_element v36, 2
-    v40 = eq v39, 33
+    v35 = make_memory_slice v9, 2
+    v36 = slice_load_word v35, 32, memptr
+    v37 = make_memory_slice v36, 3
+    v38 = lt 2, 3
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = slice_load_word v37, 64
+    v41 = eq v40, 33
     jump bb9
   bb9:
-    v41 = phi [bb7: v40], [bb8: false]
-    icall require<short_string>, v41, 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
+    v42 = phi [bb7: v41], [bb8: false]
+    icall require<short_string>, v42, 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
     ret 1
   bb2:
     v14 = add 1, v12
     v15 = sload v14 !metadata(storage=offset(v12, 1))
-    slice_store_element v11, v12, v15
-    v16 = add v12, 1
+    v16 = shl 5, v12
+    slice_store_word v11, v16, v15
+    v17 = add v12, 1
     jump bb1
 }
 

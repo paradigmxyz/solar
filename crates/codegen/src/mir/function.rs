@@ -227,8 +227,27 @@ impl Function {
     pub(crate) fn fixed_view_load(&self, value: ValueId) -> bool {
         matches!(self.value(value), Value::Inst(inst) if matches!(
             self.inst(*inst).kind,
-            InstKind::SliceLoadElement { slice, .. } if self.fixed_view_object(slice).is_some()
+            InstKind::SliceLoadWord { slice, offset }
+                if self.fixed_view_object(slice).is_some() && self.is_word_offset(offset)
         ))
+    }
+
+    /// Returns the element index of a word offset `shl 5, index`.
+    #[must_use]
+    pub(crate) fn word_index(&self, offset: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst) = self.value(offset) else { return None };
+        match self.inst(*inst).kind {
+            InstKind::Shl(shift, index) if self.value_u64(shift) == Some(5) => Some(index),
+            _ => None,
+        }
+    }
+
+    /// Whether a byte offset addresses a whole element: a constant multiple of the word size,
+    /// or `shl 5, index`.
+    #[must_use]
+    pub(crate) fn is_word_offset(&self, offset: ValueId) -> bool {
+        self.value_u64(offset).is_some_and(|offset| offset.is_multiple_of(32))
+            || self.word_index(offset).is_some()
     }
 
     /// Whether `kind` reads the length of a `memory_slice` view.

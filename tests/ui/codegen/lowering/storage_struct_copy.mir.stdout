@@ -42,22 +42,22 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = trunc i256 v2 to i160
     v4 = zext i160 v3 to i256
-    slice_store_element v1, 0, v4
+    slice_store_word v1, 0, v4
     v5 = add 0, 1
     v6 = icall @load_storage_packed_array_4_2, v5
     v7 = ptrtoint memptr v6 to i256
-    slice_store_element v1, 1, v7
+    slice_store_word v1, 32, v7
     v8 = make_memory_slice v0, 2
-    v9 = slice_load_element v8, 0
+    v9 = slice_load_word v8, 0
     v10 = trunc i256 v9 to i160
     v11 = make_memory_slice v0, 2
-    v12 = slice_load_element v11, 1, memptr
+    v12 = slice_load_word v11, 32, memptr
     v13 = memory_slice v12
     v14 = slice_len v13
     v15 = lt 0, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = slice_load_element v13, 0
+    v17 = slice_load_word v13, 0
     v18 = and v17, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v19 = insert_value struct0, undef struct0, 0, v10
     v20 = insert_value struct0, v19, 1, v18
@@ -71,22 +71,22 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = trunc i256 v2 to i160
     v4 = zext i160 v3 to i256
-    slice_store_element v1, 0, v4
+    slice_store_word v1, 0, v4
     v5 = add 0, 1
     v6 = icall @load_storage_packed_array_4_2, v5
     v7 = ptrtoint memptr v6 to i256
-    slice_store_element v1, 1, v7
+    slice_store_word v1, 32, v7
     v8 = make_memory_slice v0, 2
-    v9 = slice_load_element v8, 0
+    v9 = slice_load_word v8, 0
     v10 = trunc i256 v9 to i160
     v11 = make_memory_slice v0, 2
-    v12 = slice_load_element v11, 1, memptr
+    v12 = slice_load_word v11, 32, memptr
     v13 = memory_slice v12
     v14 = slice_len v13
     v15 = lt 0, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = slice_load_element v13, 0
+    v17 = slice_load_word v13, 0
     v18 = and v17, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v19 = insert_value struct0, undef struct0, 0, v10
     v20 = insert_value struct0, v19, 1, v18

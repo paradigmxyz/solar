@@ -17,7 +17,7 @@ fn @file() -> memptr [selector=0x8525855d, view, abi_params=[], abi_returns=[tup
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 0
+    slice_store_word v1, 0, 0
     v2 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v3 = address
     v4 = zext i160 v3 to i256
@@ -25,7 +25,7 @@ fn @file() -> memptr [selector=0x8525855d, view, abi_params=[], abi_returns=[tup
     v6 = or v5, 0x78710d37
     v7 = shl 64, v6
     v8 = make_memory_slice v2, 1
-    slice_store_element v8, 0, v7
+    slice_store_word v8, 0, v7
     ret v2
 }
 
@@ -38,9 +38,9 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v4 = or v3, 0xeee97206
     v5 = shl 64, v4
     v6 = make_memory_slice v0, 1
-    slice_store_element v6, 0, v5
+    slice_store_word v6, 0, v5
     v7 = make_memory_slice v0, 1
-    v8 = slice_load_element v7, 0
+    v8 = slice_load_word v7, 0
     v9 = shr 64, v8
     v10 = and v9, 0xffffffff
     v11 = shl 224, v10
@@ -91,7 +91,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v12 = make_memory_slice v11, 32
     v13 = abi_decode [tuple<function>], v12
     v14 = make_memory_slice v13, 1
-    v15 = slice_load_element v14, 0
+    v15 = slice_load_word v14, 0
     v16 = shr 64, v15
     v17 = and v16, 0xffffffff
     v18 = shl 224, v17

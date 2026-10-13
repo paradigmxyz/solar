@@ -14,12 +14,12 @@ fn @pair() -> memptr [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[arr
     v3 = lt 0, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    slice_store_element v2, 0, 1
+    slice_store_word v2, 0, 1
     v5 = make_memory_slice v0, 2
     v6 = lt 1, 2
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    slice_store_element v5, 1, 2
+    slice_store_word v5, 32, 2
     ret v0
 }
 
@@ -135,7 +135,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v17 = lt 0, 2
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = slice_load_element v16, 0
+    v19 = slice_load_word v16, 0
     ret v19
 }
 
@@ -269,12 +269,12 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v30 = lt 0, 2
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    v32 = slice_load_element v29, 0
+    v32 = slice_load_word v29, 0
     v33 = make_memory_slice v28, 2
     v34 = lt 1, 2
     v35 = eq v34, false
     icall panic_if<0x32>, v35
-    v36 = slice_load_element v33, 1
+    v36 = slice_load_word v33, 32
     v37 = insert_value struct0, undef struct0, 0, v32
     v38 = insert_value struct0, v37, 1, v36
     ret v38

@@ -12,7 +12,7 @@ fn @overwrite(arg0: i256) -> i256 [selector=0x9dc8c3ab, pure, abi_params=[u256],
     v5 = lt 0, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    slice_store_element v4, 0, 7
+    slice_store_word v4, 0, 7
     v7 = ptrtoint memptr v0 to i256
     v8 = add v7, 32
     v9 = sub v8, arg0
@@ -22,6 +22,6 @@ fn @overwrite(arg0: i256) -> i256 [selector=0x9dc8c3ab, pure, abi_params=[u256],
     v12 = lt 0, 1
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = slice_load_element v11, 0
+    v14 = slice_load_word v11, 0
     ret v14
 }

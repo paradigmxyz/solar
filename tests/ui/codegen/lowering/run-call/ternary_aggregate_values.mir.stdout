@@ -46,23 +46,25 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     v8 = lt arg1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_load_element v6, arg1
-    v11 = checked_add u256, v10, 7
-    slice_store_element v6, arg1, v11
-    v12 = memory_slice v0
-    v13 = slice_len v12
-    v14 = lt 0, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = slice_load_element v12, 0
-    v17 = memory_slice v1
-    v18 = slice_len v17
-    v19 = lt 0, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = slice_load_element v17, 0
-    v22 = insert_value struct1, undef struct1, 0, v16
-    v23 = insert_value struct1, v22, 1, v21
-    v24 = insert_value struct1, v23, 2, v2
-    ret v24
+    v10 = shl 5, arg1
+    v11 = slice_load_word v6, v10
+    v12 = checked_add u256, v11, 7
+    v13 = shl 5, arg1
+    slice_store_word v6, v13, v12
+    v14 = memory_slice v0
+    v15 = slice_len v14
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = slice_load_word v14, 0
+    v19 = memory_slice v1
+    v20 = slice_len v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = slice_load_word v19, 0
+    v24 = insert_value struct1, undef struct1, 0, v18
+    v25 = insert_value struct1, v24, 1, v23
+    v26 = insert_value struct1, v25, 2, v2
+    ret v26
 }

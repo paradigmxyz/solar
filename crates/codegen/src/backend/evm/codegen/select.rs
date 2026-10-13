@@ -9,7 +9,7 @@
 
 use crate::{
     backend::evm::op::*,
-    mir::{EffectKind, Function, InstKind, Op, OpTraits, Value, ValueId},
+    mir::{EffectKind, Function, InstKind, LogTopics, Op, OpTraits, Value, ValueId},
 };
 
 /// Stack shape of a MIR operation that lowers to one EVM opcode.
@@ -67,7 +67,11 @@ mod generated {
 
 struct RuleContext;
 
-impl generated::Context for RuleContext {}
+impl generated::Context for RuleContext {
+    fn log_opcode(&mut self, topics: LogTopics) -> u8 {
+        LOG0 + topics.len() as u8
+    }
+}
 
 /// Returns the single-opcode lowering of `op`, when it has one.
 pub(crate) fn opcode_lowering(op: &Op) -> Option<OpcodeLowering> {

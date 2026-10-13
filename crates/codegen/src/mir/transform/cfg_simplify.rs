@@ -366,9 +366,7 @@ impl CfgSimplifier {
                 InstKind::Phi(_)
                 | InstKind::Alloc { .. }
                 | InstKind::MemorySlice(..)
-                | InstKind::SliceLoadElement { .. }
                 | InstKind::SliceLoadByte { .. }
-                | InstKind::SliceStoreElement { .. }
                 | InstKind::SliceStoreByte { .. }
                 | InstKind::SliceStoreWord { .. }
                 | InstKind::SliceLoadWord { .. }

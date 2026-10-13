@@ -499,12 +499,12 @@ fn display_inst_kind<'a>(
                 display_val(*size, func)
             )
         }
-        InstKind::SliceLoadElement { slice, index } => {
+        InstKind::SliceLoadWord { slice, offset } => {
             write!(
                 f,
-                "slice_load_element {}, {}",
+                "slice_load_word {}, {}",
                 display_val(*slice, func),
-                display_val(*index, func)
+                display_val(*offset, func)
             )?;
             if result_ty == Some(MirType::MemPtr) {
                 write!(f, ", memptr")?;

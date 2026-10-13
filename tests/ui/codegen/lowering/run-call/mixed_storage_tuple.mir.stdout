@@ -8,7 +8,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = make_memory_slice v0, 1
-    slice_store_element v1, 0, 7
+    slice_store_word v1, 0, 7
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, 0xffffffffffffffff
     icall panic_if<0x41>, v3
@@ -16,12 +16,12 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     v5 = storage_array_data_slot 0
     v6 = add v5, v2
     v7 = make_memory_slice v0, 1
-    v8 = slice_load_element v7, 0
+    v8 = slice_load_word v7, 0
     sstore v6, v8 !metadata(storage=symbolic(v6))
     sstore 0, v4 !metadata(storage=slot(0))
     v9 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v10 = make_memory_slice v9, 1
-    slice_store_element v10, 0, 8
+    slice_store_word v10, 0, 8
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = gt v11, 0xffffffffffffffff
     icall panic_if<0x41>, v12
@@ -29,7 +29,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     v14 = storage_array_data_slot 0
     v15 = add v14, v11
     v16 = make_memory_slice v9, 1
-    v17 = slice_load_element v16, 0
+    v17 = slice_load_word v16, 0
     sstore v15, v17 !metadata(storage=symbolic(v15))
     sstore 0, v13 !metadata(storage=slot(0))
     ret
@@ -62,9 +62,9 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     v8 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v9 = make_memory_slice v8, 1
     v10 = sload v2 !metadata(storage=symbolic(v2))
-    slice_store_element v9, 0, v10
+    slice_store_word v9, 0, v10
     v11 = make_memory_slice v8, 1
-    v12 = slice_load_element v11, 0
+    v12 = slice_load_word v11, 0
     sstore v7, v12 !metadata(storage=offset(v6, 1))
     sstore 1, v1 !metadata(storage=slot(1))
     v13 = sload 1 !metadata(storage=slot(1))

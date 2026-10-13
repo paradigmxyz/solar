@@ -1557,7 +1557,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{BlockId, FunctionBuilder, Instruction};
+    use crate::mir::{BlockId, FunctionBuilder, Instruction, LogTopics};
     use solar_interface::Ident;
 
     #[test]
@@ -1683,14 +1683,13 @@ mod tests {
         let zero = builder.imm(0);
         let dynamic_size = builder.add_param(MirType::I256);
         let result = Some(MirType::I256);
+        let topics = |topics: &[ValueId]| LogTopics::new(topics).unwrap();
         for size in [zero, word, dynamic_size] {
             for (kind, ty) in [
                 (InstKind::Keccak256(prefix, size), result),
-                (InstKind::Log0(prefix, size), None),
-                (InstKind::Log1(prefix, size, zero), None),
-                (InstKind::Log2(prefix, size, zero, zero), None),
-                (InstKind::Log3(prefix, size, zero, zero, zero), None),
-                (InstKind::Log4(prefix, size, zero, zero, zero, zero), None),
+                (InstKind::Log { offset: prefix, size, topics: topics(&[]) }, None),
+                (InstKind::Log { offset: prefix, size, topics: topics(&[zero]) }, None),
+                (InstKind::Log { offset: prefix, size, topics: topics(&[zero; 4]) }, None),
                 (InstKind::CalldataCopy(prefix, zero, size), None),
                 (InstKind::CodeCopy(prefix, zero, size), None),
                 (InstKind::ReturnDataCopy(prefix, zero, size), None),

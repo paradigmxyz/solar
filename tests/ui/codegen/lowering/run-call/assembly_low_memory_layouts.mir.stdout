@@ -697,16 +697,17 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     v10 = lt v7, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = slice_load_element v8, v7
-    v13 = not 31
-    v14 = and 64, v13
-    v15 = alloc memorybytes, exact, zeroed, panic, v14
-    mstore v15, 1
-    v16 = memory_slice v15
-    v17 = slice_len v16
-    v18 = insert_value struct0, undef struct0, 0, v12
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v12 = shl 5, v7
+    v13 = slice_load_word v8, v12
+    v14 = not 31
+    v15 = and 64, v14
+    v16 = alloc memorybytes, exact, zeroed, panic, v15
+    mstore v16, 1
+    v17 = memory_slice v16
+    v18 = slice_len v17
+    v19 = insert_value struct0, undef struct0, 0, v13
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
 }
 
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -736,13 +737,13 @@ fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_para
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    slice_store_element v2, 0, v1
+    slice_store_word v2, 0, v1
     v6 = memory_slice v0
     v7 = slice_len v6
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_load_element v6, 0
+    v10 = slice_load_word v6, 0
     ret v10
 }
 

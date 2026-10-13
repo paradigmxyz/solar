@@ -452,7 +452,7 @@ impl FrameSlotPromoter {
                 Self::internal_frame_range_may_overlap(func, aa, addr, Some(1), slot_offset)
             }
             InstKind::Keccak256(addr, size)
-            | InstKind::Log0(addr, size)
+            | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
             | InstKind::ReturnDataCopy(addr, _, size)
@@ -473,16 +473,6 @@ impl FrameSlotPromoter {
                 func,
                 aa,
                 dest,
-                func.value_u64(size),
-                slot_offset,
-            ),
-            InstKind::Log1(addr, size, _)
-            | InstKind::Log2(addr, size, _, _)
-            | InstKind::Log3(addr, size, _, _, _)
-            | InstKind::Log4(addr, size, _, _, _, _) => Self::internal_frame_range_may_overlap(
-                func,
-                aa,
-                addr,
                 func.value_u64(size),
                 slot_offset,
             ),
@@ -558,7 +548,7 @@ impl FrameSlotPromoter {
                 Self::external_range_reaches_slot(func, aa, addr, Some(1), slot_addr)
             }
             InstKind::Keccak256(addr, size)
-            | InstKind::Log0(addr, size)
+            | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
             | InstKind::ReturnDataCopy(addr, _, size)
@@ -573,12 +563,6 @@ impl FrameSlotPromoter {
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
                 Self::external_range_reaches_slot(func, aa, dest, func.value_u64(size), slot_addr)
-            }
-            InstKind::Log1(addr, size, _)
-            | InstKind::Log2(addr, size, _, _)
-            | InstKind::Log3(addr, size, _, _, _)
-            | InstKind::Log4(addr, size, _, _, _, _) => {
-                Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
@@ -1013,7 +997,7 @@ impl<'a> SlotSsaBuilder<'a> {
     /// value operand and keeps the scalar zero supplied by SROA.
     fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
         match func.inst(inst).kind {
-            InstKind::MStore(_, value) | InstKind::SliceStoreElement { value, .. } => value,
+            InstKind::MStore(_, value) | InstKind::SliceStoreWord { value, .. } => value,
             InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
             _ => unreachable!("promoted definition must be a word store or zero fill"),
         }
