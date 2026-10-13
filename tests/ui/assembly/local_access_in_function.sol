@@ -29,13 +29,4 @@ contract C {
             later := g()
         }
     }
-
-    function hiddenFunctionTypeName(function(uint K) external cb) public pure returns (uint r) { //~ WARN: named function type parameters are deprecated
-        assembly {
-            function g() -> x {
-                x := K
-            }
-            r := g()
-        }
-    }
 }
