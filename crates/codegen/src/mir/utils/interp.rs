@@ -25,9 +25,7 @@
 //! `MSTORE8`, `MCOPY`, `KECCAK256`, and `MSIZE`. An access with a nonzero length grows memory to
 //! the word containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves
 //! as if it copied through a buffer, and `keccak256` hashes the bytes it reads. Memory that nothing
-//! wrote is zero, unless the caller set it before the run. The backend keeps spills and frames
-//! below the heap start, which MIR does not show, so `MSIZE` runs only when no such memory exists
-//! or the run already reached the heap.
+//! wrote is zero, unless the caller set it before the run.
 //!
 //! Internal calls and tail calls run the callee on the same memory, and a call's result is the
 //! value the callee returns. The backend passes further results through a buffer of its own that
@@ -371,14 +369,12 @@ impl<'a> Machine<'a> {
         limits: Limits,
         meter: &mut dyn Meter,
     ) -> Execution {
-        let heap_start = memory.word(EvmMemoryLayout::FMP_SLOT);
         let mut run = Run {
             machine: self,
             memory,
             limits,
             fuel: 0,
             frames: Vec::new(),
-            heap_start,
             world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
         };
@@ -409,14 +405,12 @@ impl<'a> Machine<'a> {
         if self.module.backend_memory.is_none() {
             memory.set(EvmMemoryLayout::FMP_SLOT, host.free_memory_start());
         }
-        let heap_start = memory.word(EvmMemoryLayout::FMP_SLOT);
         let mut run = Run {
             machine: self,
             memory,
             limits,
             fuel: 0,
             frames: Vec::new(),
-            heap_start,
             world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction { calldata, evm_version }),
         };
@@ -522,8 +516,6 @@ struct Run<'m, 'a, 't> {
     limits: Limits,
     fuel: u64,
     frames: Vec<Frame<'a>>,
-    /// Where the free memory pointer started, the end of the memory the backend keeps for itself.
-    heap_start: U256,
     /// Storage, logs, and context, when the run has a host.
     world: Option<World<'t>>,
     /// The transaction a run of the dispatch entry executes, which always has a world.
@@ -622,7 +614,6 @@ impl<'a> Run<'_, 'a, '_> {
         {
             // mstore 0x40, entry_heap
             limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
-            self.heap_start = *floor;
         }
         self.frames.push(Frame::new(body, args, result));
         ControlFlow::Continue(())
@@ -724,17 +715,7 @@ impl<'a> Run<'_, 'a, '_> {
         operands: &[U256],
     ) -> ControlFlow<Outcome, Option<U256>> {
         ControlFlow::Continue(match (opcode, operands) {
-            (op::MSIZE, &[]) => {
-                let size = U256::from(self.memory.size * WORD_BYTES);
-                // The backend spills and keeps frames below the heap start, where MIR does not
-                // show its writes, so the size is known only once the run reaches the heap.
-                if size < self.heap_start
-                    && self.heap_start > U256::from(EvmMemoryLayout::HEAP_START)
-                {
-                    return ControlFlow::Break(Outcome::Unsupported("msize below the heap start"));
-                }
-                Some(size)
-            }
+            (op::MSIZE, &[]) => Some(U256::from(self.memory.size * WORD_BYTES)),
             (op::MLOAD, &[offset]) => Some(limit(self.memory.load(offset))?),
             (op::MSTORE, &[offset, value]) => {
                 limit(self.memory.store(offset, value))?;
