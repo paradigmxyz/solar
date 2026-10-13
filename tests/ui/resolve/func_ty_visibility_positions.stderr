@@ -1,0 +1,56 @@
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │         function() private s;
+   ╰╴                   ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function(function() public) internal f;
+   ╰╴                        ━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function() returns (function() private) g;
+   ╰╴                                   ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     mapping(uint => function() private) h;
+   ╰╴                               ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function i(function(uint[] storage) public x) internal {}
+   ╰╴                                        ━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function j(function() private y) public {}
+   ╰╴                          ━━━━━━━
+
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function k() public view returns (function() public) {}
+   ╰╴                                                 ━━━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function j(function() private y) public {}
+   ╰╴               ━━━━━━━━━━━━━━━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/resolve/func_ty_visibility_positions.sol:LL:CC
+   │
+LL │     function k() public view returns (function() public) {}
+   ╰╴                                      ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 9 previous errors
+
