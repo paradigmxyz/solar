@@ -1,10 +1,9 @@
-// Each `v` constant names `w` before the next `v`, so a search that skips constants it has
-// already seen stays about 1024 constants deep, while the chain from `v1` through `w` has
-// 2049 constants. See TYPECK-014 in docs/SOLC_DIVERGENCE.md.
+// Each `v` constant names `w` before the next `v`, and `w` starts a chain of 257 `t` constants.
+// solc's search from `v1` gets 256 constants deep in the `t` chain and reports 7380 there.
 contract A {}
 contract C {
     A constant w = t1;
-    A constant v1 = true ? w : v2; //~ ERROR: variable definition exhausting cyclic dependency validator
+    A constant v1 = true ? w : v2;
     A constant v2 = true ? w : v3; A constant v3 = true ? w : v4; A constant v4 = true ? w : v5; A constant v5 = true ? w : v6; A constant v6 = true ? w : v7; A constant v7 = true ? w : v8; A constant v8 = true ? w : v9; A constant v9 = true ? w : v10;
     A constant v10 = true ? w : v11; A constant v11 = true ? w : v12; A constant v12 = true ? w : v13; A constant v13 = true ? w : v14; A constant v14 = true ? w : v15; A constant v15 = true ? w : v16; A constant v16 = true ? w : v17; A constant v17 = true ? w : v18;
     A constant v18 = true ? w : v19; A constant v19 = true ? w : v20; A constant v20 = true ? w : v21; A constant v21 = true ? w : v22; A constant v22 = true ? w : v23; A constant v23 = true ? w : v24; A constant v24 = true ? w : v25; A constant v25 = true ? w : v26;
@@ -164,7 +163,7 @@ contract C {
     A constant t225 = t226; A constant t226 = t227; A constant t227 = t228; A constant t228 = t229; A constant t229 = t230; A constant t230 = t231; A constant t231 = t232; A constant t232 = t233;
     A constant t233 = t234; A constant t234 = t235; A constant t235 = t236; A constant t236 = t237; A constant t237 = t238; A constant t238 = t239; A constant t239 = t240; A constant t240 = t241;
     A constant t241 = t242; A constant t242 = t243; A constant t243 = t244; A constant t244 = t245; A constant t245 = t246; A constant t246 = t247; A constant t247 = t248; A constant t248 = t249;
-    A constant t249 = t250; A constant t250 = t251; A constant t251 = t252; A constant t252 = t253; A constant t253 = t254; A constant t254 = t255; A constant t255 = t256; A constant t256 = t257;
+    A constant t249 = t250; A constant t250 = t251; A constant t251 = t252; A constant t252 = t253; A constant t253 = t254; A constant t254 = t255; A constant t255 = t256; A constant t256 = t257; //~ ERROR: variable definition exhausting cyclic dependency validator
     A constant t257 = t258; A constant t258 = t259; A constant t259 = t260; A constant t260 = t261; A constant t261 = t262; A constant t262 = t263; A constant t263 = t264; A constant t264 = t265;
     A constant t265 = t266; A constant t266 = t267; A constant t267 = t268; A constant t268 = t269; A constant t269 = t270; A constant t270 = t271; A constant t271 = t272; A constant t272 = t273;
     A constant t273 = t274; A constant t274 = t275; A constant t275 = t276; A constant t276 = t277; A constant t277 = t278; A constant t278 = t279; A constant t279 = t280; A constant t280 = t281;

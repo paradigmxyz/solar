@@ -2,41 +2,43 @@
 //!
 //! This ports solc's `ConstStateVarCircularReferenceChecker` from the `PostTypeChecker`. A
 //! constant depends on every constant that an identifier or member access in its value resolves
-//! to. One memoized depth-first search over these dependencies records, for each constant, whether
-//! it reaches a cycle and the length of the longest chain that starts at it, so the check takes
-//! linear time.
+//! to. Each constant, in declaration order, starts a depth-first search over these dependencies,
+//! visited in declaration order. If the search reaches a cycle, error 6161 names the constant and
+//! its dependency that the cycle was reached through. A search that gets 256 constants deep
+//! reports error 7380 and ends the check, like solc's fatal error.
 //!
-//! For each constant in declaration order, error 6161 names the constant and its first dependency
-//! that reaches a cycle, which is the dependency solc's fresh search from that constant reports.
-//! A constant that depends on itself directly names itself. The first constant whose longest chain
-//! has [`MAX_DEPTH`] constants reports error 7380 and ends the check.
+//! solc starts each search afresh, which takes quadratic time when many constants share
+//! dependencies. A search can only report an error if its constant reaches a cycle or a chain of
+//! 256 constants, so one linear pass first finds the constants that do, and only those run solc's
+//! search. A constant that no constant references cannot be reached from its dependencies, so
+//! the search through its first dependency does not depend on it, and its result is shared with
+//! the other such constants. Valid programs take linear time; the searches for other erroneous
+//! constants can take quadratic time, as in solc.
 //!
-//! As in solc, this only runs when the type checker reported no errors, so type errors hide these
-//! errors.
+//! As in solc, this only runs when the type checker reported no errors, so type errors and the
+//! inline assembly error for circular constants (3558) hide these errors. Errors that solc reports
+//! in its `PostTypeChecker`, such as variables in interfaces (8274), do not.
 
 use crate::{
     hir::{self, ExprKind, Visit},
     ty::Gcx,
 };
 use solar_data_structures::{
-    Never,
-    map::{FxHashMap, FxIndexMap},
+    Never, graph,
+    index::IndexVec,
+    map::{FxHashSet, FxIndexMap},
 };
 use solar_interface::error_code;
-use std::ops::ControlFlow;
+use std::{cell::LazyCell, ops::ControlFlow};
 
-/// The length at which the search gives up on a dependency chain.
-///
-/// Codegen recurses once per constant in the longest chain. The bound keeps codegen in a debug
-/// build within the default compiler thread stack, and also bounds the search's recursion.
-const MAX_DEPTH: usize = 2048;
+/// The depth at which solc gives up on a dependency chain.
+pub(super) const MAX_DEPTH: usize = 256;
+
+/// The referenced constants of each constant that references any, in declaration order.
+type Graph = FxIndexMap<hir::VariableId, Vec<hir::VariableId>>;
 
 pub(super) fn check(gcx: Gcx<'_>) {
-    if gcx.dcx().has_errors().is_err() {
-        return;
-    }
-
-    let mut dependencies = FxIndexMap::default();
+    let mut graph = Graph::default();
     for (id, var) in gcx.hir.variables_enumerated() {
         if var.is_constant()
             && let Some(init) = var.initializer
@@ -46,76 +48,119 @@ pub(super) fn check(gcx: Gcx<'_>) {
             if !collector.references.is_empty() {
                 collector.references.sort_unstable();
                 collector.references.dedup();
-                dependencies.insert(id, collector.references);
+                graph.insert(id, collector.references);
             }
         }
     }
 
-    let mut search = Search { dependencies: &dependencies, reaches: FxHashMap::default() };
-    for (&id, deps) in &dependencies {
-        let Some(reach) = search.visit(id, 1) else {
-            gcx.dcx()
-                .err("variable definition exhausting cyclic dependency validator")
-                .code(error_code!(7380))
-                .span(gcx.hir.variable(id).span)
-                .emit();
-            return;
+    let heights = heights(gcx, &graph);
+    let referenced = LazyCell::new(|| graph.values().flatten().copied().collect::<FxHashSet<_>>());
+    // The first dependencies of unreferenced constants that a cycle was reached through.
+    let mut cyclic_firsts = FxHashSet::default();
+    for (&id, dependencies) in &graph {
+        if heights[id] < MAX_DEPTH {
+            continue;
+        }
+        let first = dependencies[0];
+        let unreferenced = !referenced.contains(&id);
+        let result = if unreferenced && cyclic_firsts.contains(&first) {
+            Found::Cycle(first)
+        } else {
+            Search::new(&graph).run(id, 1)
         };
-        // Every dependency has been searched by now.
-        if reach.cycle
-            && let Some(&via) =
-                deps.iter().find(|&dep| search.reaches[dep].is_some_and(|reach| reach.cycle))
-        {
-            let msg = format!(
-                "the value of the constant `{}` has a cyclic dependency via `{}`",
-                gcx.item_name(id),
-                gcx.item_name(via),
-            );
-            gcx.dcx().err(msg).code(error_code!(6161)).span(gcx.hir.variable(id).span).emit();
+        match result {
+            Found::Nothing => {}
+            Found::Cycle(via) => {
+                if unreferenced && via == first {
+                    cyclic_firsts.insert(first);
+                }
+                let msg = format!(
+                    "the value of the constant `{}` has a cyclic dependency via `{}`",
+                    gcx.item_name(id),
+                    gcx.item_name(via),
+                );
+                gcx.dcx().err(msg).code(error_code!(6161)).span(gcx.hir.variable(id).span).emit();
+            }
+            Found::Exhausted(exhausted) => {
+                gcx.dcx()
+                    .err("variable definition exhausting cyclic dependency validator")
+                    .code(error_code!(7380))
+                    .span(gcx.hir.variable(exhausted).span)
+                    .emit();
+                return;
+            }
         }
     }
 }
 
-/// What the search found reachable from a constant.
-#[derive(Clone, Copy)]
-struct Reach {
-    /// Whether a cycle is reachable from the constant.
-    cycle: bool,
-    /// The number of constants in the longest chain that starts at the constant.
-    chain: usize,
+/// Returns, for every variable, the number of constants on its longest dependency chain, or at
+/// least [`MAX_DEPTH`] if it reaches a cycle.
+fn heights(gcx: Gcx<'_>, graph: &Graph) -> IndexVec<hir::VariableId, usize> {
+    let dependencies = |id| graph.get(&id).into_iter().flatten().copied();
+    let len = gcx.hir.variable_ids().len();
+    let mut heights = IndexVec::from_vec(vec![1; len]);
+    // Components come in reverse topological order, so dependencies come first.
+    for scc in graph::sccs(len, dependencies) {
+        let id = scc[0];
+        if scc.len() > 1 || dependencies(id).any(|dep| dep == id) {
+            for &id in &scc {
+                heights[id] = MAX_DEPTH;
+            }
+        } else {
+            heights[id] = dependencies(id).map(|dep| heights[dep] + 1).max().unwrap_or(1);
+        }
+    }
+    heights
 }
 
-/// A memoized depth-first search over constant dependencies.
+/// What a search from one constant found.
+enum Found {
+    Nothing,
+    /// A cycle, reached through this dependency of the starting constant.
+    Cycle(hir::VariableId),
+    /// This constant, [`MAX_DEPTH`] constants deep.
+    Exhausted(hir::VariableId),
+}
+
+/// solc's `CycleDetector` search from one constant.
+///
+/// The recursion is bounded by [`MAX_DEPTH`].
 struct Search<'a> {
-    dependencies: &'a FxIndexMap<hir::VariableId, Vec<hir::VariableId>>,
-    /// The result for each searched constant, or `None` while the constant is on the stack.
-    reaches: FxHashMap<hir::VariableId, Option<Reach>>,
+    graph: &'a Graph,
+    processing: FxHashSet<hir::VariableId>,
+    processed: FxHashSet<hir::VariableId>,
 }
 
-impl Search<'_> {
-    /// Searches from `id`, which is `depth` constants deep. Returns `None` once the search gets
-    /// [`MAX_DEPTH`] constants deep or finds a chain of [`MAX_DEPTH`] constants.
-    fn visit(&mut self, id: hir::VariableId, depth: usize) -> Option<Reach> {
-        match self.reaches.get(&id) {
-            // A dependency on the stack closes a cycle.
-            Some(None) => return Some(Reach { cycle: true, chain: 0 }),
-            Some(&Some(reach)) => return Some(reach),
-            None if depth >= MAX_DEPTH => return None,
-            None => {}
+impl<'a> Search<'a> {
+    fn new(graph: &'a Graph) -> Self {
+        Self { graph, processing: FxHashSet::default(), processed: FxHashSet::default() }
+    }
+
+    /// Visits the dependencies of the constant `id`, which is `depth` constants deep, in
+    /// declaration order.
+    ///
+    /// Like solc, a cycle found from the starting constant is reported through the dependency
+    /// that reached it, and a constant [`MAX_DEPTH`] deep ends the search with itself.
+    fn run(&mut self, id: hir::VariableId, depth: usize) -> Found {
+        if self.processed.contains(&id) {
+            return Found::Nothing;
         }
-        self.reaches.insert(id, None);
-        let mut reach = Reach { cycle: false, chain: 0 };
-        for &dep in self.dependencies.get(&id).into_iter().flatten() {
-            let dep_reach = self.visit(dep, depth + 1)?;
-            reach.cycle |= dep_reach.cycle;
-            reach.chain = reach.chain.max(dep_reach.chain);
+        if !self.processing.insert(id) {
+            return Found::Cycle(id);
         }
-        reach.chain += 1;
-        if reach.chain >= MAX_DEPTH {
-            return None;
+        if depth >= MAX_DEPTH {
+            return Found::Exhausted(id);
         }
-        self.reaches.insert(id, Some(reach));
-        Some(reach)
+        for &dep in self.graph.get(&id).into_iter().flatten() {
+            match self.run(dep, depth + 1) {
+                Found::Nothing => {}
+                Found::Cycle(_) if depth == 1 => return Found::Cycle(dep),
+                found => return found,
+            }
+        }
+        self.processing.remove(&id);
+        self.processed.insert(id);
+        Found::Nothing
     }
 }
 

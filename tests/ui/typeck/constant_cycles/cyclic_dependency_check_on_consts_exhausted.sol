@@ -1,5 +1,4 @@
-// solc rejects this 257-deep chain from its cyclic_dependency_check_on_consts_exhausted.sol with
-// 7380; see TYPECK-014 in docs/SOLC_DIVERGENCE.md.
+// ported-from: test/libsolidity/syntaxTests/types/cyclic_dependency_check_on_consts_exhausted.sol
 contract A {}
 contract Main {
     A constant B = C;
@@ -257,6 +256,6 @@ contract Main {
     A constant JT = JU;
     A constant JU = JV;
     A constant JV = JW;
-    A constant JW = JX;
+    A constant JW = JX; //~ ERROR: variable definition exhausting cyclic dependency validator
     A constant JX = A(address(0x00));
 }

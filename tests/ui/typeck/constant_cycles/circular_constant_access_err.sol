@@ -1,10 +1,10 @@
-// solc reports 3558 at the assembly read instead; see TYPECK-010 in docs/SOLC_DIVERGENCE.md.
+// ported-from: test/libsolidity/syntaxTests/inlineAssembly/circular_constant_access_err.sol
 contract C {
-    bytes32 constant x = x; //~ ERROR: the value of the constant `x` has a cyclic dependency via `x`
+    bytes32 constant x = x;
     function f() public pure returns (uint t) {
         assembly {
             // Reference to a circular member
-            t := x
+            t := x //~ ERROR: constant variable is circular
         }
     }
 }

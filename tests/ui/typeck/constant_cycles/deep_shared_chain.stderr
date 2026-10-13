@@ -1,8 +1,8 @@
 error[7380]: variable definition exhausting cyclic dependency validator
    ╭▸ ROOT/tests/ui/typeck/constant_cycles/deep_shared_chain.sol:LL:CC
    │
-LL │     A constant v1 = true ? w : v2;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ … t253; A constant t253 = t254; A constant t254 = t255; A constant t255 = t256; A constant t256 = t257;
+   ╰╴                                                        ━━━━━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 1 previous error
 

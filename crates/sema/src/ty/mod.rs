@@ -553,6 +553,25 @@ impl<'gcx> Gcx<'gcx> {
         expr.as_res()
     }
 
+    /// Resolves an identifier, or a member access on a contract, module or builtin name, from
+    /// name resolution alone.
+    ///
+    /// Unlike [`resolved_expr`](Self::resolved_expr), this does not need type checking, so it
+    /// also works on sources that are not type checked yet. Overloaded names resolve to nothing.
+    pub fn resolve_path_expr(self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
+        match expr.kind {
+            hir::ExprKind::Ident(&[res]) => Some(res),
+            hir::ExprKind::Member(base, member) => {
+                let scope = self.symbol_resolver.scope_of(self.resolve_path_expr(base)?)?;
+                match scope.resolve(member)? {
+                    [declaration] => Some(declaration.res),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Returns the variable selected for an expression, if available.
     #[inline]
     pub fn resolved_variable(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {

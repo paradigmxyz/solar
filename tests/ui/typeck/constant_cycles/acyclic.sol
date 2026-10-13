@@ -1,4 +1,3 @@
-//@ check-pass
 // Shared dependencies are not cycles.
 
 library L {
