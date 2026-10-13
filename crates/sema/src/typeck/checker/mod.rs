@@ -424,7 +424,15 @@ impl<'gcx> TypeChecker<'gcx> {
                             }
                         }
                         // Like solc, the operator does not apply to literals it gives no value.
-                        Err(err) if !self.in_array_len && err.kind.is_undefined_literal_op() => {
+                        // The error must come from this operation rather than an operand, and
+                        // the right operand must not truncate a fraction that solc keeps exact.
+                        Err(err)
+                            if !self.in_array_len
+                                && err.kind.is_undefined_literal_op()
+                                && self.gcx.try_eval_const(lhs_e).is_ok()
+                                && self.gcx.try_eval_const(rhs_e).is_ok()
+                                && !self.has_fractional_div(rhs_e) =>
+                        {
                             let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op, false);
                             return self.gcx.mk_ty_err(diag.note(err.kind.msg()).emit());
                         }
@@ -1117,6 +1125,24 @@ impl<'gcx> TypeChecker<'gcx> {
             value.bit_len(),
             compatible_fixed_bytes,
         )
+    }
+
+    /// Returns `true` if the expression contains a literal division with a fractional result.
+    fn has_fractional_div(&self, expr: &hir::Expr<'_>) -> bool {
+        match expr.peel_parens().kind {
+            hir::ExprKind::Binary(l, op, r) => {
+                if op.kind == hir::BinOpKind::Div
+                    && let (Ok(lv), Ok(rv)) =
+                        (self.gcx.try_eval_const(l), self.gcx.try_eval_const(r))
+                    && lv.is_fractional_div(rv)
+                {
+                    return true;
+                }
+                self.has_fractional_div(l) || self.has_fractional_div(r)
+            }
+            hir::ExprKind::Unary(_, v) => self.has_fractional_div(v),
+            _ => false,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
