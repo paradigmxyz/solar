@@ -1297,7 +1297,7 @@ pub enum TyKind<'gcx> {
     /// Any integer number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
     ///
-    /// Like solc, literal arithmetic can produce integers wider than any integer type. They have
+    /// Literal arithmetic can produce integers wider than any integer type. They have
     /// no mobile type and only combine with other literals.
     IntLiteral(bool, u16, Option<TypeSize>),
 

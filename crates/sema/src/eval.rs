@@ -8,12 +8,14 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed, error_code};
 use std::fmt;
 
-// Like solc, this limits the depth of constants defined by other constants.
+// The maximum depth of constants defined by other constants.
+// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L327-L333>
 const RECURSION_LIMIT: usize = 32;
 // Typed arithmetic can temporarily need one bit beyond the EVM word before its
 // result is checked against the type.
 const MAX_INTERMEDIATE_BITS: u64 = solar_ast::TypeSize::MAX as u64 + 1;
-// The precision of literal arithmetic, like solc's rational numbers.
+// The precision of literal arithmetic.
+// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1127-L1129>
 const LITERAL_PRECISION_BITS: u64 = 4096;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
@@ -190,7 +192,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 let value = match self.constants.get(&id) {
                     Some(value) => value.clone(),
                     None => {
-                        // Like solc, only constants count towards the limit, which stops cyclic
+                        // Only constants count towards the limit, which stops cyclic
                         // definitions.
                         self.depth += 1;
                         if self.depth > RECURSION_LIMIT {
@@ -426,8 +428,10 @@ impl ConstValue {
         })
     }
 
-    /// Returns `true` if this is a fraction too large for any fixed-point type, which solc's
-    /// `RationalNumberType::fixedPointType` uses as its mobile type.
+    /// Returns `true` if this is a fraction too large for any fixed-point type, which would be
+    /// its mobile type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1231-L1267>
     pub fn is_fraction_too_large(&self) -> bool {
         let Self::Rational(value) = self else { return false };
         let max =
@@ -445,8 +449,9 @@ impl ConstValue {
     }
 }
 
-/// Applies the given unary operation to a literal number, like solc's
-/// `ConstantEvaluator::evaluateUnaryOperator`.
+/// Applies the given unary operation to a literal number.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L221-L235>
 fn literal_unop(value: Ratio<BigInt>, op: hir::UnOpKind) -> Result<ConstValue, EE> {
     match op {
         hir::UnOpKind::Neg => Ok(ConstValue::literal(-value)),
@@ -457,12 +462,13 @@ fn literal_unop(value: Ratio<BigInt>, op: hir::UnOpKind) -> Result<ConstValue, E
     }
 }
 
-/// Applies the given binary operation to two literal numbers, like solc's
-/// `ConstantEvaluator::evaluateBinaryOperator`.
+/// Applies the given binary operation to two literal numbers.
 ///
 /// Arithmetic is exact. Bitwise operators and shifts apply to integers only, and exponents must
-/// be integers. Like solc, the most significant bit of the result's numerator and denominator is
-/// at most bit 4096.
+/// be integers. The most significant bit of the result's numerator and denominator is at most
+/// bit 4096.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L76-L219>
 fn literal_binop(
     lhs: Ratio<BigInt>,
     rhs: Ratio<BigInt>,
@@ -499,7 +505,7 @@ fn literal_binop(
     Ok(ConstValue::literal(value))
 }
 
-/// Shifts a literal integer, like solc.
+/// Shifts a literal integer.
 ///
 /// A negative amount is an operator error rather than an evaluation error, as the type checker
 /// rejects it for any operands.
@@ -516,10 +522,12 @@ fn literal_shift(value: BigInt, amount: BigInt, op: hir::BinOpKind) -> Result<Bi
     }
 }
 
-/// Raises a literal number to an integer power, like solc.
+/// Raises a literal number to an integer power.
 ///
-/// The numerator and denominator are raised separately. Like solc, `0` raised to a negative
-/// power is `0`.
+/// The numerator and denominator are raised separately, and `0` raised to a negative power is
+/// `0`.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L116-L161>
 fn literal_pow(base: Ratio<BigInt>, exp: Ratio<BigInt>) -> Result<Ratio<BigInt>, EE> {
     if !exp.is_integer() {
         return Err(EE::UnsupportedBinaryOp);
@@ -543,9 +551,11 @@ fn int_shl(value: BigInt, amount: u32) -> Result<BigInt, EE> {
 
 /// Raises an integer to a power, within the precision of literal arithmetic.
 ///
-/// Powers of `0`, `1` and `-1` are exact for any exponent. Like solc's `fitsPrecisionExp`, other
-/// bases are bounded by their bit length times the exponent, which never rejects a power that
-/// fits in a word. Typed arithmetic checks the result against its type afterwards.
+/// Powers of `0`, `1` and `-1` are exact for any exponent. Other bases are bounded by their bit
+/// length times the exponent, which never rejects a power that fits in a word. Typed arithmetic
+/// checks the result against its type afterwards.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L47-L66>
 fn int_pow(base: &BigInt, exp: &BigUint) -> Result<BigInt, EE> {
     if exp.is_zero() {
         return Ok(BigInt::one());

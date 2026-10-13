@@ -609,7 +609,7 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
     if value.contains("_e") {
         errors.push("remove underscores at the end of the mantissa");
     }
-    // Like solc, also reject underscores after the sign of either exponent, as in `1E-_2`.
+    // Also reject underscores after the sign of either exponent, as in `1E-_2`.
     if value.contains("e_") || value.contains("e-_") || value.contains("E-_") {
         errors.push("remove underscores in front of the exponent");
     }

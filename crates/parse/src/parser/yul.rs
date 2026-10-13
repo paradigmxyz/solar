@@ -91,7 +91,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn parse_yul_lit(&mut self) -> PResult<'sess, Lit<'ast>> {
-        // Like solc, Yul numbers are plain decimal or hexadecimal integers, without underscores.
+        // Yul numbers are plain decimal or hexadecimal integers, without underscores.
         let invalid_number = self.token.lit().is_some_and(|lit| match lit.kind {
             TokenLitKind::Rational => true,
             TokenLitKind::Integer => lit.symbol.as_str().contains('_'),
