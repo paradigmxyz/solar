@@ -50,10 +50,10 @@ contract Uses {
         int d = -(2**256); //~ ERROR: mismatched types
         uint e = 2**255 * 4; //~ ERROR: mismatched types
         bool g = 2**256 == 0; //~ ERROR: cannot apply builtin operator `==` to `int_literal[257]` and `int_literal[1]`
-        x + 2**300; //~ ERROR: cannot apply builtin operator `+` to `uint256` and `int_literal[301]`
-        x ** 2**300; //~ ERROR: cannot apply builtin operator `**` to `uint256` and `int_literal[301]`
-        x << 2**300; //~ ERROR: cannot apply builtin operator `<<` to `uint256` and `int_literal[301]`
-        (2**300) << x; //~ ERROR: cannot apply builtin operator `<<` to `int_literal[301]` and `uint256`
+        x + 2**300; //~ ERROR: literal is too large for any integer type
+        x ** 2**300; //~ ERROR: literal is too large for any integer type
+        x << 2**300; //~ ERROR: literal is too large for any integer type
+        (2**300) << x; //~ ERROR: literal is too large for any integer type
         b << 2**300; //~ ERROR: cannot apply builtin operator `<<` to `bytes32` and `int_literal[301]`
         2**300; //~ ERROR: literal is too large for any integer type
         (2**300); //~ ERROR: literal is too large for any integer type

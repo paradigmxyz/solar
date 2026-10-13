@@ -46,5 +46,17 @@ error: mismatched types
 LL │     uint16 neg_shift_to_uint = (-4) >> 1;
    ╰╴                               ━━━━━━━━━ expected `uint16`, found `int_literal[2]`
 
-error: aborting due to 8 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_int_literal.sol:LL:CC
+   │
+LL │     uint256 wide = 2**256;
+   ╰╴                   ━━━━━━ expected `uint256`, found `int_literal[257]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_int_literal.sol:LL:CC
+   │
+LL │     int256 wide_negative = -(2**256);
+   ╰╴                           ━━━━━━━━━ expected `int256`, found `int_literal[257]`
+
+error: aborting due to 10 previous errors
 

@@ -83,6 +83,14 @@ LL │     function d15(uint[maxUint8 * 2 / 2] memory) public {}
    │                       │
    ╰╴                      evaluation of constant value failed here
 
+error[1847]: array length is too large
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d16(uint[2**300] memory) public {}
+   │                       ━━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
+
 error: failed to evaluate constant: recursion limit reached
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
@@ -219,5 +227,5 @@ LL │     uint power = 2 ** 0.5;
    │                  │
    ╰╴                 int_literal[2]
 
-error: aborting due to 34 previous errors
+error: aborting due to 35 previous errors
 

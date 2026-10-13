@@ -680,14 +680,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Ok(value) = self.cx.gcx.try_eval_const_value(expr)
         {
             match value {
-                ConstValue::Integer(value) if value.bit_len() <= 256 => {
-                    return Some(self.builder.imm(value.as_evm_word()));
+                ConstValue::Integer(value) => {
+                    if let Some(word) = value.as_evm_word() {
+                        return Some(self.builder.imm(word));
+                    }
                 }
                 ConstValue::Bool(value) => return Some(self.builder.imm_bool(*value)),
                 ConstValue::Rational(_) => {
                     return self.cx.report_unsupported(expr.span, "fractional value");
                 }
-                _ => {}
+                ConstValue::String(_) => {}
             }
         }
         match &expr.kind {

@@ -11,17 +11,17 @@ contract C {
     uint8 constant S8 = 8;
     uint16 constant U16 = 1;
 
-    uint256 constant SHR = (1 << 256) >> ONE; //~ ERROR: cannot apply builtin operator
-    uint256 constant ADD = (1 << 256) + S8; //~ ERROR: cannot apply builtin operator
+    uint256 constant SHR = (1 << 256) >> ONE; //~ ERROR: literal is too large for any integer type
+    uint256 constant ADD = (1 << 256) + S8; //~ ERROR: literal is too large for any integer type
 
     function lengths() public pure {
-        uint256[(1 << 256) >> ONE] memory shr; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[(1 << 256) ** ONE] memory pow; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[(0 - (1 << 256)) >> ONE] memory negativeShr; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[ONE << (1 << 256)] memory shlAmount; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[(1 << 256) + S8] memory add; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[(1 << 256) - S8] memory sub; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[(1 << 256) / S8] memory div; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
+        uint256[(1 << 256) >> ONE] memory shr; //~ ERROR: literal is too large for any integer type
+        uint256[(1 << 256) ** ONE] memory pow; //~ ERROR: literal is too large for any integer type
+        uint256[(0 - (1 << 256)) >> ONE] memory negativeShr; //~ ERROR: literal is too large for any integer type
+        uint256[ONE << (1 << 256)] memory shlAmount; //~ ERROR: literal is too large for any integer type
+        uint256[(1 << 256) + S8] memory add; //~ ERROR: literal is too large for any integer type
+        uint256[(1 << 256) - S8] memory sub; //~ ERROR: literal is too large for any integer type
+        uint256[(1 << 256) / S8] memory div; //~ ERROR: literal is too large for any integer type
         shr;
         pow;
         negativeShr;
@@ -32,8 +32,8 @@ contract C {
     }
 
     function initializers() public pure {
-        uint256[SHR] memory shr; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
-        uint256[ADD] memory add; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand
+        uint256[SHR] memory shr;
+        uint256[ADD] memory add;
         shr;
         add;
     }

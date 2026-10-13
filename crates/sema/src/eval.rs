@@ -98,6 +98,7 @@ impl<'gcx> Gcx<'gcx> {
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
+            EE::LiteralTooLarge => self.literal_too_large(err.span),
             _ => self.emit_once(err.literal.unwrap_or(expr.id), || {
                 let msg = format!("failed to evaluate constant: {}", err.kind.msg());
                 let label = "evaluation of constant value failed here";
@@ -155,10 +156,19 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         match expr.kind {
             // hir::ExprKind::Array(_) => unimplemented!(),
             // hir::ExprKind::Assign(_, _, _) => unimplemented!(),
-            hir::ExprKind::Binary(l, bin_op, r) => {
-                let l = self.eval_operand(l)?;
-                let r = self.eval_operand(r)?;
-                l.binop(r, bin_op.kind).map_err(Into::into)
+            hir::ExprKind::Binary(l_expr, bin_op, r_expr) => {
+                let l = self.eval_operand(l_expr)?;
+                let r = self.eval_operand(r_expr)?;
+                // Only an untyped literal next to a typed operand can be too large.
+                let literal = if matches!(&l, ConstValue::Integer(l) if l.ty.is_none()) {
+                    l_expr
+                } else {
+                    r_expr
+                };
+                l.binop(r, bin_op.kind).map_err(|kind| match kind {
+                    EE::LiteralTooLarge => kind.spanned(literal.span),
+                    kind => kind.into(),
+                })
             }
             hir::ExprKind::Call(callee, ref args) => self.eval_call(callee, args),
             // hir::ExprKind::Delete(_) => unimplemented!(),
@@ -172,10 +182,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                // Like solc, leave `bytesN` constants to lowering, as their values are
-                // left-aligned and convert between sizes unlike integers.
-                if let hir::TypeKind::Elementary(ElementaryType::FixedBytes(_)) = v.ty.kind {
-                    return Err(EE::UnsupportedExpr.into());
+                // Like solc, do not fold `bytesN` constants: integers do not model the width
+                // that their conversions, shifts and bit operations depend on.
+                if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
+                    return Err(EE::FixedBytesConstant.into());
                 }
                 let value = match self.constants.get(&id) {
                     Some(value) => value.clone(),
@@ -666,14 +676,17 @@ impl IntScalar {
         U256::try_from_le_slice(&data.to_bytes_le())
     }
 
-    /// Returns the 256-bit two's-complement EVM word for this integer value.
-    pub fn as_evm_word(&self) -> U256 {
-        if let Some(value) = self.as_u256() {
-            return value;
+    /// Returns the 256-bit two's-complement EVM word for this integer value, or `None` if the
+    /// value does not fit in 256 bits.
+    pub fn as_evm_word(&self) -> Option<U256> {
+        if self.bit_len() > 256 {
+            return None;
         }
-        let magnitude = U256::try_from_le_slice(&self.data.magnitude().to_bytes_le())
-            .expect("constant evaluator keeps integers within 256 bits");
-        U256::ZERO.wrapping_sub(magnitude)
+        if let Some(value) = self.as_u256() {
+            return Some(value);
+        }
+        let magnitude = U256::try_from_le_slice(&self.data.magnitude().to_bytes_le())?;
+        Some(U256::ZERO.wrapping_sub(magnitude))
     }
 
     /// Converts the integer value to a boolean.
@@ -895,6 +908,7 @@ pub enum EvalErrorKind {
     UnsupportedBinaryOp,
     UnsupportedExpr,
     NonConstantVar,
+    FixedBytesConstant,
     AlreadyEmitted(ErrorGuaranteed),
 }
 use EvalErrorKind as EE;
@@ -908,7 +922,7 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
-            Self::LiteralTooLarge => "literal is too large for the type of the other operand",
+            Self::LiteralTooLarge => "literal is too large for any integer type",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
             Self::UnsupportedLiteral => "unsupported literal",
@@ -916,6 +930,7 @@ impl EvalErrorKind {
             Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",
             Self::NonConstantVar => "only constant variables are allowed",
+            Self::FixedBytesConstant => "`bytesN` constants are not integers",
             Self::AlreadyEmitted(_) => unreachable!(),
         }
     }

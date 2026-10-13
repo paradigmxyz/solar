@@ -74,45 +74,37 @@ LL │         bool g = 2**256 == 0;
    │
    ╰ note: literal is too large for any integer type
 
-error[2271]: cannot apply builtin operator `+` to `uint256` and `int_literal[301]`
+error: literal is too large for any integer type
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         x + 2**300;
-   │         ┬ ━ ────── int_literal[301]
-   │         │
-   │         uint256
+   │             ━━━━━━
    │
-   ╰ note: literal is too large for any integer type
+   ╰ note: the other operand is typed, so the literal must fit an integer type
 
-error[2271]: cannot apply builtin operator `**` to `uint256` and `int_literal[301]`
+error: literal is too large for any integer type
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         x ** 2**300;
-   │         ┬ ━━ ────── int_literal[301]
-   │         │
-   │         uint256
+   │              ━━━━━━
    │
-   ╰ note: literal is too large for any integer type
+   ╰ note: the other operand is typed, so the literal must fit an integer type
 
-error[2271]: cannot apply builtin operator `<<` to `uint256` and `int_literal[301]`
+error: literal is too large for any integer type
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         x << 2**300;
-   │         ┬ ━━ ────── int_literal[301]
-   │         │
-   │         uint256
+   │              ━━━━━━
    │
-   ╰ note: literal is too large for any integer type
+   ╰ note: the other operand is typed, so the literal must fit an integer type
 
-error[2271]: cannot apply builtin operator `<<` to `int_literal[301]` and `uint256`
+error: literal is too large for any integer type
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         (2**300) << x;
-   │         ┬─────── ━━ ─ uint256
-   │         │
-   │         int_literal[301]
+   │         ━━━━━━━━
    │
-   ╰ note: literal is too large for any integer type
+   ╰ note: the other operand is typed, so the literal must fit an integer type
 
 error[2271]: cannot apply builtin operator `<<` to `bytes32` and `int_literal[301]`
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
