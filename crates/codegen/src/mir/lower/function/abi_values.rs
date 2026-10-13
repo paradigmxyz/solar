@@ -142,6 +142,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let tuple = &args[1];
         let (selector, parameter_types) =
             if let Some(function_id) = self.cx.gcx.resolved_function(function) {
+                // Like solc, evaluate the receiver of `gate().f` before encoding.
+                self.lower_discarded_expr(function)?;
                 let selector = self.cx.gcx.function_selector(function_id).0;
                 let parameter_types = self
                     .cx
