@@ -567,7 +567,7 @@ impl IntScalar {
     /// in the common type of both operands. Two literals stay untyped and keep their exact value up
     /// to `MAX_INTERMEDIATE_BITS`, a narrower bound than solc's rational arithmetic, and operands
     /// without a common type stay untyped because the type checker already rejects them. A shift or
-    /// exponentiation of two literals must stay within [`Self::check_literal_bounds`].
+    /// exponentiation of two literals must also pass [`Self::check_literal_bounds`].
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -616,12 +616,12 @@ impl IntScalar {
         self.binop_value(r, op)?.retype(ty)
     }
 
-    /// Rejects a literal shift or exponentiation beyond the bounds of solc's rational numbers,
-    /// which solc's `ConstantEvaluator::evaluateBinaryOperator` gives no value.
+    /// Rejects a literal shift or exponentiation that solc's
+    /// `ConstantEvaluator::evaluateBinaryOperator` gives no value.
     ///
     /// The shift amount or exponent must fit in 32 bits, and a left shift or power must fit in
-    /// `LITERAL_PRECISION_BITS`. Values within these bounds but wider than
-    /// `MAX_INTERMEDIATE_BITS` are valid in solc, but their evaluation fails with an overflow,
+    /// `LITERAL_PRECISION_BITS`. Results within these bounds but wider than
+    /// `MAX_INTERMEDIATE_BITS` are valid in solc. Our evaluation fails on them with an overflow,
     /// which the type checker does not report.
     fn check_literal_bounds(&self, r: &Self, op: hir::BinOpKind) -> Result<(), EE> {
         use hir::BinOpKind::*;
@@ -766,7 +766,7 @@ impl EvalErrorKind {
         }
     }
 
-    /// Returns `true` if solc gives the literal operation that failed with this error no value.
+    /// Returns `true` if solc gives no value to a literal operation that fails with this error.
     pub(crate) fn is_undefined_literal_op(&self) -> bool {
         matches!(self, Self::DivisionByZero | Self::ShiftTooLarge | Self::ExponentTooLarge)
     }

@@ -423,7 +423,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 return lit_ty;
                             }
                         }
-                        // Like solc, the operator does not apply to literals it gives no value.
+                        // Like solc, reject literal operations that have no value, such as `1 / 0`.
                         Err(err) if !self.in_array_len && err.kind.is_undefined_literal_op() => {
                             let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op, false);
                             return self.gcx.mk_ty_err(diag.note(err.kind.msg()).emit());
