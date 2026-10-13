@@ -184,7 +184,7 @@ impl<'gcx> TypeChecker<'gcx> {
             .help(format!("compile with `--evm-version {required}` or newer"))
     }
 
-    fn check_res_evm_version(&self, res: hir::Res, span: Span) {
+    fn check_builtin_res(&self, res: hir::Res, span: Span) {
         if let hir::Res::Builtin(builtin) = res {
             let target = self.gcx.sess.opts.evm_version;
             if let Some(required) = builtin.required_evm_version(target) {
@@ -204,6 +204,13 @@ impl<'gcx> TypeChecker<'gcx> {
                     .warn("since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain")
                     .code(error_code!(8417))
                     .span(span)
+                    .emit();
+            } else if builtin == Builtin::MsgGas {
+                self.dcx()
+                    .warn("`msg.gas` is deprecated")
+                    .code(error_code!(1400))
+                    .span(span)
+                    .help("use `gasleft()` instead")
                     .emit();
             }
         }
@@ -553,7 +560,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let mut err = self.dcx().err(msg).span(expr.span);
+                    let mut err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
                     if storage_pointer {
                         err = err.note("storage pointers cannot be deleted");
                     }
@@ -561,8 +568,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Ident(resolutions) => {
-                let res = self.resolve_value(expr, resolutions);
-                self.check_res_evm_version(res, expr.span);
+                let mut res = self.resolve_value(expr, resolutions);
+                if !self.in_yul {
+                    res = self.reject_modifier_ref(res, expr.span);
+                }
+                self.check_builtin_res(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -706,12 +716,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.gcx.mk_ty_err(err.emit())
                     }
                     Err(MemberAccessError::Ambiguous) => {
-                        let msg = format!(
-                            "member `{ident}` not unique on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        );
-                        let err = self.dcx().err(msg).span(ident.span);
-                        self.gcx.mk_ty_err(err.emit())
+                        self.report_ambiguous_member(ident, receiver_ty)
                     }
                 };
 
@@ -1138,7 +1143,8 @@ impl<'gcx> TypeChecker<'gcx> {
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
-        let mut err = self.dcx().err(msg).span(op.span);
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        let mut err = self.dcx().err(msg).code(code).span(op.span);
         err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
         err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
         self.gcx.mk_ty_err(err.emit())
@@ -1257,6 +1263,15 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if matches!(args.kind, hir::CallArgsKind::Named(_)) {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("type conversions cannot take named arguments")
+                    .code(error_code!(5153))
+                    .span(span)
+                    .emit(),
+            );
+        }
         if from.references_error() {
             return from;
         }
@@ -1980,13 +1995,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let selected = match self.select_call_overload(&error_res, args) {
             Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
+            Err(e) => self.report_call_overload_error(e, callee.span),
         };
         let callee_ty = self.type_of_res(selected);
         let TyKind::Error(param_tys, _) = callee_ty.kind else {
@@ -2381,31 +2390,20 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(res) = member.res {
-                    self.check_res_evm_version(res, callee.span);
+                    self.check_builtin_res(res, callee.span);
                     self.results
                         .resolved_callees
                         .insert(callee.id, ResolvedCallee::new(res, member.attached));
                 }
                 self.member_call_ty(receiver_ty, member)
             }
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound if possible_members.is_empty() => format!(
-                        "member `{ident}` not found on type `{}`",
-                        receiver_ty.display(self.gcx)
-                    ),
-                    OverloadError::NotFound => {
-                        format!(
-                            "no matching member `{ident}` found on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        )
-                    }
-                    OverloadError::Ambiguous => {
-                        format!(
-                            "member `{ident}` not unique on type `{}`",
-                            receiver_ty.display(self.gcx)
-                        )
-                    }
+            Err(OverloadError::Ambiguous) => self.report_ambiguous_member(ident, receiver_ty),
+            Err(OverloadError::NotFound) => {
+                let receiver = receiver_ty.display(self.gcx);
+                let msg = if possible_members.is_empty() {
+                    format!("member `{ident}` not found on type `{receiver}`")
+                } else {
+                    format!("no matching member `{ident}` found on type `{receiver}`")
                 };
                 self.gcx.mk_ty_err(self.dcx().emit_err(ident.span, msg))
             }
@@ -2453,7 +2451,7 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) {
         if let Some(res) = member.res {
-            self.check_res_evm_version(res, expr.span);
+            self.check_builtin_res(res, expr.span);
             self.results.resolved_exprs.insert(expr.id, res);
         }
     }
@@ -2466,19 +2464,30 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let res = match self.select_call_overload(res, args) {
             Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
+            Err(e) => self.report_call_overload_error(e, callee.span),
         };
-        self.check_res_evm_version(res, callee.span);
+        let res = self.reject_modifier_ref(res, callee.span);
+        self.check_builtin_res(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
         ty
+    }
+
+    /// Reports a call whose argument types select no overload or several.
+    fn report_call_overload_error(&self, e: OverloadError, span: Span) -> hir::Res {
+        let (msg, code) = match e {
+            OverloadError::NotFound => ("no matching declarations found", error_code!(9322)),
+            OverloadError::Ambiguous => ("no unique declarations found", error_code!(4487)),
+        };
+        hir::Res::Err(self.dcx().err(msg).code(code).span(span).emit())
+    }
+
+    /// Reports a member access or call that several members match.
+    fn report_ambiguous_member(&self, ident: Ident, receiver_ty: Ty<'gcx>) -> Ty<'gcx> {
+        let msg =
+            format!("member `{ident}` not unique on type `{}`", receiver_ty.display(self.gcx));
+        self.gcx.mk_ty_err(self.dcx().err(msg).code(error_code!(6675)).span(ident.span).emit())
     }
 
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
@@ -3284,15 +3293,30 @@ impl<'gcx> TypeChecker<'gcx> {
         let res = match self.try_resolve_overloads(resolutions) {
             Ok(res) => res,
             Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
+                let (msg, code) = match e {
+                    _ if self.in_yul => ("multiple matching identifiers", error_code!(4718)),
+                    OverloadError::NotFound => {
+                        ("no matching declarations found", error_code!(2144))
+                    }
+                    OverloadError::Ambiguous => ("no unique declarations found", error_code!(7589)),
                 };
-                hir::Res::Err(self.dcx().emit_err(expr.span, msg))
+                hir::Res::Err(self.dcx().err(msg).code(code).span(expr.span).emit())
             }
         };
         if resolutions.len() > 1 {
             self.results.resolved_exprs.insert(expr.id, res);
+        }
+        res
+    }
+
+    /// Rejects a modifier referenced by an expression, since only modifier invocations in
+    /// function headers can name one.
+    fn reject_modifier_ref(&self, res: hir::Res, span: Span) -> hir::Res {
+        if let Some(id) = res.as_function()
+            && self.gcx.hir.function(id).kind.is_modifier()
+        {
+            let msg = "modifier can only be referenced in function headers";
+            return hir::Res::Err(self.dcx().err(msg).code(error_code!(3112)).span(span).emit());
         }
         res
     }
@@ -3453,6 +3477,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
+        }
+        if modifier.qualified
+            && let Some(id) = modifier.id.as_function()
+            && self.gcx.hir.function(id).body.is_none()
+        {
+            self.dcx()
+                .err("cannot call unimplemented modifier")
+                .code(error_code!(1835))
+                .span(modifier.span)
+                .note("the modifier has no implementation in the referenced contract")
+                .help("refer to it by its unqualified name to call the implementation in the most derived contract")
+                .emit();
         }
         let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
             return self.walk_modifier(modifier);
@@ -3796,7 +3832,8 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
     match ty.kind {
         TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
-        TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
+        TyKind::Ref(_, DataLocation::Calldata) => false,
+        TyKind::Ref(inner, _) => !matches!(inner.kind, TyKind::Mapping(..)),
 
         TyKind::Err(_) => true,
 
