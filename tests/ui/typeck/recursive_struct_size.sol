@@ -4,13 +4,11 @@ contract C {
         S s;
     }
 
-    // solc also rejects `A` as a recursive struct definition, but we find the dynamic cycle
-    // through `xs` first and classify it as recursive only.
-    struct A {
+    struct A { //~ ERROR: recursive struct definition
         A[] xs;
         B b;
     }
-    struct B {
+    struct B { //~ ERROR: recursive struct definition
         A a;
     }
 
