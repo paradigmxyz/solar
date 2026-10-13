@@ -469,6 +469,39 @@ impl CallResult {
     }
 }
 
+/// The solc helper whose debug messages the checks of a nested calldata value report. Both
+/// helpers apply the same checks.
+#[derive(Clone, Copy)]
+enum CalldataTail {
+    /// `access_calldata_tail`, used for index and member access.
+    Access,
+    /// The ABI encoder's `calldata_access`, used when calldata is re-encoded.
+    Encode,
+}
+
+impl CalldataTail {
+    const fn offset_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailOffset,
+            Self::Encode => RevertReason::InvalidCalldataAccessOffset,
+        }
+    }
+
+    const fn length_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailLength,
+            Self::Encode => RevertReason::InvalidCalldataAccessLength,
+        }
+    }
+
+    const fn stride_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::CalldataTailTooShort,
+            Self::Encode => RevertReason::InvalidCalldataAccessStride,
+        }
+    }
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn new(cx: LoweringContext<'gcx, 'ctx>, function: &'ctx mut Function) -> Self {
         let gcx = cx.gcx;

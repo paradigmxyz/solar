@@ -4629,8 +4629,7 @@ fn copy_calldata_elements(
     options: DecodeOptions<'_>,
 ) {
     // for i in 0..length { object[i] = copy_calldata_member(data + i * head_size) }
-    let stride =
-        builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+    let stride = builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
     builder.counted_loop(length, |builder, index| {
         let offset = builder.mul(index, stride);
         let head = builder.add(data, offset);

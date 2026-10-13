@@ -217,7 +217,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(value);
         };
         match location {
-            SliceLocation::Calldata => self.materialize_calldata_argument(ty, value, span),
+            SliceLocation::Calldata => {
+                self.materialize_calldata_argument(ty, value, span, CalldataTail::Access)
+            }
             SliceLocation::Memory => match ty.peel_refs().kind {
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                     Some(self.materialize_memory_slice(value))
@@ -319,7 +321,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let needs_materialization = self.needs_calldata_materialization(value, &abi_type)
             || (needs_validation && !self.can_defer_calldata_validation(value, &abi_type));
         if needs_materialization && !validated_static {
-            value = self.materialize_calldata_argument(ty, value, argument.span)?;
+            value =
+                self.materialize_calldata_argument(ty, value, argument.span, CalldataTail::Encode)?;
             abi_type = Self::memory_abi_type(abi_type);
         } else {
             value = self.canonicalize_abi_value(ty, value);
@@ -405,6 +408,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         value: ValueId,
         span: Span,
+        tail: CalldataTail,
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
             _ if self.is_dynamic_bytes_type(ty.peel_refs()) => {
@@ -448,13 +452,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     return Some(self.copy_calldata_word_array(data, length));
                 }
-                self.materialize_calldata_nested_array(element, data, length, span, true)
+                self.materialize_calldata_nested_array(element, data, length, span, Some(tail))
             }
             TyKind::Array(element, length) => {
                 // object = materialize_calldata_fixed_array(data)
                 let length = u64::try_from(length).ok()?;
                 let data = self.builder.slice_ptr(value);
-                self.materialize_calldata_fixed_array(element, length, data, span, true)
+                self.materialize_calldata_fixed_array(element, length, data, span, Some(tail))
             }
             TyKind::Struct(id) => {
                 // object = materialize_calldata_struct(data)
@@ -462,7 +466,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let field_types =
                     gcx.hir.strukt(id).fields.iter().map(|&field| gcx.type_of_item(field.into()));
                 let base = self.builder.slice_ptr(value);
-                self.materialize_calldata_fields(field_types, base, span, true)
+                self.materialize_calldata_fields(field_types, base, span, Some(tail))
             }
             _ => self.cx.report_unsupported(span, "calldata argument materialization"),
         }
@@ -488,7 +492,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         data: ValueId,
         length: ValueId,
         span: Span,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> Option<ValueId> {
         // for i in 0..length { object[i] = decode(data + i * head_size) }
         let word = self.builder.imm(32);
@@ -515,7 +519,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 head,
                 data,
                 span,
-                validate_bounds && element_is_dynamic,
+                checks.filter(|_| element_is_dynamic),
             )?;
             let value = this.encode_memory_scalar(element, value);
             this.builder.memory_object_store_element(object, layout, index, value);
@@ -530,14 +534,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         head: ValueId,
         tuple_base: ValueId,
         span: Span,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> Option<ValueId> {
         let base_ty = ty.peel_refs();
         if let TyKind::Array(_, length) = base_ty.kind
             && self.types.abi_type(base_ty)?.is_dynamic()
         {
-            let value_pos =
-                self.calldata_value_position(base_ty, head, tuple_base, validate_bounds)?;
+            let value_pos = self.calldata_value_position(base_ty, head, tuple_base, checks)?;
             let length = self.builder.imm(u64::try_from(length).ok()?);
             return Some(self.builder.make_slice(value_pos, length, SliceLocation::Calldata));
         }
@@ -554,7 +557,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             base_ty
         };
-        self.materialize_calldata_value_at_inner(decode_ty, head, tuple_base, span, validate_bounds)
+        self.materialize_calldata_value_at_inner(decode_ty, head, tuple_base, span, checks)
     }
 
     pub(super) fn materialize_calldata_value_at_inner(
@@ -563,45 +566,44 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         head: ValueId,
         tuple_base: ValueId,
         span: Span,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> Option<ValueId> {
         let is_calldata = ty.is_ref_at(DataLocation::Calldata);
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
-            return self.materialize_calldata_value_at_inner(
-                inner,
-                head,
-                tuple_base,
-                span,
-                validate_bounds,
-            );
+            return self.materialize_calldata_value_at_inner(inner, head, tuple_base, span, checks);
         }
         // position = calldata_value_position(ty, head, tuple_base)
         let word = self.builder.imm(32);
-        let value_pos = self.calldata_value_position(ty, head, tuple_base, validate_bounds)?;
+        let value_pos = self.calldata_value_position(ty, head, tuple_base, checks)?;
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
                 // value = calldata_slice(position + 32, calldataload(position))
                 let length = self.builder.calldataload(value_pos);
-                if validate_bounds {
+                if let Some(tail) = checks {
                     let byte_stride = self.builder.imm(1);
-                    self.validate_calldata_dynamic_tail(value_pos, length, byte_stride);
+                    self.validate_calldata_dynamic_tail(value_pos, length, byte_stride, tail);
                 }
                 let data = self.builder.add(value_pos, word);
                 Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // value = materialize_calldata_bytes(position)
-                Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds))
+                Some(self.materialize_calldata_bytes_at(value_pos, checks))
             }
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 if is_calldata {
                     // value = calldata_slice(position + 32, calldataload(position))
                     let length = self.builder.calldataload(value_pos);
-                    if validate_bounds {
+                    if let Some(tail) = checks {
                         let element_head_size =
                             self.builder.imm(self.types.abi_type(element)?.head_size());
-                        self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
+                        self.validate_calldata_dynamic_tail(
+                            value_pos,
+                            length,
+                            element_head_size,
+                            tail,
+                        );
                     }
                     let data = self.builder.add(value_pos, word);
                     return Some(self.builder.make_slice(data, length, SliceLocation::Calldata));
@@ -609,9 +611,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // value = materialize_calldata_array(position)
                 let length = self.builder.calldataload(value_pos);
                 let element_type = self.types.abi_type(element)?;
-                if validate_bounds {
+                if let Some(tail) = checks {
                     let element_head_size = self.builder.imm(element_type.head_size());
-                    self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
+                    self.validate_calldata_dynamic_tail(value_pos, length, element_head_size, tail);
                 }
                 let data = self.builder.add(value_pos, word);
                 if matches!(element_type, AbiType::Word(_))
@@ -619,13 +621,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     Some(self.copy_calldata_word_array(data, length))
                 } else {
-                    self.materialize_calldata_nested_array(
-                        element,
-                        data,
-                        length,
-                        span,
-                        validate_bounds,
-                    )
+                    self.materialize_calldata_nested_array(element, data, length, span, checks)
                 }
             }
             TyKind::Array(element, length) => {
@@ -640,13 +636,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     ));
                 }
                 // value = materialize_calldata_fixed_array(position)
-                self.materialize_calldata_fixed_array(
-                    element,
-                    length,
-                    value_pos,
-                    span,
-                    validate_bounds,
-                )
+                self.materialize_calldata_fixed_array(element, length, value_pos, span, checks)
             }
             TyKind::Struct(id) => {
                 if is_calldata {
@@ -665,20 +655,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let gcx = self.cx.gcx;
                 let field_types =
                     gcx.hir.strukt(id).fields.iter().map(|&field| gcx.type_of_item(field.into()));
-                self.materialize_calldata_fields(field_types, value_pos, span, validate_bounds)
+                self.materialize_calldata_fields(field_types, value_pos, span, checks)
             }
             TyKind::Tuple(fields) => {
                 // value = materialize_calldata_tuple(position)
-                self.materialize_calldata_fields(
-                    fields.iter().copied(),
-                    value_pos,
-                    span,
-                    validate_bounds,
-                )
+                self.materialize_calldata_fields(fields.iter().copied(), value_pos, span, checks)
             }
             _ => {
                 // value = decode_calldata_word(position)
-                Some(self.decode_calldata_word(ty, value_pos, validate_bounds))
+                Some(self.decode_calldata_word(ty, value_pos, checks.is_some()))
             }
         }
     }
@@ -688,7 +673,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         head: ValueId,
         tuple_base: ValueId,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> Option<ValueId> {
         let word = self.builder.imm(32);
         let abi_type = self.types.abi_type(ty)?;
@@ -696,14 +681,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // position = head
             return Some(head);
         }
-        if validate_bounds {
+        if checks.is_some() {
             self.check_calldata_range(head, word);
         }
         // offset = calldataload(head)
         // position = tuple_base + offset
         let offset = self.builder.calldataload(head);
         let value_pos = self.builder.add(tuple_base, offset);
-        if validate_bounds {
+        if let Some(tail) = checks {
             // Solidity's calldata tail helper uses a signed offset bound and requires the
             // value's own tail size: its length word, or the whole head of a statically sized
             // aggregate. Negative ABI offsets may therefore wrap to a valid EVM calldata load,
@@ -715,7 +700,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let bound = self.builder.sub(available, needed);
             let valid = self.builder.slt(offset, bound);
             let invalid = self.builder.eq_zero(valid);
-            self.builder.revert_if(invalid, RevertReason::InvalidCalldataTailOffset);
+            self.builder.revert_if(invalid, tail.offset_reason());
         }
         Some(value_pos)
     }
@@ -738,18 +723,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value_pos: ValueId,
         length: ValueId,
         stride: ValueId,
+        tail: CalldataTail,
     ) {
         // validate(length)
         // data = value_pos + 32
         // check_tail(data, length * stride)
-        self.validate_calldata_length(length);
+        self.validate_calldata_length(length, tail);
 
         let size = self.builder.mul(length, stride);
         let data = self.builder.add_u64_offset(value_pos, 32);
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, size);
         let out_of_bounds = self.builder.sgt(data, limit);
-        self.builder.revert_if(out_of_bounds, RevertReason::CalldataTailTooShort);
+        self.builder.revert_if(out_of_bounds, tail.stride_reason());
     }
 
     fn decode_calldata_word(
@@ -798,17 +784,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn materialize_calldata_bytes_at(
         &mut self,
         position: ValueId,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> ValueId {
         // len = calldataload(position)
-        // if validate_bounds { validate_tail(position, len, 1) }
+        // if checks { validate_tail(position, len, 1) }
         // slice = calldata(position + 32, len)
         // return materialize_memory_slice(slice)
         let word = self.builder.imm(32);
         let length = self.builder.calldataload(position);
-        if validate_bounds {
+        if let Some(tail) = checks {
             let byte_stride = self.builder.imm(1);
-            self.validate_calldata_dynamic_tail(position, length, byte_stride);
+            self.validate_calldata_dynamic_tail(position, length, byte_stride, tail);
         }
         let data = self.builder.add(position, word);
         let slice = self.builder.make_slice(data, length, SliceLocation::Calldata);
@@ -821,17 +807,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if pointer >s limit { revert(0, 0) }
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
-        self.validate_calldata_length(length);
+        self.validate_calldata_length(length, CalldataTail::Access);
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, length);
         let out_of_bounds = self.builder.sgt(pointer, limit);
         self.builder.revert_if(out_of_bounds, RevertReason::CalldataTailTooShort);
     }
 
-    fn validate_calldata_length(&mut self, length: ValueId) {
+    fn validate_calldata_length(&mut self, length: ValueId, tail: CalldataTail) {
         let max_length = self.builder.imm(u64::MAX);
         let too_large = self.builder.gt(length, max_length);
-        self.builder.revert_if(too_large, RevertReason::InvalidCalldataTailLength);
+        self.builder.revert_if(too_large, tail.length_reason());
     }
 
     fn materialize_calldata_fixed_array(
@@ -840,11 +826,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         length: u64,
         base: ValueId,
         span: Span,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> Option<ValueId> {
         let element_abi = self.types.abi_type(element)?;
         let element_head_size = element_abi.head_size();
-        if validate_bounds {
+        if checks.is_some() {
             // check_range(base, length * element_head_size)
             let head_size = self.builder.imm(length.checked_mul(element_head_size)?);
             self.check_calldata_range(base, head_size);
@@ -868,7 +854,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_object_copy_from_slice(object, layout.kind(), source);
             return Some(object);
         }
-        let nested_validate = validate_bounds && element_abi.is_dynamic();
+        let nested_checks = checks.filter(|_| element_abi.is_dynamic());
         let length = self.builder.imm(length);
         let element_head_size = self.builder.imm(element_head_size);
         // for i in 0..length {
@@ -878,13 +864,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.counted_loop(length, |this, index| {
             let head_offset = this.builder.mul(index, element_head_size);
             let head = this.builder.add(base, head_offset);
-            let value = this.materialize_calldata_value_at_inner(
-                element,
-                head,
-                base,
-                span,
-                nested_validate,
-            )?;
+            let value =
+                this.materialize_calldata_value_at_inner(element, head, base, span, nested_checks)?;
             let value = this.encode_memory_scalar(element, value);
             this.builder.memory_object_store_element(object, layout, index, value);
             Some(())
@@ -897,7 +878,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         fields: impl IntoIterator<Item = Ty<'gcx>>,
         base: ValueId,
         span: Span,
-        validate_bounds: bool,
+        checks: Option<CalldataTail>,
     ) -> Option<ValueId> {
         let fields = fields.into_iter().collect::<Vec<_>>();
         let mut head_size = 0_u64;
@@ -906,13 +887,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             head_size = head_size.saturating_add(abi.head_size());
             !abi.is_dynamic()
         });
-        let nested_validate = if validate_bounds && all_static {
+        let nested_checks = if checks.is_some() && all_static {
             // check_range(base, head_size)
             let head_size = self.builder.imm(head_size);
             self.check_calldata_range(base, head_size);
-            false
+            None
         } else {
-            validate_bounds
+            checks
         };
         // object = struct(fields.length)
         let layout = MemoryObjectLayout::Struct { fields: fields.len() as u64 };
@@ -925,7 +906,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, field) in fields.iter().copied().enumerate() {
             let head = self.builder.add_u64_offset(base, offset);
             let value =
-                self.materialize_calldata_value_at_inner(field, head, base, span, nested_validate)?;
+                self.materialize_calldata_value_at_inner(field, head, base, span, nested_checks)?;
             let value = self.encode_memory_scalar(field, value);
             self.builder.memory_object_store_field(object, layout, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;

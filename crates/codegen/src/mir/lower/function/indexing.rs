@@ -107,15 +107,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let head = self.builder.add(base, offset);
                         // Dynamic-array slices retain their element base for nested offsets;
                         // arbitrary slices still cannot validate offsets relative to the tuple.
-                        let validate_bounds =
-                            !matches!(receiver.peel_parens().kind, ExprKind::Slice(..))
-                                && self.types.abi_type(element)?.is_dynamic();
+                        let checks = (!matches!(receiver.peel_parens().kind, ExprKind::Slice(..))
+                            && self.types.abi_type(element)?.is_dynamic())
+                        .then_some(CalldataTail::Access);
                         self.materialize_calldata_index_value_at(
-                            element,
-                            head,
-                            base,
-                            expr.span,
-                            validate_bounds,
+                            element, head, base, expr.span, checks,
                         )
                     }
                     _ => self.cx.report_unsupported(expr.span, "slice index"),

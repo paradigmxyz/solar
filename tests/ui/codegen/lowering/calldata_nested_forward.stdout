@@ -83,7 +83,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v34 = sub v33, 63
     v35 = slt v30, v34
     v36 = eq v35, false
-    icall revert_if<invalid_calldata_tail_offset>, v36
+    icall revert_if<invalid_calldata_access_offset>, v36
     v37 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v38 = calldatasize
     v39 = sub v38, v31
@@ -103,16 +103,16 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v50 = sub v49, 31
     v51 = slt v46, v50
     v52 = eq v51, false
-    icall revert_if<invalid_calldata_tail_offset>, v52
+    icall revert_if<invalid_calldata_access_offset>, v52
     v53 = calldataload v47
     v54 = gt v53, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v54
+    icall revert_if<invalid_calldata_access_length>, v54
     v55 = mul v53, 1
     v56 = add v47, 32
     v57 = calldatasize
     v58 = sub v57, v55
     v59 = sgt v56, v58
-    icall revert_if<calldata_tail_too_short>, v59
+    icall revert_if<invalid_calldata_access_stride>, v59
     v60 = add v47, 32
     v61 = make_calldata_slice v60, v53
     v62 = slice_len v61
