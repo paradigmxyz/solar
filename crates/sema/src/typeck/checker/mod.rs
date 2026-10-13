@@ -1,6 +1,5 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -216,39 +215,42 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Checks the base slot expression of a storage layout specifier.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        match self.gcx.try_eval_const_value(slot) {
-            Ok(ConstValue::Integer(value)) => {
-                if let Some(base_slot) = value.as_u256() {
-                    let Some(contract_id) = self.contract else {
-                        unreachable!("storage layout specifier outside a contract")
-                    };
-                    if let Ok(Some(size)) = super::storage_size_upper_bound(
-                        self.gcx,
-                        contract_id,
-                        DataLocation::Storage,
-                    ) && base_slot.checked_add(size).is_none()
-                    {
-                        self.dcx().emit_err(
-                            slot.span,
-                            "contract extends past the end of storage when this base slot value is specified",
-                        );
-                    }
-                } else {
-                    self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
-                }
-            }
-            Ok(ConstValue::Bool(_)) => {
-                self.dcx()
-                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
-            }
-            Ok(ConstValue::String(_)) => {
-                let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
-                self.gcx.emit_const_eval_error(slot, err);
-            }
-            Err(err) => {
-                self.gcx.emit_const_eval_error(slot, err);
-            }
+        let ty = self.check_expr(slot);
+        if ty.references_error() {
+            return;
+        }
+        if !ty.is_integer() {
+            self.dcx()
+                .err("base slot of storage layout must evaluate to an integer")
+                .code(error_code!(1763))
+                .span(slot.span)
+                .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit();
+            return;
+        }
+        let Ok(value) = self.gcx.eval_const(slot) else { return };
+        let Some(base_slot) = value.as_u256() else {
+            self.dcx()
+                .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
+                .code(error_code!(6753))
+                .span(slot.span)
+                .emit();
+            return;
+        };
+        let contract_id = self.contract.expect("storage layout specifier outside a contract");
+        if let Ok(Some(size)) =
+            super::storage_size_upper_bound(self.gcx, contract_id, DataLocation::Storage)
+            && base_slot.checked_add(size).is_none()
+        {
+            self.dcx()
+                .err("contract extends past the end of storage when this base slot value is specified")
+                .code(error_code!(5015))
+                .span(slot.span)
+                .emit();
         }
     }
 
@@ -1144,6 +1146,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.results.user_operators.insert(expr_id, function);
             }
             return ty;
+        }
+        for (e, ty, other) in [(lhs_e, lhs, rhs), (rhs_e, rhs, lhs)] {
+            let other = other.peel_refs();
+            if literal_lacks_mobile_type(ty, other) && other.is_integer() {
+                return self.gcx.mk_ty_err(self.gcx.literal_too_large(e.span));
+            }
         }
 
         let msg = format!(
@@ -4018,6 +4026,9 @@ fn binop_common_type<'gcx>(
 
     let ty = ty.peel_refs();
     let other = other.peel_refs();
+    if literal_lacks_mobile_type(ty, other) || literal_lacks_mobile_type(other, ty) {
+        return None;
+    }
     match ty.kind {
         TyKind::Elementary(hir::ElementaryType::Int(_))
         | TyKind::Elementary(hir::ElementaryType::UInt(_))
@@ -4112,6 +4123,17 @@ fn binop_common_type<'gcx>(
 
         TyKind::Ref(..) => unreachable!(),
     }
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type.
+fn is_literal_too_large(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if TypeSize::try_new_literal_bits(bits).is_none())
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type next to a typed
+/// operand `other`. Like solc, such a binary operation needs the literal's mobile type.
+fn literal_lacks_mobile_type(ty: Ty<'_>, other: Ty<'_>) -> bool {
+    is_literal_too_large(ty) && !matches!(other.kind, TyKind::IntLiteral(..))
 }
 
 fn valid_shift<'gcx>(

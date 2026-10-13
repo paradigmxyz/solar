@@ -513,15 +513,8 @@ impl<'gcx> Gcx<'gcx> {
         bits: u64,
         compatible_fixed_bytes: Option<TypeSize>,
     ) -> Option<Ty<'gcx>> {
-        let bits = bits.max(1);
-        if bits > TypeSize::MAX as u64 {
-            return None;
-        }
-        Some(self.mk_ty(TyKind::IntLiteral(
-            negative,
-            TypeSize::new_literal_bits(bits as u16),
-            compatible_fixed_bytes,
-        )))
+        let bits = u16::try_from(bits.max(1)).ok()?;
+        Some(self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes)))
     }
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
@@ -1986,6 +1979,18 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
+
+/// Reports a literal operand at `span` that is too large for any integer type, next to a typed
+/// operand.
+///
+/// The type checker and the constant evaluator both find these, so they share one report.
+pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
+    gcx.dcx()
+        .err("literal is too large for any integer type")
+        .span(span)
+        .note("the other operand is typed, so the literal must fit an integer type")
+        .emit()
 }
 
 } // cached!

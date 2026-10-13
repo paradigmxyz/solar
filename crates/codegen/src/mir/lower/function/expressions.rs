@@ -310,7 +310,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                ConstValue::Integer(value) => Some(self.builder.imm(value.as_evm_word())),
+                // A value wider than the EVM word is no immediate; lower the initializer instead,
+                // as `lower_expr` does for such values.
+                ConstValue::Integer(value) => match value.as_evm_word() {
+                    Some(word) => Some(self.builder.imm(word)),
+                    None => self.lower_expr(initializer),
+                },
                 ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
             };
         }
