@@ -277,6 +277,21 @@ warning is enough to steer code to `gasleft()`.
 
 Coverage: `tests/ui/typeck/msg_gas.sol`.
 
+### TYPECK-019: Struct nesting depth
+
+Status: intentional.
+
+Difference: `solar` reports "struct is too deeply nested" (5651) when the
+longest chain of directly nested structs reaches 256. `solc` measures the depth
+of its search tree, which skips a struct already reached through a shorter
+path, so it accepts some struct graphs with a longer chain.
+
+Rationale: code that walks struct types recurses along the longest chain, and
+the `solc` depth depends on field order. Real code does not nest structs this
+deeply.
+
+Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Conditionals in storage layout base slots
