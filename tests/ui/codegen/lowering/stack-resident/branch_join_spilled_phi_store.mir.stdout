@@ -1,0 +1,94 @@
+// === ROOT/tests/ui/codegen/lowering/stack-resident/branch_join_spilled_phi_store.sol:C ===
+@module C
+fn @h(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 5
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = mapping_slot arg0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: 5]
+    v4 = checked_mul u256, v3, 3
+    v5 = checked_add u256, v4, 1
+    v6 = checked_mul u256, v3, 5
+    v7 = checked_add u256, v6, 2
+    v8 = checked_mul u256, v3, 7
+    v9 = checked_add u256, v8, 3
+    v10 = checked_mul u256, v3, 11
+    v11 = checked_add u256, v10, 4
+    v12 = checked_mul u256, v3, 13
+    v13 = checked_add u256, v12, 5
+    v14 = checked_mul u256, v3, 17
+    v15 = checked_add u256, v14, 6
+    v16 = checked_mul u256, v3, 19
+    v17 = checked_add u256, v16, 7
+    v18 = checked_mul u256, v3, 23
+    v19 = checked_add u256, v18, 8
+    v20 = checked_mul u256, v3, 29
+    v21 = checked_add u256, v20, 9
+    v22 = checked_mul u256, v3, 31
+    v23 = checked_add u256, v22, 10
+    v24 = checked_mul u256, v3, 37
+    v25 = checked_add u256, v24, 11
+    v26 = checked_mul u256, v3, 41
+    v27 = checked_add u256, v26, 12
+    v28 = checked_mul u256, v3, 43
+    v29 = checked_add u256, v28, 13
+    v30 = checked_mul u256, v3, 47
+    v31 = checked_add u256, v30, 14
+    v32 = checked_mul u256, v3, 53
+    v33 = checked_add u256, v32, 15
+    v34 = checked_mul u256, v3, 59
+    v35 = checked_add u256, v34, 16
+    v36 = checked_mul u256, v3, 61
+    v37 = checked_add u256, v36, 17
+    v38 = checked_add u256, v5, v7
+    v39 = checked_add u256, v38, v9
+    v40 = checked_add u256, v39, v11
+    v41 = checked_add u256, v40, v13
+    v42 = checked_add u256, v41, v15
+    v43 = checked_add u256, v42, v17
+    v44 = checked_add u256, v43, v19
+    v45 = checked_add u256, v44, v21
+    v46 = checked_add u256, v45, v23
+    v47 = checked_add u256, v46, v25
+    v48 = checked_add u256, v47, v27
+    v49 = checked_add u256, v48, v29
+    v50 = checked_add u256, v49, v31
+    v51 = checked_add u256, v50, v33
+    v52 = checked_add u256, v51, v35
+    v53 = checked_add u256, v52, v37
+    v54 = xor v37, v35
+    v55 = xor v54, v33
+    v56 = xor v55, v31
+    v57 = xor v56, v29
+    v58 = xor v57, v27
+    v59 = xor v58, v25
+    v60 = xor v59, v23
+    v61 = xor v60, v21
+    v62 = xor v61, v19
+    v63 = xor v62, v17
+    v64 = xor v63, v15
+    v65 = xor v64, v13
+    v66 = xor v65, v11
+    v67 = xor v66, v9
+    v68 = xor v67, v7
+    v69 = xor v68, v5
+    v70 = xor v53, v69
+    v71 = checked_rem u256, v70, 0xf4243
+    v72 = checked_add u256, v71, arg0
+    ret v72
+}
+
+fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @h, arg0
+    v1 = checked_add u256, arg0, 1
+    v2 = icall @h, v1
+    v3 = checked_add u256, v0, v2
+    ret v3
+}

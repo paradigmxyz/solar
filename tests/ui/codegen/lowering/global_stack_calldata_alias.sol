@@ -4,49 +4,50 @@
 contract Test {
     // The decoded `account` stays resident through the comparison chain: each
     // test duplicates it instead of reloading calldata, and the last one
-    // consumes it. The first test's copy is made above the address check, as
-    // no comparison moves above a check.
+    // consumes it.
     // CHECK: push 0xc21f7bbb
     // CHECK: eq
-    // CHECK: push 4{{$}}
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: dup 1
-    // CHECK-NEXT: dup 1
     // CHECK: push 1{{$}}
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[ONE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 2{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[TWO:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 3{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[THREE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 4{{$}}
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[FOUR:bb[0-9]+]]
     // CHECK-NEXT: jumpi
+    // CHECK-NEXT: swap 1
     // CHECK-NEXT: push 5{{$}}
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[FIVE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[FIVE]]:
-    // CHECK: push 5
-    // CHECK: add
+    // CHECK-NEXT: push 5
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: add
     // CHECK: [[FOUR]]:
-    // CHECK: push 4
-    // CHECK: add
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: add
     // CHECK: [[THREE]]:
-    // CHECK: push 3
-    // CHECK: add
+    // CHECK-NEXT: push 3
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: add
     // CHECK: [[TWO]]:
-    // CHECK: push 2
-    // CHECK: add
+    // CHECK-NEXT: push 2
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: add
     // CHECK: [[ONE]]:
     // CHECK: push 1
     // CHECK-NEXT: add

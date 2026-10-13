@@ -86,8 +86,8 @@
 +     memory_object_copy_from_slice memorybytes, v19, v22
 +     ret v19
 +   bb4:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
 +     revert 0, 0

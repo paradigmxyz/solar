@@ -14,7 +14,8 @@ contract ConstructorICall {
     // MIR: [[VALUE:v[0-9]+]] = icall @helper, [[MASKED]]
     // MIR: sstore 0, [[VALUE]]
     // EVMIR-LABEL: @module ConstructorICall_deployment
-    // EVMIR: pop
+    // EVMIR: mload
+    // EVMIR-NEXT: and
     // EVMIR-NEXT: push [[CTOR_CONT:bb[0-9]+]]
     // EVMIR-NEXT: jump [[HELPER:bb[0-9]+]]
     // The nonzero path falls through from the helper test into its recursive call.
@@ -22,10 +23,10 @@ contract ConstructorICall {
     // EVMIR: iszero
     // EVMIR-NEXT: push [[BASE:bb[0-9]+]]
     // EVMIR-NEXT: jumpi
-    // EVMIR-NEXT: push 11
-    // EVMIR: mul
     // EVMIR: jumpi
     // EVMIR-NEXT: push 1
+    // EVMIR: push 11
+    // EVMIR-NEXT: mul
     // EVMIR: push {{bb[0-9]+}}
     // EVMIR-NEXT: jump [[HELPER]]
     // EVMIR: [[CTOR_CONT]] [continuation]:

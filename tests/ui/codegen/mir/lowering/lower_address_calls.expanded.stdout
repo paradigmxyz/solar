@@ -38,8 +38,8 @@
 +     memory_object_copy_from_slice memorybytes, v12, v13 !metadata(span=30..40, modifier_depth=3)
 +     ret v12
 +   bb1:
-+     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     revert 28, 36 !metadata(span=30..40, modifier_depth=3)
   }
   

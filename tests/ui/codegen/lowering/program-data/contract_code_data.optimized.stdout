@@ -64,20 +64,17 @@ bb6:
   push 31
   not
   and
-  dup 1
-  dup 4
-  add
   push 0
-  swap 1
-  mstore
-  push 64
+  dup 2
   dup 5
   add
-  dup 3
-  dup 5
-  dup 3
+  mstore
+  dup 2
+  dup 4
+  push 64
+  dup 7
+  add
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -85,12 +82,12 @@ bb6:
   mstore
   push 64
   add
-  dup 2
+  swap 1
   return
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory (runtime) ===
 @module CodeFactory_runtime
 @data
-  CodeTarget_creation_code_0: hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  CodeTarget_creation_code_0: hex"34600d5760eb8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606b823981151560071b601f8101601f19165f818401528183604086015e60208452915260400190f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:
   callvalue
@@ -111,35 +108,30 @@ bb0:
   push bb4
   jumpi
   push 160
+  dup 1
   push 64
   mstore
-  push 255
   push 288
-  push 64
-  mload
-  swap 1
   dup 2
   add
   push 64
   mstore
-  dup 2
+  push 252
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 256
-  dup 3
-  add
   push 0
-  swap 1
+  push 256
+  dup 4
+  add
   mstore
-  dup 3
+  push 252
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
-  swap 2
-  pop
+  swap 1
   mload
   swap 1
   push 0
@@ -156,18 +148,16 @@ bb0:
   shl
   dup 2
   mstore
-  push 32
-  push 0
   push 4
-  dup 4
-  dup 6
+  push 0
+  swap 2
+  push 32
+  swap 4
   gas
   staticcall
   iszero
   push bb8
   jumpi
-  pop
-  pop
   returndatasize
   push 32
   gt
@@ -199,52 +189,48 @@ bb10:
   push 0
   push 160
   mstore
-  push 255
-  push 256
   push 64
   mload
-  swap 1
+  push 256
   dup 2
   add
   push 64
   mstore
-  dup 2
+  push 252
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
+  push 252
+  swap 1
   push 0
   create
   dup 1
   iszero
   push bb8
   jumpi
-  push 238
-  push 288
   push 64
   mload
-  swap 1
+  push 288
   dup 2
   add
   push 64
   mstore
-  dup 2
+  push 235
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 256
-  dup 3
-  add
   push 0
-  swap 1
+  push 256
+  dup 4
+  add
   mstore
-  dup 3
+  push 235
   push_data CodeTarget_creation_code_0+17
   dup 3
   codecopy
-  swap 2
-  pop
+  swap 1
   mload
   swap 1
   keccak256

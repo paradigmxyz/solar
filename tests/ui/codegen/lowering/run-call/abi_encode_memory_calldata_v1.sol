@@ -5,7 +5,7 @@
 //@ run-call: g [65535], 0x3132333435363738 => 0x1153b57430060732616b43977897ab432cb8e19a3ccc7a17813c41318f42c0d0
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_memory_dynamic_array_and_calldata_bytes_v1.sol
 
-pragma abicoder v1;
+pragma abicoder v1; //~ WARN: ABI coder v1 is not supported
 
 contract AbiEncodeMemoryCalldataV1 {
     function f(uint256[] memory values, bytes calldata data) public pure returns (bytes32) {

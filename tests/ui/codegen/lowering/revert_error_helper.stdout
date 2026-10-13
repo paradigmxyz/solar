@@ -93,14 +93,13 @@ bb0:
   push 160
   push 64
   mstore
-  push 6
   push 4
   calldataload
+  push 6
+  dup 2
   lt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 128
   mstore
   push 32
@@ -111,10 +110,10 @@ bb7 [cold]:
   push 0
   revert
 bb10 [cold]:
-  push 2
   push 0x3339
   push 240
   shl
+  push 2
   jump bb23
 bb23 [cold]:
   push 0x8c379a0
@@ -125,7 +124,6 @@ bb23 [cold]:
   push 32
   push 4
   mstore
-  swap 1
   push 36
   mstore
   push 68
@@ -137,14 +135,13 @@ bb11:
   push 160
   push 64
   mstore
-  push 6
   push 4
   calldataload
+  push 6
+  dup 2
   lt
   push bb13
   jumpi
-  push 4
-  calldataload
   push 128
   mstore
   push 32
@@ -157,36 +154,37 @@ bb24 [cold]:
   push 168
   shl
   push 11
-  swap 1
   jump bb23
 bb14:
   push 160
   push 64
   mstore
-  push 6
   push 4
   calldataload
+  push 6
+  dup 2
   lt
   push bb16
   jumpi
-  push 4
-  calldataload
   push 128
   mstore
   push 32
   push 128
   return
 bb16 [cold]:
-  push 15
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
   shl
+  push 15
   jump bb23
 bb17:
   push 160
-  dup 1
   push 64
   mstore
+  push 4
+  calldataload
+  push 64
+  mload
   push 96
   dup 2
   add
@@ -201,22 +199,20 @@ bb17:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup 2
   mstore
-  push 64
-  dup 3
-  add
   push 33
   push 248
   shl
-  swap 1
+  push 64
+  dup 4
+  add
   mstore
   push 6
-  push 4
-  calldataload
+  dup 4
   lt
   push bb19
   jumpi
-  push 4
-  calldataload
+  pop
+  pop
   push 128
   mstore
   push 32
@@ -226,14 +222,13 @@ bb20:
   push 160
   push 64
   mstore
-  push 6
   push 4
   calldataload
+  push 6
+  dup 2
   lt
   push bb22
   jumpi
-  push 4
-  calldataload
   push 128
   mstore
   push 32
@@ -275,29 +270,25 @@ bb19 [cold]:
   push 32
   dup 6
   add
-  dup 2
-  dup 7
-  add
   push 0
-  swap 1
+  dup 3
+  dup 8
+  add
   mstore
   dup 3
   swap 1
   swap 6
   mstore
-  dup 5
-  add
-  dup 2
-  dup 5
-  dup 7
-  mcopy
-  swap 3
-  pop
-  pop
-  swap 2
-  pop
-  sub
   push 4
+  swap 1
+  dup 6
+  add
+  swap 4
+  swap 1
+  swap 5
+  mcopy
+  swap 1
+  sub
   add
   push 31
   dup 2
@@ -312,6 +303,4 @@ bb19 [cold]:
   add
   push 64
   mstore
-  dup 2
-  dup 2
   revert

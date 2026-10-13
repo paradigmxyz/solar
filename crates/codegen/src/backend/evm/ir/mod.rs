@@ -659,12 +659,16 @@ pub(crate) enum TerminatorKind {
     Op(u8),
 }
 
+/// Most words an indexed jump holds above its index while it reads its target from a packed
+/// table.
+pub(crate) const INDEXED_JUMP_STACK_GROWTH: usize = 3;
+
 impl TerminatorKind {
     /// Returns the temporary stack growth introduced when lowering this terminator.
     #[must_use]
     pub(crate) fn lowering_stack_growth(&self, next: Option<BlockId>) -> usize {
         match self {
-            Self::IndexedJump(_) => 3,
+            Self::IndexedJump(_) => INDEXED_JUMP_STACK_GROWTH,
             Self::Jump(target) => usize::from(Some(*target) != next),
             Self::JumpI { .. } => 1,
             Self::Op(_) => 0,

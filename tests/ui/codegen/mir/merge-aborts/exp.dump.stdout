@@ -19,8 +19,8 @@ fn @checked() [selector=0x1239168b, abi_wrapper, pure] {
     mstore 128, v5
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0

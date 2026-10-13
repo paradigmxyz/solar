@@ -322,3 +322,49 @@ bb14:
   dup 1
   dup 1
   stop
+
+// A commutative consumer accepts its two operands in either order.
+// CHECK-LABEL: {{^[ +].*}}bb15:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: {{^[ +].*}}mul
+bb15:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 2
+  swap 1
+  mul
+  stop
+
+// A comparison accepts them exchanged by flipping to its mirrored form.
+// CHECK-LABEL: {{^[ +].*}}bb16:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   lt
+// CHECK-NEXT: +   gt
+bb16:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 2
+  swap 1
+  lt
+  stop
+
+// A noncommutative consumer keeps the order.
+// CHECK-LABEL: {{^[ +].*}}bb17:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: {{^    swap 2}}
+// CHECK-NEXT: {{^    swap 1}}
+// CHECK-NEXT: {{^    sub}}
+bb17:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 2
+  swap 1
+  sub
+  stop

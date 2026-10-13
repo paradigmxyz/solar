@@ -1,10 +1,10 @@
-error: identifier `this` already declared
+error[3726]: the name `this` is reserved
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │     struct this { uint x; }
    ╰╴           ━━━━
 
-error: identifier `super` already declared
+error[3726]: the name `super` is reserved
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │     struct super { uint x; }

@@ -9,7 +9,7 @@
 
 use crate::{
     backend::evm::op::*,
-    mir::{InstKind, Op},
+    mir::{EffectKind, Function, InstKind, Op, OpTraits, Value, ValueId},
 };
 
 /// Stack shape of a MIR operation that lowers to one EVM opcode.
@@ -78,5 +78,26 @@ impl InstKind {
     /// Returns the EVM opcode that directly implements this instruction.
     pub(crate) fn evm_opcode(&self) -> Option<u8> {
         opcode_lowering(&self.op()).map(OpcodeLowering::opcode)
+    }
+}
+
+/// Returns the opcode of a stable nullary read, possibly zero-extended, that is cheaper to read
+/// again than to keep on the stack.
+pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
+    let Value::Inst(inst) = *func.value(value) else { return None };
+    let kind = &func.inst(inst).kind;
+    if let InstKind::Zext(inner) = *kind {
+        return rematerializable_nullary_value(func, inner);
+    }
+    // The rematerializable nullary reads are environment reads; pure rematerializable
+    // operations are arithmetic, which never lowers to a nullary opcode.
+    let def = kind.op_def();
+    if def.traits.contains(OpTraits::REMATERIALIZABLE)
+        && def.effect != EffectKind::Pure
+        && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
+    {
+        Some(opcode)
+    } else {
+        None
     }
 }
