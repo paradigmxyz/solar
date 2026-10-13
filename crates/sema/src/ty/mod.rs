@@ -353,7 +353,6 @@ pub struct GlobalCtxt<'gcx> {
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
-    pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -389,7 +388,6 @@ impl<'gcx> GlobalCtxt<'gcx> {
             interner,
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
-            override_index: OnceLock::new(),
         }
     }
 }
@@ -1504,16 +1502,22 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
-macro_rules! cached_key_type {
-    ($key_type:ty) => {
-        $key_type
+macro_rules! cached_field_type {
+    ($value:ty) => {
+        OnceLock<$value>
     };
-    ($key_type:ty, $cache_key_type:ty) => {
-        $cache_key_type
+    ($value:ty, $key_type:ty) => {
+        FxOnceMap<$key_type, $value>
+    };
+    ($value:ty, $key_type:ty, $cache_key_type:ty) => {
+        FxOnceMap<$cache_key_type, $value>
     };
 }
 
 macro_rules! cached_key_expr {
+    () => {
+        ()
+    };
     ($key:expr) => {
         $key
     };
@@ -1522,32 +1526,56 @@ macro_rules! cached_key_expr {
     };
 }
 
+macro_rules! cached_return_type {
+    ($value:ty) => {
+        &'gcx $value
+    };
+    ($value:ty, $key_type:ty) => {
+        $value
+    };
+}
+
+macro_rules! cached_lookup {
+    ($cache:expr, $cache_key:expr, $make_val:expr, $key:ident) => {
+        cache_insert($cache, $cache_key, |_| $make_val())
+    };
+    ($cache:expr, $cache_key:expr, $make_val:expr,) => {{
+        let () = $cache_key;
+        $cache.get_or_init($make_val)
+    }};
+}
+
+/// Defines cached queries on [`Gcx`].
+///
+/// A query with a key stores its `Copy` values in a [`FxOnceMap`] and returns them by value. A
+/// query without a key is computed once, stored in a [`OnceLock`], and returns a reference to the
+/// value.
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _ $(, $key:ident : $key_type:ty)? $(,)?) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: FxOnceMap<cached_key_type!($key_type $(, $cache_key_type)?), $value>,
+                $name: cached_field_type!($value $(, $key_type)? $(, $cache_key_type)?),
             )*
         }
 
         impl<'gcx> Gcx<'gcx> {
             $(
                 $(#[$attr])*
-                $vis fn $name(self, $key: $key_type) -> $value {
-                    let cache_key = cached_key_expr!($key $(, $cache_key)?);
+                $vis fn $name(self $(, $key: $key_type)?) -> cached_return_type!($value $(, $key_type)?) {
+                    let cache_key = cached_key_expr!($($key)? $(, $cache_key)?);
                     #[cfg(false)]
                     let _guard = log_cache_query(stringify!($name), &cache_key);
                     #[cfg(false)]
                     let mut hit = true;
-                    let r = cache_insert(&self.cache.$name, cache_key, |_| {
+                    let r = cached_lookup!(&self.cache.$name, cache_key, || -> $value {
                         #[cfg(false)]
                         {
                             hit = false;
                         }
                         let $gcx = self;
                         $imp
-                    });
+                    }, $($key)?);
                     #[cfg(false)]
                     log_cache_query_result(&r, hit);
                     r
@@ -1947,6 +1975,10 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
+
+pub(crate) fn override_index(gcx: _) -> crate::typeck::override_checker::OverrideIndex<'gcx> {
+    crate::typeck::override_checker::override_index(gcx)
 }
 
 } // cached!
