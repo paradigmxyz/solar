@@ -181,11 +181,7 @@ impl ImportPathStyle {
             return Self::Relative { resolver_root, remappings };
         }
 
-        let parent = resolver_root
-            .as_deref()
-            .and_then(|base_path| source.strip_prefix(base_path).ok())
-            .unwrap_or(source);
-        let remapped = file_resolver.remap_path(original, Some(parent));
+        let remapped = file_resolver.remap_import_path(original, Some(source));
         let configuration_root = resolver_root
             .as_deref()
             .filter(|base_path| {
