@@ -1,0 +1,14 @@
+error[2333]: identifier `GoLeft` already declared
+   ╭▸ ROOT/tests/ui/resolve/enum_duplicate_values.sol:LL:CC
+   │
+LL │         enum ActionChoices { GoLeft, GoRight, GoLeft, Sit }
+   │                                               ━━━━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/enum_duplicate_values.sol:LL:CC
+   │
+LL │         enum ActionChoices { GoLeft, GoRight, GoLeft, Sit }
+   ╰╴                             ━━━━━━
+
+error: aborting due to 1 previous error
+

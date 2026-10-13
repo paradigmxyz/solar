@@ -23,13 +23,13 @@ contract PublicStateVarDerived is PublicStateVarBase {
 
 contract PublicStateVarOtherScope {
     function getStateVars() public view {
-        PublicStateVarDerived.selfVar;
+        PublicStateVarDerived.selfVar; //~ ERROR: member `selfVar` not found
         PublicStateVarDerived.baseVar; //~ ERROR: member `baseVar` not found
-        PublicStateVarBase.baseVar;
+        PublicStateVarBase.baseVar; //~ ERROR: member `baseVar` not found
 
-        PublicStateVarDerived.selfVar(); //~ ERROR: cannot call function via contract type name
+        PublicStateVarDerived.selfVar(); //~ ERROR: member `selfVar` not found
         PublicStateVarDerived.baseVar(); //~ ERROR: member `baseVar` not found
-        PublicStateVarBase.baseVar(); //~ ERROR: cannot call function via contract type name
+        PublicStateVarBase.baseVar(); //~ ERROR: member `baseVar` not found
     }
 }
 
