@@ -510,6 +510,51 @@ fn @f.1(arg0: i256) -> i256 {
         assert_eq!(execution.outcome, Outcome::Unsupported(unsupported));
     }
 
+    /// Answers every read with zero and places the heap at `0x100`, past memory of the backend's.
+    struct HighHeap;
+
+    impl Host for HighHeap {
+        fn read(&mut self, _: u8, _: &[U256]) -> Option<U256> {
+            Some(U256::ZERO)
+        }
+
+        fn storage(&mut self, _: U256) -> U256 {
+            U256::ZERO
+        }
+
+        fn free_memory_start(&mut self) -> U256 {
+            U256::from(0x100)
+        }
+    }
+
+    #[test]
+    fn memory_size() {
+        let module = |offset: u64| {
+            format!(
+                "@module Size
+@phase lowered
+fn @entry() [entry] {{
+  bb0:
+    mstore8 {offset}, 1
+    v0 = msize
+    mstore 0, v0
+    returndata 0, 32
+}}
+"
+            )
+        };
+        let size =
+            |words: u64| Outcome::Success(U256::from(words * 32).to_be_bytes::<32>().to_vec());
+        let run = |offset, host: &mut dyn Host| {
+            transact(&module(offset), &[], host, Options::default()).unwrap().outcome
+        };
+        assert_eq!(run(0x80, &mut Zero), size(5));
+        // Below the heap start, the backend may have spilled to memory the run does not see.
+        let unsupported = "reaches `msize below the heap start`".to_owned();
+        assert_eq!(run(0x80, &mut HighHeap), Outcome::Unsupported(unsupported));
+        assert_eq!(run(0x100, &mut HighHeap), size(9));
+    }
+
     #[test]
     fn dumps() {
         let dump = "// === a.sol:A ===
