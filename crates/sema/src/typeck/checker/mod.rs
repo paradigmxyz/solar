@@ -20,7 +20,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -879,7 +879,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
+                        if ty.is_unit() {
+                            empty_err(self, expr.span)
+                        } else if exprs.len() > 1
+                            && let Err(guar) =
+                                self.check_literal_fits(expr.span, ty, error_code!(3390))
+                        {
+                            self.gcx.mk_ty_err(guar)
+                        } else {
+                            ty
+                        }
                     } else if self.in_lvalue() {
                         self.gcx.types.unit
                     } else {
@@ -1122,6 +1131,20 @@ impl<'gcx> TypeChecker<'gcx> {
             result.bit_len(),
             compatible_fixed_bytes,
         )
+    }
+
+    /// Rejects an integer literal too large for any integer type where solc needs its mobile
+    /// type, reporting it with the given code.
+    fn check_literal_fits(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if is_literal_too_large(ty) {
+            return Err(self.gcx.literal_too_large_err(span).code(code).emit());
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2039,6 +2062,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
+            if let Err(guar) = self.check_literal_fits(expr.span, ty, error_code!(8009)) {
+                result = result.and(Err(guar));
+                continue;
+            }
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
@@ -3735,6 +3762,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
+                let ty = self.check_expr(expr);
+                let _ = self.check_literal_fits(expr.span, ty, error_code!(3757));
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
