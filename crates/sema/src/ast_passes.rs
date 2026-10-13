@@ -197,7 +197,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if fields.is_empty() {
             self.dcx().emit_err(name.span, "structs must have at least one field");
         }
-        ControlFlow::Continue(())
+        self.walk_item_struct(item)
     }
 
     fn visit_item_enum(
