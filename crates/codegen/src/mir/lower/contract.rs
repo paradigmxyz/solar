@@ -140,9 +140,9 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     state.analyze_raw_scalars(gcx, contract_id, &function_ids);
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
-    // A library's non-view external functions may only run through `DELEGATECALL`. Like
-    // solc, the dispatch compares `address()` against the library's own deployment address,
-    // which the creation code patches into the runtime code like an immutable.
+    // A library's non-view external functions may only run through `DELEGATECALL`. The
+    // dispatch compares `address()` against the library's own deployment address, which the
+    // creation code patches into the runtime code like an immutable.
     let library_deploy_address = (is_library
         && function_ids.iter().any(|&(id, expose_selector)| {
             expose_selector

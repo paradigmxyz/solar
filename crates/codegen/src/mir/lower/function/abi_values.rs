@@ -197,9 +197,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let external_only = external_argument
             && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
         match ty.peel_refs().kind {
-            // Aggregates are cleaned and validated word by word while encoding, like solc's
-            // per-type encoders; copying them into a canonical object first would duplicate
-            // the whole tree at every call site.
+            // Aggregates are cleaned and validated word by word while encoding; copying them
+            // into a canonical object first would duplicate the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
             _ => {
                 let value = if external_only && !dirty {

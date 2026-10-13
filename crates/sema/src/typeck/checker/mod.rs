@@ -4318,7 +4318,7 @@ fn is_literal_too_large(ty: Ty<'_>) -> bool {
 }
 
 /// Returns `true` if `ty` is an integer literal too large for any integer type next to a typed
-/// operand `other`. Like solc, such a binary operation needs the literal's mobile type.
+/// operand `other`. Such a binary operation needs the literal's mobile type.
 fn literal_lacks_mobile_type(ty: Ty<'_>, other: Ty<'_>) -> bool {
     is_literal_too_large(ty) && !matches!(other.kind, TyKind::IntLiteral(..))
 }

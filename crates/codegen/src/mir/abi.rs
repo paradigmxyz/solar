@@ -233,7 +233,7 @@ impl AbiParamType {
 pub(crate) enum AbiType {
     /// A scalar encoded as one word, with the cleanup its type requires when the word is read
     /// from memory: narrow integers are masked or sign-extended, booleans canonicalized, and
-    /// enums range-checked during encoding, like solc. `None` is a full word.
+    /// enums range-checked during encoding. `None` is a full word.
     Word(Option<AbiWordValidator>),
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
