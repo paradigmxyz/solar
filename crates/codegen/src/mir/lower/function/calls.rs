@@ -117,21 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
-        let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
-            || self.cx.gcx.resolved_expr(callee).is_some_and(|res| {
-                matches!(
-                    res,
-                    hir::Res::Item(
-                        hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
-                    )
-                )
-            })
-            || self
-                .cx
-                .gcx
-                .type_of_expr(callee.id)
-                .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
-        if is_type_conversion {
+        if self.is_type_conversion(callee) {
             // result = convert(callee, args)
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "type conversion");
@@ -160,26 +146,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
                 return Some(CallResult::Value(value));
             }
-            let value = if source_ty.is_ref_at(DataLocation::Storage)
-                && matches!(
-                    source_ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-                && matches!(
-                    target_ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                ) {
+            if target_ty.is_ref_at(DataLocation::Storage) {
+                // A storage reference conversion is an identity: the result is the argument's
+                // slot, so writes through it reach storage.
+                // result = slot(arg)
                 let Some(access) = self.storage_access(arg) else {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
-                self.load_storage_bytes(access.slot)
-            } else if target_ty.is_ref_at(DataLocation::Storage) {
-                // NOTE: The result still refers to storage, so lowering the argument as a
-                // memory copy would redirect writes through it.
-                return self.cx.report_unsupported(arg.span, "storage reference conversion");
-            } else {
-                self.lower_expr(arg)?
-            };
+                return self.load_storage_access(expr, access).map(CallResult::Value);
+            }
+            let value = self.lower_expr(arg)?;
             return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {

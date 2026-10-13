@@ -269,7 +269,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
-        let expr = self.peel_bytes_conversion(expr);
+        let expr = self.peel_storage_conversions(expr);
         if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
             && let Some(id) = self.cx.gcx.resolved_variable(expr)
             && self.cx.gcx.hir.variable(id).is_state_variable()
@@ -391,6 +391,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => None,
         }
+    }
+
+    /// Peels type conversions to storage references. Sema only allows identity conversions
+    /// between storage references, so the innermost argument refers to the same storage.
+    fn peel_storage_conversions<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
+        self.peel_type_conversions(expr, |expr, _| {
+            self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+        })
     }
 
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
