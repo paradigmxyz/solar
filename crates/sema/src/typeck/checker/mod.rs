@@ -188,7 +188,7 @@ impl<'gcx> TypeChecker<'gcx> {
             .help(format!("compile with `--evm-version {required}` or newer"))
     }
 
-    fn check_res_evm_version(&self, res: hir::Res, span: Span) {
+    fn check_builtin_res(&self, res: hir::Res, span: Span) {
         if let hir::Res::Builtin(builtin) = res {
             let target = self.gcx.sess.opts.evm_version;
             if let Some(required) = builtin.required_evm_version(target) {
@@ -208,6 +208,13 @@ impl<'gcx> TypeChecker<'gcx> {
                     .warn("since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain")
                     .code(error_code!(8417))
                     .span(span)
+                    .emit();
+            } else if builtin == Builtin::MsgGas {
+                self.dcx()
+                    .warn("`msg.gas` is deprecated")
+                    .code(error_code!(1400))
+                    .span(span)
+                    .help("use `gasleft()` instead")
                     .emit();
             }
         }
@@ -576,7 +583,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if !self.in_yul {
                     res = self.reject_modifier_ref(res, expr.span);
                 }
-                self.check_res_evm_version(res, expr.span);
+                self.check_builtin_res(res, expr.span);
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -2408,7 +2415,7 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(res) = member.res {
-                    self.check_res_evm_version(res, callee.span);
+                    self.check_builtin_res(res, callee.span);
                     self.results
                         .resolved_callees
                         .insert(callee.id, ResolvedCallee::new(res, member.attached));
@@ -2469,7 +2476,7 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) {
         if let Some(res) = member.res {
-            self.check_res_evm_version(res, expr.span);
+            self.check_builtin_res(res, expr.span);
             self.results.resolved_exprs.insert(expr.id, res);
         }
     }
@@ -2485,7 +2492,7 @@ impl<'gcx> TypeChecker<'gcx> {
             Err(e) => self.report_call_overload_error(e, callee.span),
         };
         let res = self.reject_modifier_ref(res, callee.span);
-        self.check_res_evm_version(res, callee.span);
+        self.check_builtin_res(res, callee.span);
         let ty = self.type_of_res(res);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
