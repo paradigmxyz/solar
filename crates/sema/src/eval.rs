@@ -222,24 +222,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
+            // A whole ternary has the value of its selected branch.
             hir::ExprKind::Ternary(cond, t, f) => {
-                let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
-                    return Err(EE::UnsupportedExpr.into());
-                };
-                let (taken, other) = if cond { (t, f) } else { (f, t) };
-                let mut value = match self.eval_operand(taken)? {
-                    ConstValue::Integer(value) => value,
-                    ConstValue::Rational(_) => return Err(EE::UnsupportedExpr.into()),
-                    value => return Ok(value),
-                };
-                // Like at runtime, the result has the common type of both branches, so both must
-                // be constants. Type checking reports branches without a common type.
-                if let ConstValue::Integer(other) = self.eval_operand(other)?
-                    && let Some(ty) = value.int_ty()?.common(other.int_ty()?)
-                {
-                    value = value.typed(Some(ty));
-                }
-                Ok(ConstValue::Integer(value))
+                let (taken, _) = self.ternary_branches(expr.span, cond, t, f)?;
+                self.try_eval_value(taken)
             }
             // hir::ExprKind::Tuple(_) => unimplemented!(),
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
@@ -258,10 +244,51 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     /// Type checking evaluates literal arithmetic at every operation, from the operands up, so
     /// evaluating the operands again would take quadratic time in long literal chains.
     fn eval_operand(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
-        match self.gcx.eval_cache.get(&expr.peel_parens().id) {
-            Some(result) => result.clone(),
-            None => self.try_eval_value(expr),
+        let peeled = expr.peel_parens();
+        match peeled.kind {
+            // The cache holds the value of a whole ternary, without the type an operand needs.
+            hir::ExprKind::Ternary(cond, t, f) => self.eval_ternary_operand(expr.span, cond, t, f),
+            _ => match self.gcx.eval_cache.get(&peeled.id) {
+                Some(result) => result.clone(),
+                None => self.try_eval_value(expr),
+            },
         }
+    }
+
+    /// Evaluates a ternary operand, which has the common type of both branches.
+    fn eval_ternary_operand(
+        &mut self,
+        span: Span,
+        cond: &hir::Expr<'_>,
+        t: &hir::Expr<'_>,
+        f: &hir::Expr<'_>,
+    ) -> EvalResult {
+        let (taken, other) = self.ternary_branches(span, cond, t, f)?;
+        let mut value = match self.eval_operand(taken)? {
+            ConstValue::Integer(value) => value,
+            ConstValue::Rational(_) => return Err(EE::UnsupportedExpr.spanned(span)),
+            value => return Ok(value),
+        };
+        // Like at runtime, both branches must be constants to know their common type. Type
+        // checking reports branches without a common type.
+        if let ConstValue::Integer(other) = self.eval_operand(other)?
+            && let Some(ty) = value.int_ty()?.common(other.int_ty()?)
+        {
+            value = value.typed(Some(ty));
+        }
+        Ok(ConstValue::Integer(value))
+    }
+
+    /// Returns the selected and the other branch of a ternary.
+    fn ternary_branches<'a>(
+        &mut self,
+        span: Span,
+        cond: &hir::Expr<'_>,
+        t: &'a hir::Expr<'a>,
+        f: &'a hir::Expr<'a>,
+    ) -> Result<(&'a hir::Expr<'a>, &'a hir::Expr<'a>), EvalError> {
+        let cond = self.try_eval_value(cond)?.as_bool().ok_or(EE::UnsupportedExpr.spanned(span))?;
+        Ok(if cond { (t, f) } else { (f, t) })
     }
 
     fn eval_call(&mut self, callee: &hir::Expr<'_>, args: &hir::CallArgs<'_>) -> EvalResult {
