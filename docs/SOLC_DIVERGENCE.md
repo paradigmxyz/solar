@@ -405,20 +405,6 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
-### TYPECK-009: Constant initializers that are not compile-time constants
-
-Status: parity debt.
-
-Difference: solc rejects a constant whose initializer reads state or calls a
-function that is not a pure builtin, such as `uint constant T =
-block.timestamp;`, with error 8349. Solar accepts it and computes the value at
-each use.
-
-Rationale: the check is not implemented yet. Codegen does not treat such
-constants as free of side effects.
-
-Coverage: none yet.
-
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.
