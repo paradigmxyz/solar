@@ -40,13 +40,13 @@ error[9259]: only constants of value type and byte array type are implemented
 LL │ S[] memory constant d0 = [];
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: cannot infer array element type
+error[6378]: cannot infer array element type
    ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    │
 LL │ uint[] memory constant b0 = [];
    ╰╴                            ━━
 
-error: cannot infer array element type
+error[6378]: cannot infer array element type
    ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    │
 LL │ S[] memory constant d0 = [];

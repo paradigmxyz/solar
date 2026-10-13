@@ -74,7 +74,7 @@ error: event invocations have to be prefixed by `emit`
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                                            ━━━━━━━━━━━━
 
-error: cannot infer array element type
+error[6378]: cannot infer array element type
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];

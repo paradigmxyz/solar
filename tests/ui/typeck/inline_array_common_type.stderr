@@ -1,0 +1,68 @@
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         [1, -1];
+   ╰╴        ━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         [uint8(1), int8(-1)];
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         [address(0), 0];
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         abi.encode([100, 0, int256(-100)]);
+   ╰╴                   ━━━━━━━━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         id([100, 0, int256(-100)]);
+   ╰╴           ━━━━━━━━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         uint256[2] memory a = [1, -1];
+   ╰╴                              ━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         int256[2] memory b = [uint8(1), int8(-1)];
+   ╰╴                             ━━━━━━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         int256[2] memory c = [uint256(1), -1];
+   ╰╴                             ━━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         address[2] memory d = [address(0), 0];
+   ╰╴                              ━━━━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         uint8[2] memory e = [uint8(1), 300];
+   ╰╴                            ━━━━━━━━━━━━━━━ expected `uint8[2] memory`, found `uint16[2] memory`
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │         int256[2][2] memory f = [[1, -1], [uint256(1), 0]];
+   ╰╴                                ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 11 previous errors
+
