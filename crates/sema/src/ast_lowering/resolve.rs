@@ -1981,12 +1981,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
             ast::TypeKind::Function(f) => {
-                // Invalid visibilities are reported below; lower them as internal.
-                let visibility = if f.visibility() == Some(ast::Visibility::External) {
-                    ast::Visibility::External
-                } else {
-                    ast::Visibility::Internal
-                };
+                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
                 let function = hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
@@ -2001,19 +1996,9 @@ impl<'gcx> ResolveContext<'gcx> {
                         hir::VarKind::FunctionTyReturn(visibility),
                     ),
                 };
-                if let Some(vis) = f.visibility
-                    && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
-                {
-                    hir::TypeKind::Err(
-                        self.dcx()
-                            .err("invalid visibility, can only be `external` or `internal`")
-                            .code(error_code!(6012))
-                            .span(vis.span)
-                            .emit(),
-                    )
-                } else if let Some(state_mutability) = f.state_mutability
+                if let Some(state_mutability) = f.state_mutability
                     && *state_mutability == ast::StateMutability::Payable
-                    && visibility == ast::Visibility::Internal
+                    && visibility != ast::Visibility::External
                 {
                     hir::TypeKind::Err(
                         self.dcx()
