@@ -2720,7 +2720,7 @@ fn note_import(
     msg: &'static str,
 ) -> Span {
     if let Res::Item(item_id) = decl.res
-        && let Ok(snippet) = sess.source_map().span_to_snippet(decl.span)
+        && let Ok(snippet) = sess.source_map().files().span_to_snippet(decl.span)
         && snippet.starts_with("import")
     {
         diag.span_note(decl.span, msg);

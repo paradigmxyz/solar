@@ -11,6 +11,7 @@ use solar_data_structures::{
     bit_set::GrowableBitSet,
     map::{FxHashMap, FxIndexMap},
     parallel,
+    smallvec::SmallVec,
 };
 use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code, sym};
 use std::ops::ControlFlow;
@@ -24,13 +25,17 @@ mod view_pure_checker;
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
     let scopes = &gcx.symbol_resolver;
-    let duplicates = gcx
+    let pairs = gcx
         .hir
         .par_contract_ids()
         .map(|id| &scopes.contract_scopes[id])
         .chain(gcx.hir.par_source_ids().map(|id| &scopes.source_scopes[id]))
         .flat_map_iter(|scope| check_duplicate_definitions(gcx, scope))
-        .collect();
+        .collect::<Vec<_>>();
+    let mut duplicates = FxHashMap::<_, SmallVec<_>>::default();
+    for (duplicate, original) in pairs {
+        duplicates.entry(duplicate).or_default().push(original);
+    }
     gcx.duplicate_definitions.set(duplicates).unwrap();
 
     let mut typeck_results = TypeckResults::default();

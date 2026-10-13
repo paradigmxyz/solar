@@ -13,7 +13,7 @@ use solar_ast::{
 use solar_data_structures::{
     Never,
     bit_set::{DenseBitSet, GrowableBitSet},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
     pluralize,
     smallvec::SmallVec,
 };
@@ -2664,28 +2664,28 @@ impl<'gcx> TypeChecker<'gcx> {
         candidates: &mut SmallVec<[T; 4]>,
         res: impl Fn(&T) -> Option<hir::Res>,
     ) {
-        let Some(pairs) = self.gcx.duplicate_definitions.get() else { return };
-        if pairs.is_empty() || candidates.len() < 2 {
-            return;
-        }
+        let Some(duplicates) = self.gcx.duplicate_definitions.get() else { return };
         let item = |candidate: &T| match res(candidate) {
             Some(hir::Res::Item(id)) => Some(id),
             _ => None,
         };
-        let mut i = 0;
-        while i < candidates.len() {
-            let duplicate = item(&candidates[i]).is_some_and(|duplicate| {
-                candidates
-                    .iter()
-                    .filter_map(&item)
-                    .any(|original| pairs.contains(&(duplicate, original)))
-            });
-            if duplicate {
-                candidates.remove(i);
-            } else {
-                i += 1;
-            }
+        if duplicates.is_empty()
+            || candidates.len() < 2
+            || !candidates.iter().filter_map(&item).any(|id| duplicates.contains_key(&id))
+        {
+            return;
         }
+        let mut remaining = candidates.iter().filter_map(&item).collect::<FxHashSet<_>>();
+        candidates.retain(|candidate| {
+            if let Some(id) = item(candidate)
+                && let Some(originals) = duplicates.get(&id)
+                && originals.iter().any(|original| remaining.contains(original))
+            {
+                remaining.remove(&id);
+                return false;
+            }
+            true
+        });
     }
 
     fn call_args_match(
