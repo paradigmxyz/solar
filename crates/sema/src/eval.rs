@@ -586,7 +586,8 @@ impl IntScalar {
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
     /// in the common type of both operands. Two literals stay untyped and keep their exact value up
     /// to `MAX_INTERMEDIATE_BITS`, like solc's rational arithmetic, and operands without a common
-    /// type stay untyped because the type checker already rejects them.
+    /// type stay untyped because the type checker already rejects them. A shift or exponentiation
+    /// of two literals must also pass [`Self::check_literal_bounds`].
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -612,7 +613,10 @@ impl IntScalar {
                     l.mobile_ty()?;
                     Some(IntTy::full_width(l.is_negative()))
                 }
-                (None, None) => None,
+                (None, None) => {
+                    l.check_literal_bounds(r, op)?;
+                    None
+                }
             },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
@@ -630,6 +634,36 @@ impl IntScalar {
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         let ty = Self::binop_ty(&self, &r, op)?;
         self.binop_value(r, op)?.retype(ty)
+    }
+
+    /// Rejects a literal shift or exponentiation that solc's
+    /// `ConstantEvaluator::evaluateBinaryOperator` gives no value.
+    ///
+    /// The shift amount or exponent must fit in 32 bits, and a left shift or power must fit in
+    /// `MAX_INTERMEDIATE_BITS`.
+    fn check_literal_bounds(&self, r: &Self, op: hir::BinOpKind) -> Result<(), EE> {
+        use hir::BinOpKind::*;
+        match op {
+            // The type checker rejects negative shift amounts.
+            Shl | Shr if !r.is_negative() => {
+                let amount = u32::try_from(&r.data).map_err(|_| EE::ShiftTooLarge)?;
+                if op == Shl
+                    && !self.is_zero()
+                    && self.data.bits() + u64::from(amount) > MAX_INTERMEDIATE_BITS
+                {
+                    return Err(EE::ShiftTooLarge);
+                }
+            }
+            // Powers of `0`, `1` and `-1` are exact for any exponent.
+            Pow if !self.is_zero() && !self.data.magnitude().is_one() => {
+                let exp = u32::try_from(r.data.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
+                if self.data.bits() * u64::from(exp) > MAX_INTERMEDIATE_BITS {
+                    return Err(EE::ExponentTooLarge);
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     fn binop_value(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
@@ -717,6 +751,8 @@ pub enum EvalErrorKind {
     LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
+    ShiftTooLarge,
+    ExponentTooLarge,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
@@ -739,6 +775,8 @@ impl EvalErrorKind {
             Self::LiteralTooLarge => "literal is too large for any integer type",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
+            Self::ShiftTooLarge => "shift amount is too large",
+            Self::ExponentTooLarge => "exponent is too large",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",
@@ -747,6 +785,11 @@ impl EvalErrorKind {
             Self::FixedBytesConstant => "`bytesN` constants are not integers",
             Self::AlreadyEmitted(_) => unreachable!(),
         }
+    }
+
+    /// Returns `true` if solc gives no value to a literal operation that fails with this error.
+    pub(crate) fn is_undefined_literal_op(&self) -> bool {
+        matches!(self, Self::DivisionByZero | Self::ShiftTooLarge | Self::ExponentTooLarge)
     }
 }
 

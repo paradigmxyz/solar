@@ -1,5 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
+    eval::IntScalar,
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -74,6 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
+    /// Whether we're checking the length of a fixed-size array type whose constant evaluation
+    /// fails, which already reports the failed operation.
+    in_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
     /// Only populated before Byzantium, where a dynamically encoded external return value is
@@ -158,6 +162,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
+            in_array_len: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
             circular_constants: FxHashMap::default(),
@@ -277,7 +282,10 @@ impl<'gcx> TypeChecker<'gcx> {
     /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let fails = self.gcx.try_eval_const(size).is_err();
+        let prev = std::mem::replace(&mut self.in_array_len, fails);
         let ty = self.check_expr(size);
+        self.in_array_len = prev;
         if !ty.is_integer() && !ty.references_error() {
             let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
         }
@@ -421,9 +429,20 @@ impl<'gcx> TypeChecker<'gcx> {
                 // literal type through binary operations (needed for -(1 + 2) to work).
                 if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
                     && !op.kind.is_cmp()
-                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                 {
-                    return lit_ty;
+                    match self.gcx.try_eval_const(expr) {
+                        Ok(value) => {
+                            if let Some(lit_ty) = self.int_literal_ty(value) {
+                                return lit_ty;
+                            }
+                        }
+                        // Like solc, reject literal operations that have no value, such as `1 / 0`.
+                        Err(err) if !self.in_array_len && err.kind.is_undefined_literal_op() => {
+                            let diag = self.binop_err(lhs_e, lhs, rhs_e, rhs, op, false);
+                            return self.gcx.mk_ty_err(diag.note(err.kind.msg()).emit());
+                        }
+                        Err(_) => {}
+                    }
                 }
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
@@ -935,7 +954,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if valid_unop(ty, op.kind) {
                     if let TyKind::IntLiteral(..) = ty.kind
-                        && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                        && let Ok(value) = self.gcx.try_eval_const(expr)
+                        && let Some(lit_ty) = self.int_literal_ty(value)
                     {
                         return lit_ty;
                     }
@@ -1122,16 +1142,14 @@ impl<'gcx> TypeChecker<'gcx> {
         from.can_copy_to_storage_value(to, self.gcx)
     }
 
-    /// Tries to evaluate an expression made up of int literals.
+    /// Returns the IntLiteral type of the given literal value, if it fits in one.
     ///
-    /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
     /// This is used to preserve literal type through literal expressions.
-    fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        let result = self.gcx.try_eval_const(expr).ok()?;
-        let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
+    fn int_literal_ty(&self, value: &IntScalar) -> Option<Ty<'gcx>> {
+        let compatible_fixed_bytes = value.is_zero().then_some(TypeSize::ZERO);
         self.gcx.mk_ty_int_literal_with_fixed_bytes(
-            result.is_negative(),
-            result.bit_len(),
+            value.is_negative(),
+            value.bit_len(),
             compatible_fixed_bytes,
         )
     }
@@ -1180,16 +1198,31 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
+        self.gcx.mk_ty_err(self.binop_err(lhs_e, lhs, rhs_e, rhs, op, assign).emit())
+    }
+
+    /// Builds the error for a builtin binary operator that does not apply to its operands.
+    fn binop_err(
+        &self,
+        lhs_e: &'gcx hir::Expr<'gcx>,
+        lhs: Ty<'gcx>,
+        rhs_e: &'gcx hir::Expr<'gcx>,
+        rhs: Ty<'gcx>,
+        op: hir::BinOp,
+        assign: bool,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
         let code = if assign { error_code!(7366) } else { error_code!(2271) };
-        let mut err = self.dcx().err(msg).code(code).span(op.span);
-        err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
-        err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
-        self.gcx.mk_ty_err(err.emit())
+        self.dcx()
+            .err(msg)
+            .code(code)
+            .span(op.span)
+            .span_label(lhs_e.span, lhs.display(self.gcx).to_string())
+            .span_label(rhs_e.span, rhs.display(self.gcx).to_string())
     }
 
     fn check_user_unop(

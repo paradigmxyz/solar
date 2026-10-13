@@ -5,7 +5,7 @@ uint constant rec2 = rec1;
 
 uint constant bigLiteral = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
-uint constant fails = 0 / 0;
+uint constant fails = 0 / 0; //~ ERROR: cannot apply builtin operator `/`
 
 contract C {
     uint constant zero = x - x;
@@ -34,8 +34,8 @@ contract C {
     function c(uint[x * 2] memory) public {}
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: exponent is too large
+    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: shift amount is too large
     function d5(uint[signedTwo] memory) public {}
     function d6(uint[-signedNegTwo] memory) public {}
     function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
