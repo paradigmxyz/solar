@@ -193,12 +193,15 @@ Difference: `solar` checks `pragma solidity` requirements against the `solc`
 version it implements like `solc`, with the same error code 5333, but reports a
 mismatch as a warning instead of a fatal parser error. `SOLC_WRAPPER_VERSION`
 changes only the version that `--version` reports, not the one checked.
+`solc` also uses 4294967295 as its wildcard marker, so it accepts
+`pragma solidity ^4294967295;`; `solar` reads it as a number and warns.
 
 Rationale: a hard error would reject sources pinned to a different `solc`
 release even when `solar` can compile them. The warning still flags sources
 that ask for different language semantics.
 
-Coverage: `tests/ui/parser/pragma_version_mismatch.sol` and
+Coverage: `tests/ui/parser/pragma_version_mismatch.sol`,
+`tests/ui/parser/pragma_versions.sol`, and
 `tests/ui/parser/pragma_valid.sol`; the upstream `wrong_compiler_*` and
 `broken_version_1` fixtures remain excluded from solc parity testing.
 
