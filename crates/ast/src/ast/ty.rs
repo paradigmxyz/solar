@@ -190,7 +190,8 @@ impl ElementaryType {
         let Some((m, n)) = s.strip_prefix("fixed").and_then(|s| s.split_once('x')) else {
             return false;
         };
-        // Like solc, reject leading zeros such as `fixed08x8`.
+        // Reject leading zeros such as `fixed08x8`.
+        // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/liblangutil/Token.cpp#L197-L199>
         let size = |s: &str| {
             if s.len() > 1 && s.starts_with('0') { None } else { s.parse::<u16>().ok() }
         };

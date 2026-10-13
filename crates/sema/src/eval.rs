@@ -182,8 +182,8 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                // Like solc, do not fold `bytesN` constants: integers do not model the width
-                // that their conversions, shifts and bit operations depend on.
+                // Do not fold `bytesN` constants: integers do not model the width that their
+                // conversions, shifts and bit operations depend on.
                 if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
                     return Err(EE::FixedBytesConstant.into());
                 }

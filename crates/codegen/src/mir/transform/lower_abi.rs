@@ -2522,9 +2522,9 @@ impl LowerAbiCx {
     /// Forms the absolute address of a dynamically encoded value from its head `offset` and
     /// checks that its first word lies inside the input.
     ///
-    /// In debug mode the check is split like solc's: an unencodable offset reports
-    /// `offset_reason`, and the target range check reports the message of the value's own
-    /// decoder. `to_calldata` selects the message for a struct that stays in calldata.
+    /// In debug mode the check is split: an unencodable offset reports `offset_reason`, and the
+    /// target range check reports the message of the value's own decoder. `to_calldata` selects the
+    /// message for a struct that stays in calldata.
     #[allow(clippy::too_many_arguments)]
     fn guard_input_offset(
         builder: &mut FunctionBuilder<'_>,

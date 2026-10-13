@@ -6,7 +6,12 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a type.
+    #[inline]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
+        self.with_recursion_limit("type", Self::parse_type_inner)
+    }
+
+    fn parse_type_inner(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
             .map(|(span, kind)| Type { span, kind })?;

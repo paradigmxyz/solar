@@ -37,8 +37,8 @@ impl super::LoweringContext<'_> {
                         let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
-                // Declare module aliases before performing any imports, like solc, so that
-                // cyclic importers can import them regardless of source order.
+                // Declare module aliases before performing any imports so that cyclic importers
+                // can import them regardless of source order.
                 for &(item_id, import_id) in source.imports {
                     let ast = self.sources[source_id].ast.as_ref().unwrap();
                     let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
@@ -1975,7 +1975,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            // Like solc, a function type opens its own scope for its parameter and return names.
+            // A function type opens its own scope for its parameter and return names.
             ast::TypeKind::Function(f) => self.in_scope(|this| {
                 // The AST validator reports invalid visibilities; lower them as internal.
                 let visibility = if f.visibility() == Some(ast::Visibility::External) {
@@ -2156,8 +2156,8 @@ pub(crate) struct SymbolResolver<'gcx> {
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
-    /// `this` and `super`, looked up in contracts after the source scope. Like solc, keeping
-    /// them out of the contract scope lets members shadow them.
+    /// `this` and `super`, looked up in contracts after the source scope. Keeping them out of the
+    /// contract scope lets members shadow them.
     #[debug(ignore)]
     contract_builtin_scope: Declarations,
     /// `this`, looked up in libraries after the source scope.
@@ -2393,7 +2393,7 @@ impl SymbolResolverScopes {
 
     /// Declares a Yul function or variable in the current scope.
     ///
-    /// Like solc, Yul has no overloads, so a name can be declared only once per scope.
+    /// Yul has no overloads, so a name can be declared only once per scope.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libyul/ScopeFiller.cpp#L136-L163>
     fn declare_yul(
@@ -2531,8 +2531,9 @@ impl Declarations {
         self.declare(sess, hir, name.name, Declaration { res, span: name.span })
     }
 
-    /// Declares `name => decl`, reporting conflicts and reserved names like solc's
-    /// `registerDeclaration`.
+    /// Declares `name => decl`, reporting conflicts and reserved names.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L517>
     pub(crate) fn declare(
         &mut self,
         sess: &Session,
@@ -2542,7 +2543,8 @@ impl Declarations {
     ) -> Result<(), ErrorGuaranteed> {
         check_reserved_name(sess, hir, name, decl);
         self.try_declare(hir, name, decl).map_err(|conflict| {
-            // Like solc, report the declaration that comes later in the source.
+            // Report the declaration that comes later in the source.
+            // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L577-L597>
             let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
                 (conflict, decl)
             } else {
@@ -2673,7 +2675,9 @@ pub(super) fn report_conflict(
 
 /// Reports a declaration named `_`, `super`, or `this`.
 ///
-/// Like solc, events and public or external functions may still use these names.
+/// Events and public or external functions may still use these names.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/NameAndTypeResolver.cpp#L537-L557>
 fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: Declaration) {
     if !matches!(name, sym::underscore | sym::super_ | sym::this) {
         return;

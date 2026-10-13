@@ -349,9 +349,10 @@ impl<'gcx> Ty<'gcx> {
     ///
     /// Library storage pointers cross the ABI as slots, so `library_storage` allows recursive
     /// structs and mappings. Their members must still have interface types: internal function
-    /// pointers are never exported. Recursiveness comes first, as in solc's
-    /// `StructType::interfaceType`: a recursive struct is rejected before its members are
-    /// inspected for mappings.
+    /// pointers are never exported. Recursiveness comes first: a recursive struct is rejected
+    /// before its members are inspected for mappings.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2384>
     pub fn interface_type_error(
         self,
         library_storage: bool,
@@ -588,21 +589,28 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
-    /// Returns `true` if the type crosses an ABI boundary as its storage slot number, as solc's
-    /// `ArrayType::encodingType`, `StructType::encodingType` and `MappingType::encodingType`.
+    /// Returns `true` if the type crosses an ABI boundary as its storage slot number.
     ///
     /// Such a value is a single static word in both directions, so it is neither dynamically
     /// encoded nor encoded from memory.
+    ///
+    /// References:
+    /// - arrays: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1960>
+    /// - structs: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2210>
+    /// - mappings: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L3844>
     pub fn encodes_as_slot(self) -> bool {
         self.is_ref_at(DataLocation::Storage)
             || matches!(self.peel_refs().kind, TyKind::Mapping(..))
     }
 
-    /// Returns `true` if the type's ABI encoding carries a tail, as solc's
-    /// `Type::isDynamicallyEncoded`.
+    /// Returns `true` if the type's ABI encoding carries a tail.
     ///
     /// Only the encoded type matters, so references are looked through: a struct's own fields and
     /// an array's element type are reference types wherever they are aggregates themselves.
+    ///
+    /// References:
+    /// - arrays: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1802>
+    /// - structs: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2288>
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
         let this = self.peel_refs();
         match this.kind {
@@ -1357,7 +1365,8 @@ pub enum TyKind<'gcx> {
     BuiltinModule(Builtin),
 
     /// The self-referential type, e.g. `Enum` in `Enum.Variant`.
-    /// Corresponds to `TypeType` in solc.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.h#L1596>
     Type(Ty<'gcx>),
 
     /// The meta type: `type(<inner_type>)`.
