@@ -564,6 +564,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     .span(vis.span)
                     .emit();
             }
+            if let Some(state_mutability) = f.state_mutability
+                && state_mutability.is_payable()
+                && matches!(f.visibility(), None | Some(ast::Visibility::Internal))
+            {
+                self.dcx()
+                    .err("only external function types can be payable")
+                    .code(error_code!(7415))
+                    .span(state_mutability.span)
+                    .emit();
+            }
         } else if let ast::TypeKind::Mapping(mapping) = &ty.kind {
             self.check_mapping_names(ty.span, mapping);
         }

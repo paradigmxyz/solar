@@ -69,6 +69,22 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Directional override markers in doc comments
+
+Status: intentional.
+
+Difference: `solar` rejects unbalanced Unicode directional embeddings and
+overrides (U+202A..U+202E) in NatSpec doc comments (`///` and `/** */`), as it
+does in plain comments and unicode string literals. `solc` checks only plain
+comments and unicode string literals.
+
+Rationale: the check defends against "Trojan Source" attacks, where source text
+renders in a different order from how it compiles; a doc comment can hide code
+just as a plain comment can.
+
+Coverage: `tests/ui/lexer/direction_override/markers.sol`;
+[#1844](https://github.com/paradigmxyz/solar/issues/1844).
+
 ## AST Validation
 
 No intentional divergences documented yet.
@@ -265,6 +281,29 @@ should accept the names.
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
 and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
 
+### TYPECK-016: ABI heads are bounded as a whole
+
+Status: intentional.
+
+Difference: `solar` rejects a type when any head of its ABI encoding, including
+the heads inside the tails of dynamic parts, takes `2^32 - 1` bytes or more. A
+struct's head counts all its members together. The check covers calldata
+variables; parameters of constructors, events, errors and external function
+types; parameters and returns of public and external functions; arguments of
+`abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
+types. `solc` 0.8.37 checks only constructor and public callable parameters
+against calldata, and sizes structs one member at a time, so it accepts, for
+example, an external function that takes a calldata struct with two
+`uint256[134217727]` members.
+
+Rationale: the backend computes head sizes in 64 bits, and larger heads exhaust
+memory or overflow during lowering. No transaction can pass or return such a
+value within a block gas limit.
+
+Coverage: `tests/ui/typeck/abi_head_size.sol`,
+`tests/ui/typeck/public_param_calldata_size.sol` and
+`tests/ui/typeck/struct_member_sizes.sol`.
+
 ### TYPECK-018: `msg.gas`
 
 Status: intentional.
@@ -276,6 +315,21 @@ Rationale: the meaning is unambiguous and we compile it correctly, so a
 warning is enough to steer code to `gasleft()`.
 
 Coverage: `tests/ui/typeck/msg_gas.sol`.
+
+### TYPECK-019: Struct nesting depth
+
+Status: intentional.
+
+Difference: `solar` reports "struct is too deeply nested" (5651) when the
+longest chain of directly nested structs reaches 256. `solc` measures the depth
+of its search tree, which skips a struct already reached through a shorter
+path, so it accepts some struct graphs with a longer chain.
+
+Rationale: code that walks struct types recurses along the longest chain, and
+the `solc` depth depends on field order. Real code does not nest structs this
+deeply.
+
+Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 
 ## Contract-Level Checks
 
