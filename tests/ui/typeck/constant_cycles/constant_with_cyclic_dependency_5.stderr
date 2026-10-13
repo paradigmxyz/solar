@@ -1,0 +1,14 @@
+error[6161]: the value of the constant `a` has a cyclic dependency via `d`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_5.sol:LL:CC
+   │
+LL │   uint constant a = uint(keccak256(abi.encode(d)));
+   ╰╴  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `d` has a cyclic dependency via `a`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_5.sol:LL:CC
+   │
+LL │   uint constant d = a;
+   ╰╴  ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

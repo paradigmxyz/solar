@@ -336,6 +336,23 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-010: Circular constants read in inline assembly
+
+Status: intentional.
+
+Difference: when inline assembly reads a constant whose value depends on
+itself, `solc` reports error 3558 at the read. `solar` reports error 6161 at
+each constant whose value reaches the cycle, as it does for constants that
+assembly does not read.
+
+Rationale: during type checking only bare identifiers are resolved, so a 3558
+check there would miss cycles through member accesses such as `M.c` and repeat
+the cycle search that runs after type checking. Both errors stop compilation.
+
+Coverage: `tests/ui/typeck/constant_cycles/circular_constant_access_err.sol`,
+`tests/ui/typeck/constant_cycles/circular_constant_access_module_err.sol` and
+`tests/ui/typeck/constant_cycles/circular_module_access_err.sol`.
+
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.
@@ -373,6 +390,23 @@ should accept the names.
 
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
 and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+
+### TYPECK-014: Deep constant dependency chains
+
+Status: intentional.
+
+Difference: `solc` reports error 7380 when its cyclic constant check gets 256
+constants deep. `solar` reports it only when the longest chain from a constant
+has 2048 constants, so it accepts and compiles deeper acyclic chains. Since the
+`solc` search skips constants it has already searched, `solar` can reject
+long chains through shared constants that keep the `solc` search shallow.
+
+Rationale: the 256 limit is arbitrary, since `solar` compiles longer chains.
+Codegen recurses once per constant in the longest chain, and the 2048 limit
+keeps a debug build within the default compiler thread stack.
+
+Coverage: `tests/ui/typeck/constant_cycles/deep_chain.sol` and
+`tests/ui/typeck/constant_cycles/deep_shared_chain.sol`.
 
 ### TYPECK-016: ABI heads are bounded as a whole
 

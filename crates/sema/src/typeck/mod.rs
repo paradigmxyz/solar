@@ -16,6 +16,7 @@ use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code, sym};
 use std::ops::ControlFlow;
 
 mod checker;
+mod constant_cycles;
 mod control_flow;
 pub(crate) mod override_checker;
 mod udvt;
@@ -47,6 +48,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         },
     );
     gcx.set_typeck_results(typeck_results);
+    constant_cycles::check(gcx);
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     view_pure_checker::check(gcx);

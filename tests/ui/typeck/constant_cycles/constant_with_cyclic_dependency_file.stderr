@@ -1,0 +1,14 @@
+error[6161]: the value of the constant `A` has a cyclic dependency via `B`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/constant_with_cyclic_dependency_file.sol:LL:CC
+   │
+LL │ uint256 constant A = B + 1;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6161]: the value of the constant `B` has a cyclic dependency via `A`
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/auxiliary/constant_with_cyclic_dependency_file.sol:LL:CC
+   │
+LL │ uint256 constant B = A + 1;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
