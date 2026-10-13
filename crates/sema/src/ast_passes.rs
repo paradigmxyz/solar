@@ -531,7 +531,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             if let Some(state_mutability) = f.state_mutability
                 && *state_mutability == ast::StateMutability::Payable
-                && f.visibility() != Some(ast::Visibility::External)
+                && matches!(f.visibility(), None | Some(ast::Visibility::Internal))
             {
                 self.dcx()
                     .err("only external function types can be payable")
