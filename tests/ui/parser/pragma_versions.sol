@@ -44,8 +44,6 @@ pragma solidity 0.4 - 1 || 0.3 - 0.5.16;
 // by-char parser, not just the number one, which is not worth it.
 pragma solidity xX*x***X*X;
 //~^ ERROR: unexpected trailing characters
-//~| ERROR: expected version number
-//~| ERROR: unexpected trailing characters
 
 pragma solidity ^4294967295;
 pragma solidity ^4294967296;
@@ -59,16 +57,13 @@ pragma solidity 0.0.;
 //~^ ERROR: expected version number
 pragma solidity .0;
 //~^ ERROR: expected version number
-//~| ERROR: unexpected trailing characters
 
 pragma solidity 88_;
 //~^ ERROR: unexpected trailing characters
 pragma solidity 88_e3;
 //~^ ERROR: unexpected trailing characters
 pragma solidity 0e1.0;
-//~^ ERROR: expected version number
-//~| ERROR: unexpected trailing characters
-//~| ERROR: unexpected trailing characters
+//~^ ERROR: unexpected trailing characters
 pragma solidity 0.0e1;
 //~^ ERROR: unexpected trailing characters
 

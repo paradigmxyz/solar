@@ -19,7 +19,7 @@ use crate::{
     ty::{Gcx, TraceRoot, TyKind, traced_from, traced_functions},
 };
 use alloy_primitives::U256;
-use solar_ast::DataLocation;
+use solar_ast::{DataLocation, ElementaryType, LitKind, StrKind};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -154,8 +154,7 @@ pub(super) fn is_namespace_accessor(gcx: Gcx<'_>, block: &hir::Block<'_>) -> boo
                 return false;
             };
             let location = erc7201_slot(namespace.as_str().as_bytes());
-            gcx.try_eval_const(rhs)
-                .is_ok_and(|value| value.as_u256() == Some(U256::from_be_bytes(location.0)))
+            namespace_location(gcx, rhs) == Some(U256::from_be_bytes(location.0))
         })
 }
 
@@ -172,10 +171,10 @@ impl<'gcx> Visit<'gcx> for Accessors<'gcx, '_> {
             && let ExprKind::YulMember(base, member) = lhs.peel_parens().kind
             && member.name == sym::slot
             && let Some((id, namespace)) = self.namespace_of(base)
-            && let Ok(value) = self.gcx.try_eval_const(rhs)
+            && let Some(value) = namespace_location(self.gcx, rhs)
         {
             let location = erc7201_slot(namespace.id.as_str().as_bytes());
-            if value.as_u256() != Some(U256::from_be_bytes(location.0)) {
+            if value != U256::from_be_bytes(location.0) {
                 self.gcx
                     .dcx()
                     .err(format!(
@@ -246,5 +245,39 @@ fn struct_name(gcx: Gcx<'_>, id: hir::StructId) -> String {
     match strukt.contract {
         Some(contract) => format!("{}.{}", gcx.hir.contract(contract).name, strukt.name),
         None => strukt.name.to_string(),
+    }
+}
+
+/// Reads a namespace word without treating fixed-byte arithmetic as integer arithmetic.
+/// Full-width literal bytes32 constants are exact words; other bytesN expressions stay
+/// outside the integer evaluator, which deliberately does not fold their width-dependent
+/// conversions and shifts.
+fn namespace_location(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<U256> {
+    if let Ok(value) = gcx.try_eval_const(expr) {
+        return value.as_evm_word();
+    }
+    let ExprKind::Ident(res) = expr.peel_parens().kind else { return None };
+    let id = res.iter().find_map(|res| res.as_variable())?;
+    let variable = gcx.hir.variable(id);
+    if variable.mutability != Some(hir::VarMut::Constant)
+        || !matches!(variable.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(size)) if size.bits() == 256)
+    {
+        return None;
+    }
+    let initializer = variable.initializer?.peel_parens();
+    let ExprKind::Lit(literal) = initializer.kind else { return None };
+    match literal.kind {
+        LitKind::Number(value)
+            if value.is_zero()
+                || gcx.type_of_expr(initializer.id).is_some_and(|ty| {
+                    matches!(ty.kind, TyKind::IntLiteral(_, _, Some(size)) if size.bits() == 256)
+                }) =>
+        {
+            gcx.try_eval_const(initializer).ok()?.as_u256()
+        }
+        LitKind::Str(StrKind::Hex, bytes, _) if bytes.as_byte_str().len() == 32 => {
+            Some(U256::from_be_slice(bytes.as_byte_str()))
+        }
+        _ => None,
     }
 }

@@ -251,7 +251,7 @@ function wrapped(uint256 a) pure returns (uint256 r) {
 
 /// @custom:solar-safe
 contract SafeConstant {
-    uint256 internal constant K = wrapped(0);
+    uint256 internal constant K = wrapped(0); //~ ERROR: initial value for constant variable has to be compile-time constant
 
     /// @custom:solar-trusted
     function reviewed() external pure returns (uint256) {
@@ -267,7 +267,7 @@ contract SafeConstant {
 // only trusted code reads the constant.
 /// @custom:solar-trusted
 abstract contract ReviewedConstant {
-    uint256 internal constant VALUE = _value();
+    uint256 internal constant VALUE = _value(); //~ ERROR: initial value for constant variable has to be compile-time constant
 
     function run() external pure returns (uint256) {
         return VALUE;

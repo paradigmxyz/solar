@@ -1,10 +1,10 @@
-error: decoding type not supported
+error[9611]: decoding type not supported
    ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
    │
 LL │         return abi.decode(data, (Node)).children.length;
    ╰╴                                 ━━━━ found `struct Test.Node memory`
 
-error: decoding type not supported
+error[9611]: decoding type not supported
    ╭▸ ROOT/tests/ui/typeck/code_view_opaque.sol:LL:CC
    │
 LL │         return abi.decode(data, (Tree)).children.length;

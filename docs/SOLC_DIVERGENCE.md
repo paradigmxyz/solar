@@ -78,6 +78,99 @@ Coverage: `tests/ui/standard-json/solar-build/test.jsonc`,
 `tests/ui/standard-json/solar-safety/test.jsonc` and
 `tests/ui/standard-json/storage-layout-erc7201/test.jsonc`.
 
+## Import Resolution
+
+### IMPORT-001: Files on disk are one source unit each
+
+Status: intentional.
+
+Difference: `solc` treats source unit names as opaque strings, so `src/B.sol`,
+`src//B.sol`, `src/./B.sol`, `./src/B.sol` from a remapping target, and an
+absolute path to the same file are separate source units. `solar` names a file
+that it loads from disk by its normalized path, shown relative to the base
+path, so all of these are one source unit named `src/B.sol`. In Standard JSON,
+`solar` names a file read through the callback by its normalized source unit
+name, keeping the `//` of a URL scheme, and asks the callback for the
+normalized path in each root, so `lib/X.sol`, `lib//X.sol` and
+`lib/sub/../X.sol` are one source unit `lib/X.sol`, read once when the read
+succeeds. `solc` asks for each name as written. A file that
+imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
+declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
+import paths and remapping targets as they are, where `solc` prepends a
+non-empty base path to them. Since names come from paths, two different files
+can get the same name; `solar` reports this for any source, where `solc` only
+checks the files given on the command line.
+
+Normalizing names has other effects. Remapping contexts match the normalized
+name, so a file reached through the target `./lib/` has the context `lib/...`
+in `solar` and `./lib/...` in `solc`. `solar` applies `..` segments before
+following symbolic links, so `link/../x.sol` names `x.sol` next to `link`, not
+next to its target.
+
+Rationale: duplicate copies of one file only produce spurious conflicts. Build
+tools such as Foundry preload sources under relative names and pass absolute
+remapping targets, which must resolve to the preloaded sources
+([#1628](https://github.com/paradigmxyz/solar/pull/1628)).
+
+Coverage: `callback_imports_merge_spellings` in
+`crates/solar/tests/it/standard_json.rs`,
+`absolute_remapping_reuses_preloaded_source_unit_name` and
+`direct_import_reuses_preloaded_source_unit_name` in
+`crates/interface/src/source_map/file_resolver.rs`.
+
+### IMPORT-002: Names of files in nested include paths
+
+Status: intentional.
+
+Difference: `solar` names every file from disk the way `solc` names files given
+on the command line: relative to the base path, else to the first include path
+that contains it. `solc` names an imported file by the import's source unit
+name instead. The two differ when a file lies in more than one root, such as an
+include path inside the base path or inside an earlier include path. With
+`--base-path . --include-path node_modules`, `solc` names an import of
+`@oz/A.sol` `@oz/A.sol`, and `solar` names it `node_modules/@oz/A.sol`. Since
+remapping contexts match the importing file's name, a context such as
+`@oz/:x/=y/` applies in `solc` and not in `solar`, and `node_modules/@oz/:x/=y/`
+the other way around.
+
+For a file named relative to an include path outside the base path, `solar`
+resolves relative imports against the file's absolute path. Remappings for
+source unit names then do not apply to them, they do not search the other
+roots, and `../` can leave the include path.
+Remapping contexts match both the file's name and its absolute path. Like
+`solc`, an import resolves to an input file with its source unit name before
+searching the disk, but files loaded for other imports don't count, so where
+`solc` would reuse such a file, `solar` can report an ambiguous import or a
+duplicate name instead.
+
+Rationale: a name that depends only on the file's path is the same for every
+import of the file. It also keeps remapping contexts such as `lib/dep/` matching
+files in Foundry's `lib` include path, as `solc` does for files that remappings
+route through the base path. Foundry names sources outside the project by their
+absolute paths and writes remapping contexts for them.
+
+Coverage: `nested_include_paths_name_by_base_path`,
+`include_paths_name_source_units`, `relative_imports_leave_include_paths` and
+`remapping_contexts_match_absolute_paths_outside_base_path` in
+`crates/interface/src/source_map/file_resolver.rs`, and
+`crates/solar/tests/it/paths.rs`.
+
+### IMPORT-003: Lenient path options
+
+Status: intentional.
+
+Difference: `solar` accepts `--include-path` without `--base-path`, using the
+current directory as the base path, and does not report an ambiguous import
+when several roots contain the same file, as with a repeated include path. In
+Standard JSON mode, which does not access the file system, it does not check the
+base path. It does not restrict imports to allowed paths, so `--allow-paths` has
+no effect.
+
+Rationale: these inputs have a single sensible meaning, and Standard JSON reads
+imports only through the read callback.
+
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
+
 ## Parsing
 
 ### PARSE-001: Validation stage differences
@@ -100,13 +193,47 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Directional override markers in doc comments
+
+Status: intentional.
+
+Difference: `solar` rejects unbalanced Unicode directional embeddings and
+overrides (U+202A..U+202E) in NatSpec doc comments (`///` and `/** */`), as it
+does in plain comments and unicode string literals. `solc` checks only plain
+comments and unicode string literals.
+
+Rationale: the check defends against "Trojan Source" attacks, where source text
+renders in a different order from how it compiles; a doc comment can hide code
+just as a plain comment can.
+
+Coverage: `tests/ui/lexer/direction_override/markers.sol`;
+[#1844](https://github.com/paradigmxyz/solar/issues/1844).
+
 ## AST Validation
 
 No intentional divergences documented yet.
 
 ## Name Resolution
 
-### NAME-001: The reserved `solar:core/` prefix
+### NAME-001: Yul declarations can shadow enclosing Yul names
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul variable or function whose name is already
+declared in any enclosing Yul scope, including across function boundaries and
+`for` loop parts, with errors 1395 and 6052. `solar` rejects only a name that
+is already declared in the same Yul scope, so `{ let x := 1 { let x := 2 } }`
+compiles and the inner `x` shadows the outer one.
+
+Rationale: an inner declaration resolves without ambiguity to the innermost
+scope, as in Solidity, so the code compiles to the same program the author
+wrote. Duplicates within one scope stay errors because Yul has no overloads,
+and a use of the name there would be ambiguous.
+
+Coverage: `tests/ui/yul_lowering/name_clashes.sol` and
+`tests/ui/yul_lowering/yul_function_scope.sol`.
+
+### NAME-002: The reserved `solar:core/` prefix
 
 Status: intentional.
 
@@ -285,9 +412,110 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-011: Module-typed conditionals
+
+Status: intentional.
+
+Difference: `solar` rejects conditionals whose branches are modules, such as
+`(c ? M : M).x`, which `solc` accepts.
+
+Rationale: codegen resolves module members statically and would drop the
+condition, and real code does not use the construct.
+
+Coverage: `tests/ui/typeck/module_conditional.sol`.
+
+### TYPECK-013: Inline assembly names and constants
+
+Status: intentional.
+
+Difference: `solar` accepts inline assembly that `solc` rejects:
+
+- reads of value-type constants whose value is not a number literal, such as
+  `uint(7)`, `true ? 5 : 6`, `three + 1`, `~uint(0)` or `keccak256("abc")`
+  (`solc` error 7615);
+- Yul declarations that shadow a Solidity declaration outside the block, such
+  as a parameter, contract, function or `msg` (`solc` error 3859);
+- the Yul names `this`, `super` and `_` (`solc` error 4113);
+- Yul names reserved for EVM instructions and pure Yul builtins, such as `pc`,
+  `dup1` or `datasize` (`solc` error 5017);
+- a Yul variable inside a Yul function that shares its name with a Solidity
+  local, such as `function g() -> x` in a function that returns `x` (`solc`
+  error 6578).
+
+Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
+resolves the inner declaration first, and constant folding gives assembly the
+same value Solidity sees. The parser also serves formatters and linters, which
+should accept the names.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
+and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+
+### TYPECK-016: ABI heads are bounded as a whole
+
+Status: intentional.
+
+Difference: `solar` rejects a type when any head of its ABI encoding, including
+the heads inside the tails of dynamic parts, takes `2^32 - 1` bytes or more. A
+struct's head counts all its members together. The check covers calldata
+variables; parameters of constructors, events, errors and external function
+types; parameters and returns of public and external functions; arguments of
+`abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
+types. `solc` 0.8.37 checks only constructor and public callable parameters
+against calldata, and sizes structs one member at a time, so it accepts, for
+example, an external function that takes a calldata struct with two
+`uint256[134217727]` members.
+
+Rationale: the backend computes head sizes in 64 bits, and larger heads exhaust
+memory or overflow during lowering. No transaction can pass or return such a
+value within a block gas limit.
+
+Coverage: `tests/ui/typeck/abi_head_size.sol`,
+`tests/ui/typeck/public_param_calldata_size.sol` and
+`tests/ui/typeck/struct_member_sizes.sol`.
+
+### TYPECK-018: `msg.gas`
+
+Status: intentional.
+
+Difference: `solar` accepts `msg.gas` as `gasleft()` with warning 1400, where
+`solc` rejects it with error 1400.
+
+Rationale: the meaning is unambiguous and we compile it correctly, so a
+warning is enough to steer code to `gasleft()`.
+
+Coverage: `tests/ui/typeck/msg_gas.sol`.
+
+### TYPECK-019: Struct nesting depth
+
+Status: intentional.
+
+Difference: `solar` reports "struct is too deeply nested" (5651) when the
+longest chain of directly nested structs reaches 256. `solc` measures the depth
+of its search tree, which skips a struct already reached through a shorter
+path, so it accepts some struct graphs with a longer chain.
+
+Rationale: code that walks struct types recurses along the longest chain, and
+the `solc` depth depends on field order. Real code does not nest structs this
+deeply.
+
+Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+
 ## Contract-Level Checks
 
-No intentional divergences documented yet.
+### CONTRACT-001: Conditionals in storage layout base slots
+
+Status: intentional.
+
+Difference: `solar` accepts conditionals in the base slot of a storage layout
+specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
+`solc` rejects them with error 1505 because its constant evaluator does not
+support conditionals.
+
+Rationale: our constant evaluator folds conditionals, so the base slot has a
+well-defined value.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
+`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
@@ -504,3 +732,22 @@ No intentional divergences documented yet.
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
+
+### CODEGEN-011: ABI coder v1 is not supported
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
+  encoders and decoders for that source unit. `solar` warns that ABI coder v1
+  is not supported and always generates ABI coder v2 code. Calldata decoding
+  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
+  `address` argument with dirty high bits reverts, where v1 cleans it and
+  continues. The type checker also does not apply v1's restrictions, so v1
+  source units may use structs and nested dynamic arrays at ABI boundaries,
+  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
+  `--allow 9511` also hides this change.
+- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
+  accepts the same way. A second coder would only change how malformed input
+  fails and which types compile.
+- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
+  `tests/ui/parser/pragma_valid.sol`.

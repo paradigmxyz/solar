@@ -7,12 +7,15 @@ use crate::{
     typeck::override_checker::OverrideProxy,
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
-use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
+use solar_ast::{
+    DataLocation, ElementaryType, StateMutability, TypeSize, UserDefinableOperator, Visibility,
+};
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::or_list,
+    graph,
+    index::{IndexSlice, IndexVec},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -20,14 +23,13 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Session, Span, Symbol,
     config::CompilerStage,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code,
     source_map::{FileName, SourceFile},
     sym,
 };
 use std::{
     fmt,
-    hash::Hash,
     ops::ControlFlow,
     sync::{
         Arc, OnceLock,
@@ -50,6 +52,8 @@ pub(crate) use call_graph::{TraceRoot, traced_from, traced_functions};
 
 mod interner;
 use interner::Interner;
+
+mod caches;
 
 #[allow(clippy::module_inception)]
 mod ty;
@@ -253,6 +257,16 @@ impl Recursiveness {
     pub fn is_recursive(self) -> bool {
         !self.is_none()
     }
+}
+
+/// The reference chains from a struct.
+#[derive(Clone, Copy, Debug)]
+struct StructChains {
+    /// The number of structs in the longest chain of direct references, which skip only
+    /// fixed-size arrays, or `None` if such a chain reaches a cycle.
+    direct_depth: Option<u32>,
+    /// Whether a chain of any references reaches a cycle.
+    reaches_cycle: bool,
 }
 
 /// How an internal call resolves in the most-derived contract.
@@ -512,15 +526,8 @@ impl<'gcx> Gcx<'gcx> {
         bits: u64,
         compatible_fixed_bytes: Option<TypeSize>,
     ) -> Option<Ty<'gcx>> {
-        let bits = bits.max(1);
-        if bits > TypeSize::MAX as u64 {
-            return None;
-        }
-        Some(self.mk_ty(TyKind::IntLiteral(
-            negative,
-            TypeSize::new_literal_bits(bits as u16),
-            compatible_fixed_bytes,
-        )))
+        let bits = u16::try_from(bits.max(1)).ok()?;
+        Some(self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes)))
     }
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
@@ -666,7 +673,7 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> Option<Vec<Vec<hir::Res>>> {
-        self.symbol_resolver.source_path_resolutions(segments, source, contract)
+        self.symbol_resolver.source_path_resolutions(&self.hir, segments, source, contract)
     }
 
     /// Iterates declarations in an existing contract scope.
@@ -1372,7 +1379,7 @@ impl<'gcx> Gcx<'gcx> {
         let hir::ItemId::Function(function) = modifier.id else {
             return None;
         };
-        if modifier.span.lo() != modifier.name_span.lo() {
+        if modifier.qualified {
             return Some(function);
         }
         Some(self.resolve_virtual_function(contract, function))
@@ -1528,6 +1535,11 @@ impl<'gcx> Gcx<'gcx> {
         }
         self.alloc(dependencies)
     }
+
+    /// Builds the error for a literal at `span` that is too large for any integer type.
+    pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        self.dcx().err("literal is too large for any integer type").span(span)
+    }
 }
 
 fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
@@ -1569,30 +1581,17 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
-macro_rules! cached_key_type {
-    ($key_type:ty) => {
-        $key_type
-    };
-    ($key_type:ty, $cache_key_type:ty) => {
-        $cache_key_type
-    };
-}
-
-macro_rules! cached_key_expr {
-    ($key:expr) => {
-        $key
-    };
-    ($key:expr, $cache_key:expr) => {
-        $cache_key
-    };
-}
-
+/// Defines cached queries on [`Gcx`].
+///
+/// The key type picks the cache that stores the values; see [`caches::QueryKey`]. Values must be
+/// `Copy`, and values in the bump arena never drop, so a value that owns heap memory, such as a
+/// hash map, belongs in its own `OnceLock` field on [`GlobalCtxt`] instead.
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: FxOnceMap<cached_key_type!($key_type $(, $cache_key_type)?), $value>,
+                $name: caches::CacheFor<$key_type, $value>,
             )*
         }
 
@@ -1600,12 +1599,11 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
-                    let cache_key = cached_key_expr!($key $(, $cache_key)?);
                     #[cfg(false)]
-                    let _guard = log_cache_query(stringify!($name), &cache_key);
+                    let _guard = log_cache_query(stringify!($name), &$key);
                     #[cfg(false)]
                     let mut hit = true;
-                    let r = cache_insert(&self.cache.$name, cache_key, |_| {
+                    let r = caches::QueryCache::get_or_insert(&self.cache.$name, &self.hir, $key, || {
                         #[cfg(false)]
                         {
                             hit = false;
@@ -1762,27 +1760,10 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 result = Err(guar);
                 continue;
             }
-            if !ty.can_be_exported(gcx) {
-                // Library storage pointers cross the ABI as slots, so recursive
-                // structs and mappings are allowed. Their members must still have
-                // interface types: internal function pointers are never exported.
-                let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
-                if library_storage && !ty.has_internal_function(gcx) {
-                    continue;
-                }
-
+            let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+            if let Some(subject) = ty.interface_type_error(library_storage, gcx) {
                 let kind = f.description();
-                // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
-                // recursive struct is rejected before its members are inspected for mappings.
-                let msg = if !library_storage && ty.is_recursive(gcx) {
-                    format!("recursive types cannot be parameter or return types of public {kind}s")
-                } else if !library_storage && ty.has_mapping(gcx) {
-                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.has_internal_function(gcx) {
-                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
-                } else {
-                    format!("this type cannot be parameter or return type of a public {kind}")
-                };
+                let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
                 let span = gcx.hir.variable(var_id).ty.span;
                 result = Err(gcx.dcx().emit_err(span, msg));
             }
@@ -1949,54 +1930,70 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 
 /// Returns the recursiveness of the given struct.
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
-    use solar_data_structures::cycle::*;
+    let chains = gcx.struct_chains(())[id];
+    // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists.
+    // Report at `id`, like solc, so that each struct reports at most once.
+    let (code, msg) = match chains.direct_depth {
+        None => (error_code!(2046), "recursive struct definition"),
+        Some(depth) if depth >= 256 => (error_code!(5651), "struct is too deeply nested"),
+        Some(_) if chains.reaches_cycle => return Recursiveness::Recursive,
+        Some(_) => return Recursiveness::None,
+    };
+    Recursiveness::Infinite(gcx.dcx().err(msg).code(code).span(gcx.item_span(id)).emit())
+}
 
-    let r = CycleDetector::detect(gcx, id, |gcx, cd, id| {
-        let s = gcx.hir.strukt(id);
+/// Returns the reference chains of every struct.
+fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChains]> {
+    type Edges = IndexVec<hir::StructId, SmallVec<[hir::StructId; 2]>>;
 
-        if cd.depth() >= 256 {
-            let guar = gcx.dcx().emit_err(s.span, "struct is too deeply nested");
-            return CycleDetectorResult::Break(Either::Left(guar));
-        }
-
-        for &field_id in s.fields {
-            let field = gcx.hir.variable(field_id);
-            let mut check = |ty: &hir::Type<'_>, dynamic: bool| {
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
-                    match cd.run(other) {
-                        CycleDetectorResult::Continue => {}
-                        CycleDetectorResult::Cycle(_) if dynamic => {
-                            return CycleDetectorResult::Break(Either::Right(()));
-                        }
-                        r => return r,
-                    }
-                }
-                CycleDetectorResult::Continue
-            };
-            let mut dynamic = false;
-            let mut ty = &field.ty;
-            while let hir::TypeKind::Array(array) = ty.kind {
-                if array.size.is_none() {
-                    dynamic = true;
-                }
-                ty = &array.element;
-            }
-            cdr_try!(check(ty, dynamic));
-            if let ControlFlow::Break(r) = field.ty.visit(&gcx.hir, &mut |ty| check(ty, true).to_controlflow()) {
-                return r;
+    /// Returns the number of structs in the longest chain of references from each struct, or
+    /// `None` if the struct reaches a cycle.
+    fn chain_depths(edges: &Edges) -> IndexVec<hir::StructId, Option<u32>> {
+        let mut depths = IndexVec::from_vec(vec![None; edges.len()]);
+        // Components come in reverse topological order, so referenced structs come first.
+        for scc in graph::sccs(edges.len(), |id: hir::StructId| edges[id].iter().copied()) {
+            let id = scc[0];
+            if scc.len() == 1 && !edges[id].contains(&id) {
+                depths[id] =
+                    edges[id].iter().try_fold(1, |max, &other| Some(max.max(depths[other]? + 1)));
             }
         }
-
-        CycleDetectorResult::Continue
-    });
-    match r {
-        CycleDetectorResult::Continue => Recursiveness::None,
-        CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
-        CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
-        CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-            gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition")
-        ),
+        depths
     }
+
+    let len = gcx.hir.strukt_ids().len();
+    let (mut direct, mut any) = (Edges::with_capacity(len), Edges::with_capacity(len));
+    for id in gcx.hir.strukt_ids() {
+        let (mut direct_refs, mut any_refs) = (SmallVec::new(), SmallVec::new());
+        for &field_id in gcx.hir.strukt(id).fields {
+            let ty = &gcx.hir.variable(field_id).ty;
+            visit_stored_structs(ty, false, &mut |other, dynamic| {
+                // Direct references skip only fixed-size arrays, like solc.
+                if !dynamic {
+                    direct_refs.push(other);
+                }
+                any_refs.push(other);
+            });
+        }
+        direct.push(direct_refs);
+        any.push(any_refs);
+    }
+    let chains = chain_depths(&direct).into_iter().zip(chain_depths(&any)).map(|(direct, any)| {
+        StructChains { direct_depth: direct, reaches_cycle: any.is_none() }
+    });
+    IndexSlice::from_slice(gcx.bump().alloc_from_iter(chains))
+}
+
+/// Returns the size of the given struct's ABI encoding, or `None` if it is dynamically encoded.
+///
+/// A struct on any cycle is dynamically encoded, so the recursion ends on infinite structs too.
+pub fn struct_abi_static_size(gcx: _, id: hir::StructId) -> Option<U256> {
+    if gcx.struct_recursiveness(id).is_recursive() {
+        return None;
+    }
+    gcx.struct_field_types(id)
+        .iter()
+        .try_fold(U256::ZERO, |size, ty| Some(size.saturating_add(ty.abi_static_size(gcx)?)))
 }
 
 fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
@@ -2017,6 +2014,16 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
+
+/// Reports a literal operand at `span` that is too large for any integer type, next to a typed
+/// operand.
+///
+/// The type checker and the constant evaluator both find these, so they share one report.
+pub(crate) fn literal_too_large(gcx: _, span: Span) -> ErrorGuaranteed {
+    gcx.literal_too_large_err(span)
+        .note("the other operand is typed, so the literal must fit an integer type")
+        .emit()
 }
 
 } // cached!
@@ -2163,6 +2170,22 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .emit();
     }
 
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    if var.is_constant()
+        && !ty.is_value_type()
+        && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
+        && !ty.references_error()
+    {
+        let guar = gcx
+            .dcx()
+            .err("only constants of value type and byte array type are implemented")
+            .code(error_code!(9259))
+            .span(var.span)
+            .emit();
+        return gcx.mk_ty_err(guar);
+    }
+
     ty.with_loc_if_ref(gcx, ty_loc)
 }
 
@@ -2177,19 +2200,27 @@ fn is_value_ns(id: hir::ItemId) -> bool {
     )
 }
 
-/// `OnceMap::insert` but with `Copy` keys and values.
-#[inline]
-fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
-where
-    K: Copy + Eq + Hash,
-    V: Copy,
-{
-    map.map_insert(key, make_val, cache_insert_with_result)
-}
-
-#[inline]
-fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
-    *v
+/// Calls `f` on each struct stored in a value of type `ty`, with whether a dynamic array or a
+/// mapping sits between the value and the struct.
+///
+/// Function types do not store their parameter types, so a struct reached only through one is not
+/// recursive, as in solc's `DeclarationTypeChecker`.
+fn visit_stored_structs(
+    ty: &hir::Type<'_>,
+    dynamic: bool,
+    f: &mut impl FnMut(hir::StructId, bool),
+) {
+    match ty.kind {
+        hir::TypeKind::Custom(hir::ItemId::Struct(id)) => f(id, dynamic),
+        hir::TypeKind::Array(array) => {
+            visit_stored_structs(&array.element, dynamic || array.size.is_none(), f)
+        }
+        hir::TypeKind::Mapping(mapping) => {
+            visit_stored_structs(&mapping.key, true, f);
+            visit_stored_structs(&mapping.value, true, f);
+        }
+        _ => {}
+    }
 }
 
 #[cfg(false)]

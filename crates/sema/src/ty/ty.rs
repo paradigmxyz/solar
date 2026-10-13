@@ -311,17 +311,6 @@ impl<'gcx> Ty<'gcx> {
         self.is_reference_type() || self.has_mapping(gcx)
     }
 
-    /// Returns `true` if this type contains a library contract type.
-    pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
-        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
-            TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => {
-                ControlFlow::Break(())
-            }
-            _ => ControlFlow::Continue(()),
-        })
-        .is_break()
-    }
-
     /// Returns `true` if this type contains a non-public (internal/private) function type.
     pub fn has_internal_function(self, gcx: Gcx<'gcx>) -> bool {
         self.visit_with_structs(gcx, &mut |ty| {
@@ -353,6 +342,30 @@ impl<'gcx> Ty<'gcx> {
             || self.has_mapping(gcx)
             || self.has_internal_function(gcx)
             || self.references_error())
+    }
+
+    /// Returns why this type has no interface type, as the subject of an error message, or `None`
+    /// if it has one.
+    ///
+    /// Library storage pointers cross the ABI as slots, so `library_storage` allows recursive
+    /// structs and mappings. Their members must still have interface types: internal function
+    /// pointers are never exported. Recursiveness comes first, as in solc's
+    /// `StructType::interfaceType`: a recursive struct is rejected before its members are
+    /// inspected for mappings.
+    pub fn interface_type_error(
+        self,
+        library_storage: bool,
+        gcx: Gcx<'gcx>,
+    ) -> Option<&'static str> {
+        if !library_storage && self.is_recursive(gcx) {
+            Some("recursive types")
+        } else if !library_storage && self.has_mapping(gcx) {
+            Some("types containing mappings")
+        } else if self.has_internal_function(gcx) {
+            Some("types containing internal function pointers")
+        } else {
+            None
+        }
     }
 
     /// Returns the parameter types of the type.
@@ -592,11 +605,21 @@ impl<'gcx> Ty<'gcx> {
         let this = self.peel_refs();
         match this.kind {
             TyKind::Struct(id) => {
-                this.is_recursive(gcx)
-                    || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
+                gcx.struct_abi_static_size(id).is_none() || this.is_recursive(gcx)
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
             _ => this.is_dynamically_sized(),
+        }
+    }
+
+    /// Returns the size of the type's ABI encoding if it is statically encoded, or `None` if it is
+    /// dynamically encoded.
+    pub fn abi_static_size(self, gcx: Gcx<'gcx>) -> Option<U256> {
+        let this = self.peel_refs();
+        match this.kind {
+            TyKind::Struct(id) => gcx.struct_abi_static_size(id),
+            TyKind::Array(element, len) => Some(len.saturating_mul(element.abi_static_size(gcx)?)),
+            _ => (!this.is_dynamically_sized()).then(|| U256::from(32)),
         }
     }
 
@@ -811,27 +834,27 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
-            (IntLiteral(neg, size, _), Elementary(UInt(target_size))) => {
+            (IntLiteral(neg, bits, _), Elementary(UInt(target_size))) => {
                 // Unsigned: reject negative, check size fits
                 if neg {
                     Result::Err(TyConvertError::Incompatible)
-                } else if size.bits() <= target_size.bits() {
+                } else if bits <= target_size.bits() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::Incompatible)
                 }
             }
-            (IntLiteral(neg, size, _), Elementary(Int(target_size))) => {
+            (IntLiteral(neg, bits, _), Elementary(Int(target_size))) => {
                 // Signed: non-negative values need strict inequality since they use the
                 // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
                 // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
                 if neg {
-                    if size.bits() <= target_size.bits() {
+                    if bits <= target_size.bits() {
                         Ok(())
                     } else {
                         Result::Err(TyConvertError::Incompatible)
                     }
-                } else if size.bits() < target_size.bits() {
+                } else if bits < target_size.bits() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::Incompatible)
@@ -1018,9 +1041,7 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals -> address.
             (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(Address(_))) => Ok(()),
-            (IntLiteral(false, size, _), Elementary(Address(false))) if size.bits() <= 160 => {
-                Ok(())
-            }
+            (IntLiteral(false, bits, _), Elementary(Address(false))) if bits <= 160 => Ok(()),
 
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
@@ -1156,8 +1177,10 @@ impl<'gcx> Ty<'gcx> {
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
             TyKind::CallOptions(_) => return None,
-            TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
-            TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
+            TyKind::IntLiteral(neg, bits, _) => {
+                let size = TypeSize::try_new_literal_bits(bits)?;
+                if neg { gcx.types.int_(size) } else { gcx.types.uint_(size) }
+            }
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
             TyKind::Slice(ty)
                 if ty.data_stored_in(DataLocation::Calldata)
@@ -1257,7 +1280,10 @@ pub enum TyKind<'gcx> {
 
     /// Any integer or fixed-point number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
-    IntLiteral(bool, TypeSize, Option<TypeSize>),
+    ///
+    /// Literal arithmetic is exact, so the minimum bits can exceed 256. Such literals have no
+    /// mobile type and do not convert to any integer type.
+    IntLiteral(bool, u16, Option<TypeSize>),
 
     /// An ephemeral function value with call options.
     CallOptions(Ty<'gcx>),

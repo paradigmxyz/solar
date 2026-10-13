@@ -123,7 +123,8 @@ error: this ends a call to the receive function with raw bytes, which only the f
    │
 LL │ …     Calls.forward(msg.sender, 0, msg.data);
    │       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ╰╴
+   │
+   ╰ note: the call reaches this through `Checked.receive` → `Checked._forwardReceive`
 note: the receive function is declared here
    ╭▸ ROOT/tests/ui/typeck/core_call_exits.sol:LL:CC
    │

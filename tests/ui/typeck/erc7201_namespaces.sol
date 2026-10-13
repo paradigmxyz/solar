@@ -26,6 +26,15 @@ contract Token {
         }
     }
 
+    bytes32 private constant WRONG_HEX_LOCATION =
+        hex"52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace01";
+
+    function _wrongHex() private pure returns (ERC20Storage storage $) {
+        assembly {
+            $.slot := WRONG_HEX_LOCATION //~ ERROR: this is not the storage location of ERC-7201 namespace `openzeppelin.storage.ERC20`
+        }
+    }
+
     function _literal() private pure returns (ERC20Storage storage $) {
         assembly {
             $.slot := 0 //~ ERROR: this is not the storage location of ERC-7201 namespace `openzeppelin.storage.ERC20`

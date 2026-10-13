@@ -22,6 +22,18 @@ LL │     /// @custom:solar-safe
    │
    ╰ help: put it on the contract whose code must be free of assembly and unchecked arithmetic
 
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     uint256 internal constant K = wrapped(0);
+   ╰╴                                  ━━━━━━━━━━
+
+error[8349]: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     uint256 internal constant VALUE = _value();
+   ╰╴                                      ━━━━━━━━
+
 error: `Safe` is tagged `@custom:solar-safe` but runs an `unchecked` block
    ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
    │
@@ -310,5 +322,5 @@ LL │ /// @custom:solar-safe
    ├ note: it runs this through `ReviewedConstant.run` → `SafeConstantOverride._value`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
-error: aborting due to 24 previous errors
+error: aborting due to 26 previous errors
 

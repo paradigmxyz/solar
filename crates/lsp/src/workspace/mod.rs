@@ -132,6 +132,8 @@ pub(crate) struct Workspace {
     source_watch_roots: Vec<SourceWatchRoot>,
     flycheck_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
+    /// Approved dependency roots whose local Foundry config was consulted for remappings.
+    dependency_config_roots: Vec<PathBuf>,
     source_files: Vec<PathBuf>,
     /// Whether the latest source traversal saw every source path under its indexing boundary.
     source_files_complete: bool,
@@ -202,6 +204,7 @@ impl Workspace {
             source_watch_roots: Vec::new(),
             flycheck_watch_roots: Vec::new(),
             git_marker_watch_roots: Vec::new(),
+            dependency_config_roots: Vec::new(),
             source_files: Vec::new(),
             source_files_complete: true,
             flycheck_source_roots: Vec::new(),
@@ -231,6 +234,10 @@ impl Workspace {
 
     pub(crate) fn git_marker_watch_roots(&self) -> &[PathBuf] {
         &self.git_marker_watch_roots
+    }
+
+    pub(crate) fn dependency_config_roots(&self) -> &[PathBuf] {
+        &self.dependency_config_roots
     }
 
     pub(crate) fn import_source_roots(&self) -> &[PathBuf] {
@@ -523,6 +530,7 @@ impl Workspace {
             .workspace_config(&root)
             .map_err(|error| WorkspaceError::HostConfig { root: root.clone(), error })?;
         let implicit_project_root = host_config.is_none();
+        let mut dependency_config_roots = Vec::new();
         let (source_roots, flycheck_source_roots, include_paths, import_remappings, evm_version) =
             if let Some(config) = host_config {
                 (
@@ -540,8 +548,11 @@ impl Workspace {
                     .into_iter()
                     .map(|path| path.normalize())
                     .collect::<Vec<_>>();
-                let import_remappings =
-                    profile.remappings_with_include_paths(&root, &include_paths);
+                let import_remappings = profile.remappings_with_include_paths(
+                    &root,
+                    &include_paths,
+                    &mut dependency_config_roots,
+                );
                 let flycheck_source_roots = profile.build_source_roots(&root);
                 // Index the project independently of the build's entry-point directories.
                 // Keep explicit roots for external sources and exclusion overrides.
@@ -562,6 +573,9 @@ impl Workspace {
             flycheck_source_roots.into_iter().filter(|path| approved(path)).collect();
         let index_import_only_roots =
             include_paths.iter().filter(|path| approved(path)).cloned().collect::<Vec<_>>();
+        dependency_config_roots.retain(|path| approved(path));
+        dependency_config_roots.sort_unstable();
+        dependency_config_roots.dedup();
         let mut compile_opts = CompileOpts {
             base_path: Some(root),
             include_paths,
@@ -576,6 +590,7 @@ impl Workspace {
             kind: WorkspaceKind::Foundry,
             implicit_project_root,
             index_import_only_roots,
+            dependency_config_roots,
             source_roots,
             flycheck_source_roots,
             compile_opts,

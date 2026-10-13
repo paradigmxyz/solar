@@ -1,0 +1,122 @@
+error[6052]: function name `g` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function g() {}
+   │                      ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function g() {}
+   ╰╴                     ━
+
+error[6052]: function name `h` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function h(a) -> b {}
+   │                      ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function h() {}
+   ╰╴                     ━
+
+error[1395]: variable name `k` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let k := 1
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function k() {}
+   ╰╴                     ━
+
+error[1395]: variable name `g` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let g := 2
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function g() {}
+   ╰╴                     ━
+
+error[1395]: variable name `x` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let x := 2
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let x := 1
+   ╰╴                ━
+
+error[1395]: variable name `a` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let a, a := 0
+   │                    ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let a, a := 0
+   ╰╴                ━
+
+error[1395]: variable name `x` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let x, x := f()
+   │                    ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             let x, x := f()
+   ╰╴                ━
+
+error[1395]: variable name `a` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function p(a, a) {}
+   │                           ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function p(a, a) {}
+   ╰╴                       ━
+
+error[1395]: variable name `b` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function q(b) -> b {}
+   │                              ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function q(b) -> b {}
+   ╰╴                       ━
+
+error[1395]: variable name `c` already taken in this scope
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function r() -> c, c {}
+   │                                ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/yul_lowering/name_clashes.sol:LL:CC
+   │
+LL │             function r() -> c, c {}
+   ╰╴                            ━
+
+error: aborting due to 10 previous errors
+

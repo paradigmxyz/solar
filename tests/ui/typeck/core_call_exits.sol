@@ -82,6 +82,10 @@ contract Checked {
     }
 
     receive() external payable {
+        _forwardReceive();
+    }
+
+    function _forwardReceive() private {
         Calls.forward(msg.sender, 0, msg.data); //~ ERROR: this ends a call to the receive function with raw bytes, which only the fallback function returns
     }
 

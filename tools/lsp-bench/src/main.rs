@@ -6,6 +6,9 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 
+#[cfg(test)]
+use digest_io as _;
+
 mod config;
 mod fixture;
 mod lifecycle;

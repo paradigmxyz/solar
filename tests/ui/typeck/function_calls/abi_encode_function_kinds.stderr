@@ -1,0 +1,14 @@
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_kinds.sol:LL:CC
+   │
+LL │         abi.encode(new D);
+   ╰╴                   ━━━━━ found `function () returns (contract D)`
+
+error[2056]: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_function_kinds.sol:LL:CC
+   │
+LL │         abi.encode(L.pub);
+   ╰╴                   ━━━━━ found `function (uint256) pure`
+
+error: aborting due to 2 previous errors
+
