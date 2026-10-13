@@ -101,6 +101,7 @@ pub(crate) fn run_pipeline(
     let ControlFlow::Continue(()) = compiler.analysis()? else {
         return Ok(ControlFlow::Break(()));
     };
+    sess.dcx.has_errors()?;
 
     let needs_codegen = sess.opts.emit.iter().any(|e| e.is_codegen())
         || sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.needs_codegen());
