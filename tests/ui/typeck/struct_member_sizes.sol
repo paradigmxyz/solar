@@ -12,6 +12,14 @@ contract C {
         T t;
         uint256 x;
     }
+    struct Inner {
+        uint256[67108864] values;
+        bytes data;
+    }
+    struct Pair {
+        Inner a;
+        Inner b;
+    }
     struct Many {
         uint256 a;
         uint256 b;
@@ -23,8 +31,9 @@ contract C {
         abi.decode(data, (S)); //~ ERROR: type too large to ABI-decode
         abi.decode(data, (S[2])); //~ ERROR: type too large to ABI-decode
         abi.decode(data, (T[3])); //~ ERROR: type too large to ABI-decode
-        abi.decode(data, (T)); //~ ERROR: type too large to ABI-decode
-        abi.decode(data, (U)); //~ ERROR: type too large to ABI-decode
+        abi.decode(data, (T)); //~ ERROR: type too large for memory
+        abi.decode(data, (U)); //~ ERROR: type too large for memory
+        abi.decode(data, (Pair));
     }
 
     function mem() public pure {

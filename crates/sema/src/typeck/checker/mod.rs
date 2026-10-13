@@ -2353,6 +2353,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
+            if let Err(guar) = self.check_location_size(ty, type_expr.span, error_code!(6118)) {
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
             let msg = "type too large to ABI-decode";
             if let Err(guar) =
                 self.check_abi_heads(ty, type_expr.span, msg, Some(error_code!(6118)))
@@ -3013,13 +3017,8 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks a variable's type against the size limit of its location and, when it crosses the
     /// ABI, each head of its encoding.
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
-        if let Some(loc) = self.ty_exceeded_location(ty) {
-            self.dcx()
-                .err(format!("type too large for {loc}"))
-                .code(error_code!(1534))
-                .span(var.ty.span)
-                .emit();
-        } else if !self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty())
+        if self.check_location_size(ty, var.ty.span, error_code!(1534)).is_ok()
+            && !self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty())
             && self.crosses_abi(var, ty)
         {
             self.abi_heads_error(
@@ -3030,11 +3029,24 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Returns the location of a memory or calldata type whose static arrays exceed its 32-bit
-    /// size limit.
-    fn ty_exceeded_location(&self, ty: Ty<'gcx>) -> Option<DataLocation> {
-        let loc @ (DataLocation::Memory | DataLocation::Calldata) = ty.loc()? else { return None };
-        (!self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())).then_some(loc)
+    /// Checks a memory or calldata type against the 32-bit size limit of its location.
+    fn check_location_size(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
+            && !self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())
+        {
+            return Err(self
+                .dcx()
+                .err(format!("type too large for {loc}"))
+                .code(code)
+                .span(span)
+                .emit());
+        }
+        Ok(())
     }
 
     /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`, as
