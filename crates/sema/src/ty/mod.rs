@@ -14,7 +14,7 @@ use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::or_list,
-    map::{FxBuildHasher, FxHashMap, FxHashSet},
+    map::{FxBuildHasher, FxHashMap, FxHashSet, StdEntry},
     smallvec::SmallVec,
     trustme,
 };
@@ -1934,19 +1934,54 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     use solar_data_structures::cycle::*;
 
-    type Cx<'gcx> = (Gcx<'gcx>, bool);
+    /// Returns `true` if a cycle is reachable from `id` through any struct reference.
+    ///
+    /// Walks with an explicit stack, since the chain through dynamic arrays and mappings has no
+    /// depth limit.
+    ///
+    /// NOTE: Each struct walks everything it reaches, so a long chain costs quadratic time. One
+    /// SCC pass over all structs would make this linear.
+    fn reaches_cycle(gcx: Gcx<'_>, id: hir::StructId) -> bool {
+        let referenced = |id| {
+            let mut ids = SmallVec::<[hir::StructId; 4]>::new();
+            for &field_id in gcx.hir.strukt(id).fields {
+                let _ = gcx.hir.variable(field_id).ty.visit(&gcx.hir, &mut |ty| {
+                    if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
+                        ids.push(other);
+                    }
+                    ControlFlow::<()>::Continue(())
+                });
+            }
+            ids.into_iter()
+        };
+        // `true` while the struct is on the stack, `false` once it is done.
+        let mut on_stack = FxHashMap::from_iter([(id, true)]);
+        let mut stack = vec![(id, referenced(id))];
+        while let Some((_, ids)) = stack.last_mut() {
+            let Some(other) = ids.next() else {
+                let (id, _) = stack.pop().unwrap();
+                on_stack.insert(id, false);
+                continue;
+            };
+            match on_stack.entry(other) {
+                StdEntry::Occupied(entry) if *entry.get() => return true,
+                StdEntry::Occupied(_) => {}
+                StdEntry::Vacant(entry) => {
+                    entry.insert(true);
+                    stack.push((other, referenced(other)));
+                }
+            }
+        }
+        false
+    }
 
-    /// Follows the struct references in the fields of `id`. With `direct`, follows only the
-    /// references that are not behind a dynamic array, mapping, or function type, and limits the
-    /// depth, like solc.
-    fn visit<'gcx>(
-        (gcx, direct): Cx<'gcx>,
-        cd: &mut CycleDetector<Cx<'gcx>, hir::StructId, ErrorGuaranteed>,
-        id: hir::StructId,
-    ) -> CycleDetectorResult<ErrorGuaranteed, hir::StructId> {
+    // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists,
+    // so look for direct cycles first. Direct references skip only fixed-size arrays, and the
+    // walk is limited in depth, like solc.
+    let r = CycleDetector::detect(gcx, id, |gcx, cd, id| {
         let s = gcx.hir.strukt(id);
 
-        if direct && cd.depth() >= 256 {
+        if cd.depth() >= 256 {
             let guar = gcx
                 .dcx()
                 .err("struct is too deeply nested")
@@ -1957,36 +1992,22 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         }
 
         for &field_id in s.fields {
-            let field = gcx.hir.variable(field_id);
-            let mut check = |ty: &hir::Type<'_>| match ty.kind {
-                hir::TypeKind::Custom(hir::ItemId::Struct(other)) => cd.run(other),
-                _ => CycleDetectorResult::Continue,
-            };
-            if direct {
-                let mut ty = &field.ty;
-                while let hir::TypeKind::Array(array) = ty.kind
-                    && array.size.is_some()
-                {
-                    ty = &array.element;
-                }
-                cdr_try!(check(ty));
-            } else if let ControlFlow::Break(r) =
-                field.ty.visit(&gcx.hir, &mut |ty| check(ty).to_controlflow())
+            let mut ty = &gcx.hir.variable(field_id).ty;
+            while let hir::TypeKind::Array(array) = ty.kind
+                && array.size.is_some()
             {
-                return r;
+                ty = &array.element;
+            }
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
+                cdr_try!(cd.run(other));
             }
         }
 
         CycleDetectorResult::Continue
-    }
-
-    // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists,
-    // so look for direct cycles before any cycle.
-    match CycleDetector::detect((gcx, true), id, visit) {
-        CycleDetectorResult::Continue => match CycleDetector::detect((gcx, false), id, visit) {
-            CycleDetectorResult::Continue => Recursiveness::None,
-            _ => Recursiveness::Recursive,
-        },
+    });
+    match r {
+        CycleDetectorResult::Continue if reaches_cycle(gcx, id) => Recursiveness::Recursive,
+        CycleDetectorResult::Continue => Recursiveness::None,
         CycleDetectorResult::Break(guar) => Recursiveness::Infinite(guar),
         // Report at `id`, like solc, so that each struct reports at most once.
         CycleDetectorResult::Cycle(_) => Recursiveness::Infinite(
