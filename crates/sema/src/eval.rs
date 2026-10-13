@@ -3,6 +3,7 @@ use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, LitKind, StrKind, TypeSize};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
@@ -93,11 +94,12 @@ impl<'gcx> Gcx<'gcx> {
     /// Evaluates the given expression like solc's constant evaluator, without caching the result
     /// or emitting diagnostics.
     ///
-    /// Unlike [`try_eval_const_value`](Self::try_eval_const_value), this does not fold
-    /// conditionals. Checks that solc runs on constant operands use it to report the same code.
+    /// Unlike [`try_eval_const_value`](Self::try_eval_const_value), this gives no value to the
+    /// expressions solc's evaluator gives no value or a different one, see
+    /// `ConstantEvaluator::like_solc`. Checks that solc runs on constant operands use it to
+    /// report the same code.
     pub(crate) fn try_eval_solc_const(self, expr: &hir::Expr<'_>) -> EvalResult {
-        ConstantEvaluator { fold_ternaries: false, ..ConstantEvaluator::new(self) }
-            .try_eval_value(expr)
+        ConstantEvaluator { like_solc: true, ..ConstantEvaluator::new(self) }.try_eval_value(expr)
     }
 }
 
@@ -113,15 +115,20 @@ pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
 struct ConstantEvaluator<'gcx> {
     gcx: Gcx<'gcx>,
     depth: usize,
-    /// Whether to fold conditionals, which solc's constant evaluator does not.
-    fold_ternaries: bool,
+    /// Whether to evaluate like solc's constant evaluator, which does not fold conditionals,
+    /// gives no value to shifts by more than `u32::MAX` bits, and keeps the exact fraction of a
+    /// literal division, which we do not model.
+    like_solc: bool,
+    /// The values of the constant variables evaluated so far, so that a constant used several
+    /// times is evaluated once.
+    constants: FxHashMap<hir::VariableId, ConstValue>,
 }
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, depth: 0, fold_ternaries: true }
+        Self { gcx, depth: 0, like_solc: false, constants: FxHashMap::default() }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -147,31 +154,44 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             hir::ExprKind::Binary(l, bin_op, r) => {
                 let l = self.try_eval_value(l)?;
                 let r = self.try_eval_value(r)?;
+                if self.like_solc
+                    && let (ConstValue::Integer(l), ConstValue::Integer(r)) = (&l, &r)
+                {
+                    l.check_solc_binop(r, bin_op.kind)?;
+                }
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
             hir::ExprKind::Call(callee, ref args) => self.eval_call(callee, args),
             // hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(res) => {
                 // Ignore invalid overloads since they will get correctly detected later.
-                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
+                let Some(id) = res.iter().find_map(|res| res.as_variable()) else {
                     return Err(EE::NonConstantVar.into());
                 };
+                if let Some(value) = self.constants.get(&id) {
+                    return Ok(value.clone());
+                }
 
-                let v = self.gcx.hir.variable(v);
+                let v = self.gcx.hir.variable(id);
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                let value = self
-                    .try_eval_value(v.initializer.expect("constant variable has no initializer"))?;
+                // The parser already reports a constant without an initializer.
+                let Some(init) = v.initializer else {
+                    self.gcx.dcx().has_errors().map_err(EE::AlreadyEmitted)?;
+                    return Err(EE::UnsupportedExpr.into());
+                };
                 // The constant's declared type carries over into the surrounding expression, so
                 // arithmetic on it is checked against that type instead of widening to the
                 // mathematical result.
-                Ok(match value {
+                let value = match self.try_eval_value(init)? {
                     ConstValue::Integer(value) => {
                         ConstValue::Integer(value.typed(IntTy::from_hir_ty(&v.ty)))
                     }
                     value => value,
-                })
+                };
+                self.constants.insert(id, value.clone());
+                Ok(value)
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
@@ -179,7 +199,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
-            hir::ExprKind::Ternary(cond, t, f) if self.fold_ternaries => {
+            hir::ExprKind::Ternary(cond, t, f) if !self.like_solc => {
                 let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
                     return Err(EE::UnsupportedExpr.into());
                 };
@@ -227,7 +247,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
 }
 
 /// A typed Solidity constant value.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ConstValue {
     /// Integer-like constant value.
     Integer(IntScalar),
@@ -389,7 +409,7 @@ impl IntTy {
 }
 
 /// Represents an integer value for constant evaluation.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct IntScalar {
     data: BigInt,
     /// The declared type the value was computed in, if it came from a typed constant.
@@ -696,6 +716,24 @@ impl IntScalar {
         }
         let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Self::checked(self.data.pow(exp))
+    }
+
+    /// Rejects an operation that solc's constant evaluator gives no value or a different one: a
+    /// shift by more than `u32::MAX` bits, and a division of two literals with a fractional
+    /// result, which solc keeps exact where we truncate it.
+    fn check_solc_binop(&self, r: &Self, op: hir::BinOpKind) -> Result<(), EE> {
+        use hir::BinOpKind::*;
+        match op {
+            Shl | Shr if u32::try_from(&r.data).is_err() => Err(EE::ArithmeticOverflow),
+            Div if self.ty.is_none()
+                && r.ty.is_none()
+                && !r.is_zero()
+                && !(&self.data % &r.data).is_zero() =>
+            {
+                Err(EE::UnsupportedLiteral)
+            }
+            _ => Ok(()),
+        }
     }
 }
 
