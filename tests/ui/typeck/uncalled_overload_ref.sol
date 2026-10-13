@@ -12,9 +12,13 @@ contract C {
         c ? require : require; //~ ERROR: no matching declarations found
         //~^ ERROR: no matching declarations found
         require.selector; //~ ERROR: no matching declarations found
+        delete require; //~ ERROR: no matching declarations found
         g; //~ ERROR: no matching declarations found
+        assembly {
+            let y := require //~ ERROR: multiple matching identifiers
+        }
 
-        // Not overloaded.
+        // Calls and references to non-overloaded builtins.
         assert;
         require(c);
         require(c, "message");

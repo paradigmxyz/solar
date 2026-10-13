@@ -43,8 +43,20 @@ LL │         require.selector;
 error[2144]: no matching declarations found
    ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
    │
+LL │         delete require;
+   ╰╴               ━━━━━━━
+
+error[2144]: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
 LL │         g;
    ╰╴        ━
 
-error: aborting due to 8 previous errors
+error[4718]: multiple matching identifiers
+   ╭▸ ROOT/tests/ui/typeck/uncalled_overload_ref.sol:LL:CC
+   │
+LL │             let y := require
+   ╰╴                     ━━━━━━━
+
+error: aborting due to 10 previous errors
 
