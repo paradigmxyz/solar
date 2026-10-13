@@ -14,7 +14,7 @@ LL │         uint[(1 / 0) + 1] memory a;
    │              │
    ╰╴             evaluation of constant value failed here
 
-error: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
    │
 LL │     function g(uint[true ? 1 : 1 / 0] memory) public {}
@@ -24,7 +24,7 @@ LL │     function g(uint[true ? 1 : 1 / 0] memory) public {}
    │
    ╰ note: attempted to divide by zero
 
-error: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
    │
 LL │         uint[true ? 1 : 1 / 0] memory b;

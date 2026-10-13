@@ -167,7 +167,7 @@ error: failed to evaluate constant: arithmetic overflow
 LL │     uint[bigLiteral + 1] public tooBig1;
    ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │ uint constant fails = 0 / 0;

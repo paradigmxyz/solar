@@ -1,4 +1,4 @@
-error: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/fractional_literal_operands.sol:LL:CC
    │
 LL │         return 1 / (2 / 2 - 1);
@@ -8,7 +8,7 @@ LL │         return 1 / (2 / 2 - 1);
    │
    ╰ note: attempted to divide by zero
 
-error: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/fractional_literal_operands.sol:LL:CC
    │
 LL │         return (1 / 2 + 1) / 0;

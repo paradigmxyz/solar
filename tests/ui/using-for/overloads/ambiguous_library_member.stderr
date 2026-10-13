@@ -1,4 +1,4 @@
-error: member `pick` not unique on type `uint256`
+error[6675]: member `pick` not unique on type `uint256`
    ╭▸ ROOT/tests/ui/using-for/overloads/ambiguous_library_member.sol:LL:CC
    │
 LL │         x.pick(1);
