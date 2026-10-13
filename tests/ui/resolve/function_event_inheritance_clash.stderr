@@ -1,0 +1,14 @@
+error[9097]: identifier `dup` already declared
+   ╭▸ ROOT/tests/ui/resolve/function_event_inheritance_clash.sol:LL:CC
+   │
+LL │     function dup() public returns (uint) {
+   │              ━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/function_event_inheritance_clash.sol:LL:CC
+   │
+LL │     event dup();
+   ╰╴          ━━━
+
+error: aborting due to 1 previous error
+
