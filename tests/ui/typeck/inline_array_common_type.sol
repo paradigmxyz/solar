@@ -29,3 +29,14 @@ contract C {
         f;
     }
 }
+
+contract Base {
+    constructor(int256[2] memory a) {}
+}
+
+// Positional base constructor arguments are seeded, but named ones are not.
+contract NamedSpecifier is Base({a: [100, int256(-100)]}) {} //~ ERROR: cannot infer array element type
+
+contract NamedHeader is Base {
+    constructor() Base({a: [100, int256(-100)]}) {} //~ ERROR: cannot infer array element type
+}

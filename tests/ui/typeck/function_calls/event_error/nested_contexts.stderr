@@ -68,17 +68,23 @@ error: event invocations have to be prefixed by `emit`
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                              ━━━━━━━━━━━━
 
+error[5604]: array component cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
+   │
+LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
+   ╰╴                              ━━━━━━━━━━━━
+
 error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                                            ━━━━━━━━━━━━
 
-error[6378]: cannot infer array element type
+error[5604]: array component cannot be empty
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
-   ╰╴                             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴                                            ━━━━━━━━━━━━
 
 error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
@@ -156,5 +162,5 @@ LL │         uint x = EmptyEvent() + EmptyEvent();
    │                  │
    ╰╴                 tuple()
 
-error: aborting due to 25 previous errors
+error: aborting due to 26 previous errors
 

@@ -72,7 +72,7 @@ LL │         [(uint256(1), uint256(2)), (uint256(3), uint256(4))];
    │
    ╰ help: add an explicit type conversion for the first element
 
-error: type `mapping(int256 => int256) storage` is only valid in storage because it contains a (nested) mapping
+error[1545]: type `mapping(int256 => int256) storage` is only valid in storage because it contains a (nested) mapping
    ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
    │
 LL │         [mappingArrElement];

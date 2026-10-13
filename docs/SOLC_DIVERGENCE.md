@@ -258,9 +258,12 @@ all of them and stores the widened values. A copy into storage, such as
 storage copy converts element-wise. The seed also gives a common type to
 elements that have none of their own: `solar` accepts
 `int256[3] memory a = [100, 0, int256(-100)];`, where `solc` reports error 6378
-because `uint8` and `int256` have no common type. Literals without a
-destination type, such as function arguments and `abi.encode` operands, keep
-`solc`'s rule.
+because `uint8` and `int256` have no common type. Positional base constructor
+arguments are seeded too, in an inheritance specifier such as
+`contract E is B([100, int256(-100)])` and in a constructor header, and so is
+the empty literal: `s = [];` clears a `uint256[]` storage array, where `solc`
+reports error 6378. Named base constructor arguments, function call arguments
+and `abi.encode` operands are not seeded and keep `solc`'s rule.
 
 Rationale: we deliberately support this extended form. The seed gives a
 literal the element type of its destination, which is how a nested literal

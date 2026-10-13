@@ -330,6 +330,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         guar.get_or_insert(g);
                         continue;
                     }
+                    if expr_ty.is_unit() {
+                        let g = self
+                            .dcx()
+                            .err("array component cannot be empty")
+                            .code(error_code!(5604))
+                            .span(expr.span)
+                            .emit();
+                        guar.get_or_insert(g);
+                        continue;
+                    }
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
@@ -364,7 +374,9 @@ impl<'gcx> TypeChecker<'gcx> {
                             "type `{}` is only valid in storage because it contains a (nested) mapping",
                             common.display(self.gcx),
                         );
-                        self.gcx.mk_ty_err(self.dcx().emit_err(expr.span, msg))
+                        self.gcx.mk_ty_err(
+                            self.dcx().err(msg).code(error_code!(1545)).span(expr.span).emit(),
+                        )
                     } else if !common.nameable() {
                         self.gcx.mk_ty_err(
                             self.dcx()

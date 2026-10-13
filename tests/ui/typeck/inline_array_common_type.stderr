@@ -64,5 +64,17 @@ error[6378]: cannot infer array element type
 LL │         int256[2][2] memory f = [[1, -1], [uint256(1), 0]];
    ╰╴                                ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 11 previous errors
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │ contract NamedSpecifier is Base({a: [100, int256(-100)]}) {}
+   ╰╴                                    ━━━━━━━━━━━━━━━━━━━
+
+error[6378]: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/inline_array_common_type.sol:LL:CC
+   │
+LL │     constructor() Base({a: [100, int256(-100)]}) {}
+   ╰╴                           ━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 13 previous errors
 
