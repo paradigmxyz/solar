@@ -35,9 +35,9 @@ contract InlineArrayMixedElements {
     uint256[] s;
 
     // CHECK-LABEL: fn @signed(
-    // CHECK: memory_object_store_element {{.*}}, 0, 100
-    // CHECK: memory_object_store_element {{.*}}, 1, 0
-    // CHECK: memory_object_store_element {{.*}}, 2, 0xff{{f+}}9c
+    // CHECK: store v{{[0-9]+}}, 100
+    // CHECK: store v{{[0-9]+}}+32, 0
+    // CHECK: store v{{[0-9]+}}+64, 0xff{{f+}}9c
     function signed() external pure returns (int256[3] memory) {
         return [100, 0, int256(-100)];
     }
@@ -50,8 +50,8 @@ contract InlineArrayMixedElements {
     }
 
     // CHECK-LABEL: fn @nested(
-    // CHECK: memory_object_store_element {{.*}}, 1, 0x{{f+}}{{$}}
-    // CHECK: memory_object_store_element {{.*}}, 0, 0xff{{f+}}9c
+    // CHECK: store v{{[0-9]+}}+32, 0x{{f+}}{{$}}
+    // CHECK: store v{{[0-9]+}}, 0xff{{f+}}9c
     function nested() external pure returns (int256[2][2] memory) {
         int256[2][2] memory a = [[1, -1], [int256(-100), 0]];
         return a;
