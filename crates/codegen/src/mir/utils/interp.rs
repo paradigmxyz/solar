@@ -1,15 +1,12 @@
 //! Concrete execution of word-level lowered MIR.
 //!
-//! [`Machine::run`] executes one function of a lowered module on concrete arguments and memory,
-//! following internal calls into the rest of the module, and reports how the run ended. With a
-//! [`Host`], the run also reads and writes persistent and transient storage, logs events, and
-//! reads the context values the host answers, and reports what it wrote and logged. It is a
-//! testing oracle, not part of code generation.
-//!
-//! [`Machine::transact`] executes a whole transaction instead: the module's dispatch entry on
+//! [`Machine::transact`] executes a whole transaction of a lowered module: its dispatch entry on
 //! calldata, with zeroed memory and a [`Host`] answering what the contract reads from its context,
-//! such as the caller or a storage slot's value before the transaction. The UI test runner checks
-//! it against an EVM running the compiled bytecode.
+//! such as the caller or a storage slot's value before the transaction. The run reads and writes
+//! persistent and transient storage and logs events, and reports how it ended and what it wrote
+//! and logged. It is a testing oracle, not part of code generation: the UI test runner checks it
+//! against an EVM running the compiled bytecode. The unit tests below also run single functions
+//! on concrete arguments and memory.
 //!
 //! # Model
 //!
