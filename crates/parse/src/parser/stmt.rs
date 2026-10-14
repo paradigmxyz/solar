@@ -252,12 +252,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 variables.extend(none_elements.into_iter().map(SpannedOption::None));
                 let ty = iap.into_ty(self);
                 variables.push(SpannedOption::Some(
-                    self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?,
+                    self.parse_variable_definition_with(VarFlags::VAR_TUPLE, ty)?,
                 ));
                 self.parse_optional_items_seq_required(
                     Delimiter::Parenthesis,
                     &mut variables,
-                    |this| this.parse_variable_definition(VarFlags::FUNCTION),
+                    |this| this.parse_variable_definition(VarFlags::VAR_TUPLE),
                 )?;
                 self.expect(TokenKind::Eq)?;
                 let expr = self.parse_expr()?;
