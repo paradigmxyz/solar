@@ -52,7 +52,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
     /// Contracts whose bytecode this contract embeds.
-    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
+    pub(super) bytecode_dependencies: &'ctx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) state: &'ctx mut LoweringState,
@@ -322,6 +322,21 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
+    YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
+}
+
+/// A Yul suffix on a variable, such as `x.offset` or `x.slot`.
+///
+/// Loads and stores read the variable when they run, so later writes see
+/// earlier ones in a multi-assignment.
+#[derive(Clone, Copy)]
+enum YulSuffix {
+    CalldataOffset,
+    CalldataLength,
+    FunctionAddress,
+    FunctionSelector,
+    StorageSlot,
+    StorageOffset,
 }
 
 #[derive(Clone, Copy)]
@@ -891,9 +906,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
-                    let Some(access) = self.storage_access(rhs) else {
-                        return self.cx.report_unsupported(rhs.span, "storage access");
-                    };
+                    let access = self.require_storage_access(rhs)?;
                     let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
                         return self.cx.report_unsupported(lhs.span, "storage reference target");
                     };
@@ -969,7 +982,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values),
             ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
-            ExprKind::YulMember(receiver, name) => self.lower_yul_member(expr, receiver, *name),
+            ExprKind::YulMember(..) => {
+                let place = self.resolve_lvalue_place(expr)?;
+                self.load_lvalue_place(&place)
+            }
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
