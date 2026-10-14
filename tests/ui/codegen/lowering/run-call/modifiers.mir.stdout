@@ -27,9 +27,7 @@ fn @literalString() -> ptr<memory> [selector=0x660cf51a, pure, abi_params=[], ab
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 3
-    v2 = ptrtoint ptr<memory> v1 to i256
-    v3 = add v2, 32
-    store v3, 0x6162630000000000000000000000000000000000000000000000000000000000
+    store v1+32, 0x6162630000000000000000000000000000000000000000000000000000000000
     jump bb2
   bb2:
     jump bb1
@@ -58,25 +56,26 @@ fn @calldataBytes(arg0: slice<calldata>) -> ptr<memory> [selector=0x7965815f, pu
     v4 = gt v2, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v4
     v5 = sub v3, v2
-    v6 = sgt v1, v5
-    icall revert_if<calldata_tail_too_short>, v6
-    v7 = extract_value slice<calldata>, arg0, 1
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc v11
-    store v12, v7
-    v13 = ptradd v12, 32
-    v14 = extract_value slice<calldata>, arg0, 0
-    v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    v6 = ptrtoint ptr<calldata> v1 to i256
+    v7 = sgt v6, v5
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    icall panic_if<0x41>, v10
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc v12
+    store v13, v8
+    v14 = ptradd v13, 32
+    v15 = extract_value slice<calldata>, arg0, 0
+    v16 = extract_value slice<calldata>, arg0, 1
+    copy calldata v14, v15, v16
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v12
+    ret v13
 }
 
 fn @inner(arg0: i256) {

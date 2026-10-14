@@ -5,13 +5,12 @@
     bb0:
 -     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
 -     v1 = zext i1 v0 to i256
-+     v2 = ptrtoint ptr<memory> arg1 to i256 !metadata(span=10..20, modifier_depth=2)
-+     v3 = add v2, 32 !metadata(span=10..20, modifier_depth=2)
-+     v4 = load arg1 !metadata(span=10..20, modifier_depth=2)
-+     v5 = gas !metadata(span=10..20, modifier_depth=2)
-+     v6 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
-+     v7 = call v5, v6, 0, v3, v4, 0, 0 !metadata(span=10..20, modifier_depth=2)
-+     v1 = zext i1 v7 to i256
++     v2 = ptradd arg1, 32 !metadata(span=10..20, modifier_depth=2)
++     v3 = load arg1 !metadata(span=10..20, modifier_depth=2)
++     v4 = gas !metadata(span=10..20, modifier_depth=2)
++     v5 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
++     v6 = call v4, v5, 0, v2, v3, 0, 0 !metadata(span=10..20, modifier_depth=2)
++     v1 = zext i1 v6 to i256
       ret v1
   }
   
@@ -20,26 +19,25 @@
 -     v0 = address_call arg0, arg1, gas arg2, value 0
 -     v1 = icall returndata_bytes<> !metadata(span=30..40, modifier_depth=3)
 -     ret v1
-+     v2 = ptrtoint ptr<memory> arg1 to i256
-+     v3 = add v2, 32
-+     v4 = load arg1
-+     v5 = zext i160 arg0 to i256
-+     v6 = call arg2, v5, 0, v3, v4, 0, 0
-+     v7 = returndatasize !metadata(span=30..40, modifier_depth=3)
-+     v8 = add v7, 63 !metadata(span=30..40, modifier_depth=3)
-+     v9 = lt v8, v7 !metadata(span=30..40, modifier_depth=3)
-+     jumpi v9, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
++     v2 = ptradd arg1, 32
++     v3 = load arg1
++     v4 = zext i160 arg0 to i256
++     v5 = call arg2, v4, 0, v2, v3, 0, 0
++     v6 = returndatasize !metadata(span=30..40, modifier_depth=3)
++     v7 = add v6, 63 !metadata(span=30..40, modifier_depth=3)
++     v8 = lt v7, v6 !metadata(span=30..40, modifier_depth=3)
++     jumpi v8, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
 +   bb2:
-+     v10 = not 31 !metadata(span=30..40, modifier_depth=3)
-+     v11 = and v8, v10 !metadata(span=30..40, modifier_depth=3)
-+     v12 = alloc v11 !metadata(span=30..40, modifier_depth=3)
-+     store v12, v7 !metadata(span=30..40, modifier_depth=3)
-+     v13 = make_returndata_slice 0, v7 !metadata(span=30..40, modifier_depth=3)
-+     v14 = ptradd v12, 32 !metadata(span=30..40, modifier_depth=3)
-+     v15 = extract_value slice<returndata>, v13, 0 !metadata(span=30..40, modifier_depth=3)
-+     v16 = extract_value slice<returndata>, v13, 1 !metadata(span=30..40, modifier_depth=3)
-+     copy returndata v14, v15, v16 !metadata(span=30..40, modifier_depth=3)
-+     ret v12
++     v9 = not 31 !metadata(span=30..40, modifier_depth=3)
++     v10 = and v7, v9 !metadata(span=30..40, modifier_depth=3)
++     v11 = alloc v10 !metadata(span=30..40, modifier_depth=3)
++     store v11, v6 !metadata(span=30..40, modifier_depth=3)
++     v12 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
++     v13 = ptradd v11, 32 !metadata(span=30..40, modifier_depth=3)
++     v14 = extract_value slice<returndata>, v12, 0 !metadata(span=30..40, modifier_depth=3)
++     v15 = extract_value slice<returndata>, v12, 1 !metadata(span=30..40, modifier_depth=3)
++     copy returndata v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
++     ret v11
 +   bb1:
 +     store 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     store 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
@@ -50,12 +48,11 @@
     bb0:
 -     v0 = address_delegatecall arg0, arg1, gas 0x186a0
 -     v1 = zext i1 v0 to i256
-+     v2 = ptrtoint ptr<memory> arg1 to i256
-+     v3 = add v2, 32
-+     v4 = load arg1
-+     v5 = zext i160 arg0 to i256
-+     v6 = delegatecall 0x186a0, v5, v3, v4, 0, 0
-+     v1 = zext i1 v6 to i256
++     v2 = ptradd arg1, 32
++     v3 = load arg1
++     v4 = zext i160 arg0 to i256
++     v5 = delegatecall 0x186a0, v4, v2, v3, 0, 0
++     v1 = zext i1 v5 to i256
       ret v1
   }
   
@@ -63,13 +60,12 @@
     bb0:
 -     v0 = address_call arg0, arg1, value 0
 -     v1 = zext i1 v0 to i256
-+     v2 = ptrtoint ptr<memory> arg1 to i256
-+     v3 = add v2, 32
-+     v4 = load arg1
-+     v5 = gas
-+     v6 = zext i160 arg0 to i256
-+     v7 = call v5, v6, 0, v3, v4, 0, 0
-+     v1 = zext i1 v7 to i256
++     v2 = ptradd arg1, 32
++     v3 = load arg1
++     v4 = gas
++     v5 = zext i160 arg0 to i256
++     v6 = call v4, v5, 0, v2, v3, 0, 0
++     v1 = zext i1 v6 to i256
       ret v1
   }
   

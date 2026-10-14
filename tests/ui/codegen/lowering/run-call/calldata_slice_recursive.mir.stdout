@@ -4,7 +4,7 @@ fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt v0, 2
-    v2 = make_calldata_slice 0, 0
+    v2 = make_calldata_slice ptr<calldata> 0, 0
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
@@ -17,7 +17,7 @@ fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v8 = zext i1 v7 to i256
     icall revert_if<empty>, v7
     v9 = sub v4, 1
-    v10 = add v3, 1
+    v10 = ptradd v3, 1
     v11 = make_calldata_slice v10, v9
     v12 = icall @peel, v11
     ret v12

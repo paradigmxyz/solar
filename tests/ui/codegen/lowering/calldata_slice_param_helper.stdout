@@ -3,32 +3,32 @@
 @phase lowered
 fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
   bb0:
-    v9 = icall @decode_calldata_slice
-    v10 = load calldata v9
-    v11 = add v9, 32
-    v2 = sub v10, 32
-    v4 = add v11, v2
-    v5 = load calldata v4
-    store 128, v5
+    v10 = icall @decode_calldata_slice
+    v11 = load calldata v10
+    v12 = add v10, 32
+    v2 = sub v11, 32
+    v5 = add v12, v2
+    v6 = load calldata v5
+    store 128, v6
     returndata 128, 32
 }
 
 fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
   bb0:
-    v26 = icall @decode_calldata_slice
-    v27 = load calldata v26
-    v28 = add v26, 32
-    v13 = sub v27, 32
-    v15 = add v28, v13
-    v16 = load calldata v15
-    v4 = eq v27, 0
+    v28 = icall @decode_calldata_slice
+    v29 = load calldata v28
+    v30 = add v28, 32
+    v13 = sub v29, 32
+    v16 = add v30, v13
+    v17 = load calldata v16
+    v4 = eq v29, 0
     jumpi v4, bb1, bb2
   bb2:
-    v8 = add v28, 1
-    v19 = sub v27, 33
-    v21 = add v8, v19
-    v22 = load calldata v21
-    v11 = xor v16, v22
+    v36 = add v28, 33
+    v20 = sub v29, 33
+    v23 = add v36, v20
+    v24 = load calldata v23
+    v11 = xor v17, v24
     store 128, v11
     returndata 128, 32
   bb1:

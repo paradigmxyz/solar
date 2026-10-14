@@ -3,49 +3,48 @@
 fn @one() -> i256 [selector=0x901717d1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 640 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 640
+    memory_zero v0, 640
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb6: v28]
-    v3 = lt v2, 20
-    jumpi v3, bb2, bb3
+    v1 = phi [bb0: 0], [bb6: v27]
+    v2 = lt v1, 20
+    jumpi v2, bb2, bb3
   bb3:
     ret 3
   bb2:
-    v4 = div v2, 4
-    v5 = add 0, v4
-    v6 = mod v2, 4
-    v7 = mul v6, 8
-    v8 = lt v2, 20
-    jumpi v8, bb4, bb5
+    v3 = div v1, 4
+    v4 = add 0, v3
+    v5 = mod v1, 4
+    v6 = mul v5, 8
+    v7 = lt v1, 20
+    jumpi v7, bb4, bb5
   bb5:
-    v20 = mul v7, 8
-    v21 = shl v20, 0xffffffffffffffff
-    v22 = sload v5 !metadata(storage=symbolic(v4))
-    v23 = not v21
-    v24 = and v22, v23
-    v25 = and 0, 0xffffffffffffffff
-    v26 = shl v20, v25
-    v27 = or v24, v26
-    sstore v5, v27 !metadata(storage=symbolic(v4))
+    v19 = mul v6, 8
+    v20 = shl v19, 0xffffffffffffffff
+    v21 = sload v4 !metadata(storage=symbolic(v3))
+    v22 = not v20
+    v23 = and v21, v22
+    v24 = and 0, 0xffffffffffffffff
+    v25 = shl v19, v24
+    v26 = or v23, v25
+    sstore v4, v26 !metadata(storage=symbolic(v3))
     jump bb6
   bb4:
-    v9 = shl 5, v2
-    v10 = ptradd v0, v9
-    v11 = load v10
-    v12 = mul v7, 8
-    v13 = shl v12, 0xffffffffffffffff
-    v14 = sload v5 !metadata(storage=symbolic(v4))
-    v15 = not v13
-    v16 = and v14, v15
-    v17 = and v11, 0xffffffffffffffff
-    v18 = shl v12, v17
-    v19 = or v16, v18
-    sstore v5, v19 !metadata(storage=symbolic(v4))
+    v8 = shl 5, v1
+    v9 = ptradd v0, v8
+    v10 = load v9
+    v11 = mul v6, 8
+    v12 = shl v11, 0xffffffffffffffff
+    v13 = sload v4 !metadata(storage=symbolic(v3))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = and v10, 0xffffffffffffffff
+    v17 = shl v11, v16
+    v18 = or v15, v17
+    sstore v4, v18 !metadata(storage=symbolic(v3))
     jump bb6
   bb6:
-    v28 = add v2, 1
+    v27 = add v1, 1
     jump bb1
 }
 

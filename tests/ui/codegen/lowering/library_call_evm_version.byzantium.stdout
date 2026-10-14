@@ -22,12 +22,11 @@ fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], a
 fn @arr(arg0: i256) -> ptr<memory> [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 64
-    v2 = alloc 64
-    store v2, arg0
-    store v2+32, arg0
-    ret v2
+    memory_zero v0, 64
+    v1 = alloc 64
+    store v1, arg0
+    store v1+32, arg0
+    ret v1
 }
 
 fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -111,42 +110,41 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v5 = returndatasize
     v6 = lt v5, 64
     icall revert_if<tuple_data_too_short>, v6
-    v7 = add v1, 0
-    v8 = load v7
-    v9 = add v1, 32
-    v10 = load v9
-    v11 = insert_value struct0, undef struct0, 0, v8
-    v12 = insert_value struct0, v11, 1, v10
-    v13 = extract_value struct0, v12, 0
-    v14 = extract_value struct0, v12, 1
-    v15 = insert_value struct0, undef struct0, 0, v13
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v7 = ptrtoint ptr<memory> v1 to i256
+    v8 = add v7, 0
+    v9 = load v8
+    v10 = ptrtoint ptr<memory> v1 to i256
+    v11 = add v10, 32
+    v12 = load v11
+    v13 = insert_value struct0, undef struct0, 0, v9
+    v14 = insert_value struct0, v13, 1, v12
+    v15 = extract_value struct0, v14, 0
+    v16 = extract_value struct0, v14, 1
+    v17 = insert_value struct0, undef struct0, 0, v15
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
 }
 
 fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 64
-    v2 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = gas
-    v6 = alloc 64
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v7, 64
-    jumpi v8, bb2, bb1
+    memory_zero v0, 64
+    v1 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = gas
+    v5 = alloc 64
+    v6 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v5, 64
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 64
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint ptr<memory> v6 to i256
-    v12 = make_memory_slice v11, 64
-    v13 = abi_decode [array<2, u256>], v12
-    ret v13
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = make_memory_slice v5, 64
+    v10 = abi_decode [array<2, u256>], v9
+    ret v10
 }
 
 fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -185,19 +183,17 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
     v3 = extract_value slice<memory>, v1, 1
     v4 = gas
     v5 = alloc 64
-    v6 = ptrtoint ptr<memory> v5 to i256
-    v7 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v6, 64
-    jumpi v7, bb2, bb1
+    v6 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v5, 64
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 64
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = ptrtoint ptr<memory> v5 to i256
-    v11 = make_memory_slice v10, 64
-    v12 = abi_decode [tuple<bool, u256>], v11
-    ret v12
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = make_memory_slice v5, 64
+    v10 = abi_decode [tuple<bool, u256>], v9
+    ret v10
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -233,33 +229,39 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
     v5 = returndatasize
     v6 = lt v5, 192
     icall revert_if<tuple_data_too_short>, v6
-    v7 = add v1, 0
-    v8 = load v7
-    v9 = add v1, 32
-    v10 = load v9
-    v11 = add v1, 64
+    v7 = ptrtoint ptr<memory> v1 to i256
+    v8 = add v7, 0
+    v9 = load v8
+    v10 = ptrtoint ptr<memory> v1 to i256
+    v11 = add v10, 32
     v12 = load v11
-    v13 = add v1, 96
-    v14 = load v13
-    v15 = add v1, 128
-    v16 = load v15
-    v17 = add v1, 160
+    v13 = ptrtoint ptr<memory> v1 to i256
+    v14 = add v13, 64
+    v15 = load v14
+    v16 = ptrtoint ptr<memory> v1 to i256
+    v17 = add v16, 96
     v18 = load v17
-    v19 = insert_value struct1, undef struct1, 0, v8
-    v20 = insert_value struct1, v19, 1, v10
-    v21 = insert_value struct1, v20, 2, v12
-    v22 = insert_value struct1, v21, 3, v14
-    v23 = insert_value struct1, v22, 4, v16
-    v24 = insert_value struct1, v23, 5, v18
-    v25 = extract_value struct1, v24, 0
-    v26 = extract_value struct1, v24, 1
-    v27 = extract_value struct1, v24, 2
-    v28 = extract_value struct1, v24, 3
-    v29 = extract_value struct1, v24, 4
-    v30 = extract_value struct1, v24, 5
-    v31 = insert_value struct0, undef struct0, 0, v25
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    v19 = ptrtoint ptr<memory> v1 to i256
+    v20 = add v19, 128
+    v21 = load v20
+    v22 = ptrtoint ptr<memory> v1 to i256
+    v23 = add v22, 160
+    v24 = load v23
+    v25 = insert_value struct1, undef struct1, 0, v9
+    v26 = insert_value struct1, v25, 1, v12
+    v27 = insert_value struct1, v26, 2, v15
+    v28 = insert_value struct1, v27, 3, v18
+    v29 = insert_value struct1, v28, 4, v21
+    v30 = insert_value struct1, v29, 5, v24
+    v31 = extract_value struct1, v30, 0
+    v32 = extract_value struct1, v30, 1
+    v33 = extract_value struct1, v30, 2
+    v34 = extract_value struct1, v30, 3
+    v35 = extract_value struct1, v30, 4
+    v36 = extract_value struct1, v30, 5
+    v37 = insert_value struct0, undef struct0, 0, v31
+    v38 = insert_value struct0, v37, 1, v36
+    ret v38
 }
 
 fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {

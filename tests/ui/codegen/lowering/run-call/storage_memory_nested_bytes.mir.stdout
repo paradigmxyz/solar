@@ -4,126 +4,124 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 3
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = gt v3, 0xffffffffffffffff
-    icall panic_if<0x41>, v4
-    v5 = add v3, 1
-    v6 = storage_array_data_slot 0
-    v7 = add v6, v3
-    icall @store_storage_bytes, v7, v0
-    sstore 0, v5 !metadata(storage=slot(0))
-    v8 = not 31
-    v9 = and 103, v8
-    v10 = alloc zeroed checked v9
-    store v10, 40
-    v11 = load v10
-    v12 = lt 39, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
-    store8 v10+71, v14
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = gt v15, 0xffffffffffffffff
-    icall panic_if<0x41>, v16
-    v17 = add v15, 1
-    v18 = storage_array_data_slot 0
-    v19 = add v18, v15
-    icall @store_storage_bytes, v19, v10
-    sstore 0, v17 !metadata(storage=slot(0))
-    v20 = icall @load_storage_bytes_array, 0
-    v21 = load v20
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = load v20+32
-    v25 = inttoptr i256 v24 to ptr<memory>
-    v26 = eq v24, 0
-    jumpi v26, bb1, bb2
+    store v0+32, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    icall @store_storage_bytes, v5, v0
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = not 31
+    v7 = and 103, v6
+    v8 = alloc zeroed checked v7
+    store v8, 40
+    v9 = load v8
+    v10 = lt 39, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
+    store8 v8+71, v12
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 0
+    v17 = add v16, v13
+    icall @store_storage_bytes, v17, v8
+    sstore 0, v15 !metadata(storage=slot(0))
+    v18 = icall @load_storage_bytes_array, 0
+    v19 = load v18
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = load v18+32
+    v23 = inttoptr i256 v22 to ptr<memory>
+    v24 = eq v22, 0
+    jumpi v24, bb1, bb2
   bb1:
-    v27 = alloc 32
-    store v27, 0
-    v28 = ptrtoint ptr<memory> v27 to i256
-    store v20+32, v28
+    v25 = alloc 32
+    store v25, 0
+    v26 = ptrtoint ptr<memory> v25 to i256
+    store v18+32, v26
     jump bb2
   bb2:
-    v29 = phi [bb0: v25], [bb1: v27]
-    v30 = load v29
-    v31 = load v20
-    v32 = lt 1, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = load v20+64
-    v35 = inttoptr i256 v34 to ptr<memory>
-    v36 = eq v34, 0
-    jumpi v36, bb3, bb4
+    v27 = phi [bb0: v23], [bb1: v25]
+    v28 = load v27
+    v29 = load v18
+    v30 = lt 1, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = load v18+64
+    v33 = inttoptr i256 v32 to ptr<memory>
+    v34 = eq v32, 0
+    jumpi v34, bb3, bb4
   bb3:
-    v37 = alloc 32
-    store v37, 0
-    v38 = ptrtoint ptr<memory> v37 to i256
-    store v20+64, v38
+    v35 = alloc 32
+    store v35, 0
+    v36 = ptrtoint ptr<memory> v35 to i256
+    store v18+64, v36
     jump bb4
   bb4:
-    v39 = phi [bb2: v35], [bb3: v37]
-    v40 = load v39
-    v41 = checked_add u256, v30, v40
-    v42 = load v20
-    v43 = lt 0, v42
-    v44 = eq v43, false
-    icall panic_if<0x32>, v44
-    v45 = load v20+32
-    v46 = inttoptr i256 v45 to ptr<memory>
-    v47 = eq v45, 0
-    jumpi v47, bb5, bb6
+    v37 = phi [bb2: v33], [bb3: v35]
+    v38 = load v37
+    v39 = checked_add u256, v28, v38
+    v40 = load v18
+    v41 = lt 0, v40
+    v42 = eq v41, false
+    icall panic_if<0x32>, v42
+    v43 = load v18+32
+    v44 = inttoptr i256 v43 to ptr<memory>
+    v45 = eq v43, 0
+    jumpi v45, bb5, bb6
   bb5:
-    v48 = alloc 32
-    store v48, 0
-    v49 = ptrtoint ptr<memory> v48 to i256
-    store v20+32, v49
+    v46 = alloc 32
+    store v46, 0
+    v47 = ptrtoint ptr<memory> v46 to i256
+    store v18+32, v47
     jump bb6
   bb6:
-    v50 = phi [bb4: v46], [bb5: v48]
-    v51 = load v50
-    v52 = lt 1, v51
-    v53 = eq v52, false
-    icall panic_if<0x32>, v53
-    v54 = load v50+33
-    v55 = byte 0, v54
-    v56 = shl 248, v55
-    v57 = shr 248, v56
-    v58 = trunc i256 v57 to i8
-    v59 = zext i8 v58 to i256
-    v60 = checked_add u256, v41, v59
-    v61 = load v20
-    v62 = lt 1, v61
-    v63 = eq v62, false
-    icall panic_if<0x32>, v63
-    v64 = load v20+64
-    v65 = inttoptr i256 v64 to ptr<memory>
-    v66 = eq v64, 0
-    jumpi v66, bb7, bb8
+    v48 = phi [bb4: v44], [bb5: v46]
+    v49 = load v48
+    v50 = lt 1, v49
+    v51 = eq v50, false
+    icall panic_if<0x32>, v51
+    v52 = load v48+33
+    v53 = byte 0, v52
+    v54 = shl 248, v53
+    v55 = shr 248, v54
+    v56 = trunc i256 v55 to i8
+    v57 = zext i8 v56 to i256
+    v58 = checked_add u256, v39, v57
+    v59 = load v18
+    v60 = lt 1, v59
+    v61 = eq v60, false
+    icall panic_if<0x32>, v61
+    v62 = load v18+64
+    v63 = inttoptr i256 v62 to ptr<memory>
+    v64 = eq v62, 0
+    jumpi v64, bb7, bb8
   bb7:
-    v67 = alloc 32
-    store v67, 0
-    v68 = ptrtoint ptr<memory> v67 to i256
-    store v20+64, v68
+    v65 = alloc 32
+    store v65, 0
+    v66 = ptrtoint ptr<memory> v65 to i256
+    store v18+64, v66
     jump bb8
   bb8:
-    v69 = phi [bb6: v65], [bb7: v67]
-    v70 = load v69
-    v71 = lt 39, v70
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = load v69+71
-    v74 = byte 0, v73
-    v75 = shl 248, v74
-    v76 = shr 248, v75
-    v77 = trunc i256 v76 to i8
-    v78 = zext i8 v77 to i256
-    v79 = checked_add u256, v60, v78
-    ret v79
+    v67 = phi [bb6: v63], [bb7: v65]
+    v68 = load v67
+    v69 = lt 39, v68
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    v71 = load v67+71
+    v72 = byte 0, v71
+    v73 = shl 248, v72
+    v74 = shr 248, v73
+    v75 = trunc i256 v74 to i8
+    v76 = zext i8 v75 to i256
+    v77 = checked_add u256, v58, v76
+    ret v77
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

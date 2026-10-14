@@ -90,7 +90,8 @@ contract DynamicReturnUnused {
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
-    // HOMESTEAD: [[FIRST:v[0-9]+]] = add [[INPUT]], 0
+    // HOMESTEAD: [[INPUT_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[INPUT]] to i256
+    // HOMESTEAD-NEXT: [[FIRST:v[0-9]+]] = add [[INPUT_WORD]], 0
     // HOMESTEAD: load [[FIRST]]
     function liveMixed() external returns (uint256 r) {
         (uint256 v, ) = DynamicTarget(address(new DynamicCallee())).mixed();

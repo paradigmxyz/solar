@@ -16,11 +16,12 @@ fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_par
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = extract_value slice<calldata>, v2, 0
-    v4 = add v3, 64
-    v5 = load calldata v4
-    v6 = insert_value struct0, undef struct0, 0, v1
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 64
+    v6 = load calldata v5
+    v7 = insert_value struct0, undef struct0, 0, v1
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
 }
 
 fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
@@ -39,57 +40,54 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 3
+    store v2+32, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    store v4, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
-    v5 = ptrtoint ptr<memory> v2 to i256
-    v6 = alloc 64 !metadata(preserves_fmp)
-    store v6, 4
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = add v7, 32
-    store v8, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
-    v9 = ptrtoint ptr<memory> v6 to i256
-    v10 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v6
-    v11 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = zext i160 v0 to i256
-    v15 = staticcall v1, v14, v12, v13, 0, 0
-    jumpi v15, bb2, bb1
+    v4 = alloc 64 !metadata(preserves_fmp)
+    store v4, 4
+    store v4+32, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v4
+    v7 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v6
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = zext i160 v0 to i256
+    v11 = staticcall v1, v10, v8, v9, 0, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = icall returndata_bytes<>
-    v17 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v16
+    v12 = icall returndata_bytes<>
+    v13 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v12
+    v14 = extract_value struct3, v13, 0
+    v15 = extract_value struct3, v13, 1
+    v16 = insert_value struct3, undef struct3, 0, v14
+    v17 = insert_value struct3, v16, 1, v15
     v18 = extract_value struct3, v17, 0
     v19 = extract_value struct3, v17, 1
-    v20 = insert_value struct3, undef struct3, 0, v18
-    v21 = insert_value struct3, v20, 1, v19
-    v22 = extract_value struct3, v21, 0
-    v23 = extract_value struct3, v21, 1
-    v24 = load v23
-    v25 = load v23+32
-    v26 = load v23+64
-    v27 = load v23+96
-    v28 = load v23+128, ptr<memory>
-    v29 = load v28
-    v30 = load v23+160, ptr<memory>
-    v31 = load v30
-    v32 = insert_value struct2, undef struct2, 0, v22
-    v33 = insert_value struct2, v32, 1, v24
-    v34 = insert_value struct2, v33, 2, v25
-    v35 = insert_value struct2, v34, 3, v26
-    v36 = insert_value struct2, v35, 4, v27
-    v37 = insert_value struct2, v36, 5, v29
-    v38 = insert_value struct2, v37, 6, v31
-    ret v38
+    v20 = load v19
+    v21 = load v19+32
+    v22 = load v19+64
+    v23 = load v19+96
+    v24 = load v19+128, ptr<memory>
+    v25 = load v24
+    v26 = load v19+160, ptr<memory>
+    v27 = load v26
+    v28 = insert_value struct2, undef struct2, 0, v18
+    v29 = insert_value struct2, v28, 1, v20
+    v30 = insert_value struct2, v29, 2, v21
+    v31 = insert_value struct2, v30, 3, v22
+    v32 = insert_value struct2, v31, 4, v23
+    v33 = insert_value struct2, v32, 5, v25
+    v34 = insert_value struct2, v33, 6, v27
+    ret v34
 }
 
 fn @decode.3(arg0: slice<calldata>) -> struct1 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
-    v1 = make_calldata_slice v0, 0
-    v2 = insert_value struct1, undef struct1, 0, true
-    v3 = insert_value struct1, v2, 1, v1
-    ret v3
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = make_calldata_slice v0, 0
+    v3 = insert_value struct1, undef struct1, 0, true
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
 }

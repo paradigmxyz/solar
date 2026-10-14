@@ -118,8 +118,7 @@ contract ShortReturns {
     // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // HOMESTEAD: copy [[BUFFER]], [[INPUT]], 64
-    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint ptr<memory> [[BUFFER]] to i256
-    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[BUFFER]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     function emptyAgg() external returns (uint256[2] memory) {
         return Target(address(this)).agg();

@@ -151,15 +151,14 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
 fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 96
-    v2 = lt arg0, 3
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = shl 5, arg0
-    v5 = ptradd v0, v4
-    v6 = load v5
-    ret v6
+    memory_zero v0, 96
+    v1 = lt arg0, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = shl 5, arg0
+    v4 = ptradd v0, v3
+    v5 = load v4
+    ret v5
 }
 
 fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -187,44 +186,42 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     store v16, arg0
     jump bb1
   bb1:
-    v17 = phi [bb0: 0], [bb2: v24]
+    v17 = phi [bb0: 0], [bb2: v23]
     v18 = lt v17, arg0
     jumpi v18, bb2, bb3
   bb3:
-    v25 = load v16
-    v26 = lt arg1, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = shl 5, arg1
-    v29 = ptradd v16, v28
-    v30 = load v29+32
-    v31 = inttoptr i256 v30 to ptr<memory>
-    v32 = eq v30, 0
-    jumpi v32, bb4, bb5
+    v24 = load v16
+    v25 = lt arg1, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = shl 5, arg1
+    v28 = ptradd v16, v27
+    v29 = load v28+32
+    v30 = inttoptr i256 v29 to ptr<memory>
+    v31 = eq v29, 0
+    jumpi v31, bb4, bb5
   bb4:
-    v33 = alloc 128
-    v34 = ptrtoint ptr<memory> v33 to i256
-    memory_zero v34, 128
-    v35 = shl 5, arg1
-    v36 = ptradd v16, v35
-    v37 = ptrtoint ptr<memory> v33 to i256
-    store v36+32, v37
+    v32 = alloc 128
+    memory_zero v32, 128
+    v33 = shl 5, arg1
+    v34 = ptradd v16, v33
+    v35 = ptrtoint ptr<memory> v32 to i256
+    store v34+32, v35
     jump bb5
   bb5:
-    v38 = phi [bb3: v31], [bb4: v33]
-    v39 = lt 0, 4
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = load v38
-    ret v41
+    v36 = phi [bb3: v30], [bb4: v32]
+    v37 = lt 0, 4
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = load v36
+    ret v39
   bb2:
     v19 = alloc 128 !metadata(preserves_fmp)
-    v20 = ptrtoint ptr<memory> v19 to i256
-    memory_zero v20, 128
-    v21 = shl 5, v17
-    v22 = ptradd v16, v21
-    v23 = ptrtoint ptr<memory> v19 to i256
-    store v22+32, v23
-    v24 = add v17, 1
+    memory_zero v19, 128
+    v20 = shl 5, v17
+    v21 = ptradd v16, v20
+    v22 = ptrtoint ptr<memory> v19 to i256
+    store v21+32, v22
+    v23 = add v17, 1
     jump bb1
 }

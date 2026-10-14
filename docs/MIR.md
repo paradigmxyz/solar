@@ -17,8 +17,11 @@ every word access is a `load`, `store`, or `store8`, and every bulk copy into
 memory is a `copy`. `load` and `copy` name the location they read, so
 `load calldata v0` selects `CALLDATALOAD` and `copy returndata v0, v1, v2`
 selects `RETURNDATACOPY`; a plain `load` or `copy` reads memory. Like an LLVM
-load from `ptr`, a memory access takes a `ptr<memory>` or a raw `i256` address,
-and `lower-memory-objects` casts it to a word at the opcode boundary. An access also
+load from `ptr`, an access takes a pointer into the location it reads or a raw
+`i256` address, and so does every memory range operand of `keccak256`, `log`,
+the calls, `create`, and raw `return` and `revert`. `lower-evm-shaped` erases
+pointer types: every pointer becomes the word it holds, and the casts between
+the two disappear. An access also
 takes an immediate byte offset, written `load v0+32` or `store v0+32, v1`, which
 adds to the address as `ptradd` does for a pointer and as `add` does for a word.
 It keeps a constant field or element access to one instruction;
@@ -35,10 +38,11 @@ word, so field or element `i` is the word at `v0+32 * i`, and at
 `string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
 read and rewrite: `load v0` reads the length, the payload starts at `v0+32`, and
 element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
-Where a slice value is needed, `make_memory_slice` pairs the payload address
+Where a slice value is needed, `make_memory_slice` pairs the payload pointer
 with the length; `extract_value` projects its pointer (field 0) and length
 (field 1) as it projects struct fields, and calldata and returndata slices work
-the same way.
+the same way, with a `ptr<calldata>` or `ptr<returndata>` pointer. At the
+calling convention a slice's pointer travels as a word.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.
@@ -111,7 +115,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256`, `i1`, and `ptr<memory>` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256` and `i1` SSA (pointers become the words they hold), explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive

@@ -107,7 +107,7 @@ fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     sstore 1, v82 !metadata(storage=slot(1))
     v85 = icall @load_storage_packed_array_8_0, 0
     v86 = ptrtoint ptr<memory> v85 to i256
-    v87 = load v86
+    v87 = load v85
     v88 = sload 1 !metadata(storage=slot(1))
     v89 = gt v88, v87
     jumpi v89, bb1, bb2
@@ -349,29 +349,29 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v179 = ptrtoint ptr<memory> v156 to i256
     jump bb7
   bb7:
-    v180 = phi [bb3: 0], [bb12: v245]
+    v180 = phi [bb3: 0], [bb12: v244]
     v181 = lt v180, 3
     jumpi v181, bb8, bb9
   bb9:
-    v246 = lt 0, 3
-    v247 = eq v246, false
-    icall panic_if<0x32>, v247
-    v248 = mul 0, 3
-    v249 = add 14, v248
-    v250 = lt 4, 6
-    v251 = eq v250, false
-    icall panic_if<0x32>, v251
-    v252 = div 4, 2
-    v253 = add v249, v252
-    v254 = mod 4, 2
-    v255 = mul v254, 15
-    v256 = sload v253 !metadata(storage=symbolic(v253))
-    v257 = mul v255, 8
-    v258 = shr v257, v256
-    v259 = trunc i256 v258 to i120
-    v260 = checked_add u120, i120 3, v259
-    v261 = zext i120 v260 to i256
-    ret v261
+    v245 = lt 0, 3
+    v246 = eq v245, false
+    icall panic_if<0x32>, v246
+    v247 = mul 0, 3
+    v248 = add 14, v247
+    v249 = lt 4, 6
+    v250 = eq v249, false
+    icall panic_if<0x32>, v250
+    v251 = div 4, 2
+    v252 = add v248, v251
+    v253 = mod 4, 2
+    v254 = mul v253, 15
+    v255 = sload v252 !metadata(storage=symbolic(v252))
+    v256 = mul v254, 8
+    v257 = shr v256, v255
+    v258 = trunc i256 v257 to i120
+    v259 = checked_add u120, i120 3, v258
+    v260 = zext i120 v259 to i256
+    ret v260
   bb8:
     v182 = mul v180, 3
     v183 = add 14, v182
@@ -379,49 +379,48 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jumpi v184, bb10, bb11
   bb11:
     v216 = alloc 192
-    v217 = ptrtoint ptr<memory> v216 to i256
-    memory_zero v217, 192
+    memory_zero v216, 192
     jump bb19
   bb19:
-    v218 = phi [bb11: 0], [bb24: v244]
-    v219 = lt v218, 6
-    jumpi v219, bb20, bb21
+    v217 = phi [bb11: 0], [bb24: v243]
+    v218 = lt v217, 6
+    jumpi v218, bb20, bb21
   bb21:
     jump bb12
   bb20:
-    v220 = div v218, 2
-    v221 = add v183, v220
-    v222 = mod v218, 2
-    v223 = mul v222, 15
-    v224 = lt v218, 6
-    jumpi v224, bb22, bb23
+    v219 = div v217, 2
+    v220 = add v183, v219
+    v221 = mod v217, 2
+    v222 = mul v221, 15
+    v223 = lt v217, 6
+    jumpi v223, bb22, bb23
   bb23:
-    v236 = mul v223, 8
-    v237 = shl v236, 0xffffffffffffffffffffffffffffff
-    v238 = sload v221 !metadata(storage=symbolic(v221))
-    v239 = not v237
-    v240 = and v238, v239
-    v241 = and 0, 0xffffffffffffffffffffffffffffff
-    v242 = shl v236, v241
-    v243 = or v240, v242
-    sstore v221, v243 !metadata(storage=symbolic(v221))
+    v235 = mul v222, 8
+    v236 = shl v235, 0xffffffffffffffffffffffffffffff
+    v237 = sload v220 !metadata(storage=symbolic(v220))
+    v238 = not v236
+    v239 = and v237, v238
+    v240 = and 0, 0xffffffffffffffffffffffffffffff
+    v241 = shl v235, v240
+    v242 = or v239, v241
+    sstore v220, v242 !metadata(storage=symbolic(v220))
     jump bb24
   bb22:
-    v225 = shl 5, v218
-    v226 = ptradd v216, v225
-    v227 = load v226
-    v228 = mul v223, 8
-    v229 = shl v228, 0xffffffffffffffffffffffffffffff
-    v230 = sload v221 !metadata(storage=symbolic(v221))
-    v231 = not v229
-    v232 = and v230, v231
-    v233 = and v227, 0xffffffffffffffffffffffffffffff
-    v234 = shl v228, v233
-    v235 = or v232, v234
-    sstore v221, v235 !metadata(storage=symbolic(v221))
+    v224 = shl 5, v217
+    v225 = ptradd v216, v224
+    v226 = load v225
+    v227 = mul v222, 8
+    v228 = shl v227, 0xffffffffffffffffffffffffffffff
+    v229 = sload v220 !metadata(storage=symbolic(v220))
+    v230 = not v228
+    v231 = and v229, v230
+    v232 = and v226, 0xffffffffffffffffffffffffffffff
+    v233 = shl v227, v232
+    v234 = or v231, v233
+    sstore v220, v234 !metadata(storage=symbolic(v220))
     jump bb24
   bb24:
-    v244 = add v218, 1
+    v243 = add v217, 1
     jump bb19
   bb10:
     v185 = shl 5, v180
@@ -435,7 +434,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
   bb15:
     jump bb12
   bb12:
-    v245 = add v180, 1
+    v244 = add v180, 1
     jump bb7
   bb14:
     v190 = div v188, 2

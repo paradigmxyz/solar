@@ -281,105 +281,99 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     store v16, 7
     v17 = alloc 64 !metadata(preserves_fmp)
     store v17, 2
-    v18 = ptrtoint ptr<memory> v17 to i256
-    v19 = add v18, 32
-    store v19, 0x102000000000000000000000000000000000000000000000000000000000000
-    v20 = load v0
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = load v0+32
-    v24 = inttoptr i256 v23 to ptr<memory>
-    v25 = eq v23, 0
-    jumpi v25, bb6, bb7
+    store v17+32, 0x102000000000000000000000000000000000000000000000000000000000000
+    v18 = load v0
+    v19 = lt 0, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = load v0+32
+    v22 = inttoptr i256 v21 to ptr<memory>
+    v23 = eq v21, 0
+    jumpi v23, bb6, bb7
   bb6:
-    v26 = icall @default_struct_0
-    v27 = ptrtoint ptr<memory> v26 to i256
-    store v0+32, v27
+    v24 = icall @default_struct_0
+    v25 = ptrtoint ptr<memory> v24 to i256
+    store v0+32, v25
     jump bb7
   bb7:
-    v28 = phi [bb5: v24], [bb6: v26]
-    v29 = ptrtoint ptr<memory> v17 to i256
-    store v28+32, v29
-    v30 = load v0
-    v31 = lt 1, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = load v0+64
-    v34 = inttoptr i256 v33 to ptr<memory>
-    v35 = eq v33, 0
-    jumpi v35, bb8, bb9
+    v26 = phi [bb5: v22], [bb6: v24]
+    v27 = ptrtoint ptr<memory> v17 to i256
+    store v26+32, v27
+    v28 = load v0
+    v29 = lt 1, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = load v0+64
+    v32 = inttoptr i256 v31 to ptr<memory>
+    v33 = eq v31, 0
+    jumpi v33, bb8, bb9
   bb8:
-    v36 = icall @default_struct_0
-    v37 = ptrtoint ptr<memory> v36 to i256
-    store v0+64, v37
+    v34 = icall @default_struct_0
+    v35 = ptrtoint ptr<memory> v34 to i256
+    store v0+64, v35
     jump bb9
   bb9:
-    v38 = phi [bb7: v34], [bb8: v36]
-    store v38, 11
-    v39 = alloc 64 !metadata(preserves_fmp)
-    store v39, 3
-    v40 = ptrtoint ptr<memory> v39 to i256
-    v41 = add v40, 32
-    store v41, 0x304050000000000000000000000000000000000000000000000000000000000
-    v42 = load v0
-    v43 = lt 1, v42
-    v44 = eq v43, false
-    icall panic_if<0x32>, v44
-    v45 = load v0+64
-    v46 = inttoptr i256 v45 to ptr<memory>
-    v47 = eq v45, 0
-    jumpi v47, bb10, bb11
+    v36 = phi [bb7: v32], [bb8: v34]
+    store v36, 11
+    v37 = alloc 64 !metadata(preserves_fmp)
+    store v37, 3
+    store v37+32, 0x304050000000000000000000000000000000000000000000000000000000000
+    v38 = load v0
+    v39 = lt 1, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = load v0+64
+    v42 = inttoptr i256 v41 to ptr<memory>
+    v43 = eq v41, 0
+    jumpi v43, bb10, bb11
   bb10:
-    v48 = icall @default_struct_0
-    v49 = ptrtoint ptr<memory> v48 to i256
-    store v0+64, v49
+    v44 = icall @default_struct_0
+    v45 = ptrtoint ptr<memory> v44 to i256
+    store v0+64, v45
     jump bb11
   bb11:
-    v50 = phi [bb9: v46], [bb10: v48]
-    v51 = ptrtoint ptr<memory> v39 to i256
-    store v50+32, v51
-    v52 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
-    v53 = extract_value slice<memory>, v52, 1
-    v54 = datasize ConstructorAggregateMain_creation_code_0
-    v55 = add v54, v53
-    v56 = lt v55, v54
-    icall panic_if<0x41>, v56
-    v57 = add v55, 31
-    v58 = lt v57, v55
-    icall panic_if<0x41>, v58
-    v59 = not 31
-    v60 = and v57, v59
-    v61 = alloc v60
-    v62 = ptrtoint ptr<memory> v61 to i256
-    datacopy ConstructorAggregateMain_creation_code_0, v62, v54
-    v63 = extract_value slice<memory>, v52, 0
-    v64 = ptrtoint ptr<memory> v61 to i256
-    v65 = add v64, v54
-    copy v65, v63, v53 !metadata(memory=heap)
-    v66 = ptrtoint ptr<memory> v61 to i256
-    v67 = create 0, v66, v55
-    v68 = ne v67, i160 0
-    jumpi v68, bb13, bb12
+    v46 = phi [bb9: v42], [bb10: v44]
+    v47 = ptrtoint ptr<memory> v37 to i256
+    store v46+32, v47
+    v48 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
+    v49 = extract_value slice<memory>, v48, 1
+    v50 = datasize ConstructorAggregateMain_creation_code_0
+    v51 = add v50, v49
+    v52 = lt v51, v50
+    icall panic_if<0x41>, v52
+    v53 = add v51, 31
+    v54 = lt v53, v51
+    icall panic_if<0x41>, v54
+    v55 = not 31
+    v56 = and v53, v55
+    v57 = alloc v56
+    datacopy ConstructorAggregateMain_creation_code_0, v57, v50
+    v58 = extract_value slice<memory>, v48, 0
+    v59 = ptrtoint ptr<memory> v57 to i256
+    v60 = add v59, v50
+    copy v60, v58, v49 !metadata(memory=heap)
+    v61 = create 0, v57, v51
+    v62 = ne v61, i160 0
+    jumpi v62, bb13, bb12
   bb12:
     revert_returndata
   bb13:
-    v69 = gas
-    v70 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v71 = extract_value slice<memory>, v70, 0
-    v72 = extract_value slice<memory>, v70, 1
-    v73 = zext i160 v67 to i256
-    v74 = staticcall v69, v73, v71, v72, 0, 32
-    jumpi v74, bb15, bb14
+    v63 = gas
+    v64 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
+    v65 = extract_value slice<memory>, v64, 0
+    v66 = extract_value slice<memory>, v64, 1
+    v67 = zext i160 v61 to i256
+    v68 = staticcall v63, v67, v65, v66, 0, 32
+    jumpi v68, bb15, bb14
   bb14:
     revert_returndata
   bb15:
-    v75 = returndatasize
-    v76 = lt v75, 32
-    icall revert_if<tuple_data_too_short>, v76
-    v77 = add 0, 0
-    v78 = load v77
-    ret v78
+    v69 = returndatasize
+    v70 = lt v69, 32
+    icall revert_if<tuple_data_too_short>, v70
+    v71 = add 0, 0
+    v72 = load v71
+    ret v72
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 0

@@ -10,9 +10,8 @@
 +     v2 = ptrtoint ptr<memory> v1 to i256
 +     v3 = add v2, 4
 +     store v3, arg0
-+     v4 = ptrtoint ptr<memory> v1 to i256
-+     v5 = make_memory_slice v4, 36
-+     ret v5
++     v4 = make_memory_slice v1, 36
++     ret v4
   }
   
   fn @static_bytes(arg0: i256, arg1: i256) -> ptr<memory> {
@@ -21,9 +20,9 @@
 -     ret v0
 +     v1 = alloc 96 !metadata(preserves_fmp)
 +     store v1, 64
-+     v2 = ptrtoint ptr<memory> v1 to i256
-+     v3 = add v2, 32
-+     store v3, arg0
++     v2 = ptradd v1, 32
++     store v1+32, arg0
++     v3 = ptrtoint ptr<memory> v2 to i256
 +     v4 = add v3, 32
 +     store v4, arg1
 +     ret v1
@@ -35,12 +34,10 @@
 -     ret v0
 +     v1 = alloc 96 !metadata(preserves_fmp)
 +     store v1, 36
-+     v2 = ptrtoint ptr<memory> v1 to i256
-+     v3 = add v2, 32
-+     store v3, 0x1234567800000000000000000000000000000000000000000000000000000000
-+     v4 = ptrtoint ptr<memory> v1 to i256
-+     v5 = add v4, 36
-+     store v5, arg0
++     v2 = ptradd v1, 32
++     store v1+32, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v3 = ptradd v1, 36
++     store v1+36, arg0
 +     ret v1
   }
   
@@ -50,9 +47,8 @@
 -     ret v0
 +     v1 = fmp
 +     store v1, arg0
-+     v2 = ptrtoint ptr<memory> v1 to i256
-+     v3 = make_memory_slice v2, 32
-+     ret v3
++     v2 = make_memory_slice v1, 32
++     ret v2
   }
   
   fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
@@ -83,9 +79,8 @@
 +     v18 = not 31
 +     v19 = and v17, v18
 +     v20 = alloc v19 !metadata(preserves_fmp)
-+     v21 = ptrtoint ptr<memory> v20 to i256
-+     v22 = make_memory_slice v21, v16
-+     ret v22
++     v21 = make_memory_slice v20, v16
++     ret v21
   }
   
   fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
@@ -108,45 +103,45 @@
 +     v12 = add v3, 32
 +     v13 = mul v11, 32
 +     v14 = add v12, v13
-+     v15 = ptrtoint ptr<memory> arg0 to i256
-+     v16 = add v15, 32
++     v15 = ptradd arg0, 32
 +     jump bb1
 +   bb1:
-+     v17 = phi [bb0: v11], [bb2: v33]
-+     v18 = phi [bb0: v14], [bb2: v32]
-+     v19 = phi [bb0: v12], [bb2: v34]
-+     v20 = phi [bb0: v16], [bb2: v35]
-+     v21 = gt v17, 0
-+     jumpi v21, bb2, bb3
++     v16 = phi [bb0: v11], [bb2: v32]
++     v17 = phi [bb0: v14], [bb2: v31]
++     v18 = phi [bb0: v12], [bb2: v33]
++     v19 = phi [bb0: v15], [bb2: v36]
++     v20 = gt v16, 0
++     jumpi v20, bb2, bb3
 +   bb3:
-+     v36 = ptrtoint ptr<memory> v1 to i256
-+     v37 = sub v18, v36
-+     v38 = add v37, 0
-+     v39 = add v38, 31
-+     v40 = not 31
-+     v41 = and v39, v40
-+     v42 = alloc v41 !metadata(preserves_fmp)
-+     v43 = ptrtoint ptr<memory> v42 to i256
-+     v44 = make_memory_slice v43, v38
++     v37 = ptrtoint ptr<memory> v1 to i256
++     v38 = sub v17, v37
++     v39 = add v38, 0
++     v40 = add v39, 31
++     v41 = not 31
++     v42 = and v40, v41
++     v43 = alloc v42 !metadata(preserves_fmp)
++     v44 = make_memory_slice v43, v39
 +     ret v44
 +   bb2:
-+     v22 = load v20
-+     v23 = sub v18, v12
-+     store v19, v23
-+     v24 = load v22
-+     v25 = eq v22, 0
-+     v26 = eq v25, false
-+     v27 = zext i1 v26 to i256
-+     v28 = mul v24, v27
-+     store v18, v28
-+     v29 = mul v28, 32
-+     v30 = add v18, 32
-+     v31 = add v22, 32
-+     v32 = add v30, v29
-+     copy v30, v31, v29 !metadata(memory=heap, disjoint)
-+     v33 = sub v17, 1
-+     v34 = add v19, 32
-+     v35 = add v20, 32
++     v21 = load v19
++     v22 = sub v17, v12
++     store v18, v22
++     v23 = load v21
++     v24 = eq v21, 0
++     v25 = eq v24, false
++     v26 = zext i1 v25 to i256
++     v27 = mul v23, v26
++     store v17, v27
++     v28 = mul v27, 32
++     v29 = add v17, 32
++     v30 = add v21, 32
++     v31 = add v29, v28
++     copy v29, v30, v28 !metadata(memory=heap, disjoint)
++     v32 = sub v16, 1
++     v33 = add v18, 32
++     v34 = ptrtoint ptr<memory> v19 to i256
++     v35 = add v34, 32
++     v36 = inttoptr i256 v35 to ptr<memory>
 +     jump bb1
   }
   
@@ -179,9 +174,8 @@
 +     v26 = not 31
 +     v27 = and v25, v26
 +     v28 = alloc v27 !metadata(preserves_fmp)
-+     v29 = ptrtoint ptr<memory> v28 to i256
-+     v30 = make_memory_slice v29, v24
-+     ret v30
++     v29 = make_memory_slice v28, v24
++     ret v29
 +   bb2:
 +     v14 = load v12
 +     v15 = sub v10, v3
@@ -198,7 +192,7 @@
   fn @returndata_bytes() -> slice<memory> {
     bb0:
       v0 = returndatasize
-      v1 = make_returndata_slice 0, v0
+      v1 = make_returndata_slice ptr<returndata> 0, v0
 -     v2 = abi_encode [returndata_bytes], args v1
 -     ret v2
 +     v3 = fmp
@@ -217,7 +211,7 @@
 +     store v5, v0
 +     v14 = extract_value slice<returndata>, v1, 0
 +     v15 = add v12, v11
-+     copy returndata v12, 0, v0
++     copy returndata v12, ptr<returndata> 0, v0
 +     v16 = ptrtoint ptr<memory> v3 to i256
 +     v17 = sub v15, v16
 +     v18 = add v17, 0
@@ -225,14 +219,13 @@
 +     v20 = not 31
 +     v21 = and v19, v20
 +     v22 = alloc v21 !metadata(preserves_fmp)
-+     v23 = ptrtoint ptr<memory> v22 to i256
-+     v24 = make_memory_slice v23, v18
-+     ret v24
++     v23 = make_memory_slice v22, v18
++     ret v23
   }
   
   fn @returndata_words(arg0: i256) -> slice<memory> {
     bb0:
-      v0 = make_returndata_slice 0, arg0
+      v0 = make_returndata_slice ptr<returndata> 0, arg0
 -     v1 = abi_encode [returndata_array<word>], args v0
 -     ret v1
 +     v2 = fmp
@@ -247,7 +240,7 @@
 +     v9 = add v4, 32
 +     v10 = extract_value slice<returndata>, v0, 0
 +     v11 = add v9, v8
-+     copy returndata v9, 0, v8
++     copy returndata v9, ptr<returndata> 0, v8
 +     v12 = ptrtoint ptr<memory> v2 to i256
 +     v13 = sub v11, v12
 +     v14 = add v13, 0
@@ -255,9 +248,8 @@
 +     v16 = not 31
 +     v17 = and v15, v16
 +     v18 = alloc v17 !metadata(preserves_fmp)
-+     v19 = ptrtoint ptr<memory> v18 to i256
-+     v20 = make_memory_slice v19, v14
-+     ret v20
++     v19 = make_memory_slice v18, v14
++     ret v19
 + }
 + 
 + fn @encode_abi_array(arg0: i256, arg1: ptr<memory>) -> i256 {
@@ -268,7 +260,7 @@
 +     v3 = eq v2, false
 +     v4 = zext i1 v3 to i256
 +     v5 = mul v1, v4
-+     store v0, v5
++     store arg1, v5
 +     v6 = mul v5, 32
 +     v7 = add v0, 32
 +     v8 = add arg0, 32

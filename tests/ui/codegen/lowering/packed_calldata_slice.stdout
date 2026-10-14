@@ -10,7 +10,7 @@ fn @slice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selecto
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
-    v7 = add v0, arg1
+    v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
     v9 = abi_encode_packed (bytes v8, data hex"21")
     ret v9
@@ -19,15 +19,16 @@ fn @slice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selecto
 fn @all() -> ptr<memory> [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
+    v1 = make_calldata_slice ptr<calldata> 0, v0
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
-    v7 = sgt v2, v6
-    icall revert_if<calldata_tail_too_short>, v7
-    v8 = abi_encode_packed (bytes v1)
-    ret v8
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = abi_encode_packed (bytes v1)
+    ret v9
 }

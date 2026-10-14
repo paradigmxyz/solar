@@ -10,9 +10,7 @@ fn @revert_args() [selector=0x3a185347, pure, abi_params=[], abi_returns=[], abi
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 6
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    store v0+32, 0x6661696c65640000000000000000000000000000000000000000000000000000
     icall require<custom_error [word, memory_bytes]>, false, 0xb9344e200000000000000000000000000000000000000000000000000000000, 7, v0
     invalid
 }
@@ -27,9 +25,7 @@ fn @require_named(arg0: i1) [selector=0x868ff2e0, pure, abi_params=[bool], abi_r
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 6
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    store v0+32, 0x6661696c65640000000000000000000000000000000000000000000000000000
     icall require<custom_error [word, memory_bytes]>, arg0, 0xb9344e200000000000000000000000000000000000000000000000000000000, 7, v0
     ret
 }

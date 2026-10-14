@@ -4,15 +4,15 @@
 fn @unwrap(arg0: i256, arg1: i256) -> slice<calldata> [pure, return_abi=[i256, i256]] {
   bb0:
     v1 = sub arg1, 32
-    v3 = add arg0, v1
-    v4 = load calldata v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
+    v4 = add arg0, v1
+    v5 = load calldata v4
+    v6 = ne v5, 0
+    jumpi v6, bb1, bb2
   bb1:
     jump bb2
   bb2:
-    v16 = phi [bb1: v1], [bb0: arg1]
-    ret arg0, v16
+    v17 = phi [bb1: v1], [bb0: arg1]
+    ret arg0, v17
 }
 
 fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
@@ -29,14 +29,14 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     v13 = sub v2, v6
     v14 = gt v11, v13
     v17 = or v9, v14
-    v27 = or v3, v17
-    jumpi v27, bb1, bb2
+    v30 = or v3, v17
+    jumpi v30, bb1, bb2
   bb2:
     v0 = icall @unwrap, v6, v11
-    v23 = load 32 !metadata(memory=scratch)
-    v24 = add v23, 32
-    v25 = load v24
-    store 128, v25
+    v25 = load 32 !metadata(memory=scratch)
+    v26 = add v25, 32
+    v27 = load v26
+    store 128, v27
     returndata 128, 32
   bb1:
     revert 0, 0

@@ -29,7 +29,7 @@ fn @append.2(arg0: ptr<memory>, arg1: ptr<memory>) -> ptr<memory> [pure] {
     v4 = alloc 32 !metadata(preserves_fmp)
     store v4, 0
     v5 = ptrtoint ptr<memory> v4 to i256
-    store v5, v3
+    store v4, v3
     icall @updateTail, arg0, v4
     ret arg0
 }
@@ -54,7 +54,7 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
     store v0, 0
     icall @dirtyFreeMemory
     v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = load v1
+    v2 = load v0
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
     ret v4
@@ -65,7 +65,7 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
     icall @dirtyFreeMemory
     v0 = icall @empty
     v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = load v1
+    v2 = load v0
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
     ret v4
@@ -78,7 +78,7 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
     v2 = ptrtoint ptr<memory> v1 to i256
-    v3 = load v2
+    v3 = load v1
     v4 = and v3, 0xffffffffff
     v5 = shr 40, v3
     v6 = load v4
@@ -104,7 +104,7 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
     v1 = icall @append.1, v0, 7
     v2 = icall @append.1, v1, 9
     v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = load v3
+    v4 = load v2
     v5 = and v4, 0xffffffffff
     v6 = shr 40, v4
     v7 = load v6
@@ -161,10 +161,10 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
 fn @updateTail(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
-    v1 = load v0
+    v1 = load arg0
     v2 = ptrtoint ptr<memory> arg1 to i256
     v3 = ptrtoint ptr<memory> arg0 to i256
-    v4 = load v3
+    v4 = load arg0
     v5 = shr v4, v2
     v6 = or v5, v1
     v7 = shr 40, v6
@@ -173,7 +173,7 @@ fn @updateTail(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
     v10 = shl 40, v9
     v11 = xor v10, v6
     v12 = ptrtoint ptr<memory> arg0 to i256
-    store v12, v11
+    store arg0, v11
     v13 = ptrtoint ptr<memory> arg1 to i256
     v14 = load v7
     v15 = or v14, v13

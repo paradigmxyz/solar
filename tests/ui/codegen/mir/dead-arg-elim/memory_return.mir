@@ -29,11 +29,11 @@ fn @entry() [selector=0x01020304] {
 // Dynamic memory values are represented as memory slices before physical slice lowering. They
 // carry the same escape risk as a raw memory pointer.
 // CHECK-LABEL: fn @escape_slice() [may_return_memory]
-// CHECK: v0 = make_memory_slice 128, 32
+// CHECK: v0 = make_memory_slice ptr<memory> 128, 32
 // CHECK-NEXT: ret
 fn @escape_slice() -> slice<memory> {
   bb0:
-    v0 = make_memory_slice 128, 32
+    v0 = make_memory_slice ptr<memory> 128, 32
     ret v0
 }
 
@@ -49,7 +49,7 @@ fn @slice_entry() [selector=0x05060708] {
 // CHECK: ret
 fn @escape_struct() -> struct1 {
   bb0:
-    v0 = make_memory_slice 128, 32
+    v0 = make_memory_slice ptr<memory> 128, 32
     v1 = insert_value struct0, undef struct0, 0, v0
     v2 = insert_value struct0, v1, 1, 42
     v3 = insert_value struct1, undef struct1, 0, v2

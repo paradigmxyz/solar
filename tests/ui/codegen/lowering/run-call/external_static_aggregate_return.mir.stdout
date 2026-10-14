@@ -18,15 +18,14 @@ fn @makeStruct(arg0: i256) -> ptr<memory> [selector=0x62dc8436, pure, abi_params
 fn @makeArray(arg0: i256) -> ptr<memory> [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[array<3, word>], abi_return_params=[array<3, u256>]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 96
-    v2 = alloc 96
-    store v2, arg0
-    v3 = checked_add u256, arg0, 1
-    store v2+32, v3
-    v4 = checked_add u256, arg0, 2
-    store v2+64, v4
-    ret v2
+    memory_zero v0, 96
+    v1 = alloc 96
+    store v1, arg0
+    v2 = checked_add u256, arg0, 1
+    store v1+32, v2
+    v3 = checked_add u256, arg0, 2
+    store v1+64, v3
+    ret v1
 }
 
 fn @makePair(arg0: i256) -> struct0 [selector=0xf4d7be11, pure, abi_params=[u256], abi_returns=[tuple<word, word>, word], abi_return_params=[tuple<u256, u256>, u256]] {
@@ -58,22 +57,20 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u25
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = staticcall v1, v6, v3, v4, v7, 64
-    jumpi v8, bb2, bb1
+    v7 = staticcall v1, v6, v3, v4, v5, 64
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 64
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint ptr<memory> v5 to i256
-    v12 = make_memory_slice v11, 64
-    v13 = abi_decode [tuple<u256, u256>], v12
-    v14 = load v13
-    v15 = load v13+32
-    v16 = checked_add u256, v14, v15
-    ret v16
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [tuple<u256, u256>], v10
+    v12 = load v11
+    v13 = load v11+32
+    v14 = checked_add u256, v12, v13
+    ret v14
 }
 
 fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -85,33 +82,31 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 96
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = staticcall v1, v6, v3, v4, v7, 96
-    jumpi v8, bb2, bb1
+    v7 = staticcall v1, v6, v3, v4, v5, 96
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 96
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint ptr<memory> v5 to i256
-    v12 = make_memory_slice v11, 96
-    v13 = abi_decode [array<3, u256>], v12
-    v14 = lt 0, 3
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = load v13
-    v17 = lt 1, 3
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = load v13+32
-    v20 = checked_add u256, v16, v19
-    v21 = lt 2, 3
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = load v13+64
-    v24 = checked_add u256, v20, v23
-    ret v24
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 96
+    v11 = abi_decode [array<3, u256>], v10
+    v12 = lt 0, 3
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = load v11
+    v15 = lt 1, 3
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = load v11+32
+    v18 = checked_add u256, v14, v17
+    v19 = lt 2, 3
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = load v11+64
+    v22 = checked_add u256, v18, v21
+    ret v22
 }
 
 fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -123,9 +118,8 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = staticcall v1, v6, v3, v4, v7, 64
-    jumpi v8, bb1, bb2
+    v7 = staticcall v1, v6, v3, v4, v5, 64
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -134,16 +128,15 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
   bb4:
     ret 0
   bb1:
-    v9 = returndatasize
-    v10 = lt v9, 64
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint ptr<memory> v5 to i256
-    v12 = make_memory_slice v11, 64
-    v13 = abi_decode [tuple<u256, u256>], v12
-    v14 = load v13
-    v15 = load v13+32
-    v16 = checked_add u256, v14, v15
-    ret v16
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [tuple<u256, u256>], v10
+    v12 = load v11
+    v13 = load v11+32
+    v14 = checked_add u256, v12, v13
+    ret v14
   bb3:
     ret 0
 }
@@ -157,29 +150,27 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256]
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 96
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = staticcall v1, v6, v3, v4, v7, 96
-    jumpi v8, bb2, bb1
+    v7 = staticcall v1, v6, v3, v4, v5, 96
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 96
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint ptr<memory> v5 to i256
-    v12 = make_memory_slice v11, 96
-    v13 = abi_decode [tuple<u256, u256>, u256], v12
-    v14 = extract_value struct0, v13, 0
-    v15 = extract_value struct0, v13, 1
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    v18 = extract_value struct0, v17, 0
-    v19 = extract_value struct0, v17, 1
-    v20 = load v18
-    v21 = load v18+32
-    v22 = checked_add u256, v20, v21
-    v23 = checked_add u256, v22, v19
-    ret v23
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 96
+    v11 = abi_decode [tuple<u256, u256>, u256], v10
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = insert_value struct0, undef struct0, 0, v12
+    v15 = insert_value struct0, v14, 1, v13
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
+    v18 = load v16
+    v19 = load v16+32
+    v20 = checked_add u256, v18, v19
+    v21 = checked_add u256, v20, v17
+    ret v21
 }
 
 fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -191,20 +182,18 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = staticcall v1, v6, v3, v4, v7, 64
-    jumpi v8, bb2, bb1
+    v7 = staticcall v1, v6, v3, v4, v5, 64
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 64
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint ptr<memory> v5 to i256
-    v12 = make_memory_slice v11, 64
-    v13 = abi_decode [tuple<u256, u256>], v12
-    v14 = load v13
-    v15 = load v13+32
-    v16 = checked_add u256, v14, v15
-    ret v16
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [tuple<u256, u256>], v10
+    v12 = load v11
+    v13 = load v11+32
+    v14 = checked_add u256, v12, v13
+    ret v14
 }

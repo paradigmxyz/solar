@@ -62,24 +62,23 @@ fn @hashStaticFixedArray() -> i256 [selector=0x5fdc5289, pure, abi_params=[], ab
     store v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v8]
+    v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v9 = abi_encode [memory_array<array<3, word>>], scratch, args v0
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = keccak256 v10, v11
-    ret v12
+    v8 = abi_encode [memory_array<array<3, word>>], scratch, args v0
+    v9 = extract_value slice<memory>, v8, 0
+    v10 = extract_value slice<memory>, v8, 1
+    v11 = keccak256 v9, v10
+    ret v11
   bb2:
     v3 = alloc 96 !metadata(preserves_fmp)
-    v4 = ptrtoint ptr<memory> v3 to i256
-    memory_zero v4, 96
-    v5 = shl 5, v1
-    v6 = ptradd v0, v5
-    v7 = ptrtoint ptr<memory> v3 to i256
-    store v6+32, v7
-    v8 = add v1, 1
+    memory_zero v3, 96
+    v4 = shl 5, v1
+    v5 = ptradd v0, v4
+    v6 = ptrtoint ptr<memory> v3 to i256
+    store v5+32, v6
+    v7 = add v1, 1
     jump bb1
 }
 

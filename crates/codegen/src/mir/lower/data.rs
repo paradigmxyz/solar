@@ -42,7 +42,12 @@ pub(super) struct DataDest {
 
 impl DataDest {
     fn at(self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
-        builder.add_u64_offset(self.base, self.offset.saturating_add(offset))
+        builder.address_value(self.base, self.offset.saturating_add(offset))
+    }
+
+    fn store(self, builder: &mut FunctionBuilder<'_>, offset: u64, value: ValueId) {
+        // store base+(offset + k), value
+        builder.store_at(self.base, self.offset.saturating_add(offset), value);
     }
 }
 
@@ -146,8 +151,7 @@ fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: DataDest, data: &[u
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     for (index, chunk) in data.chunks(word_size).enumerate() {
         let value = builder.imm(U256::from_be_bytes(padded_data_word(chunk)));
-        let address = dest.at(builder, (index * word_size) as u64);
-        builder.store(address, value);
+        dest.store(builder, (index * word_size) as u64, value);
     }
 }
 
@@ -169,17 +173,15 @@ fn copy_splat_to_memory(
 
     if clear_tail {
         let tail_offset = data.len() / word_size * word_size;
-        let tail = dest.at(builder, tail_offset as u64);
         let zero = builder.imm(0);
-        builder.store(tail, zero);
+        dest.store(builder, tail_offset as u64, zero);
     }
     let value = builder.imm(U256::from_be_bytes(padded_data_word(&data[..word_size])));
+    dest.store(builder, 0, value);
     let start = dest.at(builder, 0);
-    builder.store(start, value);
     let mut filled = word_size;
     if data.len() >= word_size * 2 {
-        let target = dest.at(builder, word_size as u64);
-        builder.store(target, value);
+        dest.store(builder, word_size as u64, value);
         filled += word_size;
     }
     while filled < data.len() {

@@ -6,8 +6,7 @@
 // CHECK: + [[STATIC_MEMORY_PTR:v[0-9]+]] = alloc 64
 // CHECK: + store [[STATIC_MEMORY_PTR]], 0x1234567800000000000000000000000000000000000000000000000000000000
 // CHECK: + store {{v[0-9]+}}, arg0
-// CHECK: + [[STATIC_SLICE:v[0-9]+]] = ptrtoint ptr<memory> [[STATIC_MEMORY_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_SLICE]], 36
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_MEMORY_PTR]], 36
 fn @static(arg0: i256) -> slice<memory> {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
@@ -36,8 +35,7 @@ fn @selector_bytes(arg0: i256) -> ptr<memory> {
 // CHECK: + [[SCRATCH_MEMORY_PTR:v[0-9]+]] = fmp
 // CHECK: + store [[SCRATCH_MEMORY_PTR]], arg0
 // CHECK-NOT: alloc
-// CHECK: + [[SCRATCH_SLICE:v[0-9]+]] = ptrtoint ptr<memory> [[SCRATCH_MEMORY_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_SLICE]], 32
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_MEMORY_PTR]], 32
 fn @scratch(arg0: i256) -> slice<memory> {
   bb0:
     v0 = abi_encode [word], scratch, args arg0
@@ -51,8 +49,7 @@ fn @scratch(arg0: i256) -> slice<memory> {
 // CHECK: + [[LENGTH:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
 // CHECK: + copy calldata
 // CHECK: + [[ALLOCATED_MEMORY_PTR:v[0-9]+]] = alloc {{v[0-9]+}}
-// CHECK: [[ALLOCATED_MEMORY:v[0-9]+]] = ptrtoint ptr<memory> [[ALLOCATED_MEMORY_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[ALLOCATED_MEMORY]], {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[ALLOCATED_MEMORY_PTR]], {{v[0-9]+}}
 fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
   bb0:
     v0 = abi_encode [calldata_bytes], args arg0
@@ -62,8 +59,7 @@ fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
 // CHECK: + {{v[0-9]+}} = load arg0
 // CHECK: + {{v[0-9]+}} = zext i1
-// CHECK: + [[HEAD:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
-// CHECK-NEXT: + {{v[0-9]+}} = add [[HEAD]], 32
+// CHECK: + {{v[0-9]+}} = ptradd arg0, 32
 fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], args arg0
@@ -84,14 +80,14 @@ fn @fixed_nested_dynamic_arrays(arg0: ptr<memory>) -> slice<memory> {
 fn @returndata_bytes() -> slice<memory> {
   bb0:
     v0 = returndatasize
-    v1 = make_returndata_slice 0, v0
+    v1 = make_returndata_slice ptr<returndata> 0, v0
     v2 = abi_encode [returndata_bytes], args v1
     ret v2
 }
 
 fn @returndata_words(arg0: i256) -> slice<memory> {
   bb0:
-    v0 = make_returndata_slice 0, arg0
+    v0 = make_returndata_slice ptr<returndata> 0, arg0
     v1 = abi_encode [returndata_array<word>], args v0
     ret v1
 }

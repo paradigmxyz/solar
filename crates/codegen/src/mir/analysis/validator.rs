@@ -300,12 +300,11 @@ impl<'a> Validator<'a> {
                 }
             }
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                if [*offset, *size]
-                    .into_iter()
-                    .any(|value| func.value_ty(value) != Some(MirType::I256))
+                if !matches!(func.value_ty(*offset), Some(MirType::I256 | MirType::MEMPTR))
+                    || func.value_ty(*size) != Some(MirType::I256)
                 {
                     self.emit_at_block(
-                        "raw return and revert operands must have type `i256`; use an explicit cast",
+                        "raw return and revert operands must be a memory address and an `i256` size",
                         block,
                     );
                 }
@@ -920,8 +919,8 @@ impl<'a> Validator<'a> {
                         };
                         fields.fields.get(index as usize).copied()
                     }
-                    MirType::Slice(_) if inserted.is_none() => {
-                        MirType::SLICE_FIELDS.get(index as usize).copied()
+                    MirType::Slice(location) if inserted.is_none() => {
+                        MirType::slice_fields(location).get(index as usize).copied()
                     }
                     _ => {
                         let expected =
@@ -1464,14 +1463,9 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MEMPTR if actual == MirType::I256 => {}
+                    MirType::Ptr(_) if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
-                        let pointer = match location {
-                            PtrLocation::Memory => MirType::I256,
-                            PtrLocation::Calldata => MirType::I256,
-                            PtrLocation::Returndata => MirType::I256,
-                        };
-                        if actual != pointer {
+                        if actual != MirType::Ptr(location) && actual != MirType::I256 {
                             return false;
                         }
                         if pointer_only && components.is_empty() {
@@ -1493,7 +1487,7 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::MEMPTR);
+    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::Ptr(_));
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
         signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))

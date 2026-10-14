@@ -255,10 +255,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
     ) -> Option<ValueId> {
         let (object, padded_size) = Self::alloc_const_bytes(builder, bytes.len(), semantics)?;
-        // header = ptrtoint object to i256
-        // copy data to header + 32
-        let header = builder.cast(object, MirType::I256);
-        let data = DataDest { base: header, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
+        // copy data to object + 32
+        let data = DataDest { base: object, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
         copy_data_to_memory(gcx, module, builder, data, bytes, padded_size, None);
         Some(object)
     }

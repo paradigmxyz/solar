@@ -23,10 +23,9 @@ fn @castBranch() -> i256 [selector=0x7ad66a6a, pure, abi_params=[], abi_returns=
 fn @wholeCastBranch() -> i256 [selector=0x0c9e3ad7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 96
-    v2 = checked_add u256, 3, 1
-    ret v2
+    memory_zero v0, 96
+    v1 = checked_add u256, 3, 1
+    ret v1
 }
 
 fn @signedOverflow() -> i256 [selector=0x3a415f03, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {

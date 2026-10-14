@@ -946,7 +946,7 @@
   
   fn @pointer_casts(arg0: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to ptr<memory>
+-     v0 = inttoptr i256 arg0 to ptr<memory>
       v6 = and arg0, 1
       v7 = ne v6, 0
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff

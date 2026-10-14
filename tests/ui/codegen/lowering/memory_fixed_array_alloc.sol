@@ -41,8 +41,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK-NEXT: [[CELL:v[0-9]+]] = ptradd {{v[0-9]+}}, [[OFF4]]
     // CHECK-NEXT: load [[CELL]]
     // CHECK: [[INNER:v[0-9]+]] = alloc 64
-    // CHECK: [[INNER_ZERO:v[0-9]+]] = ptrtoint ptr<memory> [[INNER]] to i256
-    // CHECK-NEXT: memory_zero [[INNER_ZERO]], 64
+    // CHECK-NEXT: memory_zero [[INNER]], 64
     // CHECK: [[OFF5:v[0-9]+]] = shl 5, [[INDEX]]
     // CHECK-NEXT: [[SLOT:v[0-9]+]] = ptradd [[OUTER]], [[OFF5]]
     // CHECK-NEXT: [[INNER_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[INNER]] to i256
@@ -151,8 +150,7 @@ contract NamedReturnAndDelete {
     // Wide named struct defaults bulk-zero scalars and initialize references.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc 128
-    // CHECK: [[WIDE_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[WIDE]] to i256
-    // CHECK: memory_zero [[WIDE_WORD]], 128
+    // CHECK: memory_zero [[WIDE]], 128
     // CHECK-NEXT: store [[WIDE]]+32, 96
     // CHECK: ret [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}

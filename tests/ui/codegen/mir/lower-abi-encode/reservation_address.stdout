@@ -3,7 +3,7 @@
   @module ReservationAddress
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
-      v0 = make_calldata_slice 0, 0
+      v0 = make_calldata_slice ptr<calldata> 0, 0
 -     v1 = abi_encode [calldata_bytes], args v0
 -     v2 = extract_value slice<memory>, v1, 0
 -     v3 = extract_value slice<memory>, v1, 1
@@ -24,7 +24,7 @@
 +     store v6, 0
 +     v15 = extract_value slice<calldata>, v0, 0
 +     v16 = add v13, v12
-+     copy calldata v13, 0, 0
++     copy calldata v13, ptr<calldata> 0, 0
 +     v17 = ptrtoint ptr<memory> v4 to i256
 +     v18 = sub v16, v17
 +     v19 = add v18, 0
@@ -32,11 +32,10 @@
 +     v21 = not 31
 +     v22 = and v20, v21
 +     v23 = alloc v22 !metadata(preserves_fmp)
-+     v24 = ptrtoint ptr<memory> v23 to i256
-+     v25 = make_memory_slice v24, v19
-+     v2 = extract_value slice<memory>, v25, 0
-+     v3 = extract_value slice<memory>, v25, 1
-+     returndata v24, v19
++     v24 = make_memory_slice v23, v19
++     v2 = extract_value slice<memory>, v24, 0
++     v3 = extract_value slice<memory>, v24, 1
++     returndata v23, v19
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before egraph) ===
@@ -44,7 +43,7 @@
   @module ReservationAddress
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
-      v0 = make_calldata_slice 0, 0
+      v0 = make_calldata_slice ptr<calldata> 0, 0
       v4 = fmp
       v5 = ptrtoint ptr<memory> v4 to i256
       v6 = add v5, 32
@@ -63,7 +62,7 @@
 +     store v6, 0
       v15 = extract_value slice<calldata>, v0, 0
 -     v16 = add v13, v12
--     copy calldata v13, 0, 0
+-     copy calldata v13, ptr<calldata> 0, 0
 -     v17 = ptrtoint ptr<memory> v4 to i256
 -     v18 = sub v16, v17
 -     v19 = add v18, 0
@@ -71,14 +70,13 @@
 -     v21 = not 31
 -     v22 = and v20, v21
 -     v23 = alloc v22 !metadata(preserves_fmp)
+-     v24 = make_memory_slice v23, v19
 +     v23 = alloc 64 !metadata(preserves_fmp)
-      v24 = ptrtoint ptr<memory> v23 to i256
--     v25 = make_memory_slice v24, v19
-+     v25 = make_memory_slice v24, 64
-      v2 = extract_value slice<memory>, v25, 0
-      v3 = extract_value slice<memory>, v25, 1
--     returndata v24, v19
-+     returndata v24, 64
++     v24 = make_memory_slice v23, 64
+      v2 = extract_value slice<memory>, v24, 0
+      v3 = extract_value slice<memory>, v24, 1
+-     returndata v23, v19
++     returndata v23, 64
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before dce) ===
@@ -86,7 +84,7 @@
   @module ReservationAddress
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
--     v0 = make_calldata_slice 0, 0
+-     v0 = make_calldata_slice ptr<calldata> 0, 0
       v4 = fmp
       v5 = ptrtoint ptr<memory> v4 to i256
       v6 = add v5, 32
@@ -97,11 +95,10 @@
       store v6, 0
 -     v15 = extract_value slice<calldata>, v0, 0
       v23 = alloc 64 !metadata(preserves_fmp)
-      v24 = ptrtoint ptr<memory> v23 to i256
--     v25 = make_memory_slice v24, 64
--     v2 = extract_value slice<memory>, v25, 0
--     v3 = extract_value slice<memory>, v25, 1
-      returndata v24, 64
+-     v24 = make_memory_slice v23, 64
+-     v2 = extract_value slice<memory>, v24, 0
+-     v3 = extract_value slice<memory>, v24, 1
+      returndata v23, 64
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before defer-alloc) ===
@@ -116,7 +113,6 @@
       store v6, 0
       store v6, 0
       v23 = alloc 64 !metadata(preserves_fmp)
-      v24 = ptrtoint ptr<memory> v23 to i256
-      returndata v24, 64
+      returndata v23, 64
   }
   

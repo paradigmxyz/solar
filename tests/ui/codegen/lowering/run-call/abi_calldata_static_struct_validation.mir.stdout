@@ -6,7 +6,7 @@
 fn @f(arg0: ptr<memory>) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
-    v1 = load v0
+    v1 = load arg0
     v2 = ptrtoint ptr<memory> arg0 to i256
     v3 = add v2, 32
     v4 = load v3
@@ -28,6 +28,6 @@ fn @encodeStruct() -> ptr<memory> [selector=0x01e941a3, pure, abi_params=[], abi
 
 fn @makeStruct() -> slice<calldata> [pure] {
   bb0:
-    v0 = make_calldata_slice 4, 0
+    v0 = make_calldata_slice ptr<calldata> 4, 0
     ret v0
 }

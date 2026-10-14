@@ -186,7 +186,7 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     v4 = alloc zeroed checked v3
     store v4, 0x400
     v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = load v5
+    v6 = load v4
     v7 = load 0x2400
     v8 = add v7, v6
     ret v8
@@ -644,7 +644,7 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     store v2, 1
     v3 = not 0
     v4 = ptrtoint ptr<memory> v2 to i256
-    store v4, v3
+    store v2, v3
     v5 = load calldata 4
     store 64, v5 !metadata(memory=scratch)
     v6 = ptrtoint ptr<memory> v2 to i256
@@ -671,7 +671,7 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     store v0, 1
     v1 = not 0
     v2 = ptrtoint ptr<memory> v0 to i256
-    store v2, v1
+    store v0, v1
     v3 = load calldata 4
     store 64, v3 !metadata(memory=scratch)
     v4 = ptrtoint ptr<memory> v0 to i256

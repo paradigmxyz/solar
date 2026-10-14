@@ -61,13 +61,12 @@ fn @oversized(arg0: i256) -> i1 {
   bb2:
     jump bb3
   bb1:
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = add v7, 32
-    v9 = load v5
-    v10 = keccak256 v8, v9
-    v11 = eq v10, 0x8e6896d848ce77893db8ffe49ed1a378c34c94cda53b83ae7938e28a946cb069
+    v7 = ptradd v5, 32
+    v8 = load v5
+    v9 = keccak256 v7, v8
+    v10 = eq v9, 0x8e6896d848ce77893db8ffe49ed1a378c34c94cda53b83ae7938e28a946cb069
     jump bb3
   bb3:
-    v12 = phi [bb1: v11], [bb2: false]
-    ret v12
+    v11 = phi [bb1: v10], [bb2: false]
+    ret v11
 }

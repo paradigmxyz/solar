@@ -30,8 +30,8 @@ contract ContractNames {
     string private constant NAME = type(ConcreteTarget).name;
 
     // SEMANTIC-LABEL: fn @concrete()
-    // SEMANTIC: [[DATA:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // SEMANTIC-NEXT: store [[DATA]], 0x436f6e6372657465546172676574000000000000000000000000000000000000
+    // SEMANTIC: [[BUF:v[0-9]+]] = alloc 64
+    // SEMANTIC: store [[BUF]]+32, 0x436f6e6372657465546172676574000000000000000000000000000000000000
     // CHECK-LABEL: @module ContractNames
     // CHECK: store 160, 36
     // CHECK-NEXT: store 192, 0x436f6e74726163744e616d654c6f6e6765725468616e54686972747954776f42

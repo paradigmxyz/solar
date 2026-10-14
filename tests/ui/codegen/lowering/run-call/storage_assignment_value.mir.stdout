@@ -21,20 +21,18 @@ fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 4
+    store v0+32, 0x6162636400000000000000000000000000000000000000000000000000000000
     v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x6162636400000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint ptr<memory> v0 to i256
     icall @store_storage_bytes, 0, v0
-    v4 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v4
-    v5 = and v4, 1
-    v6 = eq v5, 1
-    v7 = sub 0, v5
-    v8 = or 127, v7
-    v9 = shr 1, v4
-    v10 = and v9, v8
-    ret v10
+    v2 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v2
+    v3 = and v2, 1
+    v4 = eq v3, 1
+    v5 = sub 0, v3
+    v6 = or 127, v5
+    v7 = shr 1, v2
+    v8 = and v7, v6
+    ret v8
 }
 
 fn @assignmentStruct() -> ptr<memory> [selector=0x2e58a5e6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -58,23 +56,24 @@ fn @assignmentCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x47c196a
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
-    v5 = sgt v0, v4
-    icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value slice<calldata>, arg0, 1
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    icall panic_if<0x41>, v8
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc v10
-    store v11, v6
-    v12 = ptradd v11, 32
-    v13 = extract_value slice<calldata>, arg0, 0
-    v14 = extract_value slice<calldata>, arg0, 1
-    copy calldata v12, v13, v14
-    icall @store_storage_bytes, 0, v11
-    v15 = load_storage_bytes 0
-    ret v15
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = sgt v5, v4
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc v11
+    store v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    copy calldata v13, v14, v15
+    icall @store_storage_bytes, 0, v12
+    v16 = load_storage_bytes 0
+    ret v16
 }
 
 fn @assignmentStorage() -> ptr<memory> [selector=0x8d892c90, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

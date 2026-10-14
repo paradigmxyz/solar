@@ -13,7 +13,7 @@ contract MsgData {
 
     // CHECK-LABEL: fn @copy{{[( ]}}
     // CHECK: calldatasize
-    // CHECK-NEXT: [[SRC:v[0-9]+]] = make_calldata_slice 0,
+    // CHECK-NEXT: [[SRC:v[0-9]+]] = make_calldata_slice ptr<calldata> 0,
     // CHECK: [[BYTES:v[0-9]+]] = alloc
     // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
     // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, [[SRC]], 0

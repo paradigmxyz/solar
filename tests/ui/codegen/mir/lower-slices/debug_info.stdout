@@ -7,7 +7,9 @@
 -     v0 = select arg2, arg0, arg1 !metadata(span=10..20)
 -     v1 = extract_value slice<calldata>, v0, 1 !metadata(span=20..30)
 -     ret v1
-+     v6 = select arg4, arg0, arg2
++     v2 = inttoptr i256 arg0 to ptr<calldata>
++     v3 = inttoptr i256 arg2 to ptr<calldata>
++     v6 = select arg4, v2, v3
 +     v7 = select arg4, arg1, arg3
 +     ret v7
   }

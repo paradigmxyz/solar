@@ -24,12 +24,11 @@ fn @encodeLiteral(arg0: i256) -> ptr<memory> [selector=0xb7e00125, pure, abi_par
 
 fn @encodeRuntime(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = ptrtoint ptr<memory> arg0 to i256
-    v1 = add v0, 32
-    v2 = load arg0
-    v3 = keccak256 v1, v2
-    v4 = shr 224, v3
-    v5 = shl 224, v4
-    v6 = abi_encode [word], object, selector v5, args arg1
-    ret v6
+    v0 = ptradd arg0, 32
+    v1 = load arg0
+    v2 = keccak256 v0, v1
+    v3 = shr 224, v2
+    v4 = shl 224, v3
+    v5 = abi_encode [word], object, selector v4, args arg1
+    ret v5
 }

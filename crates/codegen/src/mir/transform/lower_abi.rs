@@ -2956,8 +2956,8 @@ impl LowerAbiCx {
     /// ```text
     /// load slice                 -> extract_value slice, 1 (or load calldata at field 0)
     /// load slice+(header + k)    -> load calldata (extract_value slice, 0)+k
-    /// ptradd slice, offset       -> add (extract_value slice, 0), offset - min(offset, header)
-    /// ptradd address, offset     -> add address, offset - min(offset, pending)
+    /// ptradd slice, offset       -> ptradd (extract_value slice, 0), offset - min(offset, header)
+    /// ptradd address, offset     -> ptradd address, offset - min(offset, pending)
     /// load address+(pending + k) -> load calldata address+k
     /// ```
     fn rebase_calldata_objects(func: &mut Function, mut headers: FxHashMap<ValueId, u64>) {
@@ -3018,6 +3018,7 @@ impl LowerAbiCx {
                         Some(if header != 0 && offset == 0 {
                             // load object -> extract_value object, 1
                             InstKind::slice_field(builder.func(), object, MirType::SLICE_LEN_FIELD)
+                                .0
                         } else {
                             // load object+(header + k) -> load calldata (extract_value object, 0)+k
                             let data = builder.slice_ptr(object);
@@ -3033,29 +3034,32 @@ impl LowerAbiCx {
                     {
                         Some(match builder.func().value_u64(offset) {
                             // ptradd object, offset <= header -> extract_value object, 0
-                            Some(offset) if offset <= header => InstKind::slice_field(
-                                builder.func(),
-                                object,
-                                MirType::SLICE_PTR_FIELD,
-                            ),
-                            // ptradd object, header + k -> add (extract_value object, 0), k
+                            Some(offset) if offset <= header => {
+                                InstKind::slice_field(
+                                    builder.func(),
+                                    object,
+                                    MirType::SLICE_PTR_FIELD,
+                                )
+                                .0
+                            }
+                            // ptradd object, header + k -> ptradd (extract_value object, 0), k
                             Some(offset) => {
                                 let offset = builder.imm(offset - header);
-                                InstKind::Add(builder.slice_ptr(object), offset)
+                                InstKind::PtrAdd(builder.slice_ptr(object), offset)
                             }
-                            // ptradd object, offset -> add (extract_value object, 0), offset
-                            None => InstKind::Add(builder.slice_ptr(object), offset),
+                            // ptradd object, offset -> ptradd (extract_value object, 0), offset
+                            None => InstKind::PtrAdd(builder.slice_ptr(object), offset),
                         })
                     }
                     InstKind::PtrAdd(address, offset)
                         if let Some(&pending) = addresses.get(&address) =>
                     {
-                        // ptradd address, offset -> add address, offset - min(offset, pending)
+                        // ptradd address, offset -> ptradd address, offset - min(offset, pending)
                         let offset = match builder.func().value_u64(offset) {
                             Some(offset) => builder.imm(offset.saturating_sub(pending)),
                             None => offset,
                         };
-                        Some(InstKind::Add(address, offset))
+                        Some(InstKind::PtrAdd(address, offset))
                     }
                     InstKind::Load(address, offset, PtrLocation::Memory)
                         if let Some(&pending) = addresses.get(&address) =>
@@ -3072,7 +3076,7 @@ impl LowerAbiCx {
                 if let Some(kind) = rebased {
                     let instruction = builder.func_mut().inst_mut(inst);
                     if matches!(instruction.kind, InstKind::PtrAdd(..)) {
-                        instruction.result_ty = Some(MirType::I256);
+                        instruction.result_ty = Some(MirType::Ptr(PtrLocation::Calldata));
                     }
                     instruction.kind = kind;
                 }

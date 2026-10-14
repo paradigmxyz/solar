@@ -16,44 +16,46 @@ fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [select
     v10 = gt v8, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v10
     v11 = sub v9, v8
-    v12 = sgt v7, v11
-    icall revert_if<calldata_tail_too_short>, v12
-    v13 = extract_value slice<calldata>, arg0, 1
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc v17
-    store v18, v13
-    v19 = ptradd v18, 32
-    v20 = extract_value slice<calldata>, arg0, 0
-    v21 = extract_value slice<calldata>, arg0, 1
-    copy calldata v19, v20, v21
-    v22 = ptrtoint ptr<memory> v18 to i256
-    store v6, v22
-    v23 = extract_value slice<calldata>, arg1, 0
-    v24 = extract_value slice<calldata>, arg1, 1
-    v25 = calldatasize
-    v26 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = sgt v23, v27
-    icall revert_if<calldata_tail_too_short>, v28
-    v29 = extract_value slice<calldata>, arg1, 1
-    v30 = add v29, 63
-    v31 = lt v30, v29
-    icall panic_if<0x41>, v31
-    v32 = not 31
-    v33 = and v30, v32
-    v34 = alloc v33
-    store v34, v29
-    v35 = ptradd v34, 32
-    v36 = extract_value slice<calldata>, arg1, 0
-    v37 = extract_value slice<calldata>, arg1, 1
-    copy calldata v35, v36, v37
-    v38 = ptrtoint ptr<memory> v34 to i256
-    store v6+32, v38
+    v12 = ptrtoint ptr<calldata> v7 to i256
+    v13 = sgt v12, v11
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = extract_value slice<calldata>, arg0, 1
+    v15 = add v14, 63
+    v16 = lt v15, v14
+    icall panic_if<0x41>, v16
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc v18
+    store v19, v14
+    v20 = ptradd v19, 32
+    v21 = extract_value slice<calldata>, arg0, 0
+    v22 = extract_value slice<calldata>, arg0, 1
+    copy calldata v20, v21, v22
+    v23 = ptrtoint ptr<memory> v19 to i256
+    store v6, v23
+    v24 = extract_value slice<calldata>, arg1, 0
+    v25 = extract_value slice<calldata>, arg1, 1
+    v26 = calldatasize
+    v27 = gt v25, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v27
+    v28 = sub v26, v25
+    v29 = ptrtoint ptr<calldata> v24 to i256
+    v30 = sgt v29, v28
+    icall revert_if<calldata_tail_too_short>, v30
+    v31 = extract_value slice<calldata>, arg1, 1
+    v32 = add v31, 63
+    v33 = lt v32, v31
+    icall panic_if<0x41>, v33
+    v34 = not 31
+    v35 = and v32, v34
+    v36 = alloc v35
+    store v36, v31
+    v37 = ptradd v36, 32
+    v38 = extract_value slice<calldata>, arg1, 0
+    v39 = extract_value slice<calldata>, arg1, 1
+    copy calldata v37, v38, v39
+    v40 = ptrtoint ptr<memory> v36 to i256
+    store v6+32, v40
     ret v6
   bb2:
     v3 = shl 5, v1

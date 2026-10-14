@@ -7,12 +7,10 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 2
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v3 = insert_value struct0, undef struct0, 0, 7
-    v4 = insert_value struct0, v3, 1, v0
-    ret v4
+    store v0+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v1 = insert_value struct0, undef struct0, 0, 7
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
 }
 
 fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
@@ -47,26 +45,24 @@ fn @constructor() [constructor] {
     v1 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0
     v2 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint ptr<memory> v3 to i256
-    datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v3 to i256
-    v7 = add v6, v1
-    copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint ptr<memory> v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    copy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
@@ -123,24 +119,22 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v15 = gas
     v16 = alloc 64 !metadata(preserves_fmp)
     store v16, 2
-    v17 = ptrtoint ptr<memory> v16 to i256
-    v18 = add v17, 32
-    store v18, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v19 = abi_encode [memory_array<word>, memory_bytes], selector v13, args v5, v16
-    v20 = extract_value slice<memory>, v19, 0
-    v21 = extract_value slice<memory>, v19, 1
-    v22 = staticcall v15, v14, v20, v21, 0, 0
-    jumpi v22, bb2, bb1
+    store v16+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v17 = abi_encode [memory_array<word>, memory_bytes], selector v13, args v5, v16
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = extract_value slice<memory>, v17, 1
+    v20 = staticcall v15, v14, v18, v19, 0, 0
+    jumpi v20, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v23 = icall returndata_bytes<>
-    v24 = abi_decode [u256, bytes], v23
-    v25 = extract_value struct0, v24, 0
-    v26 = extract_value struct0, v24, 1
-    v27 = insert_value struct0, undef struct0, 0, v25
-    v28 = insert_value struct0, v27, 1, v26
-    ret v28
+    v21 = icall returndata_bytes<>
+    v22 = abi_decode [u256, bytes], v21
+    v23 = extract_value struct0, v22, 0
+    v24 = extract_value struct0, v22, 1
+    v25 = insert_value struct0, undef struct0, 0, v23
+    v26 = insert_value struct0, v25, 1, v24
+    ret v26
 }
 
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -346,23 +340,23 @@ fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
-    v5 = sgt v0, v4
-    icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value slice<calldata>, arg0, 1
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    icall panic_if<0x41>, v8
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc v10
-    store v11, v6
-    v12 = ptradd v11, 32
-    v13 = extract_value slice<calldata>, arg0, 0
-    v14 = extract_value slice<calldata>, arg0, 1
-    copy calldata v12, v13, v14
-    v15 = ptrtoint ptr<memory> v11 to i256
-    v16 = add v15, 32
-    v17 = load v11
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = sgt v5, v4
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc v11
+    store v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    copy calldata v13, v14, v15
+    v16 = ptradd v12, 32
+    v17 = load v12
     v18 = keccak256 v16, v17
     v19 = eq v18, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
     ret v19
@@ -380,25 +374,23 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v7 = gas
     v8 = alloc 64 !metadata(preserves_fmp)
     store v8, 10
-    v9 = ptrtoint ptr<memory> v8 to i256
-    v10 = add v9, 32
-    store v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v11 = abi_encode [memory_bytes], selector v5, args v8
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = call v7, v6, 0, v12, v13, 0, 32
-    jumpi v14, bb2, bb1
+    store v8+32, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    v9 = abi_encode [memory_bytes], selector v5, args v8
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
+    v12 = call v7, v6, 0, v10, v11, 0, 32
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = load v17
-    v19 = lt v18, 2
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = ne v18, 0
-    ret v21
+    v13 = returndatasize
+    v14 = lt v13, 32
+    icall revert_if<tuple_data_too_short>, v14
+    v15 = add 0, 0
+    v16 = load v15
+    v17 = lt v16, 2
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = ne v16, 0
+    ret v19
 }

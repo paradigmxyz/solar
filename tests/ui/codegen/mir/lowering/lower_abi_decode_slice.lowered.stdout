@@ -6,45 +6,44 @@
 -     v0 = abi_decode [u256], arg0
 -     ret v0
 +     v1 = extract_value slice<memory>, arg0, 0
-+     v2 = inttoptr i256 v1 to ptr<memory>
-+     v3 = extract_value slice<memory>, arg0, 1
-+     v4 = add v1, v3
-+     v5 = slt v3, 32
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = ptrtoint ptr<memory> v1 to i256
++     v4 = add v3, v2
++     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = load v2
++     v6 = load v1
 +     ret v6
 +   bb1:
 +     revert 0, 0
   }
   
-  fn @shared(arg0: i256, arg1: i256) -> i256 {
+  fn @shared(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
     bb0:
       v0 = make_memory_slice arg0, 64
 -     v1 = abi_decode [tuple<u256, u256>], v0
-+     v8 = extract_value slice<memory>, v0, 0
-+     v9 = inttoptr i256 v8 to ptr<memory>
++     v9 = extract_value slice<memory>, v0, 0
 +     v10 = extract_value slice<memory>, v0, 1
 +     v11 = slt v10, 64
 +     jumpi v11, bb1, bb2
 +   bb2:
 +     v12 = icall @decode_static, v9
-      v2 = make_memory_slice arg1, arg1
--     v3 = abi_decode [tuple<u256, u256>], v2
--     v4 = load v1
--     v5 = ptradd v3, 32
-+     v13 = extract_value slice<memory>, v2, 0
-+     v14 = inttoptr i256 v13 to ptr<memory>
-+     v15 = extract_value slice<memory>, v2, 1
-+     v16 = slt v15, 64
-+     jumpi v16, bb1, bb3
+      v2 = ptrtoint ptr<memory> arg1 to i256
+      v3 = make_memory_slice arg1, v2
+-     v4 = abi_decode [tuple<u256, u256>], v3
+-     v5 = load v1
+-     v6 = ptradd v4, 32
++     v13 = extract_value slice<memory>, v3, 0
++     v14 = extract_value slice<memory>, v3, 1
++     v15 = slt v14, 64
++     jumpi v15, bb1, bb3
 +   bb3:
-+     v17 = icall @decode_static, v14
-+     v4 = load v12
-+     v5 = ptradd v17, 32
-      v6 = load v5
-      v7 = add v4, v6
-      ret v7
++     v16 = icall @decode_static, v13
++     v5 = load v12
++     v6 = ptradd v16, 32
+      v7 = load v6
+      v8 = add v5, v7
+      ret v8
 +   bb1:
 +     revert 0, 0
   }
@@ -54,41 +53,43 @@
 -     v0 = abi_decode [bytes], arg0
 -     ret v0
 +     v1 = extract_value slice<memory>, arg0, 0
-+     v2 = inttoptr i256 v1 to ptr<memory>
-+     v3 = extract_value slice<memory>, arg0, 1
-+     v4 = add v1, v3
-+     v5 = slt v3, 32
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = ptrtoint ptr<memory> v1 to i256
++     v4 = add v3, v2
++     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = load v2
-+     v7 = add v1, v6
-+     v8 = add v7, 32
-+     v9 = gt v6, 0xffffffffffffffff
-+     v10 = gt v8, v4
-+     v11 = or v9, v10
-+     v12 = zext i1 v11 to i256
-+     jumpi v11, bb1, bb3
++     v6 = load v1
++     v7 = ptrtoint ptr<memory> v1 to i256
++     v8 = add v7, v6
++     v9 = add v8, 32
++     v10 = gt v6, 0xffffffffffffffff
++     v11 = gt v9, v4
++     v12 = or v10, v11
++     v13 = zext i1 v12 to i256
++     jumpi v12, bb1, bb3
 +   bb3:
-+     v13 = load v7
-+     v14 = add v7, 32
-+     v15 = add v13, 63
-+     v16 = lt v15, v13
-+     jumpi v16, bb4, bb5
++     v14 = load v8
++     v15 = add v8, 32
++     v16 = add v14, 63
++     v17 = lt v16, v14
++     jumpi v17, bb4, bb5
 +   bb5:
-+     v17 = not 31
-+     v18 = and v15, v17
-+     v19 = alloc checked v18
-+     store v19, v13
-+     v20 = sub v4, v14
-+     v21 = gt v13, v20
-+     jumpi v21, bb1, bb6
++     v18 = not 31
++     v19 = and v16, v18
++     v20 = alloc checked v19
++     store v20, v14
++     v21 = sub v4, v15
++     v22 = gt v14, v21
++     jumpi v22, bb1, bb6
 +   bb6:
-+     v22 = make_memory_slice v14, v13
-+     v23 = ptradd v19, 32
-+     v24 = extract_value slice<memory>, v22, 0
-+     v25 = extract_value slice<memory>, v22, 1
-+     copy v23, v24, v25
-+     ret v19
++     v23 = inttoptr i256 v15 to ptr<memory>
++     v24 = make_memory_slice v23, v14
++     v25 = ptradd v20, 32
++     v26 = extract_value slice<memory>, v24, 0
++     v27 = extract_value slice<memory>, v24, 1
++     copy v25, v26, v27
++     ret v20
 +   bb4:
 +     store 32, 65 !metadata(memory=scratch)
 +     store 0, 0x4e487b71 !metadata(memory=scratch)

@@ -21,14 +21,16 @@ fn @len(arg0: slice<calldata>) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @tail{{[( ]}}
-// CHECK: + [[POINTER:v[0-9]+]] = add arg0, arg2
+// CHECK: + [[BASE:v[0-9]+]] = inttoptr i256 arg0 to ptr<calldata>
+// CHECK: + [[POINTER_PTR:v[0-9]+]] = ptradd [[BASE]], arg2
 // CHECK: + [[LENGTH:v[0-9]+]] = sub arg1, arg2
+// CHECK: + [[POINTER:v[0-9]+]] = ptrtoint ptr<calldata> [[POINTER_PTR]] to i256
 // CHECK: + {{v[0-9]+}} = icall @pair_len, [[POINTER]], [[LENGTH]]
 fn @tail(arg0: slice<calldata>, arg1: i256) -> i256 {
   bb0:
     v2 = extract_value slice<calldata>, arg0, 0
     v3 = extract_value slice<calldata>, arg0, 1
-    v4 = add v2, arg1
+    v4 = ptradd v2, arg1
     v5 = sub v3, arg1
     v6 = make_calldata_slice v4, v5
     v7 = icall @pair_len, v6
@@ -44,13 +46,15 @@ fn @pair_len(arg0: slice<calldata>) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @memory{{[( ]}}
-// CHECK: + [[END:v[0-9]+]] = add arg0, arg1
+// CHECK: + [[BASE:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
+// CHECK: + [[END:v[0-9]+]] = add [[BASE]], arg1
 // CHECK: {{^[ +].*}}ret [[END]]
-fn @memory(arg0: i256, arg1: i256) -> i256 {
+fn @memory(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
-    v5 = add v3, v4
+    v6 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v6, v4
     ret v5
 }

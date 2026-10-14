@@ -37,15 +37,13 @@ fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 7
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0xab01020304050600000000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes], object, args v0
-    v4 = abi_decode [bytes], v3
-    v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = add v5, 32
-    v7 = load v6
-    ret v7
+    store v0+32, 0xab01020304050600000000000000000000000000000000000000000000000000
+    v1 = abi_encode [memory_bytes], object, args v0
+    v2 = abi_decode [bytes], v1
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = add v3, 32
+    v5 = load v4
+    ret v5
 }
 
 fn @nested(arg0: i256) -> struct1 [selector=0x847c0acd, pure, abi_params=[i256], abi_returns=[word, word, word], abi_return_params=[u256, u256, i256]] {

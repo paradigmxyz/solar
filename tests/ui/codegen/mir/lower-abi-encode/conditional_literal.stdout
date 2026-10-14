@@ -34,20 +34,18 @@
 +     v20 = add v7, v18
 +     store v20, 0
 +     store v7, v15
-+     v21 = ptrtoint ptr<memory> v0 to i256
-+     v22 = add v21, 32
-+     v23 = add v19, v18
-+     copy v19, v22, v15 !metadata(memory=heap, disjoint)
-+     v24 = ptrtoint ptr<memory> v5 to i256
-+     v25 = sub v23, v24
-+     v26 = add v25, 0
-+     v27 = add v26, 31
-+     v28 = not 31
-+     v29 = and v27, v28
-+     v30 = alloc v29 !metadata(preserves_fmp)
-+     v31 = ptrtoint ptr<memory> v30 to i256
-+     v32 = make_memory_slice v31, v26
-+     ret v32
++     v21 = ptradd v0, 32
++     v22 = add v19, v18
++     copy v19, v21, v15 !metadata(memory=heap, disjoint)
++     v23 = ptrtoint ptr<memory> v5 to i256
++     v24 = sub v22, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc v28 !metadata(preserves_fmp)
++     v30 = make_memory_slice v29, v25
++     ret v30
   }
   
   fn @overlapping(arg0: i256) -> slice<memory> {
@@ -83,20 +81,18 @@
 +     v22 = add v9, v20
 +     store v22, 0
 +     store v9, v17
-+     v23 = ptrtoint ptr<memory> v0 to i256
-+     v24 = add v23, 32
-+     v25 = add v21, v20
-+     copy v21, v24, v17 !metadata(memory=heap, disjoint)
-+     v26 = ptrtoint ptr<memory> v7 to i256
-+     v27 = sub v25, v26
-+     v28 = add v27, 0
-+     v29 = add v28, 31
-+     v30 = not 31
-+     v31 = and v29, v30
-+     v32 = alloc v31 !metadata(preserves_fmp)
-+     v33 = ptrtoint ptr<memory> v32 to i256
-+     v34 = make_memory_slice v33, v28
-+     ret v34
++     v23 = ptradd v0, 32
++     v24 = add v21, v20
++     copy v21, v23, v17 !metadata(memory=heap, disjoint)
++     v25 = ptrtoint ptr<memory> v7 to i256
++     v26 = sub v24, v25
++     v27 = add v26, 0
++     v28 = add v27, 31
++     v29 = not 31
++     v30 = and v28, v29
++     v31 = alloc v30 !metadata(preserves_fmp)
++     v32 = make_memory_slice v31, v27
++     ret v32
   }
   
   fn @preserved() -> slice<memory> {
@@ -127,19 +123,17 @@
 +     v19 = add v6, v17
 +     store v19, 0
 +     store v6, v14
-+     v20 = ptrtoint ptr<memory> v0 to i256
-+     v21 = add v20, 32
-+     v22 = add v18, v17
-+     copy v18, v21, v14 !metadata(memory=heap, disjoint)
-+     v23 = ptrtoint ptr<memory> v4 to i256
-+     v24 = sub v22, v23
-+     v25 = add v24, 0
-+     v26 = add v25, 31
-+     v27 = not 31
-+     v28 = and v26, v27
-+     v29 = alloc v28 !metadata(preserves_fmp)
-+     v30 = ptrtoint ptr<memory> v29 to i256
-+     v31 = make_memory_slice v30, v25
-+     ret v31
++     v20 = ptradd v0, 32
++     v21 = add v18, v17
++     copy v18, v20, v14 !metadata(memory=heap, disjoint)
++     v22 = ptrtoint ptr<memory> v4 to i256
++     v23 = sub v21, v22
++     v24 = add v23, 0
++     v25 = add v24, 31
++     v26 = not 31
++     v27 = and v25, v26
++     v28 = alloc v27 !metadata(preserves_fmp)
++     v29 = make_memory_slice v28, v24
++     ret v29
   }
   

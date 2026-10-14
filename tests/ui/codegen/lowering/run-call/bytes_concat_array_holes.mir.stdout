@@ -16,31 +16,26 @@ fn @chunksAndHash() -> struct0 [pure] {
   bb3:
     v6 = alloc 96 !metadata(preserves_fmp)
     store v6, 40
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = add v7, 32
-    store v8, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    v9 = add v7, 64
-    store v9, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
-    v10 = load v0
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptrtoint ptr<memory> v6 to i256
-    store v0+32, v13
-    v14 = alloc 64 !metadata(preserves_fmp)
-    store v14, 4
-    v15 = ptrtoint ptr<memory> v14 to i256
-    v16 = add v15, 32
-    store v16, 0x7461696c00000000000000000000000000000000000000000000000000000000
-    v17 = load v0
-    v18 = lt 15, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptrtoint ptr<memory> v14 to i256
-    store v0+512, v20
-    v21 = insert_value struct0, undef struct0, 0, v0
-    v22 = insert_value struct0, v21, 1, 7
-    ret v22
+    store v6+32, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
+    store v6+64, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
+    v7 = load v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptrtoint ptr<memory> v6 to i256
+    store v0+32, v10
+    v11 = alloc 64 !metadata(preserves_fmp)
+    store v11, 4
+    store v11+32, 0x7461696c00000000000000000000000000000000000000000000000000000000
+    v12 = load v0
+    v13 = lt 15, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptrtoint ptr<memory> v11 to i256
+    store v0+512, v15
+    v16 = insert_value struct0, undef struct0, 0, v0
+    v17 = insert_value struct0, v16, 1, 7
+    ret v17
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
@@ -67,13 +62,12 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb5:
     jump bb2
   bb2:
-    v25 = ptrtoint ptr<memory> v4 to i256
-    v26 = add v25, 32
-    v27 = load v4
-    v28 = keccak256 v26, v27
-    v29 = insert_value struct1, undef struct1, 0, v28
-    v30 = insert_value struct1, v29, 1, v3
-    ret v30
+    v25 = ptradd v4, 32
+    v26 = load v4
+    v27 = keccak256 v25, v26
+    v28 = insert_value struct1, undef struct1, 0, v27
+    v29 = insert_value struct1, v28, 1, v3
+    ret v29
   bb4:
     v10 = load v5
     v11 = lt v6, v10

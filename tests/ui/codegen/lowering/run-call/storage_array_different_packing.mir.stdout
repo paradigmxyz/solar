@@ -58,7 +58,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb12:
     v80 = icall @load_storage_packed_array_8_2, 0
     v81 = ptrtoint ptr<memory> v80 to i256
-    v82 = load v81
+    v82 = load v80
     v83 = sload 1 !metadata(storage=slot(1))
     v84 = gt v83, v82
     jumpi v84, bb17, bb18

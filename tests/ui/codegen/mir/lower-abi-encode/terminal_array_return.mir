@@ -17,16 +17,14 @@ fn @fresh_array() -> ptr<memory> {
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
-// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
-// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
+// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
 // CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
-// CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
+// CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
 // CHECK: + copy [[DESTINATION]], [[SOURCE]], [[BYTES]]
 // CHECK: + store [[OBJECT]], 32
-// CHECK: + store [[SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + store [[OBJECT]]+32, [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
-// CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
-// CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[SLICE_POINTER]], [[TOTAL]]
+// CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[OBJECT]], [[TOTAL]]
 fn @terminal() {
   bb0:
     v0 = icall @fresh_array
@@ -40,7 +38,7 @@ fn @terminal() {
 // CHECK-LABEL: {{^[ +].*}}fn @borrowed{{[( ]}}
 // CHECK: + copy
 // CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc
-// CHECK: [[BUFFER:v[0-9]+]] = ptrtoint ptr<memory> [[BUFFER_PTR]] to i256
+// CHECK-NEXT: + {{v[0-9]+}} = make_memory_slice [[BUFFER_PTR]], {{v[0-9]+}}
 fn @borrowed(arg0: ptr<memory>) {
   bb0:
     v0 = abi_encode [memory_array<word>], args arg0
@@ -69,11 +67,11 @@ fn @fresh_bytes_wrapper(arg0: i256) -> ptr<memory> {
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
-// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
-// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
-// CHECK: + [[LAST:v[0-9]+]] = add [[SOURCE]],
+// CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
+// CHECK: + [[SOURCE_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[SOURCE]] to i256
+// CHECK-NEXT: + [[LAST:v[0-9]+]] = add [[SOURCE_WORD]],
 // CHECK: + store [[LAST]], 0
-// CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
+// CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
 // CHECK: + copy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + store [[OBJECT]], 32
 fn @terminal_bytes(arg0: i256) {

@@ -9,8 +9,7 @@ fn @makeFixedArray() -> ptr<memory> {
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = alloc 64 !metadata(preserves_fmp)
-    v3 = ptrtoint ptr<memory> v2 to i256
-    memory_zero v3, 64
+    memory_zero v2, 64
     ret v2
 }
 
@@ -38,9 +37,10 @@ fn @read(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8f65cc66, pure, 
     v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
-    v11 = add v3, v4
-    v12 = load calldata v11
-    ret v12
+    v11 = ptrtoint ptr<calldata> v3 to i256
+    v12 = add v11, v4
+    v13 = load calldata v12
+    ret v13
 }
 
 fn @readDynamic(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xcd97b1f2, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -70,9 +70,10 @@ fn @readDynamicCalldata(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x5
     v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
-    v11 = add v3, v4
-    v12 = load calldata v11
-    ret v12
+    v11 = ptrtoint ptr<calldata> v3 to i256
+    v12 = add v11, v4
+    v13 = load calldata v12
+    ret v13
 }
 
 fn @readBytes(arg0: ptr<memory>) -> i256 [selector=0x8b33268b, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -276,19 +277,18 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<2
     jumpi v4, bb1, bb2
   bb1:
     v5 = alloc 64
+    memory_zero v5, 64
     v6 = ptrtoint ptr<memory> v5 to i256
-    memory_zero v6, 64
-    v7 = ptrtoint ptr<memory> v5 to i256
-    store arg0+32, v7
+    store arg0+32, v6
     jump bb2
   bb2:
-    v8 = phi [bb0: v3], [bb1: v5]
-    v9 = lt 0, 2
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = load v8
-    v12 = checked_add u256, v11, arg1
-    sstore 0, v12 !metadata(storage=slot(0))
+    v7 = phi [bb0: v3], [bb1: v5]
+    v8 = lt 0, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = load v7
+    v11 = checked_add u256, v10, arg1
+    sstore 0, v11 !metadata(storage=slot(0))
     ret
 }
 

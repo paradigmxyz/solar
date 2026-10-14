@@ -18,9 +18,7 @@ fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 1
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+    store v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -33,12 +31,10 @@ fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 5
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v3 = icall @consume, v0
-    v4 = load v3
-    ret v4
+    store v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v1 = icall @consume, v0
+    v2 = load v1
+    ret v2
 }
 
 fn @makePair(arg0: i256) -> ptr<memory> [pure] {

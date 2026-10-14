@@ -7,17 +7,14 @@
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb0:
     v12 = icall @decode_calldata_type.4, 4, 4
-    v21 = ptrtoint ptr<memory> v12 to i256
-    v22 = load v21
+    v22 = load v12
     v1 = load v22
-    v18 = add v21, 32
-    v2 = load v18, ptr<memory>
-    v23 = ptrtoint ptr<memory> v2 to i256
-    v3 = load v23
-    v20 = add v23, 32
-    v5 = load v20, ptr<memory>
-    v24 = ptrtoint ptr<memory> v5 to i256
-    v6 = load v24
+    v18 = add v12, 32
+    v2 = load v18
+    v3 = load v2
+    v20 = add v2, 32
+    v5 = load v20
+    v6 = load v5
     store 128, v1
     store 160, v3
     store 192, v6
@@ -82,18 +79,15 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     returndata 128, 32
   bb3:
     v10 = load v108
-    v11 = inttoptr i256 v10 to ptr<memory>
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = icall @default_struct_1
-    v16 = ptrtoint ptr<memory> v13 to i256
-    store v108, v16
+    store v108, v13
     jump bb5
   bb5:
-    v17 = phi [bb3: v11], [bb4: v13]
-    v96 = ptrtoint ptr<memory> v17 to i256
-    v97 = load v96
+    v17 = phi [bb3: v10], [bb4: v13]
+    v97 = load v17
     v19 = load v97
     v20 = load v101
     v21 = lt v2, v20
@@ -104,24 +98,19 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 28, 36
   bb9:
     v25 = load v108
-    v26 = inttoptr i256 v25 to ptr<memory>
     v27 = eq v25, 0
     jumpi v27, bb6, bb7
   bb6:
     v28 = icall @default_struct_1
-    v31 = ptrtoint ptr<memory> v28 to i256
-    store v108, v31
+    store v108, v28
     jump bb7
   bb7:
-    v32 = phi [bb9: v26], [bb6: v28]
-    v87 = ptrtoint ptr<memory> v32 to i256
-    v88 = add v87, 32
-    v33 = load v88, ptr<memory>
-    v89 = ptrtoint ptr<memory> v33 to i256
-    v90 = add v89, 32
-    v34 = load v90, ptr<memory>
-    v99 = ptrtoint ptr<memory> v34 to i256
-    v35 = load v99
+    v32 = phi [bb9: v25], [bb6: v28]
+    v88 = add v32, 32
+    v33 = load v88
+    v90 = add v33, 32
+    v34 = load v90
+    v35 = load v34
     v39 = add v19, v35
     v40 = lt v39, v19
     v41 = add v0, v39
@@ -138,8 +127,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 28, 36
   bb18:
     v73 = icall @decode_calldata_type.4, v70, v49
-    v76 = ptrtoint ptr<memory> v73 to i256
-    store v111, v76
+    store v111, v73
     v77 = sub v69, 1
     v78 = add v70, 32
     v79 = add v71, 1
@@ -153,10 +141,9 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @default_struct_1() -> ptr<memory> [may_return_memory] {
+fn @default_struct_1() -> i256 [may_return_memory] {
   bb0:
     v26 = load 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v26 to ptr<memory> !metadata(memory=scratch)
     v27 = add v26, 256
     store 64, v27 !metadata(memory=scratch)
     v23 = add v26, 64
@@ -174,10 +161,10 @@ fn @default_struct_1() -> ptr<memory> [may_return_memory] {
     store v12, v21
     v14 = add v26, 32
     store v14, v25
-    ret v0
+    ret v26
 }
 
-fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory] {
+fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata arg0
@@ -186,15 +173,14 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> ptr<memory> [may_return_me
     v4 = gt v1, v3
     v5 = sub v0, v2
     v6 = lt v5, 64
-    v47 = or v4, v6
-    jumpi v47, bb1, bb2
+    v49 = or v4, v6
+    jumpi v49, bb1, bb2
   bb2:
-    v45 = load 64 !metadata(memory=scratch)
-    v7 = inttoptr i256 v45 to ptr<memory> !metadata(memory=scratch)
-    v46 = add v45, 96
-    store 64, v46 !metadata(memory=scratch)
+    v47 = load 64 !metadata(memory=scratch)
+    v48 = add v47, 96
+    store 64, v48 !metadata(memory=scratch)
     v8 = load calldata v2
-    store v45, v8
+    store v47, v8
     v9 = add v2, 32
     v10 = load calldata v9
     v11 = add v2, v10
@@ -210,26 +196,26 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> ptr<memory> [may_return_me
     jumpi v20, bb4, bb5
   bb5:
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = load 64 !metadata(memory=scratch)
-    v40 = add v39, v22
-    v41 = lt v40, v39
-    v42 = gt v40, 0xffffffffffffffff
-    v43 = or v41, v42
-    jumpi v43, bb4, bb7
+    v41 = load 64 !metadata(memory=scratch)
+    v42 = add v41, v22
+    v43 = lt v42, v41
+    v44 = gt v42, 0xffffffffffffffff
+    v45 = or v43, v44
+    jumpi v45, bb4, bb7
   bb7:
-    store 64, v40 !metadata(memory=scratch)
-    store v39, v17
+    store 64, v42 !metadata(memory=scratch)
+    store v41, v17
     v24 = sub v0, v12
     v25 = gt v17, v24
     jumpi v25, bb1, bb6
   bb6:
-    v32 = add v39, 32
-    copy calldata v32, v12, v17
-    v34 = add v45, 32
-    store v34, v39
-    v36 = add v45, 64
-    store v36, v2
-    ret v7
+    v33 = add v41, 32
+    copy calldata v33, v12, v17
+    v35 = add v47, 32
+    store v35, v41
+    v37 = add v47, 64
+    store v37, v2
+    ret v47
   bb4:
     store 32, 65 !metadata(memory=scratch)
     store 0, 0x4e487b71 !metadata(memory=scratch)
@@ -238,7 +224,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> ptr<memory> [may_return_me
     revert 0, 0
 }
 
-fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory] {
+fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata arg0
@@ -251,20 +237,17 @@ fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> ptr<memory> [may_return_me
     jumpi v20, bb1, bb2
   bb2:
     v18 = load 64 !metadata(memory=scratch)
-    v7 = inttoptr i256 v18 to ptr<memory> !metadata(memory=scratch)
     v19 = add v18, 96
     store 64, v19 !metadata(memory=scratch)
     v8 = icall @decode_calldata_type.3, v2, v2
-    v9 = ptrtoint ptr<memory> v8 to i256
-    store v18, v9
+    store v18, v8
     v10 = add v2, 32
     v11 = icall @decode_calldata_type.3, v10, v2
-    v12 = ptrtoint ptr<memory> v11 to i256
     v14 = add v18, 32
-    store v14, v12
+    store v14, v11
     v16 = add v18, 64
     store v16, v2
-    ret v7
+    ret v18
   bb1:
     revert 0, 0
 }

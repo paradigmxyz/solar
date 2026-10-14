@@ -12,7 +12,8 @@
 // CHECK: + [[LOAD:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT_PTR]] to i256
 // CHECK: + [[LEN:v[0-9]+]] = load [[LOAD]]
 // CHECK: + [[DATA:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT_PTR]] to i256
-// CHECK: + {{v[0-9]+}} = add [[DATA]], 32
+// CHECK-NEXT: + [[BYTE:v[0-9]+]] = add [[DATA]], 32
+// CHECK-NEXT: + store8 [[BYTE]], [[LEN]]
 // CHECK: + [[FIELD_BASE:v[0-9]+]] = ptrtoint ptr<memory> arg2 to i256
 // CHECK-NEXT: + [[FIELD:v[0-9]+]] = add [[FIELD_BASE]], 32
 // CHECK-NEXT: + store [[FIELD]], [[LEN]]

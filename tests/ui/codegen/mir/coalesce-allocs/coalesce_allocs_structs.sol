@@ -23,8 +23,7 @@ contract CoalesceAllocsFixture {
     // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc 96
     // CHECK: [[FIRST:v[0-9]+]] = load 64
     // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
-    // CHECK: [[OUTER:v[0-9]+]] = ptrtoint ptr<memory> [[OUTER_PTR]] to i256
-    // CHECK: store [[OUTER]], [[FIRST]]
+    // CHECK: store [[OUTER_PTR]], [[FIRST]]
     // CHECK: store {{v[0-9]+}}, [[SECOND]]
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {

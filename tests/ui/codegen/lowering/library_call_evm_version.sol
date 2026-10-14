@@ -109,8 +109,7 @@ contract C {
     // HOMESTEAD: [[IN:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: copy [[BUF]], [[IN]], 64
-    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint ptr<memory> [[BUF]] to i256
-    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[BUF]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     // BYZANTIUM-LABEL: fn @aggregate
     // BYZANTIUM-NOT: extcodesize
@@ -142,8 +141,7 @@ contract C {
     // HOMESTEAD: [[IN:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: copy [[BUF]], [[IN]], 64
-    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint ptr<memory> [[BUF]] to i256
-    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[BUF]], 64
     // HOMESTEAD: abi_decode [tuple<bool, u256>], [[SLICE]]
     // BYZANTIUM-LABEL: fn @structBool
     // BYZANTIUM: delegatecall {{.*}}, 64

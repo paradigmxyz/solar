@@ -53,15 +53,13 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
   bb3:
     v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 3
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = add v7, 32
-    store v8, 0x102030000000000000000000000000000000000000000000000000000000000
-    v9 = load v0
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptrtoint ptr<memory> v6 to i256
-    store v0+32, v12
+    store v6+32, 0x102030000000000000000000000000000000000000000000000000000000000
+    v7 = load v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = ptrtoint ptr<memory> v6 to i256
+    store v0+32, v10
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:
@@ -87,9 +85,7 @@ fn @reason() -> ptr<memory> {
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 1
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    store v4, 0x7800000000000000000000000000000000000000000000000000000000000000
+    store v2+32, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret v2
 }
 

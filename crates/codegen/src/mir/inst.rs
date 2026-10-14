@@ -1130,10 +1130,13 @@ impl InstKind {
         }
     }
 
-    /// Projects field `index` of `slice`, typed by the slice's location.
+    /// Projects field `index` of `slice`, with the field's type in the slice's location.
     #[must_use]
-    pub(crate) fn slice_field(func: &Function, slice: ValueId, index: u32) -> Self {
-        Self::ExtractValue { ty: super::typing::slice_type(func, slice), aggregate: slice, index }
+    pub(crate) fn slice_field(func: &Function, slice: ValueId, index: u32) -> (Self, MirType) {
+        let ty = super::typing::slice_type(func, slice);
+        let MirType::Slice(location) = ty else { unreachable!("slice_type returns a slice") };
+        let field = MirType::slice_fields(location)[index as usize];
+        (Self::ExtractValue { ty, aggregate: slice, index }, field)
     }
 
     /// Returns the slice and field index this instruction projects, if it projects a slice.

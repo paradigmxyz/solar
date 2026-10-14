@@ -14,7 +14,7 @@
 +     jumpi v5, bb2, bb1
 +   bb1:
 +     store 64, v2 !metadata(memory=scratch)
-+     memory_zero v1, arg0
++     memory_zero v0, arg0
       ret v0
 +   bb2:
 +     store 32, 65 !metadata(memory=scratch)

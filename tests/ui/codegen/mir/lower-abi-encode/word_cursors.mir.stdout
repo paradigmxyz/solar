@@ -9,7 +9,7 @@ fn @reencode(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6c07f40d,
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: ptr<memory> 96], [bb3: v3]
     v4 = ptrtoint ptr<memory> v2 to i256
-    v5 = load v4
+    v5 = load v2
     v6 = lt v1, v5
     v7 = zext i1 v6 to i256
     v8 = ne v7, 0
@@ -112,7 +112,7 @@ fn @grownSmall() -> ptr<memory> [selector=0x220ca531, pure, abi_params=[], abi_r
     v0 = alloc zeroed checked 64
     store v0, 1
     v1 = ptrtoint ptr<memory> v0 to i256
-    store v1, 2
+    store v0, 2
     v2 = ptrtoint ptr<memory> v0 to i256
     v3 = add v2, 32
     store v3, 0x10001

@@ -4,8 +4,8 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v19]
-    v1 = phi [bb0: 0], [bb3: v18]
+    v0 = phi [bb0: 0], [bb3: v20]
+    v1 = phi [bb0: 0], [bb3: v19]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = extract_value slice<calldata>, v2, 1
     v4 = lt v0, v3
@@ -28,14 +28,15 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[a
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
-    v16 = add v8, v9
-    v17 = load calldata v16
-    v18 = checked_add u256, v1, v17
+    v16 = ptrtoint ptr<calldata> v8 to i256
+    v17 = add v16, v9
+    v18 = load calldata v17
+    v19 = checked_add u256, v1, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add u256, v0, 1
+    v20 = checked_add u256, v0, 1
     jump bb1
 }
 
@@ -54,7 +55,8 @@ fn @pick(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x9d6a1cd3, pure, 
     v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
-    v11 = add v3, v4
-    v12 = load calldata v11
-    ret v12
+    v11 = ptrtoint ptr<calldata> v3 to i256
+    v12 = add v11, v4
+    v13 = load calldata v12
+    ret v13
 }

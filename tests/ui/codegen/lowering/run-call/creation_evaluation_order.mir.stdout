@@ -47,19 +47,17 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v5 = datasize CreationEvaluationOrderChild_creation_code_0, 32
     v6 = datasize CreationEvaluationOrderChild_creation_code_0, 63, aligned
     v7 = alloc v6
-    v8 = ptrtoint ptr<memory> v7 to i256
-    datacopy CreationEvaluationOrderChild_creation_code_0, v8, v4
-    v9 = extract_value slice<memory>, v3, 0
-    v10 = ptrtoint ptr<memory> v7 to i256
-    v11 = add v10, v4
-    copy v11, v9, 32 !metadata(memory=heap)
-    v12 = ptrtoint ptr<memory> v7 to i256
-    v13: i256 = create2 v0, v12, v5, v1
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
+    datacopy CreationEvaluationOrderChild_creation_code_0, v7, v4
+    v8 = extract_value slice<memory>, v3, 0
+    v9 = ptrtoint ptr<memory> v7 to i256
+    v10 = add v9, v4
+    copy v10, v8, 32 !metadata(memory=heap)
+    v11: i256 = create2 v0, v7, v5, v1
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = sload 0 !metadata(storage=slot(0))
-    ret v15
+    v13 = sload 0 !metadata(storage=slot(0))
+    ret v13
 }

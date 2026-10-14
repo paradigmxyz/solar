@@ -18,12 +18,15 @@
 -     v5 = insert_value struct2, v4, 3, arg2
 -     ret v5
 +     v6 = extract_value slice<calldata>, arg1, 0
-+     v7 = extract_value slice<calldata>, arg1, 1
-+     v8 = extract_value slice<memory>, arg0, 0
-+     v9 = extract_value slice<memory>, arg0, 1
-+     v10 = extract_value slice<returndata>, arg2, 0
-+     v11 = extract_value slice<returndata>, arg2, 1
-+     ret v8, v9, v6, v7, 42, v10, v11
++     v7 = ptrtoint ptr<calldata> v6 to i256
++     v8 = extract_value slice<calldata>, arg1, 1
++     v9 = extract_value slice<memory>, arg0, 0
++     v10 = ptrtoint ptr<memory> v9 to i256
++     v11 = extract_value slice<memory>, arg0, 1
++     v12 = extract_value slice<returndata>, arg2, 0
++     v13 = ptrtoint ptr<returndata> v12 to i256
++     v14 = extract_value slice<returndata>, arg2, 1
++     ret v10, v11, v7, v8, 42, v13, v14
   }
   
   fn @consume(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) -> i256 {
@@ -51,12 +54,15 @@
 +     v23 = load v22
 +     v24 = add v13, 192
 +     v25 = load v24
-+     v26 = make_memory_slice v12, v15
-+     v27 = make_calldata_slice v17, v19
-+     v28 = make_returndata_slice v23, v25
-+     v6 = extract_value slice<memory>, v26, 1
-+     v7 = extract_value slice<calldata>, v27, 1
-+     v8 = extract_value slice<returndata>, v28, 1
++     v26 = inttoptr i256 v12 to ptr<memory>
++     v27 = make_memory_slice v26, v15
++     v28 = inttoptr i256 v17 to ptr<calldata>
++     v29 = make_calldata_slice v28, v19
++     v30 = inttoptr i256 v23 to ptr<returndata>
++     v31 = make_returndata_slice v30, v25
++     v6 = extract_value slice<memory>, v27, 1
++     v7 = extract_value slice<calldata>, v29, 1
++     v8 = extract_value slice<returndata>, v31, 1
       v9 = add v6, v7
 -     v10 = add v8, v4
 +     v10 = add v8, v21
@@ -71,8 +77,8 @@
     bb1:
 -     v0 = phi struct2, [bb0: arg0], [bb2: v4]
 -     jumpi arg1, bb2, bb3
-+     v5 = phi [bb0: arg0], [bb2: v13]
-+     v6 = phi [bb0: arg1], [bb2: v14]
++     v5 = phi [bb0: arg0], [bb2: v15]
++     v6 = phi [bb0: arg1], [bb2: v16]
 +     v7 = phi [bb0: arg2], [bb2: v7]
 +     v8 = phi [bb0: arg3], [bb2: v8]
 +     v9 = phi [bb0: arg4], [bb2: v9]
@@ -85,12 +91,14 @@
     bb2:
 -     v1 = extract_value struct2, v0, 0
 -     v2 = extract_value slice<memory>, v1, 0
-+     v12 = make_memory_slice v5, v6
-+     v2 = extract_value slice<memory>, v12, 0
++     v12 = inttoptr i256 v5 to ptr<memory>
++     v13 = make_memory_slice v12, v6
++     v2 = extract_value slice<memory>, v13, 0
       v3 = make_memory_slice v2, 16
 -     v4 = insert_value struct2, v0, 0, v3
-+     v13 = extract_value slice<memory>, v3, 0
-+     v14 = extract_value slice<memory>, v3, 1
++     v14 = extract_value slice<memory>, v3, 0
++     v15 = ptrtoint ptr<memory> v14 to i256
++     v16 = extract_value slice<memory>, v3, 1
       jump bb1
   }
   
@@ -115,8 +123,9 @@
 -     v1 = insert_value struct1, v0, 1, 42
 -     ret v1
 +     v2 = extract_value slice<calldata>, undef slice<calldata>, 0
-+     v3 = extract_value slice<calldata>, undef slice<calldata>, 1
-+     ret v2, v3, 42
++     v3 = ptrtoint ptr<calldata> v2 to i256
++     v4 = extract_value slice<calldata>, undef slice<calldata>, 1
++     ret v3, v4, 42
   }
   
 - fn @phi_undef(arg0: slice<calldata>, arg1: i1) -> struct1 {
@@ -133,8 +142,9 @@
 -     v2 = insert_value struct1, v1, 1, 42
 -     ret v2
 +     v3 = extract_value slice<calldata>, v0, 0
-+     v4 = extract_value slice<calldata>, v0, 1
-+     ret v3, v4, 42
++     v4 = ptrtoint ptr<calldata> v3 to i256
++     v5 = extract_value slice<calldata>, v0, 1
++     ret v4, v5, 42
   }
   
 - fn @select_undef(arg0: slice<calldata>, arg1: i1) -> struct1 {
@@ -145,8 +155,9 @@
 -     v2 = insert_value struct1, v1, 1, 42
 -     ret v2
 +     v3 = extract_value slice<calldata>, v0, 0
-+     v4 = extract_value slice<calldata>, v0, 1
-+     ret v3, v4, 42
++     v4 = ptrtoint ptr<calldata> v3 to i256
++     v5 = extract_value slice<calldata>, v0, 1
++     ret v4, v5, 42
   }
   
   fn @checked_slice(arg0: slice<calldata>, arg1: i1) -> slice<calldata> {
@@ -180,8 +191,9 @@
 -     v5 = insert_value struct1, v4, 1, 42
 -     ret v5
 +     v6 = extract_value slice<calldata>, v3, 0
-+     v7 = extract_value slice<calldata>, v3, 1
-+     ret v6, v7, 42
++     v7 = ptrtoint ptr<calldata> v6 to i256
++     v8 = extract_value slice<calldata>, v3, 1
++     ret v7, v8, 42
   }
   
   fn @slice_identity(arg0: slice<calldata>) -> slice<calldata> {
@@ -224,12 +236,15 @@
   fn @pack(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
       v6 = extract_value slice<calldata>, arg1, 0
-      v7 = extract_value slice<calldata>, arg1, 1
-      v8 = extract_value slice<memory>, arg0, 0
-      v9 = extract_value slice<memory>, arg0, 1
-      v10 = extract_value slice<returndata>, arg2, 0
-      v11 = extract_value slice<returndata>, arg2, 1
-      ret v8, v9, v6, v7, 42, v10, v11
+      v7 = ptrtoint ptr<calldata> v6 to i256
+      v8 = extract_value slice<calldata>, arg1, 1
+      v9 = extract_value slice<memory>, arg0, 0
+      v10 = ptrtoint ptr<memory> v9 to i256
+      v11 = extract_value slice<memory>, arg0, 1
+      v12 = extract_value slice<returndata>, arg2, 0
+      v13 = ptrtoint ptr<returndata> v12 to i256
+      v14 = extract_value slice<returndata>, arg2, 1
+      ret v10, v11, v7, v8, 42, v13, v14
   }
   
   fn @consume(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) -> i256 {
@@ -237,30 +252,33 @@
       v12 = icall @pack, arg0, arg1, arg2
 -     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 -     v14 = add v13, 32
-+     v29 = load 32 !metadata(memory=scratch)
-+     v14 = add v29, 32
++     v32 = load 32 !metadata(memory=scratch)
++     v14 = add v32, 32
       v15 = load v14
 -     v16 = add v13, 64
-+     v16 = add v29, 64
++     v16 = add v32, 64
       v17 = load v16
 -     v18 = add v13, 96
-+     v18 = add v29, 96
++     v18 = add v32, 96
       v19 = load v18
 -     v20 = add v13, 128
-+     v20 = add v29, 128
++     v20 = add v32, 128
       v21 = load v20
 -     v22 = add v13, 160
-+     v22 = add v29, 160
++     v22 = add v32, 160
       v23 = load v22
 -     v24 = add v13, 192
-+     v24 = add v29, 192
++     v24 = add v32, 192
       v25 = load v24
-      v26 = make_memory_slice v12, v15
-      v27 = make_calldata_slice v17, v19
-      v28 = make_returndata_slice v23, v25
-      v6 = extract_value slice<memory>, v26, 1
-      v7 = extract_value slice<calldata>, v27, 1
-      v8 = extract_value slice<returndata>, v28, 1
+      v26 = inttoptr i256 v12 to ptr<memory>
+      v27 = make_memory_slice v26, v15
+      v28 = inttoptr i256 v17 to ptr<calldata>
+      v29 = make_calldata_slice v28, v19
+      v30 = inttoptr i256 v23 to ptr<returndata>
+      v31 = make_returndata_slice v30, v25
+      v6 = extract_value slice<memory>, v27, 1
+      v7 = extract_value slice<calldata>, v29, 1
+      v8 = extract_value slice<returndata>, v31, 1
       v9 = add v6, v7
       v10 = add v8, v21
       v11 = add v9, v10
@@ -271,8 +289,8 @@
     bb0:
       jump bb1
     bb1:
-      v5 = phi [bb0: arg0], [bb2: v13]
-      v6 = phi [bb0: arg1], [bb2: v14]
+      v5 = phi [bb0: arg0], [bb2: v15]
+      v6 = phi [bb0: arg1], [bb2: v16]
       v7 = phi [bb0: arg2], [bb2: v7]
       v8 = phi [bb0: arg3], [bb2: v8]
       v9 = phi [bb0: arg4], [bb2: v9]
@@ -282,11 +300,13 @@
     bb3:
       ret v5, v6, v7, v8, v9, v10, v11
     bb2:
-      v12 = make_memory_slice v5, v6
-      v2 = extract_value slice<memory>, v12, 0
+      v12 = inttoptr i256 v5 to ptr<memory>
+      v13 = make_memory_slice v12, v6
+      v2 = extract_value slice<memory>, v13, 0
       v3 = make_memory_slice v2, 16
-      v13 = extract_value slice<memory>, v3, 0
-      v14 = extract_value slice<memory>, v3, 1
+      v14 = extract_value slice<memory>, v3, 0
+      v15 = ptrtoint ptr<memory> v14 to i256
+      v16 = extract_value slice<memory>, v3, 1
       jump bb1
   }
   
@@ -303,8 +323,9 @@
   fn @from_undef() -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v2 = extract_value slice<calldata>, undef slice<calldata>, 0
-      v3 = extract_value slice<calldata>, undef slice<calldata>, 1
-      ret v2, v3, 42
+      v3 = ptrtoint ptr<calldata> v2 to i256
+      v4 = extract_value slice<calldata>, undef slice<calldata>, 1
+      ret v3, v4, 42
   }
   
   fn @phi_undef(arg0: slice<calldata>, arg1: i1) -> struct1 [return_abi=[i256, i256, i256]] {
@@ -317,16 +338,18 @@
     bb3:
       v0 = phi [bb1: arg0], [bb2: undef slice<calldata>]
       v3 = extract_value slice<calldata>, v0, 0
-      v4 = extract_value slice<calldata>, v0, 1
-      ret v3, v4, 42
+      v4 = ptrtoint ptr<calldata> v3 to i256
+      v5 = extract_value slice<calldata>, v0, 1
+      ret v4, v5, 42
   }
   
   fn @select_undef(arg0: slice<calldata>, arg1: i1) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = select arg1, arg0, undef slice<calldata>
       v3 = extract_value slice<calldata>, v0, 0
-      v4 = extract_value slice<calldata>, v0, 1
-      ret v3, v4, 42
+      v4 = ptrtoint ptr<calldata> v3 to i256
+      v5 = extract_value slice<calldata>, v0, 1
+      ret v4, v5, 42
   }
   
   fn @checked_slice(arg0: slice<calldata>, arg1: i1) -> slice<calldata> {
@@ -356,8 +379,9 @@
       v2 = phi [bb1: v0], [bb2: v1]
       v3 = select arg0, v2, v2
       v6 = extract_value slice<calldata>, v3, 0
-      v7 = extract_value slice<calldata>, v3, 1
-      ret v6, v7, 42
+      v7 = ptrtoint ptr<calldata> v6 to i256
+      v8 = extract_value slice<calldata>, v3, 1
+      ret v7, v8, 42
   }
   
   fn @slice_identity(arg0: slice<calldata>) -> slice<calldata> {
@@ -398,39 +422,54 @@
 + fn @pack(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
 -     v6 = extract_value slice<calldata>, arg1, 0
--     v7 = extract_value slice<calldata>, arg1, 1
--     v8 = extract_value slice<memory>, arg0, 0
--     v9 = extract_value slice<memory>, arg0, 1
--     v10 = extract_value slice<returndata>, arg2, 0
--     v11 = extract_value slice<returndata>, arg2, 1
--     ret v8, v9, v6, v7, 42, v10, v11
-+     ret arg0, arg1, arg2, arg3, 42, arg4, arg5
++     v6 = inttoptr i256 arg2 to ptr<calldata>
+      v7 = ptrtoint ptr<calldata> v6 to i256
+-     v8 = extract_value slice<calldata>, arg1, 1
+-     v9 = extract_value slice<memory>, arg0, 0
++     v9 = inttoptr i256 arg0 to ptr<memory>
+      v10 = ptrtoint ptr<memory> v9 to i256
+-     v11 = extract_value slice<memory>, arg0, 1
+-     v12 = extract_value slice<returndata>, arg2, 0
++     v12 = inttoptr i256 arg4 to ptr<returndata>
+      v13 = ptrtoint ptr<returndata> v12 to i256
+-     v14 = extract_value slice<returndata>, arg2, 1
+-     ret v10, v11, v7, v8, 42, v13, v14
++     ret v10, arg1, v7, arg3, 42, v13, arg5
   }
   
 - fn @consume(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) -> i256 {
 + fn @consume(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 {
     bb0:
 -     v12 = icall @pack, arg0, arg1, arg2
-+     v12 = icall @pack, arg0, arg1, arg2, arg3, arg4, arg5
-      v29 = load 32 !metadata(memory=scratch)
-      v14 = add v29, 32
++     v33 = inttoptr i256 arg0 to ptr<memory>
++     v34 = ptrtoint ptr<memory> v33 to i256
++     v36 = inttoptr i256 arg2 to ptr<calldata>
++     v37 = ptrtoint ptr<calldata> v36 to i256
++     v39 = inttoptr i256 arg4 to ptr<returndata>
++     v40 = ptrtoint ptr<returndata> v39 to i256
++     v12 = icall @pack, v34, arg1, v37, arg3, v40, arg5
+      v32 = load 32 !metadata(memory=scratch)
+      v14 = add v32, 32
       v15 = load v14
-      v16 = add v29, 64
+      v16 = add v32, 64
       v17 = load v16
-      v18 = add v29, 96
+      v18 = add v32, 96
       v19 = load v18
-      v20 = add v29, 128
+      v20 = add v32, 128
       v21 = load v20
-      v22 = add v29, 160
+      v22 = add v32, 160
       v23 = load v22
-      v24 = add v29, 192
+      v24 = add v32, 192
       v25 = load v24
--     v26 = make_memory_slice v12, v15
--     v27 = make_calldata_slice v17, v19
--     v28 = make_returndata_slice v23, v25
--     v6 = extract_value slice<memory>, v26, 1
--     v7 = extract_value slice<calldata>, v27, 1
--     v8 = extract_value slice<returndata>, v28, 1
+      v26 = inttoptr i256 v12 to ptr<memory>
+-     v27 = make_memory_slice v26, v15
+      v28 = inttoptr i256 v17 to ptr<calldata>
+-     v29 = make_calldata_slice v28, v19
+      v30 = inttoptr i256 v23 to ptr<returndata>
+-     v31 = make_returndata_slice v30, v25
+-     v6 = extract_value slice<memory>, v27, 1
+-     v7 = extract_value slice<calldata>, v29, 1
+-     v8 = extract_value slice<returndata>, v31, 1
 -     v9 = add v6, v7
 -     v10 = add v8, v21
 +     v9 = add v15, v19
@@ -443,9 +482,8 @@
     bb0:
       jump bb1
     bb1:
--     v5 = phi [bb0: arg0], [bb2: v13]
--     v6 = phi [bb0: arg1], [bb2: v14]
-+     v5 = phi [bb0: arg0], [bb2: v5]
+      v5 = phi [bb0: arg0], [bb2: v15]
+-     v6 = phi [bb0: arg1], [bb2: v16]
 +     v6 = phi [bb0: arg1], [bb2: 16]
       v7 = phi [bb0: arg2], [bb2: v7]
       v8 = phi [bb0: arg3], [bb2: v8]
@@ -456,11 +494,14 @@
     bb3:
       ret v5, v6, v7, v8, v9, v10, v11
     bb2:
--     v12 = make_memory_slice v5, v6
--     v2 = extract_value slice<memory>, v12, 0
+      v12 = inttoptr i256 v5 to ptr<memory>
+-     v13 = make_memory_slice v12, v6
+-     v2 = extract_value slice<memory>, v13, 0
 -     v3 = make_memory_slice v2, 16
--     v13 = extract_value slice<memory>, v3, 0
--     v14 = extract_value slice<memory>, v3, 1
+-     v14 = extract_value slice<memory>, v3, 0
+-     v15 = ptrtoint ptr<memory> v14 to i256
+-     v16 = extract_value slice<memory>, v3, 1
++     v15 = ptrtoint ptr<memory> v12 to i256
       jump bb1
   }
   
@@ -477,9 +518,11 @@
   fn @from_undef() -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v2 = extract_value slice<calldata>, undef slice<calldata>, 0
--     v3 = extract_value slice<calldata>, undef slice<calldata>, 1
--     ret v2, v3, 42
-+     ret undef i256, undef i256, 42
+-     v3 = ptrtoint ptr<calldata> v2 to i256
+-     v4 = extract_value slice<calldata>, undef slice<calldata>, 1
+-     ret v3, v4, 42
++     v3 = ptrtoint ptr<calldata> undef to i256
++     ret v3, undef i256, 42
   }
   
 - fn @phi_undef(arg0: slice<calldata>, arg1: i1) -> struct1 [return_abi=[i256, i256, i256]] {
@@ -490,15 +533,18 @@
     bb2:
       jump bb3
     bb1:
++     v6 = inttoptr i256 arg0 to ptr<calldata>
       jump bb3
     bb3:
 -     v0 = phi [bb1: arg0], [bb2: undef slice<calldata>]
 -     v3 = extract_value slice<calldata>, v0, 0
--     v4 = extract_value slice<calldata>, v0, 1
--     ret v3, v4, 42
-+     v9 = phi [bb1: arg0], [bb2: undef i256]
-+     v10 = phi [bb1: arg1], [bb2: undef i256]
-+     ret v9, v10, 42
+-     v4 = ptrtoint ptr<calldata> v3 to i256
+-     v5 = extract_value slice<calldata>, v0, 1
+-     ret v4, v5, 42
++     v10 = phi [bb1: v6], [bb2: undef ptr<calldata>]
++     v11 = phi [bb1: arg1], [bb2: undef i256]
++     v4 = ptrtoint ptr<calldata> v10 to i256
++     ret v4, v11, 42
   }
   
 - fn @select_undef(arg0: slice<calldata>, arg1: i1) -> struct1 [return_abi=[i256, i256, i256]] {
@@ -506,11 +552,14 @@
     bb0:
 -     v0 = select arg1, arg0, undef slice<calldata>
 -     v3 = extract_value slice<calldata>, v0, 0
--     v4 = extract_value slice<calldata>, v0, 1
--     ret v3, v4, 42
-+     v9 = select arg2, arg0, undef i256
-+     v10 = select arg2, arg1, undef i256
-+     ret v9, v10, 42
+-     v4 = ptrtoint ptr<calldata> v3 to i256
+-     v5 = extract_value slice<calldata>, v0, 1
+-     ret v4, v5, 42
++     v6 = inttoptr i256 arg0 to ptr<calldata>
++     v10 = select arg2, v6, undef ptr<calldata>
++     v11 = select arg2, arg1, undef i256
++     v4 = ptrtoint ptr<calldata> v10 to i256
++     ret v4, v11, 42
   }
   
 - fn @checked_slice(arg0: slice<calldata>, arg1: i1) -> slice<calldata> {
@@ -522,7 +571,9 @@
       tail_call @revert_stub
     bb1:
 -     ret arg0
-+     ret arg0, arg1
++     v0 = inttoptr i256 arg0 to ptr<calldata>
++     v1 = ptrtoint ptr<calldata> v0 to i256
++     ret v1, arg1
   }
   
   fn @revert_stub() {
@@ -536,36 +587,46 @@
       jumpi arg0, bb1, bb2
     bb2:
 -     v1 = icall @slice_identity, arg1
-+     v1 = icall @slice_identity, arg1, arg2
-+     v30 = load 32 !metadata(memory=scratch)
-+     v31 = add v30, 32
-+     v32 = load v31
++     v26 = inttoptr i256 arg1 to ptr<calldata>
++     v27 = ptrtoint ptr<calldata> v26 to i256
++     v1 = icall @slice_identity, v27, arg2
++     v34 = load 32 !metadata(memory=scratch)
++     v35 = add v34, 32
++     v36 = load v35
++     v37 = inttoptr i256 v1 to ptr<calldata>
       jump bb3
     bb1:
 -     v0 = icall @slice_identity, arg1
-+     v0 = icall @slice_identity, arg1, arg2
-+     v26 = load 32 !metadata(memory=scratch)
-+     v27 = add v26, 32
-+     v28 = load v27
++     v23 = inttoptr i256 arg1 to ptr<calldata>
++     v24 = ptrtoint ptr<calldata> v23 to i256
++     v0 = icall @slice_identity, v24, arg2
++     v29 = load 32 !metadata(memory=scratch)
++     v30 = add v29, 32
++     v31 = load v30
++     v32 = inttoptr i256 v0 to ptr<calldata>
       jump bb3
     bb3:
 -     v2 = phi [bb1: v0], [bb2: v1]
 -     v3 = select arg0, v2, v2
 -     v6 = extract_value slice<calldata>, v3, 0
--     v7 = extract_value slice<calldata>, v3, 1
--     ret v6, v7, 42
-+     v19 = phi [bb1: v0], [bb2: v1]
-+     v20 = phi [bb1: v28], [bb2: v32]
-+     v12 = select arg0, v19, v19
+-     v7 = ptrtoint ptr<calldata> v6 to i256
+-     v8 = extract_value slice<calldata>, v3, 1
+-     ret v7, v8, 42
++     v20 = phi [bb1: v32], [bb2: v37]
++     v21 = phi [bb1: v31], [bb2: v36]
 +     v13 = select arg0, v20, v20
-+     ret v12, v13, 42
++     v14 = select arg0, v21, v21
++     v7 = ptrtoint ptr<calldata> v13 to i256
++     ret v7, v14, 42
   }
   
 - fn @slice_identity(arg0: slice<calldata>) -> slice<calldata> {
 + fn @slice_identity(arg0: i256, arg1: i256) -> slice<calldata> [return_abi=[i256, i256]] {
     bb0:
 -     ret arg0
-+     ret arg0, arg1
++     v0 = inttoptr i256 arg0 to ptr<calldata>
++     v1 = ptrtoint ptr<calldata> v0 to i256
++     ret v1, arg1
   }
   
   fn @memory_call_results(arg0: i1, arg1: ptr<memory>) -> struct3 [return_abi=[ptr<memory>]] {

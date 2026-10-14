@@ -942,12 +942,12 @@ impl<'a> FunctionBuilder<'a> {
     /// slice.
     pub(crate) fn memory_data_at(&mut self, value: ValueId, offset: u64) -> ValueId {
         if matches!(self.func.value_ty(value), Some(MirType::Slice(_))) {
+            // data = ptradd (extract_value value, 0), offset
             let data = self.slice_ptr(value);
-            return self.add_u64_offset(data, offset);
+            return self.address_value(data, offset);
         }
-        // data = add (ptrtoint value), DYNAMIC_HEADER_SIZE + offset
-        let header = self.cast(value, MirType::I256);
-        self.add_u64_offset(header, EvmMemoryLayout::DYNAMIC_HEADER_SIZE.saturating_add(offset))
+        // data = ptradd value, DYNAMIC_HEADER_SIZE + offset
+        self.address_value(value, EvmMemoryLayout::DYNAMIC_HEADER_SIZE.saturating_add(offset))
     }
 
     /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
@@ -1086,8 +1086,9 @@ impl<'a> FunctionBuilder<'a> {
         (self.ptradd(value, offset), header, PtrLocation::Memory)
     }
 
-    /// Returns `base + offset` as one address value, for a `copy`, which takes no immediate.
-    fn address_value(&mut self, base: ValueId, offset: u64) -> ValueId {
+    /// Returns `base + offset` as one address value, for an operation that takes no immediate
+    /// offset.
+    pub(crate) fn address_value(&mut self, base: ValueId, offset: u64) -> ValueId {
         if offset == 0 || !self.func.value_ty(base).is_some_and(MirType::is_pointer) {
             // address = add base, offset
             return self.add_u64_offset(base, offset);
@@ -1106,8 +1107,34 @@ impl<'a> FunctionBuilder<'a> {
         ty: MirType,
     ) -> ValueId {
         let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
+        let (address, offset) = self.access_base(address, offset);
         // result = load location address+offset
         self.emit_inst(InstKind::Load(address, offset, location), Some(result))
+    }
+
+    /// Returns the pointer an access address casts to a word, so the access takes the pointer.
+    fn access_address(&self, address: ValueId) -> ValueId {
+        // load (ptrtoint pointer to i256) -> load pointer
+        if let Value::Inst(inst) = self.func.value(address)
+            && let InstKind::PtrToInt(pointer, 256) = self.func.inst(*inst).kind
+        {
+            return pointer;
+        }
+        address
+    }
+
+    /// Returns the base and immediate offset of an access at `address + offset`, folding a
+    /// constant `ptradd` of the address into the offset.
+    fn access_base(&self, address: ValueId, offset: u64) -> (ValueId, u64) {
+        let address = self.access_address(address);
+        // load (ptradd pointer, k)+offset -> load pointer+(k + offset)
+        if let Value::Inst(inst) = self.func.value(address)
+            && let InstKind::PtrAdd(pointer, delta) = self.func.inst(*inst).kind
+            && let Some(offset) = self.func.value_u64(delta).and_then(|k| k.checked_add(offset))
+        {
+            return (pointer, offset);
+        }
+        (address, offset)
     }
 
     /// Offsets a pointer by `offset` bytes; a raw word offsets as a `ptr<memory>`.
@@ -1240,7 +1267,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::ExtractValue { ty, aggregate, index }, Some(field))
     }
 
-    /// Projects the pointer word from a slice.
+    /// Projects the pointer from a slice.
     pub(crate) fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
         self.slice_field(slice, MirType::SLICE_PTR_FIELD)
     }
@@ -1252,7 +1279,8 @@ impl<'a> FunctionBuilder<'a> {
 
     fn slice_field(&mut self, slice: ValueId, index: u32) -> ValueId {
         // result = extract_value slice_ty, slice, index
-        self.emit_inst(InstKind::slice_field(self.func, slice, index), Some(MirType::I256))
+        let (kind, ty) = InstKind::slice_field(self.func, slice, index);
+        self.emit_inst(kind, Some(ty))
     }
 
     /// Compares a value with zero.
@@ -1402,6 +1430,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a word store to memory at `ptr + offset`.
     pub(crate) fn store_at(&mut self, ptr: ValueId, offset: u64, value: ValueId) {
+        let (ptr, offset) = self.access_base(ptr, offset);
         // store ptr+offset, value
         self.emit_void_inst(InstKind::Store(ptr, offset, value));
     }
@@ -1413,6 +1442,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a byte store to memory at `ptr + offset`.
     pub(crate) fn store8_at(&mut self, ptr: ValueId, offset: u64, value: ValueId) {
+        let (ptr, offset) = self.access_base(ptr, offset);
         // store8 ptr+offset, value
         self.emit_void_inst(InstKind::Store8(ptr, offset, value));
     }
@@ -1425,6 +1455,7 @@ impl<'a> FunctionBuilder<'a> {
         len: ValueId,
         location: PtrLocation,
     ) {
+        let (dest, src) = (self.access_address(dest), self.access_address(src));
         // copy location dest, src, len
         self.emit_void_inst(InstKind::Copy(dest, src, len, location))
     }
@@ -1437,6 +1468,7 @@ impl<'a> FunctionBuilder<'a> {
         len: ValueId,
         location: PtrLocation,
     ) -> InstId {
+        let (dest, src) = (self.access_address(dest), self.access_address(src));
         self.emit_void_inst_in_region(InstKind::Copy(dest, src, len, location), MemoryRegion::Heap)
     }
 
@@ -1447,9 +1479,7 @@ impl<'a> FunctionBuilder<'a> {
         len: ValueId,
         location: PtrLocation,
     ) -> ValueId {
-        // raw_pointer = ptrtoint pointer to i256
-        // slice = make_slice raw_pointer, length
-        let ptr = self.cast(ptr, MirType::I256);
+        // slice = make_slice (inttoptr address to ptr<location>), length
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
@@ -1802,11 +1832,17 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a revert terminator.
     pub(crate) fn revert(&mut self, offset: ValueId, size: ValueId) {
-        // offset = ptrtoint offset to i256
+        // offset = zext offset to i256, unless it is a ptr<memory>
         // size = zext size to i256
-        let offset = self.cast(offset, MirType::I256);
+        let offset = self.memory_address(offset);
         let size = self.cast(size, MirType::I256);
         self.set_terminator(Terminator::Revert { offset, size });
+    }
+
+    /// Returns a memory address operand: a `ptr<memory>` as is, anything else as a word.
+    fn memory_address(&mut self, address: ValueId) -> ValueId {
+        let ty = super::typing::address(self.func, address, PtrLocation::Memory);
+        self.cast(address, ty)
     }
 
     /// Sets a returndata-bubbling revert terminator.
@@ -1816,9 +1852,9 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a return-data terminator: `RETURN(offset, size)`.
     pub(crate) fn ret_data(&mut self, offset: ValueId, size: ValueId) {
-        // offset = ptrtoint offset to i256
+        // offset = zext offset to i256, unless it is a ptr<memory>
         // size = zext size to i256
-        let offset = self.cast(offset, MirType::I256);
+        let offset = self.memory_address(offset);
         let size = self.cast(size, MirType::I256);
         self.set_terminator(Terminator::ReturnData { offset, size });
     }

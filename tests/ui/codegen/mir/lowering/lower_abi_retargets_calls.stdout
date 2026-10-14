@@ -149,11 +149,11 @@
 + 
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
 +   bb0:
-+     v2 = icall @sliceBody.body
-+     store 128, v2
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     v3 = icall @sliceBody.body
++     store 128, v3
++     v4 = add 128, 32
++     v5 = sub v4, 128
++     returndata 128, v5
 + }
 + 
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
@@ -184,11 +184,12 @@
 + 
 + fn @sliceBody.body() -> i256 {
 +   bb0:
-      v0 = make_calldata_slice 4, 32
+      v0 = make_calldata_slice ptr<calldata> 4, 32
       jump bb1
     bb1:
       v1 = extract_value slice<calldata>, v0, 0
-      ret v1
+      v2 = ptrtoint ptr<calldata> v1 to i256
+      ret v2
 - }
 - 
 - fn @sliceCaller() -> i256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {

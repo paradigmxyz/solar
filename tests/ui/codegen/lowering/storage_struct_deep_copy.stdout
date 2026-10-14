@@ -32,9 +32,8 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v84 = add v89, 32
     store v84, v4
     v5 = alloc 64 !metadata(deferred_alloc)
-    v88 = ptrtoint ptr<memory> v5 to i256
-    store v88, arg0
-    v86 = add v88, 32
+    store v5, arg0
+    v86 = add v5, 32
     store v86, v89
     v9 = sload 0 !metadata(storage=slot(0))
     v11 = and v9, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
@@ -150,9 +149,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v92 = add v98, 32
     store v92, v4
     v5 = alloc 64 !metadata(deferred_alloc)
-    v97 = ptrtoint ptr<memory> v5 to i256
-    store v97, arg0
-    v94 = add v97, 32
+    store v5, arg0
+    v94 = add v5, 32
     store v94, v98
     v8 = sload 2 !metadata(storage=slot(2))
     v9 = gt v8, 0xffffffffffffffff
@@ -163,7 +161,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v12 = add v8, v8
     v86 = keccak256 0, 32 !metadata(memory=scratch)
     v13 = add v86, v12
-    v14 = load v97
+    v14 = load v5
     v15 = sload v13 !metadata(storage=symbolic(v13))
     v17 = and v15, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v18 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
@@ -325,9 +323,8 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v88 = add v93, 32
     store v88, v4
     v5 = alloc 64 !metadata(deferred_alloc)
-    v92 = ptrtoint ptr<memory> v5 to i256
-    store v92, arg0
-    v90 = add v92, 32
+    store v5, arg0
+    v90 = add v5, 32
     store v90, v93
     v13 = sload 3 !metadata(storage=slot(3))
     v15 = and v13, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000

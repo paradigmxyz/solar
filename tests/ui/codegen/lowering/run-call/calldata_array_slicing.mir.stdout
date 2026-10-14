@@ -18,7 +18,7 @@ fn @sliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector
     v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
-    v14 = add v0, v7
+    v14 = ptradd v0, v7
     v15 = make_calldata_slice v14, v6
     v16 = extract_value slice<calldata>, v15, 1
     ret v16
@@ -42,7 +42,7 @@ fn @sliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> i25
     v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
-    v14 = add v0, v7
+    v14 = ptradd v0, v7
     v15 = make_calldata_slice v14, v6
     v16 = extract_value slice<calldata>, v15, 1
     v17 = lt arg3, v16
@@ -57,9 +57,10 @@ fn @sliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> i25
     v25 = zext i1 v24 to i256
     v26 = eq v25, 0
     icall panic_if<0x41>, v26
-    v27 = add v19, v20
-    v28 = load calldata v27
-    ret v28
+    v27 = ptrtoint ptr<calldata> v19 to i256
+    v28 = add v27, v20
+    v29 = load calldata v28
+    ret v29
 }
 
 fn @chainedIndex(arg0: slice<calldata>) -> i256 [selector=0xb5f9dbd8, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -72,7 +73,7 @@ fn @chainedIndex(arg0: slice<calldata>) -> i256 [selector=0xb5f9dbd8, pure, abi_
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub v1, 1
-    v7 = add v0, 32
+    v7 = ptradd v0, 32
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 0
     v10 = extract_value slice<calldata>, v8, 1
@@ -82,16 +83,17 @@ fn @chainedIndex(arg0: slice<calldata>) -> i256 [selector=0xb5f9dbd8, pure, abi_
     v14 = zext i1 v13 to i256
     icall revert_if<empty>, v13
     v15 = sub v10, 1
-    v16 = add v9, 32
+    v16 = ptradd v9, 32
     v17 = make_calldata_slice v16, v15
     v18 = extract_value slice<calldata>, v17, 1
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = extract_value slice<calldata>, v17, 0
-    v22 = add v21, 0
-    v23 = load calldata v22
-    ret v23
+    v22 = ptrtoint ptr<calldata> v21 to i256
+    v23 = add v22, 0
+    v24 = load calldata v23
+    ret v24
 }
 
 fn @nestedSliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x4b325b31, pure, abi_params=[array<_, u256>, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -112,7 +114,7 @@ fn @nestedSliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256,
     v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
-    v14 = add v0, v7
+    v14 = ptradd v0, v7
     v15 = make_calldata_slice v14, v6
     v16 = extract_value slice<calldata>, v15, 0
     v17 = extract_value slice<calldata>, v15, 1
@@ -130,7 +132,7 @@ fn @nestedSliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256,
     v28 = zext i1 v27 to i256
     v29 = eq v28, 0
     icall panic_if<0x41>, v29
-    v30 = add v16, v23
+    v30 = ptradd v16, v23
     v31 = make_calldata_slice v30, v22
     v32 = extract_value slice<calldata>, v31, 1
     ret v32
@@ -154,7 +156,7 @@ fn @startSliceLength(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xaedb
     v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
-    v14 = add v0, v7
+    v14 = ptradd v0, v7
     v15 = make_calldata_slice v14, v6
     v16 = extract_value slice<calldata>, v15, 1
     ret v16
@@ -170,7 +172,7 @@ fn @endSliceLength(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x478be0
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg1, 0
-    v7 = add v0, 0
+    v7 = ptradd v0, 0
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 1
     ret v9
@@ -194,7 +196,7 @@ fn @startSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [sele
     v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
-    v14 = add v0, v7
+    v14 = ptradd v0, v7
     v15 = make_calldata_slice v14, v6
     v16 = extract_value slice<calldata>, v15, 1
     v17 = lt arg2, v16
@@ -209,9 +211,10 @@ fn @startSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [sele
     v25 = zext i1 v24 to i256
     v26 = eq v25, 0
     icall panic_if<0x41>, v26
-    v27 = add v19, v20
-    v28 = load calldata v27
-    ret v28
+    v27 = ptrtoint ptr<calldata> v19 to i256
+    v28 = add v27, v20
+    v29 = load calldata v28
+    ret v29
 }
 
 fn @endSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x0420e48e, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -224,7 +227,7 @@ fn @endSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [select
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg1, 0
-    v7 = add v0, 0
+    v7 = ptradd v0, 0
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 1
     v10 = lt arg2, v9
@@ -239,9 +242,10 @@ fn @endSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [select
     v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
-    v20 = add v12, v13
-    v21 = load calldata v20
-    ret v21
+    v20 = ptrtoint ptr<calldata> v12 to i256
+    v21 = add v20, v13
+    v22 = load calldata v21
+    ret v22
 }
 
 fn @bytesSlice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x165cd355, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -254,7 +258,7 @@ fn @bytesSlice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
-    v7 = add v0, arg1
+    v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 0
     v10 = extract_value slice<calldata>, v8, 1
@@ -262,21 +266,22 @@ fn @bytesSlice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
     v12 = gt v10, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v12
     v13 = sub v11, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = extract_value slice<calldata>, v8, 1
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    icall panic_if<0x41>, v17
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc v19
-    store v20, v15
-    v21 = ptradd v20, 32
-    v22 = extract_value slice<calldata>, v8, 0
-    v23 = extract_value slice<calldata>, v8, 1
-    copy calldata v21, v22, v23
-    ret v20
+    v14 = ptrtoint ptr<calldata> v9 to i256
+    v15 = sgt v14, v13
+    icall revert_if<calldata_tail_too_short>, v15
+    v16 = extract_value slice<calldata>, v8, 1
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    icall panic_if<0x41>, v18
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc v20
+    store v21, v16
+    v22 = ptradd v21, 32
+    v23 = extract_value slice<calldata>, v8, 0
+    v24 = extract_value slice<calldata>, v8, 1
+    copy calldata v22, v23, v24
+    ret v21
 }
 
 fn @chainedBytesIndex(arg0: slice<calldata>) -> i256 [selector=0x96fa77f1, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
@@ -289,7 +294,7 @@ fn @chainedBytesIndex(arg0: slice<calldata>) -> i256 [selector=0x96fa77f1, pure,
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
     v6 = sub v1, 1
-    v7 = add v0, 1
+    v7 = ptradd v0, 1
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 0
     v10 = extract_value slice<calldata>, v8, 1
@@ -299,7 +304,7 @@ fn @chainedBytesIndex(arg0: slice<calldata>) -> i256 [selector=0x96fa77f1, pure,
     v14 = zext i1 v13 to i256
     icall revert_if<empty>, v13
     v15 = sub v10, 1
-    v16 = add v9, 1
+    v16 = ptradd v9, 1
     v17 = make_calldata_slice v16, v15
     v18 = extract_value slice<calldata>, v17, 1
     v19 = lt 0, v18

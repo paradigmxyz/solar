@@ -66,10 +66,7 @@ impl Layouts {
                     MirType::Struct(nested) if nested < id => {
                         leaves.extend_from_slice(&layouts.leaves[nested])
                     }
-                    MirType::Slice(location) => {
-                        leaves.push(super::lower_slices::slice_param_ptr_type(location));
-                        leaves.push(MirType::I256);
-                    }
+                    MirType::Slice(_) => leaves.extend([MirType::I256; 2]),
                     MirType::Struct(_) | MirType::Void => return None,
                     _ => leaves.push(field),
                 }
@@ -279,8 +276,9 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                     let mut leaves = components(aggregate, &aggregates);
                     let inserted =
                         if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
-                            // slice -> (extract_value slice, 0), (extract_value slice, 1)
-                            vec![builder.slice_ptr(value), builder.slice_len(value)]
+                            // slice -> ptrtoint (extract_value slice, 0), extract_value slice, 1
+                            let pointer = builder.slice_ptr(value);
+                            vec![builder.cast(pointer, MirType::I256), builder.slice_len(value)]
                         } else if layouts.types[ty].fields[index as usize] == MirType::I256
                             && matches!(builder.func().value_ty(value), Some(MirType::MEMPTR))
                         {

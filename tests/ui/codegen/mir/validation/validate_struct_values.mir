@@ -166,8 +166,8 @@ fn @implicit_abi_word(arg0: i1) -> slice<memory> {
     ret v0
 }
 
-//~? ERROR: [fn23] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
-fn @implicit_return_pointer(arg0: ptr<memory>) {
+//~? ERROR: [fn23] [bb0] raw return and revert operands must be a memory address and an `i256` size
+fn @implicit_return_pointer(arg0: ptr<calldata>) {
   bb0:
     returndata arg0, 32
 }

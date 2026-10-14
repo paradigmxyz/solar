@@ -2,13 +2,13 @@
 @module ValidateTerminators
 
 // Raw terminator operands are words: a boolean needs an explicit cast.
-//~? ERROR: [fn0] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+//~? ERROR: [fn0] [bb0] raw return and revert operands must be a memory address and an `i256` size
 fn @revertOffset(arg0: i1) {
   bb0:
     revert arg0, 0
 }
 
-//~? ERROR: [fn1] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+//~? ERROR: [fn1] [bb0] raw return and revert operands must be a memory address and an `i256` size
 fn @returnSize(arg0: i1) {
   bb0:
     returndata 0, arg0

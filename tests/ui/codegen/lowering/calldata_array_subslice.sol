@@ -6,7 +6,7 @@ contract CalldataArraySubslice {
     // slice value carries the data pointer and length, so a word copy from the
     // adjusted position rebuilds the memory array.
     // CHECK-LABEL: fn @word{{[( ]}}
-    // CHECK: [[START:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // CHECK: [[START:v[0-9]+]] = ptradd {{v[0-9]+}}, 32
     // CHECK-NEXT: [[SUB:v[0-9]+]] = make_calldata_slice [[START]], {{v[0-9]+}}
     // CHECK: [[SUB_PTR:v[0-9]+]] = extract_value slice<calldata>, [[SUB]], 0
     // CHECK: [[OUT:v[0-9]+]] = alloc

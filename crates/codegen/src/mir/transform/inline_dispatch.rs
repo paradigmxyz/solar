@@ -160,7 +160,10 @@ fn eligible(func: &Function) -> bool {
             let kind = &func.inst(id).kind;
             match kind {
                 InstKind::Store(ptr, offset, _) => safe_constant_memory_write(func, *ptr, *offset),
+                // Full-width pointer casts emit no code.
                 InstKind::Phi(_)
+                | InstKind::IntToPtr(_)
+                | InstKind::PtrToInt(_, 256)
                 | InstKind::Load(.., PtrLocation::Calldata)
                 | InstKind::CalldataSize => true,
                 _ => {

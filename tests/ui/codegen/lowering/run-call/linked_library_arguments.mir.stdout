@@ -119,7 +119,8 @@ fn @first(arg0: slice<calldata>) -> i256 [pure] {
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
-    v4 = add v3, 0
-    v5 = load calldata v4
-    ret v5
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 0
+    v6 = load calldata v5
+    ret v6
 }

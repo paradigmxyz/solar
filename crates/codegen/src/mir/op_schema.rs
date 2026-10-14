@@ -132,9 +132,10 @@ impl ResultKind {
         !matches!(self, Self::None)
     }
 
-    /// Checks the exact result type; scalar conversions require explicit instructions.
+    /// Checks the exact result type; scalar conversions require explicit instructions. A pointer
+    /// result admits the word it holds, as lowering erases pointer types.
     pub(crate) fn admits_type(self, ty: MirType) -> bool {
-        if self == Self::I160 && ty == MirType::I256 {
+        if matches!(self, Self::I160 | Self::MemPtr | Self::Pointer) && ty == MirType::I256 {
             true
         } else if self == Self::Integer {
             matches!(ty, MirType::Int(bits) if MirType::valid_integer_width(bits.get()))
@@ -1612,7 +1613,7 @@ define_mir_ops! {
     )]
     #[builder(memory_zero, void)]
     #[raw_memory(Write(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
     #[mir_op(
@@ -1874,9 +1875,9 @@ define_mir_ops! {
     )]
     #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Calldata, .. } => "make_calldata_slice")]
     #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Returndata, .. } => "make_returndata_slice")]
-    #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::Ptr(*location), MirType::I256]))]
     MakeSlice {
-        /// Address of the first element or byte; a memory slice may start at a `ptr<memory>`.
+        /// Pointer to the first element or byte.
         ptr: ValueId,
         /// Logical element or byte length.
         len: ValueId,
@@ -1978,7 +1979,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Write(dest, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Byte length of deferred module data, such as another contract's
     /// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
@@ -2022,7 +2023,7 @@ define_mir_ops! {
     )]
     #[builder(codecopy, void)]
     #[raw_memory(Write(dest, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), MirType::I256, MirType::I256]))]
     CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code size: `extcodesize(addr)`
     #[mir_op(
@@ -2048,7 +2049,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Write(dest, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, typing::address(func, *dest, PtrLocation::Memory), MirType::I256, MirType::I256]))]
     ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code hash: `extcodehash(addr)`
     #[mir_op(
@@ -2384,7 +2385,7 @@ define_mir_ops! {
     )]
     #[builder(keccak256)]
     #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
     Keccak256(offset: ValueId, size: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
@@ -2464,7 +2465,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
     Call {
         gas: ValueId,
         addr: ValueId,
@@ -2485,7 +2486,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
     CallCode {
         gas: ValueId,
         addr: ValueId,
@@ -2506,7 +2507,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
     StaticCall {
         gas: ValueId,
         addr: ValueId,
@@ -2526,7 +2527,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(args_offset, args_size), PartialWrite(ret_offset, ret_size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, typing::address(func, *args_offset, PtrLocation::Memory), MirType::I256, typing::address(func, *ret_offset, PtrLocation::Memory), MirType::I256]))]
     DelegateCall {
         gas: ValueId,
         addr: ValueId,
@@ -2561,7 +2562,7 @@ define_mir_ops! {
     )]
     #[builder(create)]
     #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
     Create(value: ValueId, offset: ValueId, size: ValueId),
     /// Create2 contract: `create2(value, offset, size, salt)`
     #[mir_op(
@@ -2574,7 +2575,7 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, typing::address(func, *offset, PtrLocation::Memory), MirType::I256, MirType::I256]))]
     Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
     // Log operations
@@ -2589,7 +2590,11 @@ define_mir_ops! {
         category = None
     )]
     #[raw_memory(Read(offset, size))]
-    #[operand_types(func => Some(smallvec![MirType::I256; 2 + topics.len()]))]
+    #[operand_types(func => {
+        let mut types = smallvec![MirType::I256; 2 + topics.len()];
+        types[0] = typing::address(func, *offset, PtrLocation::Memory);
+        Some(types)
+    })]
     Log {
         /// Start of the logged data.
         offset: ValueId,

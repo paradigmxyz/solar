@@ -123,9 +123,14 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
-/// Pairs an operation with the result type its schema entry declares.
-fn schema_typed(kind: InstKind) -> (InstKind, Option<MirType>) {
-    let ty = kind.op_def().result.default_type();
+/// Pairs an operation with the result type its schema entry declares; a pointer result takes
+/// its operand's pointer type.
+fn schema_typed(func: &Function, kind: InstKind) -> (InstKind, Option<MirType>) {
+    let ty = if kind.op_def().result == super::ResultKind::Pointer {
+        kind.inferred_result_type(func)
+    } else {
+        kind.op_def().result.default_type()
+    };
     (kind, ty)
 }
 
@@ -413,7 +418,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 for &id in &instructions {
                     let instruction = function.inst(id);
                     let non_default = |ty| {
-                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::MEMPTR)
+                        matches!(ty, MirType::Struct(_) | MirType::Slice(_) | MirType::Ptr(_))
                             || matches!(ty, MirType::Int(bits) if bits.get() != 256)
                     };
                     if explicit_results.contains(&(function_id, id))
@@ -1690,9 +1695,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }};
             ($kind:ident($($operand:ident),*)) => {{
                 operands!($($operand),*);
-                let kind = InstKind::$kind($($operand),*);
-                let ty = kind.op_def().result.default_type();
-                (kind, ty)
+                schema_typed(builder.func(), InstKind::$kind($($operand),*))
             }};
         }
         let parsed = match mnemonic {
@@ -2234,10 +2237,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let index = u32::try_from(index)
                     .map_err(|_| self.parser.error("aggregate field index is too large"))?;
                 let field = match ty {
-                    MirType::Struct(id) => self.struct_types[id].fields.get(index as usize),
-                    _ => MirType::SLICE_FIELDS.get(index as usize),
+                    MirType::Struct(id) => {
+                        self.struct_types[id].fields.get(index as usize).copied()
+                    }
+                    MirType::Slice(location) => {
+                        MirType::slice_fields(location).get(index as usize).copied()
+                    }
+                    _ => unreachable!(),
                 }
-                .copied()
                 .ok_or_else(|| self.parser.error("aggregate field index is out of bounds"))?;
                 if mnemonic == sym::insert_value {
                     self.parser.expect(TokenKind::Comma)?;
@@ -2290,7 +2297,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                         operands.push(self.parse_value(builder)?);
                     }
-                    schema_typed(build(&operands))
+                    schema_typed(builder.func(), build(&operands))
                 }
                 None => {
                     return Err(self

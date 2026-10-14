@@ -213,8 +213,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let stride = self.builder.imm(element_stride);
             self.builder.checked_mul(start, stride)
         };
-        // result = slice(base.data + start * stride, end - start)
-        let pointer = self.builder.add(base_ptr, start_offset);
+        // The checks above keep the start inside the base slice.
+        // result = slice(ptradd base.data, start * stride, end - start)
+        let pointer = self.builder.ptradd(base_ptr, start_offset);
         Some(self.builder.make_slice(pointer, length, location))
     }
 }

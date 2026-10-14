@@ -31,21 +31,22 @@ fn @prepare(arg0: i160, arg1: slice<calldata>) [selector=0xaacd9878, abi_params=
     v9 = gt v7, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v9
     v10 = sub v8, v7
-    v11 = sgt v6, v10
-    icall revert_if<calldata_tail_too_short>, v11
-    v12 = extract_value slice<calldata>, arg1, 1
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc v16
-    store v17, v12
-    v18 = ptradd v17, 32
-    v19 = extract_value slice<calldata>, arg1, 0
-    v20 = extract_value slice<calldata>, arg1, 1
-    copy calldata v18, v19, v20
-    icall @store_storage_bytes, 0, v17
+    v11 = ptrtoint ptr<calldata> v6 to i256
+    v12 = sgt v11, v10
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = extract_value slice<calldata>, arg1, 1
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc v17
+    store v18, v13
+    v19 = ptradd v18, 32
+    v20 = extract_value slice<calldata>, arg1, 0
+    v21 = extract_value slice<calldata>, arg1, 1
+    copy calldata v19, v20, v21
+    icall @store_storage_bytes, 0, v18
     ret
 }
 

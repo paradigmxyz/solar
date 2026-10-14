@@ -7,7 +7,9 @@
 -     v0 = select arg2, arg0, arg1
 -     v1 = extract_value slice<calldata>, v0, 1
 -     ret v1
-+     v6 = select arg4, arg0, arg2
++     v2 = inttoptr i256 arg0 to ptr<calldata>
++     v3 = inttoptr i256 arg2 to ptr<calldata>
++     v6 = select arg4, v2, v3
 +     v7 = select arg4, arg1, arg3
 +     ret v7
   }
@@ -18,14 +20,16 @@
 -     jumpi arg2, bb1, bb2
 +     jumpi arg4, bb1, bb2
     bb2:
++     v4 = inttoptr i256 arg2 to ptr<calldata>
       jump bb3
     bb1:
++     v2 = inttoptr i256 arg0 to ptr<calldata>
       jump bb3
     bb3:
 -     v0 = phi [bb1: arg0], [bb2: arg1]
 -     v1 = extract_value slice<calldata>, v0, 1
 -     ret v1
-+     v6 = phi [bb1: arg0], [bb2: arg2]
++     v6 = phi [bb1: v2], [bb2: v4]
 +     v7 = phi [bb1: arg1], [bb2: arg3]
 +     ret v7
   }

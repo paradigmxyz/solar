@@ -17,15 +17,14 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    v5 = datasize EmptyRuntime_runtime_code_0, 31, aligned
-    v6 = ptrtoint ptr<memory> v2 to i256
-    v7 = add v6, v5
-    store v7, 0
-    datacopy EmptyRuntime_runtime_code_0, v4, v0
-    v8 = load v2
-    ret v8
+    v3 = ptradd v2, 32
+    v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v4
+    store v6, 0
+    datacopy EmptyRuntime_runtime_code_0, v3, v0
+    v7 = load v2
+    ret v7
 }
 
 fn @runtimeCode() -> ptr<memory> [selector=0x40e70806, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -34,13 +33,12 @@ fn @runtimeCode() -> ptr<memory> [selector=0x40e70806, pure, abi_params=[], abi_
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    v5 = datasize EmptyRuntime_runtime_code_0, 31, aligned
-    v6 = ptrtoint ptr<memory> v2 to i256
-    v7 = add v6, v5
-    store v7, 0
-    datacopy EmptyRuntime_runtime_code_0, v4, v0
+    v3 = ptradd v2, 32
+    v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v4
+    store v6, 0
+    datacopy EmptyRuntime_runtime_code_0, v3, v0
     ret v2
 }
 
@@ -50,21 +48,19 @@ fn @deploy() -> i1 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>]
     v1 = datasize EmptyRuntime_creation_code_1
     v2 = datasize EmptyRuntime_creation_code_1, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint ptr<memory> v3 to i256
-    datacopy EmptyRuntime_creation_code_1, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v3 to i256
-    v7 = add v6, v1
-    copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint ptr<memory> v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    datacopy EmptyRuntime_creation_code_1, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    copy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = zext i160 v9 to i256
-    v12 = extcodesize v11
-    v13 = eq v12, 0
-    ret v13
+    v9 = zext i160 v7 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    ret v11
 }

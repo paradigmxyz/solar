@@ -198,7 +198,7 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
   bb0:
     v0 = icall @load_storage_word_array, 0
     v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = load v1
+    v2 = load v0
     v3 = sload 2 !metadata(storage=slot(2))
     v4 = gt v3, v2
     jumpi v4, bb1, bb2

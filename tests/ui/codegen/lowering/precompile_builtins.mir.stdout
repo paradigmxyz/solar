@@ -3,31 +3,31 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v22 = load 64 !metadata(memory=scratch)
-    v23 = add v22, 192
-    v24 = lt v23, v22
-    v25 = gt v23, 0xffffffffffffffff
-    v26 = or v24, v25
-    jumpi v26, bb2, bb1
+    v26 = load 64 !metadata(memory=scratch)
+    v27 = add v26, 192
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb2, bb1
   bb1:
-    store 64, v23 !metadata(memory=scratch)
-    v28 = calldatasize
-    copy calldata v22, v28, 192
-    store v22, 160
-    v4 = add v22, 32
-    store v4, 1
-    v16 = add v22, 64
+    store 64, v27 !metadata(memory=scratch)
+    v32 = calldatasize
+    copy calldata v26, v32, 192
+    store v26, 160
+    v12 = add v26, 32
+    store v12, 1
+    v16 = add v26, 64
     store v16, 28
-    v18 = add v22, 96
+    v18 = add v26, 96
     store v18, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v20 = add v22, 128
+    v20 = add v26, 128
     store v20, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v6 = add v22, 160
-    v7 = gas
-    v8 = staticcall v7, 1, v4, 128, v6, 32
-    v9 = load v6
-    v29 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    store 128, v29
+    v22 = add v26, 160
+    v5 = gas
+    v6 = staticcall v5, 1, v12, 128, v22, 32
+    v7 = load v22
+    v33 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    store 128, v33
     returndata 128, 32
   bb2:
     store 32, 65 !metadata(memory=scratch)
@@ -37,31 +37,31 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v22 = load 64 !metadata(memory=scratch)
-    v23 = add v22, 192
-    v24 = lt v23, v22
-    v25 = gt v23, 0xffffffffffffffff
-    v26 = or v24, v25
-    jumpi v26, bb2, bb1
+    v26 = load 64 !metadata(memory=scratch)
+    v27 = add v26, 192
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb2, bb1
   bb1:
-    store 64, v23 !metadata(memory=scratch)
-    v28 = calldatasize
-    copy calldata v22, v28, 192
-    store v22, 160
-    v4 = add v22, 32
-    store v4, 0
-    v16 = add v22, 64
+    store 64, v27 !metadata(memory=scratch)
+    v32 = calldatasize
+    copy calldata v26, v32, 192
+    store v26, 160
+    v12 = add v26, 32
+    store v12, 0
+    v16 = add v26, 64
     store v16, 0
-    v18 = add v22, 96
+    v18 = add v26, 96
     store v18, 0
-    v20 = add v22, 128
+    v20 = add v26, 128
     store v20, 0
-    v6 = add v22, 160
-    v7 = gas
-    v8 = staticcall v7, 1, v4, 128, v6, 32
-    v9 = load v6
-    v29 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    store 128, v29
+    v22 = add v26, 160
+    v5 = gas
+    v6 = staticcall v5, 1, v12, 128, v22, 32
+    v7 = load v22
+    v33 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    store 128, v33
     returndata 128, 32
   bb2:
     store 32, 65 !metadata(memory=scratch)

@@ -59,7 +59,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     sstore v54, v64 !metadata(storage=symbolic(v54))
     v65 = icall @load_storage_packed_array_8_0, 0
     v66 = ptrtoint ptr<memory> v65 to i256
-    v67 = load v66
+    v67 = load v65
     v68 = sload 1 !metadata(storage=slot(1))
     v69 = gt v68, v67
     jumpi v69, bb11, bb12

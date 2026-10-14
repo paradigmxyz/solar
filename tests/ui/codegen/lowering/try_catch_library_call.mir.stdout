@@ -53,34 +53,33 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     jumpi v5, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = ptrtoint ptr<memory> v10 to i256
-    v12 = add v11, 32
-    v13 = load v10
-    v14 = make_memory_slice v12, v13
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = extract_value slice<memory>, v14, 0
-    v18 = load v17
-    v19 = shr 224, v18
-    v20 = eq v19, 0x8c379a0
-    jumpi v20, bb4, bb5
+    v11 = ptradd v10, 32
+    v12 = load v10
+    v13 = make_memory_slice v11, v12
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = extract_value slice<memory>, v13, 0
+    v17 = load v16
+    v18 = shr 224, v17
+    v19 = eq v18, 0x8c379a0
+    jumpi v19, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v21 = icall @try_decode_error_message, v15, v16
+    v20 = ptrtoint ptr<memory> v14 to i256
+    v21 = icall @try_decode_error_message, v20, v15
     jump bb6
   bb6:
     v22 = phi [bb4: v21], [bb5: false]
     jumpi v22, bb7, bb8
   bb8:
-    revert v15, v16
+    revert v14, v15
   bb7:
     v23 = load v10
-    v24 = ptrtoint ptr<memory> v10 to i256
-    v25 = add v24, 36
-    v26 = sub v23, 4
-    v27 = make_memory_slice v25, v26
-    v28 = abi_decode [bytes], v27
+    v24 = ptradd v10, 36
+    v25 = sub v23, 4
+    v26 = make_memory_slice v24, v25
+    v27 = abi_decode [bytes], v26
     ret 18
   bb1:
     v6 = returndatasize
@@ -104,34 +103,33 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     jumpi v5, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = ptrtoint ptr<memory> v10 to i256
-    v12 = add v11, 32
-    v13 = load v10
-    v14 = make_memory_slice v12, v13
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = extract_value slice<memory>, v14, 0
-    v18 = load v17
-    v19 = shr 224, v18
-    v20 = eq v19, 0x8c379a0
-    jumpi v20, bb4, bb5
+    v11 = ptradd v10, 32
+    v12 = load v10
+    v13 = make_memory_slice v11, v12
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = extract_value slice<memory>, v13, 0
+    v17 = load v16
+    v18 = shr 224, v17
+    v19 = eq v18, 0x8c379a0
+    jumpi v19, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v21 = icall @try_decode_error_message, v15, v16
+    v20 = ptrtoint ptr<memory> v14 to i256
+    v21 = icall @try_decode_error_message, v20, v15
     jump bb6
   bb6:
     v22 = phi [bb4: v21], [bb5: false]
     jumpi v22, bb7, bb8
   bb8:
-    revert v15, v16
+    revert v14, v15
   bb7:
     v23 = load v10
-    v24 = ptrtoint ptr<memory> v10 to i256
-    v25 = add v24, 36
-    v26 = sub v23, 4
-    v27 = make_memory_slice v25, v26
-    v28 = abi_decode [bytes], v27
+    v24 = ptradd v10, 36
+    v25 = sub v23, 4
+    v26 = make_memory_slice v24, v25
+    v27 = abi_decode [bytes], v26
     ret 19
   bb1:
     v6 = returndatasize
@@ -155,34 +153,33 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     jumpi v5, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = ptrtoint ptr<memory> v10 to i256
-    v12 = add v11, 32
-    v13 = load v10
-    v14 = make_memory_slice v12, v13
-    v15 = extract_value slice<memory>, v14, 0
-    v16 = extract_value slice<memory>, v14, 1
-    v17 = extract_value slice<memory>, v14, 0
-    v18 = load v17
-    v19 = shr 224, v18
-    v20 = eq v19, 0x8c379a0
-    jumpi v20, bb4, bb5
+    v11 = ptradd v10, 32
+    v12 = load v10
+    v13 = make_memory_slice v11, v12
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = extract_value slice<memory>, v13, 0
+    v17 = load v16
+    v18 = shr 224, v17
+    v19 = eq v18, 0x8c379a0
+    jumpi v19, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v21 = icall @try_decode_error_message, v15, v16
+    v20 = ptrtoint ptr<memory> v14 to i256
+    v21 = icall @try_decode_error_message, v20, v15
     jump bb6
   bb6:
     v22 = phi [bb4: v21], [bb5: false]
     jumpi v22, bb7, bb8
   bb8:
-    revert v15, v16
+    revert v14, v15
   bb7:
     v23 = load v10
-    v24 = ptrtoint ptr<memory> v10 to i256
-    v25 = add v24, 36
-    v26 = sub v23, 4
-    v27 = make_memory_slice v25, v26
-    v28 = abi_decode [bytes], v27
+    v24 = ptradd v10, 36
+    v25 = sub v23, 4
+    v26 = make_memory_slice v24, v25
+    v27 = abi_decode [bytes], v26
     ret 20
   bb1:
     v6 = returndatasize

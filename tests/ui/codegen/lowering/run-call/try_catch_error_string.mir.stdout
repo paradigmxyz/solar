@@ -17,26 +17,24 @@ fn @constructor() [constructor] {
     v1 = datasize TryErrorTarget_creation_code_0
     v2 = datasize TryErrorTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint ptr<memory> v3 to i256
-    datacopy TryErrorTarget_creation_code_0, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v3 to i256
-    v7 = add v6, v1
-    copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint ptr<memory> v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    datacopy TryErrorTarget_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    copy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
@@ -57,21 +55,21 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = ptrtoint ptr<memory> v11 to i256
-    v13 = add v12, 32
-    v14 = load v11
-    v15 = make_memory_slice v13, v14
-    v16 = extract_value slice<memory>, v15, 0
-    v17 = extract_value slice<memory>, v15, 1
-    v18 = extract_value slice<memory>, v15, 0
-    v19 = load v18
-    v20 = shr 224, v19
-    v21 = eq v20, 0x8c379a0
-    jumpi v21, bb4, bb5
+    v12 = ptradd v11, 32
+    v13 = load v11
+    v14 = make_memory_slice v12, v13
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = extract_value slice<memory>, v14, 0
+    v18 = load v17
+    v19 = shr 224, v18
+    v20 = eq v19, 0x8c379a0
+    jumpi v20, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v22 = icall @try_decode_error_message, v16, v17
+    v21 = ptrtoint ptr<memory> v15 to i256
+    v22 = icall @try_decode_error_message, v21, v16
     jump bb6
   bb6:
     v23 = phi [bb4: v22], [bb5: false]
@@ -79,18 +77,17 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
   bb8:
     jumpi true, bb9, bb10
   bb10:
-    revert v16, v17
+    revert v15, v16
   bb9:
     ret 0
   bb7:
     v24 = load v11
-    v25 = ptrtoint ptr<memory> v11 to i256
-    v26 = add v25, 36
-    v27 = sub v24, 4
-    v28 = make_memory_slice v26, v27
-    v29 = abi_decode [bytes], v28
-    v30 = load v29
-    ret v30
+    v25 = ptradd v11, 36
+    v26 = sub v24, 4
+    v27 = make_memory_slice v25, v26
+    v28 = abi_decode [bytes], v27
+    v29 = load v28
+    ret v29
   bb1:
     ret 0
   bb3:

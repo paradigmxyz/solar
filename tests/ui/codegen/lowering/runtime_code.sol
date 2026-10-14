@@ -13,8 +13,7 @@ contract RuntimeCode {
     // CHECK: [[SIZE:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 63, aligned
     // CHECK: [[OBJECT:v[0-9]+]] = alloc [[SIZE]] !metadata(preserves_fmp)
     // CHECK: store [[OBJECT]], [[LEN]]
-    // CHECK: [[DATA_BASE:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
-    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[DATA_BASE]], 32
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd [[OBJECT]], 32
     // CHECK: [[TAIL:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 31, aligned
     // CHECK: [[BASE:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
     // CHECK: [[TAIL_PTR:v[0-9]+]] = add [[BASE]], [[TAIL]]

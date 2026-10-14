@@ -8,20 +8,20 @@ fn @readU64(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v21]
+    v0 = phi [bb0: arg1], [bb3: v22]
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v22]
-    v3 = phi [bb0: 0], [bb3: v23]
+    v2 = phi [bb0: 0], [bb3: v23]
+    v3 = phi [bb0: 0], [bb3: v24]
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = lt v2, 8
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v24 = trunc i256 v3 to i64
-    v25 = insert_value struct0, undef struct0, 0, v24
-    v26 = insert_value struct0, v25, 1, v0
-    ret v26
+    v25 = trunc i256 v3 to i64
+    v26 = insert_value struct0, undef struct0, 0, v25
+    v27 = insert_value struct0, v26, 1, v0
+    ret v27
   bb4:
     v6 = trunc i256 v3 to i64
     v7 = shl i64 8, v6
@@ -31,21 +31,22 @@ fn @readU64(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
     icall panic_if<0x32>, v10
     v11 = extract_value slice<calldata>, v1, 0
     v12 = extract_value slice<calldata>, v1, 0
-    v13 = add v12, v0
-    v14 = load calldata v13
-    v15 = byte 0, v14
-    v16 = shl 248, v15
-    v17 = shr 248, v16
-    v18 = trunc i256 v17 to i8
-    v19 = zext i8 v18 to i64
-    v20 = or v7, v19
-    v21 = checked_add u256, v0, 1
+    v13 = ptrtoint ptr<calldata> v12 to i256
+    v14 = add v13, v0
+    v15 = load calldata v14
+    v16 = byte 0, v15
+    v17 = shl 248, v16
+    v18 = shr 248, v17
+    v19 = trunc i256 v18 to i8
+    v20 = zext i8 v19 to i64
+    v21 = or v7, v20
+    v22 = checked_add u256, v0, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v2, 1
-    v23 = zext i64 v20 to i256
+    v23 = checked_add u256, v2, 1
+    v24 = zext i64 v21 to i256
     jump bb1
 }
 

@@ -21,9 +21,13 @@ fn @reuse_projections(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -
     v8 = extract_value slice<memory>, v22, 0
     v23 = make_memory_slice arg2, 4
     v9 = extract_value slice<memory>, v23, 0
+    v24 = ptrtoint ptr<memory> v6 to i256
+    v25 = ptrtoint ptr<memory> v7 to i256
+    v26 = ptrtoint ptr<memory> v8 to i256
+    v27 = ptrtoint ptr<memory> v9 to i256
     v10 = eq v4, v5
-    v11 = eq v6, v7
-    v12 = eq v8, v9
+    v11 = eq v24, v25
+    v12 = eq v26, v27
     v15 = zext i1 v10 to i256
     v16 = zext i1 v11 to i256
     v13 = add v15, v16

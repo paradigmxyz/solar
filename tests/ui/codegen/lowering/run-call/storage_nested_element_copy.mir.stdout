@@ -1179,7 +1179,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     jumpi v24, bb2, bb3
   bb3:
     v32 = ptrtoint ptr<memory> v22 to i256
-    v33 = load v32
+    v33 = load v22
     v34 = sload 4 !metadata(storage=slot(4))
     v35 = gt v34, v33
     jumpi v35, bb4, bb5
@@ -1434,7 +1434,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     jumpi v22, bb2, bb3
   bb3:
     v30 = ptrtoint ptr<memory> v20 to i256
-    v31 = load v30
+    v31 = load v20
     v32 = sload 4 !metadata(storage=slot(4))
     v33 = gt v32, v31
     jumpi v33, bb4, bb5

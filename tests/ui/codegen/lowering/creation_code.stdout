@@ -16,12 +16,11 @@ fn @creationCode() -> ptr<memory> [selector=0x7213edad, pure, abi_params=[], abi
     v1 = datasize CreationCodeChild_creation_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
-    v3 = ptrtoint ptr<memory> v2 to i256
-    v4 = add v3, 32
-    v5 = datasize CreationCodeChild_creation_code_0, 31, aligned
-    v6 = ptrtoint ptr<memory> v2 to i256
-    v7 = add v6, v5
-    store v7, 0
-    datacopy CreationCodeChild_creation_code_0, v4, v0
+    v3 = ptradd v2, 32
+    v4 = datasize CreationCodeChild_creation_code_0, 31, aligned
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v4
+    store v6, 0
+    datacopy CreationCodeChild_creation_code_0, v3, v0
     ret v2
 }

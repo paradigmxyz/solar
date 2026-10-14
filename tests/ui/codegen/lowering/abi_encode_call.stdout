@@ -12,72 +12,72 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v6 = eq v5, 0
     jumpi v6, bb3, bb1
   bb3:
-    v47 = load 64 !metadata(memory=scratch)
-    v48 = add v47, 128
-    store 64, v48 !metadata(memory=scratch)
-    store v47, 68
-    v12 = add v47, 32
-    store v12, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v14 = add v47, 36
-    store v14, arg0
-    v15 = add v14, 32
-    store v15, arg1
-    v49 = load 64 !metadata(memory=scratch)
-    v18 = add v49, 32
-    store v49, 32
-    v24 = ne v47, 0
-    v25 = zext i1 v24 to i256
-    v21 = load v47
-    v26 = mul v21, v25
-    v28 = add v26, 31
-    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v30 = add v18, 32
-    v31 = add v18, v29
-    store v31, 0
-    store v18, v26
-    v34 = add v30, v29
-    copy v30, v12, v26 !metadata(disjoint)
-    v36 = sub v34, v49
-    v38 = add v36, 31
-    v40 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v50 = load 64 !metadata(memory=scratch)
-    v51 = add v50, v40
-    store 64, v51 !metadata(memory=scratch)
-    returndata v50, v36
+    v52 = load 64 !metadata(memory=scratch)
+    v53 = add v52, 128
+    store 64, v53 !metadata(memory=scratch)
+    store v52, 68
+    v42 = add v52, 32
+    store v42, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v46 = add v52, 36
+    store v46, arg0
+    v14 = add v46, 32
+    store v14, arg1
+    v54 = load 64 !metadata(memory=scratch)
+    v17 = add v54, 32
+    store v54, 32
+    v23 = ne v52, 0
+    v24 = zext i1 v23 to i256
+    v20 = load v52
+    v25 = mul v20, v24
+    v27 = add v25, 31
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = add v17, 32
+    v30 = add v17, v28
+    store v30, 0
+    store v17, v25
+    v32 = add v29, v28
+    copy v29, v42, v25 !metadata(disjoint)
+    v34 = sub v32, v54
+    v36 = add v34, 31
+    v38 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = load 64 !metadata(memory=scratch)
+    v56 = add v55, v38
+    store 64, v56 !metadata(memory=scratch)
+    returndata v55, v34
   bb1:
     revert 0, 0
 }
 
 fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
-    v9 = calldatasize
-    v10 = lt v9, 100
-    jumpi v10, bb1, bb2
+    v8 = calldatasize
+    v9 = lt v8, 100
+    jumpi v9, bb1, bb2
   bb2:
-    v11 = load calldata 4
-    v12 = shr 160, v11
-    v13 = eq v12, 0
-    jumpi v13, bb3, bb1
+    v10 = load calldata 4
+    v11 = shr 160, v10
+    v12 = eq v11, 0
+    jumpi v12, bb3, bb1
   bb3:
-    v14 = load calldata 36
-    v15 = shr 160, v14
-    v16 = eq v15, 0
-    jumpi v16, bb4, bb1
+    v13 = load calldata 36
+    v14 = shr 160, v13
+    v15 = eq v14, 0
+    jumpi v15, bb4, bb1
   bb4:
     v0 = gas
-    v29 = load 64 !metadata(memory=scratch)
-    v30 = add v29, 128
-    store 64, v30 !metadata(memory=scratch)
-    store v29, 68
-    v24 = add v29, 32
-    store v24, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v26 = add v29, 36
-    store v26, arg1
-    v27 = add v26, 32
-    store v27, arg2
-    v8 = call v0, arg0, 0, v24, 68, 0, 0
-    v19 = zext i1 v8 to i256
-    store 128, v19
+    v35 = load 64 !metadata(memory=scratch)
+    v36 = add v35, 128
+    store 64, v36 !metadata(memory=scratch)
+    store v35, 68
+    v27 = add v35, 32
+    store v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v31 = add v35, 36
+    store v31, arg1
+    v25 = add v31, 32
+    store v25, arg2
+    v7 = call v0, arg0, 0, v27, 68, 0, 0
+    v18 = zext i1 v7 to i256
+    store 128, v18
     returndata 128, 32
   bb1:
     revert 0, 0

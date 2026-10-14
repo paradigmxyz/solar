@@ -9,22 +9,21 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type
     v0 = icall @_slice, v3, arg1, arg2
-    v24 = ptrtoint ptr<memory> v0 to i256
-    v10 = ne v24, 0
+    v10 = ne v0, 0
     v11 = zext i1 v10 to i256
-    v7 = load v24
+    v7 = load v0
     v12 = mul v7, v11
-    v14 = add v24, 32
-    v15 = add v12, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v14, v17
+    v23 = add v0, 32
+    v14 = add v12, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v23, v16
     store v18, 0
-    v20 = add v24, 64
-    copy v20, v14, v12
-    store v24, 32
-    store v14, v12
-    v21 = add v17, 64
-    returndata v24, v21
+    v25 = add v0, 64
+    copy v25, v23, v12
+    store v0, 32
+    store v23, v12
+    v20 = add v16, 64
+    returndata v0, v20
   bb1:
     revert 0, 0
 }
@@ -38,10 +37,9 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     v36 = load 64 !metadata(memory=scratch)
     v8 = add v36, 32
     store v36, 32
-    v35 = ptrtoint ptr<memory> v2 to i256
-    v14 = ne v35, 0
+    v14 = ne v2, 0
     v15 = zext i1 v14 to i256
-    v11 = load v35
+    v11 = load v2
     v16 = mul v11, v15
     v18 = add v16, 31
     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -49,16 +47,16 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     v21 = add v8, v19
     store v21, 0
     store v8, v16
-    v24 = add v20, v19
-    v23 = add v35, 32
-    copy v20, v23, v16 !metadata(memory=heap, disjoint)
-    v26 = sub v24, v36
-    v28 = add v26, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v20, v19
+    v33 = add v2, 32
+    copy v20, v33, v16 !metadata(memory=heap, disjoint)
+    v25 = sub v23, v36
+    v27 = add v25, 31
+    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v37 = load 64 !metadata(memory=scratch)
-    v38 = add v37, v30
+    v38 = add v37, v29
     store 64, v38 !metadata(memory=scratch)
-    returndata v37, v26
+    returndata v37, v25
 }
 
 fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
@@ -67,15 +65,13 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     v1 = sub v0, 1
     v2 = add v1, 32
     store8 v2, 65
-    v3 = inttoptr i256 v1 to ptr<memory>
-    v4 = icall @copyObject, v3, 4
+    v4 = icall @copyObject, v1, 4
     v38 = load 64 !metadata(memory=scratch)
     v10 = add v38, 32
     store v38, 32
-    v37 = ptrtoint ptr<memory> v4 to i256
-    v16 = ne v37, 0
+    v16 = ne v4, 0
     v17 = zext i1 v16 to i256
-    v13 = load v37
+    v13 = load v4
     v18 = mul v13, v17
     v20 = add v18, 31
     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -83,16 +79,16 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     v23 = add v10, v21
     store v23, 0
     store v10, v18
-    v26 = add v22, v21
-    v25 = add v37, 32
-    copy v22, v25, v18 !metadata(memory=heap, disjoint)
-    v28 = sub v26, v38
-    v30 = add v28, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = add v22, v21
+    v35 = add v4, 32
+    copy v22, v35, v18 !metadata(memory=heap, disjoint)
+    v27 = sub v25, v38
+    v29 = add v27, 31
+    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v39 = load 64 !metadata(memory=scratch)
-    v40 = add v39, v32
+    v40 = add v39, v31
     store 64, v40 !metadata(memory=scratch)
-    returndata v39, v28
+    returndata v39, v27
 }
 
 fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
@@ -257,46 +253,44 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     jumpi v27, bb4, bb5
   bb5:
     v28 = icall @decode_calldata_type
-    v55 = ptrtoint ptr<memory> v28 to i256
     jump bb1
   bb1:
     v0 = phi [bb5: 0], [bb3: v20]
     v20 = add v0, 1
-    v4 = load v55
+    v4 = load v28
     v5 = lt v20, v4
     jumpi v5, bb3, bb2
   bb2:
-    v35 = ne v55, 0
+    v35 = ne v28, 0
     v36 = zext i1 v35 to i256
     v37 = mul v4, v36
-    v39 = add v55, 32
-    v40 = add v37, 31
-    v42 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = add v39, v42
+    v48 = add v28, 32
+    v39 = add v37, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v48, v41
     store v43, 0
-    v45 = add v55, 64
-    copy v45, v39, v37
-    store v55, 32
-    store v39, v37
-    v46 = add v42, 64
-    returndata v55, v46
+    v50 = add v28, 64
+    copy v50, v48, v37
+    store v28, 32
+    store v48, v37
+    v45 = add v41, 64
+    returndata v28, v45
   bb3:
-    v50 = add v55, v20
-    v51 = add v50, 32
-    v11 = load v51
+    v54 = add v28, v20
+    v55 = add v54, 32
+    v11 = load v55
     v12 = byte 0, v11
-    v53 = add v55, v0
-    v54 = add v53, 32
-    store8 v54, v12
+    v57 = add v28, v0
+    v58 = add v57, 32
+    store8 v58, v12
     jump bb1
   bb4:
     revert 0, 0
 }
 
-fn @_slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [may_return_memory, pure] {
+fn @_slice(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
   bb0:
-    v58 = ptrtoint ptr<memory> arg0 to i256
-    v0 = load v58
+    v0 = load arg0
     v44 = sub v0, arg2
     v1 = gt arg2, v0
     v45 = zext i1 v1 to i256
@@ -311,11 +305,10 @@ fn @_slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [may_return
     jumpi v8, bb2, bb1
   bb1:
     v69 = load 64 !metadata(memory=scratch)
-    v10 = inttoptr i256 v69 to ptr<memory> !metadata(memory=scratch)
     v70 = add v69, 32
     store 64, v70 !metadata(memory=scratch)
     store v69, 0
-    ret v10
+    ret v69
   bb2:
     v38 = sub v47, v51
     v12 = add v38, 63
@@ -324,7 +317,6 @@ fn @_slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [may_return
   bb7:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v63 = load 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v63 to ptr<memory> !metadata(memory=scratch)
     v64 = add v63, v15
     v65 = lt v64, v63
     v66 = gt v64, 0xffffffffffffffff
@@ -342,19 +334,19 @@ fn @_slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [may_return
     v23 = lt v21, v22
     jumpi v23, bb5, bb4
   bb4:
-    ret v16
+    ret v63
   bb5:
     v40 = add v51, v21
     v41 = lt v40, v51
     jumpi v41, bb10, bb11
   bb11:
-    v25 = load v58
+    v25 = load arg0
     v26 = lt v40, v25
     jumpi v26, bb9, bb8
   bb8:
     tail_call @revert_stub
   bb9:
-    v53 = add v58, v40
+    v53 = add arg0, v40
     v54 = add v53, 32
     v29 = load v54
     v30 = byte 0, v29
@@ -373,14 +365,13 @@ fn @_slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [may_return
     revert 28, 36
 }
 
-fn @copyObject(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [may_return_memory, pure] {
+fn @copyObject(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = load 64 !metadata(memory=scratch)
     v1 = add v0, 32
     v2 = add v1, arg1
     store 64, v2 !metadata(memory=scratch)
-    v11 = ptrtoint ptr<memory> arg0 to i256
-    v12 = add v11, 32
+    v12 = add arg0, 32
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb3: v17]
@@ -388,8 +379,7 @@ fn @copyObject(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [may_return_memory,
     jumpi v8, bb3, bb2
   bb2:
     store v0, arg1
-    v18 = inttoptr i256 v0 to ptr<memory>
-    ret v18
+    ret v0
   bb3:
     v13 = add v12, v5
     v14 = load v13
@@ -400,7 +390,7 @@ fn @copyObject(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [may_return_memory,
     jump bb1
 }
 
-fn @copyRaw(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory, pure] {
+fn @copyRaw(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = load 64 !metadata(memory=scratch)
     v1 = add v0, 32
@@ -413,8 +403,7 @@ fn @copyRaw(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory, pure] {
     jumpi v8, bb3, bb2
   bb2:
     store v0, arg1
-    v16 = inttoptr i256 v0 to ptr<memory>
-    ret v16
+    ret v0
   bb3:
     v11 = add arg0, v3
     v12 = load v11
@@ -432,7 +421,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type() -> ptr<memory> [may_return_memory] {
+fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata 4
@@ -449,23 +438,22 @@ fn @decode_calldata_type() -> ptr<memory> [may_return_memory] {
     jumpi v11, bb3, bb4
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = load 64 !metadata(memory=scratch)
-    v14 = inttoptr i256 v24 to ptr<memory> !metadata(memory=scratch)
-    v25 = add v24, v13
-    v26 = lt v25, v24
-    v27 = gt v25, 0xffffffffffffffff
-    v28 = or v26, v27
-    jumpi v28, bb3, bb6
+    v26 = load 64 !metadata(memory=scratch)
+    v27 = add v26, v13
+    v28 = lt v27, v26
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb3, bb6
   bb6:
-    store 64, v25 !metadata(memory=scratch)
-    store v24, v8
+    store 64, v27 !metadata(memory=scratch)
+    store v26, v8
     v15 = sub v0, v3
     v16 = gt v8, v15
     jumpi v16, bb1, bb5
   bb5:
-    v22 = add v24, 32
-    copy calldata v22, v3, v8
-    ret v14
+    v23 = add v26, 32
+    copy calldata v23, v3, v8
+    ret v26
   bb3:
     store 32, 65 !metadata(memory=scratch)
     store 0, 0x4e487b71 !metadata(memory=scratch)

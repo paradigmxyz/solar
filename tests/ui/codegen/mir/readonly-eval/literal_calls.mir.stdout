@@ -21,11 +21,9 @@ fn @constructor() [constructor] {
     storeimmutable answer, v6
     v7 = alloc 64 !metadata(preserves_fmp)
     store v7, 1
-    v8 = ptrtoint ptr<memory> v7 to i256
-    v9 = add v8, 32
-    store v9, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v10 = icall @toShort, v7
-    storeimmutable shortWord, v10
+    store v7+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v8 = icall @toShort, v7
+    storeimmutable shortWord, v8
     ret
 }
 
@@ -109,12 +107,12 @@ fn @toShort(arg0: ptr<memory>) -> i256 [pure] {
     icall revert_if<empty>, v2
     v3 = not 0
     v4 = ptrtoint ptr<memory> arg0 to i256
-    v5 = load v4
+    v5 = load arg0
     v6 = sub 32, v5
     v7 = mul v6, 8
     v8 = shl v7, v3
     v9 = ptrtoint ptr<memory> arg0 to i256
-    v10 = load v9
+    v10 = load arg0
     v11 = ptrtoint ptr<memory> arg0 to i256
     v12 = add v11, 32
     v13 = load v12

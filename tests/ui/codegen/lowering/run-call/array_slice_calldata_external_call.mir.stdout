@@ -26,7 +26,7 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
-    v16 = add v2, v9
+    v16 = ptradd v2, v9
     v17 = make_calldata_slice v16, v8
     v18 = abi_encode [calldata_array<word>], selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v17
     v19 = extract_value slice<memory>, v18, 0

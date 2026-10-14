@@ -15,61 +15,63 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = calldatasize
-    v12 = sub v11, v3
-    v13 = slt v12, v4
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = mul v2, 32
-    v15 = eq 32, 0
-    v16 = div v14, 32
-    v17 = eq v16, v2
-    v18 = or v15, v17
-    v19 = zext i1 v18 to i256
-    v20 = eq v19, 0
-    icall panic_if<0x41>, v20
-    v21 = add 32, v14
-    v22 = lt v21, 32
-    icall panic_if<0x41>, v22
-    v23 = alloc v21
-    store v23, v2
+    v12 = ptrtoint ptr<calldata> v3 to i256
+    v13 = sub v11, v12
+    v14 = slt v13, v4
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = mul v2, 32
+    v16 = eq 32, 0
+    v17 = div v15, 32
+    v18 = eq v17, v2
+    v19 = or v16, v18
+    v20 = zext i1 v19 to i256
+    v21 = eq v20, 0
+    icall panic_if<0x41>, v21
+    v22 = add 32, v15
+    v23 = lt v22, 32
+    icall panic_if<0x41>, v23
+    v24 = alloc v22
+    store v24, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v36]
-    v25 = lt v24, v2
-    jumpi v25, bb2, bb3
+    v25 = phi [bb0: 0], [bb2: v38]
+    v26 = lt v25, v2
+    jumpi v26, bb2, bb3
   bb3:
-    v37 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
-    v38 = extract_value slice<memory>, v37, 0
-    v39 = extract_value slice<memory>, v37, 1
-    v40 = zext i160 v0 to i256
-    v41 = staticcall v1, v40, v38, v39, 0, 32
-    jumpi v41, bb5, bb4
+    v39 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v24
+    v40 = extract_value slice<memory>, v39, 0
+    v41 = extract_value slice<memory>, v39, 1
+    v42 = zext i160 v0 to i256
+    v43 = staticcall v1, v42, v40, v41, 0, 32
+    jumpi v43, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v42 = returndatasize
-    v43 = lt v42, 32
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add 0, 0
-    v45 = load v44
-    v46 = lt v45, 2
-    v47 = eq v46, false
-    icall revert_if<empty>, v47
-    v48 = ne v45, 0
-    ret v48
+    v44 = returndatasize
+    v45 = lt v44, 32
+    icall revert_if<tuple_data_too_short>, v45
+    v46 = add 0, 0
+    v47 = load v46
+    v48 = lt v47, 2
+    v49 = eq v48, false
+    icall revert_if<empty>, v49
+    v50 = ne v47, 0
+    ret v50
   bb2:
-    v26 = mul v24, 32
-    v27 = add v3, v26
-    v28 = load calldata v27
-    v29 = shl 192, v28
-    v30 = eq v29, 0
-    v31 = eq v30, false
-    icall revert_if<empty>, v31
-    v32 = shr 64, v28
-    v33 = shl 64, v32
-    v34 = shl 5, v24
-    v35 = ptradd v23, v34
-    store v35+32, v33
-    v36 = add v24, 1
+    v27 = mul v25, 32
+    v28 = ptrtoint ptr<calldata> v3 to i256
+    v29 = add v28, v27
+    v30 = load calldata v29
+    v31 = shl 192, v30
+    v32 = eq v31, 0
+    v33 = eq v32, false
+    icall revert_if<empty>, v33
+    v34 = shr 64, v30
+    v35 = shl 64, v34
+    v36 = shl 5, v25
+    v37 = ptradd v24, v36
+    store v37+32, v35
+    v38 = add v25, 1
     jump bb1
 }
 

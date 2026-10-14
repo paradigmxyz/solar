@@ -139,20 +139,18 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc v17
-    v19 = ptrtoint ptr<memory> v18 to i256
-    datacopy Child_creation_code_0, v19, v11
-    v20 = extract_value slice<memory>, v9, 0
-    v21 = ptrtoint ptr<memory> v18 to i256
-    v22 = add v21, v11
-    copy v22, v20, v10 !metadata(memory=heap)
-    v23 = ptrtoint ptr<memory> v18 to i256
-    v24 = create 0, v23, v12
-    v25 = ne v24, i160 0
-    jumpi v25, bb2, bb1
+    datacopy Child_creation_code_0, v18, v11
+    v19 = extract_value slice<memory>, v9, 0
+    v20 = ptrtoint ptr<memory> v18 to i256
+    v21 = add v20, v11
+    copy v21, v19, v10 !metadata(memory=heap)
+    v22 = create 0, v18, v12
+    v23 = ne v22, i160 0
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    ret v24
+    ret v22
 }
 
 fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
@@ -189,20 +187,18 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     v20 = not 31
     v21 = and v18, v20
     v22 = alloc v21
-    v23 = ptrtoint ptr<memory> v22 to i256
-    datacopy Child_creation_code_0, v23, v15
-    v24 = extract_value slice<memory>, v13, 0
-    v25 = ptrtoint ptr<memory> v22 to i256
-    v26 = add v25, v15
-    copy v26, v24, v14 !metadata(memory=heap)
-    v27 = ptrtoint ptr<memory> v22 to i256
-    v28 = create 0, v27, v16
-    v29 = ne v28, i160 0
-    jumpi v29, bb2, bb1
+    datacopy Child_creation_code_0, v22, v15
+    v23 = extract_value slice<memory>, v13, 0
+    v24 = ptrtoint ptr<memory> v22 to i256
+    v25 = add v24, v15
+    copy v25, v23, v14 !metadata(memory=heap)
+    v26 = create 0, v22, v16
+    v27 = ne v26, i160 0
+    jumpi v27, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    ret v28
+    ret v26
 }
 
 fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {

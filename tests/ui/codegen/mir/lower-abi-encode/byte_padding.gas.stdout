@@ -29,8 +29,7 @@
 +     v18 = not 31
 +     v19 = and v17, v18
 +     v20 = alloc v19 !metadata(preserves_fmp)
-+     v21 = ptrtoint ptr<memory> v20 to i256
-+     v22 = make_memory_slice v21, v16
-+     ret v22
++     v21 = make_memory_slice v20, v16
++     ret v21
   }
   

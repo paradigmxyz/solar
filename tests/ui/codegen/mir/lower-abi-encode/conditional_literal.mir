@@ -9,8 +9,7 @@
 // CHECK: + {{v[0-9]+}} = load v0
 // CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
 // CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
-// CHECK: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + [[DATA:v[0-9]+]] = add [[DATA_WORD]], 32
+// CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
 // CHECK: + copy {{v[0-9]+}}, [[DATA]],
 fn @encode(arg0: i256) -> slice<memory> {
   bb0:
@@ -33,8 +32,7 @@ fn @encode(arg0: i256) -> slice<memory> {
 // CHECK: + {{v[0-9]+}} = load v0
 // CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
 // CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
-// CHECK: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> v0 to i256
-// CHECK-NEXT: + [[DATA:v[0-9]+]] = add [[DATA_WORD]], 32
+// CHECK: + [[DATA:v[0-9]+]] = ptradd v0, 32
 // CHECK: + copy {{v[0-9]+}}, [[DATA]],
 fn @overlapping(arg0: i256) -> slice<memory> {
   bb0:

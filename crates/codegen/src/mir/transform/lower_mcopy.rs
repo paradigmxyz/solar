@@ -35,8 +35,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module,
-        PtrLocation, Value, ValueId,
+        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
+        Module, PtrLocation, Value, ValueId,
         analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -296,6 +296,28 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
         unreachable!()
     };
+    // word = ptrtoint pointer to i256, for each pointer address of the word helper
+    let mut casts = Vec::new();
+    let mut word = |func: &mut Function, value: ValueId| {
+        if func.value_ty(value) != Some(MirType::MEMPTR) {
+            return value;
+        }
+        let instruction = Instruction::new(InstKind::PtrToInt(value, 256), Some(MirType::I256));
+        let (cast, word) = func.alloc_value_inst(instruction.with_debug_info_dropped());
+        casts.push(cast);
+        word
+    };
+    let (dest, src) = (word(func, dest), word(func, src));
+    if !casts.is_empty() {
+        let (block, position) = func
+            .blocks
+            .iter_enumerated()
+            .find_map(|(block, data)| {
+                Some((block, data.instructions.iter().position(|&id| id == inst)?))
+            })
+            .expect("copy belongs to a block");
+        func.blocks[block].instructions.splice(position..position, casts);
+    }
     // icall @mcopy_words, 0, dest, src, len
     let instruction = func.inst_mut(inst);
     instruction.kind = InstKind::ICall {

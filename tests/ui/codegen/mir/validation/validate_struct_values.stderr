@@ -42,7 +42,7 @@ error: [fn21] [bb0, inst0] `icall` has incompatible scalar types; use an explici
 
 error: [fn22] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
 
-error: [fn23] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+error: [fn23] [bb0] raw return and revert operands must be a memory address and an `i256` size
 
 error: [fn24] [bb0, inst0] ABI input location does not support its layout
 

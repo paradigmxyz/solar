@@ -203,7 +203,7 @@ fn @constructor() [constructor] {
     store v176+32, v180
     jump bb75
   bb75:
-    v181 = phi [bb71: 0], [bb80: v208]
+    v181 = phi [bb71: 0], [bb80: v207]
     v182 = lt v181, 2
     jumpi v182, bb76, bb77
   bb77:
@@ -215,30 +215,29 @@ fn @constructor() [constructor] {
     jumpi v185, bb78, bb79
   bb79:
     v198 = alloc 64
-    v199 = ptrtoint ptr<memory> v198 to i256
-    memory_zero v199, 64
+    memory_zero v198, 64
     jump bb87
   bb87:
-    v200 = phi [bb79: 0], [bb92: v207]
-    v201 = lt v200, 2
-    jumpi v201, bb88, bb89
+    v199 = phi [bb79: 0], [bb92: v206]
+    v200 = lt v199, 2
+    jumpi v200, bb88, bb89
   bb89:
     jump bb80
   bb88:
-    v202 = add v184, v200
-    v203 = lt v200, 2
-    jumpi v203, bb90, bb91
+    v201 = add v184, v199
+    v202 = lt v199, 2
+    jumpi v202, bb90, bb91
   bb91:
-    sstore v202, 0 !metadata(storage=symbolic(v202))
+    sstore v201, 0 !metadata(storage=symbolic(v201))
     jump bb92
   bb90:
-    v204 = shl 5, v200
-    v205 = ptradd v198, v204
-    v206 = load v205
-    sstore v202, v206 !metadata(storage=symbolic(v202))
+    v203 = shl 5, v199
+    v204 = ptradd v198, v203
+    v205 = load v204
+    sstore v201, v205 !metadata(storage=symbolic(v201))
     jump bb92
   bb92:
-    v207 = add v200, 1
+    v206 = add v199, 1
     jump bb87
   bb78:
     v186 = shl 5, v181
@@ -252,7 +251,7 @@ fn @constructor() [constructor] {
   bb83:
     jump bb80
   bb80:
-    v208 = add v181, 1
+    v207 = add v181, 1
     jump bb75
   bb82:
     v191 = add v184, v189
@@ -602,51 +601,50 @@ fn @test4() -> ptr<memory> [selector=0x8f0d282d, view, abi_params=[], abi_return
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v8]
+    v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v9 = alloc checked 64
+    v8 = alloc checked 64
     jump bb4
   bb4:
-    v10 = phi [bb3: 0], [bb9: v25]
-    v11 = lt v10, 2
-    jumpi v11, bb5, bb6
+    v9 = phi [bb3: 0], [bb9: v24]
+    v10 = lt v9, 2
+    jumpi v10, bb5, bb6
   bb6:
-    ret v9
+    ret v8
   bb5:
-    v12 = mul v10, 2
-    v13 = add 4, v12
-    v14 = alloc checked 64
+    v11 = mul v9, 2
+    v12 = add 4, v11
+    v13 = alloc checked 64
     jump bb7
   bb7:
-    v15 = phi [bb5: 0], [bb8: v21]
-    v16 = lt v15, 2
-    jumpi v16, bb8, bb9
+    v14 = phi [bb5: 0], [bb8: v20]
+    v15 = lt v14, 2
+    jumpi v15, bb8, bb9
   bb9:
-    v22 = ptrtoint ptr<memory> v14 to i256
-    v23 = shl 5, v10
-    v24 = ptradd v9, v23
-    store v24, v22
-    v25 = add v10, 1
+    v21 = ptrtoint ptr<memory> v13 to i256
+    v22 = shl 5, v9
+    v23 = ptradd v8, v22
+    store v23, v21
+    v24 = add v9, 1
     jump bb4
   bb8:
-    v17 = add v13, v15
-    v18 = sload v17 !metadata(storage=symbolic(v17))
-    v19 = shl 5, v15
-    v20 = ptradd v14, v19
-    store v20, v18
-    v21 = add v15, 1
+    v16 = add v12, v14
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = shl 5, v14
+    v19 = ptradd v13, v18
+    store v19, v17
+    v20 = add v14, 1
     jump bb7
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
-    v4 = ptrtoint ptr<memory> v3 to i256
-    memory_zero v4, 64
-    v5 = shl 5, v1
-    v6 = ptradd v0, v5
-    v7 = ptrtoint ptr<memory> v3 to i256
-    store v6, v7
-    v8 = add v1, 1
+    memory_zero v3, 64
+    v4 = shl 5, v1
+    v5 = ptradd v0, v4
+    v6 = ptrtoint ptr<memory> v3 to i256
+    store v5, v6
+    v7 = add v1, 1
     jump bb1
 }
 

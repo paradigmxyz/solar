@@ -1,11 +1,12 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
-//! `ptradd` becomes an integer `add` between pointer casts, an access's immediate offset becomes
-//! an `add` to its address, and a memory slice of a `ptr<memory>` gets that pointer cast to a
-//! word. Every memory access is already a `load`, `store`, or `copy` at an address, so nothing
-//! else changes here; the opcode boundary then casts pointer operands and results, and the casts
-//! this leaves unused are removed. Unreachable blocks are removed first: their definitions need
-//! not obey SSA and can contain cast cycles.
+//! `ptradd` becomes an integer `add` between pointer casts, and an access's immediate offset
+//! becomes an `add` to its address. Every memory access is already a `load`, `store`, or `copy` at
+//! an address, so nothing else changes here. An EVM opcode whose operands do not match its types,
+//! as an integer `add` of a pointer, gets word operands and a word result cast back to the pointer,
+//! and the casts this leaves unused are removed; `lower-evm-shaped` later erases pointer types
+//! altogether. Unreachable blocks are removed first: their definitions need not obey SSA and can
+//! contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -61,7 +62,7 @@ impl MirPass for LowerMemoryObjects {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let is_pointer = |ty: MirType| ty == MirType::MEMPTR;
+    let is_pointer = MirType::is_pointer;
     let needs_lowering = func.arg_indices().any(|index| is_pointer(func.arg_ty(index)))
         || func.return_components().iter().copied().any(is_pointer)
         || func.live_values().any(|value| func.value_ty(value).is_some_and(is_pointer))
@@ -102,15 +103,6 @@ fn lower_function(func: &mut Function) -> bool {
                         (*ptr, *offset) = (address, 0);
                     }
                 }
-                InstKind::MakeSlice { ptr, len, location }
-                    if builder.func().value_ty(ptr) == Some(MirType::MEMPTR) =>
-                {
-                    // pointer = ptrtoint object to i256
-                    // slice = make_memory_slice pointer, len
-                    let ptr = builder.cast(ptr, MirType::I256);
-                    builder.func_mut().inst_mut(inst).kind =
-                        InstKind::MakeSlice { ptr, len, location };
-                }
                 ref kind
                     if kind.evm_opcode().is_some()
                         && !kind.scalar_types_match(
@@ -136,6 +128,18 @@ fn lower_function(func: &mut Function) -> bool {
         }
     }
 
+    fold_word_casts(func);
+
+    func.attributes.may_return_memory |=
+        func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
+    coalesce_constant_allocations(func);
+    normalize_pointer_operands(func);
+    remove_unused_pointer_casts(func);
+    true
+}
+
+/// Replaces each word cast of a pointer cast of a word with that word, so one value names it.
+fn fold_word_casts(func: &mut Function) {
     // address = ptrtoint (inttoptr word) => word
     let replacements: FxHashMap<_, _> = func
         .instructions()
@@ -147,13 +151,6 @@ fn lower_function(func: &mut Function) -> bool {
         })
         .collect();
     func.replace_uses_canonicalized(&replacements);
-
-    func.attributes.may_return_memory |=
-        func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
-    coalesce_constant_allocations(func);
-    normalize_pointer_operands(func);
-    remove_unused_pointer_casts(func);
-    true
 }
 
 /// Removes the pointer casts that folding address casts left without uses, as the `inttoptr` of a
@@ -311,7 +308,8 @@ fn constant_allocation(func: &Function, inst_id: crate::mir::InstId) -> Option<C
     })
 }
 
-/// Materializes integer operands and pointer results at the physical opcode boundary.
+/// Gives an EVM opcode with a pointer operand, or whose operands or result do not match its types,
+/// word operands, and a word result cast back to the pointer it stands for.
 pub(super) fn normalize_pointer_operands(func: &mut Function) {
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -319,21 +317,21 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
         builder.switch_to_block(block);
         for id in instructions {
             let inst = builder.func().inst(id).clone();
-            // Memory accesses accept a pointer address, which `scalar_types_match` allows; cast
-            // it too, so every use of the object's address shares one stack value.
-            let mut pointer_address = false;
+            // Late word passes match addresses as integer arithmetic, so a pointer address becomes
+            // its word here too; `lower-evm-shaped` erases the remaining casts.
+            let mut pointer_operand = false;
             inst.kind.visit_operands(|value| {
-                pointer_address |= builder.func().value_ty(value) == Some(MirType::MEMPTR);
+                pointer_operand |= builder.func().value_ty(value).is_some_and(MirType::is_pointer);
             });
             if inst.kind.evm_opcode().is_some()
-                && (pointer_address
+                && (pointer_operand
                     || !inst.kind.scalar_types_match(builder.func(), inst.result_ty))
             {
                 builder.set_debug_context(&inst.metadata);
                 let mut kind = inst.kind;
                 // integer_operand = ptrtoint pointer_operand to i256
                 kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
-                if inst.result_ty == Some(MirType::MEMPTR) {
+                if inst.result_ty.is_some_and(MirType::is_pointer) {
                     // integer_result = opcode integer_operands
                     // pointer_result = inttoptr integer_result to ptr<memory>
                     let value = builder.emit_inst(kind, Some(MirType::I256));

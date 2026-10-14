@@ -20,10 +20,10 @@
 +     store v3, v11
 +     v12 = mul v11, 32
 +     v13 = add v3, 32
-+     v14 = ptrtoint ptr<memory> arg0 to i256
-+     v15 = add v14, 32
-+     v16 = add v13, v12
-+     v17 = sub v15, v13
++     v14 = ptradd arg0, 32
++     v15 = add v13, v12
++     v16 = ptrtoint ptr<memory> v14 to i256
++     v17 = sub v16, v13
 +     v18 = ne v11, 0
 +     jumpi v18, bb1, bb2
 +   bb1:
@@ -46,9 +46,8 @@
 +     v32 = not 31
 +     v33 = and v31, v32
 +     v34 = alloc v33 !metadata(preserves_fmp)
-+     v35 = ptrtoint ptr<memory> v34 to i256
-+     v36 = make_memory_slice v35, v30
-+     ret v36
++     v35 = make_memory_slice v34, v30
++     ret v35
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before egraph) ===
@@ -74,11 +73,10 @@
 -     v12 = mul v11, 32
 +     v12 = shl 5, v11
       v13 = add v3, 32
--     v14 = ptrtoint ptr<memory> arg0 to i256
--     v15 = add v14, 32
-+     v15 = add v7, 32
-      v16 = add v13, v12
-      v17 = sub v15, v13
+      v14 = ptradd arg0, 32
+      v15 = add v13, v12
+      v16 = ptrtoint ptr<memory> v14 to i256
+      v17 = sub v16, v13
       v18 = ne v11, 0
       jumpi v18, bb1, bb2
     bb1:
@@ -104,10 +102,9 @@
 +     v31 = add v29, 31
 +     v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       v34 = alloc v33 !metadata(preserves_fmp)
-      v35 = ptrtoint ptr<memory> v34 to i256
--     v36 = make_memory_slice v35, v30
-+     v36 = make_memory_slice v35, v29
-      ret v36
+-     v35 = make_memory_slice v34, v30
++     v35 = make_memory_slice v34, v29
+      ret v35
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before dce) ===
@@ -128,9 +125,10 @@
       store v3, v11
 -     v12 = shl 5, v11
       v13 = add v3, 32
-      v15 = add v7, 32
--     v16 = add v13, v12
-      v17 = sub v15, v13
+      v14 = ptradd arg0, 32
+-     v15 = add v13, v12
+      v16 = ptrtoint ptr<memory> v14 to i256
+      v17 = sub v16, v13
       v18 = ne v11, 0
       jumpi v18, bb1, bb2
     bb1:
@@ -150,8 +148,7 @@
       v31 = add v29, 31
       v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       v34 = alloc v33 !metadata(preserves_fmp)
-      v35 = ptrtoint ptr<memory> v34 to i256
-      v36 = make_memory_slice v35, v29
-      ret v36
+      v35 = make_memory_slice v34, v29
+      ret v35
   }
   

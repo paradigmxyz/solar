@@ -7,7 +7,7 @@
 fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = calldatasize
-    v1 = make_calldata_slice 0, v0
+    v1 = make_calldata_slice ptr<calldata> 0, v0
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
     v4 = gt v3, v3
@@ -16,7 +16,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v7 = zext i1 v6 to i256
     icall revert_if<empty>, v6
     v8 = sub v3, 4
-    v9 = add v2, 4
+    v9 = ptradd v2, 4
     v10 = make_calldata_slice v9, v8
     v11 = extract_value slice<calldata>, v10, 0
     v12 = extract_value slice<calldata>, v10, 1
@@ -24,92 +24,95 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v14 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = sub v13, v12
-    v16 = sgt v11, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = extract_value slice<calldata>, v10, 1
-    v18 = add v17, 63
-    v19 = lt v18, v17
-    icall panic_if<0x41>, v19
-    v20 = not 31
-    v21 = and v18, v20
-    v22 = alloc v21
-    store v22, v17
-    v23 = ptradd v22, 32
-    v24 = extract_value slice<calldata>, v10, 0
-    v25 = extract_value slice<calldata>, v10, 1
-    copy calldata v23, v24, v25
-    v26 = abi_decode [u256, u256], v22
-    v27 = extract_value struct1, v26, 0
-    v28 = extract_value struct1, v26, 1
-    v29 = calldatasize
-    v30 = make_calldata_slice 0, v29
-    v31 = extract_value slice<calldata>, v30, 0
-    v32 = extract_value slice<calldata>, v30, 1
-    v33 = gt 36, v32
-    v34 = lt 36, 4
-    v35 = or v33, v34
-    v36 = zext i1 v35 to i256
-    icall revert_if<empty>, v35
-    v37 = sub 36, 4
-    v38 = add v31, 4
-    v39 = make_calldata_slice v38, v37
-    v40 = extract_value slice<calldata>, v39, 0
-    v41 = extract_value slice<calldata>, v39, 1
-    v42 = calldatasize
-    v43 = gt v41, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v43
-    v44 = sub v42, v41
-    v45 = sgt v40, v44
-    icall revert_if<calldata_tail_too_short>, v45
-    v46 = extract_value slice<calldata>, v39, 1
-    v47 = add v46, 63
-    v48 = lt v47, v46
-    icall panic_if<0x41>, v48
-    v49 = not 31
-    v50 = and v47, v49
-    v51 = alloc v50
-    store v51, v46
-    v52 = ptradd v51, 32
-    v53 = extract_value slice<calldata>, v39, 0
-    v54 = extract_value slice<calldata>, v39, 1
-    copy calldata v52, v53, v54
-    v55 = abi_decode [u256], v51
-    v56 = calldatasize
-    v57 = make_calldata_slice 0, v56
-    v58 = extract_value slice<calldata>, v57, 0
-    v59 = extract_value slice<calldata>, v57, 1
-    v60 = gt 68, v59
-    v61 = lt 68, 36
-    v62 = or v60, v61
-    v63 = zext i1 v62 to i256
-    icall revert_if<empty>, v62
-    v64 = sub 68, 36
-    v65 = add v58, 36
-    v66 = make_calldata_slice v65, v64
-    v67 = extract_value slice<calldata>, v66, 0
-    v68 = extract_value slice<calldata>, v66, 1
-    v69 = calldatasize
-    v70 = gt v68, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v70
-    v71 = sub v69, v68
-    v72 = sgt v67, v71
-    icall revert_if<calldata_tail_too_short>, v72
-    v73 = extract_value slice<calldata>, v66, 1
-    v74 = add v73, 63
-    v75 = lt v74, v73
-    icall panic_if<0x41>, v75
-    v76 = not 31
-    v77 = and v74, v76
-    v78 = alloc v77
-    store v78, v73
-    v79 = ptradd v78, 32
-    v80 = extract_value slice<calldata>, v66, 0
-    v81 = extract_value slice<calldata>, v66, 1
-    copy calldata v79, v80, v81
-    v82 = abi_decode [u256], v78
-    v83 = insert_value struct0, undef struct0, 0, v27
-    v84 = insert_value struct0, v83, 1, v28
-    v85 = insert_value struct0, v84, 2, v55
-    v86 = insert_value struct0, v85, 3, v82
-    ret v86
+    v16 = ptrtoint ptr<calldata> v11 to i256
+    v17 = sgt v16, v15
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = extract_value slice<calldata>, v10, 1
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    icall panic_if<0x41>, v20
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc v22
+    store v23, v18
+    v24 = ptradd v23, 32
+    v25 = extract_value slice<calldata>, v10, 0
+    v26 = extract_value slice<calldata>, v10, 1
+    copy calldata v24, v25, v26
+    v27 = abi_decode [u256, u256], v23
+    v28 = extract_value struct1, v27, 0
+    v29 = extract_value struct1, v27, 1
+    v30 = calldatasize
+    v31 = make_calldata_slice ptr<calldata> 0, v30
+    v32 = extract_value slice<calldata>, v31, 0
+    v33 = extract_value slice<calldata>, v31, 1
+    v34 = gt 36, v33
+    v35 = lt 36, 4
+    v36 = or v34, v35
+    v37 = zext i1 v36 to i256
+    icall revert_if<empty>, v36
+    v38 = sub 36, 4
+    v39 = ptradd v32, 4
+    v40 = make_calldata_slice v39, v38
+    v41 = extract_value slice<calldata>, v40, 0
+    v42 = extract_value slice<calldata>, v40, 1
+    v43 = calldatasize
+    v44 = gt v42, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v44
+    v45 = sub v43, v42
+    v46 = ptrtoint ptr<calldata> v41 to i256
+    v47 = sgt v46, v45
+    icall revert_if<calldata_tail_too_short>, v47
+    v48 = extract_value slice<calldata>, v40, 1
+    v49 = add v48, 63
+    v50 = lt v49, v48
+    icall panic_if<0x41>, v50
+    v51 = not 31
+    v52 = and v49, v51
+    v53 = alloc v52
+    store v53, v48
+    v54 = ptradd v53, 32
+    v55 = extract_value slice<calldata>, v40, 0
+    v56 = extract_value slice<calldata>, v40, 1
+    copy calldata v54, v55, v56
+    v57 = abi_decode [u256], v53
+    v58 = calldatasize
+    v59 = make_calldata_slice ptr<calldata> 0, v58
+    v60 = extract_value slice<calldata>, v59, 0
+    v61 = extract_value slice<calldata>, v59, 1
+    v62 = gt 68, v61
+    v63 = lt 68, 36
+    v64 = or v62, v63
+    v65 = zext i1 v64 to i256
+    icall revert_if<empty>, v64
+    v66 = sub 68, 36
+    v67 = ptradd v60, 36
+    v68 = make_calldata_slice v67, v66
+    v69 = extract_value slice<calldata>, v68, 0
+    v70 = extract_value slice<calldata>, v68, 1
+    v71 = calldatasize
+    v72 = gt v70, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v72
+    v73 = sub v71, v70
+    v74 = ptrtoint ptr<calldata> v69 to i256
+    v75 = sgt v74, v73
+    icall revert_if<calldata_tail_too_short>, v75
+    v76 = extract_value slice<calldata>, v68, 1
+    v77 = add v76, 63
+    v78 = lt v77, v76
+    icall panic_if<0x41>, v78
+    v79 = not 31
+    v80 = and v77, v79
+    v81 = alloc v80
+    store v81, v76
+    v82 = ptradd v81, 32
+    v83 = extract_value slice<calldata>, v68, 0
+    v84 = extract_value slice<calldata>, v68, 1
+    copy calldata v82, v83, v84
+    v85 = abi_decode [u256], v81
+    v86 = insert_value struct0, undef struct0, 0, v28
+    v87 = insert_value struct0, v86, 1, v29
+    v88 = insert_value struct0, v87, 2, v57
+    v89 = insert_value struct0, v88, 3, v85
+    ret v89
 }

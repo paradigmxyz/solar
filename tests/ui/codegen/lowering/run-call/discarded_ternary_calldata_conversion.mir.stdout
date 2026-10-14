@@ -25,78 +25,83 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v14 = eq v13, 0
     icall panic_if<0x41>, v14
     v15 = calldatasize
-    v16 = sub v15, v7
-    v17 = slt v16, v8
-    icall revert_if<calldata_tail_too_short>, v17
-    v18 = mul v6, 32
-    v19 = eq 32, 0
-    v20 = div v18, 32
-    v21 = eq v20, v6
-    v22 = or v19, v21
-    v23 = zext i1 v22 to i256
-    v24 = eq v23, 0
-    icall panic_if<0x41>, v24
-    v25 = add 32, v18
-    v26 = lt v25, 32
-    icall panic_if<0x41>, v26
-    v27 = alloc v25
-    store v27, v6
+    v16 = ptrtoint ptr<calldata> v7 to i256
+    v17 = sub v15, v16
+    v18 = slt v17, v8
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = mul v6, 32
+    v20 = eq 32, 0
+    v21 = div v19, 32
+    v22 = eq v21, v6
+    v23 = or v20, v22
+    v24 = zext i1 v23 to i256
+    v25 = eq v24, 0
+    icall panic_if<0x41>, v25
+    v26 = add 32, v19
+    v27 = lt v26, 32
+    icall panic_if<0x41>, v27
+    v28 = alloc v26
+    store v28, v6
     jump bb7
   bb7:
-    v28 = phi [bb4: 0], [bb8: v66]
-    v29 = lt v28, v6
-    jumpi v29, bb8, bb9
+    v29 = phi [bb4: 0], [bb8: v71]
+    v30 = lt v29, v6
+    jumpi v30, bb8, bb9
   bb9:
     jump bb6
   bb6:
     ret
   bb8:
-    v30 = mul v28, 32
-    v31 = add v7, v30
-    v32 = calldatasize
-    v33 = sub v32, v31
-    v34 = slt v33, 32
-    icall revert_if<calldata_tail_too_short>, v34
-    v35 = load calldata v31
-    v36 = add v7, v35
-    v37 = calldatasize
-    v38 = sub v37, v7
-    v39 = sub v38, 31
-    v40 = slt v35, v39
-    v41 = eq v40, false
-    icall revert_if<invalid_calldata_tail_offset>, v41
-    v42 = load calldata v36
-    v43 = calldatasize
-    v44 = gt v42, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v44
-    v45 = mul v42, 32
-    v46 = add v36, 32
-    v47 = sub v43, v45
-    v48 = sgt v46, v47
-    icall revert_if<calldata_tail_too_short>, v48
-    v49 = mul v42, 32
-    v50 = eq 32, 0
-    v51 = div v49, 32
-    v52 = eq v51, v42
-    v53 = or v50, v52
-    v54 = zext i1 v53 to i256
-    v55 = eq v54, 0
-    icall panic_if<0x41>, v55
-    v56 = add 32, v49
-    v57 = lt v56, 32
-    icall panic_if<0x41>, v57
-    v58 = alloc v56
-    store v58, v42
-    v59 = make_calldata_slice v46, v49
-    v60 = ptradd v58, 32
-    v61 = extract_value slice<calldata>, v59, 0
-    v62 = extract_value slice<calldata>, v59, 1
-    copy calldata v60, v61, v62
-    v63 = ptrtoint ptr<memory> v58 to i256
-    v64 = shl 5, v28
-    v65 = ptradd v27, v64
-    store v65+32, v63
-    v66 = add v28, 1
+    v31 = mul v29, 32
+    v32 = ptrtoint ptr<calldata> v7 to i256
+    v33 = add v32, v31
+    v34 = calldatasize
+    v35 = sub v34, v33
+    v36 = slt v35, 32
+    icall revert_if<calldata_tail_too_short>, v36
+    v37 = load calldata v33
+    v38 = ptrtoint ptr<calldata> v7 to i256
+    v39 = add v38, v37
+    v40 = calldatasize
+    v41 = ptrtoint ptr<calldata> v7 to i256
+    v42 = sub v40, v41
+    v43 = sub v42, 31
+    v44 = slt v37, v43
+    v45 = eq v44, false
+    icall revert_if<invalid_calldata_tail_offset>, v45
+    v46 = load calldata v39
+    v47 = calldatasize
+    v48 = gt v46, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v48
+    v49 = mul v46, 32
+    v50 = add v39, 32
+    v51 = sub v47, v49
+    v52 = sgt v50, v51
+    icall revert_if<calldata_tail_too_short>, v52
+    v53 = mul v46, 32
+    v54 = eq 32, 0
+    v55 = div v53, 32
+    v56 = eq v55, v46
+    v57 = or v54, v56
+    v58 = zext i1 v57 to i256
+    v59 = eq v58, 0
+    icall panic_if<0x41>, v59
+    v60 = add 32, v53
+    v61 = lt v60, 32
+    icall panic_if<0x41>, v61
+    v62 = alloc v60
+    store v62, v46
+    v63 = inttoptr i256 v50 to ptr<calldata>
+    v64 = make_calldata_slice v63, v53
+    v65 = ptradd v62, 32
+    v66 = extract_value slice<calldata>, v64, 0
+    v67 = extract_value slice<calldata>, v64, 1
+    copy calldata v65, v66, v67
+    v68 = ptrtoint ptr<memory> v62 to i256
+    v69 = shl 5, v29
+    v70 = ptradd v28, v69
+    store v70+32, v68
+    v71 = add v29, 1
     jump bb7
   bb2:
     v3 = shl 5, v1

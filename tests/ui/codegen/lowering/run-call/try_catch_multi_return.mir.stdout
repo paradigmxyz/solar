@@ -12,12 +12,10 @@ fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], ab
   bb3:
     v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 2
-    v2 = ptrtoint ptr<memory> v1 to i256
-    v3 = add v2, 32
-    store v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v4 = insert_value struct0, undef struct0, 0, 13
-    v5 = insert_value struct0, v4, 1, v1
-    ret v5
+    store v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v2 = insert_value struct0, undef struct0, 0, 13
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
   bb1:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
@@ -37,26 +35,24 @@ fn @constructor() [constructor] {
     v1 = datasize TryMultiReturnTarget_creation_code_0
     v2 = datasize TryMultiReturnTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint ptr<memory> v3 to i256
-    datacopy TryMultiReturnTarget_creation_code_0, v4, v1
-    v5 = extract_value slice<memory>, v0, 0
-    v6 = ptrtoint ptr<memory> v3 to i256
-    v7 = add v6, v1
-    copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint ptr<memory> v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    datacopy TryMultiReturnTarget_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    copy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = zext i160 v9 to i256
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = zext i160 v7 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 

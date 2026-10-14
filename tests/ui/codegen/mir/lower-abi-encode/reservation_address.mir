@@ -13,7 +13,7 @@
 // CHECK: returndata
 fn @encode_empty() [selector=0x01020304, pure] {
   bb0:
-    v0 = make_calldata_slice 0, 0
+    v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = abi_encode [calldata_bytes], args v0
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1

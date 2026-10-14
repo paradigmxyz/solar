@@ -3,17 +3,19 @@
 fn @first(arg0: slice<calldata>) -> i256 [selector=0xa355ea34, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
-    v1 = add v0, 0
-    v2 = load calldata v1
-    ret v2
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 0
+    v3 = load calldata v2
+    ret v3
 }
 
 fn @second(arg0: slice<calldata>) -> i256 [selector=0x8516528b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
-    v1 = add v0, 32
-    v2 = load calldata v1
-    ret v2
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 32
+    v3 = load calldata v2
+    ret v3
 }
 
 fn @choose(arg0: slice<calldata>, arg1: i1) -> i256 [selector=0x1fae9324, pure, abi_params=[tuple<u256, u256>, bool], abi_returns=[word], abi_return_params=[u256]] {
@@ -22,15 +24,17 @@ fn @choose(arg0: slice<calldata>, arg1: i1) -> i256 [selector=0x1fae9324, pure, 
   bb2:
     jump bb3
   bb3:
-    v3 = extract_value slice<calldata>, arg0, 0
-    v4 = add v3, 32
-    v5 = load calldata v4
-    ret v5
+    v4 = extract_value slice<calldata>, arg0, 0
+    v5 = ptrtoint ptr<calldata> v4 to i256
+    v6 = add v5, 32
+    v7 = load calldata v6
+    ret v7
   bb1:
     v0 = extract_value slice<calldata>, arg0, 0
-    v1 = add v0, 0
-    v2 = load calldata v1
-    ret v2
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 0
+    v3 = load calldata v2
+    ret v3
 }
 
 fn @memoryFirst(arg0: ptr<memory>) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {

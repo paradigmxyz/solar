@@ -3,32 +3,31 @@
 fn @dirty() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
-    v1 = ptrtoint ptr<memory> v0 to i256
-    memory_zero v1, 192
+    memory_zero v0, 192
     store v0, 1
     store v0+32, 1
-    v2 = lt i8 1, i8 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
+    v1 = lt i8 1, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
     store v0+64, 1
     store v0+96, 1
-    v4 = sext i8 255 to i256
-    store v0+128, v4
+    v3 = sext i8 255 to i256
+    store v0+128, v3
     store v0+160, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v0 to i256
+    store v0, 511
     v5 = ptrtoint ptr<memory> v0 to i256
-    store v5, 511
-    v6 = ptrtoint ptr<memory> v0 to i256
-    v7 = add v6, 32
-    store v7, 258
-    v8 = ptrtoint ptr<memory> v0 to i256
-    v9 = add v8, 96
-    store v9, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v10 = ptrtoint ptr<memory> v0 to i256
-    v11 = add v10, 128
-    store v11, 254
-    v12 = ptrtoint ptr<memory> v0 to i256
-    v13 = add v12, 160
-    store v13, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v6 = add v5, 32
+    store v6, 258
+    v7 = ptrtoint ptr<memory> v0 to i256
+    v8 = add v7, 96
+    store v8, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v9 = ptrtoint ptr<memory> v0 to i256
+    v10 = add v9, 128
+    store v10, 254
+    v11 = ptrtoint ptr<memory> v0 to i256
+    v12 = add v11, 160
+    store v12, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

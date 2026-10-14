@@ -48,20 +48,23 @@
       v2 = extract_value slice<memory>, arg1, 1
 -     copy v0, v1, v2
 -     v3 = ptradd arg0, 32
-+     copy v10, v1, v2
++     v15 = ptrtoint ptr<memory> v1 to i256
++     copy v10, v15, v2
 +     v11 = ptrtoint ptr<memory> arg0 to i256
 +     v12 = add v11, 32
       v4 = extract_value slice<calldata>, arg2, 0
       v5 = extract_value slice<calldata>, arg2, 1
 -     copy calldata v3, v4, v5
 -     v6 = ptradd arg0, 32
-+     copy calldata v12, v4, v5
++     v16 = ptrtoint ptr<calldata> v4 to i256
++     copy calldata v12, v16, v5
 +     v13 = ptrtoint ptr<memory> arg0 to i256
 +     v14 = add v13, 32
       v7 = extract_value slice<returndata>, arg3, 0
       v8 = extract_value slice<returndata>, arg3, 1
 -     copy returndata v6, v7, v8
-+     copy returndata v14, v7, v8
++     v17 = ptrtoint ptr<returndata> v7 to i256
++     copy returndata v14, v17, v8
       stop
   }
   

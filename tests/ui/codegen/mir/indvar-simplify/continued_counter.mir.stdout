@@ -215,7 +215,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v62 = sload v61 !metadata(storage=offset(v52, 1))
     store v57+32, v62
     v63 = ptrtoint ptr<memory> v57 to i256
-    v64 = load v63
+    v64 = load v57
     v65 = sload v56 !metadata(storage=symbolic(v56))
     v66 = not 0xffffffffffffffffffffffffffffffffffffffff
     v67 = and v65, v66
@@ -223,7 +223,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v69 = or v67, v68
     sstore v56, v69 !metadata(storage=symbolic(v56))
     v70 = add v56, 1
-    v71 = load v63+32
+    v71 = load v57+32
     sstore v70, v71 !metadata(storage=offset(v56, 1))
     jump bb21
   bb21:

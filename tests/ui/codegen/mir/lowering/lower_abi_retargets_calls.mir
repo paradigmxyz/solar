@@ -123,11 +123,12 @@ fn @prefixedEncoding() -> ptr<memory> [selector=0x0a0a0a0a, abi_params=[], abi_r
 // CHECK: + {{v[0-9]+}} = icall @sliceBody.body
 fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = make_calldata_slice 4, 32
+    v0 = make_calldata_slice ptr<calldata> 4, 32
     jump bb1
   bb1:
     v1 = extract_value slice<calldata>, v0, 0
-    ret v1
+    v2 = ptrtoint ptr<calldata> v1 to i256
+    ret v2
 }
 
 fn @sliceCaller() -> i256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {

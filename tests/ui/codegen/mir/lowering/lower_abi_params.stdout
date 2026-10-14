@@ -69,16 +69,17 @@
 +     v36 = gt v22, v35
 +     jumpi v36, bb4, bb11
 +   bb11:
-+     v37 = make_calldata_slice v23, v24
-+     v38 = ptradd v33, 32
-+     v39 = extract_value slice<calldata>, v37, 0
-+     v40 = extract_value slice<calldata>, v37, 1
-+     copy calldata v38, v39, v40
-+     v41 = ptrtoint ptr<memory> v33 to i256
-+     store v14, v41
-+     v42 = add v9, 32
-+     v43 = load calldata v42
-+     store v14+32, v43
++     v37 = inttoptr i256 v23 to ptr<calldata>
++     v38 = make_calldata_slice v37, v24
++     v39 = ptradd v33, 32
++     v40 = extract_value slice<calldata>, v38, 0
++     v41 = extract_value slice<calldata>, v38, 1
++     copy calldata v39, v40, v41
++     v42 = ptrtoint ptr<memory> v33 to i256
++     store v14, v42
++     v43 = add v9, 32
++     v44 = load calldata v43
++     store v14+32, v44
 +     store v14+64, v9
 +     jump bb1
 +   bb1:
@@ -91,9 +92,9 @@
       v5 = add v2, v4
 -     ret v5
 +     store 128, v5
-+     v44 = add 128, 32
-+     v45 = sub v44, 128
-+     returndata 128, v45
++     v45 = add 128, 32
++     v46 = sub v45, 128
++     returndata 128, v46
 +   bb8:
 +     store 32, 65 !metadata(memory=scratch)
 +     store 0, 0x4e487b71 !metadata(memory=scratch)
@@ -283,12 +284,13 @@
 +   bb0:
 +     v0 = calldatasize
 +     v1 = alloc 96
-+     v2 = make_calldata_slice arg0, 96
-+     v3 = extract_value slice<calldata>, v2, 0
-+     v4 = extract_value slice<calldata>, v2, 1
-+     copy calldata v1, v3, v4
-+     v5 = eq 1, 0
-+     jumpi v5, bb1, bb2
++     v2 = inttoptr i256 arg0 to ptr<calldata>
++     v3 = make_calldata_slice v2, 96
++     v4 = extract_value slice<calldata>, v3, 0
++     v5 = extract_value slice<calldata>, v3, 1
++     copy calldata v1, v4, v5
++     v6 = eq 1, 0
++     jumpi v6, bb1, bb2
 +   bb2:
 +     ret v1
 +   bb1:

@@ -38,9 +38,8 @@
 +     v19 = add v15, 32
 +     v20 = add v19, 0
 +     v21 = sub v20, v9
-+     v22 = ptrtoint ptr<memory> v7 to i256
-+     v23 = make_memory_slice v22, 228
-+     ret v23
++     v22 = make_memory_slice v7, 228
++     ret v22
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before egraph) ===
@@ -74,10 +73,8 @@
       v19 = add v15, 32
 -     v20 = add v19, 0
 -     v21 = sub v20, v9
--     v22 = ptrtoint ptr<memory> v7 to i256
--     v23 = make_memory_slice v22, 228
-+     v23 = make_memory_slice v8, 228
-      ret v23
+      v22 = make_memory_slice v7, 228
+      ret v22
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before dce) ===
@@ -103,7 +100,7 @@
       store v17, 192
       store v15, 0
 -     v19 = add v15, 32
-      v23 = make_memory_slice v8, 228
-      ret v23
+      v22 = make_memory_slice v7, 228
+      ret v22
   }
   

@@ -75,27 +75,23 @@ fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 12
-    v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = add v1, 32
-    store v2, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v3 = icall @erc7201Reference, v0
-    v4 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v3
-    ret v4
+    store v0+32, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v1 = icall @erc7201Reference, v0
+    v2 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v1
+    ret v2
 }
 
 fn @erc7201Reference(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = ptrtoint ptr<memory> arg0 to i256
-    v1 = add v0, 32
-    v2 = load arg0
-    v3 = keccak256 v1, v2
-    v4 = checked_sub u256, v3, 1
-    v5 = shl 0, v4
-    v6 = abi_encode_packed (bytes32 v5)
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = add v7, 32
-    v9 = load v6
-    v10 = keccak256 v8, v9
-    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v11
+    v0 = ptradd arg0, 32
+    v1 = load arg0
+    v2 = keccak256 v0, v1
+    v3 = checked_sub u256, v2, 1
+    v4 = shl 0, v3
+    v5 = abi_encode_packed (bytes32 v4)
+    v6 = ptradd v5, 32
+    v7 = load v5
+    v8 = keccak256 v6, v7
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v9
 }
