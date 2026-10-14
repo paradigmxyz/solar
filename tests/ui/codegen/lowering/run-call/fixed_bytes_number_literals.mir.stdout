@@ -127,20 +127,16 @@ fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_ret
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
     store v2, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint memptr v0 to i256
-    v4 = add v3, 32
+    v3 = ptradd v0, 32
+    v4 = load v3
     v5 = load v0
-    v6 = make_memory_slice v4, v5
-    v7 = slice_ptr v6
-    v8 = load v7
-    v9 = slice_len v6
-    v10 = lt v9, 4
-    v11 = sub 4, v9
-    v12 = mul 8, v11
-    v13 = shl v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v14 = select v10, v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = and v8, v14
-    ret v15
+    v6 = lt v5, 4
+    v7 = sub 4, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v10 = select v6, v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = and v4, v10
+    ret v11
 }
 
 fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -148,21 +144,17 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
+    v3 = ptradd v2, 32
+    v4 = load v3
     v5 = load v2
-    v6 = make_memory_slice v4, v5
-    v7 = slice_ptr v6
-    v8 = load v7
-    v9 = slice_len v6
-    v10 = lt v9, 32
-    v11 = sub 32, v9
-    v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v8, v14
-    v16 = shr 248, v15
-    ret v16
+    v6 = lt v5, 32
+    v7 = sub 32, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = select v6, v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = and v4, v10
+    v12 = shr 248, v11
+    ret v12
 }
 
 fn @returnBytes() -> struct0 [pure] {

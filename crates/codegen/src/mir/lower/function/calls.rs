@@ -624,9 +624,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(
                     MirType::MEMPTR | MirType::Slice(PtrLocation::Calldata | PtrLocation::Memory),
                 ) => {
-                    let view = self.builder.memory_view(value);
-                    let word = self.builder.slice_load_word(view, zero);
-                    let length = self.builder.slice_len(view);
+                    let word = self.builder.slice_load_word(value, zero);
+                    let length = self.builder.memory_len(value);
                     Some((word, length))
                 }
                 _ => None,
@@ -686,8 +685,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = byte_value {
             // value = mload(bytes.data)
             let zero = self.builder.imm(U256::ZERO);
-            let view = self.builder.memory_view(value);
-            return self.builder.slice_load_word(view, zero);
+            return self.builder.slice_load_word(value, zero);
         }
         if let Some(source_size) = source_size {
             if source_size.bytes() > size.bytes() {

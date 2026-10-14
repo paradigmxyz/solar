@@ -6,63 +6,63 @@
 
 fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
   bb0:
-    v45 = icall @decode_calldata_type
-    v1 = ptrtoint memptr v45 to i256
+    v42 = icall @decode_calldata_type
+    v1 = ptrtoint memptr v42 to i256
     v2 = add v1, 32
-    v3 = load v1
-    v8 = add v2, v3
-    v9 = slt v3, 32
-    jumpi v9, bb1, bb2
+    v4 = load v1
+    v5 = add v2, v4
+    v6 = slt v4, 32
+    jumpi v6, bb1, bb2
   bb2:
-    v10 = load v2
-    v11 = add v2, v10
-    v12 = add v11, 32
-    v13 = gt v10, 0xffffffffffffffff
-    v14 = gt v12, v8
-    v15 = or v13, v14
-    jumpi v15, bb1, bb3
+    v7 = load v2
+    v8 = add v2, v7
+    v9 = add v8, 32
+    v10 = gt v7, 0xffffffffffffffff
+    v11 = gt v9, v5
+    v12 = or v10, v11
+    jumpi v12, bb1, bb3
   bb3:
-    v17 = load v11
-    v19 = add v17, 1
-    v20 = eq v19, 0
-    jumpi v20, bb4, bb5
+    v14 = load v8
+    v16 = add v14, 1
+    v17 = eq v16, 0
+    jumpi v17, bb4, bb5
   bb5:
-    v21 = shl 5, v19
-    v23 = shr 5, v21
-    v27 = ne v23, v19
-    jumpi v27, bb4, bb6
+    v18 = shl 5, v16
+    v20 = shr 5, v18
+    v24 = ne v20, v16
+    jumpi v24, bb4, bb6
   bb6:
-    v68 = load 64 !metadata(memory=scratch)
-    v69 = add v68, v21
-    v70 = lt v69, v68
-    v71 = gt v69, 0xffffffffffffffff
-    v72 = or v70, v71
-    jumpi v72, bb4, bb9
+    v65 = load 64 !metadata(memory=scratch)
+    v66 = add v65, v18
+    v67 = lt v66, v65
+    v68 = gt v66, 0xffffffffffffffff
+    v69 = or v67, v68
+    jumpi v69, bb4, bb9
   bb9:
-    store 64, v69 !metadata(memory=scratch)
-    store v68, v17
-    v29 = shl 5, v17
-    v31 = shr 5, v29
-    v35 = ne v31, v17
-    jumpi v35, bb4, bb7
+    store 64, v66 !metadata(memory=scratch)
+    store v65, v14
+    v26 = shl 5, v14
+    v28 = shr 5, v26
+    v32 = ne v28, v14
+    jumpi v32, bb4, bb7
   bb7:
-    v36 = sub v8, v12
-    v37 = shr 5, v36
-    v38 = gt v17, v37
-    jumpi v38, bb1, bb8
+    v33 = sub v5, v9
+    v34 = shr 5, v33
+    v35 = gt v14, v34
+    jumpi v35, bb1, bb8
   bb8:
-    v64 = add v68, 32
-    copy v64, v12, v29
-    v52 = ne v68, 0
-    v53 = zext i1 v52 to i256
-    v54 = mul v17, v53
-    v57 = shl 5, v54
-    v59 = add v68, 64
-    copy v59, v64, v57
-    store v68, 32
-    store v64, v54
-    v60 = add v57, 64
-    returndata v68, v60
+    v61 = add v65, 32
+    copy v61, v9, v26
+    v49 = ne v65, 0
+    v50 = zext i1 v49 to i256
+    v51 = mul v14, v50
+    v54 = shl 5, v51
+    v56 = add v65, 64
+    copy v56, v61, v54
+    store v65, 32
+    store v61, v51
+    v57 = add v54, 64
+    returndata v65, v57
   bb4:
     store 32, 65 !metadata(memory=scratch)
     store 0, 0x4e487b71 !metadata(memory=scratch)
@@ -73,136 +73,136 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
 
 fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
   bb0:
-    v53 = icall @decode_calldata_type
-    v1 = ptrtoint memptr v53 to i256
+    v50 = icall @decode_calldata_type
+    v1 = ptrtoint memptr v50 to i256
     v2 = add v1, 32
-    v3 = load v1
-    v8 = add v2, v3
-    v9 = slt v3, 32
-    jumpi v9, bb1, bb2
+    v4 = load v1
+    v5 = add v2, v4
+    v6 = slt v4, 32
+    jumpi v6, bb1, bb2
   bb2:
-    v10 = load v2
-    v11 = add v2, v10
-    v12 = add v11, 32
-    v13 = gt v10, 0xffffffffffffffff
-    v14 = gt v12, v8
-    v15 = or v13, v14
-    jumpi v15, bb1, bb3
+    v7 = load v2
+    v8 = add v2, v7
+    v9 = add v8, 32
+    v10 = gt v7, 0xffffffffffffffff
+    v11 = gt v9, v5
+    v12 = or v10, v11
+    jumpi v12, bb1, bb3
   bb3:
-    v17 = load v11
-    v19 = add v17, 1
-    v20 = eq v19, 0
-    jumpi v20, bb4, bb5
+    v14 = load v8
+    v16 = add v14, 1
+    v17 = eq v16, 0
+    jumpi v17, bb4, bb5
   bb5:
-    v21 = shl 5, v19
-    v23 = shr 5, v21
-    v27 = ne v23, v19
-    jumpi v27, bb4, bb6
+    v18 = shl 5, v16
+    v20 = shr 5, v18
+    v24 = ne v20, v16
+    jumpi v24, bb4, bb6
   bb6:
-    v134 = load 64 !metadata(memory=scratch)
-    v135 = add v134, v21
-    v136 = lt v135, v134
-    v137 = gt v135, 0xffffffffffffffff
-    v138 = or v136, v137
-    jumpi v138, bb4, bb20
+    v131 = load 64 !metadata(memory=scratch)
+    v132 = add v131, v18
+    v133 = lt v132, v131
+    v134 = gt v132, 0xffffffffffffffff
+    v135 = or v133, v134
+    jumpi v135, bb4, bb20
   bb20:
-    store 64, v135 !metadata(memory=scratch)
-    store v134, v17
-    v32 = lt v17, 0x800000000000000000000000000000000000000000000000000000000000000
-    jumpi v32, bb7, bb4
+    store 64, v132 !metadata(memory=scratch)
+    store v131, v14
+    v29 = lt v14, 0x800000000000000000000000000000000000000000000000000000000000000
+    jumpi v29, bb7, bb4
   bb7:
-    v36 = sub v8, v12
-    v37 = shr 5, v36
-    v38 = gt v17, v37
-    jumpi v38, bb1, bb8
+    v33 = sub v5, v9
+    v34 = shr 5, v33
+    v35 = gt v14, v34
+    jumpi v35, bb1, bb8
   bb8:
-    v120 = add v134, 32
+    v117 = add v131, 32
     jump bb9
   bb9:
-    v39 = phi [bb8: v17], [bb12: v48]
-    v40 = phi [bb8: v12], [bb12: v49]
-    v41 = phi [bb8: 0], [bb12: v50]
-    v42 = gt v39, 0
-    jumpi v42, bb10, bb11
+    v36 = phi [bb8: v14], [bb12: v45]
+    v37 = phi [bb8: v9], [bb12: v46]
+    v38 = phi [bb8: 0], [bb12: v47]
+    v39 = gt v36, 0
+    jumpi v39, bb10, bb11
   bb11:
-    v54 = load v134
-    v55 = add v54, 1
-    v56 = eq v55, 0
-    jumpi v56, bb4, bb13
+    v51 = load v131
+    v52 = add v51, 1
+    v53 = eq v52, 0
+    jumpi v53, bb4, bb13
   bb13:
-    v57 = shl 5, v55
-    v59 = shr 5, v57
-    v63 = ne v59, v55
-    jumpi v63, bb4, bb14
+    v54 = shl 5, v52
+    v56 = shr 5, v54
+    v60 = ne v56, v52
+    jumpi v60, bb4, bb14
   bb14:
-    v140 = load 64 !metadata(memory=scratch)
-    v141 = add v140, v57
-    store 64, v141 !metadata(memory=scratch)
-    store v140, v54
-    v123 = add v134, 32
-    v126 = add v140, 32
-    v149 = shl 5, v54
-    v150 = add v123, v149
+    v137 = load 64 !metadata(memory=scratch)
+    v138 = add v137, v54
+    store 64, v138 !metadata(memory=scratch)
+    store v137, v51
+    v120 = add v131, 32
+    v123 = add v137, 32
+    v146 = shl 5, v51
+    v147 = add v120, v146
     jump bb15
   bb15:
-    v145 = phi [bb14: v123], [bb16: v146]
-    v147 = phi [bb14: v126], [bb16: v148]
-    v66 = lt v145, v150
-    jumpi v66, bb16, bb17
+    v142 = phi [bb14: v120], [bb16: v143]
+    v144 = phi [bb14: v123], [bb16: v145]
+    v63 = lt v142, v147
+    jumpi v63, bb16, bb17
   bb17:
-    v142 = load 64 !metadata(memory=scratch)
-    v83 = add v142, 32
-    store v142, 32
-    v89 = ne v140, 0
-    v90 = zext i1 v89 to i256
-    v86 = load v140
-    v91 = mul v86, v90
-    store v83, v91
-    v93 = add v83, 32
-    v95 = add v140, 32
-    v97 = sub v95, v93
-    v98 = ne v91, 0
-    jumpi v98, bb18, bb19
+    v139 = load 64 !metadata(memory=scratch)
+    v80 = add v139, 32
+    store v139, 32
+    v86 = ne v137, 0
+    v87 = zext i1 v86 to i256
+    v83 = load v137
+    v88 = mul v83, v87
+    store v80, v88
+    v90 = add v80, 32
+    v92 = add v137, 32
+    v94 = sub v92, v90
+    v95 = ne v88, 0
+    jumpi v95, bb18, bb19
   bb18:
-    v99 = phi [bb17: v91], [bb18: v106]
-    v100 = phi [bb17: v93], [bb18: v107]
-    v101 = add v100, v97
-    v102 = load v101
-    v104 = ne v102, 0
-    v105 = zext i1 v104 to i256
-    store v100, v105
-    v106 = sub v99, 1
-    v107 = add v100, 32
-    v108 = ne v106, 0
-    jumpi v108, bb18, bb19
+    v96 = phi [bb17: v88], [bb18: v103]
+    v97 = phi [bb17: v90], [bb18: v104]
+    v98 = add v97, v94
+    v99 = load v98
+    v101 = ne v99, 0
+    v102 = zext i1 v101 to i256
+    store v97, v102
+    v103 = sub v96, 1
+    v104 = add v97, 32
+    v105 = ne v103, 0
+    jumpi v105, bb18, bb19
   bb19:
-    v109 = phi [bb17: v93], [bb18: v107]
-    v111 = sub v109, v142
-    v113 = add v111, 31
-    v115 = and v113, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v143 = load 64 !metadata(memory=scratch)
-    v144 = add v143, v115
-    store 64, v144 !metadata(memory=scratch)
-    returndata v143, v111
+    v106 = phi [bb17: v90], [bb18: v104]
+    v108 = sub v106, v139
+    v110 = add v108, 31
+    v112 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v140 = load 64 !metadata(memory=scratch)
+    v141 = add v140, v112
+    store 64, v141 !metadata(memory=scratch)
+    returndata v140, v108
   bb16:
-    v70 = load v145
-    v72 = ne v70, 0
-    v76 = zext i1 v72 to i256
-    store v147, v76
-    v146 = add v145, 32
-    v148 = add v147, 32
+    v67 = load v142
+    v69 = ne v67, 0
+    v73 = zext i1 v69 to i256
+    store v144, v73
+    v143 = add v142, 32
+    v145 = add v144, 32
     jump bb15
   bb10:
-    v43 = load v40
-    v44 = lt v43, 2
-    jumpi v44, bb12, bb1
+    v40 = load v37
+    v41 = lt v40, 2
+    jumpi v41, bb12, bb1
   bb12:
-    v45 = shl 5, v41
-    v121 = add v120, v45
-    store v121, v43
-    v48 = sub v39, 1
-    v49 = add v40, 32
-    v50 = add v41, 1
+    v42 = shl 5, v38
+    v118 = add v117, v42
+    store v118, v40
+    v45 = sub v36, 1
+    v46 = add v37, 32
+    v47 = add v38, 1
     jump bb9
   bb4:
     store 32, 65 !metadata(memory=scratch)
@@ -214,143 +214,143 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
 
 fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
   bb0:
-    v72 = icall @decode_calldata_type
-    v1 = ptrtoint memptr v72 to i256
+    v69 = icall @decode_calldata_type
+    v1 = ptrtoint memptr v69 to i256
     v2 = add v1, 32
-    v3 = load v1
-    v8 = add v2, v3
-    v9 = slt v3, 32
-    jumpi v9, bb1, bb2
+    v4 = load v1
+    v5 = add v2, v4
+    v6 = slt v4, 32
+    jumpi v6, bb1, bb2
   bb2:
-    v10 = load v2
-    v11 = add v2, v10
-    v12 = add v11, 32
-    v13 = gt v10, 0xffffffffffffffff
-    v14 = gt v12, v8
-    v15 = or v13, v14
-    jumpi v15, bb1, bb3
+    v7 = load v2
+    v8 = add v2, v7
+    v9 = add v8, 32
+    v10 = gt v7, 0xffffffffffffffff
+    v11 = gt v9, v5
+    v12 = or v10, v11
+    jumpi v12, bb1, bb3
   bb3:
-    v17 = load v11
-    v19 = add v17, 1
-    v20 = eq v19, 0
-    jumpi v20, bb4, bb5
+    v14 = load v8
+    v16 = add v14, 1
+    v17 = eq v16, 0
+    jumpi v17, bb4, bb5
   bb5:
-    v21 = shl 5, v19
-    v23 = shr 5, v21
-    v27 = ne v23, v19
-    jumpi v27, bb4, bb6
+    v18 = shl 5, v16
+    v20 = shr 5, v18
+    v24 = ne v20, v16
+    jumpi v24, bb4, bb6
   bb6:
-    v133 = load 64 !metadata(memory=scratch)
-    v134 = add v133, v21
-    v135 = lt v134, v133
-    v136 = gt v134, 0xffffffffffffffff
-    v137 = or v135, v136
-    jumpi v137, bb4, bb18
+    v130 = load 64 !metadata(memory=scratch)
+    v131 = add v130, v18
+    v132 = lt v131, v130
+    v133 = gt v131, 0xffffffffffffffff
+    v134 = or v132, v133
+    jumpi v134, bb4, bb18
   bb18:
-    store 64, v134 !metadata(memory=scratch)
-    store v133, v17
-    v32 = lt v17, 0x800000000000000000000000000000000000000000000000000000000000000
-    jumpi v32, bb7, bb4
+    store 64, v131 !metadata(memory=scratch)
+    store v130, v14
+    v29 = lt v14, 0x800000000000000000000000000000000000000000000000000000000000000
+    jumpi v29, bb7, bb4
   bb7:
-    v36 = sub v8, v12
-    v37 = shr 5, v36
-    v38 = gt v17, v37
-    jumpi v38, bb1, bb8
+    v33 = sub v5, v9
+    v34 = shr 5, v33
+    v35 = gt v14, v34
+    jumpi v35, bb1, bb8
   bb8:
     jump bb9
   bb9:
-    v39 = phi [bb8: v17], [bb14: v67]
-    v40 = phi [bb8: v12], [bb14: v68]
-    v41 = phi [bb8: 0], [bb14: v69]
-    v42 = gt v39, 0
-    jumpi v42, bb10, bb11
+    v36 = phi [bb8: v14], [bb14: v64]
+    v37 = phi [bb8: v9], [bb14: v65]
+    v38 = phi [bb8: 0], [bb14: v66]
+    v39 = gt v36, 0
+    jumpi v39, bb10, bb11
   bb11:
-    v145 = load 64 !metadata(memory=scratch)
-    v78 = add v145, 32
-    store v145, 32
-    v84 = ne v133, 0
-    v85 = zext i1 v84 to i256
-    v81 = load v133
-    v86 = mul v81, v85
-    store v78, v86
-    v87 = add v78, 32
-    v88 = shl 5, v86
-    v89 = add v87, v88
-    v91 = add v133, 32
+    v142 = load 64 !metadata(memory=scratch)
+    v75 = add v142, 32
+    store v142, 32
+    v81 = ne v130, 0
+    v82 = zext i1 v81 to i256
+    v78 = load v130
+    v83 = mul v78, v82
+    store v75, v83
+    v84 = add v75, 32
+    v85 = shl 5, v83
+    v86 = add v84, v85
+    v88 = add v130, 32
     jump bb15
   bb15:
-    v92 = phi [bb11: v86], [bb16: v111]
-    v93 = phi [bb11: v89], [bb16: v110]
-    v94 = phi [bb11: v87], [bb16: v112]
-    v95 = phi [bb11: v91], [bb16: v113]
-    v96 = gt v92, 0
-    jumpi v96, bb16, bb17
+    v89 = phi [bb11: v83], [bb16: v108]
+    v90 = phi [bb11: v86], [bb16: v107]
+    v91 = phi [bb11: v84], [bb16: v109]
+    v92 = phi [bb11: v88], [bb16: v110]
+    v93 = gt v89, 0
+    jumpi v93, bb16, bb17
   bb17:
-    v115 = sub v93, v145
-    v117 = add v115, 31
-    v119 = and v117, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v146 = load 64 !metadata(memory=scratch)
-    v147 = add v146, v119
-    store 64, v147 !metadata(memory=scratch)
-    returndata v146, v115
+    v112 = sub v90, v142
+    v114 = add v112, 31
+    v116 = and v114, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v143 = load 64 !metadata(memory=scratch)
+    v144 = add v143, v116
+    store 64, v144 !metadata(memory=scratch)
+    returndata v143, v112
   bb16:
-    v97 = load v95
-    v98 = sub v93, v87
-    store v94, v98
-    v101 = ne v97, 0
-    v102 = zext i1 v101 to i256
-    v99 = load v97
-    v103 = mul v99, v102
-    v105 = add v103, 31
-    v106 = and v105, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v107 = add v93, 32
-    v108 = add v93, v106
-    store v108, 0
-    store v93, v103
-    v110 = add v107, v106
-    v109 = add v97, 32
-    copy v107, v109, v103 !metadata(memory=heap, disjoint)
-    v111 = sub v92, 1
-    v112 = add v94, 32
-    v113 = add v95, 32
+    v94 = load v92
+    v95 = sub v90, v84
+    store v91, v95
+    v98 = ne v94, 0
+    v99 = zext i1 v98 to i256
+    v96 = load v94
+    v100 = mul v96, v99
+    v102 = add v100, 31
+    v103 = and v102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v104 = add v90, 32
+    v105 = add v90, v103
+    store v105, 0
+    store v90, v100
+    v107 = add v104, v103
+    v106 = add v94, 32
+    copy v104, v106, v100 !metadata(memory=heap, disjoint)
+    v108 = sub v89, 1
+    v109 = add v91, 32
+    v110 = add v92, 32
     jump bb15
   bb10:
-    v43 = load v40
-    v44 = add v12, v43
-    v45 = add v44, 32
-    v46 = gt v43, 0xffffffffffffffff
-    v47 = gt v45, v8
-    v48 = or v46, v47
-    jumpi v48, bb1, bb12
+    v40 = load v37
+    v41 = add v9, v40
+    v42 = add v41, 32
+    v43 = gt v40, 0xffffffffffffffff
+    v44 = gt v42, v5
+    v45 = or v43, v44
+    jumpi v45, bb1, bb12
   bb12:
-    v50 = load v44
-    v52 = add v50, 63
-    v53 = lt v52, v50
-    jumpi v53, bb4, bb13
+    v47 = load v41
+    v49 = add v47, 63
+    v50 = lt v49, v47
+    jumpi v50, bb4, bb13
   bb13:
-    v55 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v139 = load 64 !metadata(memory=scratch)
-    v140 = add v139, v55
-    v141 = lt v140, v139
-    v142 = gt v140, 0xffffffffffffffff
-    v143 = or v141, v142
-    jumpi v143, bb4, bb19
+    v52 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v136 = load 64 !metadata(memory=scratch)
+    v137 = add v136, v52
+    v138 = lt v137, v136
+    v139 = gt v137, 0xffffffffffffffff
+    v140 = or v138, v139
+    jumpi v140, bb4, bb19
   bb19:
-    store 64, v140 !metadata(memory=scratch)
-    store v139, v50
-    v57 = sub v8, v45
-    v58 = gt v50, v57
-    jumpi v58, bb1, bb14
+    store 64, v137 !metadata(memory=scratch)
+    store v136, v47
+    v54 = sub v5, v42
+    v55 = gt v47, v54
+    jumpi v55, bb1, bb14
   bb14:
-    v124 = add v139, 32
-    copy v124, v45, v50
-    v63 = shl 5, v41
-    v126 = add v133, 32
-    v127 = add v126, v63
-    store v127, v139
-    v67 = sub v39, 1
-    v68 = add v40, 32
-    v69 = add v41, 1
+    v121 = add v136, 32
+    copy v121, v42, v47
+    v60 = shl 5, v38
+    v123 = add v130, 32
+    v124 = add v123, v60
+    store v124, v136
+    v64 = sub v36, 1
+    v65 = add v37, 32
+    v66 = add v38, 1
     jump bb9
   bb4:
     store 32, 65 !metadata(memory=scratch)
@@ -362,121 +362,121 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
 
 fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb0:
-    v77 = icall @decode_calldata_type
-    v7 = ptrtoint memptr v77 to i256
+    v74 = icall @decode_calldata_type
+    v7 = ptrtoint memptr v74 to i256
     v8 = add v7, 32
-    v9 = load v7
-    v14 = add v8, v9
-    v15 = slt v9, 96
-    jumpi v15, bb1, bb2
+    v10 = load v7
+    v11 = add v8, v10
+    v12 = slt v10, 96
+    jumpi v12, bb1, bb2
   bb2:
-    v16 = load v8
-    v17 = add v8, 32
-    v18 = load v17
-    v19 = add v8, v18
-    v20 = add v19, 32
-    v21 = gt v18, 0xffffffffffffffff
-    v22 = gt v20, v14
-    v23 = or v21, v22
-    jumpi v23, bb1, bb3
+    v13 = load v8
+    v14 = add v8, 32
+    v15 = load v14
+    v16 = add v8, v15
+    v17 = add v16, 32
+    v18 = gt v15, 0xffffffffffffffff
+    v19 = gt v17, v11
+    v20 = or v18, v19
+    jumpi v20, bb1, bb3
   bb3:
-    v25 = load v19
-    v27 = add v25, 1
-    v28 = eq v27, 0
-    jumpi v28, bb4, bb5
+    v22 = load v16
+    v24 = add v22, 1
+    v25 = eq v24, 0
+    jumpi v25, bb4, bb5
   bb5:
-    v29 = shl 5, v27
-    v31 = shr 5, v29
-    v35 = ne v31, v27
-    jumpi v35, bb4, bb6
+    v26 = shl 5, v24
+    v28 = shr 5, v26
+    v32 = ne v28, v24
+    jumpi v32, bb4, bb6
   bb6:
-    v136 = load 64 !metadata(memory=scratch)
-    v137 = add v136, v29
-    v138 = lt v137, v136
-    v139 = gt v137, 0xffffffffffffffff
-    v140 = or v138, v139
-    jumpi v140, bb4, bb12
+    v133 = load 64 !metadata(memory=scratch)
+    v134 = add v133, v26
+    v135 = lt v134, v133
+    v136 = gt v134, 0xffffffffffffffff
+    v137 = or v135, v136
+    jumpi v137, bb4, bb12
   bb12:
-    store 64, v137 !metadata(memory=scratch)
-    store v136, v25
-    v37 = shl 5, v25
-    v39 = shr 5, v37
-    v43 = ne v39, v25
-    jumpi v43, bb4, bb7
+    store 64, v134 !metadata(memory=scratch)
+    store v133, v22
+    v34 = shl 5, v22
+    v36 = shr 5, v34
+    v40 = ne v36, v22
+    jumpi v40, bb4, bb7
   bb7:
-    v44 = sub v14, v20
-    v45 = shr 5, v44
-    v46 = gt v25, v45
-    jumpi v46, bb1, bb8
+    v41 = sub v11, v17
+    v42 = shr 5, v41
+    v43 = gt v22, v42
+    jumpi v43, bb1, bb8
   bb8:
-    v127 = add v136, 32
-    copy v127, v20, v37
-    v51 = add v8, 64
-    v52 = load v51
-    v53 = add v8, v52
-    v54 = add v53, 32
-    v55 = gt v52, 0xffffffffffffffff
-    v56 = gt v54, v14
-    v57 = or v55, v56
-    jumpi v57, bb1, bb9
+    v124 = add v133, 32
+    copy v124, v17, v34
+    v48 = add v8, 64
+    v49 = load v48
+    v50 = add v8, v49
+    v51 = add v50, 32
+    v52 = gt v49, 0xffffffffffffffff
+    v53 = gt v51, v11
+    v54 = or v52, v53
+    jumpi v54, bb1, bb9
   bb9:
-    v59 = load v53
-    v61 = add v59, 63
-    v62 = lt v61, v59
-    jumpi v62, bb4, bb10
+    v56 = load v50
+    v58 = add v56, 63
+    v59 = lt v58, v56
+    jumpi v59, bb4, bb10
   bb10:
-    v64 = and v61, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v142 = load 64 !metadata(memory=scratch)
-    v143 = add v142, v64
-    v144 = lt v143, v142
-    v145 = gt v143, 0xffffffffffffffff
-    v146 = or v144, v145
-    jumpi v146, bb4, bb13
+    v61 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v139 = load 64 !metadata(memory=scratch)
+    v140 = add v139, v61
+    v141 = lt v140, v139
+    v142 = gt v140, 0xffffffffffffffff
+    v143 = or v141, v142
+    jumpi v143, bb4, bb13
   bb13:
-    store 64, v143 !metadata(memory=scratch)
-    store v142, v59
-    v66 = sub v14, v54
-    v67 = gt v59, v66
-    jumpi v67, bb1, bb11
+    store 64, v140 !metadata(memory=scratch)
+    store v139, v56
+    v63 = sub v11, v51
+    v64 = gt v56, v63
+    jumpi v64, bb1, bb11
   bb11:
-    v129 = add v142, 32
-    copy v129, v54, v59
-    v148 = load 64 !metadata(memory=scratch)
-    v83 = add v148, 96
-    store v148, v16
-    v85 = add v148, 32
-    store v85, 96
-    v91 = ne v136, 0
-    v92 = zext i1 v91 to i256
-    v88 = load v136
-    v93 = mul v88, v92
-    store v83, v93
-    v94 = shl 5, v93
-    v95 = add v83, 32
-    v98 = add v95, v94
-    copy v95, v127, v94 !metadata(disjoint)
-    v102 = sub v98, v148
-    v100 = add v148, 64
-    store v100, v102
-    v106 = ne v142, 0
-    v107 = zext i1 v106 to i256
-    v103 = load v142
-    v108 = mul v103, v107
-    v110 = add v108, 31
-    v111 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v112 = add v98, 32
-    v113 = add v98, v111
-    store v113, 0
-    store v98, v108
-    v116 = add v112, v111
-    copy v112, v129, v108 !metadata(disjoint)
-    v118 = sub v116, v148
-    v120 = add v118, 31
-    v122 = and v120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v149 = load 64 !metadata(memory=scratch)
-    v150 = add v149, v122
-    store 64, v150 !metadata(memory=scratch)
-    returndata v149, v118
+    v126 = add v139, 32
+    copy v126, v51, v56
+    v145 = load 64 !metadata(memory=scratch)
+    v80 = add v145, 96
+    store v145, v13
+    v82 = add v145, 32
+    store v82, 96
+    v88 = ne v133, 0
+    v89 = zext i1 v88 to i256
+    v85 = load v133
+    v90 = mul v85, v89
+    store v80, v90
+    v91 = shl 5, v90
+    v92 = add v80, 32
+    v95 = add v92, v91
+    copy v92, v124, v91 !metadata(disjoint)
+    v99 = sub v95, v145
+    v97 = add v145, 64
+    store v97, v99
+    v103 = ne v139, 0
+    v104 = zext i1 v103 to i256
+    v100 = load v139
+    v105 = mul v100, v104
+    v107 = add v105, 31
+    v108 = and v107, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v109 = add v95, 32
+    v110 = add v95, v108
+    store v110, 0
+    store v95, v105
+    v113 = add v109, v108
+    copy v109, v126, v105 !metadata(disjoint)
+    v115 = sub v113, v145
+    v117 = add v115, 31
+    v119 = and v117, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v146 = load 64 !metadata(memory=scratch)
+    v147 = add v146, v119
+    store 64, v147 !metadata(memory=scratch)
+    returndata v146, v115
   bb4:
     store 32, 65 !metadata(memory=scratch)
     store 0, 0x4e487b71 !metadata(memory=scratch)

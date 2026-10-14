@@ -371,13 +371,11 @@ fn lower_hash(
     // result = mload(output.data)
     let input_ptr = builder.memory_data(input);
     let input_len = builder.memory_len(input);
-    let (output_ptr, output_len) = alloc_output(builder);
+    let output_ptr = alloc_output(builder);
     let address = builder.imm(if ripemd { 3 } else { 2 });
     let output_size = builder.imm(32);
     precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
-    let zero = builder.imm(0);
-    let output = builder.make_slice(output_ptr, output_len, PtrLocation::Memory);
-    let value = builder.slice_load_word(output, zero);
+    let value = builder.load(output_ptr, PtrLocation::Memory);
     if ripemd {
         // result = result << 96
         let scale = builder.imm(1_u128 << 96);
@@ -418,12 +416,10 @@ fn lower_ecrecover(
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
     precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    let slice = builder.make_slice(output, output_size, PtrLocation::Memory);
-    let zero = builder.imm(0);
-    builder.slice_load_word(slice, zero)
+    builder.load(output, PtrLocation::Memory)
 }
 
-fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
+fn alloc_output(builder: &mut FunctionBuilder<'_>) -> ValueId {
     // output = alloc bytes(64), zeroed
     // store output, 32
     // pointer = add (ptrtoint output), 32
@@ -432,8 +428,7 @@ fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
         builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
     let length = builder.imm(32);
     builder.set_memory_len(output, length);
-    let pointer = builder.memory_data(output);
-    (pointer, length)
+    builder.memory_data(output)
 }
 
 fn precompile_call(

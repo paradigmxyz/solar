@@ -27,6 +27,9 @@
 (decl inttoptr (Value) Value)
 (extractor (inttoptr operand0) (inst (Op.IntToPtr operand0)))
 
+(decl ptradd (Value Value) Value)
+(extractor (ptradd ptr offset) (inst (Op.PtrAdd ptr offset)))
+
 (decl checkedbinary (CheckedOp ArithmeticKind Value Value) Value)
 (extractor (checkedbinary op arithmetic lhs rhs) (inst (Op.CheckedBinary op arithmetic lhs rhs)))
 
@@ -158,24 +161,6 @@
 
 (decl alloc (Value AllocationKind AllocationSemantics) Value)
 (extractor (alloc size kind semantics) (inst (Op.Alloc size kind semantics)))
-
-(decl memoryslice (Value) Value)
-(extractor (memoryslice object) (inst (Op.MemorySlice object)))
-
-(decl sliceloadbyte (Value Value) Value)
-(extractor (sliceloadbyte slice index) (inst (Op.SliceLoadByte slice index)))
-
-(decl slicestorebyte (Value Value Value) Value)
-(extractor (slicestorebyte slice index value) (inst (Op.SliceStoreByte slice index value)))
-
-(decl slicestoreword (Value Value Value) Value)
-(extractor (slicestoreword slice offset value) (inst (Op.SliceStoreWord slice offset value)))
-
-(decl sliceloadword (Value Value) Value)
-(extractor (sliceloadword slice offset) (inst (Op.SliceLoadWord slice offset)))
-
-(decl slicecopy (Value Value Value) Value)
-(extractor (slicecopy destination offset source) (inst (Op.SliceCopy destination offset source)))
 
 (decl abiencode (AbiEncodeMode OptionValue Unit Unit) Value)
 (extractor (abiencode mode selector args layout) (inst (Op.AbiEncode mode selector args layout)))

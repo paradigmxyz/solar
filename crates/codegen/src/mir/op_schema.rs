@@ -103,6 +103,8 @@ pub(crate) enum ResultKind {
     Word,
     /// A raw memory pointer.
     MemPtr,
+    /// The pointer type of the first operand, or a `memptr` when that operand is a raw word.
+    Pointer,
     /// A 160-bit integer.
     I160,
     /// A one-bit integer.
@@ -118,7 +120,7 @@ impl ResultKind {
         match self {
             Self::None | Self::Custom => None,
             Self::I256 | Self::Integer | Self::Word => Some(MirType::I256),
-            Self::MemPtr => Some(MirType::MEMPTR),
+            Self::MemPtr | Self::Pointer => Some(MirType::MEMPTR),
             Self::I160 => Some(MirType::I160),
             Self::I1 => Some(MirType::I1),
         }
@@ -136,6 +138,8 @@ impl ResultKind {
             true
         } else if self == Self::Integer {
             matches!(ty, MirType::Int(bits) if MirType::valid_integer_width(bits.get()))
+        } else if self == Self::Pointer {
+            ty.is_pointer()
         } else {
             (self == Self::Word && ty == MirType::MEMPTR)
                 || self.default_type().is_none_or(|expected| expected == ty)
@@ -143,7 +147,7 @@ impl ResultKind {
     }
 }
 
-/// How an operation accesses a raw memory range at an `i256` address.
+/// How an operation accesses a raw memory range at an address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RawMemoryAccess {
     /// The operation reads the range.
@@ -811,8 +815,8 @@ macro_rules! define_mir_ops {
                 }
             }
 
-            /// Visits each raw memory range the operation reads or writes at an `i256` address,
-            /// with its offset and size, reads before writes. Operations that reach memory only through memory objects,
+            /// Visits each raw memory range the operation reads or writes at an address, with its
+            /// offset and size, reads before writes. Operations that reach memory only through
             /// slices, frames, or the free memory pointer have none.
             #[allow(unused_variables)]
             pub(crate) fn visit_raw_memory(
@@ -1157,7 +1161,7 @@ define_mir_ops! {
     /// Offset a pointer by an unsigned byte count, keeping its location and provenance. Like an
     /// LLVM `getelementptr inbounds nuw`, the sum does not wrap: semantic lowering emits it only
     /// for addresses inside the object, so a runtime offset leaves the pointer at or after `ptr`.
-    #[mir_op(mnemonic = "ptradd", result = Custom, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "ptradd", result = Pointer, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("pointer arithmetic"))]
     #[operand_types(func => Some(smallvec![typing::pointer(func, *ptr), MirType::I256]))]
     PtrAdd(ptr: ValueId, offset: ValueId),

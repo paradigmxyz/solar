@@ -458,9 +458,8 @@ impl FrameSlotPromoter {
             | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
-            | InstKind::Copy(addr, _, size, PtrLocation::Returndata)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::Copy(addr, _, size, PtrLocation::Calldata) => {
+            | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata) => {
                 Self::internal_frame_range_may_overlap(
                     func,
                     aa,
@@ -556,9 +555,8 @@ impl FrameSlotPromoter {
             | InstKind::Log { offset: addr, size, .. }
             | InstKind::MemoryZero(addr, size)
             | InstKind::DataCopy(_, addr, size)
-            | InstKind::Copy(addr, _, size, PtrLocation::Returndata)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::Copy(addr, _, size, PtrLocation::Calldata) => {
+            | InstKind::Copy(addr, _, size, PtrLocation::Calldata | PtrLocation::Returndata) => {
                 Self::external_range_reaches_slot(func, aa, addr, func.value_u64(size), slot_addr)
             }
             InstKind::Copy(dest, src, size, PtrLocation::Memory) => {

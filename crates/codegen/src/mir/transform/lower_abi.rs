@@ -1281,7 +1281,7 @@ impl LowerAbiCx {
         let mut logical_values = Vec::new();
         let mut replacements = FxHashMap::default();
         let mut slice_values_to_retag = Vec::new();
-        let mut calldata_objects = Vec::new();
+        let mut calldata_objects = FxHashMap::default();
         if let Some(layout) = abi_params {
             let mut head_offset = 0_u64;
             let mut logical_physical = Vec::with_capacity(layout.types.len());
@@ -1503,7 +1503,7 @@ impl LowerAbiCx {
                         };
                         logical_values[index] = Some(value);
                         if matches!(decode_type, MirType::Slice(PtrLocation::Calldata)) {
-                            calldata_objects.push((value, Self::object_header_size(ty)));
+                            calldata_objects.insert(value, Self::object_header_size(ty));
                             if Self::is_scalar_array(ty) {
                                 slice_values_to_retag.push(value);
                             }
@@ -1558,7 +1558,7 @@ impl LowerAbiCx {
         for value in slice_values_to_retag {
             Self::retag_calldata_slice_values(func, value);
         }
-        Self::rebase_calldata_objects(func, &calldata_objects);
+        Self::rebase_calldata_objects(func, calldata_objects);
         Self::rewrite_calldata_canonicalization(func);
         Self::discharge_abi_validations(func);
         let order = std::iter::once(guard)
@@ -2449,11 +2449,8 @@ impl LowerAbiCx {
         position: ValueId,
         constructor: bool,
     ) -> ValueId {
-        if constructor {
-            builder.load(position, PtrLocation::Memory)
-        } else {
-            builder.load(position, PtrLocation::Calldata)
-        }
+        builder
+            .load(position, if constructor { PtrLocation::Memory } else { PtrLocation::Calldata })
     }
 
     fn load_input_dynamic_array(
@@ -2747,7 +2744,7 @@ impl LowerAbiCx {
         }
         // Addresses into the object, a subset of the tainted values.
         let mut addresses = DenseBitSet::new_empty(func.num_values());
-        let byte_reads = byte_only_values(func);
+        let mut byte_reads = None;
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
             if matches!(inst.kind, InstKind::ICall { function: Callee::Function(_), .. }) {
@@ -2777,7 +2774,8 @@ impl LowerAbiCx {
                 {
                     let element = addresses.contains(*address).then(|| {
                         let word = func.inst_result_value(inst_id);
-                        (word.is_some_and(|word| byte_reads.contains(word)), *address)
+                        let bytes = byte_reads.get_or_insert_with(|| byte_only_values(func));
+                        (word.is_some_and(|word| bytes.contains(word)), *address)
                     });
                     (!Self::can_read_calldata_slice_use(func, element, ty), false)
                 }
@@ -2951,10 +2949,9 @@ impl LowerAbiCx {
     /// ptradd address, offset     -> add address, offset
     /// load address               -> load calldata address
     /// ```
-    fn rebase_calldata_objects(func: &mut Function, objects: &[(ValueId, u64)]) {
-        let mut headers = FxHashMap::default();
-        for &(object, header) in objects {
-            headers.insert(object, header);
+    fn rebase_calldata_objects(func: &mut Function, mut headers: FxHashMap<ValueId, u64>) {
+        if headers.is_empty() {
+            return;
         }
         // Loop-carried and selected copies of a slice share its layout.
         loop {
@@ -2994,9 +2991,6 @@ impl LowerAbiCx {
                 break;
             }
         }
-        if headers.is_empty() {
-            return;
-        }
         for block in func.blocks.indices() {
             let instructions = std::mem::take(&mut func.blocks[block].instructions);
             let mut builder = FunctionBuilder::new(func);
@@ -3018,13 +3012,17 @@ impl LowerAbiCx {
                     InstKind::PtrAdd(object, offset)
                         if let Some(&header) = headers.get(&object) =>
                     {
-                        let data = builder.slice_ptr(object);
-                        Some(match builder.func().value_u64(offset) {
-                            Some(offset) if offset == header => InstKind::SlicePtr(object),
+                        let offset = match builder.func().value_u64(offset) {
+                            // ptradd object, header -> slice_ptr object
+                            Some(offset) if offset == header => None,
                             // ptradd object, header + k -> add (slice_ptr object), k
-                            Some(offset) => InstKind::Add(data, builder.imm(offset - header)),
+                            Some(offset) => Some(builder.imm(offset - header)),
                             // ptradd object, offset -> add (slice_ptr object), offset
-                            None => InstKind::Add(data, offset),
+                            None => Some(offset),
+                        };
+                        Some(match offset {
+                            None => InstKind::SlicePtr(object),
+                            Some(offset) => InstKind::Add(builder.slice_ptr(object), offset),
                         })
                     }
                     InstKind::PtrAdd(address, offset) if addresses.contains(&address) => {
@@ -3062,16 +3060,9 @@ impl LowerAbiCx {
         let Some((byte_read, address)) = element else {
             return matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty);
         };
-        let word = EvmMemoryLayout::WORD_SIZE;
         match ty {
             crate::mir::AbiParamType::Bytes => byte_read,
-            _ if Self::is_scalar_array(ty) => {
-                let offset = match func.element_address(address) {
-                    Some((_, offset, _)) => offset,
-                    None => func.object_address(address).map_or(1, |(_, offset)| offset),
-                };
-                offset.is_multiple_of(word)
-            }
+            _ if Self::is_scalar_array(ty) => func.word_access(address).is_some(),
             _ => false,
         }
     }
@@ -3316,13 +3307,11 @@ fn passes_slice_base(data_ty: MirType, layout: &AbiParamLayout) -> bool {
 
 /// Returns the base and length of an ABI decode's input, a bytes object or a memory slice.
 fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, ValueId) {
-    // slice = data | make_memory_slice (data + 32), load data
-    // base = inttoptr slice_ptr(slice)
-    // length = slice_len(slice)
-    let view = builder.memory_view(data);
-    let ptr = builder.slice_ptr(view);
+    // base = inttoptr (slice_ptr data | ptrtoint data + 32)
+    // length = slice_len data | load data
+    let ptr = builder.memory_data(data);
     let base = builder.cast(ptr, MirType::MEMPTR);
-    (base, builder.slice_len(view))
+    (base, builder.memory_len(data))
 }
 
 /// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes
@@ -3727,44 +3716,34 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
 fn fixed_word_store(func: &Function, inst: InstId) -> Option<(ValueId, u64, ValueId)> {
     let InstKind::Store(address, value) = func.inst(inst).kind else { return None };
     let (object, offset) = func.object_address(address)?;
-    let word = EvmMemoryLayout::WORD_SIZE;
-    offset.is_multiple_of(word).then(|| (pointer_alias_root(func, object), offset / word, value))
+    let slot = EvmMemoryLayout::word_slot(offset)?;
+    Some((pointer_alias_root(func, object), slot, value))
 }
 
 /// The array a word element load reads: a word at a runtime index, or at a word-aligned constant
 /// offset past the first word, which is a dynamic array's length.
 fn array_word_object(func: &Function, address: ValueId) -> Option<ValueId> {
-    let word = EvmMemoryLayout::WORD_SIZE;
-    if let Some((object, offset, _)) = func.element_address(address) {
-        return offset.is_multiple_of(word).then_some(object);
-    }
-    let (object, offset) = func.object_address(address)?;
-    (offset != 0 && offset.is_multiple_of(word)).then_some(object)
+    let (object, offset, index) = func.word_access(address)?;
+    (index.is_some() || offset != 0).then_some(object)
 }
 
 /// The values whose only uses extract their most significant byte, `byte 0, value`.
 fn byte_only_values(func: &Function) -> DenseBitSet<ValueId> {
-    let mut bytes = DenseBitSet::new_empty(func.num_values());
-    let mut other = DenseBitSet::new_empty(func.num_values());
+    let uses = super::egraph::use_counts(func);
+    let mut byte_uses = IndexVec::<ValueId, u32>::from_vec(vec![0; func.num_values()]);
     for inst in func.instructions() {
-        match func.inst(inst).kind {
-            InstKind::Byte(index, value) if func.value_u64(index) == Some(0) => {
-                bytes.insert(value);
-                other.insert(index);
-            }
-            ref kind => kind.visit_operands(|value| {
-                other.insert(value);
-            }),
+        if let InstKind::Byte(index, value) = func.inst(inst).kind
+            && func.value_u64(index) == Some(0)
+        {
+            byte_uses[value] += 1;
         }
     }
-    for block in &func.blocks {
-        if let Some(terminator) = &block.terminator {
-            terminator.visit_operands(|value| {
-                other.insert(value);
-            });
+    let mut bytes = DenseBitSet::new_empty(func.num_values());
+    for (value, &count) in byte_uses.iter_enumerated() {
+        if count != 0 && count == uses[value] {
+            bytes.insert(value);
         }
     }
-    bytes.subtract(&other);
     bytes
 }
 

@@ -941,8 +941,8 @@ impl InstKind {
     pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
         if let Self::CheckedBinary { arithmetic, .. } = self {
             Some(arithmetic.ty().mir_type())
-        } else if let Self::PtrAdd(ptr, _) = *self {
-            func.value_ty(ptr)
+        } else if self.op_def().result == super::ResultKind::Pointer {
+            self.op().first_operand().map(|value| super::typing::pointer(func, value))
         } else if self.op_def().result == super::ResultKind::Integer {
             self.op().first_operand().map(|value| super::typing::integer_type(func, value))
         } else {
@@ -997,7 +997,6 @@ impl InstKind {
             Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
-            Self::PtrAdd(ptr, _) => result.is_some_and(MirType::is_pointer) && ty(ptr) == result,
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
             Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
             Self::Phi(_) => {
@@ -1019,7 +1018,11 @@ impl InstKind {
             | Self::LoadImmutable(..) => result.is_some(),
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
-            _ if self.op_def().result == super::ResultKind::Integer => {
+            _ if matches!(
+                self.op_def().result,
+                super::ResultKind::Integer | super::ResultKind::Pointer
+            ) =>
+            {
                 self.inferred_result_type(func) == result
                     && result.is_some_and(|ty| self.admits_result_type(ty))
             }

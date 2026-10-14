@@ -418,11 +418,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let zero = self.builder.imm(U256::ZERO);
         let payload_ptr = self.builder.memory_data_at(data, 4);
-        let word_size = self.builder.imm(32);
-        let payload = self.builder.make_slice(payload_ptr, word_size, PtrLocation::Memory);
-        self.builder.slice_load_word(payload, zero)
+        self.builder.load(payload_ptr, PtrLocation::Memory)
     }
 
     pub(super) fn lower_abi_encode_packed(

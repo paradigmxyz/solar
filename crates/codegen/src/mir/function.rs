@@ -268,6 +268,20 @@ impl Function {
         Some((object, offset, index))
     }
 
+    /// Resolves the address of a word access to the object it reaches, the word-aligned byte
+    /// offset of the word (of word zero for a runtime index), and the index, if any.
+    #[must_use]
+    pub(crate) fn word_access(&self, address: ValueId) -> Option<(ValueId, u64, Option<ValueId>)> {
+        let (object, offset, index) = match self.element_address(address) {
+            Some((object, offset, index)) => (object, offset, Some(index)),
+            None => {
+                let (object, offset) = self.object_address(address)?;
+                (object, offset, None)
+            }
+        };
+        super::memory::EvmMemoryLayout::word_slot(offset).map(|_| (object, offset, index))
+    }
+
     /// Returns whether an instruction only derives an address from another one, as
     /// [`Self::object_address`] follows.
     #[must_use]

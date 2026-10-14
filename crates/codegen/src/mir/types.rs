@@ -219,8 +219,7 @@ pub(crate) enum MirType {
     Int(NonZeroU32),
     /// An opaque pointer into an address space, with no implied validity or heap provenance.
     ///
-    /// Memory objects are memory pointers too: the operations that access them carry the object
-    /// layout.
+    /// Memory objects are memory pointers too, accessed through `ptradd` and `load`/`store`.
     Ptr(PtrLocation),
     /// A pointer/length pair in the given address space.
     Slice(PtrLocation),

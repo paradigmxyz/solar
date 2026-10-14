@@ -142,8 +142,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        // value = normalize(mload_field(object, field))
+        // Only a memory object has addressable fields.
         self.types.memory_layout(receiver_ty)?;
+        // value = normalize(load (ptradd object, field * 32))
         let field_ty =
             self.cx.gcx.type_of_item(id.into()).with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.builder.memory_load_field_as(

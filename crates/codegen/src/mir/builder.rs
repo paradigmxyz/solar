@@ -1021,22 +1021,27 @@ impl<'a> FunctionBuilder<'a> {
                 if self.func.value_u64(offset) == Some(0) { data } else { self.add(data, offset) };
             return (address, location);
         }
-        let (base, offset) = match self.func.value_u64(offset) {
-            Some(offset) => (value, header.saturating_add(offset)),
-            None if header == 0 => return (self.ptradd(value, offset), PtrLocation::Memory),
+        let address = match self.func.value_u64(offset) {
+            Some(offset) => match header.saturating_add(offset) {
+                0 => value,
+                // address = ptradd object, header + offset
+                offset => {
+                    let offset = self.imm(offset);
+                    self.ptradd(value, offset)
+                }
+            },
             None => {
                 // address = ptradd (ptradd object, header), offset
-                let header = self.imm(header);
-                let data = self.ptradd(value, header);
-                return (self.ptradd(data, offset), PtrLocation::Memory);
+                let data = if header == 0 {
+                    value
+                } else {
+                    let header = self.imm(header);
+                    self.ptradd(value, header)
+                };
+                self.ptradd(data, offset)
             }
         };
-        if offset == 0 {
-            return (base, PtrLocation::Memory);
-        }
-        // address = ptradd object, header + offset
-        let offset = self.imm(offset);
-        (self.ptradd(base, offset), PtrLocation::Memory)
+        (address, PtrLocation::Memory)
     }
 
     /// Loads a word as a `memptr` when `ty` is one, and as a word otherwise.
@@ -1048,12 +1053,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Offsets a pointer by `offset` bytes; a raw word offsets as a `memptr`.
     pub(crate) fn ptradd(&mut self, ptr: ValueId, offset: ValueId) -> ValueId {
-        // ptr = inttoptr ptr to memptr, unless already a pointer
         // result = ptradd ptr, offset
-        let ty = match self.func.value_ty(ptr) {
-            Some(ty @ MirType::Ptr(_)) => ty,
-            _ => MirType::MEMPTR,
-        };
+        let ty = crate::mir::typing::pointer(self.func, ptr);
         self.emit_inst(InstKind::PtrAdd(ptr, offset), Some(ty))
     }
 
@@ -1085,9 +1086,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Copies a slice into a fixed-size memory object, which has no length word.
     pub(crate) fn memory_copy_to_object(&mut self, object: ValueId, source: ValueId) {
-        let offset = self.imm(0);
-        let (destination, _) = self.object_address(object, 0, offset);
-        self.copy_slice(destination, source);
+        self.copy_slice(object, source);
     }
 
     /// Copies a slice into a byte offset in a dynamic memory object's payload.
@@ -1327,8 +1326,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a word load from memory or calldata.
     pub(crate) fn load(&mut self, ptr: ValueId, location: PtrLocation) -> ValueId {
-        // result = load location ptr
-        self.emit_inst(InstKind::Load(ptr, location), Some(MirType::I256))
+        self.load_as(ptr, location, MirType::I256)
     }
 
     /// Emits a copy into memory.

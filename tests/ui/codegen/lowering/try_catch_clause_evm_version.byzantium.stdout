@@ -74,9 +74,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
   bb9:
     v34 = ptrtoint memptr v10 to i256
     v35 = add v34, 36
-    v36 = make_memory_slice v35, 32
-    v37 = slice_ptr v36
-    v38 = load v37
+    v36 = load v35
     jump bb3
   bb7:
     v23 = load v10
@@ -94,8 +92,8 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v9 = load v8
     jump bb3
   bb3:
-    v39 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v39
+    v37 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v37
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

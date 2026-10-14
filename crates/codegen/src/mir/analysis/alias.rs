@@ -599,13 +599,22 @@ impl AliasAnalysis {
         address: ValueId,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let mut address = self.memory_address(func, address)?;
+        let address = self.memory_address(func, address)?;
+        Self::bounded_memory_location(func, Self::refine_region(func, inst_id, address), size)
+    }
+
+    /// Narrows an address's region to the one its instruction's metadata names.
+    fn refine_region(
+        func: &Function,
+        inst_id: InstId,
+        mut address: MemoryAddress,
+    ) -> MemoryAddress {
         if let Some(region) = func.inst(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
         {
             address.region = region;
         }
-        Self::bounded_memory_location(func, address, size)
+        address
     }
 
     /// Returns the memory an access at `address` may touch. Unlike [`Self::memory_location`],
@@ -622,13 +631,8 @@ impl AliasAnalysis {
         let Some(base) = Self::runtime_offset_base(func, address) else {
             return self.memory_location(func, inst_id, address, size);
         };
-        let mut base = self.memory_address(func, base)?;
-        if let Some(region) = func.inst(inst_id).metadata.memory_region()
-            && region != MemoryRegion::Unknown
-        {
-            base.region = region;
-        }
-        Some(MemoryLocation::new(base, LocationSize::Unknown))
+        let base = self.memory_address(func, base)?;
+        Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
     }
 
     /// Returns the memory an access at `address` may touch, without instruction metadata, as
@@ -1826,12 +1830,10 @@ impl AliasAnalysis {
                 .is_none_or(|summary| summary.may_reset_fmp()),
             InstKind::Store(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
             InstKind::Store8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
-            InstKind::Copy(dest, _, size, PtrLocation::Memory)
+            InstKind::Copy(dest, _, size, _)
             | InstKind::MemoryZero(dest, size)
-            | InstKind::Copy(dest, _, size, PtrLocation::Calldata)
             | InstKind::DataCopy(_, dest, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::Copy(dest, _, size, PtrLocation::Returndata) => {
+            | InstKind::CodeCopy(dest, _, size) => {
                 Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {

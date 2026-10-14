@@ -40,21 +40,17 @@ fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_retur
     store v3, 0
     v4 = load v3
     v5 = load v0
-    v6 = ptrtoint memptr v0 to i256
-    v7 = add v6, 32
+    v6 = ptradd v0, 32
+    v7 = load v6
     v8 = load v0
-    v9 = make_memory_slice v7, v8
-    v10 = slice_ptr v9
-    v11 = load v10
-    v12 = slice_len v9
-    v13 = lt v12, 2
-    v14 = sub 2, v12
-    v15 = mul 8, v14
-    v16 = shl v15, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v17 = select v13, v16, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v18 = and v11, v17
-    v19 = insert_value struct0, undef struct0, 0, v4
-    v20 = insert_value struct0, v19, 1, v5
-    v21 = insert_value struct0, v20, 2, v18
-    ret v21
+    v9 = lt v8, 2
+    v10 = sub 2, v8
+    v11 = mul 8, v10
+    v12 = shl v11, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v13 = select v9, v12, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v14 = and v7, v13
+    v15 = insert_value struct0, undef struct0, 0, v4
+    v16 = insert_value struct0, v15, 1, v5
+    v17 = insert_value struct0, v16, 2, v14
+    ret v17
 }

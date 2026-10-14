@@ -196,19 +196,9 @@ fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
     else {
         return None;
     };
-    let (object, offset) = match func.element_address(address) {
-        Some((object, offset, _)) => (object, offset),
-        None => {
-            let (object, offset) = func.object_address(address)?;
-            if offset == 0 && !is_fixed_allocation(func, object) {
-                return None;
-            }
-            (object, offset)
-        }
-    };
-    (offset.is_multiple_of(EvmMemoryLayout::WORD_SIZE)
-        && func.value_ty(object) == Some(MirType::MEMPTR))
-    .then_some(object)
+    let (object, offset, index) = func.word_access(address)?;
+    let length = index.is_none() && offset == 0 && !is_fixed_allocation(func, object);
+    (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
 }
 
 /// Whether `object` is an allocation of a fixed array or struct, which has no length word.
@@ -247,9 +237,8 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             InstKind::Store(..)
                 if func.memory_length_store(inst).is_some_and(|(object, _)| {
                     matches!(func.value(object), Value::Inst(alloc)
-                        if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind, .. }
-                            if !matches!(kind, AllocationKind::Object(layout)
-                                if layout.fixed_words().is_some())))
+                        if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }))
+                        && !is_fixed_allocation(func, object)
                 }) =>
             {
                 0

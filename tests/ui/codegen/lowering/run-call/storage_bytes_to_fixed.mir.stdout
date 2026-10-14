@@ -4,38 +4,30 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
   bb0:
     store_storage_bytes_literal 0, hex"112233"
     v0 = load_storage_bytes 0
-    v1 = ptrtoint memptr v0 to i256
-    v2 = add v1, 32
+    v1 = ptradd v0, 32
+    v2 = load v1
     v3 = load v0
-    v4 = make_memory_slice v2, v3
-    v5 = slice_ptr v4
-    v6 = load v5
-    v7 = slice_len v4
-    v8 = lt v7, 4
-    v9 = sub 4, v7
-    v10 = mul 8, v9
-    v11 = shl v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v12 = select v8, v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v13 = and v6, v12
-    ret v13
+    v4 = lt v3, 4
+    v5 = sub 4, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = select v4, v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = and v2, v8
+    ret v9
 }
 
 fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     store_storage_bytes_literal 0, hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
     v0 = load_storage_bytes 0
-    v1 = ptrtoint memptr v0 to i256
-    v2 = add v1, 32
+    v1 = ptradd v0, 32
+    v2 = load v1
     v3 = load v0
-    v4 = make_memory_slice v2, v3
-    v5 = slice_ptr v4
-    v6 = load v5
-    v7 = slice_len v4
-    v8 = lt v7, 32
-    v9 = sub 32, v7
-    v10 = mul 8, v9
-    v11 = shl v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v12 = select v8, v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v13 = and v6, v12
-    ret v13
+    v4 = lt v3, 32
+    v5 = sub 32, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = select v4, v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = and v2, v8
+    ret v9
 }

@@ -422,7 +422,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         continue;
                     }
                     let ty = match &instruction.kind {
-                        kind if kind.op_def().result == super::ResultKind::Integer => {
+                        kind if matches!(
+                            kind.op_def().result,
+                            super::ResultKind::Integer | super::ResultKind::Pointer
+                        ) =>
+                        {
                             kind.inferred_result_type(function).filter(|&ty| non_default(ty))
                         }
                         InstKind::Select(_, a, b) => [*a, *b]
@@ -1821,17 +1825,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
-            sym::ptradd => {
-                let ptr = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_value(builder)?;
-                // A call's result type resolves after parsing, and a call returns a `memptr`.
-                let ty = match builder.func().value_ty(ptr) {
-                    Some(ty @ MirType::Ptr(_)) => ty,
-                    _ => MirType::MEMPTR,
-                };
-                (InstKind::PtrAdd(ptr, offset), Some(ty))
-            }
             sym::load => {
                 let location = self.parse_ptr_location();
                 let ptr = self.parse_value(builder)?;

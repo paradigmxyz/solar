@@ -83,10 +83,8 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb4:
     v26 = ptrtoint memptr v11 to i256
     v27 = add v26, 36
-    v28 = make_memory_slice v27, 32
-    v29 = slice_ptr v28
-    v30 = load v29
-    ret v30
+    v28 = load v27
+    ret v28
   bb1:
     jump bb3
   bb3:
@@ -130,10 +128,8 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb4:
     v26 = ptrtoint memptr v11 to i256
     v27 = add v26, 36
-    v28 = make_memory_slice v27, 32
-    v29 = slice_ptr v28
-    v30 = load v29
-    ret v30
+    v28 = load v27
+    ret v28
   bb1:
     jump bb3
   bb3:

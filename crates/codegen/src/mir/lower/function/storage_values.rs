@@ -1548,6 +1548,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         let source_ty = self.cx.gcx.mk_ty(TyKind::Struct(source_struct_id));
+        // Only a memory object has addressable fields.
         self.types.memory_layout(source_ty)?;
         for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let field_ty = self.cx.gcx.type_of_item(field.into());

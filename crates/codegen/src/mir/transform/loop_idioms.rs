@@ -369,6 +369,16 @@ enum ByteSource {
     Calldata { data: ValueId, length: ValueId },
 }
 
+impl ByteSource {
+    /// The location the bytes are read from.
+    const fn location(&self) -> PtrLocation {
+        match self {
+            Self::Memory { .. } => PtrLocation::Memory,
+            Self::Calldata { .. } => PtrLocation::Calldata,
+        }
+    }
+}
+
 /// Finds the count phi and index phi among a counting loop's header phis, and
 /// the exit that returns the count.
 fn count_phis(
@@ -699,10 +709,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let data_bits = builder.mul(length, byte_bits);
         let all = builder.imm(U256::MAX);
         let padding_mask = builder.shr(data_bits, all);
-        let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.load(data, PtrLocation::Memory),
-            ByteSource::Calldata { .. } => builder.load(data, PtrLocation::Calldata),
-        };
+        let word = builder.load(data, candidate.source.location());
         let word = builder.or(word, padding_mask);
         let result = emit_zero_byte_count(&mut builder, word);
         emit_return(&mut builder, candidate.exit, result);
@@ -721,10 +728,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         // count_next = word_count + count_zero_bytes(word)
         // next_pointer = pointer + 32
         builder.switch_to_block(word_body);
-        let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.load(pointer, PtrLocation::Memory),
-            ByteSource::Calldata { .. } => builder.load(pointer, PtrLocation::Calldata),
-        };
+        let word = builder.load(pointer, candidate.source.location());
         let lane_count = emit_zero_byte_count(&mut builder, word);
         let count_next = builder.add(word_count, lane_count);
         let next_pointer = builder.add_u64_offset(pointer, 32);
@@ -750,10 +754,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         let data_bits = builder.mul(remainder, byte_bits);
         let all_bits = builder.imm(U256::MAX);
         let padding_mask = builder.shr(data_bits, all_bits);
-        let word = match candidate.source {
-            ByteSource::Memory { .. } => builder.load(pointer, PtrLocation::Memory),
-            ByteSource::Calldata { .. } => builder.load(pointer, PtrLocation::Calldata),
-        };
+        let word = builder.load(pointer, candidate.source.location());
         let word = builder.or(word, padding_mask);
         let tail_count = emit_zero_byte_count(&mut builder, word);
         let result = builder.add(word_count, tail_count);

@@ -52,7 +52,7 @@ use crate::mir::{
     ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
-        Loop, LoopAnalyzer, ScalarEvolution,
+        Loop, LoopAnalyzer, MemoryLocation, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -124,6 +124,13 @@ struct AffineRange {
     base: Option<ValueId>,
     start: i128,
     end: i128,
+}
+
+/// What a hoist candidate's load reads: its extent and, when affine, its range.
+#[derive(Clone, Copy)]
+struct LoadRange {
+    location: Option<MemoryLocation>,
+    affine: Option<AffineRange>,
 }
 
 #[derive(Clone, Copy)]
@@ -751,20 +758,22 @@ impl LoopOptimizer {
         load_width: Option<u64>,
     ) -> bool {
         let aa = self.alias();
+        // The hoist candidate's address is loop-invariant, so its extent and affine range hold
+        // for every store the loop makes.
+        let load = load_width.map(|width| LoadRange {
+            location: aa.bare_access_extent(func, load_addr, LocationSize::Const(width)),
+            affine: self.affine_range(func, ctx, load_addr, width, None),
+        });
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.inst(inst_id).kind {
                     InstKind::Store(addr, _) => {
-                        if self.memory_ranges_may_alias(
-                            func, ctx, load_addr, load_width, addr, 32, block_id,
-                        ) {
+                        if self.memory_ranges_may_alias(func, ctx, load, addr, 32, block_id) {
                             return true;
                         }
                     }
                     InstKind::Store8(addr, _) => {
-                        if self.memory_ranges_may_alias(
-                            func, ctx, load_addr, load_width, addr, 1, block_id,
-                        ) {
+                        if self.memory_ranges_may_alias(func, ctx, load, addr, 1, block_id) {
                             return true;
                         }
                     }
@@ -864,31 +873,27 @@ impl LoopOptimizer {
         &self,
         func: &Function,
         ctx: LoopOptContext<'_>,
-        load_addr: ValueId,
-        load_width: Option<u64>,
+        load: Option<LoadRange>,
         write_addr: ValueId,
         write_width: u64,
         write_block: BlockId,
     ) -> bool {
-        let Some(load_width) = load_width else { return true };
+        let Some(load) = load else { return true };
         let aa = self.alias();
-        if let (Some(load), Some(write)) = (
-            aa.bare_access_extent(func, load_addr, LocationSize::Const(load_width)),
-            aa.bare_access_extent(func, write_addr, LocationSize::Const(write_width)),
-        ) {
-            match aa.memory_alias(load, write) {
+        if let Some(location) = load.location
+            && let Some(write) =
+                aa.bare_access_extent(func, write_addr, LocationSize::Const(write_width))
+        {
+            match aa.memory_alias(location, write) {
                 AliasResult::NoAlias => return false,
                 AliasResult::MustAlias | AliasResult::PartialAlias => return true,
                 AliasResult::MayAlias => {}
             }
         }
 
-        // The hoist candidate's address is loop-invariant, so its position
-        // never tightens the range. Scalar evolution can prove disjointness
-        // for affine loop addresses beyond value-local BasicAA.
-        let Some(load) = self.affine_range(func, ctx, load_addr, load_width, None) else {
-            return true;
-        };
+        // Scalar evolution can prove disjointness for affine loop addresses beyond value-local
+        // BasicAA.
+        let Some(load) = load.affine else { return true };
         let Some(write) = self.affine_range(func, ctx, write_addr, write_width, Some(write_block))
         else {
             return true;

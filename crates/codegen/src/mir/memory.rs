@@ -26,6 +26,12 @@ impl EvmMemoryLayout {
     pub(crate) const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub(crate) const MAX_ALLOCATION_END: u64 = u64::MAX;
+    /// Returns the word a word-aligned byte offset addresses.
+    #[must_use]
+    pub(crate) const fn word_slot(offset: u64) -> Option<u64> {
+        if offset.is_multiple_of(Self::WORD_SIZE) { Some(offset / Self::WORD_SIZE) } else { None }
+    }
+
     /// Returns whether an absolute address is in reserved low memory.
     #[must_use]
     pub(crate) const fn is_reserved(address: u64) -> bool {

@@ -1598,17 +1598,10 @@ fn copy_source_data(
     source: ValueId,
     size: ValueId,
 ) {
-    match location {
-        // copy dest, source, size !metadata(disjoint)
-        PtrLocation::Memory => {
-            let copy = builder.copy_heap(dest, source, size, PtrLocation::Memory);
-            builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
-        }
-        // copy calldata dest, source, size
-        // copy returndata dest, source, size
-        PtrLocation::Calldata | PtrLocation::Returndata => {
-            builder.copy_heap(dest, source, size, location);
-        }
+    // copy location dest, source, size [!metadata(disjoint) for memory]
+    let copy = builder.copy_heap(dest, source, size, location);
+    if location == PtrLocation::Memory {
+        builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
     }
 }
 
@@ -1673,7 +1666,7 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
         InstKind::Alloc { kind: AllocationKind::Object(_), .. } | InstKind::AbiEncode { .. } => {
             false
         }
-        InstKind::Store(address, _) => !literal_word_in_bounds(func, *address, Some(0)),
+        InstKind::Store(address, _) => !literal_word_in_bounds(func, *address),
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1689,9 +1682,9 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
 
 /// A store to a different object is disjoint only inside its fresh allocation. An
 /// unknown or wrapping offset can overwrite a preceding object.
-fn literal_word_in_bounds(func: &Function, address: ValueId, offset: Option<u64>) -> bool {
+fn literal_word_in_bounds(func: &Function, address: ValueId) -> bool {
     let Some((object, base)) = func.object_address(address) else { return false };
-    let end = offset.and_then(|offset| base.checked_add(offset)?.checked_add(32));
+    let end = base.checked_add(32);
     matches!((func.value(object), end), (Value::Inst(alloc), Some(end))
         if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), size, .. }
             if func.value_u64(size).is_some_and(|size| end <= size)))

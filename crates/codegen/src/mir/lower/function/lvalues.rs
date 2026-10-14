@@ -42,6 +42,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let object = self.lower_expr(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
+                // Only a memory object has addressable fields.
                 self.types.memory_layout(receiver_ty)?;
                 let ty = self.cx.gcx.type_of_item(id.into());
                 Some(LValuePlace::MemoryField { object, field: field as u64, ty })

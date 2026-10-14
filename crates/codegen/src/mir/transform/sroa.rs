@@ -15,9 +15,9 @@
 //! Run before memory-object lowering, while `ptradd` keeps object offsets explicit.
 
 use crate::mir::{
-    AllocationKind, Function, Immediate, InstKind, MemoryObjectLayout, Module, PtrLocation, Value,
-    ValueId,
-    analysis::{AliasAnalysis, Location, LocationSize},
+    AllocationKind, BlockId, Function, Immediate, InstKind, MemoryObjectLayout, Module,
+    PtrLocation, Value, ValueId,
+    analysis::{AliasAnalysis, CfgInfo, Location, LocationSize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
     transform::frame_promotion::{SlotAccessInfo, promote_object_slots},
@@ -65,13 +65,17 @@ impl SroaCx {
                 }
             }
         }
-        if allocs.is_empty() {
+        if allocs.is_empty()
+            || func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
+        {
             return false;
         }
 
+        // Promotion adds phis but no blocks, so one block order serves every allocation.
+        let order = CfgInfo::new(func).rpo().to_vec();
         let mut changed = false;
         for (object, layout) in allocs {
-            if self.try_promote(func, alias, object, layout).unwrap_or(false) {
+            if self.try_promote(func, alias, &order, object, layout).unwrap_or(false) {
                 alias.clear_cached_addresses();
                 self.eliminated += 1;
                 changed = true;
@@ -85,12 +89,11 @@ impl SroaCx {
         &self,
         func: &mut Function,
         alias: &AliasAnalysis,
+        order: &[BlockId],
         object: ValueId,
         layout: MemoryObjectLayout,
     ) -> Option<bool> {
-        if alias.value_escapes(func, object)
-            || func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
-        {
+        if alias.value_escapes(func, object) {
             return None;
         }
 
@@ -98,12 +101,12 @@ impl SroaCx {
         let zero_size = words.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
 
         // Pointer casts and constant `ptradd`s of the object address its words; record each
-        // derived address with its byte offset.
+        // derived address with its byte offset. A derivation is no phi, so its operand comes
+        // first in reverse postorder.
         let mut addresses = FxHashMap::from_iter([(object, 0_u64)]);
         let mut address_insts = FxHashSet::default();
-        loop {
-            let mut changed = false;
-            for id in func.instructions() {
+        for &block in order {
+            for &id in &func.blocks[block].instructions {
                 let derived = match func.inst(id).kind {
                     InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
                         addresses.get(&base).copied()
@@ -115,15 +118,10 @@ impl SroaCx {
                 };
                 if let Some(offset) = derived
                     && let Some(result) = func.inst_result_value(id)
-                    && !addresses.contains_key(&result)
                 {
                     addresses.insert(result, offset);
                     address_insts.insert(id);
-                    changed = true;
                 }
-            }
-            if !changed {
-                break;
             }
         }
 
@@ -154,11 +152,7 @@ impl SroaCx {
                 }
             };
             let Some(&offset) = addresses.get(&address) else { continue };
-            let word = EvmMemoryLayout::WORD_SIZE;
-            let slot = offset
-                .is_multiple_of(word)
-                .then_some(offset / word)
-                .filter(|&slot| slot < words)?;
+            let slot = EvmMemoryLayout::word_slot(offset).filter(|&slot| slot < words)?;
             slot_of.insert(inst_id, slot);
         }
 

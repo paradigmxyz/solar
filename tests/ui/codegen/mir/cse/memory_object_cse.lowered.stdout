@@ -18,7 +18,8 @@
       v5 = ptrtoint memptr arg1 to i256
       v6 = ptrtoint memptr arg2 to i256
       v7 = ptrtoint memptr arg2 to i256
-      v8 = eq v1, v3
+-     v8 = eq v1, v3
++     v8 = eq v17, v19
       v9 = eq v4, v5
       v10 = eq v6, v7
       v11 = zext i1 v8 to i256
@@ -115,7 +116,8 @@
 +     v6 = add v5, 32
 +     v2 = inttoptr i256 v6 to memptr
       v3 = ptrtoint memptr v2 to i256
-      store v3, 0
+-     store v3, 0
++     store v6, 0
       jump bb1
     bb1:
 -     v4 = load v0
@@ -234,7 +236,7 @@
       v5 = ptrtoint memptr arg1 to i256
       v6 = ptrtoint memptr arg2 to i256
       v7 = ptrtoint memptr arg2 to i256
-      v8 = eq v1, v3
+      v8 = eq v17, v19
       v9 = eq v4, v5
       v10 = eq v6, v7
       v11 = zext i1 v8 to i256
@@ -316,7 +318,7 @@
       v6 = add v5, 32
       v2 = inttoptr i256 v6 to memptr
       v3 = ptrtoint memptr v2 to i256
-      store v3, 0
+      store v6, 0
       jump bb1
     bb1:
       v7 = ptrtoint memptr v0 to i256
@@ -421,10 +423,10 @@
 -     v5 = ptrtoint memptr arg1 to i256
       v6 = ptrtoint memptr arg2 to i256
 -     v7 = ptrtoint memptr arg2 to i256
--     v8 = eq v1, v3
+-     v8 = eq v17, v19
 -     v9 = eq v4, v5
 -     v10 = eq v6, v7
-+     v8 = eq v1, v1
++     v8 = eq v17, v17
 +     v9 = eq v4, v4
 +     v10 = eq v6, v6
       v11 = zext i1 v8 to i256
@@ -513,7 +515,7 @@
 +     v6 = add v1, 32
       v2 = inttoptr i256 v6 to memptr
       v3 = ptrtoint memptr v2 to i256
-      store v3, 0
+      store v6, 0
       jump bb1
     bb1:
 -     v7 = ptrtoint memptr v0 to i256
