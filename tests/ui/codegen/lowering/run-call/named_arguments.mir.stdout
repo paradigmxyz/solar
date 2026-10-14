@@ -55,12 +55,12 @@ fn @structNamed() -> i256 [selector=0x486a2e72, abi_params=[], abi_returns=[word
     v0 = alloc 64
     v1 = icall @tick, 1
     v2 = icall @tick, 2
-    store v0, v2
-    store v0+32, v1
-    v3 = load v0
+    mstore v0, v2
+    mstore v0+32, v1
+    v3 = mload v0
     sstore 1, v3 !metadata(storage=slot(1))
     v4 = add 1, 1
-    v5 = load v0+32
+    v5 = mload v0+32
     sstore v4, v5 !metadata(storage=slot(2))
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = checked_mul u256, v6, 100
@@ -78,12 +78,12 @@ fn @structPositional() -> i256 [selector=0xa99479b5, abi_params=[], abi_returns=
     v0 = alloc 64
     v1 = icall @tick, 1
     v2 = icall @tick, 2
-    store v0, v1
-    store v0+32, v2
-    v3 = load v0
+    mstore v0, v1
+    mstore v0+32, v2
+    v3 = mload v0
     sstore 1, v3 !metadata(storage=slot(1))
     v4 = add 1, 1
-    v5 = load v0+32
+    v5 = mload v0+32
     sstore v4, v5 !metadata(storage=slot(2))
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = checked_mul u256, v6, 100
@@ -151,14 +151,14 @@ fn @memoryStructNamed() -> i256 [selector=0x7b7c1324, abi_params=[], abi_returns
     v0 = alloc 64
     v1 = icall @tick, 1
     v2 = icall @tick, 2
-    store v0, v2
-    store v0+32, v1
+    mstore v0, v2
+    mstore v0+32, v1
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_mul u256, v3, 100
-    v5 = load v0
+    v5 = mload v0
     v6 = checked_mul u256, v5, 10
     v7 = checked_add u256, v4, v6
-    v8 = load v0+32
+    v8 = mload v0+32
     v9 = checked_add u256, v7, v8
     ret v9
 }

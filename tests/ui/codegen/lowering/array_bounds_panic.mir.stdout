@@ -7,13 +7,13 @@ fn @memFix(arg0: i256) -> i256 [selector=0x0f1886fa, pure, abi_params=[u256], ab
     v1 = lt 1, 3
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0+32, 20
+    mstore v0+32, 20
     v3 = lt arg0, 3
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = shl 5, arg0
     v6 = ptradd v0, v5
-    v7 = load v6
+    v7 = mload v6
     ret v7
 }
 
@@ -24,11 +24,11 @@ fn @memFixConst() -> i256 [selector=0x50d13ed0, pure, abi_params=[], abi_returns
     v1 = lt 2, 3
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0+64, 30
+    mstore v0+64, 30
     v3 = lt 2, 3
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = load v0+64
+    v5 = mload v0+64
     ret v5
 }
 
@@ -39,7 +39,7 @@ fn @memFixConstOob() -> i256 [selector=0xba496133, pure, abi_params=[], abi_retu
     v1 = lt 5, 3
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = load v0+160
+    v3 = mload v0+160
     ret v3
 }
 
@@ -65,14 +65,14 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc zeroed checked v9
-    store v16, arg0
-    v17 = load v16
+    mstore v16, arg0
+    v17 = mload v16
     v18 = lt arg1, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = shl 5, arg1
     v21 = ptradd v16, v20
-    v22 = load v21+32
+    v22 = mload v21+32
     ret v22
 }
 
@@ -127,7 +127,7 @@ fn @cdDyn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x1406a581, pure,
     icall panic_if<0x41>, v10
     v11 = ptrtoint ptr<calldata> v3 to i256
     v12 = add v11, v4
-    v13 = load calldata v12
+    v13 = calldataload v12
     ret v13
 }
 
@@ -148,7 +148,7 @@ fn @cdFix(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xe21341a4, pure,
     icall panic_if<0x41>, v10
     v11 = ptrtoint ptr<calldata> v3 to i256
     v12 = add v11, v4
-    v13 = load calldata v12
+    v13 = calldataload v12
     ret v13
 }
 
@@ -162,7 +162,7 @@ fn @cdBytes(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x335b74df, pur
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = ptrtoint ptr<calldata> v4 to i256
     v6 = add v5, arg1
-    v7 = load calldata v6
+    v7 = calldataload v6
     v8 = byte 0, v7
     v9 = shl 248, v8
     ret v9

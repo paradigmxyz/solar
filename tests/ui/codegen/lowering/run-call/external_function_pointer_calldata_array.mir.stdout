@@ -16,7 +16,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v6 = extract_value slice<calldata>, arg0, 0
     v7 = ptrtoint ptr<calldata> v6 to i256
     v8 = add v7, 0
-    v9 = load calldata v8
+    v9 = calldataload v8
     v10 = shl 192, v9
     v11 = eq v10, 0
     v12 = eq v11, false
@@ -38,7 +38,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
-    v25 = load v24
+    v25 = mload v24
     v26 = extract_value slice<calldata>, arg0, 1
     v27 = lt 1, v26
     v28 = eq v27, false
@@ -46,7 +46,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v29 = extract_value slice<calldata>, arg0, 0
     v30 = ptrtoint ptr<calldata> v29 to i256
     v31 = add v30, 32
-    v32 = load calldata v31
+    v32 = calldataload v31
     v33 = shl 192, v32
     v34 = eq v33, 0
     v35 = eq v34, false
@@ -68,7 +68,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v46 = lt v45, 32
     icall revert_if<tuple_data_too_short>, v46
     v47 = add 0, 0
-    v48 = load v47
+    v48 = mload v47
     v49 = extract_value slice<calldata>, arg0, 1
     v50 = lt 2, v49
     v51 = eq v50, false
@@ -76,7 +76,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v52 = extract_value slice<calldata>, arg0, 0
     v53 = ptrtoint ptr<calldata> v52 to i256
     v54 = add v53, 64
-    v55 = load calldata v54
+    v55 = calldataload v54
     v56 = shl 192, v55
     v57 = eq v56, 0
     v58 = eq v57, false
@@ -98,7 +98,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v69 = lt v68, 32
     icall revert_if<tuple_data_too_short>, v69
     v70 = add 0, 0
-    v71 = load v70
+    v71 = mload v70
     v72 = insert_value struct0, undef struct0, 0, v25
     v73 = insert_value struct0, v72, 1, v48
     v74 = insert_value struct0, v73, 2, v71
@@ -136,7 +136,7 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     v23 = lt v22, 32
     icall panic_if<0x41>, v23
     v24 = alloc v22
-    store v24, v2
+    mstore v24, v2
     jump bb1
   bb1:
     v25 = phi [bb0: 0], [bb2: v38]
@@ -157,13 +157,13 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     icall revert_if<tuple_data_too_short>, v45
     v46 = ptrtoint ptr<memory> v40 to i256
     v47 = add v46, 0
-    v48 = load v47
+    v48 = mload v47
     v49 = ptrtoint ptr<memory> v40 to i256
     v50 = add v49, 32
-    v51 = load v50
+    v51 = mload v50
     v52 = ptrtoint ptr<memory> v40 to i256
     v53 = add v52, 64
-    v54 = load v53
+    v54 = mload v53
     v55 = insert_value struct0, undef struct0, 0, v48
     v56 = insert_value struct0, v55, 1, v51
     v57 = insert_value struct0, v56, 2, v54
@@ -178,7 +178,7 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     v27 = mul v25, 32
     v28 = ptrtoint ptr<calldata> v3 to i256
     v29 = add v28, v27
-    v30 = load calldata v29
+    v30 = calldataload v29
     v31 = shl 192, v30
     v32 = eq v31, 0
     v33 = eq v32, false
@@ -187,7 +187,7 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     v35 = shl 64, v34
     v36 = shl 5, v25
     v37 = ptradd v24, v36
-    store v37+32, v35
+    mstore v37+32, v35
     v38 = add v25, 1
     jump bb1
 }
@@ -210,37 +210,37 @@ fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[wo
 fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
+    mstore v0, 3
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xec1632e
-    v5 = load v0
+    v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 64, v4
-    store v0+32, v8
+    mstore v0+32, v8
     v9 = address
     v10 = zext i160 v9 to i256
     v11 = shl 32, v10
     v12 = or v11, 0xe255e5f9
-    v13 = load v0
+    v13 = mload v0
     v14 = lt 1, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = shl 64, v12
-    store v0+64, v16
+    mstore v0+64, v16
     v17 = address
     v18 = zext i160 v17 to i256
     v19 = shl 32, v18
     v20 = or v19, 0xec202537
-    v21 = load v0
+    v21 = mload v0
     v22 = lt 2, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = shl 64, v20
-    store v0+96, v24
+    mstore v0+96, v24
     jumpi arg0, bb1, bb2
   bb2:
     v49 = address
@@ -259,13 +259,13 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     icall revert_if<tuple_data_too_short>, v57
     v58 = ptrtoint ptr<memory> v52 to i256
     v59 = add v58, 0
-    v60 = load v59
+    v60 = mload v59
     v61 = ptrtoint ptr<memory> v52 to i256
     v62 = add v61, 32
-    v63 = load v62
+    v63 = mload v62
     v64 = ptrtoint ptr<memory> v52 to i256
     v65 = add v64, 64
-    v66 = load v65
+    v66 = mload v65
     v67 = insert_value struct0, undef struct0, 0, v60
     v68 = insert_value struct0, v67, 1, v63
     v69 = insert_value struct0, v68, 2, v66
@@ -290,13 +290,13 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     icall revert_if<tuple_data_too_short>, v33
     v34 = ptrtoint ptr<memory> v28 to i256
     v35 = add v34, 0
-    v36 = load v35
+    v36 = mload v35
     v37 = ptrtoint ptr<memory> v28 to i256
     v38 = add v37, 32
-    v39 = load v38
+    v39 = mload v38
     v40 = ptrtoint ptr<memory> v28 to i256
     v41 = add v40, 64
-    v42 = load v41
+    v42 = mload v41
     v43 = insert_value struct0, undef struct0, 0, v36
     v44 = insert_value struct0, v43, 1, v39
     v45 = insert_value struct0, v44, 2, v42

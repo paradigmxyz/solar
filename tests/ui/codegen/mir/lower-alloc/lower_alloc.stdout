@@ -4,18 +4,18 @@
   fn @operations(arg0: i256) -> i256 {
     bb0:
 -     v0 = fmp
-+     v4 = load 64 !metadata(memory=scratch)
++     v4 = mload 64 !metadata(memory=scratch)
 +     v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
       v1 = ptrtoint ptr<memory> v0 to i256
 -     set_fmp v0 !metadata(preserves_fmp)
 -     v2 = alloc 64
-+     store 64, v4 !metadata(memory=scratch)
-+     v5 = load 64 !metadata(memory=scratch)
++     mstore 64, v4 !metadata(memory=scratch)
++     v5 = mload 64 !metadata(memory=scratch)
 +     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
 +     v6 = add v5, 64
-+     store 64, v6 !metadata(memory=scratch)
++     mstore 64, v6 !metadata(memory=scratch)
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, arg0
+      mstore v3, arg0
       ret v3
   }
   
@@ -23,64 +23,64 @@
     bb0:
       v0 = alloc 32 !metadata(deferred_alloc)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       stop
   }
   
   fn @forward_load_store() -> i256 {
     bb0:
-      v0 = load 64
-      v1 = load 64
+      v0 = mload 64
+      v1 = mload 64
       v2 = add v0, v1
-      store 64, v2
-      v3 = load 64
+      mstore 64, v2
+      v3 = mload 64
       ret v3
   }
   
   fn @byte_clobber(arg0: i256) -> i256 {
     bb0:
-      store 64, 128
-      store8 65, arg0
-      v0 = load 64
+      mstore 64, 128
+      mstore8 65, arg0
+      v0 = mload 64
       ret v0
   }
   
   fn @unknown_clobber(arg0: i256) -> i256 {
     bb0:
-      store 64, 128
-      store arg0, 256
-      v0 = load 64
+      mstore 64, 128
+      mstore arg0, 256
+      v0 = mload 64
       ret v0
   }
   
   fn @call_clobber() -> i256 {
     bb0:
-      store 64, 128
+      mstore 64, 128
       icall @write_fmp
-      v0 = load 64
+      v0 = mload 64
       ret v0
   }
   
   fn @write_fmp() {
     bb0:
-      store 64, 256
+      mstore 64, 256
       ret
   }
   
   fn @across_edge() -> i256 {
     bb0:
-      store 64, 128
+      mstore 64, 128
       jump bb1
     bb1:
-      v0 = load 64
+      v0 = mload 64
       ret v0
   }
   
   fn @forwarded_address() -> i256 {
     bb0:
-      store 64, 64
-      v0 = load 64
-      v1 = load v0
+      mstore 64, 64
+      v0 = mload 64
+      v1 = mload v0
       ret v1
   }
   
@@ -89,18 +89,18 @@
   @module LowerAlloc
   fn @operations(arg0: i256) -> i256 {
     bb0:
-      v4 = load 64 !metadata(memory=scratch)
+      v4 = mload 64 !metadata(memory=scratch)
       v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store 64, v4 !metadata(memory=scratch)
--     v5 = load 64 !metadata(memory=scratch)
+      mstore 64, v4 !metadata(memory=scratch)
+-     v5 = mload 64 !metadata(memory=scratch)
 -     v2 = inttoptr i256 v5 to ptr<memory> !metadata(memory=scratch)
 -     v6 = add v5, 64
 +     v2 = inttoptr i256 v4 to ptr<memory>
 +     v6 = add v4, 64
-      store 64, v6 !metadata(memory=scratch)
+      mstore 64, v6 !metadata(memory=scratch)
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, arg0
+      mstore v3, arg0
       ret v3
   }
   
@@ -108,66 +108,66 @@
     bb0:
       v0 = alloc 32 !metadata(deferred_alloc)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       stop
   }
   
   fn @forward_load_store() -> i256 {
     bb0:
-      v0 = load 64
--     v1 = load 64
+      v0 = mload 64
+-     v1 = mload 64
 -     v2 = add v0, v1
 +     v2 = add v0, v0
-      store 64, v2
--     v3 = load 64
+      mstore 64, v2
+-     v3 = mload 64
 -     ret v3
 +     ret v2
   }
   
   fn @byte_clobber(arg0: i256) -> i256 {
     bb0:
-      store 64, 128
-      store8 65, arg0
-      v0 = load 64
+      mstore 64, 128
+      mstore8 65, arg0
+      v0 = mload 64
       ret v0
   }
   
   fn @unknown_clobber(arg0: i256) -> i256 {
     bb0:
-      store 64, 128
-      store arg0, 256
-      v0 = load 64
+      mstore 64, 128
+      mstore arg0, 256
+      v0 = mload 64
       ret v0
   }
   
   fn @call_clobber() -> i256 {
     bb0:
-      store 64, 128
+      mstore 64, 128
       icall @write_fmp
-      v0 = load 64
+      v0 = mload 64
       ret v0
   }
   
   fn @write_fmp() {
     bb0:
-      store 64, 256
+      mstore 64, 256
       ret
   }
   
   fn @across_edge() -> i256 {
     bb0:
-      store 64, 128
+      mstore 64, 128
       jump bb1
     bb1:
-      v0 = load 64
+      v0 = mload 64
       ret v0
   }
   
   fn @forwarded_address() -> i256 {
     bb0:
-      store 64, 64
--     v0 = load 64
--     v1 = load v0
+      mstore 64, 64
+-     v0 = mload 64
+-     v1 = mload v0
 -     ret v1
 +     ret 64
   }

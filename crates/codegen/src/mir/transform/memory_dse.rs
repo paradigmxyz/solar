@@ -1,9 +1,9 @@
 //! Local dead memory optimization.
 //!
-//! This pass removes full-word `store` instructions that are overwritten by a
-//! later full-word `store` to the same exact address within the same basic
+//! This pass removes full-word `mstore` instructions that are overwritten by a
+//! later full-word `mstore` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
-//! same-block `load` instructions from the latest exact-address `store` when
+//! same-block `mload` instructions from the latest exact-address `mstore` when
 //! no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
@@ -281,7 +281,7 @@ impl<T> SlotMap<T> {
 
     /// Drops every entry a `size`-byte write at `write` may alias.
     ///
-    /// Stored entries are 32 bytes wide, matching the `store` slots this map
+    /// Stored entries are 32 bytes wide, matching the `mstore` slots this map
     /// tracks.
     fn invalidate(&mut self, write: MemAddrKey, size: u64) {
         let write_site = Self::alloc_site(write.0.base);
@@ -450,7 +450,7 @@ impl MemoryStoreEliminator {
     /// read may observe it before the next full-word overwrite.
     ///
     /// Soundness rests on modelling every way a stored value can still be read:
-    /// an in-range constant read (`load`/keccak/log/`returndata`/`revert`)
+    /// an in-range constant read (`mload`/keccak/log/`returndata`/`revert`)
     /// keeps its slots live; anything that could observe or forward arbitrary
     /// memory — a symbolic address, a non-constant range, a call, a `return`
     /// (whose value may be a memory pointer the caller dereferences), a tail

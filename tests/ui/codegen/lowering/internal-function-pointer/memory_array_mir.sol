@@ -26,14 +26,14 @@ contract FunctionPointerMemoryArray {
 
     // CHECK-LABEL: fn @callArray(
     // CHECK: [[ARR:v[0-9]+]] = alloc
-    // CHECK: store [[ARR]]+32, [[A:[0-9]+]]
-    // CHECK: store [[ARR]]+64, [[B:[0-9]+]]
-    // CHECK: store [[ARR]]+96, [[C:[0-9]+]]
-    // CHECK: store [[ARR]]+128, [[D:[0-9]+]]
-    // CHECK: store [[ARR]]+160, [[E:[0-9]+]]
+    // CHECK: mstore [[ARR]]+32, [[A:[0-9]+]]
+    // CHECK: mstore [[ARR]]+64, [[B:[0-9]+]]
+    // CHECK: mstore [[ARR]]+96, [[C:[0-9]+]]
+    // CHECK: mstore [[ARR]]+128, [[D:[0-9]+]]
+    // CHECK: mstore [[ARR]]+160, [[E:[0-9]+]]
     // CHECK: [[OFF1:v[0-9]+]] = shl 5, arg1
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[ARR]], [[OFF1]]
-    // CHECK-NEXT: [[ARRAY_FN:v[0-9]+]] = load [[ELEM]]+32
+    // CHECK-NEXT: [[ARRAY_FN:v[0-9]+]] = mload [[ELEM]]+32
     // CHECK: icall @internal_dispatcher{{.*}}, [[ARRAY_FN]], arg0
     // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, [[A]]

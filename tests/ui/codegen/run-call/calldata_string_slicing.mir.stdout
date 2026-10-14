@@ -54,11 +54,11 @@ fn @segment(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selec
     v19 = not 31
     v20 = and v17, v19
     v21 = alloc v20
-    store v21, v16
+    mstore v21, v16
     v22 = ptradd v21, 32
     v23 = extract_value slice<calldata>, v8, 0
     v24 = extract_value slice<calldata>, v8, 1
-    copy calldata v22, v23, v24
+    calldatacopy v22, v23, v24
     ret v21
 }
 
@@ -100,10 +100,10 @@ fn @nested(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256
     v28 = not 31
     v29 = and v26, v28
     v30 = alloc v29
-    store v30, v25
+    mstore v30, v25
     v31 = ptradd v30, 32
     v32 = extract_value slice<calldata>, v17, 0
     v33 = extract_value slice<calldata>, v17, 1
-    copy calldata v31, v32, v33
+    calldatacopy v31, v32, v33
     ret v30
 }

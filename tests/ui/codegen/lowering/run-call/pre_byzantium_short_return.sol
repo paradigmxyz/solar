@@ -70,7 +70,7 @@ contract ShortReturns {
     // A single-word output area starts at the input area, so the word the call reads back keeps
     // the selector, and the store to the scratch word below the heap is not part of it.
     // HOMESTEAD-LABEL: fn @emptySingle
-    // HOMESTEAD: store 0, 42
+    // HOMESTEAD: mstore 0, 42
     // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     function emptySingle() external returns (uint256) {
@@ -102,7 +102,7 @@ contract ShortReturns {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
-    // HOMESTEAD: store [[ABOVE]], 0
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -117,7 +117,7 @@ contract ShortReturns {
     // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc 64{{$}}
     // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
-    // HOMESTEAD: copy [[BUFFER]], [[INPUT]], 64
+    // HOMESTEAD: mcopy [[BUFFER]], [[INPUT]], 64
     // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[BUFFER]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     function emptyAgg() external returns (uint256[2] memory) {
@@ -147,7 +147,7 @@ contract ShortReturns {
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
-    // HOMESTEAD: store [[ABOVE]], 0
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: call {{.*}}, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 128
     function dirtyFour() external returns (uint256, uint256, uint256, uint256) {

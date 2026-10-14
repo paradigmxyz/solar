@@ -11,14 +11,14 @@
   fn @memory_field(arg0: slice<memory>) -> i256 {
     bb0:
       v0 = extract_value slice<memory>, arg0, 0
-      v1 = load v0
+      v1 = mload v0
       ret v1
   }
   
   fn @calldata_field(arg0: slice<calldata>) -> i256 {
     bb0:
       v0 = extract_value slice<calldata>, arg0, 0
-      v1 = load calldata v0
+      v1 = calldataload v0
       ret v1
   }
   
@@ -37,18 +37,18 @@
 + fn @memory_field(arg0: slice<memory>) -> i256 [may_return_memory] {
     bb0:
       v0 = extract_value slice<memory>, arg0, 0
--     v1 = load v0
+-     v1 = mload v0
 +     v2 = ptrtoint ptr<memory> v0 to i256
-+     v1 = load v2
++     v1 = mload v2
       ret v1
   }
   
   fn @calldata_field(arg0: slice<calldata>) -> i256 {
     bb0:
       v0 = extract_value slice<calldata>, arg0, 0
--     v1 = load calldata v0
+-     v1 = calldataload v0
 +     v2 = ptrtoint ptr<calldata> v0 to i256
-+     v1 = load calldata v2
++     v1 = calldataload v2
       ret v1
   }
   
@@ -70,7 +70,7 @@
 -     v0 = extract_value slice<memory>, arg0, 0
 +     v0 = inttoptr i256 arg0 to ptr<memory>
       v2 = ptrtoint ptr<memory> v0 to i256
-      v1 = load v2
+      v1 = mload v2
       ret v1
   }
   
@@ -80,7 +80,7 @@
 -     v0 = extract_value slice<calldata>, arg0, 0
 +     v0 = inttoptr i256 arg0 to ptr<calldata>
       v2 = ptrtoint ptr<calldata> v0 to i256
-      v1 = load calldata v2
+      v1 = calldataload v2
       ret v1
   }
   
@@ -99,8 +99,8 @@
     bb0:
       v0 = inttoptr i256 arg0 to ptr<memory>
 -     v2 = ptrtoint ptr<memory> v0 to i256
--     v1 = load v2
-+     v1 = load arg0
+-     v1 = mload v2
++     v1 = mload arg0
       ret v1
   }
   
@@ -108,8 +108,8 @@
     bb0:
       v0 = inttoptr i256 arg0 to ptr<calldata>
 -     v2 = ptrtoint ptr<calldata> v0 to i256
--     v1 = load calldata v2
-+     v1 = load calldata arg0
+-     v1 = calldataload v2
++     v1 = calldataload arg0
       ret v1
   }
   
@@ -125,14 +125,14 @@
   fn @memory_field(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
 -     v0 = inttoptr i256 arg0 to ptr<memory>
-      v1 = load arg0
+      v1 = mload arg0
       ret v1
   }
   
   fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = inttoptr i256 arg0 to ptr<calldata>
-      v1 = load calldata arg0
+      v1 = calldataload arg0
       ret v1
   }
   

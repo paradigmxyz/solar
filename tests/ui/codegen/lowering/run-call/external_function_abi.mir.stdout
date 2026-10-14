@@ -14,8 +14,8 @@ fn @echo(arg0: i256) -> i256 [selector=0x90898ee4, pure, abi_params=[function], 
 fn @echoHolder(arg0: ptr<memory>) -> ptr<memory> [selector=0x030fb1b2, pure, abi_params=[tuple<function, u256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 0
-    store v0+32, 0
+    mstore v0, 0
+    mstore v0+32, 0
     ret arg0
 }
 
@@ -56,14 +56,14 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v21 = abi_encode [function], object, args v3
     v22 = ptrtoint ptr<memory> v21 to i256
     v23 = add v22, 32
-    v24 = load v23
+    v24 = mload v23
     v25 = trunc i256 v24 to i64
     v26 = eq v25, i64 0
     icall require<short_string>, v26, 7, 0x70616464696e6700000000000000000000000000000000000000000000000000
     v27 = abi_encode [function], object, selector 0x90898ee400000000000000000000000000000000000000000000000000000000, args v3
     v28 = ptrtoint ptr<memory> v27 to i256
     v29 = add v28, 67
-    store8 v29, 1
+    mstore8 v29, 1
     v30 = address
     v31 = gas
     v32 = address_call v30, v27, gas v31
@@ -71,8 +71,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall require<short_string>, v33, 13, 0x64697274792070616464696e6700000000000000000000000000000000000000
     v34 = alloc 64
     v35 = shl 64, v3
-    store v34, v35
-    store v34+32, 7
+    mstore v34, v35
+    mstore v34+32, 7
     v36 = address
     v37 = gas
     v38 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v34
@@ -90,7 +90,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v45
     v46 = make_memory_slice v41, 64
     v47 = abi_decode [tuple<function, u256>], v46
-    v48 = load v47
+    v48 = mload v47
     v49 = shr 64, v48
     v50 = shr 32, v49
     v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffff
@@ -98,23 +98,23 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v53 = address
     v54 = eq v52, v53
     icall require<short_string>, v54, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
-    v55 = load v47
+    v55 = mload v47
     v56 = shr 64, v55
     v57 = and v56, 0xffffffff
     v58 = shl 224, v57
     v59 = eq v58, 0x9811c7c100000000000000000000000000000000000000000000000000000000
     icall require<short_string>, v59, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
-    v60 = load v47+32
+    v60 = mload v47+32
     v61 = eq v60, 7
     icall require<short_string>, v61, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
     v62 = alloc zeroed checked 64
-    store v62, 1
-    v63 = load v62
+    mstore v62, 1
+    v63 = mload v62
     v64 = lt 0, v63
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = shl 64, v3
-    store v62+32, v66
+    mstore v62+32, v66
     v67 = address
     v68 = gas
     v69 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v62
@@ -128,11 +128,11 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb6:
     v74 = icall returndata_bytes<>
     v75 = abi_decode [array<_, function>], v74
-    v76 = load v75
+    v76 = mload v75
     v77 = lt 0, v76
     v78 = eq v77, false
     icall panic_if<0x32>, v78
-    v79 = load v75+32
+    v79 = mload v75+32
     v80 = shr 64, v79
     v81 = shr 32, v80
     v82 = and v81, 0xffffffffffffffffffffffffffffffffffffffff
@@ -140,11 +140,11 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v84 = address
     v85 = eq v83, v84
     icall require<short_string>, v85, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
-    v86 = load v75
+    v86 = mload v75
     v87 = lt 0, v86
     v88 = eq v87, false
     icall panic_if<0x32>, v88
-    v89 = load v75+32
+    v89 = mload v75+32
     v90 = shr 64, v89
     v91 = and v90, 0xffffffff
     v92 = shl 224, v91

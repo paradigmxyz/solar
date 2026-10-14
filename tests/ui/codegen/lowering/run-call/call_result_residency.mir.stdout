@@ -5,7 +5,7 @@ fn @constructor() [constructor] {
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = icall @helper
     v1 = codesize
-    copy calldata 0, 0, v1 !metadata(memory=scratch)
+    calldatacopy 0, 0, v1 !metadata(memory=scratch)
     v2 = ne v0, 0
     jumpi v2, bb1, bb2
   bb2:

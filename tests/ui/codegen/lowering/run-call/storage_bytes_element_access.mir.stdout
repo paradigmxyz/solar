@@ -14,7 +14,7 @@ fn @_fill(arg0: i256) {
     v2 = not 31
     v3 = and v0, v2
     v4 = alloc zeroed checked v3
-    store v4, arg0
+    mstore v4, arg0
     jump bb1
   bb1:
     v5 = phi [bb0: arg0], [bb3: v5]
@@ -32,13 +32,13 @@ fn @_fill(arg0: i256) {
     v10 = trunc i256 v9 to i8
     v11 = zext i8 v10 to i256
     v12 = shl 248, v11
-    v13 = load v6
+    v13 = mload v6
     v14 = lt v7, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = byte 0, v12
     v17 = ptradd v6, v7
-    store8 v17+32, v16
+    mstore8 v17+32, v16
     jump bb6
   bb6:
     jump bb3

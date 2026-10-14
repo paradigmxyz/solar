@@ -64,7 +64,7 @@
   
   fn @reads_memory() -> i256 {
     bb0:
-      v0 = load 0x1000
+      v0 = mload 0x1000
       ret v0
   }
   
@@ -72,7 +72,7 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb1:
-      v0 = load 0x1000
+      v0 = mload 0x1000
       jump bb2
     bb2:
       v1 = icall @observe_memory
@@ -87,7 +87,7 @@
   
   fn @abi_dependency(arg0: ptr<memory>) {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       validate_abi v0
       ret
   }
@@ -119,7 +119,7 @@
   
   fn @dead_memory_observer() {
     bb0:
--     v0 = load 0x1000
+-     v0 = mload 0x1000
 -     v1 = msize
 -     v2 = add v1, v1
       ret

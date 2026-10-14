@@ -42,7 +42,7 @@ fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_p
     v6 = not 31
     v7 = and v4, v6
     v8 = alloc v7
-    store v8, v3
+    mstore v8, v3
     v9 = extract_value slice<calldata>, v2, 0
     v10 = extract_value slice<calldata>, v2, 1
     v11 = calldatasize
@@ -55,7 +55,7 @@ fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_p
     v16 = ptradd v8, 32
     v17 = extract_value slice<calldata>, v2, 0
     v18 = extract_value slice<calldata>, v2, 1
-    copy calldata v16, v17, v18
+    calldatacopy v16, v17, v18
     v19 = insert_value struct0, undef struct0, 0, v1
     v20 = insert_value struct0, v19, 1, v8
     ret v20
@@ -74,7 +74,7 @@ fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_par
     v7 = not 31
     v8 = and v5, v7
     v9 = alloc v8
-    store v9, v4
+    mstore v9, v4
     v10 = extract_value slice<calldata>, v3, 0
     v11 = extract_value slice<calldata>, v3, 1
     v12 = calldatasize
@@ -87,7 +87,7 @@ fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_par
     v17 = ptradd v9, 32
     v18 = extract_value slice<calldata>, v3, 0
     v19 = extract_value slice<calldata>, v3, 1
-    copy calldata v17, v18, v19
+    calldatacopy v17, v18, v19
     v20 = insert_value struct2, undef struct2, 0, v1
     v21 = insert_value struct2, v20, 1, v2
     v22 = insert_value struct2, v21, 2, v9
@@ -107,7 +107,7 @@ fn @nested(arg0: slice<calldata>) -> struct2 [selector=0xb26b18a9, pure, abi_par
     v7 = not 31
     v8 = and v5, v7
     v9 = alloc v8
-    store v9, v4
+    mstore v9, v4
     v10 = extract_value slice<calldata>, v3, 0
     v11 = extract_value slice<calldata>, v3, 1
     v12 = calldatasize
@@ -120,7 +120,7 @@ fn @nested(arg0: slice<calldata>) -> struct2 [selector=0xb26b18a9, pure, abi_par
     v17 = ptradd v9, 32
     v18 = extract_value slice<calldata>, v3, 0
     v19 = extract_value slice<calldata>, v3, 1
-    copy calldata v17, v18, v19
+    calldatacopy v17, v18, v19
     v20 = insert_value struct2, undef struct2, 0, v1
     v21 = insert_value struct2, v20, 1, v2
     v22 = insert_value struct2, v21, 2, v9
@@ -182,11 +182,11 @@ fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [pure] {
     v2 = extract_value struct6, v0, 1
     v3 = extract_value struct6, v0, 2
     v4 = extract_value struct6, v0, 3
-    v5 = load v3
+    v5 = mload v3
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = load v3+32
+    v8 = mload v3+32
     v9 = byte 0, v8
     v10 = shl 248, v9
     v11 = shr 248, v10
@@ -194,7 +194,7 @@ fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [pure] {
     v13 = zext i8 v12 to i256
     v14 = ptrtoint ptr<memory> v4 to i256
     v15 = add v14, 32
-    v16 = load v15
+    v16 = mload v15
     v17 = shr 96, v16
     v18 = insert_value struct5, undef struct5, 0, v1
     v19 = insert_value struct5, v18, 1, v13
@@ -230,11 +230,11 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     v19 = not 31
     v20 = and v17, v19
     v21 = alloc v20
-    store v21, v16
+    mstore v21, v16
     v22 = ptradd v21, 32
     v23 = extract_value slice<calldata>, v8, 0
     v24 = extract_value slice<calldata>, v8, 1
-    copy calldata v22, v23, v24
+    calldatacopy v22, v23, v24
     v25 = extract_value slice<calldata>, arg0, 0
     v26 = extract_value slice<calldata>, arg0, 1
     v27 = gt v26, v26
@@ -261,11 +261,11 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     v44 = not 31
     v45 = and v42, v44
     v46 = alloc v45
-    store v46, v41
+    mstore v46, v41
     v47 = ptradd v46, 32
     v48 = extract_value slice<calldata>, v33, 0
     v49 = extract_value slice<calldata>, v33, 1
-    copy calldata v47, v48, v49
+    calldatacopy v47, v48, v49
     v50 = insert_value struct6, undef struct6, 0, true
     v51 = insert_value struct6, v50, 1, 0
     v52 = insert_value struct6, v51, 2, v21
@@ -277,7 +277,7 @@ fn @_delegate(arg0: slice<calldata>) -> struct1 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
-    v2 = load calldata v0
+    v2 = calldataload v0
     v3 = shr 96, v2
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = ptrtoint ptr<calldata> v4 to i256
@@ -299,7 +299,7 @@ fn @_single(arg0: slice<calldata>) -> struct3 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
-    v2 = load calldata v0
+    v2 = calldataload v0
     v3 = shr 96, v2
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = ptrtoint ptr<calldata> v4 to i256

@@ -18,7 +18,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x664ffb2b, pure, abi_params=[arr
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -46,7 +46,7 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xc2e687d8, pure, abi_params=[arr
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -69,7 +69,7 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xc2e687d8, pure, abi_params=[arr
     v27 = sub v26, v25
     v28 = slt v27, 32
     icall revert_if<calldata_tail_too_short>, v28
-    v29 = load calldata v25
+    v29 = calldataload v25
     v30 = ptrtoint ptr<calldata> v23 to i256
     v31 = add v30, v29
     v32 = calldatasize
@@ -79,7 +79,7 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xc2e687d8, pure, abi_params=[arr
     v36 = slt v29, v35
     v37 = eq v36, false
     icall revert_if<invalid_calldata_tail_offset>, v37
-    v38 = load calldata v31
+    v38 = calldataload v31
     v39 = calldatasize
     v40 = gt v38, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v40
@@ -106,7 +106,7 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -134,19 +134,19 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v69 = lt 0, 1
     v70 = eq v69, false
     icall panic_if<0x32>, v70
-    v71 = load v25
+    v71 = mload v25
     v72 = inttoptr i256 v71 to ptr<memory>
     v73 = eq v71, 0
     jumpi v73, bb4, bb5
   bb4:
     v74 = alloc 32
-    store v74, 0
+    mstore v74, 0
     v75 = ptrtoint ptr<memory> v74 to i256
-    store v25, v75
+    mstore v25, v75
     jump bb5
   bb5:
     v76 = phi [bb3: v72], [bb4: v74]
-    v77 = load v76
+    v77 = mload v76
     ret v77
   bb2:
     v28 = mul v26, 32
@@ -156,7 +156,7 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v32 = sub v31, v30
     v33 = slt v32, 32
     icall revert_if<calldata_tail_too_short>, v33
-    v34 = load calldata v30
+    v34 = calldataload v30
     v35 = ptrtoint ptr<calldata> v20 to i256
     v36 = add v35, v34
     v37 = calldatasize
@@ -166,7 +166,7 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v41 = slt v34, v40
     v42 = eq v41, false
     icall revert_if<invalid_calldata_tail_offset>, v42
-    v43 = load calldata v36
+    v43 = calldataload v36
     v44 = calldatasize
     v45 = gt v43, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v45
@@ -187,17 +187,17 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     v58 = lt v57, 32
     icall panic_if<0x41>, v58
     v59 = alloc v57
-    store v59, v43
+    mstore v59, v43
     v60 = inttoptr i256 v47 to ptr<calldata>
     v61 = make_calldata_slice v60, v50
     v62 = ptradd v59, 32
     v63 = extract_value slice<calldata>, v61, 0
     v64 = extract_value slice<calldata>, v61, 1
-    copy calldata v62, v63, v64
+    calldatacopy v62, v63, v64
     v65 = ptrtoint ptr<memory> v59 to i256
     v66 = shl 5, v26
     v67 = ptradd v25, v66
-    store v67, v65
+    mstore v67, v65
     v68 = add v26, 1
     jump bb1
 }
@@ -215,7 +215,7 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -250,7 +250,7 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v32 = sub v31, v30
     v33 = slt v32, 32
     icall revert_if<calldata_tail_too_short>, v33
-    v34 = load calldata v30
+    v34 = calldataload v30
     v35 = ptrtoint ptr<calldata> v20 to i256
     v36 = add v35, v34
     v37 = calldatasize
@@ -260,7 +260,7 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v41 = slt v34, v40
     v42 = eq v41, false
     icall revert_if<invalid_calldata_tail_offset>, v42
-    v43 = load calldata v36
+    v43 = calldataload v36
     v44 = calldatasize
     v45 = gt v43, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v45
@@ -281,17 +281,17 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     v58 = lt v57, 32
     icall panic_if<0x41>, v58
     v59 = alloc v57
-    store v59, v43
+    mstore v59, v43
     v60 = inttoptr i256 v47 to ptr<calldata>
     v61 = make_calldata_slice v60, v50
     v62 = ptradd v59, 32
     v63 = extract_value slice<calldata>, v61, 0
     v64 = extract_value slice<calldata>, v61, 1
-    copy calldata v62, v63, v64
+    calldatacopy v62, v63, v64
     v65 = ptrtoint ptr<memory> v59 to i256
     v66 = shl 5, v26
     v67 = ptradd v25, v66
-    store v67, v65
+    mstore v67, v65
     v68 = add v26, 1
     jump bb1
 }
@@ -301,18 +301,18 @@ fn @readFixed(arg0: ptr<memory>) -> i256 [pure] {
     v0 = lt 0, 1
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = load arg0
+    v2 = mload arg0
     v3 = inttoptr i256 v2 to ptr<memory>
     v4 = eq v2, 0
     jumpi v4, bb1, bb2
   bb1:
     v5 = alloc 32
-    store v5, 0
+    mstore v5, 0
     v6 = ptrtoint ptr<memory> v5 to i256
-    store arg0, v6
+    mstore arg0, v6
     jump bb2
   bb2:
     v7 = phi [bb0: v3], [bb1: v5]
-    v8 = load v7
+    v8 = mload v7
     ret v8
 }

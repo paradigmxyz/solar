@@ -30,7 +30,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     icall panic_if<0x41>, v17
     v18 = ptrtoint ptr<calldata> v10 to i256
     v19 = add v18, v11
-    v20 = load calldata v19
+    v20 = calldataload v19
     v21 = eq v20, v4
     jumpi v21, bb7, bb8
   bb8:

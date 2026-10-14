@@ -23,9 +23,9 @@ fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[
 fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 96
-    store v0, 7
-    store v0+32, 11
-    store v0+64, 13
+    mstore v0, 7
+    mstore v0+32, 11
+    mstore v0+64, 13
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb5: v1]
@@ -44,7 +44,7 @@ fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
     icall panic_if<0x32>, v7
     v8 = shl 5, v2
     v9 = ptradd v1, v8
-    v10 = load v9
+    v10 = mload v9
     v11 = checked_add u256, v3, v10
     jump bb5
   bb5:
@@ -82,54 +82,54 @@ fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
 fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 160
-    store v0, 4
+    mstore v0, 4
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb5: v1]
     v2 = phi [bb0: 0], [bb5: v7]
     v3 = phi [bb0: 0], [bb5: v3]
-    v4 = load v1
+    v4 = mload v1
     v5 = lt v2, v4
     jumpi v5, bb3, bb4
   bb4:
     jump bb2
   bb2:
     v13 = checked_mul u256, v2, 100
-    v14 = load v1
+    v14 = mload v1
     v15 = lt 0, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = load v1+32
+    v17 = mload v1+32
     v18 = checked_add u256, v13, v17
-    v19 = load v1
+    v19 = mload v1
     v20 = lt 1, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = load v1+64
+    v22 = mload v1+64
     v23 = checked_add u256, v18, v22
-    v24 = load v1
+    v24 = mload v1
     v25 = lt 2, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = load v1+96
+    v27 = mload v1+96
     v28 = checked_add u256, v23, v27
-    v29 = load v1
+    v29 = mload v1
     v30 = lt 3, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    v32 = load v1+128
+    v32 = mload v1+128
     v33 = checked_add u256, v28, v32
     ret v33
   bb3:
     v6 = checked_add u256, v2, 1
     v7 = checked_add u256, v2, 1
-    v8 = load v1
+    v8 = mload v1
     v9 = lt v2, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = shl 5, v2
     v12 = ptradd v1, v11
-    store v12+32, v6
+    mstore v12+32, v6
     jump bb5
   bb5:
     jump bb1

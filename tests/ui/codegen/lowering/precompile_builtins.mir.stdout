@@ -3,105 +3,105 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v26 = load 64 !metadata(memory=scratch)
+    v26 = mload 64 !metadata(memory=scratch)
     v27 = add v26, 192
     v28 = lt v27, v26
     v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29
     jumpi v30, bb2, bb1
   bb1:
-    store 64, v27 !metadata(memory=scratch)
+    mstore 64, v27 !metadata(memory=scratch)
     v32 = calldatasize
-    copy calldata v26, v32, 192
-    store v26, 160
+    calldatacopy v26, v32, 192
+    mstore v26, 160
     v12 = add v26, 32
-    store v12, 1
+    mstore v12, 1
     v16 = add v26, 64
-    store v16, 28
+    mstore v16, 28
     v18 = add v26, 96
-    store v18, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
+    mstore v18, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
     v20 = add v26, 128
-    store v20, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    mstore v20, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v22 = add v26, 160
     v5 = gas
     v6 = staticcall v5, 1, v12, 128, v22, 32
-    v7 = load v22
+    v7 = mload v22
     v33 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    store 128, v33
+    mstore 128, v33
     returndata 128, 32
   bb2:
-    store 32, 65 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v26 = load 64 !metadata(memory=scratch)
+    v26 = mload 64 !metadata(memory=scratch)
     v27 = add v26, 192
     v28 = lt v27, v26
     v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29
     jumpi v30, bb2, bb1
   bb1:
-    store 64, v27 !metadata(memory=scratch)
+    mstore 64, v27 !metadata(memory=scratch)
     v32 = calldatasize
-    copy calldata v26, v32, 192
-    store v26, 160
+    calldatacopy v26, v32, 192
+    mstore v26, 160
     v12 = add v26, 32
-    store v12, 0
+    mstore v12, 0
     v16 = add v26, 64
-    store v16, 0
+    mstore v16, 0
     v18 = add v26, 96
-    store v18, 0
+    mstore v18, 0
     v20 = add v26, 128
-    store v20, 0
+    mstore v20, 0
     v22 = add v26, 160
     v5 = gas
     v6 = staticcall v5, 1, v12, 128, v22, 32
-    v7 = load v22
+    v7 = mload v22
     v33 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    store 128, v33
+    mstore 128, v33
     returndata 128, 32
   bb2:
-    store 32, 65 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
   bb0:
-    store 128, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    mstore 128, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
     returndata 128, 32
 }
 
 fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
   bb0:
-    store 128, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000
+    mstore 128, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000
     returndata 128, 32
 }
 
 fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
   bb0:
-    store 128, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    mstore 128, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
     returndata 128, 32
 }
 
 fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
   bb0:
-    store 128, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000
+    mstore 128, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000
     returndata 128, 32
 }
 
 fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
   bb0:
-    store 128, 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    mstore 128, 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
     returndata 128, 32
 }
 
 fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
   bb0:
-    store 128, 0x9c1185a5c5e9fc54612808977ee8f548b2258d31000000000000000000000000
+    mstore 128, 0x9c1185a5c5e9fc54612808977ee8f548b2258d31000000000000000000000000
     returndata 128, 32
 }
 
@@ -111,7 +111,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb10, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb10, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x4aa7a4c7 => bb5, 0x65707d6f => bb6, 0xa1e754ea => bb7, 0xce746024 => bb8, 0xf1609893 => bb9]
   bb9:

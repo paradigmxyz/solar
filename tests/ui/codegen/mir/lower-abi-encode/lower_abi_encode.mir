@@ -4,8 +4,8 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @static{{[( ]}}
 // CHECK: + [[STATIC_MEMORY_PTR:v[0-9]+]] = alloc 64
-// CHECK: + store [[STATIC_MEMORY_PTR]], 0x1234567800000000000000000000000000000000000000000000000000000000
-// CHECK: + store {{v[0-9]+}}, arg0
+// CHECK: + mstore [[STATIC_MEMORY_PTR]], 0x1234567800000000000000000000000000000000000000000000000000000000
+// CHECK: + mstore {{v[0-9]+}}, arg0
 // CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_MEMORY_PTR]], 36
 fn @static(arg0: i256) -> slice<memory> {
   bb0:
@@ -15,7 +15,7 @@ fn @static(arg0: i256) -> slice<memory> {
 
 // CHECK-LABEL: {{^[ +].*}}fn @static_bytes{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc 96 !metadata(preserves_fmp)
-// CHECK: + store [[OBJECT]], 64
+// CHECK: + mstore [[OBJECT]], 64
 fn @static_bytes(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = abi_encode [word, word], object, args arg0, arg1
@@ -24,7 +24,7 @@ fn @static_bytes(arg0: i256, arg1: i256) -> ptr<memory> {
 
 // CHECK-LABEL: {{^[ +].*}}fn @selector_bytes{{[( ]}}
 // CHECK: + [[SELECTOR_OBJECT:v[0-9]+]] = alloc 96 !metadata(preserves_fmp)
-// CHECK: + store [[SELECTOR_OBJECT]], 36
+// CHECK: + mstore [[SELECTOR_OBJECT]], 36
 fn @selector_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, object, args arg0
@@ -33,7 +33,7 @@ fn @selector_bytes(arg0: i256) -> ptr<memory> {
 
 // CHECK-LABEL: {{^[ +].*}}fn @scratch{{[( ]}}
 // CHECK: + [[SCRATCH_MEMORY_PTR:v[0-9]+]] = fmp
-// CHECK: + store [[SCRATCH_MEMORY_PTR]], arg0
+// CHECK: + mstore [[SCRATCH_MEMORY_PTR]], arg0
 // CHECK-NOT: alloc
 // CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_MEMORY_PTR]], 32
 fn @scratch(arg0: i256) -> slice<memory> {
@@ -45,9 +45,9 @@ fn @scratch(arg0: i256) -> slice<memory> {
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
 // CHECK: + [[DYNAMIC_MEMORY_PTR:v[0-9]+]] = fmp
 // CHECK: + {{v[0-9]+}} = sub
-// CHECK: + store [[DYNAMIC_MEMORY_PTR]], {{v[0-9]+}}
+// CHECK: + mstore [[DYNAMIC_MEMORY_PTR]], {{v[0-9]+}}
 // CHECK: + [[LENGTH:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
-// CHECK: + copy calldata
+// CHECK: + calldatacopy
 // CHECK: + [[ALLOCATED_MEMORY_PTR:v[0-9]+]] = alloc {{v[0-9]+}}
 // CHECK: + {{v[0-9]+}} = make_memory_slice [[ALLOCATED_MEMORY_PTR]], {{v[0-9]+}}
 fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
@@ -57,7 +57,7 @@ fn @dynamic(arg0: slice<calldata>) -> slice<memory> {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
-// CHECK: + {{v[0-9]+}} = load arg0
+// CHECK: + {{v[0-9]+}} = mload arg0
 // CHECK: + {{v[0-9]+}} = zext i1
 // CHECK: + {{v[0-9]+}} = ptradd arg0, 32
 fn @nested_dynamic_array(arg0: ptr<memory>) -> slice<memory> {

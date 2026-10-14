@@ -6,10 +6,10 @@ fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[
     v1 = lt i8 0, i8 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    store v0, 0
+    mstore v0, 0
     v3 = ptrtoint ptr<memory> v0 to i256
-    store v0, 2
-    v4 = load v0
+    mstore v0, 2
+    v4 = mload v0
     v5 = lt v4, 2
     v6 = eq v5, false
     icall panic_if<0x21>, v6
@@ -25,11 +25,11 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     v0 = alloc 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     v1 = ptrtoint ptr<memory> v0 to i256
-    store v0, 2
+    mstore v0, 2
     v2 = lt 0, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = load v0
+    v4 = mload v0
     v5 = lt v4, 2
     v6 = eq v5, false
     icall panic_if<0x21>, v6
@@ -43,15 +43,15 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
 fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
-    store v2, 2
-    v3 = load v0
+    mstore v2, 2
+    v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = load v0+32
+    v6 = mload v0+32
     v7 = lt v6, 2
     v8 = eq v7, false
     icall panic_if<0x21>, v8

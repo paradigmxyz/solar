@@ -12,7 +12,7 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret v0
-+     store 128, v0
++     mstore 128, v0
 +     v3 = add 128, 32
 +     v4 = sub v3, 128
 +     returndata 128, v4
@@ -32,7 +32,7 @@
 +     jump bb1
 +   bb1:
 +     v0 = icall @pub.body, arg0
-+     store 128, v0
++     mstore 128, v0
 +     v3 = add 128, 32
 +     v4 = sub v3, 128
 +     returndata 128, v4
@@ -45,13 +45,13 @@
     bb0:
 -     v0 = alloc 64
 -     v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 1
+-     mstore v1, 1
 -     v2 = ptradd v0, 32
--     store v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     mstore v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
-+     store 128, 32
-+     store 160, 1
-+     store 192, 0x3100000000000000000000000000000000000000000000000000000000000000
++     mstore 128, 32
++     mstore 160, 1
++     mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
 +     returndata 128, 96
   }
   
@@ -72,17 +72,17 @@
     bb0:
 -     v0 = alloc 96
 -     v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 33
+-     mstore v1, 33
 -     v2 = ptradd v0, 32
 -     v3 = ptrtoint ptr<memory> v2 to i256
--     store v3, 5
+-     mstore v3, 5
 -     v4 = add v3, 32
--     store v4, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     mstore v4, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
-+     store 128, 32
-+     store 160, 33
-+     store 192, 5
-+     store 224, 0x3100000000000000000000000000000000000000000000000000000000000000
++     mstore 128, 32
++     mstore 160, 33
++     mstore 192, 5
++     mstore 224, 0x3100000000000000000000000000000000000000000000000000000000000000
 +     returndata 128, 128
   }
   
@@ -91,12 +91,12 @@
     bb0:
       v0 = alloc 96
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 33
+      mstore v1, 33
       v2 = ptradd v0, 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, 5
+      mstore v3, 5
       v4 = add v3, 16
-      store v4, 7
+      mstore v4, 7
 -     ret v0
 +     v5 = abi_encode [memory_bytes], args v0
 +     v6 = extract_value slice<memory>, v5, 0
@@ -109,10 +109,10 @@
     bb0:
 -     v0 = abi_encode [word, word], object, args 1, 2
 -     ret v0
-+     store 128, 32
-+     store 160, 64
-+     store 192, 1
-+     store 224, 2
++     mstore 128, 32
++     mstore 160, 64
++     mstore 192, 1
++     mstore 224, 2
 +     returndata 128, 128
   }
   
@@ -121,8 +121,8 @@
     bb0:
 -     v0 = abi_encode [], object
 -     ret v0
-+     store 128, 32
-+     store 160, 0
++     mstore 128, 32
++     mstore 160, 0
 +     returndata 128, 64
   }
   
@@ -150,7 +150,7 @@
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
 +   bb0:
 +     v3 = icall @sliceBody.body
-+     store 128, v3
++     mstore 128, v3
 +     v4 = add 128, 32
 +     v5 = sub v4, 128
 +     returndata 128, v5
@@ -159,7 +159,7 @@
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
-+     store 128, v0
++     mstore 128, v0
 +     v1 = add 128, 32
 +     v2 = sub v1, 128
 +     returndata 128, v2
@@ -176,9 +176,9 @@
     bb0:
 +     v0 = alloc 64
 +     v1 = ptrtoint ptr<memory> v0 to i256
-+     store v1, 1
++     mstore v1, 1
 +     v2 = ptradd v0, 32
-+     store v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     mstore v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     ret v0
 + }
 + 

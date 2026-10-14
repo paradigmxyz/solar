@@ -657,7 +657,7 @@ fn local_summary(
     for (block_id, block) in func.blocks.iter_enumerated() {
         // A write or free-memory-pointer move on a path that can only revert is
         // rolled back with the call frame, so no caller observes it; a panic
-        // block's `store` of the error selector does not make a helper a
+        // block's `mstore` of the error selector does not make a helper a
         // memory writer. Reads stay: revert data may expose them.
         let returns = returning.contains(block_id);
         for &inst_id in &block.instructions {
@@ -767,7 +767,7 @@ fn local_summary(
             }
         }
     }
-    // saved = load p; store p, temporary; ...; store p, saved; ret
+    // saved = mload p; mstore p, temporary; ...; mstore p, saved; ret
     // => no net memory write on a returning path
     if summary.writes(AddressSpace::Memory) && super::memory_restoration::restores_memory(func, aa)
     {

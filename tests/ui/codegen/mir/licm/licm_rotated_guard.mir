@@ -7,16 +7,16 @@
 // stay in the loop.
 @module LicmRotatedGuard
 // CHECK-LABEL: {{^[ +].*}}fn @rotated_guard_overlap{{[( ]}}
-// CHECK: {{^[ +](.*[^a-z_])?}}store
-// CHECK: {{^[ +].*}}load 320
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
+// CHECK: {{^[ +].*}}mload 320
 fn @rotated_guard_overlap() -> i256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v4 = mul v1, 32
-    store v4, 1
-    v3 = load 320
+    mstore v4, 1
+    v3 = mload 320
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
   bb2:
@@ -29,16 +29,16 @@ fn @rotated_guard_overlap() -> i256 {
 // Self-loop do-while variant of the same off-by-one: guard on the pre-increment
 // phi at the bottom of the single-block loop. The body runs with v1 = 0..10.
 // CHECK-LABEL: {{^[ +].*}}fn @dowhile_latch_guard_overlap{{[( ]}}
-// CHECK: {{^[ +](.*[^a-z_])?}}store
-// CHECK: {{^[ +].*}}load 320
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
+// CHECK: {{^[ +].*}}mload 320
 fn @dowhile_latch_guard_overlap() -> i256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb1: v9]
     v4 = mul v1, 32
-    store v4, 1
-    v3 = load 320
+    mstore v4, 1
+    v3 = mload 320
     v9 = add v1, 1
     v2 = lt v1, 10
     jumpi v2, bb1, bb2
@@ -50,8 +50,8 @@ fn @dowhile_latch_guard_overlap() -> i256 {
 // only executes after the bound check passed and the store range is exactly
 // The range is [0, 320), so the mload at 320 is genuinely disjoint and is hoisted.
 // CHECK-LABEL: {{^[ +].*}}fn @top_tested_control{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = load 320
-// CHECK: - [[LOAD]] = load 320
+// CHECK: + [[LOAD:v[0-9]+]] = mload 320
+// CHECK: - [[LOAD]] = mload 320
 fn @top_tested_control() -> i256 {
   bb0:
     jump bb1
@@ -62,8 +62,8 @@ fn @top_tested_control() -> i256 {
     jumpi v2, bb2, bb3
   bb2:
     v4 = mul v1, 32
-    store v4, 1
-    v3 = load 320
+    mstore v4, 1
+    v3 = mload 320
     v9 = add v1, 1
     jump bb1
   bb3:
@@ -74,16 +74,16 @@ fn @top_tested_control() -> i256 {
 // iteration, so their range is widened one stride to [0, 352); a load one
 // stride further is still provably disjoint and may be hoisted.
 // CHECK-LABEL: {{^[ +].*}}fn @disjoint_past_widened_range{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = load 384
-// CHECK: - [[LOAD]] = load 384
+// CHECK: + [[LOAD:v[0-9]+]] = mload 384
+// CHECK: - [[LOAD]] = mload 384
 fn @disjoint_past_widened_range() -> i256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v4 = mul v1, 32
-    store v4, 1
-    v3 = load 384
+    mstore v4, 1
+    v3 = mload 384
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
   bb2:

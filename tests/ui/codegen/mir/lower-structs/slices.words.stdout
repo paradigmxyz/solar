@@ -43,17 +43,17 @@
 +     v12 = icall @pack, arg0, arg1, arg2
 +     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v14 = add v13, 32
-+     v15 = load v14
++     v15 = mload v14
 +     v16 = add v13, 64
-+     v17 = load v16
++     v17 = mload v16
 +     v18 = add v13, 96
-+     v19 = load v18
++     v19 = mload v18
 +     v20 = add v13, 128
-+     v21 = load v20
++     v21 = mload v20
 +     v22 = add v13, 160
-+     v23 = load v22
++     v23 = mload v22
 +     v24 = add v13, 192
-+     v25 = load v24
++     v25 = mload v24
 +     v26 = inttoptr i256 v12 to ptr<memory>
 +     v27 = make_memory_slice v26, v15
 +     v28 = inttoptr i256 v17 to ptr<calldata>
@@ -252,24 +252,24 @@
       v12 = icall @pack, arg0, arg1, arg2
 -     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 -     v14 = add v13, 32
-+     v32 = load 32 !metadata(memory=scratch)
++     v32 = mload 32 !metadata(memory=scratch)
 +     v14 = add v32, 32
-      v15 = load v14
+      v15 = mload v14
 -     v16 = add v13, 64
 +     v16 = add v32, 64
-      v17 = load v16
+      v17 = mload v16
 -     v18 = add v13, 96
 +     v18 = add v32, 96
-      v19 = load v18
+      v19 = mload v18
 -     v20 = add v13, 128
 +     v20 = add v32, 128
-      v21 = load v20
+      v21 = mload v20
 -     v22 = add v13, 160
 +     v22 = add v32, 160
-      v23 = load v22
+      v23 = mload v22
 -     v24 = add v13, 192
 +     v24 = add v32, 192
-      v25 = load v24
+      v25 = mload v24
       v26 = inttoptr i256 v12 to ptr<memory>
       v27 = make_memory_slice v26, v15
       v28 = inttoptr i256 v17 to ptr<calldata>
@@ -448,19 +448,19 @@
 +     v39 = inttoptr i256 arg4 to ptr<returndata>
 +     v40 = ptrtoint ptr<returndata> v39 to i256
 +     v12 = icall @pack, v34, arg1, v37, arg3, v40, arg5
-      v32 = load 32 !metadata(memory=scratch)
+      v32 = mload 32 !metadata(memory=scratch)
       v14 = add v32, 32
-      v15 = load v14
+      v15 = mload v14
       v16 = add v32, 64
-      v17 = load v16
+      v17 = mload v16
       v18 = add v32, 96
-      v19 = load v18
+      v19 = mload v18
       v20 = add v32, 128
-      v21 = load v20
+      v21 = mload v20
       v22 = add v32, 160
-      v23 = load v22
+      v23 = mload v22
       v24 = add v32, 192
-      v25 = load v24
+      v25 = mload v24
       v26 = inttoptr i256 v12 to ptr<memory>
 -     v27 = make_memory_slice v26, v15
       v28 = inttoptr i256 v17 to ptr<calldata>
@@ -590,9 +590,9 @@
 +     v26 = inttoptr i256 arg1 to ptr<calldata>
 +     v27 = ptrtoint ptr<calldata> v26 to i256
 +     v1 = icall @slice_identity, v27, arg2
-+     v34 = load 32 !metadata(memory=scratch)
++     v34 = mload 32 !metadata(memory=scratch)
 +     v35 = add v34, 32
-+     v36 = load v35
++     v36 = mload v35
 +     v37 = inttoptr i256 v1 to ptr<calldata>
       jump bb3
     bb1:
@@ -600,9 +600,9 @@
 +     v23 = inttoptr i256 arg1 to ptr<calldata>
 +     v24 = ptrtoint ptr<calldata> v23 to i256
 +     v0 = icall @slice_identity, v24, arg2
-+     v29 = load 32 !metadata(memory=scratch)
++     v29 = mload 32 !metadata(memory=scratch)
 +     v30 = add v29, 32
-+     v31 = load v30
++     v31 = mload v30
 +     v32 = inttoptr i256 v0 to ptr<calldata>
       jump bb3
     bb3:

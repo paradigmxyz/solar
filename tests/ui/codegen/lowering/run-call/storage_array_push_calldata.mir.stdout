@@ -29,7 +29,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v34]
@@ -42,7 +42,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v37 = add v35, 1
     v38 = storage_array_data_slot 0
     v39 = add v38, v35
-    v40 = load v22
+    v40 = mload v22
     v41 = sload v39 !metadata(storage=symbolic(v39))
     v42 = gt v41, v40
     jumpi v42, bb4, bb5
@@ -101,7 +101,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
   bb10:
     v61 = shl 5, v59
     v62 = ptradd v22, v61
-    v63 = load v62+32
+    v63 = mload v62+32
     v64 = storage_array_data_slot v39
     v65 = div v59, 2
     v66 = add v64, v65
@@ -139,14 +139,14 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
-    v28 = load calldata v27
+    v28 = calldataload v27
     v29 = shr 120, v28
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
     v32 = shl 5, v23
     v33 = ptradd v22, v32
-    store v33+32, v28
+    mstore v33+32, v28
     v34 = add v23, 1
     jump bb1
 }
@@ -160,24 +160,24 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v4 = sub v2, v3
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = load calldata v0
+    v6 = calldataload v0
     v7 = shr 16, v6
     v8 = eq v7, 0
     v9 = eq v8, false
     icall revert_if<empty>, v9
-    store v1, v6
+    mstore v1, v6
     v10 = ptrtoint ptr<calldata> v0 to i256
     v11 = add v10, 32
     v12 = calldatasize
     v13 = sub v12, v11
     v14 = slt v13, 32
     icall revert_if<calldata_tail_too_short>, v14
-    v15 = load calldata v11
+    v15 = calldataload v11
     v16 = shr 16, v15
     v17 = eq v16, 0
     v18 = eq v17, false
     icall revert_if<empty>, v18
-    store v1+32, v15
+    mstore v1+32, v15
     v19 = ptrtoint ptr<calldata> v0 to i256
     v20 = add v19, 64
     v21 = calldatasize
@@ -195,16 +195,16 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v35 = make_calldata_slice v34, 96
     v36 = extract_value slice<calldata>, v35, 0
     v37 = extract_value slice<calldata>, v35, 1
-    copy calldata v24, v36, v37
+    calldatacopy v24, v36, v37
     v38 = ptrtoint ptr<memory> v24 to i256
-    store v1+64, v38
+    mstore v1+64, v38
     v39 = ptrtoint ptr<calldata> v0 to i256
     v40 = add v39, 160
     v41 = calldatasize
     v42 = sub v41, v40
     v43 = slt v42, 32
     icall revert_if<calldata_tail_too_short>, v43
-    v44 = load calldata v40
+    v44 = calldataload v40
     v45 = ptrtoint ptr<calldata> v0 to i256
     v46 = add v45, v44
     v47 = calldatasize
@@ -214,7 +214,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v51 = slt v44, v50
     v52 = eq v51, false
     icall revert_if<invalid_calldata_tail_offset>, v52
-    v53 = load calldata v46
+    v53 = calldataload v46
     v54 = calldatasize
     v55 = gt v53, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v55
@@ -235,7 +235,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v68 = lt v67, 32
     icall panic_if<0x41>, v68
     v69 = alloc v67
-    store v69, v53
+    mstore v69, v53
     jump bb4
   bb4:
     v70 = phi [bb3: 0], [bb5: v80]
@@ -243,7 +243,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     jumpi v71, bb5, bb6
   bb6:
     v81 = ptrtoint ptr<memory> v69 to i256
-    store v1+96, v81
+    mstore v1+96, v81
     v82 = sload 1 !metadata(storage=slot(1))
     v83 = gt v82, 0xffffffffffffffff
     icall panic_if<0x41>, v83
@@ -251,14 +251,14 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v85 = storage_array_data_slot 1
     v86 = mul v82, 3
     v87 = add v85, v86
-    v88 = load v1
+    v88 = mload v1
     v89 = sload v87 !metadata(storage=symbolic(v87))
     v90 = not 0xffff
     v91 = and v89, v90
     v92 = and v88, 0xffff
     v93 = or v91, v92
     sstore v87, v93 !metadata(storage=symbolic(v87))
-    v94 = load v1+32
+    v94 = mload v1+32
     v95 = shl 16, 0xffff
     v96 = sload v87 !metadata(storage=symbolic(v87))
     v97 = not v95
@@ -268,7 +268,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v101 = or v98, v100
     sstore v87, v101 !metadata(storage=symbolic(v87))
     v102 = add v87, 1
-    v103 = load v1+64
+    v103 = mload v1+64
     jump bb7
   bb7:
     v104 = phi [bb6: 0], [bb12: v131]
@@ -276,8 +276,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     jumpi v105, bb8, bb9
   bb9:
     v132 = add v87, 2
-    v133 = load v1+96
-    v134 = load v133
+    v133 = mload v1+96
+    v134 = mload v133
     v135 = sload v132 !metadata(storage=offset(v87, 2))
     v136 = gt v135, v134
     jumpi v136, bb13, bb14
@@ -387,7 +387,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v155 = shl 5, v153
     v156 = inttoptr i256 v133 to ptr<memory>
     v157 = ptradd v156, v155
-    v158 = load v157+32
+    v158 = mload v157+32
     v159 = storage_array_data_slot v132
     v160 = div v153, 16
     v161 = add v159, v160
@@ -443,7 +443,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v111 = shl 5, v104
     v112 = inttoptr i256 v103 to ptr<memory>
     v113 = ptradd v112, v111
-    v114 = load v113
+    v114 = mload v113
     v115 = mul v109, 8
     v116 = shl v115, 0xffff
     v117 = sload v107 !metadata(storage=symbolic(v107))
@@ -460,20 +460,20 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
   bb5:
     v72 = mul v70, 32
     v73 = add v57, v72
-    v74 = load calldata v73
+    v74 = calldataload v73
     v75 = shr 16, v74
     v76 = eq v75, 0
     v77 = eq v76, false
     icall revert_if<empty>, v77
     v78 = shl 5, v70
     v79 = ptradd v69, v78
-    store v79+32, v74
+    mstore v79+32, v74
     v80 = add v70, 1
     jump bb4
   bb2:
     v27 = mul v25, 32
     v28 = add v20, v27
-    v29 = load calldata v28
+    v29 = calldataload v28
     v30 = shr 16, v29
     v31 = eq v30, 0
     v32 = eq v31, false

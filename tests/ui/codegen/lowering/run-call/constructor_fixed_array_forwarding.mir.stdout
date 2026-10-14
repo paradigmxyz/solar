@@ -35,7 +35,7 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[u256, a
   bb4:
     v4 = shl 5, v0
     v5 = ptradd arg1, v4
-    v6 = load v5
+    v6 = mload v5
     sstore v2, v6 !metadata(storage=offset(v0, 1))
     jump bb6
   bb6:

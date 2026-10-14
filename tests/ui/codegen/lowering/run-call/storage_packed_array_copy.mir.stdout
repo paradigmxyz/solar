@@ -184,7 +184,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb7:
     v22 = shl 5, v15
     v23 = ptradd v0, v22
-    v24 = load v23
+    v24 = mload v23
     v25 = mul v20, 8
     v26 = shl v25, 0xffffffffffffffffffffffffffffffffff
     v27 = sload v18 !metadata(storage=offset(v17, 3))
@@ -210,7 +210,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v10 = shl 192, v9
     v11 = shl 5, v1
     v12 = ptradd v0, v11
-    store v12, v10
+    mstore v12, v10
     v13 = add v1, 1
     jump bb1
 }

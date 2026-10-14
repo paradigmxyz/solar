@@ -13,7 +13,7 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0x7bb08336, pure, abi_params=[
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -32,7 +32,7 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0x7bb08336, pure, abi_params=[
     v24 = sub v23, v22
     v25 = slt v24, 32
     icall revert_if<calldata_tail_too_short>, v25
-    v26 = load calldata v22
+    v26 = calldataload v22
     v27 = ptrtoint ptr<calldata> v20 to i256
     v28 = add v27, v26
     v29 = calldatasize
@@ -42,7 +42,7 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0x7bb08336, pure, abi_params=[
     v33 = slt v26, v32
     v34 = eq v33, false
     icall revert_if<invalid_calldata_tail_offset>, v34
-    v35 = load calldata v28
+    v35 = calldataload v28
     v36 = calldatasize
     v37 = gt v35, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v37

@@ -46,7 +46,7 @@ impl DataDest {
     }
 
     fn store(self, builder: &mut FunctionBuilder<'_>, offset: u64, value: ValueId) {
-        // store base+(offset + k), value
+        // mstore base+(offset + k), value
         builder.store_at(self.base, self.offset.saturating_add(offset), value);
     }
 }

@@ -7,10 +7,10 @@ fn @g(arg0: i256) -> i256 [view] {
   bb2:
     jump bb3
   bb3:
-    v3 = load 64 !metadata(memory=scratch)
+    v3 = mload 64 !metadata(memory=scratch)
     codecopy 0, 0, arg0 !metadata(memory=scratch)
-    store 64, v3 !metadata(memory=scratch)
-    store 96, 0 !metadata(memory=scratch)
+    mstore 64, v3 !metadata(memory=scratch)
+    mstore 96, 0 !metadata(memory=scratch)
     ret arg0
   bb1:
     v1 = checked_add u256, arg0, 1

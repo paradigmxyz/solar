@@ -32,8 +32,8 @@ fn @capture(arg0: i256, arg1: ptr<memory>) -> i256 {
     v1 = icall returndata_bytes<>
     v2 = address_call v7, arg1
     v3 = icall returndata_bytes<>
-    v4 = load v1
-    v5 = load v3
+    v4 = mload v1
+    v5 = mload v3
     v6 = add v4, v5
     ret v6
 }

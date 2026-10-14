@@ -8,31 +8,31 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 0
+-     mstore v1, 0
       jump bb1
     bb1:
 +     v15 = phi [bb0: 0], [bb2: v9]
       v2 = internal_frame_addr 128
       v3 = ptrtoint ptr<memory> v2 to i256
--     v4 = load v3
+-     v4 = mload v3
 -     v5 = lt v4, 4
 +     v5 = lt v15, 4
       jumpi v5, bb2, bb3
     bb3:
       v12 = internal_frame_addr 128
       v13 = ptrtoint ptr<memory> v12 to i256
--     v14 = load v13
+-     v14 = mload v13
 -     ret v14
 +     ret v15
     bb2:
       v6 = internal_frame_addr 128
       v7 = ptrtoint ptr<memory> v6 to i256
--     v8 = load v7
+-     v8 = mload v7
 -     v9 = add v8, 1
 +     v9 = add v15, 1
       v10 = internal_frame_addr 128
       v11 = ptrtoint ptr<memory> v10 to i256
--     store v11, v9
+-     mstore v11, v9
       jump bb1
   }
   
@@ -40,9 +40,9 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 42
+      mstore v1, 42
       v2 = keccak256 v1, 32
-      v3 = load v1
+      v3 = mload v1
       ret v2, v3
   }
   
@@ -50,9 +50,9 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 42
+-     mstore v1, 42
       v2 = gas
--     v3 = load v1
+-     v3 = mload v1
 -     ret v3
 +     ret 42
   }
@@ -61,9 +61,9 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 42
+      mstore v1, 42
       v2 = msize
-      v3 = load v1
+      v3 = mload v1
       ret v3
   }
   
@@ -71,9 +71,9 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 42
+-     mstore v1, 42
       icall @callee
--     v2 = load v1
+-     v2 = mload v1
 -     ret v2
 +     ret 42
   }
@@ -88,11 +88,11 @@
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = add v1, 32
--     store v2, 99
+-     mstore v2, 99
       v3 = internal_frame_addr 128
       v4 = ptrtoint ptr<memory> v3 to i256
       v5 = add v4, 32
--     v6 = load v5
+-     v6 = mload v5
 -     ret v6
 +     ret 99
   }

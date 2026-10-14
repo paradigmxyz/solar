@@ -40,7 +40,7 @@ fn @data() -> ptr<memory> {
     v2 = checked_add u256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = alloc 32
-    store v3, 0
+    mstore v3, 0
     ret v3
 }
 
@@ -82,7 +82,7 @@ fn @write() [selector=0xbcb4ab0e, abi_params=[], abi_returns=[], abi_return_para
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 224, 0xdeadbeef
-    store 0, v0 !metadata(memory=scratch)
+    mstore 0, v0 !metadata(memory=scratch)
     revert 0, 4
 }
 
@@ -91,16 +91,16 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
     v0 = address
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
-    store v2, 3
-    store v2+32, 0x102030000000000000000000000000000000000000000000000000000000000
+    mstore v2, 3
+    mstore v2+32, 0x102030000000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v2
     v4 = address_call v0, v3, gas v1
     v5 = icall returndata_bytes<>
     v6 = address
     v7 = gas
     v8 = alloc 64 !metadata(preserves_fmp)
-    store v8, 1
-    store v8+32, 0xab00000000000000000000000000000000000000000000000000000000000000
+    mstore v8, 1
+    mstore v8+32, 0xab00000000000000000000000000000000000000000000000000000000000000
     v9 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v8
     v10 = address_call v6, v9, gas v7
     v11 = icall returndata_bytes<>
@@ -148,8 +148,8 @@ fn @delegateWrite() -> i256 [selector=0xeedb6db6, abi_params=[], abi_returns=[wo
 fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 3
-    store v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
+    mstore v0, 3
+    mstore v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
     v1 = address
     v2 = gas
     v3 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v0
@@ -157,12 +157,12 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
     v5 = icall returndata_bytes<>
     v6 = eq v4, false
     icall revert_if<empty>, v6
-    v7 = load v0
+    v7 = mload v0
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
-    store8 v0+32, v10
+    mstore8 v0+32, v10
     v11 = abi_decode [bytes], v5
     v12 = insert_value struct0, undef struct0, 0, v11
     v13 = insert_value struct0, v12, 1, v0

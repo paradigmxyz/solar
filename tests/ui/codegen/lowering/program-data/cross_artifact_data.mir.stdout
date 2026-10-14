@@ -7,7 +7,7 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 256 !metadata(preserves_fmp)
-    store v0, 224
+    mstore v0, 224
     v1 = ptradd v0, 32
     datacopy literal_0, v1, 224
     v2 = abi_encode [memory_bytes], args v0
@@ -20,7 +20,7 @@ fn @constructor() [constructor] {
 fn @runtimeData() -> ptr<memory> [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
-    store v0, 160
+    mstore v0, 160
     v1 = ptradd v0, 32
     datacopy literal_1, v1, 160
     ret v0

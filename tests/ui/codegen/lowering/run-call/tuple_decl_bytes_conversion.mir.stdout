@@ -85,8 +85,8 @@ fn @declareMemory() -> ptr<memory> [selector=0x0f124233, view, abi_params=[], ab
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
     ret
 }

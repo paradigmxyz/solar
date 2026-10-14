@@ -3,15 +3,15 @@
 fn @bytesLiteral() -> ptr<memory> [selector=0x96115be7, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 3
-    store v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
+    mstore v0, 3
+    mstore v0+32, 0x102030000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @stringLiteral() -> ptr<memory> [selector=0xb5d549e9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }

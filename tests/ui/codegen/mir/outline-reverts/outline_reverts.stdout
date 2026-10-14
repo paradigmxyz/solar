@@ -7,11 +7,11 @@
       v1 = lt v0, arg0
       jumpi v1, bb1, bb2
     bb2:
-      store 128, v0
+      mstore 128, v0
       returndata 128, 32
     bb1:
--     store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
--     store 4, 17
+-     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+-     mstore 4, 17
 -     revert 0, 36
 +     tail_call @revert_stub
   }
@@ -22,11 +22,11 @@
       v1 = lt v0, arg0
       jumpi v1, bb1, bb2
     bb2:
-      store 128, v0
+      mstore 128, v0
       returndata 128, 32
     bb1:
--     store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
--     store 4, 17
+-     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+-     mstore 4, 17
 -     revert 0, 36
 +     tail_call @revert_stub
   }
@@ -37,18 +37,18 @@
       v1 = gt v0, arg0
       jumpi v1, bb1, bb2
     bb2:
-      store 128, v0
+      mstore 128, v0
       returndata 128, 32
     bb1:
-      store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-      store 4, 18
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+      mstore 4, 18
 +     revert 0, 36
 + }
 + 
 + fn @revert_stub() {
 +   bb0:
-+     store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     store 4, 17 !metadata(memory=scratch)
++     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 17 !metadata(memory=scratch)
       revert 0, 36
   }
   

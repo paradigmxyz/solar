@@ -15,11 +15,11 @@ fn @structs(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0
     v6 = extract_value slice<calldata>, v3, 0
     v7 = ptrtoint ptr<calldata> v6 to i256
     v8 = add v7, 0
-    v9 = load calldata v8
+    v9 = calldataload v8
     v10 = extract_value slice<calldata>, v5, 0
     v11 = ptrtoint ptr<calldata> v10 to i256
     v12 = add v11, 0
-    v13 = load calldata v12
+    v13 = calldataload v12
     v14 = insert_value struct0, undef struct0, 0, v9
     v15 = insert_value struct0, v14, 1, v13
     ret v15
@@ -45,7 +45,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v13 = extract_value slice<calldata>, v9, 0
     v14 = ptrtoint ptr<calldata> v13 to i256
     v15 = add v14, 0
-    v16 = load calldata v15
+    v16 = calldataload v15
     v17 = extract_value slice<calldata>, v1, 1
     v18 = lt 1, v17
     v19 = eq v18, false
@@ -62,7 +62,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v28 = extract_value slice<calldata>, v24, 0
     v29 = ptrtoint ptr<calldata> v28 to i256
     v30 = add v29, 32
-    v31 = load calldata v30
+    v31 = calldataload v30
     v32 = insert_value struct0, undef struct0, 0, v16
     v33 = insert_value struct0, v32, 1, v31
     ret v33
@@ -91,7 +91,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v16 = extract_value slice<calldata>, v12, 0
     v17 = ptrtoint ptr<calldata> v16 to i256
     v18 = add v17, 0
-    v19 = load calldata v18
+    v19 = calldataload v18
     v20 = extract_value slice<calldata>, v3, 1
     v21 = lt 1, v20
     v22 = eq v21, false
@@ -108,7 +108,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v31 = extract_value slice<calldata>, v27, 0
     v32 = ptrtoint ptr<calldata> v31 to i256
     v33 = add v32, 32
-    v34 = load calldata v33
+    v34 = calldataload v33
     v35 = insert_value struct1, undef struct1, 0, v4
     v36 = insert_value struct1, v35, 1, v19
     v37 = insert_value struct1, v36, 2, v34
@@ -148,12 +148,12 @@ fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pur
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
-    store v26, v4
+    mstore v26, v4
     v27 = make_calldata_slice v5, v17
     v28 = ptradd v26, 32
     v29 = extract_value slice<calldata>, v27, 0
     v30 = extract_value slice<calldata>, v27, 1
-    copy calldata v28, v29, v30
+    calldatacopy v28, v29, v30
     ret v26
 }
 
@@ -190,7 +190,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
-    store v26, v4
+    mstore v26, v4
     jump bb1
   bb1:
     v27 = phi [bb0: 0], [bb2: v46]
@@ -214,11 +214,11 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v40 = make_calldata_slice v39, 64
     v41 = extract_value slice<calldata>, v40, 0
     v42 = extract_value slice<calldata>, v40, 1
-    copy calldata v38, v41, v42
+    calldatacopy v38, v41, v42
     v43 = ptrtoint ptr<memory> v38 to i256
     v44 = shl 5, v27
     v45 = ptradd v26, v44
-    store v45+32, v43
+    mstore v45+32, v43
     v46 = add v27, 1
     jump bb1
 }
@@ -256,7 +256,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
-    store v26, v4
+    mstore v26, v4
     jump bb1
   bb1:
     v27 = phi [bb0: 0], [bb2: v38]
@@ -268,14 +268,14 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v29 = mul v27, 32
     v30 = ptrtoint ptr<calldata> v5 to i256
     v31 = add v30, v29
-    v32 = load calldata v31
+    v32 = calldataload v31
     v33 = shr 8, v32
     v34 = eq v33, 0
     v35 = eq v34, false
     icall revert_if<empty>, v35
     v36 = shl 5, v27
     v37 = ptradd v26, v36
-    store v37+32, v32
+    mstore v37+32, v32
     v38 = add v27, 1
     jump bb1
 }
@@ -313,7 +313,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
-    store v26, v4
+    mstore v26, v4
     jump bb1
   bb1:
     v27 = phi [bb0: 0], [bb2: v69]
@@ -329,7 +329,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v33 = sub v32, v31
     v34 = slt v33, 32
     icall revert_if<calldata_tail_too_short>, v34
-    v35 = load calldata v31
+    v35 = calldataload v31
     v36 = ptrtoint ptr<calldata> v5 to i256
     v37 = add v36, v35
     v38 = calldatasize
@@ -339,7 +339,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v42 = slt v35, v41
     v43 = eq v42, false
     icall revert_if<invalid_calldata_tail_offset>, v43
-    v44 = load calldata v37
+    v44 = calldataload v37
     v45 = calldatasize
     v46 = gt v44, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v46
@@ -360,17 +360,17 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v59 = lt v58, 32
     icall panic_if<0x41>, v59
     v60 = alloc v58
-    store v60, v44
+    mstore v60, v44
     v61 = inttoptr i256 v48 to ptr<calldata>
     v62 = make_calldata_slice v61, v51
     v63 = ptradd v60, 32
     v64 = extract_value slice<calldata>, v62, 0
     v65 = extract_value slice<calldata>, v62, 1
-    copy calldata v63, v64, v65
+    calldatacopy v63, v64, v65
     v66 = ptrtoint ptr<memory> v60 to i256
     v67 = shl 5, v27
     v68 = ptradd v26, v67
-    store v68+32, v66
+    mstore v68+32, v66
     v69 = add v27, 1
     jump bb1
 }
@@ -409,12 +409,12 @@ fn @dynamicOverflow(arg0: slice<calldata>) -> ptr<memory> [selector=0x51072adf, 
     v26 = lt v25, 32
     icall panic_if<0x41>, v26
     v27 = alloc v25
-    store v27, v5
+    mstore v27, v5
     v28 = make_calldata_slice v6, v18
     v29 = ptradd v27, 32
     v30 = extract_value slice<calldata>, v28, 0
     v31 = extract_value slice<calldata>, v28, 1
-    copy calldata v29, v30, v31
+    calldatacopy v29, v30, v31
     ret v27
 }
 
@@ -453,12 +453,12 @@ fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
     v28 = alloc v26
-    store v28, v6
+    mstore v28, v6
     v29 = make_calldata_slice v7, v19
     v30 = ptradd v28, 32
     v31 = extract_value slice<calldata>, v29, 0
     v32 = extract_value slice<calldata>, v29, 1
-    copy calldata v30, v31, v32
+    calldatacopy v30, v31, v32
     ret v28
 }
 
@@ -498,12 +498,12 @@ fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5
     v28 = lt v27, 32
     icall panic_if<0x41>, v28
     v29 = alloc v27
-    store v29, v7
+    mstore v29, v7
     v30 = make_calldata_slice v8, v20
     v31 = ptradd v29, 32
     v32 = extract_value slice<calldata>, v30, 0
     v33 = extract_value slice<calldata>, v30, 1
-    copy calldata v31, v32, v33
+    calldatacopy v31, v32, v33
     ret v29
 }
 
@@ -542,12 +542,12 @@ fn @dynamicWrappingEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x4c79759
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
     v28 = alloc v26
-    store v28, v6
+    mstore v28, v6
     v29 = make_calldata_slice v7, v19
     v30 = ptradd v28, 32
     v31 = extract_value slice<calldata>, v29, 0
     v32 = extract_value slice<calldata>, v29, 1
-    copy calldata v30, v31, v32
+    calldatacopy v30, v31, v32
     ret v28
 }
 
@@ -556,7 +556,7 @@ fn @returnedSlice(arg0: slice<calldata>) -> i256 [selector=0x515c2822, pure, abi
     v0 = icall @slice, arg0, 0
     v1 = extract_value slice<calldata>, v0, 0
     v2 = ptrtoint ptr<calldata> v1 to i256
-    v3 = load calldata v1
+    v3 = calldataload v1
     v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
     ret v4
 }

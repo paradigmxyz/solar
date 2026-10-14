@@ -9,11 +9,11 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v1 = lt i8 4, i8 6
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    store v0, 4
+    mstore v0, 4
     v3 = lt i8 5, i8 6
     v4 = eq v3, false
     icall panic_if<0x21>, v4
-    store v0+32, 5
+    mstore v0+32, 5
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 2
     jumpi v6, bb1, bb2
@@ -84,7 +84,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
   bb7:
     v25 = shl 5, v23
     v26 = ptradd v0, v25
-    v27 = load v26
+    v27 = mload v26
     v28 = storage_array_data_slot 0
     v29 = div v23, 32
     v30 = add v28, v29

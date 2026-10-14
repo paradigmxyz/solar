@@ -54,22 +54,22 @@ fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[],
     v8 = lt 0, 3
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    store v0, 42
-    store v0+64, 4
-    store v0+32, v1
-    store v0, 1
+    mstore v0, 42
+    mstore v0+64, 4
+    mstore v0+32, v1
+    mstore v0, 1
     v10 = lt 2, 3
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = load v0+64
+    v12 = mload v0+64
     v13 = lt 1, 3
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = load v0+32
+    v15 = mload v0+32
     v16 = lt 0, 3
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = load v0
+    v18 = mload v0
     v19 = insert_value struct1, undef struct1, 0, v12
     v20 = insert_value struct1, v19, 1, v15
     v21 = insert_value struct1, v20, 2, v18
@@ -114,18 +114,18 @@ fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_r
     icall panic_if<0x32>, v6
     v7 = shl 5, v4
     v8 = ptradd v0, v7
-    store v8, 2
+    mstore v8, 2
     v9 = shl 5, v1
     v10 = ptradd v0, v9
-    store v10, 1
+    mstore v10, 1
     v11 = lt 0, 2
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = load v0
+    v13 = mload v0
     v14 = lt 1, 2
     v15 = eq v14, false
     icall panic_if<0x32>, v15
-    v16 = load v0+32
+    v16 = mload v0+32
     v17 = sload 0 !metadata(storage=slot(0))
     v18 = insert_value struct1, undef struct1, 0, v13
     v19 = insert_value struct1, v18, 1, v16
@@ -287,8 +287,8 @@ fn @constructor() [constructor] {
   bb0:
     sstore 1, 17 !metadata(storage=slot(1))
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 2
-    store v0+32, 0x7a7a000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 2
+    mstore v0+32, 0x7a7a000000000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 3, v0
     ret
 }

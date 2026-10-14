@@ -20,7 +20,7 @@
       v0 = eq arg0, 42
       jumpi v0, bb1, bb2
     bb2:
-      store 0, 17
+      mstore 0, 17
       revert 0, 32
     bb1:
       ret
@@ -60,7 +60,7 @@
   
   fn @memory_reader() {
     bb0:
-      v0 = load 0x1000
+      v0 = mload 0x1000
       ret
   }
   
@@ -80,7 +80,7 @@
     bb0:
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 19
+      mstore v1, 19
 -     icall @guard, 42
 -     v2 = icall @read, v1
 -     ret v2
@@ -89,7 +89,7 @@
   
   fn @read(arg0: i256) -> i256 {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       ret v0
   }
   

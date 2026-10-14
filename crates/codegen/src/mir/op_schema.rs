@@ -18,8 +18,9 @@
 //! defining instructions or depend on a function-wide analysis context.
 //!
 //! `#[mir_op(...)]` attaches metadata directly to its typed operation declaration.
-//! `#[mnemonic(pattern => name)]` gives an attribute-dependent textual spelling,
-//! such as a slice's address space, without duplicating the rest of its metadata.
+//! `#[when(pattern => { field: value, .. })]` overrides [`OpDef`] fields for the
+//! instructions matching `pattern`, such as the spelling and effect of a calldata
+//! load, without duplicating the rest of its metadata.
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
 
@@ -682,8 +683,7 @@ macro_rules! define_mir_ops {
                     side_effects = $side_effects:expr,
                     category = $category:expr $(,)?
                 )]
-                $(#[mnemonic($mnemonic_pattern:pat => $alternate_mnemonic:literal)])*
-                $(#[effect($effect_pattern:pat => $alternate_effect:ident)])*
+                $(#[when($when_pattern:pat => { $( $when_field:ident : $when_value:expr ),+ $(,)? })])*
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
                 $(#[raw_memory($( $access:ident($address:ident $(+ $address_offset:ident)?, $size:tt) $(if $guard:expr)? ),+)])?
@@ -758,8 +758,7 @@ macro_rules! define_mir_ops {
                                 phase_category: $category,
                             };
                             match self {
-                                $( $mnemonic_pattern => &OpDef { mnemonic: $alternate_mnemonic, ..DEF }, )*
-                                $( $effect_pattern => &OpDef { effect: EffectKind::$alternate_effect, ..DEF }, )*
+                                $( $when_pattern => &OpDef { $( $when_field: $when_value, )+ ..DEF }, )*
                                 _ => &DEF,
                             }
                         },
@@ -867,7 +866,7 @@ macro_rules! define_mir_ops {
             ) -> Option<(usize, fn(&[ValueId]) -> Self)> {
                 match mnemonic {
                     $(
-                        $mnemonic $( | $alternate_mnemonic )* => build::$variant::operand_only(),
+                        $mnemonic => build::$variant::operand_only(),
                     )+
                     _ => None,
                 }
@@ -1563,7 +1562,7 @@ define_mir_ops! {
     /// The immediate byte `offset` adds to `ptr` as `ptradd` does for a pointer and as `add` does
     /// for a word, and is zero in the lowered phase.
     #[mir_op(
-        mnemonic = "load",
+        mnemonic = "mload",
         result = Word,
         phases = PhaseSet::ALL,
         effect = MemoryRead,
@@ -1571,13 +1570,20 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    #[effect(InstKind::Load(_, _, PtrLocation::Calldata | PtrLocation::Returndata) => EnvironmentRead)]
+    #[when(InstKind::Load(_, _, PtrLocation::Calldata) => {
+        mnemonic: "calldataload",
+        effect: EffectKind::EnvironmentRead,
+    })]
+    #[when(InstKind::Load(_, _, PtrLocation::Returndata) => {
+        mnemonic: "returndataload",
+        effect: EffectKind::EnvironmentRead,
+    })]
     #[raw_memory(Read(ptr + offset, 32) if *location == PtrLocation::Memory)]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location)]))]
     Load(ptr: ValueId, offset: u64, location: PtrLocation),
-    /// Store a word to memory at `ptr + offset`, which may be a `ptr<memory>`, as for `load`.
+    /// Store a word to memory at `ptr + offset`, which may be a `ptr<memory>`, as for `mload`.
     #[mir_op(
-        mnemonic = "store",
+        mnemonic = "mstore",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -1588,9 +1594,9 @@ define_mir_ops! {
     #[raw_memory(Write(ptr + offset, 32))]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, PtrLocation::Memory), MirType::I256]))]
     Store(ptr: ValueId, offset: u64, value: ValueId),
-    /// Store the low byte of `value` to memory at `ptr + offset`, as for `store`.
+    /// Store the low byte of `value` to memory at `ptr + offset`, as for `mstore`.
     #[mir_op(
-        mnemonic = "store8",
+        mnemonic = "mstore8",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -1783,7 +1789,7 @@ define_mir_ops! {
     },
     /// Copy `len` bytes from `src` in memory, calldata, or returndata to `dest` in memory.
     #[mir_op(
-        mnemonic = "copy",
+        mnemonic = "mcopy",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -1791,6 +1797,8 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[when(InstKind::Copy(.., PtrLocation::Calldata) => { mnemonic: "calldatacopy" })]
+    #[when(InstKind::Copy(.., PtrLocation::Returndata) => { mnemonic: "returndatacopy" })]
     #[raw_memory(Read(src, len) if *location == PtrLocation::Memory, Write(dest, len))]
     #[operand_types(func => Some(smallvec![typing::address(func, *dest, PtrLocation::Memory), typing::address(func, *src, *location), MirType::I256]))]
     Copy(dest: ValueId, src: ValueId, len: ValueId, location: PtrLocation),
@@ -1873,8 +1881,12 @@ define_mir_ops! {
         side_effects = false,
         category = Some("slice")
     )]
-    #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Calldata, .. } => "make_calldata_slice")]
-    #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Returndata, .. } => "make_returndata_slice")]
+    #[when(InstKind::MakeSlice { location: PtrLocation::Calldata, .. } => {
+        mnemonic: "make_calldata_slice",
+    })]
+    #[when(InstKind::MakeSlice { location: PtrLocation::Returndata, .. } => {
+        mnemonic: "make_returndata_slice",
+    })]
     #[operand_types(func => Some(smallvec![MirType::Ptr(*location), MirType::I256]))]
     MakeSlice {
         /// Pointer to the first element or byte.

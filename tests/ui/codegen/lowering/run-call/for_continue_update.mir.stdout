@@ -76,7 +76,7 @@ fn @yulRevert() [selector=0x0d5e326b, pure, abi_params=[], abi_returns=[], abi_r
   bb4:
     jump bb3
   bb3:
-    store 0, 0x8baa579f !metadata(memory=scratch)
+    mstore 0, 0x8baa579f !metadata(memory=scratch)
     revert 28, 4
   bb6:
     invalid

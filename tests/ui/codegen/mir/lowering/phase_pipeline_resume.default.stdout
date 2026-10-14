@@ -12,7 +12,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb3, [0x5c36b186 => bb2]
   bb2:

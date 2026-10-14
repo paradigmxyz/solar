@@ -3,17 +3,17 @@
 fn @forged(arg0: i256) -> i256 [selector=0x0fa02195, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = not 0
     v2 = ptrtoint ptr<memory> v0 to i256
-    store v0, v1
-    v3 = load v0
+    mstore v0, v1
+    v3 = mload v0
     v4 = lt arg0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = shl 5, arg0
     v7 = ptradd v0, v6
-    v8 = load v7+32
+    v8 = mload v7+32
     v9 = trunc i256 v8 to i8
     v10 = zext i8 v9 to i256
     ret v10

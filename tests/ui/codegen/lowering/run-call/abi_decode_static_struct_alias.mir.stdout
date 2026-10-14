@@ -3,26 +3,26 @@
 fn @mutateFirst(arg0: ptr<memory>) -> i256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = load arg0
+    v1 = mload arg0
     v2 = lt 31, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
-    store8 arg0+63, v4
-    v5 = load v0
+    mstore8 arg0+63, v4
+    v5 = mload v0
     ret v5
 }
 
 fn @mutateSecond(arg0: ptr<memory>) -> i256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = load arg0
+    v1 = mload arg0
     v2 = lt 31, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    store8 arg0+63, v4
-    v5 = load v0
+    mstore8 arg0+63, v4
+    v5 = mload v0
     ret v5
 }
 
@@ -35,19 +35,19 @@ fn @mutateAlias(arg0: ptr<memory>) -> i256 [selector=0x60c81d20, pure, abi_param
 fn @mutateAliasInner(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = load arg1
+    v1 = mload arg1
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = load arg1
+    v3 = mload arg1
     v4 = lt 31, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
-    store8 arg1+63, v6
-    v7 = load v0
+    mstore8 arg1+63, v6
+    v7 = mload v0
     ret v7
   bb1:
     ret 0

@@ -3,7 +3,7 @@
 fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = alloc zeroed checked 224
-    store v0, 6
+    mstore v0, 6
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]
@@ -33,13 +33,13 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
   bb14:
     ret v19
   bb16:
-    v22 = load v19
+    v22 = mload v19
     v23 = lt v20, v22
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = shl 5, v20
     v26 = ptradd v19, v25
-    store v26+32, 7
+    mstore v26+32, 7
     jump bb18
   bb18:
     jump bb15
@@ -47,13 +47,13 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
     v27 = checked_add u256, v20, 1
     jump bb13
   bb10:
-    v13 = load v10
+    v13 = mload v10
     v14 = lt v11, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = shl 5, v11
     v17 = ptradd v10, v16
-    store v17+32, 9
+    mstore v17+32, 9
     jump bb12
   bb12:
     jump bb9
@@ -61,13 +61,13 @@ fn @fill() -> ptr<memory> [selector=0xd9c55ce1, pure, abi_params=[], abi_returns
     v18 = checked_add u256, v11, 1
     jump bb7
   bb4:
-    v4 = load v1
+    v4 = mload v1
     v5 = lt v2, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = shl 5, v2
     v8 = ptradd v1, v7
-    store v8+32, 8
+    mstore v8+32, 8
     jump bb6
   bb6:
     jump bb3
@@ -138,14 +138,14 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     jump bb17
   bb17:
     v73 = alloc 64
-    store v73, 0
-    store v73+32, 0
+    mstore v73, 0
+    mstore v73+32, 0
     v74 = lt 4, 5
     v75 = eq v74, false
     icall panic_if<0x32>, v75
     v76 = mul 4, 2
     v77 = add v46, v76
-    v78 = load v73
+    v78 = mload v73
     v79 = sload v77 !metadata(storage=symbolic(v77))
     v80 = not 0xffffffffffffffffffffffffffffffffffffffff
     v81 = and v79, v80
@@ -153,7 +153,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v83 = or v81, v82
     sstore v77, v83 !metadata(storage=symbolic(v77))
     v84 = add v77, 1
-    v85 = load v73+32
+    v85 = mload v73+32
     sstore v84, v85 !metadata(storage=offset(v77, 1))
     jump bb8
   bb8:
@@ -210,12 +210,12 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v58 = sload v52 !metadata(storage=symbolic(v52))
     v59 = trunc i256 v58 to i160
     v60 = zext i160 v59 to i256
-    store v57, v60
+    mstore v57, v60
     v61 = add v52, 1
     v62 = sload v61 !metadata(storage=offset(v52, 1))
-    store v57+32, v62
+    mstore v57+32, v62
     v63 = ptrtoint ptr<memory> v57 to i256
-    v64 = load v57
+    v64 = mload v57
     v65 = sload v56 !metadata(storage=symbolic(v56))
     v66 = not 0xffffffffffffffffffffffffffffffffffffffff
     v67 = and v65, v66
@@ -223,7 +223,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v69 = or v67, v68
     sstore v56, v69 !metadata(storage=symbolic(v56))
     v70 = add v56, 1
-    v71 = load v57+32
+    v71 = mload v57+32
     sstore v70, v71 !metadata(storage=offset(v56, 1))
     jump bb21
   bb21:
@@ -237,15 +237,15 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v9 = zext i160 v8 to i256
     v10 = checked_add u160, v2, i160 1
     v11 = zext i160 v10 to i256
-    store v7, v9
-    store v7+32, v11
+    mstore v7, v9
+    mstore v7+32, v11
     v12 = lt v2, i160 5
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = zext i160 v2 to i256
     v15 = mul v14, 2
     v16 = add v5, v15
-    v17 = load v7
+    v17 = mload v7
     v18 = sload v16 !metadata(storage=symbolic(v16))
     v19 = not 0xffffffffffffffffffffffffffffffffffffffff
     v20 = and v18, v19
@@ -253,7 +253,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v22 = or v20, v21
     sstore v16, v22 !metadata(storage=symbolic(v16))
     v23 = add v16, 1
-    v24 = load v7+32
+    v24 = mload v7+32
     sstore v23, v24 !metadata(storage=offset(v16, 1))
     jump bb6
   bb6:

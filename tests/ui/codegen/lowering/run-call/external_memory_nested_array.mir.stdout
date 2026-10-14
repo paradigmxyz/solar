@@ -5,7 +5,7 @@
 
 fn @inspect(arg0: ptr<memory>) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = abi_encode [memory_array<memory_bytes>], scratch, args arg0
     v2 = extract_value slice<memory>, v1, 0
     v3 = extract_value slice<memory>, v1, 1
@@ -29,7 +29,7 @@ fn @inspectItems(arg0: slice<calldata>) -> i256 [selector=0x68057f1e, pure, abi_
     v8 = extract_value slice<calldata>, v7, 0
     v9 = ptrtoint ptr<calldata> v8 to i256
     v10 = add v9, 0
-    v11 = load calldata v10
+    v11 = calldataload v10
     v12 = extract_value slice<calldata>, arg0, 1
     v13 = lt 0, v12
     v14 = eq v13, false
@@ -42,7 +42,7 @@ fn @inspectItems(arg0: slice<calldata>) -> i256 [selector=0x68057f1e, pure, abi_
     v20 = extract_value slice<calldata>, v19, 0
     v21 = ptrtoint ptr<calldata> v20 to i256
     v22 = add v21, 128
-    v23 = load calldata v22
+    v23 = calldataload v22
     v24 = checked_add u256, v11, v23
     ret v24
 }
@@ -50,7 +50,7 @@ fn @inspectItems(arg0: slice<calldata>) -> i256 [selector=0x68057f1e, pure, abi_
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
+    mstore v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -58,23 +58,23 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc 64 !metadata(preserves_fmp)
-    store v6, 1
-    store v6+32, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    v7 = load v0
+    mstore v6, 1
+    mstore v6+32, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    v7 = mload v0
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptrtoint ptr<memory> v6 to i256
-    store v0+32, v10
+    mstore v0+32, v10
     v11 = alloc 64 !metadata(preserves_fmp)
-    store v11, 2
-    store v11+32, 0xbbcc000000000000000000000000000000000000000000000000000000000000
-    v12 = load v0
+    mstore v11, 2
+    mstore v11+32, 0xbbcc000000000000000000000000000000000000000000000000000000000000
+    v12 = mload v0
     v13 = lt 1, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptrtoint ptr<memory> v11 to i256
-    store v0+64, v15
+    mstore v0+64, v15
     v16 = abi_encode [memory_array<memory_bytes>], scratch, args v0
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
@@ -95,16 +95,16 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<tuple_data_too_short>, v28
     v29 = ptrtoint ptr<memory> v23 to i256
     v30 = add v29, 0
-    v31 = load v30
+    v31 = mload v30
     v32 = ptrtoint ptr<memory> v23 to i256
     v33 = add v32, 32
-    v34 = load v33
+    v34 = mload v33
     v35 = insert_value struct0, undef struct0, 0, v31
     v36 = insert_value struct0, v35, 1, v34
     v37 = extract_value struct0, v36, 0
     v38 = extract_value struct0, v36, 1
     v39 = alloc zeroed checked 64
-    store v39, 1
+    mstore v39, 1
     jump bb6
   bb6:
     v40 = phi [bb5: 0], [bb7: v46]
@@ -112,17 +112,17 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     jumpi v41, bb7, bb8
   bb8:
     v47 = alloc 160
-    store v47, 1
-    store v47+32, 2
-    store v47+64, 3
-    store v47+96, 4
-    store v47+128, 5
-    v48 = load v39
+    mstore v47, 1
+    mstore v47+32, 2
+    mstore v47+64, 3
+    mstore v47+96, 4
+    mstore v47+128, 5
+    v48 = mload v39
     v49 = lt 0, v48
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = ptrtoint ptr<memory> v47 to i256
-    store v39+32, v51
+    mstore v39+32, v51
     v52 = eq v37, 2
     jumpi v52, bb9, bb10
   bb10:
@@ -151,7 +151,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v63 = lt v62, 32
     icall revert_if<tuple_data_too_short>, v63
     v64 = add 0, 0
-    v65 = load v64
+    v65 = mload v64
     v66 = eq v65, 6
     jump bb14
   bb14:
@@ -163,13 +163,13 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v43 = shl 5, v40
     v44 = ptradd v39, v43
     v45 = ptrtoint ptr<memory> v42 to i256
-    store v44+32, v45
+    mstore v44+32, v45
     v46 = add v40, 1
     jump bb6
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4+32, 96
+    mstore v4+32, 96
     v5 = add v1, 1
     jump bb1
 }

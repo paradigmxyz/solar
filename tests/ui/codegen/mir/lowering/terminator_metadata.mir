@@ -3,7 +3,7 @@
 @module TerminatorMetadata
 
 // CHECK-LABEL: {{^[ +].*}}fn @identity{{[( ]}}
-// CHECK: store {{.*}} !metadata(span=30..40)
+// CHECK: mstore {{.*}} !metadata(span=30..40)
 // CHECK: returndata {{.*}} !metadata(span=30..40)
 fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, abi_params=[u256], abi_returns=[word]] {
   bb0:
@@ -13,7 +13,7 @@ fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, abi_params=[u256], abi_re
 // Failed external-call bubbling inherits the source location and modifier frame.
 // CHECK-LABEL: {{^[ +].*}}fn @bubble{{[( ]}}
 // CHECK: returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
-// CHECK: copy returndata {{.*}} !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
+// CHECK: returndatacopy {{.*}} !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
 // CHECK: revert {{.*}} !metadata(spans=[50..60, 70..80], modifier_depth=2)
 fn @bubble() {
   bb0:

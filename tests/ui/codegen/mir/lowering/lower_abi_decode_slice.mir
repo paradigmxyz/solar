@@ -20,9 +20,9 @@ fn @shared(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
     v7 = ptrtoint ptr<memory> arg1 to i256
     v2 = make_memory_slice arg1, v7
     v3 = abi_decode [tuple<u256, u256>], v2
-    v4 = load v1
+    v4 = mload v1
     v9001 = ptradd v3, 32
-    v5 = load v9001
+    v5 = mload v9001
     v6 = add v4, v5
     ret v6
 }

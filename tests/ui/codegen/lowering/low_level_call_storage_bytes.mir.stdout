@@ -41,11 +41,11 @@ fn @prepare(arg0: i160, arg1: slice<calldata>) [selector=0xaacd9878, abi_params=
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc v17
-    store v18, v13
+    mstore v18, v13
     v19 = ptradd v18, 32
     v20 = extract_value slice<calldata>, arg1, 0
     v21 = extract_value slice<calldata>, arg1, 1
-    copy calldata v19, v20, v21
+    calldatacopy v19, v20, v21
     icall @store_storage_bytes, 0, v18
     ret
 }

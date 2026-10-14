@@ -31,7 +31,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb2:
     jump bb3
   bb1:
-    v5 = load v4
+    v5 = mload v4
     v6 = eq v5, 32
     jump bb3
   bb3:
@@ -52,7 +52,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb5:
     jump bb6
   bb4:
-    v18 = load v17
+    v18 = mload v17
     v19 = eq v18, 32
     jump bb6
   bb6:
@@ -73,7 +73,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb8:
     jump bb9
   bb7:
-    v31 = load v30
+    v31 = mload v30
     v32 = eq v31, 32
     jump bb9
   bb9:
@@ -94,7 +94,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb11:
     jump bb12
   bb10:
-    v44 = load v43
+    v44 = mload v43
     v45 = eq v44, 32
     jump bb12
   bb12:
@@ -115,7 +115,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
   bb14:
     jump bb15
   bb13:
-    v57 = load v56
+    v57 = mload v56
     v58 = eq v57, 32
     jump bb15
   bb15:
@@ -147,7 +147,7 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_ret
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
-    v10 = load v9
+    v10 = mload v9
     ret v10
 }
 

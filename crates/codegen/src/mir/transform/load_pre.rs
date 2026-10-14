@@ -27,10 +27,10 @@
 //!   killed by may-aliasing `sstore` and by calls and creates. `STATICCALL` cannot mutate storage
 //!   or transient storage and does not kill them.
 //! - `(Transient, alias)`: same with `tload`/`tstore`.
-//! - `(Memory, canonical address, width 32)`: genned by `load` and by `store` at the same canonical
-//!   address (forwarded stored value); killed by overlapping `store`/`store8`, by copies with an
-//!   overlapping or unknown destination range, and by every call (including `STATICCALL`, which
-//!   writes its return buffer).
+//! - `(Memory, canonical address, width 32)`: genned by `mload` and by `mstore` at the same
+//!   canonical address (forwarded stored value); killed by overlapping `mstore`/`mstore8`, by
+//!   copies with an overlapping or unknown destination range, and by every call (including
+//!   `STATICCALL`, which writes its return buffer).
 //! - `(Keccak, canonical offset, size or dynamic-size value)`: genned by `keccak256`; killed like a
 //!   memory read over its range. Reads with a non-constant size key the size operand so reads of
 //!   different lengths never unify.

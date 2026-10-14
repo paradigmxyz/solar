@@ -11,7 +11,7 @@ fn @object(arg0: ptr<memory>, arg1: slice<memory>) -> ptr<memory> {
     v1 = alloc 32
     v2 = ptradd arg0, 32
     v3 = extract_value slice<memory>, arg1, 1
-    store v2, v3
+    mstore v2, v3
     ret v1
 }
 
@@ -21,11 +21,11 @@ fn @syntax_only_integer(arg0: i8) -> i8 {
     ret arg0
 }
 
-//~? ERROR: [fn2] [bb0, inst0] pointer arithmetic instruction `load` survives the `lowered` phase boundary
-//~? ERROR: [fn2] [bb0, inst1] pointer arithmetic instruction `store` survives the `lowered` phase boundary
+//~? ERROR: [fn2] [bb0, inst0] pointer arithmetic instruction `mload` survives the `lowered` phase boundary
+//~? ERROR: [fn2] [bb0, inst1] pointer arithmetic instruction `mstore` survives the `lowered` phase boundary
 fn @access_offset(arg0: i256) {
   bb0:
-    v0 = load arg0+32
-    store arg0+64, v0
+    v0 = mload arg0+32
+    mstore arg0+64, v0
     stop
 }

@@ -28,12 +28,12 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 11
-    store v0+32, 0x4e61746976654552433230000000000000000000000000000000000000000000
+    mstore v0, 11
+    mstore v0+32, 0x4e61746976654552433230000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 6
-    store v1+32, 0x4e45524332300000000000000000000000000000000000000000000000000000
+    mstore v1, 6
+    mstore v1+32, 0x4e45524332300000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 1, v1
     v2 = sload 2 !metadata(storage=slot(2))
     v3 = not 255
@@ -68,7 +68,7 @@ fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -91,7 +91,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -136,7 +136,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
-    v34 = load v33
+    v34 = mload v33
     v35 = shr 8, v34
     v36 = eq v35, 0
     v37 = eq v36, false

@@ -31,7 +31,7 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v23 = lt v22, 32
     icall panic_if<0x41>, v23
     v24 = alloc v22
-    store v24, v2
+    mstore v24, v2
     jump bb1
   bb1:
     v25 = phi [bb0: 0], [bb2: v38]
@@ -51,7 +51,7 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v45 = lt v44, 32
     icall revert_if<tuple_data_too_short>, v45
     v46 = add 0, 0
-    v47 = load v46
+    v47 = mload v46
     v48 = lt v47, 2
     v49 = eq v48, false
     icall revert_if<empty>, v49
@@ -61,7 +61,7 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v27 = mul v25, 32
     v28 = ptrtoint ptr<calldata> v3 to i256
     v29 = add v28, v27
-    v30 = load calldata v29
+    v30 = calldataload v29
     v31 = shl 192, v30
     v32 = eq v31, 0
     v33 = eq v32, false
@@ -70,7 +70,7 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v35 = shl 64, v34
     v36 = shl 5, v25
     v37 = ptradd v24, v36
-    store v37+32, v35
+    mstore v37+32, v35
     v38 = add v25, 1
     jump bb1
 }

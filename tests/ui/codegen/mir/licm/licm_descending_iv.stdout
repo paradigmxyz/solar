@@ -12,17 +12,17 @@
     bb3:
       ret v0
     bb2:
-      v3 = load 0
+      v3 = mload 0
 -     sstore v1, v3
 +     sstore v1, v3 !metadata(storage=symbolic(v1))
-      store v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v4 = sub v1, 1
       jump bb1
   }
   
   fn @hoist_mload_ascending_iv() -> i256 {
     bb0:
-+     v3 = load 0
++     v3 = mload 0
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v3]
@@ -32,10 +32,10 @@
     bb3:
       ret v0
     bb2:
--     v3 = load 0
+-     v3 = mload 0
 -     sstore v1, v3
 +     sstore v1, v3 !metadata(storage=symbolic(v1))
-      store v1, 7
+      mstore v1, 7
       v4 = add v1, 1
       jump bb1
   }

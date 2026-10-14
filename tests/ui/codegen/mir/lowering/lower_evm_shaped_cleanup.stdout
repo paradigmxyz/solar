@@ -15,7 +15,7 @@
       jump bb1
     bb1:
       v0 = add 1, 2
-      store 128, v0
+      mstore 128, v0
       returndata 128, 32
   }
   
@@ -31,7 +31,7 @@
 +     v2 = icall @pair_fail, 29
 +     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v4 = add v3, 32
-+     v5 = load v4
++     v5 = mload v4
       jump bb1
     bb1:
 -     v1 = extract_value struct0, v0, 1
@@ -44,7 +44,7 @@
 - fn @pair_fail(arg0: i256) -> struct0 {
 + fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
-      store 0, arg0
+      mstore 0, arg0
       revert 0, 32
   }
   
@@ -65,7 +65,7 @@
       jump bb1
     bb1:
       v0 = add 1, 2
-      store 128, v0
+      mstore 128, v0
       returndata 128, 32
   }
   
@@ -79,9 +79,9 @@
       v2 = icall @pair_fail, 29
 -     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 -     v4 = add v3, 32
-+     v6 = load 32 !metadata(memory=scratch)
++     v6 = mload 32 !metadata(memory=scratch)
 +     v4 = add v6, 32
-      v5 = load v4
+      v5 = mload v4
       jump bb1
     bb1:
       sstore 0, v5
@@ -90,7 +90,7 @@
   
   fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
-      store 0, arg0
+      mstore 0, arg0
       revert 0, 32
   }
   
@@ -112,7 +112,7 @@
 -     jump bb1
 -   bb1:
 -     v0 = add 1, 2
--     store 128, v0
+-     mstore 128, v0
 -     returndata 128, 32
 +     tail_call @fused
   }
@@ -125,9 +125,9 @@
   fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
     bb0:
 -     v2 = icall @pair_fail, 29
--     v6 = load 32 !metadata(memory=scratch)
+-     v6 = mload 32 !metadata(memory=scratch)
 -     v4 = add v6, 32
--     v5 = load v4
+-     v5 = mload v4
 -     jump bb1
 -   bb1:
 -     sstore 0, v5
@@ -137,7 +137,7 @@
   
   fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
-      store 0, arg0
+      mstore 0, arg0
       revert 0, 32
   }
   

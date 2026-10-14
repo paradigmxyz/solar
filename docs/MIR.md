@@ -13,16 +13,16 @@ names the location it points into: `ptr<memory>`, `ptr<calldata>`, or
 `ptr<returndata>`. It carries a 256-bit address without implying validity or
 heap provenance.
 Memory objects are `ptr<memory>` values too, accessed with ordinary instructions:
-every word access is a `load`, `store`, or `store8`, and every bulk copy into
-memory is a `copy`. `load` and `copy` name the location they read, so
-`load calldata v0` selects `CALLDATALOAD` and `copy returndata v0, v1, v2`
-selects `RETURNDATACOPY`; a plain `load` or `copy` reads memory. Like an LLVM
+every word access is a load, `mstore`, or `mstore8`, and every bulk copy into
+memory is a copy. One load and one copy instruction cover every location, and
+each prints as the opcode its location selects: `mload`, `calldataload`, or
+`returndataload`, and `mcopy`, `calldatacopy`, or `returndatacopy`. Like an LLVM
 load from `ptr`, an access takes a pointer into the location it reads or a raw
 `i256` address, and so does every memory range operand of `keccak256`, `log`,
 the calls, `create`, and raw `return` and `revert`. `lower-evm-shaped` erases
 pointer types: every pointer becomes the word it holds, and the casts between
 the two disappear. An access also
-takes an immediate byte offset, written `load v0+32` or `store v0+32, v1`, which
+takes an immediate byte offset, written `mload v0+32` or `mstore v0+32, v1`, which
 adds to the address as `ptradd` does for a pointer and as `add` does for a word.
 It keeps a constant field or element access to one instruction;
 `lower-memory-objects` turns a nonzero offset into an `add`, so every offset is
@@ -36,7 +36,7 @@ arithmetic uses `add` on words instead. A fixed array or struct has no length
 word, so field or element `i` is the word at `v0+32 * i`, and at
 `ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
 `string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
-read and rewrite: `load v0` reads the length, the payload starts at `v0+32`, and
+read and rewrite: `mload v0` reads the length, the payload starts at `v0+32`, and
 element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
 Where a slice value is needed, `make_memory_slice` pairs the payload pointer
 with the length; `extract_value` projects its pointer (field 0) and length

@@ -6,18 +6,18 @@
 fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
-    v1 = load v0
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 1
-    v4 = load v0
+    mstore v0+32, 1
+    v4 = mload v0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 2
-    v7 = load v0
+    mstore v0+64, 2
+    v7 = mload v0
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gt v8, v7
     jumpi v9, bb1, bb2
@@ -38,13 +38,13 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     jumpi v16, bb7, bb8
   bb8:
     v23 = alloc zeroed checked 64
-    store v23, 1
-    v24 = load v23
+    mstore v23, 1
+    v24 = mload v23
     v25 = lt 0, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    store v23+32, 3
-    v27 = load v23
+    mstore v23+32, 3
+    v27 = mload v23
     v28 = sload 0 !metadata(storage=slot(0))
     v29 = gt v28, v27
     jumpi v29, bb9, bb10
@@ -64,7 +64,7 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     v36 = lt v35, v27
     jumpi v36, bb15, bb16
   bb16:
-    store 0, 0 !metadata(memory=scratch)
+    mstore 0, 0 !metadata(memory=scratch)
     v43 = keccak256 0, 32 !metadata(memory=scratch)
     v44 = add v43, 1
     v45 = sload v44 !metadata(storage=offset(v43, 1))
@@ -81,7 +81,7 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
   bb15:
     v37 = shl 5, v35
     v38 = ptradd v23, v37
-    v39 = load v38+32
+    v39 = mload v38+32
     v40 = storage_array_data_slot 0
     v41 = add v40, v35
     sstore v41, v39 !metadata(storage=symbolic(v41))
@@ -96,7 +96,7 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
   bb7:
     v17 = shl 5, v15
     v18 = ptradd v0, v17
-    v19 = load v18+32
+    v19 = mload v18+32
     v20 = storage_array_data_slot 0
     v21 = add v20, v15
     sstore v21, v19 !metadata(storage=symbolic(v21))

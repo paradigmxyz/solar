@@ -11,7 +11,7 @@ fn @safeTransfer(arg0: i160, arg1: i160, arg2: i256) [selector=0xd1660f99, abi_p
   bb2:
     jump bb3
   bb1:
-    v5 = load v4
+    v5 = mload v4
     v6 = eq v5, 0
     jumpi v6, bb5, bb4
   bb4:

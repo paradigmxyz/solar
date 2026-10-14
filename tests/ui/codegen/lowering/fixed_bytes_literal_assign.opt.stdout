@@ -7,25 +7,25 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v12 = lt v11, 36
     jumpi v12, bb3, bb4
   bb4:
-    v13 = load calldata 4
+    v13 = calldataload 4
     v14 = lt v13, 2
     jumpi v14, bb5, bb3
   bb5:
-    v24 = load 64 !metadata(memory=scratch)
+    v24 = mload 64 !metadata(memory=scratch)
     v25 = add v24, 64
-    store 64, v25 !metadata(memory=scratch)
-    store v24, 2
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, 2
     v22 = add v24, 32
-    store v22, 0x4142000000000000000000000000000000000000000000000000000000000000
+    mstore v22, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb1:
-    store8 v22, 45
+    mstore8 v22, 45
     jump bb2
   bb2:
-    v8 = load v22
+    v8 = mload v22
     v9 = byte 0, v8
     v10 = shl 248, v9
-    store 128, v10
+    mstore 128, v10
     returndata 128, 32
   bb3:
     revert 0, 0
@@ -38,7 +38,7 @@ fn @store() [selector=0x975057e7, abi_wrapper] {
     v5 = or v2, 45
     sstore 0, v5 !metadata(storage=slot(0))
     v7 = shl 248, v5
-    store 128, v7
+    mstore 128, v7
     returndata 128, 32
 }
 
@@ -48,7 +48,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
   bb3:

@@ -5,8 +5,8 @@
 // trip count, so range reasoning must not prove the mload disjoint.
 @module LicmWrapAddDescending
 // CHECK-LABEL: {{^[ +].*}}fn @wrap_add_descending{{[( ]}}
-// CHECK: {{^[ +](.*[^a-z_])?}}store
-// CHECK: {{^[ +].*}}load 0
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
+// CHECK: {{^[ +].*}}mload 0
 fn @wrap_add_descending() -> i256 {
   bb0:
     jump bb1
@@ -17,8 +17,8 @@ fn @wrap_add_descending() -> i256 {
     jumpi v2, bb2, bb3
   bb2:
     v4 = mul v1, 32
-    store v4, 1
-    v3 = load 0
+    mstore v4, 1
+    v3 = mload 0
     v9 = add v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
   bb3:

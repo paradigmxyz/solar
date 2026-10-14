@@ -33,7 +33,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -122,7 +122,7 @@ fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -155,7 +155,7 @@ fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[u2
 
 fn @failScalar(arg0: i256) -> i256 [pure] {
   bb0:
-    store 0, arg0 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
@@ -173,7 +173,7 @@ fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u
 
 fn @failPair(arg0: i256) -> struct0 [pure] {
   bb0:
-    store 0, arg0 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
@@ -189,7 +189,7 @@ fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure,
     v3 = checked_add u256, v2, 1
     ret v3
   bb1:
-    store 0, arg1 !metadata(memory=scratch)
+    mstore 0, arg1 !metadata(memory=scratch)
     revert 0, 32
 }
 
@@ -204,7 +204,7 @@ fn @constructorFailure(arg0: i256) -> i160 [selector=0x61e5bcd1, abi_params=[u25
     v5 = extract_value slice<memory>, v0, 0
     v6 = ptrtoint ptr<memory> v4 to i256
     v7 = add v6, v1
-    copy v7, v5, 32 !metadata(memory=heap)
+    mcopy v7, v5, 32 !metadata(memory=heap)
     v8 = create 0, v4, v2
     v9 = ne v8, i160 0
     jumpi v9, bb2, bb1
@@ -224,7 +224,7 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = eq v7, i160 0
     v9 = eq v8, false
@@ -232,19 +232,19 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
   bb2:
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
-    v12 = load v10
+    v12 = mload v10
     v13 = make_memory_slice v11, v12
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
-    v17 = load v16
+    v17 = mload v16
     v18 = shr 224, v17
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15
   bb4:
     v19 = ptradd v10, 32
-    v20 = load v10
+    v20 = mload v10
     v21 = keccak256 v19, v20
     v22 = number
     v23 = checked_add u256, v22, 11
@@ -266,13 +266,13 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
 
 fn @oversizedReturn() [selector=0xe98a2448, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    store 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7
+    mstore 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7
     returndata 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 32
 }
 
 fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    store 0x123456789abcdef0, 7
+    mstore 0x123456789abcdef0, 7
     returndata 0x123456789abcdef0, 32
 }
 
@@ -338,19 +338,19 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
   bb2:
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
-    v12 = load v10
+    v12 = mload v10
     v13 = make_memory_slice v11, v12
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
-    v17 = load v16
+    v17 = mload v16
     v18 = shr 224, v17
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15
   bb4:
     v19 = ptradd v10, 32
-    v20 = load v10
+    v20 = mload v10
     v21 = keccak256 v19, v20
     v22 = eq v21, 0x90941e664046c4fb4064f646fbaafc5dc7ff860596426813c026a5a9c424233
     ret v22
@@ -477,7 +477,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 
 fn @fail(arg0: i256) -> i256 [pure] {
   bb0:
-    store 0, arg0 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
@@ -507,8 +507,8 @@ fn @fail() -> i256 [view] {
     icall revert_if<empty>, true
     invalid
   bb1:
-    store 0, v1 !metadata(memory=scratch)
-    store 32, v3 !metadata(memory=scratch)
-    store 64, v5 !metadata(memory=scratch)
+    mstore 0, v1 !metadata(memory=scratch)
+    mstore 32, v3 !metadata(memory=scratch)
+    mstore 64, v5 !metadata(memory=scratch)
     revert 0, 96
 }

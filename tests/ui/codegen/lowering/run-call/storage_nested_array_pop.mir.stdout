@@ -254,7 +254,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v9 = add v7, 1
     v10 = storage_array_data_slot 1
     v11 = add v10, v7
-    v12 = load v6
+    v12 = mload v6
     v13 = sload v11 !metadata(storage=symbolic(v11))
     v14 = gt v13, v12
     jumpi v14, bb7, bb8
@@ -299,7 +299,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb13:
     v33 = shl 5, v31
     v34 = ptradd v6, v33
-    v35 = load v34+32
+    v35 = mload v34+32
     v36 = storage_array_data_slot v11
     v37 = div v31, 16
     v38 = add v36, v37
@@ -344,22 +344,22 @@ fn @load_storage_packed_array_2_0(arg0: i256) -> ptr<memory> {
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 512
-    store v0, 1
-    store v0+32, 2
-    store v0+64, 3
-    store v0+96, 4
-    store v0+128, 5
-    store v0+160, 6
-    store v0+192, 7
-    store v0+224, 8
-    store v0+256, 9
-    store v0+288, 10
-    store v0+320, 11
-    store v0+352, 12
-    store v0+384, 13
-    store v0+416, 14
-    store v0+448, 15
-    store v0+480, 16
+    mstore v0, 1
+    mstore v0+32, 2
+    mstore v0+64, 3
+    mstore v0+96, 4
+    mstore v0+128, 5
+    mstore v0+160, 6
+    mstore v0+192, 7
+    mstore v0+224, 8
+    mstore v0+256, 9
+    mstore v0+288, 10
+    mstore v0+320, 11
+    mstore v0+352, 12
+    mstore v0+384, 13
+    mstore v0+416, 14
+    mstore v0+448, 15
+    mstore v0+480, 16
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 16
     jumpi v2, bb1, bb2
@@ -383,7 +383,7 @@ fn @constructor() [constructor] {
   bb7:
     v21 = shl 5, v19
     v22 = ptradd v0, v21
-    v23 = load v22
+    v23 = mload v22
     v24 = storage_array_data_slot 0
     v25 = div v19, 16
     v26 = add v24, v25

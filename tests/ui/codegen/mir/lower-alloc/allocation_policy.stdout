@@ -4,7 +4,7 @@
   fn @checked(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = alloc zeroed checked arg0 !metadata(preserves_fmp)
-+     v1 = load 64 !metadata(memory=scratch)
++     v1 = mload 64 !metadata(memory=scratch)
 +     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
 +     v2 = add v1, arg0
 +     v3 = lt v2, v1
@@ -13,22 +13,22 @@
 +     v6 = zext i1 v5 to i256
 +     jumpi v5, bb2, bb1
 +   bb1:
-+     store 64, v2 !metadata(memory=scratch)
++     mstore 64, v2 !metadata(memory=scratch)
 +     memory_zero v0, arg0
       ret v0
 +   bb2:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
   fn @internal() -> i256 {
     bb0:
 -     v0 = alloc 32 !metadata(span=10..20, preserves_fmp)
-+     v2 = load 64 !metadata(memory=scratch)
++     v2 = mload 64 !metadata(memory=scratch)
 +     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=10..20)
 +     v3 = add v2, 32
-+     store 64, v3 !metadata(memory=scratch)
++     mstore 64, v3 !metadata(memory=scratch)
       v1 = ptrtoint ptr<memory> v0 to i256
       ret v1
   }

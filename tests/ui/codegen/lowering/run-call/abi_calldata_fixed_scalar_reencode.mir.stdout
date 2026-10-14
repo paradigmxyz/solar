@@ -59,14 +59,14 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_para
     v16 = make_calldata_slice v0, 96
     v17 = extract_value slice<calldata>, v16, 0
     v18 = extract_value slice<calldata>, v16, 1
-    copy calldata v5, v17, v18
+    calldatacopy v5, v17, v18
     v19 = abi_encode [array<3, word<u8>>], object, args v5
     ret v19
   bb2:
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
-    v11 = load calldata v10
+    v11 = calldataload v10
     v12 = shr 8, v11
     v13 = eq v12, 0
     v14 = eq v13, false
@@ -124,7 +124,7 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v24 = mul v22, 32
     v25 = ptrtoint ptr<calldata> v17 to i256
     v26 = add v25, v24
-    v27 = load calldata v26
+    v27 = calldataload v26
     v28 = shr 8, v27
     v29 = eq v28, 0
     v30 = eq v29, false

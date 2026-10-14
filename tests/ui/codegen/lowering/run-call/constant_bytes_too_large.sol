@@ -12,7 +12,7 @@ contract C {
 
     // CHECK-LABEL: fn @length(
     // CHECK: [[BYTES:v[0-9]+]] = alloc zeroed
-    // CHECK: store [[BYTES]], 0x10001
+    // CHECK: mstore [[BYTES]], 0x10001
     function length() public pure returns (uint256) {
         B;
         return B.length;

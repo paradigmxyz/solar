@@ -34,7 +34,7 @@ error: [fn17] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an expl
 
 error: [fn18] [bb0, inst0] `ptradd` has incompatible scalar types; use an explicit cast
 
-error: [fn19] [bb0, inst0] `store` has incompatible scalar types; use an explicit cast
+error: [fn19] [bb0, inst0] `mstore` has incompatible scalar types; use an explicit cast
 
 error: [fn20] [bb0, inst0] `set_fmp` has incompatible scalar types; use an explicit cast
 
@@ -48,7 +48,7 @@ error: [fn24] [bb0, inst0] ABI input location does not support its layout
 
 error: [fn25] [bb0, inst0] ABI input location does not support its layout
 
-error: [fn26] [bb0, inst0] `load` has incompatible scalar types; use an explicit cast
+error: [fn26] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
 
 error: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 

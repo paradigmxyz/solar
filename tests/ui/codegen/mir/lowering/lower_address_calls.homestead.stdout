@@ -6,7 +6,7 @@
 -     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32 !metadata(span=10..20, modifier_depth=2)
-+     v3 = load arg1 !metadata(span=10..20, modifier_depth=2)
++     v3 = mload arg1 !metadata(span=10..20, modifier_depth=2)
 +     v4 = gas !metadata(span=10..20, modifier_depth=2)
 +     v5 = sub v4, 0x61da !metadata(span=10..20, modifier_depth=2)
 +     v6 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
@@ -21,18 +21,18 @@
 -     v1 = icall returndata_bytes<> !metadata(span=30..40, modifier_depth=3)
 -     ret v1
 +     v2 = ptradd arg1, 32
-+     v3 = load arg1
++     v3 = mload arg1
 +     v4 = zext i160 arg0 to i256
 +     v5 = call arg2, v4, 0, v2, v3, 0, 0
 +     v6 = not 31 !metadata(span=30..40, modifier_depth=3)
 +     v7 = and 63, v6 !metadata(span=30..40, modifier_depth=3)
 +     v8 = alloc v7 !metadata(span=30..40, modifier_depth=3)
-+     store v8, 0 !metadata(span=30..40, modifier_depth=3)
++     mstore v8, 0 !metadata(span=30..40, modifier_depth=3)
 +     v9 = make_returndata_slice ptr<returndata> 0, 0 !metadata(span=30..40, modifier_depth=3)
 +     v10 = ptradd v8, 32 !metadata(span=30..40, modifier_depth=3)
 +     v11 = extract_value slice<returndata>, v9, 0 !metadata(span=30..40, modifier_depth=3)
 +     v12 = extract_value slice<returndata>, v9, 1 !metadata(span=30..40, modifier_depth=3)
-+     copy returndata v10, v11, v12 !metadata(span=30..40, modifier_depth=3)
++     returndatacopy v10, v11, v12 !metadata(span=30..40, modifier_depth=3)
 +     ret v8
   }
   
@@ -41,7 +41,7 @@
 -     v0 = address_delegatecall arg0, arg1, gas 0x186a0
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32
-+     v3 = load arg1
++     v3 = mload arg1
 +     v4 = zext i160 arg0 to i256
 +     v5 = delegatecall 0x186a0, v4, v2, v3, 0, 0
 +     v1 = zext i1 v5 to i256
@@ -53,7 +53,7 @@
 -     v0 = address_call arg0, arg1, value 0
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32
-+     v3 = load arg1
++     v3 = mload arg1
 +     v4 = gas
 +     v5 = sub v4, 0x8502
 +     v6 = zext i160 arg0 to i256

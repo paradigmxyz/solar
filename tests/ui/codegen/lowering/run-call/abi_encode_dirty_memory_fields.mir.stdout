@@ -4,30 +4,30 @@ fn @dirty() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
     memory_zero v0, 192
-    store v0, 1
-    store v0+32, 1
+    mstore v0, 1
+    mstore v0+32, 1
     v1 = lt i8 1, i8 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    store v0+64, 1
-    store v0+96, 1
+    mstore v0+64, 1
+    mstore v0+96, 1
     v3 = sext i8 255 to i256
-    store v0+128, v3
-    store v0+160, 0x1234000000000000000000000000000000000000000000000000000000000000
+    mstore v0+128, v3
+    mstore v0+160, 0x1234000000000000000000000000000000000000000000000000000000000000
     v4 = ptrtoint ptr<memory> v0 to i256
-    store v0, 511
+    mstore v0, 511
     v5 = ptrtoint ptr<memory> v0 to i256
     v6 = add v5, 32
-    store v6, 258
+    mstore v6, 258
     v7 = ptrtoint ptr<memory> v0 to i256
     v8 = add v7, 96
-    store v8, 0x1000000000000000000000000000000000000000000000000000000000000002
+    mstore v8, 0x1000000000000000000000000000000000000000000000000000000000000002
     v9 = ptrtoint ptr<memory> v0 to i256
     v10 = add v9, 128
-    store v10, 254
+    mstore v10, 254
     v11 = ptrtoint ptr<memory> v0 to i256
     v12 = add v11, 160
-    store v12, 0x1234567800000000000000000000000000000000000000000000000000000000
+    mstore v12, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -44,23 +44,23 @@ fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_return
 fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
-    v1 = load v0
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 3
-    v4 = load v0
+    mstore v0+32, 3
+    v4 = mload v0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 4
+    mstore v0+64, 4
     v7 = ptrtoint ptr<memory> v0 to i256
     v8 = add v7, 32
-    store v8, 0xff03
+    mstore v8, 0xff03
     v9 = ptrtoint ptr<memory> v0 to i256
     v10 = add v9, 64
-    store v10, 260
+    mstore v10, 260
     v11 = abi_encode [memory_array<word<u8>>], scratch, args v0
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
@@ -73,7 +73,7 @@ fn @encodeBadEnum() -> ptr<memory> [selector=0xc72bddb9, pure, abi_params=[], ab
     v0 = icall @dirty
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 64
-    store v2, 5
+    mstore v2, 5
     v3 = abi_encode [tuple<word<u8>, word<bool>, word<enum 2>, word<u160>, word<i8>, word<bytes2>>], object, args v0
     ret v3
 }

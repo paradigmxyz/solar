@@ -41,7 +41,7 @@ fn @transientRead(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd51942
     v3 = tload 5
     ret v3
   bb4:
-    store 0, 99 !metadata(memory=scratch)
+    mstore 0, 99 !metadata(memory=scratch)
     returndata 0, 32
 }
 

@@ -11,7 +11,7 @@
 +   bb3:
 +     jump bb1
 +   bb1:
-+     store 128, arg0 !metadata(span=30..40)
++     mstore 128, arg0 !metadata(span=30..40)
 +     v2 = add 128, 32 !metadata(span=30..40)
 +     v3 = sub v2, 128 !metadata(span=30..40)
 +     returndata 128, v3 !metadata(span=30..40)
@@ -23,7 +23,7 @@
     bb0:
 -     revert_returndata !metadata(spans=[50..60, 70..80], modifier_depth=2)
 +     v0 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
-+     copy returndata 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
++     returndatacopy 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
 +     v1 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
 +     revert 0, v1 !metadata(spans=[50..60, 70..80], modifier_depth=2)
   }
@@ -39,7 +39,7 @@
     bb3:
       jump bb1
     bb1:
-      store 128, arg0 !metadata(span=30..40)
+      mstore 128, arg0 !metadata(span=30..40)
       v2 = add 128, 32 !metadata(span=30..40)
       v3 = sub v2, 128 !metadata(span=30..40)
       returndata 128, v3 !metadata(span=30..40)
@@ -50,7 +50,7 @@
   fn @bubble() {
     bb0:
       v0 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
-      copy returndata 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
+      returndatacopy 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
       v1 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
       revert 0, v1 !metadata(spans=[50..60, 70..80], modifier_depth=2)
   }

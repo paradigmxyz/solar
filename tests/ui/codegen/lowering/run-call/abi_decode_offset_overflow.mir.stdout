@@ -3,98 +3,98 @@
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = abi_encode [word, word, word], object, args 32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v2 = alloc 32 !metadata(preserves_fmp)
-    store v2, 0
-    store v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v3 = load v0
+    mstore v2, 0
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    store v0+32, 0x1e240
+    mstore v0+32, 0x1e240
     v6 = abi_decode [array<2, array<_, u256>>], v1
     v7 = lt 1, 2
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = load v6+32
+    v9 = mload v6+32
     v10 = inttoptr i256 v9 to ptr<memory>
     v11 = eq v9, 0
     jumpi v11, bb1, bb2
   bb1:
     v12 = alloc 32
-    store v12, 0
+    mstore v12, 0
     v13 = ptrtoint ptr<memory> v12 to i256
-    store v6+32, v13
+    mstore v6+32, v13
     jump bb2
   bb2:
     v14 = phi [bb0: v10], [bb1: v12]
-    v15 = load v14
+    v15 = mload v14
     v16 = lt 0, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = load v14+32
+    v18 = mload v14+32
     ret v18
 }
 
 fn @withinArray() -> i256 [selector=0xac457954, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = abi_encode [word, word], object, args 32, 2
     v2 = alloc 64 !metadata(preserves_fmp)
-    store v2, 0
-    store v2+32, 0
-    v3 = load v0
+    mstore v2, 0
+    mstore v2+32, 0
+    v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    store v0+32, 0x1e240
-    store v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
-    store v2+32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+    mstore v0+32, 0x1e240
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+    mstore v2+32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
     v6 = abi_decode [array<_, array<_, u256>>], v1
-    v7 = load v6
+    v7 = mload v6
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = load v6+32
+    v10 = mload v6+32
     v11 = inttoptr i256 v10 to ptr<memory>
     v12 = eq v10, 0
     jumpi v12, bb1, bb2
   bb1:
     v13 = alloc 32
-    store v13, 0
+    mstore v13, 0
     v14 = ptrtoint ptr<memory> v13 to i256
-    store v6+32, v14
+    mstore v6+32, v14
     jump bb2
   bb2:
     v15 = phi [bb0: v11], [bb1: v13]
-    v16 = load v15
+    v16 = mload v15
     v17 = lt 0, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = load v15+32
-    v20 = load v6
+    v19 = mload v15+32
+    v20 = mload v6
     v21 = lt 1, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = load v6+64
+    v23 = mload v6+64
     v24 = inttoptr i256 v23 to ptr<memory>
     v25 = eq v23, 0
     jumpi v25, bb3, bb4
   bb3:
     v26 = alloc 32
-    store v26, 0
+    mstore v26, 0
     v27 = ptrtoint ptr<memory> v26 to i256
-    store v6+64, v27
+    mstore v6+64, v27
     jump bb4
   bb4:
     v28 = phi [bb2: v24], [bb3: v26]
-    v29 = load v28
+    v29 = mload v28
     v30 = lt 0, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    v32 = load v28+32
+    v32 = mload v28+32
     v33 = checked_add u256, v19, v32
     ret v33
 }

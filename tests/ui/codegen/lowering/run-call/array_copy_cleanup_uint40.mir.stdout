@@ -383,13 +383,13 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     sstore v309, v319 !metadata(storage=symbolic(v309))
     sstore 0, v306 !metadata(storage=slot(0))
     v320 = alloc zeroed checked 64
-    store v320, 1
-    v321 = load v320
+    mstore v320, 1
+    v321 = mload v320
     v322 = lt 0, v321
     v323 = eq v322, false
     icall panic_if<0x32>, v323
-    store v320+32, 23
-    v324 = load v320
+    mstore v320+32, 23
+    v324 = mload v320
     v325 = sload 0 !metadata(storage=slot(0))
     v326 = gt v325, v324
     jumpi v326, bb1, bb2
@@ -749,7 +749,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
   bb7:
     v345 = shl 5, v343
     v346 = ptradd v320, v345
-    v347 = load v346+32
+    v347 = mload v346+32
     v348 = storage_array_data_slot 0
     v349 = div v343, 6
     v350 = add v348, v349

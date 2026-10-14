@@ -7,9 +7,9 @@ fn @constructor() [constructor] {
     v1 = mapping_slot_bytes v0, 1
     sstore v1, 7 !metadata(storage=symbolic(v1))
     v2 = alloc 96 !metadata(preserves_fmp)
-    store v2, 58
-    store v2+32, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    store v2+64, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    mstore v2, 58
+    mstore v2+32, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    mstore v2+64, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v3 = mapping_slot_bytes v2, 1
     sstore v3, 11 !metadata(storage=symbolic(v3))
     ret
@@ -31,7 +31,7 @@ fn @readMemory(arg0: ptr<memory>) -> i256 [selector=0xfa397925, view, abi_params
 
 fn @readMemoryFmp(arg0: ptr<memory>) -> i1 [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = load 64 !metadata(memory=scratch)
+    v0 = mload 64 !metadata(memory=scratch)
     v1 = gt v0, 128
     jumpi v1, bb1, bb2
   bb2:
@@ -70,9 +70,9 @@ fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns
 fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    store v0, 58
-    store v0+32, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    store v0+64, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    mstore v0, 58
+    mstore v0+32, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    mstore v0+64, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
     v1 = mapping_slot_bytes v0, 1
     v2 = sload v1 !metadata(storage=symbolic(v1))
     ret v2
@@ -111,7 +111,7 @@ fn @overwriteShort() -> i256 [selector=0xa33ac7ad, abi_params=[], abi_returns=[w
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, arg1
-    store v0+32, arg0
+    mstore v0, arg1
+    mstore v0+32, arg0
     ret v0
 }

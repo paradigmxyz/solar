@@ -6,7 +6,7 @@
   
   fn @hoist_non_aliasing_mload() -> i256 {
     bb0:
-+     v1 = load 0
++     v1 = mload 0
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v1]
@@ -14,8 +14,8 @@
     bb3:
       ret v0
     bb2:
--     v1 = load 0
-      store 64, 1
+-     v1 = mload 0
+      mstore 64, 1
       jump bb1
   }
   
@@ -28,8 +28,8 @@
     bb3:
       ret v0
     bb2:
-      v1 = load 0
-      store 16, 1
+      v1 = mload 0
+      mstore 16, 1
       jump bb1
   }
   
@@ -44,7 +44,7 @@
       ret v0
     bb2:
 -     v1 = keccak256 0, 32
-      store 64, 1
+      mstore 64, 1
       jump bb1
   }
   
@@ -58,7 +58,7 @@
       ret v0
     bb2:
       v1 = keccak256 0, 32
-      store 16, 1
+      mstore 16, 1
       jump bb1
   }
   

@@ -5,20 +5,20 @@
 // CHECK-LABEL: after sroa
 // CHECK: {{^[ +].*}}fn @local_struct{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc 64
-// CHECK: - store {{v[0-9]+}}, arg0
-// CHECK: - store {{v[0-9]+}}, arg1
+// CHECK: - mstore {{v[0-9]+}}, arg0
+// CHECK: - mstore {{v[0-9]+}}, arg1
 // CHECK: + {{v[0-9]+}} = add arg0, arg1
 // CHECK: {{^[ +].*}}fn @local_struct_observe_fmp{{[( ]}}
 // CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = alloc 64
-// CHECK-NEXT: {{^[ +].*}}store [[OBJECT]], arg0
+// CHECK-NEXT: {{^[ +].*}}mstore [[OBJECT]], arg0
 // CHECK-NEXT: {{^[ +].*}}[[FIELD1:v[0-9]+]] = ptradd [[OBJECT]], 32
-// CHECK-NEXT: {{^[ +].*}}store [[FIELD1]], arg1
-// CHECK-NEXT: {{^[ +].*}}{{v[0-9]+}} = load [[OBJECT]]
+// CHECK-NEXT: {{^[ +].*}}mstore [[FIELD1]], arg1
+// CHECK-NEXT: {{^[ +].*}}{{v[0-9]+}} = mload [[OBJECT]]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = fmp
 // CHECK: {{^[ +].*}}fn @zeroed_array{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc 128
 // CHECK: - memory_zero
-// CHECK: - {{v[0-9]+}} = load
+// CHECK: - {{v[0-9]+}} = mload
 // CHECK: + ret 0
 // CHECK: {{^[ +].*}}fn @return_zeroed_object{{[( ]}}
 // CHECK: {{^[ +].*}}memory_zero [[RETURN_PTR:v[0-9]+]], 64
@@ -28,11 +28,11 @@
 // CHECK: {{^[ +].*}}revert [[REVERT_PTR]], 64
 // CHECK: {{^[ +].*}}fn @return_field{{[( ]}}
 // CHECK: {{^[ +].*}}[[RETURN_FIELD:v[0-9]+]] = ptradd {{v[0-9]+}}, 32
-// CHECK-NEXT: {{^[ +].*}}store [[RETURN_FIELD]], arg0
+// CHECK-NEXT: {{^[ +].*}}mstore [[RETURN_FIELD]], arg0
 // CHECK: {{^[ +].*}}returndata [[FIELD:v[0-9]+]], 32
 // CHECK: {{^[ +].*}}fn @revert_field_successor{{[( ]}}
 // CHECK: {{^[ +].*}}[[REVERT_FIELD:v[0-9]+]] = ptradd {{v[0-9]+}}, 32
-// CHECK-NEXT: {{^[ +].*}}store [[REVERT_FIELD]], arg0
+// CHECK-NEXT: {{^[ +].*}}mstore [[REVERT_FIELD]], arg0
 // CHECK: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}revert {{v[0-9]+}}, 32
 // CHECK-LABEL: after dce
@@ -41,12 +41,12 @@
 fn @local_struct(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, arg0
+    mstore v0, arg0
     v1 = ptradd v0, 32
-    store v1, arg1
-    v4 = load v0
+    mstore v1, arg1
+    v4 = mload v0
     v3 = ptradd v0, 32
-    v6 = load v3
+    v6 = mload v3
     v7 = add v4, v6
     ret v7
 }
@@ -55,12 +55,12 @@ fn @local_struct(arg0: i256, arg1: i256) -> i256 {
 fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = alloc 64
-    store v0, arg0
+    mstore v0, arg0
     v1 = ptradd v0, 32
-    store v1, arg1
-    v4 = load v0
+    mstore v1, arg1
+    v4 = mload v0
     v3 = ptradd v0, 32
-    v6 = load v3
+    v6 = mload v3
     v7 = add v4, v6
     v18 = fmp
     v8 = ptrtoint ptr<memory> v18 to i256
@@ -74,7 +74,7 @@ fn @zeroed_array() -> i256 {
     v30 = ptrtoint ptr<memory> v0 to i256
     memory_zero v30, 128
     v1 = ptradd v0, 96
-    v2 = load v1
+    v2 = mload v1
     ret v2
 }
 
@@ -98,7 +98,7 @@ fn @return_field(arg0: i256) {
   bb0:
     v0 = alloc 64
     v1 = ptradd v0, 32
-    store v1, arg0
+    mstore v1, arg0
     v2 = ptrtoint ptr<memory> v0 to i256
     v3 = add v2, 32
     returndata v3, 32
@@ -108,7 +108,7 @@ fn @revert_field_successor(arg0: i256) {
   bb0:
     v0 = alloc 64
     v1 = ptradd v0, 32
-    store v1, arg0
+    mstore v1, arg0
     v2 = ptrtoint ptr<memory> v0 to i256
     v3 = add v2, 32
     jump bb1
@@ -123,14 +123,14 @@ fn @zeroed_through_word() -> i256 {
     v0 = alloc 32
     v2 = ptrtoint ptr<memory> v0 to i256
     memory_zero v2, 32
-    v5 = load v0
+    v5 = mload v0
     ret v5
 }
 
 // CHECK-LABEL: fn @truncated_pointer_escapes
 // CHECK: {{^[ +].*}}memory_zero
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = trunc i256
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = load v0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload v0
 fn @truncated_pointer_escapes() -> i256 {
   bb0:
     v0 = alloc 32
@@ -138,7 +138,7 @@ fn @truncated_pointer_escapes() -> i256 {
     memory_zero v1, 32
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256
-    store v3, 7
-    v6 = load v0
+    mstore v3, 7
+    v6 = mload v0
     ret v6
 }

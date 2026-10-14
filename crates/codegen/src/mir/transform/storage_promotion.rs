@@ -853,7 +853,7 @@ impl StorageScalarPromoter {
         );
         exit_instructions.push(normalize);
 
-        // dirty = load dirty_addr
+        // dirty = mload dirty_addr
         // jumpi dirty, store_block, continuation !metadata(intentionally dropped)
         func.blocks[exit].instructions = exit_instructions;
         func.blocks[exit].set_generated_terminator(Terminator::Branch {

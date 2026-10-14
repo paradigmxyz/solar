@@ -20,8 +20,8 @@ fn @assignmentValue() -> struct0 [selector=0x454887fb, abi_params=[], abi_return
 fn @assignmentLength() -> i256 [selector=0xbe0b35b4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 4
-    store v0+32, 0x6162636400000000000000000000000000000000000000000000000000000000
+    mstore v0, 4
+    mstore v0+32, 0x6162636400000000000000000000000000000000000000000000000000000000
     v1 = ptrtoint ptr<memory> v0 to i256
     icall @store_storage_bytes, 0, v0
     v2 = sload 0 !metadata(storage=slot(0))
@@ -40,8 +40,8 @@ fn @assignmentStruct() -> ptr<memory> [selector=0x2e58a5e6, abi_params=[], abi_r
     v0 = alloc 32
     v1 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0, v2
-    v3 = load v0
+    mstore v0, v2
+    v3 = mload v0
     v4 = inttoptr i256 v3 to ptr<memory>
     icall @store_storage_bytes, 0, v4
     v5 = load_storage_bytes 0
@@ -66,11 +66,11 @@ fn @assignmentCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x47c196a
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     icall @store_storage_bytes, 0, v12
     v16 = load_storage_bytes 0
     ret v16
@@ -117,8 +117,8 @@ fn @accessState() -> i256 {
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, arg1
-    store v0+32, arg0
+    mstore v0, arg1
+    mstore v0+32, arg0
     ret v0
 }
 

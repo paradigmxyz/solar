@@ -4,7 +4,7 @@ fn @pointer() -> ptr<memory> [selector=0x2f5f3b3c, view, abi_params=[], abi_retu
   bb0:
     v0 = icall @load_storage_bytes, 0
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     v4 = shr 224, v3
     v5 = shl 224, v4
@@ -23,7 +23,7 @@ fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[boo
     v0 = phi [bb1: 0], [bb2: 1]
     v1 = icall @load_storage_bytes, v0
     v2 = ptradd v1, 32
-    v3 = load v1
+    v3 = mload v1
     v4 = keccak256 v2, v3
     v5 = shr 224, v4
     v6 = shl 224, v5
@@ -40,12 +40,12 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 10
-    store v0+32, 0x662875696e743235362900000000000000000000000000000000000000000000
+    mstore v0, 10
+    mstore v0+32, 0x662875696e743235362900000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 10
-    store v1+32, 0x672875696e743235362900000000000000000000000000000000000000000000
+    mstore v1, 10
+    mstore v1+32, 0x672875696e743235362900000000000000000000000000000000000000000000
     icall @store_storage_bytes, 1, v1
     ret
 }

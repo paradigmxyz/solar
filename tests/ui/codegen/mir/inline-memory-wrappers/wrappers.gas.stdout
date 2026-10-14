@@ -10,26 +10,26 @@
 +     jump bb2
 +   bb2:
 +     v4 = icall @base, arg0
-+     v5 = load v4
++     v5 = mload v4
 +     v6 = add v5, 2
-+     store v4, v6
++     mstore v4, v6
 +     jump bb1
 +   bb1:
 +     v7 = phi [bb2: v4]
 +     jump bb4
 +   bb4:
 +     v8 = icall @base, v7
-+     v9 = load v8
++     v9 = mload v8
 +     v10 = add v9, 2
-+     store v8, v10
++     mstore v8, v10
 +     jump bb3
 +   bb3:
 +     v11 = phi [bb4: v8]
 +     jump bb6
 +   bb6:
 +     v12 = icall @base, v11
-+     v13 = load v12
-+     store v12, v13
++     v13 = mload v12
++     mstore v12, v13
 +     jump bb5
 +   bb5:
 +     v14 = phi [bb6: v12]
@@ -40,24 +40,24 @@
   fn @wrap(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      v1 = load v0
+      v1 = mload v0
       v2 = add v1, 2
-      store v0, v2
+      mstore v0, v2
       ret v0
   }
   
   fn @single(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      v1 = load v0
-      store v0, v1
+      v1 = mload v0
+      mstore v0, v1
       ret v0
   }
   
   fn @effects(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      store v0, 5
+      mstore v0, 5
       sstore 0, 5
       ret v0
   }
@@ -81,7 +81,7 @@
       v9 = add v5, v6
       v10 = add v7, v8
       v11 = add v9, v10
-      store v0, v11
+      mstore v0, v11
       ret v11
   }
   
@@ -93,9 +93,9 @@
 -     jump bb2
 -   bb2:
       v4 = icall @base, arg0
-      v5 = load v4
+      v5 = mload v4
       v6 = add v5, 2
-      store v4, v6
+      mstore v4, v6
 -     jump bb1
 -   bb1:
 -     v7 = phi [bb2: v4]
@@ -103,9 +103,9 @@
 -   bb4:
 -     v8 = icall @base, v7
 +     v8 = icall @base, v4
-      v9 = load v8
+      v9 = mload v8
       v10 = add v9, 2
-      store v8, v10
+      mstore v8, v10
 -     jump bb3
 -   bb3:
 -     v11 = phi [bb4: v8]
@@ -113,8 +113,8 @@
 -   bb6:
 -     v12 = icall @base, v11
 +     v12 = icall @base, v8
-      v13 = load v12
-      store v12, v13
+      v13 = mload v12
+      mstore v12, v13
 -     jump bb5
 -   bb5:
 -     v14 = phi [bb6: v12]
@@ -126,24 +126,24 @@
   fn @wrap(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      v1 = load v0
+      v1 = mload v0
       v2 = add v1, 2
-      store v0, v2
+      mstore v0, v2
       ret v0
   }
   
   fn @single(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      v1 = load v0
-      store v0, v1
+      v1 = mload v0
+      mstore v0, v1
       ret v0
   }
   
   fn @effects(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      store v0, 5
+      mstore v0, 5
       sstore 0, 5
       ret v0
   }
@@ -167,7 +167,7 @@
       v9 = add v5, v6
       v10 = add v7, v8
       v11 = add v9, v10
-      store v0, v11
+      mstore v0, v11
       ret v11
   }
   
@@ -177,16 +177,16 @@
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
       v4 = icall @base, arg0
-      v5 = load v4
+      v5 = mload v4
       v6 = add v5, 2
-      store v4, v6
+      mstore v4, v6
       v8 = icall @base, v4
-      v9 = load v8
+      v9 = mload v8
       v10 = add v9, 2
-      store v8, v10
+      mstore v8, v10
       v12 = icall @base, v8
-      v13 = load v12
-      store v12, v13
+      v13 = mload v12
+      mstore v12, v13
       v3 = icall @effects, v12
       ret v3
   }
@@ -194,24 +194,24 @@
   fn @wrap(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      v1 = load v0
+      v1 = mload v0
       v2 = add v1, 2
-      store v0, v2
+      mstore v0, v2
       ret v0
   }
   
   fn @single(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      v1 = load v0
-      store v0, v1
+      v1 = mload v0
+      mstore v0, v1
       ret v0
   }
   
   fn @effects(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
-      store v0, 5
+      mstore v0, 5
       sstore 0, 5
       ret v0
   }
@@ -235,7 +235,7 @@
       v9 = add v5, v6
       v10 = add v7, v8
       v11 = add v9, v10
-      store v0, v11
+      mstore v0, v11
       ret v11
   }
   

@@ -43,8 +43,8 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<u8>], abi_return_params=[u256, u8]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v1 = abi_encode [memory_bytes, word<u8>], args v0, 18
     v2 = extract_value slice<memory>, v1, 1
     v3 = datasize Token_creation_code_0
@@ -61,7 +61,7 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v11 = extract_value slice<memory>, v1, 0
     v12 = ptrtoint ptr<memory> v10 to i256
     v13 = add v12, v3
-    copy v13, v11, v2 !metadata(memory=heap)
+    mcopy v13, v11, v2 !metadata(memory=heap)
     v14 = create 0, v10, v4
     v15 = ne v14, i160 0
     jumpi v15, bb2, bb1
@@ -80,7 +80,7 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
   bb4:
     v22 = icall returndata_bytes<>
     v23 = abi_decode [bytes], v22
-    v24 = load v23
+    v24 = mload v23
     v25 = gas
     v26 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
     v27 = extract_value slice<memory>, v26, 0
@@ -95,7 +95,7 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
-    v34 = load v33
+    v34 = mload v33
     v35 = shr 8, v34
     v36 = eq v35, 0
     v37 = eq v36, false

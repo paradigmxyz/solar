@@ -3,55 +3,55 @@
   @module MemoryDseBuilderCases
   fn @overwritten_store() {
     bb0:
--     store 128, 0
-      store 128, 42
+-     mstore 128, 0
+      mstore 128, 42
       stop
   }
   
   fn @store_observed_only_by_load() -> i256 {
     bb0:
--     store 128, 0
--     v0 = load 128
-      store 128, 42
+-     mstore 128, 0
+-     v0 = mload 128
+      mstore 128, 42
 -     ret v0
 +     ret 0
   }
   
   fn @disjoint_keccak() {
     bb0:
--     store 128, 0
+-     mstore 128, 0
       v0 = keccak256 0, 64
-      store 128, 1
+      mstore 128, 1
       stop
   }
   
   fn @overlapping_keccak() {
     bb0:
-      store 128, 0
+      mstore 128, 0
       v0 = keccak256 96, 64
-      store 128, 1
+      mstore 128, 1
       stop
   }
   
   fn @cross_block_dead_store(arg0: i256) {
     bb0:
--     store 128, 0
+-     mstore 128, 0
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       revert 0, 0
     bb1:
-      store 128, 1
+      mstore 128, 1
       returndata 128, 32
   }
   
   fn @cross_block_read_path(arg0: i256) {
     bb0:
-      store 128, 7
+      mstore 128, 7
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
     bb2:
-      store 128, 9
+      mstore 128, 9
       returndata 128, 32
     bb1:
       returndata 128, 32
@@ -59,31 +59,31 @@
   
   fn @return_pointer() -> i256 {
     bb0:
-      store 160, 42
+      mstore 160, 42
       ret 160
   }
   
   fn @gas_barrier() {
     bb0:
-      store 128, 0
+      mstore 128, 0
       v0 = gas
-      store 128, 42
+      mstore 128, 42
       stop
   }
   
   fn @distinct_immediate_addresses() {
     bb0:
--     store 128, 0
-      store 128, 42
+-     mstore 128, 0
+      mstore 128, 42
       stop
   }
   
   fn @equivalent_base_load(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 32
-      store v0, 42
+      mstore v0, 42
       v1 = add arg0, 32
--     v2 = load v1
+-     v2 = mload v1
 -     ret v2
 +     ret 42
   }
@@ -91,9 +91,9 @@
   fn @equivalent_base_overwrite(arg0: i256) {
     bb0:
       v0 = add arg0, 32
--     store v0, 0
+-     mstore v0, 0
       v1 = add arg0, 32
-      store v1, 42
+      mstore v1, 42
       stop
   }
   
@@ -101,7 +101,7 @@
     bb0:
       v0 = internal_frame_addr 192
       v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 0
+-     mstore v1, 0
       ret 0
   }
   
@@ -110,71 +110,71 @@
       v0 = codesize
       v1 = sub v0, 64
       codecopy 0, v1, 32
-      v2 = load 0
+      v2 = mload 0
       jump bb1
     bb1:
       v3 = codesize
       v4 = sub v3, 64
 -     codecopy 0, v4, 32
--     v5 = load 0
+-     v5 = mload 0
 -     v6 = add v2, v5
-+     store 0, v2
++     mstore 0, v2
 +     v6 = add v2, v2
       ret v6
   }
   
   fn @overlapping_load() {
     bb0:
-      store 128, 0
-      v0 = load 129
-      store 128, 42
+      mstore 128, 0
+      v0 = mload 129
+      mstore 128, 42
       stop
   }
   
   fn @forward_load() -> i256 {
     bb0:
-      store 128, 42
--     v0 = load 128
+      mstore 128, 42
+-     v0 = mload 128
 -     ret v0
 +     ret 42
   }
   
   fn @forward_through_pure_op() -> i256 {
     bb0:
-      store 128, 42
+      mstore 128, 42
       v0 = add 1, 1
--     v1 = load 128
+-     v1 = mload 128
 -     ret v1
 +     ret 42
   }
   
   fn @memory_write_barrier() -> i256 {
     bb0:
-      store 128, 42
-      copy 160, 128, 32
-      v0 = load 128
+      mstore 128, 42
+      mcopy 160, 128, 32
+      v0 = mload 128
       ret v0
   }
   
   fn @icall_barrier() -> i256 {
     bb0:
-      store 128, 42
+      mstore 128, 42
       icall @writer
-      v0 = load 128
+      v0 = mload 128
       ret v0
   }
   
   fn @writer() {
     bb0:
-      store 160, 7
+      mstore 160, 7
       ret
   }
   
   fn @icall_clean_callee() -> i256 {
     bb0:
-      store 128, 42
+      mstore 128, 42
       icall @callee
--     v0 = load 128
+-     v0 = mload 128
 -     ret v0
 +     ret 42
   }
@@ -186,9 +186,9 @@
   
   fn @icall_msize_barrier() -> i256 {
     bb0:
-      store 0x1000, 42
+      mstore 0x1000, 42
       v0 = icall @observe_msize
-      store 0x1000, 0
+      mstore 0x1000, 0
       ret v0
   }
   
@@ -200,12 +200,12 @@
   
   fn @chained_forwarding() -> i256 {
     bb0:
-      store 128, 42
--     v0 = load 128
--     store 160, v0
--     v1 = load 160
+      mstore 128, 42
+-     v0 = mload 128
+-     mstore 160, v0
+-     v1 = mload 160
 -     ret v1
-+     store 160, 42
++     mstore 160, 42
 +     ret 42
   }
   

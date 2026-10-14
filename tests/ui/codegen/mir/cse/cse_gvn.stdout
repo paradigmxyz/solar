@@ -47,25 +47,25 @@
     bb0:
       v0 = add arg0, 16
       v1 = add v0, 16
-      v2 = load v1
+      v2 = mload v1
       jumpi arg1, bb1, bb2
     bb2:
       ret v2
     bb1:
 -     v3 = add arg0, 32
--     store v3, 7
--     v4 = load v1
+-     mstore v3, 7
+-     v4 = mload v1
 -     ret v4
-+     store v1, 7
++     mstore v1, 7
 +     ret 7
   }
   
   fn @keep_distinct_negative_memory_offsets(arg0: i256) -> i256 {
     bb0:
       v0 = sub arg0, 1
-      v1 = load v0
+      v1 = mload v0
       v2 = sub arg0, 2
-      v3 = load v2
+      v3 = mload v2
       v4 = add v1, v3
       ret v4
   }

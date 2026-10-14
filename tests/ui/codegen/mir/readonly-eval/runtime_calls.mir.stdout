@@ -3,7 +3,7 @@
 fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32
-    store v0, 0
+    mstore v0, 0
     v1 = icall @isEmpty, v0
     ret v1
 }
@@ -11,8 +11,8 @@ fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=
 fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 1
-    store v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 1
+    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     v1 = icall @isEmpty, v0
     ret v1
 }
@@ -20,7 +20,7 @@ fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_retur
 fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
-    v1 = load arg0
+    v1 = mload arg0
     v2 = eq v1, 0
     v3 = zext i1 v2 to i256
     ret v3
@@ -31,10 +31,10 @@ fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_return
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, 42
+    mstore v4, 42
     v5 = icall @read, v2
     ret v5
 }
@@ -44,10 +44,10 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, arg0
+    mstore v4, arg0
     v5 = icall @read, v2
     ret v5
 }
@@ -57,10 +57,10 @@ fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, 42
+    mstore v4, 42
     icall @overwrite, v2, arg0
     v5 = icall @read, v2
     ret v5
@@ -69,8 +69,8 @@ fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u
 fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 1
-    store v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 1
+    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     v1 = icall @short, v0
     ret v1
 }
@@ -83,33 +83,33 @@ fn @dynamicShort(arg0: ptr<memory>) -> i256 [selector=0x5def3fed, pure, abi_para
 
 fn @read(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = eq v0, 32
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = ptrtoint ptr<memory> arg0 to i256
     v4 = add v3, 32
-    v5 = load v4
+    v5 = mload v4
     ret v5
 }
 
 fn @short(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = lt v0, 32
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = ptrtoint ptr<memory> arg0 to i256
-    v4 = load arg0
+    v4 = mload arg0
     v5 = not 0
     v6 = ptrtoint ptr<memory> arg0 to i256
-    v7 = load arg0
+    v7 = mload arg0
     v8 = sub 32, v7
     v9 = mul v8, 8
     v10 = shl v9, v5
     v11 = ptrtoint ptr<memory> arg0 to i256
     v12 = add v11, 32
-    v13 = load v12
+    v13 = mload v12
     v14 = and v13, v10
     v15 = or v14, v4
     ret v15
@@ -119,6 +119,6 @@ fn @overwrite(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
-    store v1, arg1
+    mstore v1, arg1
     ret
 }

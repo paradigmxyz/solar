@@ -7,23 +7,23 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
     memory_zero v0, 128
-    store v0+32, 96
-    store v0+96, 96
-    store v0, 7
+    mstore v0+32, 96
+    mstore v0+96, 96
+    mstore v0, 7
     v1 = alloc 128 !metadata(preserves_fmp)
-    store v1, 73
-    store v1+32, 0x3132333435363738393031323334353637383930313233343536373839303120
-    store v1+64, 0x3132333435363738393031323334353637383930313233343536373839303120
-    store v1+96, 0x3132333435363738390000000000000000000000000000000000000000000000
+    mstore v1, 73
+    mstore v1+32, 0x3132333435363738393031323334353637383930313233343536373839303120
+    mstore v1+64, 0x3132333435363738393031323334353637383930313233343536373839303120
+    mstore v1+96, 0x3132333435363738390000000000000000000000000000000000000000000000
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+96, v2
+    mstore v0+96, v2
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 6
-    store v3+32, 0x6162636465660000000000000000000000000000000000000000000000000000
+    mstore v3, 6
+    mstore v3+32, 0x6162636465660000000000000000000000000000000000000000000000000000
     v4 = ptrtoint ptr<memory> v3 to i256
-    store v0+32, v4
-    store v0+64, 9
-    v5 = load v0
+    mstore v0+32, v4
+    mstore v0+64, 9
+    v5 = mload v0
     v6 = sload 1 !metadata(storage=slot(1))
     v7 = not 0xffff
     v8 = and v6, v7
@@ -31,11 +31,11 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v10 = or v8, v9
     sstore 1, v10 !metadata(storage=slot(1))
     v11 = add 1, 1
-    v12 = load v0+32
+    v12 = mload v0+32
     v13 = inttoptr i256 v12 to ptr<memory>
     icall @store_storage_bytes, v11, v13
     v14 = add 1, 2
-    v15 = load v0+64
+    v15 = mload v0+64
     v16 = sload v14 !metadata(storage=slot(3))
     v17 = not 0xffff
     v18 = and v16, v17
@@ -43,7 +43,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v20 = or v18, v19
     sstore v14, v20 !metadata(storage=slot(3))
     v21 = add 1, 3
-    v22 = load v0+96
+    v22 = mload v0+96
     v23 = inttoptr i256 v22 to ptr<memory>
     icall @store_storage_bytes, v21, v23
     v24 = add 1, 1
@@ -59,23 +59,23 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
     memory_zero v0, 128
-    store v0+32, 96
-    store v0+96, 96
-    store v0, 7
+    mstore v0+32, 96
+    mstore v0+96, 96
+    mstore v0, 7
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 17
-    store v1+32, 0x3132333435363738393233343536373839000000000000000000000000000000
+    mstore v1, 17
+    mstore v1+32, 0x3132333435363738393233343536373839000000000000000000000000000000
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+96, v2
+    mstore v0+96, v2
     v3 = alloc 128 !metadata(preserves_fmp)
-    store v3, 73
-    store v3+32, 0x3132333435363738393031323334353637383930313233343536373839303120
-    store v3+64, 0x3132333435363738393031323334353637383930313233343536373839303120
-    store v3+96, 0x3132333435363738390000000000000000000000000000000000000000000000
+    mstore v3, 73
+    mstore v3+32, 0x3132333435363738393031323334353637383930313233343536373839303120
+    mstore v3+64, 0x3132333435363738393031323334353637383930313233343536373839303120
+    mstore v3+96, 0x3132333435363738390000000000000000000000000000000000000000000000
     v4 = ptrtoint ptr<memory> v3 to i256
-    store v0+32, v4
-    store v0+64, 9
-    v5 = load v0
+    mstore v0+32, v4
+    mstore v0+64, 9
+    v5 = mload v0
     v6 = sload 1 !metadata(storage=slot(1))
     v7 = not 0xffff
     v8 = and v6, v7
@@ -83,11 +83,11 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     v10 = or v8, v9
     sstore 1, v10 !metadata(storage=slot(1))
     v11 = add 1, 1
-    v12 = load v0+32
+    v12 = mload v0+32
     v13 = inttoptr i256 v12 to ptr<memory>
     icall @store_storage_bytes, v11, v13
     v14 = add 1, 2
-    v15 = load v0+64
+    v15 = mload v0+64
     v16 = sload v14 !metadata(storage=slot(3))
     v17 = not 0xffff
     v18 = and v16, v17
@@ -95,7 +95,7 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     v20 = or v18, v19
     sstore v14, v20 !metadata(storage=slot(3))
     v21 = add 1, 3
-    v22 = load v0+96
+    v22 = mload v0+96
     v23 = inttoptr i256 v22 to ptr<memory>
     icall @store_storage_bytes, v21, v23
     v24 = add 1, 1
@@ -111,9 +111,9 @@ fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_byte
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
     memory_zero v0, 128
-    store v0+32, 96
-    store v0+96, 96
-    v1 = load v0
+    mstore v0+32, 96
+    mstore v0+96, 96
+    v1 = mload v0
     v2 = sload 1 !metadata(storage=slot(1))
     v3 = not 0xffff
     v4 = and v2, v3
@@ -121,11 +121,11 @@ fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_byte
     v6 = or v4, v5
     sstore 1, v6 !metadata(storage=slot(1))
     v7 = add 1, 1
-    v8 = load v0+32
+    v8 = mload v0+32
     v9 = inttoptr i256 v8 to ptr<memory>
     icall @store_storage_bytes, v7, v9
     v10 = add 1, 2
-    v11 = load v0+64
+    v11 = mload v0+64
     v12 = sload v10 !metadata(storage=slot(3))
     v13 = not 0xffff
     v14 = and v12, v13
@@ -133,7 +133,7 @@ fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_byte
     v16 = or v14, v15
     sstore v10, v16 !metadata(storage=slot(3))
     v17 = add 1, 3
-    v18 = load v0+96
+    v18 = mload v0+96
     v19 = inttoptr i256 v18 to ptr<memory>
     icall @store_storage_bytes, v17, v19
     v20 = add 1, 1

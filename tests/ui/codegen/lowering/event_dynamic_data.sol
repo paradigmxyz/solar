@@ -16,8 +16,8 @@ contract EventDynamicData {
 
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[LITERAL:v[0-9]+]] = alloc
-    // CHECK: store [[LITERAL]], 5
-    // CHECK: store [[LITERAL]]+32, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    // CHECK: mstore [[LITERAL]], 5
+    // CHECK: mstore [[LITERAL]]+32, 0x736f6c6172000000000000000000000000000000000000000000000000000000
     // CHECK: [[ENCODED2:v[0-9]+]] = abi_encode [memory_bytes, word], args
     // CHECK: [[PTR2:v[0-9]+]] = extract_value slice<memory>, [[ENCODED2]], 0
     // CHECK: [[LEN2:v[0-9]+]] = extract_value slice<memory>, [[ENCODED2]], 1

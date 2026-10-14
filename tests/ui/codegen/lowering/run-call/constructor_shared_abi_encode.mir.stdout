@@ -27,8 +27,8 @@ fn @recordFirst(arg0: i160) {
   bb0:
     v0 = gas
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 5
-    store v1+32, 0x6669727374000000000000000000000000000000000000000000000000000000
+    mstore v1, 5
+    mstore v1+32, 0x6669727374000000000000000000000000000000000000000000000000000000
     v2 = abi_encode [word<u160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 1, v1
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
@@ -49,8 +49,8 @@ fn @recordSecond(arg0: i160) {
   bb0:
     v0 = gas
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 6
-    store v1+32, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    mstore v1, 6
+    mstore v1+32, 0x7365636f6e640000000000000000000000000000000000000000000000000000
     v2 = abi_encode [word<u160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 2, v1
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
@@ -83,7 +83,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -100,7 +100,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v15 = extract_value slice<memory>, v10, 0
     v16 = ptrtoint ptr<memory> v14 to i256
     v17 = add v16, v11
-    copy v17, v15, 32 !metadata(memory=heap)
+    mcopy v17, v15, 32 !metadata(memory=heap)
     v18 = create 0, v14, v12
     v19 = ne v18, i160 0
     jumpi v19, bb4, bb3
@@ -121,6 +121,6 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v27 = lt v26, 32
     icall revert_if<tuple_data_too_short>, v27
     v28 = add 0, 0
-    v29 = load v28
+    v29 = mload v28
     ret v29
 }

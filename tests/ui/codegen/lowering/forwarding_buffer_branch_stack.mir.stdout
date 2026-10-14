@@ -28,7 +28,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v9 = extract_value slice<memory>, v5, 0
     v10 = ptrtoint ptr<memory> v8 to i256
     v11 = add v10, v6
-    copy v11, v9, 0 !metadata(memory=heap)
+    mcopy v11, v9, 0 !metadata(memory=heap)
     v12 = create 0, v8, v6
     v13 = ne v12, i160 0
     jumpi v13, bb2, bb1
@@ -52,12 +52,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = load v25
+    v26 = mload v25
     v27 = lt v26, 2
     v28 = eq v27, false
     icall revert_if<empty>, v28
     v29 = returndatasize
-    copy returndata 0, 0, v29 !metadata(memory=scratch)
+    returndatacopy 0, 0, v29 !metadata(memory=scratch)
     v30 = sload 4 !metadata(storage=slot(4))
     v31 = lt v4, v30
     v32 = eq v31, false
@@ -137,7 +137,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v91 = extract_value slice<memory>, v87, 0
     v92 = ptrtoint ptr<memory> v90 to i256
     v93 = add v92, v88
-    copy v93, v91, 0 !metadata(memory=heap)
+    mcopy v93, v91, 0 !metadata(memory=heap)
     v94 = create 0, v90, v88
     v95 = ne v94, i160 0
     jumpi v95, bb12, bb11
@@ -149,9 +149,9 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v98 = loadimmutable sI
     v99 = zext i24 v98 to i256
     v100 = sload 6 !metadata(storage=slot(6))
-    store v97, v99
-    store v97+32, v100
-    v101 = load v97
+    mstore v97, v99
+    mstore v97+32, v100
+    v101 = mload v97
     v102 = trunc i256 v101 to i24
     v103 = sload 0 !metadata(storage=slot(0))
     v104 = lt v0, v103
@@ -189,7 +189,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v130 = lt v129, 32
     icall revert_if<tuple_data_too_short>, v130
     v131 = add 0, 0
-    v132 = load v131
+    v132 = mload v131
     v133 = lt v132, 2
     v134 = eq v133, false
     icall revert_if<empty>, v134

@@ -20,18 +20,18 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
   bb2:
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
-    v12 = load v10
+    v12 = mload v10
     v13 = make_memory_slice v11, v12
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
-    v17 = load v16
+    v17 = mload v16
     v18 = shr 224, v17
     jumpi true, bb4, bb5
   bb5:
     revert v14, v15
   bb4:
-    v19 = load v10
+    v19 = mload v10
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb3
   bb1:
@@ -42,7 +42,7 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
 
 fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
@@ -55,10 +55,10 @@ fn @fail(arg0: ptr<memory>) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>]
 
 fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 2
-    store v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    mstore v1, 2
+    mstore v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v2 = insert_value struct0, undef struct0, 0, v0
     v3 = insert_value struct0, v2, 1, v1
     ret v3
@@ -82,8 +82,8 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     invalid
   bb4:
     v14 = alloc 64 !metadata(preserves_fmp)
-    store v14, 6
-    store v14+32, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    mstore v14, 6
+    mstore v14+32, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v15 = insert_value struct0, undef struct0, 0, 0
     v16 = insert_value struct0, v15, 1, v14
     ret v16
@@ -108,7 +108,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     v2 = shl 32, v1
     v3 = or v2, 0x93edcd0d
     v4 = alloc 32
-    store v4, 7
+    mstore v4, 7
     icall @invoke, v3, v4
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
@@ -121,7 +121,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word]
     v2 = shl 32, v1
     v3 = or v2, 0xe8be0a6f
     v4 = alloc 32
-    store v4, 7
+    mstore v4, 7
     icall @invoke, v3, v4
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
@@ -134,7 +134,7 @@ fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word,
     v2 = shl 32, v1
     v3 = or v2, 0x76ea4d37
     v4 = alloc 32
-    store v4, 7
+    mstore v4, 7
     v5 = icall @invokePair, v3, v4
     v6 = extract_value struct0, v5, 0
     v7 = extract_value struct0, v5, 1

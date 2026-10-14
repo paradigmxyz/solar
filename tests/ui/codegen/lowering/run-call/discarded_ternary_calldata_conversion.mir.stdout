@@ -3,7 +3,7 @@
 fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, u256>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 32
-    store v0, 0
+    mstore v0, 0
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -41,7 +41,7 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
     v28 = alloc v26
-    store v28, v6
+    mstore v28, v6
     jump bb7
   bb7:
     v29 = phi [bb4: 0], [bb8: v71]
@@ -59,7 +59,7 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v35 = sub v34, v33
     v36 = slt v35, 32
     icall revert_if<calldata_tail_too_short>, v36
-    v37 = load calldata v33
+    v37 = calldataload v33
     v38 = ptrtoint ptr<calldata> v7 to i256
     v39 = add v38, v37
     v40 = calldatasize
@@ -69,7 +69,7 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v44 = slt v37, v43
     v45 = eq v44, false
     icall revert_if<invalid_calldata_tail_offset>, v45
-    v46 = load calldata v39
+    v46 = calldataload v39
     v47 = calldatasize
     v48 = gt v46, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v48
@@ -90,23 +90,23 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v61 = lt v60, 32
     icall panic_if<0x41>, v61
     v62 = alloc v60
-    store v62, v46
+    mstore v62, v46
     v63 = inttoptr i256 v50 to ptr<calldata>
     v64 = make_calldata_slice v63, v53
     v65 = ptradd v62, 32
     v66 = extract_value slice<calldata>, v64, 0
     v67 = extract_value slice<calldata>, v64, 1
-    copy calldata v65, v66, v67
+    calldatacopy v65, v66, v67
     v68 = ptrtoint ptr<memory> v62 to i256
     v69 = shl 5, v29
     v70 = ptradd v28, v69
-    store v70+32, v68
+    mstore v70+32, v68
     v71 = add v29, 1
     jump bb7
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4+32, 96
+    mstore v4+32, 96
     v5 = add v1, 1
     jump bb1
 }
@@ -114,7 +114,7 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
 fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -122,34 +122,34 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc zeroed checked 64
-    store v6, 1
-    v7 = load v0
+    mstore v6, 1
+    v7 = mload v0
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptrtoint ptr<memory> v6 to i256
-    store v0+32, v10
-    v11 = load v0
+    mstore v0+32, v10
+    v11 = mload v0
     v12 = lt 0, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = load v0+32
+    v14 = mload v0+32
     v15 = inttoptr i256 v14 to ptr<memory>
     v16 = eq v14, 0
     jumpi v16, bb4, bb5
   bb4:
     v17 = alloc 32
-    store v17, 0
+    mstore v17, 0
     v18 = ptrtoint ptr<memory> v17 to i256
-    store v0+32, v18
+    mstore v0+32, v18
     jump bb5
   bb5:
     v19 = phi [bb3: v15], [bb4: v17]
-    v20 = load v19
+    v20 = mload v19
     v21 = lt 0, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    store v19+32, 7
+    mstore v19+32, 7
     v23 = zext i1 arg0 to i256
     v24 = abi_encode [word<bool>, memory_array<memory_array<word>>], object, selector 0xfbc4674700000000000000000000000000000000000000000000000000000000, args v23, v0
     jumpi arg1, bb6, bb7
@@ -159,7 +159,7 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v25 = not 0
     v26 = ptrtoint ptr<memory> v24 to i256
     v27 = add v26, 132
-    store v27, v25
+    mstore v27, v25
     jump bb8
   bb8:
     v28 = address
@@ -169,7 +169,7 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4+32, 96
+    mstore v4+32, 96
     v5 = add v1, 1
     jump bb1
 }

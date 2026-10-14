@@ -5,18 +5,18 @@
     bb0:
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
--     store v1, 7
+-     mstore v1, 7
       v2 = internal_frame_addr 128
       v3 = ptrtoint ptr<memory> v2 to i256
--     v4 = load v3
+-     v4 = mload v3
 -     v5 = add v4, 1
 +     v5 = add 7, 1
       v6 = internal_frame_addr 128
       v7 = ptrtoint ptr<memory> v6 to i256
--     store v7, v5
+-     mstore v7, v5
       v8 = internal_frame_addr 128
       v9 = ptrtoint ptr<memory> v8 to i256
--     v10 = load v9
+-     v10 = mload v9
 -     ret v10
 +     ret v5
   }

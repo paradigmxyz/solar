@@ -4,12 +4,12 @@
   fn @same_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = inttoptr i256 arg0 to ptr<memory>
--     v1 = load v0
-+     v1 = load arg0
+-     v1 = mload v0
++     v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
-      v3 = load arg0
+      v3 = mload arg0
       v4 = lt arg1, v3
       jumpi v4, bb3, bb2
     bb2:
@@ -21,13 +21,13 @@
   fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
 -     v0 = inttoptr i256 arg0 to ptr<memory>
--     v1 = load v0
-+     v1 = load arg0
+-     v1 = mload v0
++     v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
-      store arg0, arg2
-      v3 = load arg0
+      mstore arg0, arg2
+      v3 = mload arg0
       v4 = lt arg1, v3
       jumpi v4, bb3, bb2
     bb2:
@@ -42,14 +42,14 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
 -     v1 = inttoptr i256 arg0 to ptr<memory>
--     v2 = load v1
-+     v2 = load arg0
+-     v2 = mload v1
++     v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
       ret v0
     bb2:
-      v4 = load arg0
+      v4 = mload arg0
       v5 = lt v0, v4
       jumpi v5, bb3, bb5
     bb5:
@@ -65,14 +65,14 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
 -     v1 = inttoptr i256 arg0 to ptr<memory>
--     v2 = load v1
-+     v2 = load arg0
+-     v2 = mload v1
++     v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
       ret v0
     bb2:
-      v4 = load arg0
+      v4 = mload arg0
       v5 = lt v0, v4
       jumpi v5, bb3, bb5
     bb5:
@@ -88,14 +88,14 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
 -     v1 = inttoptr i256 arg0 to ptr<memory>
--     v2 = load v1
-+     v2 = load arg0
+-     v2 = mload v1
++     v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
       ret v0
     bb2:
-      v4 = load arg0
+      v4 = mload arg0
       v5 = lt v0, v4
       jumpi v5, bb3, bb5
     bb5:
@@ -115,11 +115,11 @@
   @module LateMemoryConditions
   fn @same_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v1 = load arg0
+      v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
--     v3 = load arg0
+-     v3 = mload arg0
 -     v4 = lt arg1, v3
 -     jumpi v4, bb3, bb2
 +     jumpi v2, bb3, bb2
@@ -131,12 +131,12 @@
   
   fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v1 = load arg0
+      v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
-      store arg0, arg2
--     v3 = load arg0
+      mstore arg0, arg2
+-     v3 = mload arg0
 -     v4 = lt arg1, v3
 +     v4 = lt arg1, arg2
       jumpi v4, bb3, bb2
@@ -151,13 +151,13 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
-      v2 = load arg0
+      v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
       ret v0
     bb2:
--     v4 = load arg0
+-     v4 = mload arg0
 -     v5 = lt v0, v4
 -     jumpi v5, bb3, bb5
 +     jumpi v3, bb3, bb5
@@ -173,13 +173,13 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
-      v2 = load arg0
+      v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
       ret v0
     bb2:
--     v4 = load arg0
+-     v4 = mload arg0
 -     v5 = lt v0, v4
 -     jumpi v5, bb3, bb5
 +     jumpi v3, bb3, bb5
@@ -195,13 +195,13 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
-      v2 = load arg0
+      v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
       ret v0
     bb2:
--     v4 = load arg0
+-     v4 = mload arg0
 -     v5 = lt v0, v4
 -     jumpi v5, bb3, bb5
 +     jumpi v3, bb3, bb5

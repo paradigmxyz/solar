@@ -16,14 +16,14 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
-    store v2, v0
+    mstore v2, v0
     v3 = ptradd v2, 32
     v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
     v5 = ptrtoint ptr<memory> v2 to i256
     v6 = add v5, v4
-    store v6, 0
+    mstore v6, 0
     datacopy EmptyRuntime_runtime_code_0, v3, v0
-    v7 = load v2
+    v7 = mload v2
     ret v7
 }
 
@@ -32,12 +32,12 @@ fn @runtimeCode() -> ptr<memory> [selector=0x40e70806, pure, abi_params=[], abi_
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
-    store v2, v0
+    mstore v2, v0
     v3 = ptradd v2, 32
     v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
     v5 = ptrtoint ptr<memory> v2 to i256
     v6 = add v5, v4
-    store v6, 0
+    mstore v6, 0
     datacopy EmptyRuntime_runtime_code_0, v3, v0
     ret v2
 }
@@ -52,7 +52,7 @@ fn @deploy() -> i1 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>]
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1

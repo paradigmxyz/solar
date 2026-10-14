@@ -8,7 +8,7 @@ fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
   bb2:
-    store 128, arg0
+    mstore 128, arg0
     returndata 128, 32
   bb1:
     revert 0, 0
@@ -16,7 +16,7 @@ fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
 
 fn @entry() [entry] {
   bb0:
-    v0 = load calldata 0
+    v0 = calldataload 0
     v1 = shr 224, v0
     switch v1, default bb2, [0xb3de648b => bb1]
   bb1:
@@ -30,7 +30,7 @@ fn @entry() [entry] {
 @phase lowered
 fn @sel() [selector=0x41c910e1, abi_wrapper, pure] {
   bb0:
-    store 128, 0xb3de648b00000000000000000000000000000000000000000000000000000000
+    mstore 128, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     returndata 128, 32
 }
 
@@ -40,7 +40,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb3, [0x41c910e1 => bb2]
   bb2:

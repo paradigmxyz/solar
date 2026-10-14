@@ -15,15 +15,15 @@ fn @dedup_identical_panics(arg0: i256, arg1: i256) {
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb1:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 17
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 36
   bb2:
     v1 = ne arg1, 0
     jumpi v1, bb3, bb4
   bb3:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 17
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 36
   bb4:
     stop
@@ -37,15 +37,15 @@ fn @keep_distinct_panic_codes(arg0: i256, arg1: i256) {
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb1:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 17
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 36
   bb2:
     v1 = ne arg1, 0
     jumpi v1, bb3, bb4
   bb3:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 18
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 18
     revert 0, 36
   bb4:
     stop
@@ -59,15 +59,15 @@ fn @keep_distinct_revert_sizes(arg0: i256, arg1: i256) {
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb1:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 17
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 36
   bb2:
     v1 = ne arg1, 0
     jumpi v1, bb3, bb4
   bb3:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 17
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 32
   bb4:
     stop
@@ -85,14 +85,14 @@ fn @dedup_local_computations(arg0: i256, arg1: i256) {
     jumpi v21, bb1, bb2
   bb1:
     v10 = add arg0, 1
-    store 0, v10
+    mstore 0, v10
     revert 0, 32
   bb2:
     v22 = ne arg1, 0
     jumpi v22, bb3, bb4
   bb3:
     v20 = add arg0, 1
-    store 0, v20
+    mstore 0, v20
     revert 0, 32
   bb4:
     stop
@@ -106,13 +106,13 @@ fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb1:
-    store 0, arg0
+    mstore 0, arg0
     revert 0, 32
   bb2:
     v1 = ne arg1, 0
     jumpi v1, bb3, bb4
   bb3:
-    store 0, arg1
+    mstore 0, arg1
     revert 0, 32
   bb4:
     stop
@@ -127,16 +127,16 @@ fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: ptr<memory>) {
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
   bb1:
-    v0 = load arg2
-    store 0, v0
+    v0 = mload arg2
+    mstore 0, v0
     revert 0, 32
   bb2:
     v3 = ne arg1, 0
     jumpi v3, bb3, bb4
   bb3:
     v9001 = ptradd arg2, 32
-    v1 = load v9001
-    store 0, v1
+    v1 = mload v9001
+    mstore 0, v1
     revert 0, 32
   bb4:
     stop

@@ -26,13 +26,13 @@ fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [select
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc v18
-    store v19, v14
+    mstore v19, v14
     v20 = ptradd v19, 32
     v21 = extract_value slice<calldata>, arg0, 0
     v22 = extract_value slice<calldata>, arg0, 1
-    copy calldata v20, v21, v22
+    calldatacopy v20, v21, v22
     v23 = ptrtoint ptr<memory> v19 to i256
-    store v6, v23
+    mstore v6, v23
     v24 = extract_value slice<calldata>, arg1, 0
     v25 = extract_value slice<calldata>, arg1, 1
     v26 = calldatasize
@@ -49,18 +49,18 @@ fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [select
     v34 = not 31
     v35 = and v32, v34
     v36 = alloc v35
-    store v36, v31
+    mstore v36, v31
     v37 = ptradd v36, 32
     v38 = extract_value slice<calldata>, arg1, 0
     v39 = extract_value slice<calldata>, arg1, 1
-    copy calldata v37, v38, v39
+    calldatacopy v37, v38, v39
     v40 = ptrtoint ptr<memory> v36 to i256
-    store v6+32, v40
+    mstore v6+32, v40
     ret v6
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4, 96
+    mstore v4, 96
     v5 = add v1, 1
     jump bb1
 }

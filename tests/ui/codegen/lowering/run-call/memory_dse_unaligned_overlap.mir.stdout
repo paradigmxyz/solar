@@ -2,9 +2,9 @@
 @module MemoryDseUnalignedOverlap
 fn @restore() -> i256 [selector=0x2fda332e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    store 128, 0x1234
-    store 129, 0
-    store 128, 0x1234
-    v0 = load 128
+    mstore 128, 0x1234
+    mstore 129, 0
+    mstore 128, 0x1234
+    v0 = mload 128
     ret v0
 }

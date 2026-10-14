@@ -5,7 +5,7 @@
     bb0:
       v0 = alloc 96
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 2
+      mstore v1, 2
       ret v0
   }
   
@@ -16,7 +16,7 @@
 -     v2 = extract_value slice<memory>, v1, 0
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
-+     v4 = load v0
++     v4 = mload v0
 +     v5 = ptrtoint ptr<memory> v0 to i256
 +     v6 = eq v5, 0
 +     v7 = eq v6, false
@@ -25,9 +25,9 @@
 +     v10 = ptradd v0, 32
 +     v11 = shl 5, v9
 +     v12 = ptradd v0, 64
-+     copy v12, v10, v11
-+     store v0, 32
-+     store v0+32, v9
++     mcopy v12, v10, v11
++     mstore v0, 32
++     mstore v0+32, v9
 +     v13 = add v11, 64
 +     v14 = make_memory_slice v0, v13
 +     v2 = extract_value slice<memory>, v14, 0
@@ -46,19 +46,19 @@
 +     v5 = add v4, 32
 +     v6 = ptrtoint ptr<memory> v3 to i256
 +     v7 = sub v5, v6
-+     store v3, v7
-+     v8 = load arg0
++     mstore v3, v7
++     v8 = mload arg0
 +     v9 = ptrtoint ptr<memory> arg0 to i256
 +     v10 = eq v9, 0
 +     v11 = eq v10, false
 +     v12 = zext i1 v11 to i256
 +     v13 = mul v8, v12
-+     store v5, v13
++     mstore v5, v13
 +     v14 = mul v13, 32
 +     v15 = add v5, 32
 +     v16 = ptradd arg0, 32
 +     v17 = add v15, v14
-+     copy v15, v16, v14 !metadata(memory=heap, disjoint)
++     mcopy v15, v16, v14 !metadata(memory=heap, disjoint)
 +     v18 = ptrtoint ptr<memory> v3 to i256
 +     v19 = sub v17, v18
 +     v20 = add v19, 0
@@ -76,7 +76,7 @@
     bb0:
       v0 = alloc 96
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, arg0
+      mstore v1, arg0
       ret v0
   }
   
@@ -93,7 +93,7 @@
 -     v2 = extract_value slice<memory>, v1, 0
 -     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
-+     v4 = load v0
++     v4 = mload v0
 +     v5 = ptrtoint ptr<memory> v0 to i256
 +     v6 = eq v5, 0
 +     v7 = eq v6, false
@@ -105,11 +105,11 @@
 +     v13 = and v11, v12
 +     v14 = ptrtoint ptr<memory> v10 to i256
 +     v15 = add v14, v13
-+     store v15, 0
++     mstore v15, 0
 +     v16 = ptradd v0, 64
-+     copy v16, v10, v9
-+     store v0, 32
-+     store v0+32, v9
++     mcopy v16, v10, v9
++     mstore v0, 32
++     mstore v0+32, v9
 +     v17 = add v13, 64
 +     v18 = make_memory_slice v0, v17
 +     v2 = extract_value slice<memory>, v18, 0

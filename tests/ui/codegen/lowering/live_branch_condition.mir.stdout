@@ -42,10 +42,10 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
   bb5:
     jump bb6
   bb6:
-    store 0, 9 !metadata(memory=scratch)
+    mstore 0, 9 !metadata(memory=scratch)
     returndata 0, 32
   bb4:
-    store 0, 7 !metadata(memory=scratch)
+    mstore 0, 7 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     revert 0, 0
@@ -59,14 +59,14 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
 fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_params=[bool, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 0
-    store v0+32, 0
+    mstore v0, 0
+    mstore v0+32, 0
     jumpi arg0, bb1, bb2
   bb2:
-    store v0, 11
+    mstore v0, 11
     jump bb3
   bb1:
-    store v0, 7
+    mstore v0, 7
     jump bb3
   bb3:
     jump bb4
@@ -82,18 +82,18 @@ fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_p
   bb8:
     jump bb5
   bb5:
-    v14 = load v3+32
+    v14 = mload v3+32
     v15 = insert_value struct0, undef struct0, 0, v14
     v16 = insert_value struct0, v15, 1, v2
     ret v16
   bb7:
-    v8 = load v3
+    v8 = mload v3
     v9 = checked_add u256, v8, v1
-    store v3, v9
-    v10 = load v3
-    v11 = load v3+32
+    mstore v3, v9
+    v10 = mload v3
+    v11 = mload v3+32
     v12 = checked_add u256, v11, v10
-    store v3+32, v12
+    mstore v3+32, v12
     jump bb9
   bb9:
     jump bb6

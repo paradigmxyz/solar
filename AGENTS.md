@@ -304,7 +304,7 @@ self.dcx()
 
 - Generated MIR scalars are `i1`, `i160`, `i256`, or `ptr<memory>`; structs
   and slices keep their types. `ptr<memory>` is opaque, like LLVM's `ptr`:
-  reach object words with `ptradd` and `load`/`store`, never with integer
+  reach object words with `ptradd` and `mload`/`mstore`, never with integer
   arithmetic. Keep source widths, signedness, and ABI encodings in operation or
   layout metadata.
 - `iN` names bit width. MIR syntax accepts any positive 32-bit width, but source

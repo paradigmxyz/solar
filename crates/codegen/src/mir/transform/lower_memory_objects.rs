@@ -1,12 +1,12 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
 //! `ptradd` becomes an integer `add` between pointer casts, and an access's immediate offset
-//! becomes an `add` to its address. Every memory access is already a `load`, `store`, or `copy` at
-//! an address, so nothing else changes here. An EVM opcode whose operands do not match its types,
-//! as an integer `add` of a pointer, gets word operands and a word result cast back to the pointer,
-//! and the casts this leaves unused are removed; `lower-evm-shaped` later erases pointer types
-//! altogether. Unreachable blocks are removed first: their definitions need not obey SSA and can
-//! contain cast cycles.
+//! becomes an `add` to its address. Every memory access is already a `mload`, `mstore`, or `mcopy`
+//! at an address, so nothing else changes here. An EVM opcode whose operands do not match its
+//! types, as an integer `add` of a pointer, gets word operands and a word result cast back to the
+//! pointer, and the casts this leaves unused are removed; `lower-evm-shaped` later erases pointer
+//! types altogether. Unreachable blocks are removed first: their definitions need not obey SSA and
+//! can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion

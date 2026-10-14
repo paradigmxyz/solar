@@ -115,7 +115,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, field, ty } => {
-                // value = load (ptradd object, field * 32)
+                // value = mload (ptradd object, field * 32)
                 let value = self.builder.memory_load_field_as(
                     object,
                     field,
@@ -124,7 +124,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                // value = load (ptradd object, header + shl 5, index)
+                // value = mload (ptradd object, header + shl 5, index)
                 let value = self.builder.memory_load_element_as(
                     object,
                     layout,

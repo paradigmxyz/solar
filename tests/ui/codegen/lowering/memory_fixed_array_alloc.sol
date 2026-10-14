@@ -12,7 +12,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
     // CHECK-NEXT: [[ELEM1:v[0-9]+]] = ptradd [[ARRAY]], [[OFF1]]
-    // CHECK-NEXT: load [[ELEM1]]
+    // CHECK-NEXT: mload [[ELEM1]]
     function guardedFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
         return x[i];
@@ -21,11 +21,11 @@ contract MemoryFixedArrayAlloc {
     // CHECK-LABEL: fn @structArr{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc 32
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 96
-    // CHECK: store [[STRUCT]], {{v[0-9]+}}
-    // CHECK-NEXT: [[VALUES:v[0-9]+]] = load [[STRUCT]], ptr<memory>
+    // CHECK: mstore [[STRUCT]], {{v[0-9]+}}
+    // CHECK-NEXT: [[VALUES:v[0-9]+]] = mload [[STRUCT]], ptr<memory>
     // CHECK: [[OFF2:v[0-9]+]] = shl 5, arg0
     // CHECK-NEXT: [[ELEM2:v[0-9]+]] = ptradd [[VALUES]], [[OFF2]]
-    // CHECK-NEXT: load [[ELEM2]]
+    // CHECK-NEXT: mload [[ELEM2]]
     function structArr(uint256 i) public pure returns (uint256) {
         Holder memory h;
         return h.values[i];
@@ -36,16 +36,16 @@ contract MemoryFixedArrayAlloc {
     // CHECK: [[INDEX:v[0-9]+]] = phi
     // CHECK: [[OFF3:v[0-9]+]] = shl 5, arg0
     // CHECK-NEXT: [[ROW:v[0-9]+]] = ptradd [[OUTER]], [[OFF3]]
-    // CHECK-NEXT: load [[ROW]]
+    // CHECK-NEXT: mload [[ROW]]
     // CHECK: [[OFF4:v[0-9]+]] = shl 5, arg1
     // CHECK-NEXT: [[CELL:v[0-9]+]] = ptradd {{v[0-9]+}}, [[OFF4]]
-    // CHECK-NEXT: load [[CELL]]
+    // CHECK-NEXT: mload [[CELL]]
     // CHECK: [[INNER:v[0-9]+]] = alloc 64
     // CHECK-NEXT: memory_zero [[INNER]], 64
     // CHECK: [[OFF5:v[0-9]+]] = shl 5, [[INDEX]]
     // CHECK-NEXT: [[SLOT:v[0-9]+]] = ptradd [[OUTER]], [[OFF5]]
     // CHECK-NEXT: [[INNER_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[INNER]] to i256
-    // CHECK-NEXT: store [[SLOT]], [[INNER_WORD]]
+    // CHECK-NEXT: mstore [[SLOT]], [[INNER_WORD]]
     function nested(uint256 i, uint256 j) public pure returns (uint256) {
         uint256[2][3] memory x;
         x[0][0] = 1;
@@ -54,9 +54,9 @@ contract MemoryFixedArrayAlloc {
 
     // CHECK-LABEL: fn @fmpIntegrity{{[( ]}}
     // CHECK: [[X:v[0-9]+]] = alloc 96
-    // CHECK: store [[X]]+64, 7
+    // CHECK: mstore [[X]]+64, 7
     // CHECK: [[Y:v[0-9]+]] = alloc
-    // CHECK: store [[Y]]+32, 9
+    // CHECK: mstore [[Y]]+32, 9
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
     // CHECK: ret [[RET_1]]
@@ -70,9 +70,9 @@ contract MemoryFixedArrayAlloc {
 
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 96
-    // CHECK-NEXT: store [[ARRAY]], 1
-    // CHECK-NEXT: store [[ARRAY]]+32, 2
-    // CHECK-NEXT: store [[ARRAY]]+64, 3
+    // CHECK-NEXT: mstore [[ARRAY]], 1
+    // CHECK-NEXT: mstore [[ARRAY]]+32, 2
+    // CHECK-NEXT: mstore [[ARRAY]]+64, 3
     function literal() public pure returns (uint256) {
         uint256[3] memory x = [uint256(1), uint256(2), uint256(3)];
         return x[2];
@@ -84,7 +84,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK: memory_zero {{v[0-9]+}}, 128
     // CHECK: [[OFF6:v[0-9]+]] = shl 5, arg0
     // CHECK-NEXT: [[ELEM6:v[0-9]+]] = ptradd [[ARRAY]], [[OFF6]]
-    // CHECK-NEXT: load [[ELEM6]]
+    // CHECK-NEXT: mload [[ELEM6]]
     function bulkDefault(uint256 i) public pure returns (uint256) {
         uint256[4] memory x;
         return x[i];
@@ -107,10 +107,10 @@ contract NamedReturnAndDelete {
     // A named fixed-array return points at real zeroed memory, not scratch.
     // CHECK-LABEL: fn @namedReturn{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 96
-    // CHECK: store [[ARRAY]], 1
-    // CHECK: store [[ARRAY]]+64, 3
+    // CHECK: mstore [[ARRAY]], 1
+    // CHECK: mstore [[ARRAY]]+64, 3
     // CHECK: [[BYTES:v[0-9]+]] = alloc
-    // CHECK: store8 [[BYTES]]+32, {{v[0-9]+}}
+    // CHECK: mstore8 [[BYTES]]+32, {{v[0-9]+}}
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
     // CHECK: ret [[RET_1]]
@@ -125,10 +125,10 @@ contract NamedReturnAndDelete {
     // Uninitialized dynamic references use Solidity's zero slot.
     // CHECK-LABEL: fn @emptyMemoryReferences{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc 64
-    // CHECK-NEXT: store [[STRUCT]], 96
-    // CHECK-NEXT: store [[STRUCT]]+32, 96
-    // CHECK-NEXT: {{v[0-9]+}} = load ptr<memory> 96
-    // CHECK-NEXT: {{v[0-9]+}} = load ptr<memory> 96
+    // CHECK-NEXT: mstore [[STRUCT]], 96
+    // CHECK-NEXT: mstore [[STRUCT]]+32, 96
+    // CHECK-NEXT: {{v[0-9]+}} = mload ptr<memory> 96
+    // CHECK-NEXT: {{v[0-9]+}} = mload ptr<memory> 96
     function emptyMemoryReferences() public pure returns (uint256) {
         uint256[] memory values;
         bytes memory data;
@@ -151,7 +151,7 @@ contract NamedReturnAndDelete {
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc 128
     // CHECK: memory_zero [[WIDE]], 128
-    // CHECK-NEXT: store [[WIDE]]+32, 96
+    // CHECK-NEXT: mstore [[WIDE]]+32, 96
     // CHECK: ret [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
@@ -159,10 +159,10 @@ contract NamedReturnAndDelete {
     // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc 64
-    // CHECK-NEXT: store [[STRUCT]], 96
-    // CHECK-NEXT: store [[STRUCT]]+32, 96
+    // CHECK-NEXT: mstore [[STRUCT]], 96
+    // CHECK-NEXT: mstore [[STRUCT]]+32, 96
     // CHECK: [[BYTES:v[0-9]+]] = alloc
-    // CHECK: store [[BYTES]], 1
+    // CHECK: mstore [[BYTES]], 1
     function fullyInitializedNamedStruct()
         public
         pure
@@ -175,11 +175,11 @@ contract NamedReturnAndDelete {
     // `delete` rebinds the reference to a fresh zeroed object.
     // CHECK-LABEL: fn @deleteRebind{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 96
-    // CHECK: store [[ARRAY]], 5
-    // CHECK: store [[ARRAY]]+32, 6
-    // CHECK: store [[ARRAY]]+64, 7
+    // CHECK: mstore [[ARRAY]], 5
+    // CHECK: mstore [[ARRAY]]+32, 6
+    // CHECK: mstore [[ARRAY]]+64, 7
     // CHECK: [[DELETED:v[0-9]+]] = alloc 96
-    // CHECK: store [[DELETED]]+64, 9
+    // CHECK: mstore [[DELETED]]+64, 9
     function deleteRebind() public pure returns (uint256, uint256) {
         uint256[3] memory x;
         x[0] = 5;
@@ -193,9 +193,9 @@ contract NamedReturnAndDelete {
     // Deleting a wide value array also allocates a fresh zeroed object.
     // CHECK-LABEL: fn @bulkDeleteRebind{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc 128
-    // CHECK: store [[ARRAY]]+96, 7
+    // CHECK: mstore [[ARRAY]]+96, 7
     // CHECK: [[DELETED:v[0-9]+]] = alloc 128
-    // CHECK: store [[DELETED]]+96, 9
+    // CHECK: mstore [[DELETED]]+96, 9
     function bulkDeleteRebind() public pure returns (uint256, uint256) {
         uint256[4] memory x;
         x[0] = 5;

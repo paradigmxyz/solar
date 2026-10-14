@@ -4,23 +4,23 @@
 @module AliasBuilderCases
 
 // CHECK-LABEL: @canonical_arg_offset
-// CHECK: [[LOAD:v[0-9]+]] = load
-// CHECK: -     {{v[0-9]+}} = load
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @canonical_arg_offset(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 64
-    v1 = load v0
+    v1 = mload v0
     v2 = add 64, arg0
-    v3 = load v2
+    v3 = mload v2
     v4 = add v1, v3
     ret v4
 }
 
 // CHECK-LABEL: @canonical_frame_offset
-// CHECK: [[LOAD:v[0-9]+]] = load
-// CHECK: -     {{v[0-9]+}} = load
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @canonical_frame_offset() -> i256 {
@@ -28,17 +28,17 @@ fn @canonical_frame_offset() -> i256 {
     v7 = internal_frame_addr 32
     v0 = ptrtoint ptr<memory> v7 to i256
     v1 = add v0, 64
-    v2 = load v1
+    v2 = mload v1
     v8 = internal_frame_addr 96
     v3 = ptrtoint ptr<memory> v8 to i256
-    v4 = load v3
+    v4 = mload v3
     v5 = add v2, v4
     ret v5
 }
 
 // CHECK-LABEL: @canonical_heap_offset
-// CHECK: [[LOAD:v[0-9]+]] = load
-// CHECK: -     {{v[0-9]+}} = load
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @canonical_heap_offset() -> i256 {
@@ -46,36 +46,36 @@ fn @canonical_heap_offset() -> i256 {
     v9 = fmp
     v0 = ptrtoint ptr<memory> v9 to i256
     v1 = add v0, 64
-    v2 = load v1
+    v2 = mload v1
     v10 = fmp
     v3 = ptrtoint ptr<memory> v10 to i256
     v4 = add 64, v3
-    v5 = load v4
+    v5 = mload v4
     v6 = add v2, v5
     ret v6
 }
 
 // CHECK-LABEL: @same_select
-// CHECK: [[LOAD:v[0-9]+]] = load
-// CHECK: -     {{v[0-9]+}} = load
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @same_select(arg0: i1) -> i256 {
   bb0:
     v11 = alloc 32
     v0 = ptrtoint ptr<memory> v11 to i256
-    v1 = load v0
+    v1 = mload v0
     v2 = select arg0, v0, v0
-    v3 = load v2
+    v3 = mload v2
     v4 = add v1, v3
     ret v4
 }
 
 // CHECK-LABEL: @joined_select
-// CHECK: {{^ +}}store [[FIRST:v[0-9]+]], 1
-// CHECK: -     {{v[0-9]+}} = load [[FIRST]]
-// CHECK: {{^ +}}store
-// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = load [[FIRST]]
+// CHECK: {{^ +}}mstore [[FIRST:v[0-9]+]], 1
+// CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
+// CHECK: {{^ +}}mstore
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
 // CHECK: +     {{v[0-9]+}} = add 1, [[AFTER]]
 fn @joined_select(arg0: i1) -> i256 {
   bb0:
@@ -83,11 +83,11 @@ fn @joined_select(arg0: i1) -> i256 {
     v0 = ptrtoint ptr<memory> v12 to i256
     v13 = alloc 32
     v1 = ptrtoint ptr<memory> v13 to i256
-    store v0, 1
-    v2 = load v0
+    mstore v0, 1
+    v2 = mload v0
     v3 = select arg0, v0, v1
-    store v3, 2
-    v4 = load v0
+    mstore v3, 2
+    v4 = mload v0
     v5 = add v2, v4
     ret v5
 }
@@ -97,10 +97,10 @@ fn @joined_select(arg0: i1) -> i256 {
 // CHECK: [[FIRST:v[0-9]+]] = ptrtoint ptr<memory> [[FIRST_PTR]] to i256
 // CHECK: [[SECOND_PTR:v[0-9]+]] = alloc
 // CHECK: [[SECOND:v[0-9]+]] = ptrtoint ptr<memory> [[SECOND_PTR]] to i256
-// CHECK: store [[FIRST]], 7
-// CHECK: -     {{v[0-9]+}} = load [[FIRST]]
-// CHECK: store [[SECOND]]
-// CHECK: -     {{v[0-9]+}} = load [[FIRST]]
+// CHECK: mstore [[FIRST]], 7
+// CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
+// CHECK: mstore [[SECOND]]
+// CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: + {{v[0-9]+}} = add 7, 7
 fn @distinct_loop_allocations(arg0: i1) -> i256 {
   bb0:
@@ -110,10 +110,10 @@ fn @distinct_loop_allocations(arg0: i1) -> i256 {
     v0 = ptrtoint ptr<memory> v14 to i256
     v15 = alloc 32
     v1 = ptrtoint ptr<memory> v15 to i256
-    store v0, 7
-    v2 = load v0
-    store v1, 9
-    v3 = load v0
+    mstore v0, 7
+    v2 = mload v0
+    mstore v1, 9
+    v3 = mload v0
     v4 = add v2, v3
     jumpi arg0, bb1, bb2
   bb2:

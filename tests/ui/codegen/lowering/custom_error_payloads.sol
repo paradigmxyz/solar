@@ -14,7 +14,7 @@ contract CustomErrorPayloads {
 
     // CHECK-LABEL: fn @revert_args{{[( ]}}
     // CHECK: [[MESSAGE:v[0-9]+]] = alloc
-    // CHECK: store [[MESSAGE]], 6
+    // CHECK: mstore [[MESSAGE]], 6
     // CHECK: icall require<custom_error [word, memory_bytes]>, false, 0x{{[0-9a-f]+}}, 7, [[MESSAGE]]
     // CHECK: invalid
     function revert_args() public pure {

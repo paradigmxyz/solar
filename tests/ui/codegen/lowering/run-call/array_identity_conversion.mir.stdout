@@ -3,62 +3,62 @@
 fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v8 = load v0
+    v8 = mload v0
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = load v0+32
+    v11 = mload v0+32
     v12 = inttoptr i256 v11 to ptr<memory>
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = alloc 64
-    store v14, 0
-    store v14+32, 0
+    mstore v14, 0
+    mstore v14+32, 0
     v15 = ptrtoint ptr<memory> v14 to i256
-    store v0+32, v15
+    mstore v0+32, v15
     jump bb5
   bb5:
     v16 = phi [bb3: v12], [bb4: v14]
-    store v16, 7
-    v17 = load v0
-    v18 = load v0
+    mstore v16, 7
+    v17 = mload v0
+    v18 = mload v0
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = load v0+32
+    v21 = mload v0+32
     v22 = inttoptr i256 v21 to ptr<memory>
     v23 = eq v21, 0
     jumpi v23, bb6, bb7
   bb6:
     v24 = alloc 64
-    store v24, 0
-    store v24+32, 0
+    mstore v24, 0
+    mstore v24+32, 0
     v25 = ptrtoint ptr<memory> v24 to i256
-    store v0+32, v25
+    mstore v0+32, v25
     jump bb7
   bb7:
     v26 = phi [bb5: v22], [bb6: v24]
-    v27 = load v26
+    v27 = mload v26
     v28 = trunc i256 v27 to i32
     v29 = zext i32 v28 to i256
     v30 = checked_add u256, v17, v29
     ret v30
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 0
-    store v3+32, 0
+    mstore v3, 0
+    mstore v3+32, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
-    store v5+32, v6
+    mstore v5+32, v6
     v7 = add v1, 1
     jump bb1
 }
@@ -66,60 +66,60 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
 fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v8 = load v0
+    v8 = mload v0
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = load v0+32
+    v11 = mload v0+32
     v12 = inttoptr i256 v11 to ptr<memory>
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = alloc 64
-    store v14, 0
-    store v14+32, 0
+    mstore v14, 0
+    mstore v14+32, 0
     v15 = ptrtoint ptr<memory> v14 to i256
-    store v0+32, v15
+    mstore v0+32, v15
     jump bb5
   bb5:
     v16 = phi [bb3: v12], [bb4: v14]
-    store v16, 5
-    v17 = load v0
+    mstore v16, 5
+    v17 = mload v0
     v18 = lt 0, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = load v0+32
+    v20 = mload v0+32
     v21 = inttoptr i256 v20 to ptr<memory>
     v22 = eq v20, 0
     jumpi v22, bb6, bb7
   bb6:
     v23 = alloc 64
-    store v23, 0
-    store v23+32, 0
+    mstore v23, 0
+    mstore v23+32, 0
     v24 = ptrtoint ptr<memory> v23 to i256
-    store v0+32, v24
+    mstore v0+32, v24
     jump bb7
   bb7:
     v25 = phi [bb5: v21], [bb6: v23]
-    v26 = load v25
+    v26 = mload v25
     v27 = trunc i256 v26 to i32
     v28 = zext i32 v27 to i256
     ret v28
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 0
-    store v3+32, 0
+    mstore v3, 0
+    mstore v3+32, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
-    store v5+32, v6
+    mstore v5+32, v6
     v7 = add v1, 1
     jump bb1
 }
@@ -136,48 +136,48 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     v8 = lt 1, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = load v0+32
+    v10 = mload v0+32
     v11 = inttoptr i256 v10 to ptr<memory>
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = alloc 64
-    store v13, 0
-    store v13+32, 0
+    mstore v13, 0
+    mstore v13+32, 0
     v14 = ptrtoint ptr<memory> v13 to i256
-    store v0+32, v14
+    mstore v0+32, v14
     jump bb5
   bb5:
     v15 = phi [bb3: v11], [bb4: v13]
-    store v15, 9
+    mstore v15, 9
     v16 = lt 1, 2
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = load v0+32
+    v18 = mload v0+32
     v19 = inttoptr i256 v18 to ptr<memory>
     v20 = eq v18, 0
     jumpi v20, bb6, bb7
   bb6:
     v21 = alloc 64
-    store v21, 0
-    store v21+32, 0
+    mstore v21, 0
+    mstore v21+32, 0
     v22 = ptrtoint ptr<memory> v21 to i256
-    store v0+32, v22
+    mstore v0+32, v22
     jump bb7
   bb7:
     v23 = phi [bb5: v19], [bb6: v21]
-    v24 = load v23
+    v24 = mload v23
     v25 = trunc i256 v24 to i32
     v26 = zext i32 v25 to i256
     ret v26
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 0
-    store v3+32, 0
+    mstore v3, 0
+    mstore v3+32, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
-    store v5, v6
+    mstore v5, v6
     v7 = add v1, 1
     jump bb1
 }

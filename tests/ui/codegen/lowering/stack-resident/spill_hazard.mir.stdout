@@ -104,7 +104,7 @@ fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x7357f5d2, pure, abi_params=[
     v99 = eq v98, false
     icall revert_if<empty>, v99
     v100 = calldatasize
-    copy calldata arg0, 0, v100
+    calldatacopy arg0, 0, v100
     v101 = mul v78, 3
     v102 = add v101, v97
     v103 = add v102, arg1

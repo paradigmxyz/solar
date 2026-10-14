@@ -8,9 +8,9 @@ error: [fn0] [bb0, inst2] slice instruction `extract_value` survives the `lowere
 
 error: [fn1] non-word type `i8` survives the `lowered` phase boundary
 
-error: [fn2] [bb0, inst0] pointer arithmetic instruction `load` survives the `lowered` phase boundary
+error: [fn2] [bb0, inst0] pointer arithmetic instruction `mload` survives the `lowered` phase boundary
 
-error: [fn2] [bb0, inst1] pointer arithmetic instruction `store` survives the `lowered` phase boundary
+error: [fn2] [bb0, inst1] pointer arithmetic instruction `mstore` survives the `lowered` phase boundary
 
 error: aborting due to 7 previous errors
 

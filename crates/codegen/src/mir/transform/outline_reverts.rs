@@ -113,7 +113,7 @@ fn create_revert(module: &mut Module, (stores, offset, size): &RevertShape) -> F
 const MIN_OUTLINED_SIZE: usize = 12;
 
 /// Returns the block's shape when every instruction is a fully-constant
-/// `store` and the terminator is a fully-constant `revert`.
+/// `mstore` and the terminator is a fully-constant `revert`.
 fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShape> {
     let block = &func.blocks[crate::mir::BlockId::from_usize(block_idx)];
     let Some(Terminator::Revert { offset, size }) = block.terminator else {

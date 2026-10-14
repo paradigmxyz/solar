@@ -32,7 +32,7 @@ fn @reuse_same_dynamic_size(arg0: i256) -> i256 {
 fn @invalidate_after_dynamic_size_write(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = keccak256 0, arg0
-    copy calldata 0, 0, arg1
+    calldatacopy 0, 0, arg1
     v4 = keccak256 0, arg0
     v5 = add v2, v4
     ret v5

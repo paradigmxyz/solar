@@ -20,7 +20,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -102,7 +102,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v11 = lt v10, 32
     icall revert_if<tuple_data_too_short>, v11
     v12 = add 0, 0
-    v13 = load v12
+    v13 = mload v12
     v14 = sload 0 !metadata(storage=slot(0))
     ret v14
   bb3:

@@ -12,7 +12,7 @@
 +     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = load v1
++     v6 = mload v1
 +     ret v6
 +   bb1:
 +     revert 0, 0
@@ -31,7 +31,7 @@
       v2 = ptrtoint ptr<memory> arg1 to i256
       v3 = make_memory_slice arg1, v2
 -     v4 = abi_decode [tuple<u256, u256>], v3
--     v5 = load v1
+-     v5 = mload v1
 -     v6 = ptradd v4, 32
 +     v13 = extract_value slice<memory>, v3, 0
 +     v14 = extract_value slice<memory>, v3, 1
@@ -39,9 +39,9 @@
 +     jumpi v15, bb1, bb3
 +   bb3:
 +     v16 = icall @decode_static, v13
-+     v5 = load v12
++     v5 = mload v12
 +     v6 = ptradd v16, 32
-      v7 = load v6
+      v7 = mload v6
       v8 = add v5, v7
       ret v8
 +   bb1:
@@ -59,7 +59,7 @@
 +     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = load v1
++     v6 = mload v1
 +     v7 = ptrtoint ptr<memory> v1 to i256
 +     v8 = add v7, v6
 +     v9 = add v8, 32
@@ -69,7 +69,7 @@
 +     v13 = zext i1 v12 to i256
 +     jumpi v12, bb1, bb3
 +   bb3:
-+     v14 = load v8
++     v14 = mload v8
 +     v15 = add v8, 32
 +     v16 = add v14, 63
 +     v17 = lt v16, v14
@@ -78,7 +78,7 @@
 +     v18 = not 31
 +     v19 = and v16, v18
 +     v20 = alloc checked v19
-+     store v20, v14
++     mstore v20, v14
 +     v21 = sub v4, v15
 +     v22 = gt v14, v21
 +     jumpi v22, bb1, bb6
@@ -88,11 +88,11 @@
 +     v25 = ptradd v20, 32
 +     v26 = extract_value slice<memory>, v24, 0
 +     v27 = extract_value slice<memory>, v24, 1
-+     copy v25, v26, v27
++     mcopy v25, v26, v27
 +     ret v20
 +   bb4:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb1:
 +     revert 0, 0
@@ -106,12 +106,12 @@
 +     jumpi v2, bb1, bb2
 +   bb2:
 +     v3 = alloc 64
-+     v4 = load arg0
-+     store v3, v4
++     v4 = mload arg0
++     mstore v3, v4
 +     v5 = ptrtoint ptr<memory> arg0 to i256
 +     v6 = add v5, 32
-+     v7 = load v6
-+     store v3+32, v7
++     v7 = mload v6
++     mstore v3+32, v7
 +     ret v3
 +   bb1:
 +     revert 0, 0

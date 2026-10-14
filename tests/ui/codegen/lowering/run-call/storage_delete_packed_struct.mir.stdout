@@ -339,9 +339,9 @@ fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[
 fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8]] {
   bb0:
     v0 = alloc 96
-    store v0, 4
-    store v0+32, 0x5566
-    store v0+64, 7
+    mstore v0, 4
+    mstore v0+32, 0x5566
+    mstore v0+64, 7
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
@@ -355,14 +355,14 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     icall panic_if<0x32>, v8
     v9 = storage_array_data_slot 0
     v10 = add v9, 0
-    v11 = load v0
+    v11 = mload v0
     v12 = sload v10 !metadata(storage=symbolic(v9))
     v13 = not 255
     v14 = and v12, v13
     v15 = and v11, 255
     v16 = or v14, v15
     sstore v10, v16 !metadata(storage=symbolic(v9))
-    v17 = load v0+32
+    v17 = mload v0+32
     v18 = shl 8, 0xffff
     v19 = sload v10 !metadata(storage=symbolic(v9))
     v20 = not v18
@@ -371,7 +371,7 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
     v23 = shl 8, v22
     v24 = or v21, v23
     sstore v10, v24 !metadata(storage=symbolic(v9))
-    v25 = load v0+64
+    v25 = mload v0+64
     v26 = shl 24, 255
     v27 = sload v10 !metadata(storage=symbolic(v9))
     v28 = not v26

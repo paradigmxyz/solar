@@ -45,14 +45,14 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v36]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v37 = load v22
+    v37 = mload v22
     v38 = sload 1 !metadata(storage=slot(1))
     v39 = gt v38, v37
     jumpi v39, bb4, bb5
@@ -76,7 +76,7 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
   bb10:
     v58 = shl 5, v56
     v59 = ptradd v22, v58
-    v60 = load v59+32
+    v60 = mload v59+32
     v61 = shr 64, v60
     v62 = storage_array_data_slot 1
     v63 = div v56, 1
@@ -115,7 +115,7 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
-    v28 = load calldata v27
+    v28 = calldataload v27
     v29 = shl 192, v28
     v30 = eq v29, 0
     v31 = eq v30, false
@@ -124,7 +124,7 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
     v33 = shl 64, v32
     v34 = shl 5, v23
     v35 = ptradd v22, v34
-    store v35+32, v33
+    mstore v35+32, v33
     v36 = add v23, 1
     jump bb1
 }
@@ -132,28 +132,28 @@ fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array
 fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
+    mstore v0, 2
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xdbe671f
-    v5 = load v0
+    v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 64, v4
-    store v0+32, v8
+    mstore v0+32, v8
     v9 = address
     v10 = zext i160 v9 to i256
     v11 = shl 32, v10
     v12 = or v11, 0x4df7e3d0
-    v13 = load v0
+    v13 = mload v0
     v14 = lt 1, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = shl 64, v12
-    store v0+64, v16
-    v17 = load v0
+    mstore v0+64, v16
+    v17 = mload v0
     v18 = sload 1 !metadata(storage=slot(1))
     v19 = gt v18, v17
     jumpi v19, bb1, bb2
@@ -325,7 +325,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v174 = eq v173, 0
     icall panic_if<0x41>, v174
     v175 = alloc checked v168
-    store v175, v158
+    mstore v175, v158
     jump bb19
   bb19:
     v176 = phi [bb18: 0], [bb20: v191]
@@ -333,7 +333,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     jumpi v177, bb20, bb21
   bb21:
     v192 = ptrtoint ptr<memory> v175 to i256
-    v193 = load v175
+    v193 = mload v175
     v194 = sload 2 !metadata(storage=slot(2))
     v195 = gt v194, v193
     jumpi v195, bb22, bb23
@@ -416,7 +416,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
   bb28:
     v214 = shl 5, v212
     v215 = ptradd v175, v214
-    v216 = load v215+32
+    v216 = mload v215+32
     v217 = shr 64, v216
     v218 = storage_array_data_slot 2
     v219 = div v212, 1
@@ -465,13 +465,13 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v188 = shl 64, v187
     v189 = shl 5, v176
     v190 = ptradd v175, v189
-    store v190+32, v188
+    mstore v190+32, v188
     v191 = add v176, 1
     jump bb19
   bb7:
     v38 = shl 5, v36
     v39 = ptradd v0, v38
-    v40 = load v39+32
+    v40 = mload v39+32
     v41 = shr 64, v40
     v42 = storage_array_data_slot 1
     v43 = div v36, 1

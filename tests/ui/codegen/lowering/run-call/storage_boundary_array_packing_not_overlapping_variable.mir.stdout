@@ -20,16 +20,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v0, 99 !metadata(storage=symbolic(v0))
     v1 = icall @getArray
     v2 = alloc 320
-    store v2, 1
-    store v2+32, 2
-    store v2+64, 3
-    store v2+96, 4
-    store v2+128, 5
-    store v2+160, 6
-    store v2+192, 7
-    store v2+224, 8
-    store v2+256, 9
-    store v2+288, 10
+    mstore v2, 1
+    mstore v2+32, 2
+    mstore v2+64, 3
+    mstore v2+96, 4
+    mstore v2+128, 5
+    mstore v2+160, 6
+    mstore v2+192, 7
+    mstore v2+224, 8
+    mstore v2+256, 9
+    mstore v2+288, 10
     v3 = lt 0, 1
     v4 = eq v3, false
     icall panic_if<0x32>, v4
@@ -42,11 +42,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jumpi v8, bb2, bb3
   bb3:
     v34 = alloc 160
-    store v34, 11
-    store v34+32, 12
-    store v34+64, 13
-    store v34+96, 14
-    store v34+128, 15
+    mstore v34, 11
+    mstore v34+32, 12
+    mstore v34+64, 13
+    mstore v34+96, 14
+    mstore v34+128, 15
     v35 = lt 0, 1
     v36 = eq v35, false
     icall panic_if<0x32>, v36
@@ -125,7 +125,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb10:
     v46 = shl 5, v39
     v47 = ptradd v34, v46
-    v48 = load v47
+    v48 = mload v47
     v49 = mul v44, 8
     v50 = shl v49, 0xffffffffffffffff
     v51 = sload v42 !metadata(storage=symbolic(v42))
@@ -160,7 +160,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb4:
     v14 = shl 5, v7
     v15 = ptradd v2, v14
-    v16 = load v15
+    v16 = mload v15
     v17 = mul v12, 8
     v18 = shl v17, 0xffffffffffffffff
     v19 = sload v10 !metadata(storage=symbolic(v10))

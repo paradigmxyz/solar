@@ -45,7 +45,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[wo
 
 fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]
@@ -61,13 +61,13 @@ fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
     v15 = insert_value struct0, v14, 1, v4
     ret v15
   bb4:
-    v6 = load v3
+    v6 = mload v3
     v7 = lt v2, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = shl 5, v2
     v10 = ptradd v3, v9
-    v11 = load v10+32
+    v11 = mload v10+32
     v12 = checked_add u256, v4, v11
     jump bb6
   bb6:

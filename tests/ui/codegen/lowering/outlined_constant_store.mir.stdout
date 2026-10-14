@@ -2,19 +2,19 @@
 @module OutlinedConstantStore
 fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    store 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     v0 = and arg0, 128
-    store v0, 7
-    v1 = load 128
+    mstore v0, 7
+    v1 = mload 128
     ret v1
 }
 
 fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    store 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    mstore 128, 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     v0 = and arg0, 160
-    store v0, 9
-    v1 = load 128
+    mstore v0, 9
+    v1 = mload 128
     ret v1
 }
 
@@ -25,9 +25,9 @@ fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[u256], abi
     v0 = gt arg0, 255
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
-    store v2, 37
-    store v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
-    store v2+64, 0x2062697473000000000000000000000000000000000000000000000000000000
+    mstore v2, 37
+    mstore v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
+    mstore v2+64, 0x2062697473000000000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
     v3 = trunc i256 arg0 to i8
     ret v3
@@ -38,9 +38,9 @@ fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], a
     v0 = gt arg0, 0xffffffff
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
-    store v2, 38
-    store v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
-    store v2+64, 0x3220626974730000000000000000000000000000000000000000000000000000
+    mstore v2, 38
+    mstore v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
+    mstore v2+64, 0x3220626974730000000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
     v3 = trunc i256 arg0 to i32
     ret v3
@@ -51,9 +51,9 @@ fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[u256],
     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
-    store v2, 39
-    store v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
-    store v2+64, 0x3238206269747300000000000000000000000000000000000000000000000000
+    mstore v2, 39
+    mstore v2+32, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
+    mstore v2+64, 0x3238206269747300000000000000000000000000000000000000000000000000
     icall require<error_string>, v1, v2
     v3 = trunc i256 arg0 to i128
     ret v3

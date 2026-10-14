@@ -312,7 +312,7 @@ fn lower_address_call(
     value: Option<ValueId>,
 ) -> ValueId {
     // offset = add (ptrtoint input), 32
-    // size = load input
+    // size = mload input
     // gas = explicit_gas | gas() - pre_tangerine_reserve
     // success = call/staticcall/delegatecall(gas, address, value?, offset, size, 0, 0)
     let offset = builder.memory_data(input);
@@ -365,7 +365,7 @@ fn lower_hash(
     ripemd: bool,
 ) -> ValueId {
     // input_ptr = add (ptrtoint input), 32
-    // input_len = load input
+    // input_len = mload input
     // output = bytes(32)
     // precompile_call(sha256 ? 2 : 3, input, output)
     // result = mload(output.data)
@@ -420,7 +420,7 @@ fn lower_ecrecover(
 
 fn alloc_output(builder: &mut FunctionBuilder<'_>) -> ValueId {
     // output = alloc bytes(64), zeroed
-    // store output, 32
+    // mstore output, 32
     // pointer = add (ptrtoint output), 32
     let size = builder.imm(64);
     let output = builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);

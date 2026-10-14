@@ -14,9 +14,9 @@
       v2 = ptrtoint ptr<memory> arg1 to i256
       v3 = make_memory_slice arg1, v2
       v4 = abi_decode [tuple<u256, u256>], v3
-      v5 = load v1
+      v5 = mload v1
       v6 = ptradd v4, 32
-      v7 = load v6
+      v7 = mload v6
       v8 = add v5, v7
       ret v8
   }

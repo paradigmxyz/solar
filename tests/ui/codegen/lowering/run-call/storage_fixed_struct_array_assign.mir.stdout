@@ -79,9 +79,9 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
 fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc 96
-    store v0, 1
-    store v0+32, 2
-    store v0+64, 1
+    mstore v0, 1
+    mstore v0+32, 2
+    mstore v0+64, 1
     v1 = sload 24 !metadata(storage=slot(24))
     v2 = checked_add u256, v1, 1
     v3 = lt v2, 4
@@ -89,13 +89,13 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     icall panic_if<0x32>, v4
     v5 = mul v2, 3
     v6 = add 0, v5
-    v7 = load v0
+    v7 = mload v0
     sstore v6, v7 !metadata(storage=symbolic(v5))
     v8 = add v6, 1
-    v9 = load v0+32
+    v9 = mload v0+32
     sstore v8, v9 !metadata(storage=offset(v5, 1))
     v10 = add v6, 2
-    v11 = load v0+64
+    v11 = mload v0+64
     v12 = sload v10 !metadata(storage=offset(v5, 2))
     v13 = not 255
     v14 = and v12, v13

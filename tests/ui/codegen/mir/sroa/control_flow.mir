@@ -6,13 +6,13 @@ fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     v0 = alloc 32
     jumpi arg0, bb1, bb2
   bb1:
-    store v0, arg1
+    mstore v0, arg1
     jump bb3
   bb2:
-    store v0, arg2
+    mstore v0, arg2
     jump bb3
   bb3:
-    v2 = load v0
+    v2 = mload v0
     ret v2
 }
 
@@ -23,12 +23,12 @@ fn @loop(arg0: i256) -> i256 {
     memory_zero v12, 32
     jump bb1
   bb1:
-    v2 = load v0
+    v2 = mload v0
     v3 = lt v2, arg0
     jumpi v3, bb2, bb3
   bb2:
     v4 = add v2, 1
-    store v0, v4
+    mstore v0, v4
     jump bb1
   bb3:
     ret v2
@@ -39,10 +39,10 @@ fn @missing_definition(arg0: i1) -> i256 {
     v0 = alloc 32
     jumpi arg0, bb1, bb2
   bb1:
-    store v0, 7
+    mstore v0, 7
     jump bb2
   bb2:
-    v2 = load v0
+    v2 = mload v0
     ret v2
 }
 
@@ -53,14 +53,14 @@ fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     memory_zero v12, 64
     jumpi arg0, bb1, bb2
   bb1:
-    store v0, arg1
-    v3 = load v0
+    mstore v0, arg1
+    v3 = mload v0
     v9001 = ptradd v0, 32
-    store v9001, v3
+    mstore v9001, v3
     jump bb2
   bb2:
     v9002 = ptradd v0, 32
-    v4 = load v9002
+    v4 = mload v9002
     ret v4
 }
 
@@ -69,7 +69,7 @@ fn @observe_size() -> i256 {
     v0 = alloc 32
     v12 = ptrtoint ptr<memory> v0 to i256
     memory_zero v12, 32
-    store v0, 7
+    mstore v0, 7
     v2 = msize
     ret v2
 }
@@ -80,6 +80,6 @@ fn @outside_object() -> i256 {
     v12 = ptrtoint ptr<memory> v0 to i256
     memory_zero v12, 32
     v9001 = ptradd v0, 32
-    v2 = load v9001
+    v2 = mload v9001
     ret v2
 }

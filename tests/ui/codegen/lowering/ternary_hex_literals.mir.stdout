@@ -37,13 +37,13 @@ fn @pairHash(arg0: i1) -> i256 [selector=0x7e8b97e2, pure, abi_params=[bool], ab
     jumpi arg0, bb1, bb2
   bb2:
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 32
-    store v1+32, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
+    mstore v1, 32
+    mstore v1+32, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
     jump bb3
   bb1:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 32
-    store v0+32, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
+    mstore v0, 32
+    mstore v0+32, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
     jump bb3
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
@@ -93,7 +93,7 @@ fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], a
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, arg1
-    store v0+32, arg0
+    mstore v0, arg1
+    mstore v0+32, arg0
     ret v0
 }

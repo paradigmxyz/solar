@@ -234,7 +234,7 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     v37 = lt v36, 32
     icall panic_if<0x41>, v37
     v38 = alloc v36
-    store v38, v16
+    mstore v38, v16
     jump bb1
   bb1:
     v39 = phi [bb0: 0], [bb2: v50]
@@ -247,22 +247,22 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     v41 = mul v39, 32
     v42 = ptrtoint ptr<calldata> v17 to i256
     v43 = add v42, v41
-    v44 = load calldata v43
+    v44 = calldataload v43
     v45 = shr 8, v44
     v46 = eq v45, 0
     v47 = eq v46, false
     icall revert_if<empty>, v47
     v48 = shl 5, v39
     v49 = ptradd v38, v48
-    store v49+32, v44
+    mstore v49+32, v44
     v50 = add v39, 1
     jump bb1
 }
 
 fn @compare(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
   bb0:
-    v0 = load arg0
-    v1 = load arg1
+    v0 = mload arg0
+    v1 = mload arg1
     v2 = eq v0, v1
     v3 = eq v2, false
     icall panic_if<0x1>, v3
@@ -271,7 +271,7 @@ fn @compare(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v25]
     v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = load v6
+    v7 = mload v6
     v8 = lt v5, v7
     jumpi v8, bb4, bb5
   bb5:
@@ -279,20 +279,20 @@ fn @compare(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
   bb2:
     ret
   bb4:
-    v9 = load v6
+    v9 = mload v6
     v10 = lt v5, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v6, v5
-    v13 = load v12+32
+    v13 = mload v12+32
     v14 = byte 0, v13
     v15 = shl 248, v14
-    v16 = load v4
+    v16 = mload v4
     v17 = lt v5, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v4, v5
-    v20 = load v19+32
+    v20 = mload v19+32
     v21 = byte 0, v20
     v22 = shl 248, v21
     v23 = eq v15, v22
@@ -311,30 +311,30 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v0 = not 31
     v1 = and 66, v0
     v2 = alloc zeroed checked v1
-    store v2, 3
-    v3 = load v2
+    mstore v2, 3
+    v3 = mload v2
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
-    store8 v2+32, v6
-    v7 = load v2
+    mstore8 v2+32, v6
+    v7 = mload v2
     v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
-    store8 v2+33, v10
-    v11 = load v2
+    mstore8 v2+33, v10
+    v11 = mload v2
     v12 = lt 2, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
-    store8 v2+34, v14
+    mstore8 v2+34, v14
     jump bb1
   bb1:
     v15 = phi [bb0: v2], [bb3: v19]
     v16 = phi [bb0: 0], [bb3: v62]
-    v17 = load v15
+    v17 = mload v15
     v18 = lt v16, v17
     jumpi v18, bb4, bb5
   bb5:
@@ -347,7 +347,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v19 = phi [bb4: v15], [bb9: v19]
     v20 = phi [bb4: v16], [bb9: v20]
     v21 = phi [bb4: v16], [bb9: v61]
-    v22 = load v19
+    v22 = mload v19
     v23 = gt v21, v22
     v24 = eq v23, false
     jumpi v24, bb10, bb11
@@ -426,27 +426,27 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
 fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
-    v1 = load v0
+    mstore v0, 3
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 65
-    v4 = load v0
+    mstore v0+32, 65
+    v4 = mload v0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 66
-    v7 = load v0
+    mstore v0+64, 66
+    v7 = mload v0
     v8 = lt 2, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    store v0+96, 66
+    mstore v0+96, 66
     jump bb1
   bb1:
     v10 = phi [bb0: v0], [bb3: v14]
     v11 = phi [bb0: 0], [bb3: v57]
-    v12 = load v10
+    v12 = mload v10
     v13 = lt v11, v12
     jumpi v13, bb4, bb5
   bb5:
@@ -459,7 +459,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     v14 = phi [bb4: v10], [bb9: v14]
     v15 = phi [bb4: v11], [bb9: v15]
     v16 = phi [bb4: v11], [bb9: v56]
-    v17 = load v14
+    v17 = mload v14
     v18 = gt v16, v17
     v19 = eq v18, false
     jumpi v19, bb10, bb11

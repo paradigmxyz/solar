@@ -33,7 +33,7 @@ contract ArrayBoundsPanic {
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], [[OFF1]]
-    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[ELEM]]
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
         x[1] = 20;
@@ -46,7 +46,7 @@ contract ArrayBoundsPanic {
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK: lt 2, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: {{v[0-9]+}} = load [[X]]+64
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[X]]+64
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -57,7 +57,7 @@ contract ArrayBoundsPanic {
     // CHECK: [[X:v[0-9]+]] = alloc 96
     // CHECK: lt 5, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: {{v[0-9]+}} = load [[X]]+160
+    // CHECK-NEXT: {{v[0-9]+}} = mload [[X]]+160
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];
@@ -65,7 +65,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memDyn{{[( ]}}
     // CHECK: [[ARR:v[0-9]+]] = alloc
-    // CHECK: [[LEN:v[0-9]+]] = load [[ARR]]
+    // CHECK: [[LEN:v[0-9]+]] = mload [[ARR]]
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {
@@ -102,7 +102,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: load calldata
+    // CHECK: calldataload
     function cdDyn(uint256[] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
@@ -110,7 +110,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdFix{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: load calldata
+    // CHECK: calldataload
     function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
@@ -118,7 +118,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @cdBytes{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = extract_value slice<calldata>, arg0, 1
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: load calldata
+    // CHECK: calldataload
     function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) {
         return b[i];
     }

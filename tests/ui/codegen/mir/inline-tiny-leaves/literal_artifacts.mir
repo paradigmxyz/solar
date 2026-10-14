@@ -7,10 +7,10 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @literal
-    v1 = load v0
+    v1 = mload v0
     sstore 0, v1
     v2 = icall @indirect
-    v3 = load v2
+    v3 = mload v2
     sstore 3, v3
     stop
 }
@@ -25,10 +25,10 @@ fn @literal() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, 1
+    mstore v10, 1
     v9001 = ptradd v0, 32
     v1 = ptrtoint ptr<memory> v9001 to i256
-    store v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -38,7 +38,7 @@ fn @shared() -> ptr<memory> [selector=0x01020305] {
     v0 = icall @shared_literal
     v1 = icall @shared_literal
     v9001 = ptradd v0, 32
-    store8 v9001, 65
+    mstore8 v9001, 65
     ret v1
 }
 
@@ -46,9 +46,9 @@ fn @shared_literal() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, 1
+    mstore v10, 1
     v9001 = ptradd v0, 32
-    store v9001, 0x3200000000000000000000000000000000000000000000000000000000000000
+    mstore v9001, 0x3200000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -68,9 +68,9 @@ fn @tail_literal() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, 1
+    mstore v10, 1
     v9001 = ptradd v0, 32
-    store v9001, 0x3300000000000000000000000000000000000000000000000000000000000000
+    mstore v9001, 0x3300000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -85,9 +85,9 @@ fn @effect_literal() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, 1
+    mstore v10, 1
     v9001 = ptradd v0, 32
-    store v9001, 0x3400000000000000000000000000000000000000000000000000000000000000
+    mstore v9001, 0x3400000000000000000000000000000000000000000000000000000000000000
     sstore 1, 1
     ret v0
 }
@@ -116,9 +116,9 @@ fn @unknown_literal() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, 1
+    mstore v10, 1
     v9001 = ptradd v0, 32
-    store v9001, 0x3500000000000000000000000000000000000000000000000000000000000000
+    mstore v9001, 0x3500000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -133,8 +133,8 @@ fn @preserved_literal() -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, 1
+    mstore v10, 1
     v9001 = ptradd v0, 32
-    store v9001, 0x3600000000000000000000000000000000000000000000000000000000000000
+    mstore v9001, 0x3600000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

@@ -25,11 +25,11 @@ fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selec
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg1, 0
     v15 = extract_value slice<calldata>, arg1, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     icall @store_storage_bytes, 1, v12
     v16 = extract_value slice<calldata>, arg0, 0
     v17 = extract_value slice<calldata>, arg0, 1
@@ -47,11 +47,11 @@ fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selec
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc v27
-    store v28, v23
+    mstore v28, v23
     v29 = ptradd v28, 32
     v30 = extract_value slice<calldata>, arg0, 0
     v31 = extract_value slice<calldata>, arg0, 1
-    copy calldata v29, v30, v31
+    calldatacopy v29, v30, v31
     icall @store_storage_bytes, 0, v28
     v32 = icall @load_storage_bytes, 0
     v33 = icall @load_storage_bytes, 1
@@ -63,7 +63,7 @@ fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selec
 fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
-    store v0, 96
+    mstore v0, 96
     v1 = icall @split, arg0
     v2 = extract_value struct2, v1, 0
     v3 = extract_value struct2, v1, 1
@@ -94,14 +94,14 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
-    store v26, v4
+    mstore v26, v4
     v27 = make_calldata_slice v5, v17
     v28 = ptradd v26, 32
     v29 = extract_value slice<calldata>, v27, 0
     v30 = extract_value slice<calldata>, v27, 1
-    copy calldata v28, v29, v30
+    calldatacopy v28, v29, v30
     v31 = ptrtoint ptr<memory> v26 to i256
-    store v0, v31
+    mstore v0, v31
     v32 = extract_value slice<calldata>, v2, 1
     v33 = lt 0, v32
     v34 = eq v33, false
@@ -109,13 +109,13 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     v35 = extract_value slice<calldata>, v2, 0
     v36 = ptrtoint ptr<calldata> v35 to i256
     v37 = add v36, 0
-    v38 = load calldata v37
-    v39 = load v0, ptr<memory>
-    v40 = load v39
+    v38 = calldataload v37
+    v39 = mload v0, ptr<memory>
+    v40 = mload v39
     v41 = lt 0, v40
     v42 = eq v41, false
     icall panic_if<0x32>, v42
-    v43 = load v39+32
+    v43 = mload v39+32
     v44 = insert_value struct1, undef struct1, 0, v38
     v45 = insert_value struct1, v44, 1, v43
     ret v45
@@ -160,7 +160,7 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v12 = make_calldata_slice v6, 64
     v13 = extract_value slice<calldata>, v12, 0
     v14 = extract_value slice<calldata>, v12, 1
-    copy calldata v11, v13, v14
+    calldatacopy v11, v13, v14
     jump bb1
   bb1:
     v15 = phi [bb0: 0], [bb6: v22]
@@ -196,7 +196,7 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
   bb4:
     v19 = shl 5, v15
     v20 = ptradd v11, v19
-    v21 = load v20
+    v21 = mload v20
     sstore v17, v21 !metadata(storage=offset(v15, 2))
     jump bb6
   bb6:
@@ -251,13 +251,13 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     v30 = lt v29, 32
     icall panic_if<0x41>, v30
     v31 = alloc v29
-    store v31, v9
+    mstore v31, v9
     v32 = make_calldata_slice v10, v22
     v33 = ptradd v31, 32
     v34 = extract_value slice<calldata>, v32, 0
     v35 = extract_value slice<calldata>, v32, 1
-    copy calldata v33, v34, v35
-    v36 = load v31
+    calldatacopy v33, v34, v35
+    v36 = mload v31
     v37 = sload 5 !metadata(storage=slot(5))
     v38 = gt v37, v36
     jumpi v38, bb1, bb2
@@ -305,7 +305,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
   bb7:
     v46 = shl 5, v44
     v47 = ptradd v31, v46
-    v48 = load v47+32
+    v48 = mload v47+32
     v49 = storage_array_data_slot 5
     v50 = add v49, v44
     sstore v50, v48 !metadata(storage=symbolic(v50))

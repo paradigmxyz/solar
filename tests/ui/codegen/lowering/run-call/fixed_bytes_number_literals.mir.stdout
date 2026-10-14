@@ -40,7 +40,7 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -62,7 +62,7 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
-    v19 = load v18
+    v19 = mload v18
     ret v19
 }
 
@@ -120,10 +120,10 @@ fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_return
 fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 6
-    store v0+32, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
-    v1 = load v0+32
-    v2 = load v0
+    mstore v0, 6
+    mstore v0+32, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
+    v1 = mload v0+32
+    v2 = mload v0
     v3 = lt v2, 4
     v4 = sub 4, v2
     v5 = mul 8, v4
@@ -138,8 +138,8 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = load v2+32
-    v4 = load v2
+    v3 = mload v2+32
+    v4 = mload v2
     v5 = lt v4, 32
     v6 = sub 32, v4
     v7 = mul 8, v6
@@ -153,8 +153,8 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
 fn @returnBytes() -> struct0 [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 1
-    store v0+32, 0xe00000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 1
+    mstore v0+32, 0xe00000000000000000000000000000000000000000000000000000000000000
     v1 = insert_value struct0, undef struct0, 0, true
     v2 = insert_value struct0, v1, 1, v0
     ret v2
@@ -173,7 +173,7 @@ fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_par
     v7 = ptradd v0, 0
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 0
-    v10 = load calldata v9
+    v10 = calldataload v9
     v11 = extract_value slice<calldata>, v8, 1
     v12 = lt v11, 32
     v13 = sub 32, v11
@@ -189,8 +189,8 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v0 = address
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
-    store v2, 9
-    store v2+32, 0x1122334455667788990000000000000000000000000000000000000000000000
+    mstore v2, 9
+    mstore v2+32, 0x1122334455667788990000000000000000000000000000000000000000000000
     v3 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
@@ -204,7 +204,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = load v10
+    v11 = mload v10
     ret v11
 }
 

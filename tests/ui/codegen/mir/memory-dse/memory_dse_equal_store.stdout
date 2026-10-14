@@ -3,49 +3,49 @@
   @module MemoryDseEqualStore
   fn @remove_equal_store_after_keccak(arg0: i256) -> i256 {
     bb0:
-      store 128, arg0
+      mstore 128, arg0
       v0 = keccak256 128, 32
--     store 128, arg0
+-     mstore 128, arg0
       ret v0
   }
   
   fn @keep_equal_store_after_copy(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     store 128, arg0
-      copy calldata 128, arg1, 32
-      store 128, arg0
--     v0 = load 128
+-     mstore 128, arg0
+      calldatacopy 128, arg1, 32
+      mstore 128, arg0
+-     v0 = mload 128
 -     ret v0
 +     ret arg0
   }
   
   fn @keep_restore_after_overlapping_store() -> i256 {
     bb0:
-      store 128, 0x1234
+      mstore 128, 0x1234
       jump bb1
     bb1:
-      store 129, 0
+      mstore 129, 0
       jump bb2
     bb2:
-      store 128, 0x1234
+      mstore 128, 0x1234
       jump bb3
     bb3:
-      v0 = load 128
+      v0 = mload 128
       ret v0
   }
   
   fn @keep_restore_after_dynamic_overlapping_store(arg0: i256) -> i256 {
     bb0:
-      store 128, 0x1234
+      mstore 128, 0x1234
       jump bb1
     bb1:
-      store 129, arg0
+      mstore 129, arg0
       jump bb2
     bb2:
-      store 128, 0x1234
+      mstore 128, 0x1234
       jump bb3
     bb3:
-      v0 = load 128
+      v0 = mload 128
       ret v0
   }
   

@@ -35,7 +35,7 @@ contract CalldataStructMemberIndex {
     // The member uses its four-word ABI head stride.
     // CDSMI-LABEL: fn @member
     // CDSMI: shl 7, arg1
-    // CDSMI: load calldata
+    // CDSMI: calldataload
     function member(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.items[i].amount;
     }

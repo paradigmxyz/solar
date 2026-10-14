@@ -39,11 +39,11 @@ fn @word(arg0: slice<calldata>) -> ptr<memory> [selector=0x37948b05, pure, abi_p
     v30 = lt v29, 32
     icall panic_if<0x41>, v30
     v31 = alloc v29
-    store v31, v9
+    mstore v31, v9
     v32 = make_calldata_slice v10, v22
     v33 = ptradd v31, 32
     v34 = extract_value slice<calldata>, v32, 0
     v35 = extract_value slice<calldata>, v32, 1
-    copy calldata v33, v34, v35
+    calldatacopy v33, v34, v35
     ret v31
 }

@@ -271,10 +271,10 @@
 -     v4 = zext i1 v1 to i256
 -     v5 = zext i160 v2 to i256
 +     v4 = zext i1 v7 to i256
-      store 0, v4
--     store 32, v5
-+     store 32, v8
-      store 64, v3
+      mstore 0, v4
+-     mstore 32, v5
++     mstore 32, v8
+      mstore 64, v3
       stop
   }
   
@@ -283,15 +283,15 @@
 -     v0 = sext i1 arg0 to i256
 -     v1 = sext i1 arg0 to i160
 -     v2 = zext i160 v1 to i256
--     store 0, v0
--     store 32, v2
+-     mstore 0, v0
+-     mstore 32, v2
 +     v3 = zext i1 arg0 to i256
 +     v4 = sub 0, v3
 +     v5 = zext i1 arg0 to i256
 +     v6 = sub 0, v5
 +     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-+     store 0, v4
-+     store 32, v7
++     mstore 0, v4
++     mstore 32, v7
       stop
   }
   
@@ -506,9 +506,9 @@
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
       v3 = ptrtoint ptr<memory> v0 to i256
       v4 = zext i1 v7 to i256
-      store 0, v4
-      store 32, v8
-      store 64, v3
+      mstore 0, v4
+      mstore 32, v8
+      mstore 64, v3
       stop
   }
   
@@ -519,8 +519,8 @@
       v5 = zext i1 arg0 to i256
       v6 = sub 0, v5
       v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-      store 0, v4
-      store 32, v7
+      mstore 0, v4
+      mstore 32, v7
       stop
   }
   
@@ -737,10 +737,10 @@
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
 -     v3 = ptrtoint ptr<memory> v0 to i256
       v4 = zext i1 v7 to i256
-      store 0, v4
-      store 32, v8
--     store 64, v3
-+     store 64, arg0
+      mstore 0, v4
+      mstore 32, v8
+-     mstore 64, v3
++     mstore 64, arg0
       stop
   }
   
@@ -752,8 +752,8 @@
 -     v6 = sub 0, v5
 -     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
 +     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-      store 0, v4
-      store 32, v7
+      mstore 0, v4
+      mstore 32, v7
       stop
   }
   
@@ -951,9 +951,9 @@
       v7 = ne v6, 0
       v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
       v4 = zext i1 v7 to i256
-      store 0, v4
-      store 32, v8
-      store 64, arg0
+      mstore 0, v4
+      mstore 32, v8
+      mstore 64, arg0
       stop
   }
   
@@ -962,8 +962,8 @@
       v3 = zext i1 arg0 to i256
       v4 = sub 0, v3
       v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-      store 0, v4
-      store 32, v7
+      mstore 0, v4
+      mstore 32, v7
       stop
   }
   

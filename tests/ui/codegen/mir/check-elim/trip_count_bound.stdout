@@ -3,7 +3,7 @@
   @module TripCountBound
   fn @constant_start_and_step(arg0: ptr<memory>) -> i256 {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb3: v5]
@@ -25,7 +25,7 @@
   
   fn @unknown_start(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       jump bb1
     bb1:
       v1 = phi [bb0: arg1], [bb3: v5]

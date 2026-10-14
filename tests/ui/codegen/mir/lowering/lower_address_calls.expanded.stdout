@@ -6,7 +6,7 @@
 -     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32 !metadata(span=10..20, modifier_depth=2)
-+     v3 = load arg1 !metadata(span=10..20, modifier_depth=2)
++     v3 = mload arg1 !metadata(span=10..20, modifier_depth=2)
 +     v4 = gas !metadata(span=10..20, modifier_depth=2)
 +     v5 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
 +     v6 = call v4, v5, 0, v2, v3, 0, 0 !metadata(span=10..20, modifier_depth=2)
@@ -20,7 +20,7 @@
 -     v1 = icall returndata_bytes<> !metadata(span=30..40, modifier_depth=3)
 -     ret v1
 +     v2 = ptradd arg1, 32
-+     v3 = load arg1
++     v3 = mload arg1
 +     v4 = zext i160 arg0 to i256
 +     v5 = call arg2, v4, 0, v2, v3, 0, 0
 +     v6 = returndatasize !metadata(span=30..40, modifier_depth=3)
@@ -31,16 +31,16 @@
 +     v9 = not 31 !metadata(span=30..40, modifier_depth=3)
 +     v10 = and v7, v9 !metadata(span=30..40, modifier_depth=3)
 +     v11 = alloc v10 !metadata(span=30..40, modifier_depth=3)
-+     store v11, v6 !metadata(span=30..40, modifier_depth=3)
++     mstore v11, v6 !metadata(span=30..40, modifier_depth=3)
 +     v12 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
 +     v13 = ptradd v11, 32 !metadata(span=30..40, modifier_depth=3)
 +     v14 = extract_value slice<returndata>, v12, 0 !metadata(span=30..40, modifier_depth=3)
 +     v15 = extract_value slice<returndata>, v12, 1 !metadata(span=30..40, modifier_depth=3)
-+     copy returndata v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
++     returndatacopy v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
 +     ret v11
 +   bb1:
-+     store 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
++     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     revert 28, 36 !metadata(span=30..40, modifier_depth=3)
   }
   
@@ -49,7 +49,7 @@
 -     v0 = address_delegatecall arg0, arg1, gas 0x186a0
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32
-+     v3 = load arg1
++     v3 = mload arg1
 +     v4 = zext i160 arg0 to i256
 +     v5 = delegatecall 0x186a0, v4, v2, v3, 0, 0
 +     v1 = zext i1 v5 to i256
@@ -61,7 +61,7 @@
 -     v0 = address_call arg0, arg1, value 0
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32
-+     v3 = load arg1
++     v3 = mload arg1
 +     v4 = gas
 +     v5 = zext i160 arg0 to i256
 +     v6 = call v4, v5, 0, v2, v3, 0, 0

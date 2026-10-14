@@ -35,13 +35,13 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     sstore v19, 42 !metadata(storage=symbolic(v19))
     sstore 0, v17 !metadata(storage=slot(0))
     v20 = alloc zeroed checked 64
-    store v20, 1
-    v21 = load v20
+    mstore v20, 1
+    v21 = mload v20
     v22 = lt 0, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
-    store v20+32, 23
-    v24 = load v20
+    mstore v20+32, 23
+    v24 = mload v20
     v25 = sload 0 !metadata(storage=slot(0))
     v26 = gt v25, v24
     jumpi v26, bb1, bb2
@@ -93,7 +93,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb7:
     v34 = shl 5, v32
     v35 = ptradd v20, v34
-    v36 = load v35+32
+    v36 = mload v35+32
     v37 = storage_array_data_slot 0
     v38 = add v37, v32
     sstore v38, v36 !metadata(storage=symbolic(v38))

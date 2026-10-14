@@ -4,17 +4,17 @@
   fn @constructor() [constructor] {
     bb0:
 -     v0 = icall @literal
--     v1 = load v0
+-     v1 = mload v0
 +     v4 = alloc 64 !metadata(preserves_fmp)
 +     v5 = ptrtoint ptr<memory> v4 to i256
-+     store v5, 1
++     mstore v5, 1
 +     v6 = ptradd v4, 32
 +     v7 = ptrtoint ptr<memory> v6 to i256
-+     store v7, 0x3100000000000000000000000000000000000000000000000000000000000000
-+     v1 = load v4
++     mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
++     v1 = mload v4
       sstore 0, v1
       v2 = icall @indirect
-      v3 = load v2
+      v3 = mload v2
       sstore 3, v3
       stop
   }
@@ -25,10 +25,10 @@
 -     ret v0
 +     v1 = alloc 64 !metadata(preserves_fmp)
 +     v2 = ptrtoint ptr<memory> v1 to i256
-+     store v2, 1
++     mstore v2, 1
 +     v3 = ptradd v1, 32
 +     v4 = ptrtoint ptr<memory> v3 to i256
-+     store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
++     mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
 +     ret v1
   }
   
@@ -36,10 +36,10 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -48,7 +48,7 @@
       v0 = icall @shared_literal
       v1 = icall @shared_literal
       v2 = ptradd v0, 32
-      store8 v2, 65
+      mstore8 v2, 65
       ret v1
   }
   
@@ -56,9 +56,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3200000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -77,9 +77,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3300000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -93,9 +93,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3400000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
@@ -123,9 +123,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3500000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -139,9 +139,9 @@
     bb0:
       v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3600000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -152,14 +152,14 @@
     bb0:
       v4 = alloc 64 !metadata(preserves_fmp)
       v5 = ptrtoint ptr<memory> v4 to i256
-      store v5, 1
+      mstore v5, 1
       v6 = ptradd v4, 32
       v7 = ptrtoint ptr<memory> v6 to i256
-      store v7, 0x3100000000000000000000000000000000000000000000000000000000000000
-      v1 = load v4
+      mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = mload v4
       sstore 0, v1
       v2 = icall @indirect
-      v3 = load v2
+      v3 = mload v2
       sstore 3, v3
       stop
   }
@@ -168,10 +168,10 @@
     bb0:
       v1 = alloc 64 !metadata(preserves_fmp)
       v2 = ptrtoint ptr<memory> v1 to i256
-      store v2, 1
+      mstore v2, 1
       v3 = ptradd v1, 32
       v4 = ptrtoint ptr<memory> v3 to i256
-      store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v1
   }
   
@@ -179,10 +179,10 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -191,7 +191,7 @@
       v0 = icall @shared_literal
       v1 = icall @shared_literal
       v2 = ptradd v0, 32
-      store8 v2, 65
+      mstore8 v2, 65
       ret v1
   }
   
@@ -199,9 +199,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3200000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -220,9 +220,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3300000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -236,9 +236,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3400000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
@@ -266,9 +266,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3500000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -282,9 +282,9 @@
     bb0:
       v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3600000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -295,14 +295,14 @@
     bb0:
       v4 = alloc 64 !metadata(preserves_fmp)
       v5 = ptrtoint ptr<memory> v4 to i256
-      store v5, 1
+      mstore v5, 1
       v6 = ptradd v4, 32
       v7 = ptrtoint ptr<memory> v6 to i256
-      store v7, 0x3100000000000000000000000000000000000000000000000000000000000000
-      v1 = load v4
+      mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = mload v4
       sstore 0, v1
       v2 = icall @indirect
-      v3 = load v2
+      v3 = mload v2
       sstore 3, v3
       stop
   }
@@ -311,10 +311,10 @@
     bb0:
       v1 = alloc 64 !metadata(preserves_fmp)
       v2 = ptrtoint ptr<memory> v1 to i256
-      store v2, 1
+      mstore v2, 1
       v3 = ptradd v1, 32
       v4 = ptrtoint ptr<memory> v3 to i256
-      store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v4, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v1
   }
   
@@ -322,10 +322,10 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -334,7 +334,7 @@
       v0 = icall @shared_literal
       v1 = icall @shared_literal
       v2 = ptradd v0, 32
-      store8 v2, 65
+      mstore8 v2, 65
       ret v1
   }
   
@@ -342,9 +342,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3200000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -363,9 +363,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3300000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -379,9 +379,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3400000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
@@ -409,9 +409,9 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3500000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -425,9 +425,9 @@
     bb0:
       v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3600000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   

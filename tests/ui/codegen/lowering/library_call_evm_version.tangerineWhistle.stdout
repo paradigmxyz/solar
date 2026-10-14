@@ -24,8 +24,8 @@ fn @arr(arg0: i256) -> ptr<memory> [selector=0x71e5ee5f, pure, abi_params=[u256]
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = alloc 64
-    store v1, arg0
-    store v1+32, arg0
+    mstore v1, arg0
+    mstore v1+32, arg0
     ret v1
 }
 
@@ -38,13 +38,13 @@ fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[u256], abi_re
 fn @flagged(arg0: i256) -> ptr<memory> [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 0
-    store v0+32, 0
+    mstore v0, 0
+    mstore v0+32, 0
     v1 = alloc 64
     v2 = ne arg0, 0
     v3 = zext i1 v2 to i256
-    store v1, v3
-    store v1+32, arg0
+    mstore v1, v3
+    mstore v1+32, arg0
     ret v1
 }
 
@@ -61,7 +61,7 @@ fn @noret(arg0: i256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns
 
 fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = insert_value struct1, undef struct1, 0, v0
     v2 = insert_value struct1, v1, 1, 1
     v3 = insert_value struct1, v2, 2, 2
@@ -93,7 +93,7 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
   bb2:
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     ret v9
 }
 
@@ -113,10 +113,10 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
   bb2:
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     v10 = ptrtoint ptr<memory> v1 to i256
     v11 = add v10, 32
-    v12 = load v11
+    v12 = mload v11
     v13 = insert_value struct0, undef struct0, 0, v9
     v14 = insert_value struct0, v13, 1, v12
     v15 = extract_value struct0, v14, 0
@@ -143,7 +143,7 @@ fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=
   bb1:
     revert_returndata
   bb2:
-    copy v1, v3, 64
+    mcopy v1, v3, 64
     v9 = make_memory_slice v1, 64
     v10 = abi_decode [array<2, u256>], v9
     ret v10
@@ -165,7 +165,7 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
   bb2:
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     v10 = eq v9, 0
     v11 = eq v10, false
     v12 = zext i1 v11 to i256
@@ -179,8 +179,8 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
 fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 0
-    store v0+32, 0
+    mstore v0, 0
+    mstore v0+32, 0
     v1 = alloc 64
     v2 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
@@ -194,7 +194,7 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
   bb1:
     revert_returndata
   bb2:
-    copy v1, v3, 64
+    mcopy v1, v3, 64
     v9 = make_memory_slice v1, 64
     v10 = abi_decode [tuple<bool, u256>], v9
     ret v10
@@ -216,7 +216,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
   bb2:
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     ret v9
 }
 
@@ -236,22 +236,22 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
   bb2:
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     v10 = ptrtoint ptr<memory> v1 to i256
     v11 = add v10, 32
-    v12 = load v11
+    v12 = mload v11
     v13 = ptrtoint ptr<memory> v1 to i256
     v14 = add v13, 64
-    v15 = load v14
+    v15 = mload v14
     v16 = ptrtoint ptr<memory> v1 to i256
     v17 = add v16, 96
-    v18 = load v17
+    v18 = mload v17
     v19 = ptrtoint ptr<memory> v1 to i256
     v20 = add v19, 128
-    v21 = load v20
+    v21 = mload v20
     v22 = ptrtoint ptr<memory> v1 to i256
     v23 = add v22, 160
-    v24 = load v23
+    v24 = mload v23
     v25 = insert_value struct1, undef struct1, 0, v9
     v26 = insert_value struct1, v25, 1, v12
     v27 = insert_value struct1, v26, 2, v15

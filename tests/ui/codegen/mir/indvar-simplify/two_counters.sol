@@ -13,13 +13,13 @@
 // carried pointer, so the loop adds to the pointer rather than rebuilding each
 // address from the counter, and the write offsets are small constants.
 // CHECK-LABEL: fn @pack
-// CHECK: store8 [[OUT:v[0-9]+]],
+// CHECK: mstore8 [[OUT:v[0-9]+]],
 // CHECK: [[P1:v[0-9]+]] = add [[OUT]], 1
-// CHECK: store8 [[P1]],
+// CHECK: mstore8 [[P1]],
 // CHECK: [[P2:v[0-9]+]] = add [[OUT]], 2
-// CHECK: store8 [[P2]],
+// CHECK: mstore8 [[P2]],
 // CHECK: [[P3:v[0-9]+]] = add [[OUT]], 3
-// CHECK: store8 [[P3]],
+// CHECK: mstore8 [[P3]],
 // CHECK: add [[OUT]], 4
 
 contract Test {

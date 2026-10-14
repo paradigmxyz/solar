@@ -32,7 +32,7 @@ fn @one() -> i256 [selector=0x901717d1, abi_params=[], abi_returns=[word], abi_r
   bb4:
     v8 = shl 5, v1
     v9 = ptradd v0, v8
-    v10 = load v9
+    v10 = mload v9
     v11 = mul v6, 8
     v12 = shl v11, 0xffffffffffffffff
     v13 = sload v4 !metadata(storage=symbolic(v3))

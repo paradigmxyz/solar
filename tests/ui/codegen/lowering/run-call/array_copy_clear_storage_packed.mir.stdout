@@ -79,13 +79,13 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 0, v50 !metadata(storage=slot(0))
     v64 = alloc zeroed checked 64
-    store v64, 1
-    v65 = load v64
+    mstore v64, 1
+    v65 = mload v64
     v66 = lt 0, v65
     v67 = eq v66, false
     icall panic_if<0x32>, v67
-    store v64+32, 23
-    v68 = load v64
+    mstore v64+32, 23
+    v68 = mload v64
     v69 = sload 0 !metadata(storage=slot(0))
     v70 = gt v69, v68
     jumpi v70, bb1, bb2
@@ -186,7 +186,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
   bb7:
     v89 = shl 5, v87
     v90 = ptradd v64, v89
-    v91 = load v90+32
+    v91 = mload v90+32
     v92 = storage_array_data_slot 0
     v93 = div v87, 2
     v94 = add v92, v93
@@ -301,13 +301,13 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 1, v50 !metadata(storage=slot(1))
     v64 = alloc zeroed checked 64
-    store v64, 1
-    v65 = load v64
+    mstore v64, 1
+    v65 = mload v64
     v66 = lt 0, v65
     v67 = eq v66, false
     icall panic_if<0x32>, v67
-    store v64+32, 23
-    v68 = load v64
+    mstore v64+32, 23
+    v68 = mload v64
     v69 = sload 1 !metadata(storage=slot(1))
     v70 = gt v69, v68
     jumpi v70, bb1, bb2
@@ -408,7 +408,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi
   bb7:
     v89 = shl 5, v87
     v90 = ptradd v64, v89
-    v91 = load v90+32
+    v91 = mload v90+32
     v92 = storage_array_data_slot 1
     v93 = div v87, 4
     v94 = add v92, v93
@@ -523,13 +523,13 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 2, v50 !metadata(storage=slot(2))
     v64 = alloc zeroed checked 64
-    store v64, 1
-    v65 = load v64
+    mstore v64, 1
+    v65 = mload v64
     v66 = lt 0, v65
     v67 = eq v66, false
     icall panic_if<0x32>, v67
-    store v64+32, 23
-    v68 = load v64
+    mstore v64+32, 23
+    v68 = mload v64
     v69 = sload 2 !metadata(storage=slot(2))
     v70 = gt v69, v68
     jumpi v70, bb1, bb2
@@ -630,7 +630,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
   bb7:
     v89 = shl 5, v87
     v90 = ptradd v64, v89
-    v91 = load v90+32
+    v91 = mload v90+32
     v92 = storage_array_data_slot 2
     v93 = div v87, 2
     v94 = add v92, v93

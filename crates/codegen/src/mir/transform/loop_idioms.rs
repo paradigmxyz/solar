@@ -10,7 +10,7 @@
 //! the payload base may be computed in the body or hoisted, and the exits may
 //! be distinct `ret` blocks or, once the scan was inlined into its ABI wrapper,
 //! one block whose phi selects the result from the header and body edges or a
-//! lowered `store`/`returndata` epilogue.
+//! lowered `mstore`/`returndata` epilogue.
 //!
 //! Full chunks stay within the source payload. A final load may include only
 //! the rounded allocation padding; the transform shifts or forces those bytes
@@ -1131,7 +1131,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     let source = strip(source)?;
     let dest = strip(dest)?;
 
-    // `copy` moves as if through a buffer while the loop copies upwards, so
+    // `mcopy` moves as if through a buffer while the loop copies upwards, so
     // the two differ exactly when the ranges overlap. Require them disjoint.
     let [source_base] = source.as_slice() else { return None };
     let [dest_base] = dest.as_slice() else { return None };
@@ -1166,7 +1166,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     })
 }
 
-/// Replaces a recognized byte-copy loop with one `copy` in its preheader.
+/// Replaces a recognized byte-copy loop with one `mcopy` in its preheader.
 fn rewrite_copy_loop(func: &mut Function, candidate: CopyLoop) {
     {
         let mut builder = FunctionBuilder::new(func);

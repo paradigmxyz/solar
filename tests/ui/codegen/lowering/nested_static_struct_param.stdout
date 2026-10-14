@@ -13,11 +13,11 @@ fn @take(arg0: slice<calldata>) -> struct0 [selector=0xd1a79489, pure, abi_param
     v5 = extract_value slice<calldata>, v4, 0
     v6 = ptrtoint ptr<calldata> v5 to i256
     v7 = add v6, 32
-    v8 = load calldata v7
+    v8 = calldataload v7
     v9 = extract_value slice<calldata>, arg0, 0
     v10 = ptrtoint ptr<calldata> v9 to i256
     v11 = add v10, 96
-    v12 = load calldata v11
+    v12 = calldataload v11
     v13 = insert_value struct0, undef struct0, 0, v8
     v14 = insert_value struct0, v13, 1, v12
     ret v14

@@ -2,11 +2,11 @@
 @module ExternalFunctionPointerNestedArrayTarget
 fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = load arg0+32
+    v3 = mload arg0+32
     v4 = shr 64, v3
     v5 = and v4, 0xffffffff
     v6 = shl 224, v5
@@ -28,12 +28,12 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = shl 64, v14
-    store v15, v18
-    v19 = load arg0
+    mstore v15, v18
+    v19 = mload arg0
     v20 = lt 1, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = load arg0+64
+    v22 = mload arg0+64
     v23 = shr 64, v22
     v24 = and v23, 0xffffffff
     v25 = shl 224, v24
@@ -53,12 +53,12 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = shl 64, v33
-    store v15+32, v36
-    v37 = load arg0
+    mstore v15+32, v36
+    v37 = mload arg0
     v38 = lt 2, v37
     v39 = eq v38, false
     icall panic_if<0x32>, v39
-    v40 = load arg0+96
+    v40 = mload arg0+96
     v41 = shr 64, v40
     v42 = and v41, 0xffffffff
     v43 = shl 224, v42
@@ -78,7 +78,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = shl 64, v51
-    store v15+64, v54
+    mstore v15+64, v54
     ret v15
 }
 
@@ -93,7 +93,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
+    mstore v0, 3
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v18]
@@ -101,7 +101,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v3 = phi [bb0: v0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v5]
-    v6 = load v3
+    v6 = mload v3
     v7 = lt v1, v6
     jumpi v7, bb4, bb5
   bb5:
@@ -111,12 +111,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v20 = zext i160 v19 to i256
     v21 = shl 32, v20
     v22 = or v21, 0x573a6b2f
-    v23 = load v3
+    v23 = mload v3
     v24 = lt 0, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = shl 64, v22
-    store v3+32, v26
+    mstore v3+32, v26
     v27 = abi_encode []
     v28 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
     v29 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
@@ -125,7 +125,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v31 = extract_value slice<memory>, v27, 0
     v32 = ptrtoint ptr<memory> v30 to i256
     v33 = add v32, v28
-    copy v33, v31, 0 !metadata(memory=heap)
+    mcopy v33, v31, 0 !metadata(memory=heap)
     v34 = create 0, v30, v28
     v35 = ne v34, i160 0
     jumpi v35, bb8, bb7
@@ -151,7 +151,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v47 = lt 0, 3
     v48 = eq v47, false
     icall panic_if<0x32>, v48
-    v49 = load v46
+    v49 = mload v46
     v50 = shr 64, v49
     v51 = and v50, 0xffffffff
     v52 = shl 224, v51
@@ -169,11 +169,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v60 = lt v59, 32
     icall revert_if<tuple_data_too_short>, v60
     v61 = add 0, 0
-    v62 = load v61
+    v62 = mload v61
     v63 = lt 1, 3
     v64 = eq v63, false
     icall panic_if<0x32>, v64
-    v65 = load v46+32
+    v65 = mload v46+32
     v66 = shr 64, v65
     v67 = and v66, 0xffffffff
     v68 = shl 224, v67
@@ -191,11 +191,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v76 = lt v75, 32
     icall revert_if<tuple_data_too_short>, v76
     v77 = add 0, 0
-    v78 = load v77
+    v78 = mload v77
     v79 = lt 2, 3
     v80 = eq v79, false
     icall panic_if<0x32>, v80
-    v81 = load v46+64
+    v81 = mload v46+64
     v82 = shr 64, v81
     v83 = and v82, 0xffffffff
     v84 = shl 224, v83
@@ -213,7 +213,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v92 = lt v91, 32
     icall revert_if<tuple_data_too_short>, v92
     v93 = add 0, 0
-    v94 = load v93
+    v94 = mload v93
     v95 = insert_value struct0, undef struct0, 0, v62
     v96 = insert_value struct0, v95, 1, v78
     v97 = insert_value struct0, v96, 2, v94
@@ -223,14 +223,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v9 = zext i160 v8 to i256
     v10 = shl 32, v9
     v11 = or v10, 0xb8c9d365
-    v12 = load v3
+    v12 = mload v3
     v13 = lt v1, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = shl 64, v11
     v16 = shl 5, v1
     v17 = ptradd v3, v16
-    store v17+32, v15
+    mstore v17+32, v15
     jump bb6
   bb6:
     jump bb3

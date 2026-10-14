@@ -182,20 +182,20 @@ fn @copyValues() -> struct0 [selector=0xd888038d, view, abi_params=[], abi_retur
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = trunc i256 v1 to i8
     v3 = zext i8 v2 to i256
-    store v0, v3
+    mstore v0, v3
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = shr 8, v4
     v6 = trunc i256 v5 to i8
     v7 = zext i8 v6 to i256
-    store v0+32, v7
+    mstore v0+32, v7
     v8 = add 0, 1
     v9 = sload v8 !metadata(storage=slot(1))
-    store v0+64, v9
-    v10 = load v0
+    mstore v0+64, v9
+    v10 = mload v0
     v11 = trunc i256 v10 to i8
-    v12 = load v0+32
+    v12 = mload v0+32
     v13 = trunc i256 v12 to i8
-    v14 = load v0+64
+    v14 = mload v0+64
     v15 = insert_value struct0, undef struct0, 0, v11
     v16 = insert_value struct0, v15, 1, v13
     v17 = insert_value struct0, v16, 2, v14
@@ -246,17 +246,17 @@ fn @replace(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0xcde69356, abi
     v0 = alloc 96
     v1 = zext i8 arg0 to i256
     v2 = zext i8 arg1 to i256
-    store v0, v1
-    store v0+32, v2
-    store v0+64, arg2
-    v3 = load v0
+    mstore v0, v1
+    mstore v0+32, v2
+    mstore v0+64, arg2
+    v3 = mload v0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 255
     v6 = and v4, v5
     v7 = and v3, 255
     v8 = or v6, v7
     sstore 0, v8 !metadata(storage=slot(0))
-    v9 = load v0+32
+    v9 = mload v0+32
     v10 = shl 8, 255
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = not v10
@@ -266,7 +266,7 @@ fn @replace(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0xcde69356, abi
     v16 = or v13, v15
     sstore 0, v16 !metadata(storage=slot(0))
     v17 = add 0, 1
-    v18 = load v0+64
+    v18 = mload v0+64
     sstore v17, v18 !metadata(storage=slot(1))
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = trunc i256 v19 to i8
@@ -492,19 +492,19 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v1 = lt 0, 4
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0, 5
+    mstore v0, 5
     v3 = lt 1, 4
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    store v0+32, 6
+    mstore v0+32, 6
     v5 = lt 2, 4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 7
+    mstore v0+64, 7
     v7 = lt 3, 4
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    store v0+96, 8
+    mstore v0+96, 8
     jump bb1
   bb1:
     v9 = phi [bb0: 0], [bb6: v35]
@@ -581,7 +581,7 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
   bb4:
     v16 = shl 5, v9
     v17 = ptradd v0, v16
-    v18 = load v17
+    v18 = mload v17
     v19 = mul v14, 8
     v20 = shl v19, 255
     v21 = sload v12 !metadata(storage=offset(v11, 2))

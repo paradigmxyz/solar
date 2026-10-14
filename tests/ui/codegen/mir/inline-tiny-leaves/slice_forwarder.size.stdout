@@ -70,7 +70,7 @@
   
   fn @load(arg0: ptr<memory>) -> slice<memory> {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       v1 = make_memory_slice arg0, v0
       ret v1
   }
@@ -144,7 +144,7 @@
   
   fn @load(arg0: ptr<memory>) -> slice<memory> {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       v1 = make_memory_slice arg0, v0
       ret v1
   }
@@ -200,7 +200,7 @@
   
   fn @load(arg0: ptr<memory>) -> slice<memory> {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       v1 = make_memory_slice arg0, v0
       ret v1
   }

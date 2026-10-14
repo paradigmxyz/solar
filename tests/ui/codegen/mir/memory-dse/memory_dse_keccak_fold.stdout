@@ -3,8 +3,8 @@
   @module MemoryDseKeccakFold
   fn @fold_constant_scratch_keccak() -> i256 {
     bb0:
-      store 0, 7
-      store 32, 5
+      mstore 0, 7
+      mstore 32, 5
 -     v0 = keccak256 0, 64
 -     ret v0
 +     ret 0xeddb6698d7c569ff62ff64f1f1492bf14a54594835ba0faac91f84b4f5d81460
@@ -12,17 +12,17 @@
   
   fn @keep_dynamic_word(arg0: i256) -> i256 {
     bb0:
-      store 0, arg0
-      store 32, 5
+      mstore 0, arg0
+      mstore 32, 5
       v0 = keccak256 0, 64
       ret v0
   }
   
   fn @keep_after_memory_clobber() -> i256 {
     bb0:
--     store 0, 7
-      store 32, 5
-      copy calldata 0, 0, 32
+-     mstore 0, 7
+      mstore 32, 5
+      calldatacopy 0, 0, 32
       v0 = keccak256 0, 64
       ret v0
   }

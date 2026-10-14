@@ -10,9 +10,9 @@
       v2 = eq v1, 100
       jumpi v2, bb5, bb2
     bb2:
-      v3 = load 64
+      v3 = mload 64
       v4 = mul v1, 32
-      store v4, 1
+      mstore v4, 1
       v5 = lt v1, 2
       jumpi v5, bb3, bb4
     bb3:
@@ -35,9 +35,9 @@
     bb5:
       ret v0
     bb2:
-      v3 = load 64
+      v3 = mload 64
       v4 = mul v1, 32
-      store v4, 1
+      mstore v4, 1
       v5 = lt v1, 2
       jumpi v5, bb3, bb4
     bb3:

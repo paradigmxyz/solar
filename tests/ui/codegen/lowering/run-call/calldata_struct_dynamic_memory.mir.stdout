@@ -29,53 +29,53 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v77]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v78 = load v22
-    v79 = load v22
+    v78 = mload v22
+    v79 = mload v22
     v80 = lt 0, v79
     v81 = eq v80, false
     icall panic_if<0x32>, v81
-    v82 = load v22+32
+    v82 = mload v22+32
     v83 = inttoptr i256 v82 to ptr<memory>
     v84 = eq v82, 0
     jumpi v84, bb4, bb5
   bb4:
     v85 = icall @default_struct_0
     v86 = ptrtoint ptr<memory> v85 to i256
-    store v22+32, v86
+    mstore v22+32, v86
     jump bb5
   bb5:
     v87 = phi [bb3: v83], [bb4: v85]
-    v88 = load v87, ptr<memory>
-    v89 = load v88
+    v88 = mload v87, ptr<memory>
+    v89 = mload v88
     v90 = checked_add u256, v78, v89
-    v91 = load v22
+    v91 = mload v22
     v92 = lt 1, v91
     v93 = eq v92, false
     icall panic_if<0x32>, v93
-    v94 = load v22+64
+    v94 = mload v22+64
     v95 = inttoptr i256 v94 to ptr<memory>
     v96 = eq v94, 0
     jumpi v96, bb6, bb7
   bb6:
     v97 = icall @default_struct_0
     v98 = ptrtoint ptr<memory> v97 to i256
-    store v22+64, v98
+    mstore v22+64, v98
     jump bb7
   bb7:
     v99 = phi [bb5: v95], [bb6: v97]
-    v100 = load v99, ptr<memory>
-    v101 = load v100
+    v100 = mload v99, ptr<memory>
+    v101 = mload v100
     v102 = lt 0, v101
     v103 = eq v102, false
     icall panic_if<0x32>, v103
-    v104 = load v100+32
+    v104 = mload v100+32
     v105 = checked_add u256, v90, v104
     ret v105
   bb2:
@@ -86,7 +86,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v29 = sub v28, v27
     v30 = slt v29, 32
     icall revert_if<calldata_tail_too_short>, v30
-    v31 = load calldata v27
+    v31 = calldataload v27
     v32 = ptrtoint ptr<calldata> v1 to i256
     v33 = add v32, v31
     v34 = calldatasize
@@ -101,7 +101,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v42 = sub v41, v33
     v43 = slt v42, 32
     icall revert_if<calldata_tail_too_short>, v43
-    v44 = load calldata v33
+    v44 = calldataload v33
     v45 = add v33, v44
     v46 = calldatasize
     v47 = sub v46, v33
@@ -109,7 +109,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v49 = slt v44, v48
     v50 = eq v49, false
     icall revert_if<invalid_calldata_tail_offset>, v50
-    v51 = load calldata v45
+    v51 = calldataload v45
     v52 = calldatasize
     v53 = gt v51, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v53
@@ -130,19 +130,19 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v66 = lt v65, 32
     icall panic_if<0x41>, v66
     v67 = alloc v65
-    store v67, v51
+    mstore v67, v51
     v68 = inttoptr i256 v55 to ptr<calldata>
     v69 = make_calldata_slice v68, v58
     v70 = ptradd v67, 32
     v71 = extract_value slice<calldata>, v69, 0
     v72 = extract_value slice<calldata>, v69, 1
-    copy calldata v70, v71, v72
+    calldatacopy v70, v71, v72
     v73 = ptrtoint ptr<memory> v67 to i256
-    store v40, v73
+    mstore v40, v73
     v74 = ptrtoint ptr<memory> v40 to i256
     v75 = shl 5, v23
     v76 = ptradd v22, v75
-    store v76+32, v74
+    mstore v76+32, v74
     v77 = add v23, 1
     jump bb1
 }
@@ -151,8 +151,8 @@ fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 32
     v1 = alloc 32
-    store v1, 0
+    mstore v1, 0
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0, v2
+    mstore v0, v2
     ret v0
 }

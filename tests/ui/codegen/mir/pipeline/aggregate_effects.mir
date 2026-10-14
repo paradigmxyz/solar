@@ -5,11 +5,11 @@
 // CSE forwards across aggregate effects only when their ranges are disjoint.
 // CHECK: + // === {{.*}} (after cse) ===
 // CHECK: {{^[ +].*}}fn @flat_memory_write_is_precise{{[( ]}}
-// CHECK: - {{v[0-9]+}} = load 128
+// CHECK: - {{v[0-9]+}} = mload 128
 // CHECK: + {{v[0-9]+}} = add [[FLAT:v[0-9]+]], [[FLAT]]
 // CHECK: {{^[ +].*}}fn @nested_memory_write_is_barrier{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = load 128
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = load 128
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
 // CHECK: {{^[ +].*}}fn @disjoint_storage{{[( ]}}
 // CHECK: + {{v[0-9]+}} = add [[SLOAD:v[0-9]+]], [[SLOAD]]
 // CHECK: {{^[ +].*}}fn @overlapping_storage{{[( ]}}
@@ -18,13 +18,13 @@
 // Only unconditional stores prove overwrites; aggregate effects describe possible writes.
 // CHECK: + // === {{.*}} (after storage-dse) ===
 // CHECK: {{^[ +].*}}fn @overwrites_memory{{[( ]}}
-// CHECK: {{^[ +].*}}store arg0, 7
+// CHECK: {{^[ +].*}}mstore arg0, 7
 // CHECK: {{^[ +].*}}fn @clobbers_stored_value{{[( ]}}
 // CHECK: - sstore 0, 1
 
 fn @reads_memory(arg0: i256) {
   bb0:
-    store arg0, 7
+    mstore arg0, 7
     v10 = inttoptr i256 arg0 to ptr<memory>
     memory_to_storage struct<word>, v10, 0
     stop
@@ -32,29 +32,29 @@ fn @reads_memory(arg0: i256) {
 
 fn @overwrites_memory(arg0: i256) -> i256 {
   bb0:
-    store arg0, 7
+    mstore arg0, 7
     v10 = inttoptr i256 arg0 to ptr<memory>
     storage_to_memory struct<word>, 0, v10
-    v0 = load arg0
+    v0 = mload arg0
     ret v0
 }
 
 fn @flat_memory_write_is_precise() -> i256 {
   bb0:
-    v0 = load 128
+    v0 = mload 128
     v10 = inttoptr i256 256 to ptr<memory>
     storage_to_memory struct<word>, 0, v10
-    v1 = load 128
+    v1 = mload 128
     v2 = add v0, v1
     ret v2
 }
 
 fn @nested_memory_write_is_barrier() -> i256 {
   bb0:
-    v0 = load 128
+    v0 = mload 128
     v10 = inttoptr i256 256 to ptr<memory>
     storage_to_memory struct<struct<word>>, 0, v10
-    v1 = load 128
+    v1 = mload 128
     v2 = add v0, v1
     ret v2
 }

@@ -1596,17 +1596,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(self.parser.parse_uint()?.to::<u64>())
     }
 
-    /// Parses an optional non-memory location before a memory access's operands.
-    fn parse_ptr_location(&mut self) -> PtrLocation {
-        if self.parser.eat_keyword(kw::Calldata) {
-            PtrLocation::Calldata
-        } else if self.parser.eat_keyword(sym::returndata) {
-            PtrLocation::Returndata
-        } else {
-            PtrLocation::Memory
-        }
-    }
-
     fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
         let kind = self.parser.parse_ident()?;
         if kind == sym::word {
@@ -1816,14 +1805,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
-            sym::load => {
-                let location = self.parse_ptr_location();
+            kw::Mload | kw::Calldataload | sym::returndataload => {
+                let location = mnemonic_location(mnemonic);
                 let ptr = self.parse_value(builder)?;
                 let offset = self.parse_address_offset()?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
                     if ty != MirType::MEMPTR {
-                        return Err(self.parser.error("load annotation must be `ptr<memory>`"));
+                        return Err(self.parser.error("`mload` annotation must be `ptr<memory>`"));
                     }
                     ty
                 } else {
@@ -1831,20 +1820,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 (InstKind::Load(ptr, offset, location), Some(ty))
             }
-            sym::store | sym::store8 => {
+            kw::Mstore | kw::Mstore8 => {
                 let ptr = self.parse_value(builder)?;
                 let offset = self.parse_address_offset()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let value = self.parse_value(builder)?;
-                let kind = if mnemonic == sym::store {
+                let kind = if mnemonic == kw::Mstore {
                     InstKind::Store(ptr, offset, value)
                 } else {
                     InstKind::Store8(ptr, offset, value)
                 };
                 (kind, None)
             }
-            sym::copy => {
-                let location = self.parse_ptr_location();
+            kw::Mcopy | kw::Calldatacopy | kw::Returndatacopy => {
+                let location = mnemonic_location(mnemonic);
                 let dest = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let src = self.parse_value(builder)?;
@@ -1858,13 +1847,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let ptr = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let len = self.parse_value(builder)?;
-                let location = if mnemonic == sym::make_memory_slice {
-                    PtrLocation::Memory
-                } else if mnemonic == sym::make_calldata_slice {
-                    PtrLocation::Calldata
-                } else {
-                    PtrLocation::Returndata
-                };
+                let location = mnemonic_location(mnemonic);
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }
 
@@ -2317,6 +2300,17 @@ fn location_from_ident(id: Symbol) -> Option<PtrLocation> {
         kw::Calldata => Some(PtrLocation::Calldata),
         sym::returndata => Some(PtrLocation::Returndata),
         _ => None,
+    }
+}
+
+/// Returns the location a load, copy, or slice spelling reads.
+fn mnemonic_location(mnemonic: Symbol) -> PtrLocation {
+    match mnemonic {
+        kw::Calldataload | kw::Calldatacopy | sym::make_calldata_slice => PtrLocation::Calldata,
+        sym::returndataload | kw::Returndatacopy | sym::make_returndata_slice => {
+            PtrLocation::Returndata
+        }
+        _ => PtrLocation::Memory,
     }
 }
 

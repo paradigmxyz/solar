@@ -6,8 +6,8 @@
 // CHECK: + {{v[0-9]+}} = add [[HASH:v[0-9]+]], [[HASH]]
 // CHECK: {{^[ +].*}}after lower-mapping-slots
 // CHECK: {{^[ +].*}}fn @word{{[( ]}}
-// CHECK: + store 0, arg0
-// CHECK: + store 32, 7
+// CHECK: + mstore 0, arg0
+// CHECK: + mstore 32, 7
 // CHECK: + [[LOWERED_HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: + {{v[0-9]+}} = add [[LOWERED_HASH]], [[LOWERED_HASH]]
 fn @word(arg0: i256) -> i256 {
@@ -26,7 +26,7 @@ fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
     v2 = mapping_slot arg0, 7
     jumpi arg1, bb1, bb2
   bb1:
-    store 0, 1
+    mstore 0, 1
     revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 7
@@ -36,14 +36,14 @@ fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
 
 // CHECK: {{^[ +].*}}fn @memory{{[( ]}}
 // CHECK: + [[FIRST:v[0-9]+]] = keccak256
-// CHECK: {{^[ +].*}}store arg0, 1
+// CHECK: {{^[ +].*}}mstore arg0, 1
 // CHECK: + [[SECOND:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
 fn @memory(arg0: i256) -> i256 {
   bb0:
     v4 = inttoptr i256 arg0 to ptr<memory>
     v1 = mapping_slot_bytes v4, 9
-    store arg0, 1
+    mstore arg0, 1
     v2 = mapping_slot_bytes v4, 9
     v3 = add v1, v2
     ret v3
@@ -63,13 +63,13 @@ fn @calldata(arg0: slice<calldata>) -> i256 {
 
 // CHECK: {{^[ +].*}}fn @word_after_scratch_write{{[( ]}}
 // CHECK: + [[BEFORE:v[0-9]+]] = keccak256 0, 64
-// CHECK: {{^[ +].*}}store 0, arg1
+// CHECK: {{^[ +].*}}mstore 0, arg1
 // CHECK: + [[AFTER:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^[ +].*}}add [[BEFORE]], [[AFTER]]
 fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = mapping_slot arg0, 7
-    store 0, arg1
+    mstore 0, arg1
     v3 = mapping_slot arg0, 7
     v4 = add v2, v3
     ret v4
@@ -77,12 +77,12 @@ fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
 
 // CHECK: {{^[ +].*}}fn @array_after_disjoint_write{{[( ]}}
 // CHECK: + [[ARRAY:v[0-9]+]] = keccak256 0, 32
-// CHECK: {{^[ +].*}}store 32, arg1
+// CHECK: {{^[ +].*}}mstore 32, arg1
 // CHECK: {{^[ +].*}}add [[ARRAY]], [[ARRAY]]
 fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = storage_array_data_slot arg0
-    store 32, arg1
+    mstore 32, arg1
     v3 = storage_array_data_slot arg0
     v4 = add v2, v3
     ret v4

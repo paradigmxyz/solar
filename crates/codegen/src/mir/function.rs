@@ -221,7 +221,7 @@ impl Function {
     }
 
     /// Returns the object and length of a store to an object's length word:
-    /// `store object, len`, also through a pointer cast.
+    /// `mstore object, len`, also through a pointer cast.
     #[must_use]
     pub(crate) fn memory_length_store(&self, inst: InstId) -> Option<(ValueId, ValueId)> {
         let InstKind::Store(address, 0, len) = self.inst(inst).kind else { return None };

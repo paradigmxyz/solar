@@ -32,8 +32,8 @@
       v2 = icall returndata_bytes<>
       v3 = address_call v0, arg1
       v4 = icall returndata_bytes<>
-      v5 = load v2
-      v6 = load v4
+      v5 = mload v2
+      v6 = mload v4
       v7 = add v5, v6
       ret v7
   }
@@ -72,8 +72,8 @@
       v2 = icall returndata_bytes<>
       v3 = address_call v0, arg1
       v4 = icall returndata_bytes<>
-      v5 = load v2
-      v6 = load v4
+      v5 = mload v2
+      v6 = mload v4
       v7 = add v5, v6
       ret v7
   }

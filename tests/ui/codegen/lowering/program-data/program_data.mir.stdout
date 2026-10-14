@@ -8,7 +8,7 @@
 fn @data() -> ptr<memory> [selector=0x73d4a13a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 320 !metadata(preserves_fmp)
-    store v0, 257
+    mstore v0, 257
     v1 = ptradd v0, 32
     datacopy literal_0, v1, 288
     ret v0
@@ -17,7 +17,7 @@ fn @data() -> ptr<memory> [selector=0x73d4a13a, pure, abi_params=[], abi_returns
 fn @subslice() -> ptr<memory> [selector=0xb9ad073e, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 224 !metadata(preserves_fmp)
-    store v0, 161
+    mstore v0, 161
     v1 = ptradd v0, 32
     datacopy literal_1, v1, 192
     ret v0
@@ -36,7 +36,7 @@ fn @subsliceHash() -> i256 [selector=0xe5a3e763, pure, abi_params=[], abi_return
 fn @zeroData() -> ptr<memory> [selector=0x6ec059cd, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
-    store v0, 160
+    mstore v0, 160
     v1 = ptradd v0, 32
     memory_zero v1, 160
     ret v0
@@ -45,15 +45,15 @@ fn @zeroData() -> ptr<memory> [selector=0x6ec059cd, pure, abi_params=[], abi_ret
 fn @zeroWord() -> ptr<memory> [selector=0x4c092794, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 32
-    store v0+32, 0
+    mstore v0, 32
+    mstore v0+32, 0
     ret v0
 }
 
 fn @splatData() -> ptr<memory> [selector=0xe1910fda, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
-    store v0, 160
+    mstore v0, 160
     v1 = ptradd v0, 32
     datacopy literal_2, v1, 160
     ret v0
@@ -63,7 +63,7 @@ fn @zeroHash() -> i256 [selector=0x672c8259, pure, abi_params=[], abi_returns=[w
   bb0:
     v0 = icall @zeroData
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     ret v3
 }
@@ -72,7 +72,7 @@ fn @zeroWordHash() -> i256 [selector=0x0d00d797, pure, abi_params=[], abi_return
   bb0:
     v0 = icall @zeroWord
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     ret v3
 }
@@ -81,7 +81,7 @@ fn @splatHash() -> i256 [selector=0x38f844b9, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = icall @splatData
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     ret v3
 }

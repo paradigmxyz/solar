@@ -24,7 +24,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
-    v11 = load v10
+    v11 = mload v10
     sstore 0, v11 !metadata(storage=slot(0))
     ret
 }
@@ -40,7 +40,7 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<1, function>]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
-    v1 = load arg0
+    v1 = mload arg0
     sstore 0, v1 !metadata(storage=slot(0))
     ret
 }
@@ -66,7 +66,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v9 = extract_value slice<memory>, v4, 0
     v10 = ptrtoint ptr<memory> v8 to i256
     v11 = add v10, v5
-    copy v11, v9, 32 !metadata(memory=heap)
+    mcopy v11, v9, 32 !metadata(memory=heap)
     v12 = create 0, v8, v6
     v13 = ne v12, i160 0
     jumpi v13, bb2, bb1
@@ -87,7 +87,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v21 = lt v20, 32
     icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
-    v23 = load v22
+    v23 = mload v22
     ret v23
 }
 
@@ -103,7 +103,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = shl 64, v4
-    store v0, v7
+    mstore v0, v7
     v8 = abi_encode [array<1, function>], args v0
     v9 = datasize ArrayTarget_creation_code_1
     v10 = datasize ArrayTarget_creation_code_1, 32
@@ -113,7 +113,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v13 = extract_value slice<memory>, v8, 0
     v14 = ptrtoint ptr<memory> v12 to i256
     v15 = add v14, v9
-    copy v15, v13, 32 !metadata(memory=heap)
+    mcopy v15, v13, 32 !metadata(memory=heap)
     v16 = create 0, v12, v10
     v17 = ne v16, i160 0
     jumpi v17, bb2, bb1
@@ -142,7 +142,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v33 = lt v32, 32
     icall revert_if<tuple_data_too_short>, v33
     v34 = add 0, 0
-    v35 = load v34
+    v35 = mload v34
     v36 = eq v35, v25
     ret v36
 }

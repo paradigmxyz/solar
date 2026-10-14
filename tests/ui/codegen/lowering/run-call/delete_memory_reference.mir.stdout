@@ -6,21 +6,21 @@
 fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
-    v1 = load v0
+    mstore v0, 1
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 7
+    mstore v0+32, 7
     v4 = alloc 32
-    store v4, 0
-    v5 = load v4
-    v6 = load v0
-    v7 = load v0
+    mstore v4, 0
+    v5 = mload v4
+    v6 = mload v0
+    v7 = mload v0
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = load v0+32
+    v10 = mload v0+32
     v11 = insert_value struct0, undef struct0, 0, v5
     v12 = insert_value struct0, v11, 1, v6
     v13 = insert_value struct0, v12, 2, v10
@@ -30,14 +30,14 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[w
 fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>], abi_return_params=[u256, u256, bytes2]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 2
-    store v0+32, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 2
+    mstore v0+32, 0xabcd000000000000000000000000000000000000000000000000000000000000
     v1 = alloc 32
-    store v1, 0
-    v2 = load v1
-    v3 = load v0
-    v4 = load v0+32
-    v5 = load v0
+    mstore v1, 0
+    v2 = mload v1
+    v3 = mload v0
+    v4 = mload v0+32
+    v5 = mload v0
     v6 = lt v5, 2
     v7 = sub 2, v5
     v8 = mul 8, v7

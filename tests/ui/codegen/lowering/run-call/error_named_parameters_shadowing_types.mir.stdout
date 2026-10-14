@@ -3,7 +3,7 @@
 fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32
-    store v0, 42
+    mstore v0, 42
     icall require<custom_error [tuple<word>]>, false, 0x33a5419300000000000000000000000000000000000000000000000000000000, v0
     invalid
 }
@@ -11,7 +11,7 @@ fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_pa
 fn @g() [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32
-    store v0, 42
+    mstore v0, 42
     v1 = lt i8 1, i8 3
     v2 = eq v1, false
     icall panic_if<0x21>, v2

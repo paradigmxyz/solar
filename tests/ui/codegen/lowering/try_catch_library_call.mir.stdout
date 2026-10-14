@@ -54,12 +54,12 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
   bb2:
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
-    v12 = load v10
+    v12 = mload v10
     v13 = make_memory_slice v11, v12
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
-    v17 = load v16
+    v17 = mload v16
     v18 = shr 224, v17
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
@@ -75,7 +75,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
   bb8:
     revert v14, v15
   bb7:
-    v23 = load v10
+    v23 = mload v10
     v24 = ptradd v10, 36
     v25 = sub v23, 4
     v26 = make_memory_slice v24, v25
@@ -86,7 +86,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
-    v9 = load v8
+    v9 = mload v8
     ret v9
   bb3:
     ret 0
@@ -104,12 +104,12 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
   bb2:
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
-    v12 = load v10
+    v12 = mload v10
     v13 = make_memory_slice v11, v12
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
-    v17 = load v16
+    v17 = mload v16
     v18 = shr 224, v17
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
@@ -125,7 +125,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
   bb8:
     revert v14, v15
   bb7:
-    v23 = load v10
+    v23 = mload v10
     v24 = ptradd v10, 36
     v25 = sub v23, 4
     v26 = make_memory_slice v24, v25
@@ -136,7 +136,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
-    v9 = load v8
+    v9 = mload v8
     ret v9
   bb3:
     ret 0
@@ -154,12 +154,12 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
   bb2:
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
-    v12 = load v10
+    v12 = mload v10
     v13 = make_memory_slice v11, v12
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = extract_value slice<memory>, v13, 0
-    v17 = load v16
+    v17 = mload v16
     v18 = shr 224, v17
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
@@ -175,7 +175,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
   bb8:
     revert v14, v15
   bb7:
-    v23 = load v10
+    v23 = mload v10
     v24 = ptradd v10, 36
     v25 = sub v23, 4
     v26 = make_memory_slice v24, v25
@@ -186,7 +186,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
-    v9 = load v8
+    v9 = mload v8
     ret v9
   bb3:
     ret 0
@@ -224,7 +224,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
-    v3 = load v2
+    v3 = mload v2
     v4 = gt v3, 0xffffffffffffffff
     v5 = add v3, 36
     v6 = gt v5, arg1
@@ -233,7 +233,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v7, bb3, bb2
   bb2:
     v9 = add v2, v3
-    v10 = load v9
+    v10 = mload v9
     v11 = gt v10, 0xffffffffffffffff
     v12 = sub arg1, v5
     v13 = gt v10, v12

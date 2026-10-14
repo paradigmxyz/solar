@@ -13,7 +13,7 @@ contract TryCatchClauses {
     // CHECK-LABEL: fn @bare
     // CHECK: call {{.*}}, 0, 32
     // CHECK-NOT: returndata_bytes
-    // CHECK: {{(^|[^a-z_])}}load
+    // CHECK: {{(^|[^a-z_])}}mload
     function bare(ClauseTarget target) external returns (uint256 r) {
         try target.value() returns (uint256 v) {
             r = v;

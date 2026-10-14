@@ -9,8 +9,8 @@
 // CHECK: + {{v[0-9]+}} = icall @fill, arg0
 // CHECK-LABEL: {{^[ +].*}}fn @fill(arg0: i256)
 // CHECK-NOT: jumpi
-// CHECK: {{^[ +].*}}store8 {{v[0-9]+}}, 45
-// CHECK-NOT: store8 {{v[0-9]+}}, 95
+// CHECK: {{^[ +].*}}mstore8 {{v[0-9]+}}, 45
+// CHECK-NOT: mstore8 {{v[0-9]+}}, 95
 fn @caller(arg0: i256) -> ptr<memory> [selector=0x00000001] {
   bb0:
     v0 = icall @fill, arg0, 0
@@ -21,15 +21,15 @@ fn @fill(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v2 = ptrtoint ptr<memory> v0 to i256
-    store v2, arg0
+    mstore v2, arg0
     v1 = ne arg1, 0
     jumpi v1, bb1, bb2
   bb1:
     v3 = ptradd v0, 32
-    store8 v3, 95
+    mstore8 v3, 95
     ret v0
   bb2:
     v4 = ptradd v0, 32
-    store8 v4, 45
+    mstore8 v4, 45
     ret v0
 }

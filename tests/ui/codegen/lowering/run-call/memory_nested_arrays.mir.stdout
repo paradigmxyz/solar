@@ -3,7 +3,7 @@
 fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
+    mstore v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -21,98 +21,98 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
   bb8:
     jump bb5
   bb5:
-    v51 = load v8
+    v51 = mload v8
     v52 = lt 1, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
-    v54 = load v8+64
+    v54 = mload v8+64
     v55 = inttoptr i256 v54 to ptr<memory>
     v56 = eq v54, 0
     jumpi v56, bb21, bb22
   bb21:
     v57 = alloc 32
-    store v57, 0
+    mstore v57, 0
     v58 = ptrtoint ptr<memory> v57 to i256
-    store v8+64, v58
+    mstore v8+64, v58
     jump bb22
   bb22:
     v59 = phi [bb5: v55], [bb21: v57]
-    v60 = load v59
+    v60 = mload v59
     v61 = lt 1, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
-    v63 = load v59+64
+    v63 = mload v59+64
     v64 = inttoptr i256 v63 to ptr<memory>
     v65 = eq v63, 0
     jumpi v65, bb23, bb24
   bb23:
     v66 = alloc 32
-    store v66, 0
+    mstore v66, 0
     v67 = ptrtoint ptr<memory> v66 to i256
-    store v59+64, v67
+    mstore v59+64, v67
     jump bb24
   bb24:
     v68 = phi [bb22: v64], [bb23: v66]
-    v69 = load v68
+    v69 = mload v68
     v70 = lt 1, v69
     v71 = eq v70, false
     icall panic_if<0x32>, v71
-    store v68+64, v7
-    v72 = load v8
+    mstore v68+64, v7
+    v72 = mload v8
     v73 = lt 1, v72
     v74 = eq v73, false
     icall panic_if<0x32>, v74
-    v75 = load v8+64
+    v75 = mload v8+64
     v76 = inttoptr i256 v75 to ptr<memory>
     v77 = eq v75, 0
     jumpi v77, bb25, bb26
   bb25:
     v78 = alloc 32
-    store v78, 0
+    mstore v78, 0
     v79 = ptrtoint ptr<memory> v78 to i256
-    store v8+64, v79
+    mstore v8+64, v79
     jump bb26
   bb26:
     v80 = phi [bb24: v76], [bb25: v78]
-    v81 = load v80
+    v81 = mload v80
     v82 = lt 1, v81
     v83 = eq v82, false
     icall panic_if<0x32>, v83
-    v84 = load v80+64
+    v84 = mload v80+64
     v85 = inttoptr i256 v84 to ptr<memory>
     v86 = eq v84, 0
     jumpi v86, bb27, bb28
   bb27:
     v87 = alloc 32
-    store v87, 0
+    mstore v87, 0
     v88 = ptrtoint ptr<memory> v87 to i256
-    store v80+64, v88
+    mstore v80+64, v88
     jump bb28
   bb28:
     v89 = phi [bb26: v85], [bb27: v87]
-    v90 = load v89
+    v90 = mload v89
     v91 = lt 1, v90
     v92 = eq v91, false
     icall panic_if<0x32>, v92
-    v93 = load v89+64
+    v93 = mload v89+64
     ret v93
   bb7:
     v11 = alloc zeroed checked 128
-    store v11, 3
+    mstore v11, 3
     jump bb10
   bb10:
     v12 = phi [bb7: 0], [bb11: v16]
     v13 = lt v12, 3
     jumpi v13, bb11, bb12
   bb12:
-    v17 = load v8
+    v17 = mload v8
     v18 = lt v6, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptrtoint ptr<memory> v11 to i256
     v21 = shl 5, v6
     v22 = ptradd v8, v21
-    store v22+32, v20
+    mstore v22+32, v20
     jump bb13
   bb13:
     v23 = phi [bb12: v6], [bb15: v23]
@@ -133,35 +133,35 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     jump bb4
   bb16:
     v29 = alloc zeroed checked 160
-    store v29, 4
-    v30 = load v25
+    mstore v29, 4
+    v30 = mload v25
     v31 = lt v23, v30
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = shl 5, v23
     v34 = ptradd v25, v33
-    v35 = load v34+32
+    v35 = mload v34+32
     v36 = inttoptr i256 v35 to ptr<memory>
     v37 = eq v35, 0
     jumpi v37, bb19, bb20
   bb19:
     v38 = alloc 32
-    store v38, 0
+    mstore v38, 0
     v39 = shl 5, v23
     v40 = ptradd v25, v39
     v41 = ptrtoint ptr<memory> v38 to i256
-    store v40+32, v41
+    mstore v40+32, v41
     jump bb20
   bb20:
     v42 = phi [bb16: v36], [bb19: v38]
-    v43 = load v42
+    v43 = mload v42
     v44 = lt v26, v43
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = ptrtoint ptr<memory> v29 to i256
     v47 = shl 5, v26
     v48 = ptradd v42, v47
-    store v48+32, v46
+    mstore v48+32, v46
     jump bb18
   bb18:
     jump bb15
@@ -171,13 +171,13 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
   bb11:
     v14 = shl 5, v12
     v15 = ptradd v11, v14
-    store v15+32, 96
+    mstore v15+32, 96
     v16 = add v12, 1
     jump bb10
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4+32, 96
+    mstore v4+32, 96
     v5 = add v1, 1
     jump bb1
 }
@@ -185,7 +185,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
 fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
+    mstore v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
@@ -203,61 +203,61 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
   bb8:
     jump bb5
   bb5:
-    v51 = load v7
+    v51 = mload v7
     v52 = lt 1, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
-    v54 = load v7+64
+    v54 = mload v7+64
     v55 = inttoptr i256 v54 to ptr<memory>
     v56 = eq v54, 0
     jumpi v56, bb21, bb22
   bb21:
     v57 = alloc 32
-    store v57, 0
+    mstore v57, 0
     v58 = ptrtoint ptr<memory> v57 to i256
-    store v7+64, v58
+    mstore v7+64, v58
     jump bb22
   bb22:
     v59 = phi [bb5: v55], [bb21: v57]
-    v60 = load v59
+    v60 = mload v59
     v61 = lt 1, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
-    v63 = load v59+64
+    v63 = mload v59+64
     v64 = inttoptr i256 v63 to ptr<memory>
     v65 = eq v63, 0
     jumpi v65, bb23, bb24
   bb23:
     v66 = alloc 32
-    store v66, 0
+    mstore v66, 0
     v67 = ptrtoint ptr<memory> v66 to i256
-    store v59+64, v67
+    mstore v59+64, v67
     jump bb24
   bb24:
     v68 = phi [bb22: v64], [bb23: v66]
-    v69 = load v68
+    v69 = mload v68
     v70 = lt 1, v69
     v71 = eq v70, false
     icall panic_if<0x32>, v71
-    store v68+64, v6
+    mstore v68+64, v6
     ret v6
   bb7:
     v11 = alloc zeroed checked 128
-    store v11, 3
+    mstore v11, 3
     jump bb10
   bb10:
     v12 = phi [bb7: 0], [bb11: v16]
     v13 = lt v12, 3
     jumpi v13, bb11, bb12
   bb12:
-    v17 = load v7
+    v17 = mload v7
     v18 = lt v8, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptrtoint ptr<memory> v11 to i256
     v21 = shl 5, v8
     v22 = ptradd v7, v21
-    store v22+32, v20
+    mstore v22+32, v20
     jump bb13
   bb13:
     v23 = phi [bb12: v6], [bb15: v23]
@@ -278,35 +278,35 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     jump bb4
   bb16:
     v29 = alloc zeroed checked 160
-    store v29, 4
-    v30 = load v24
+    mstore v29, 4
+    v30 = mload v24
     v31 = lt v26, v30
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = shl 5, v26
     v34 = ptradd v24, v33
-    v35 = load v34+32
+    v35 = mload v34+32
     v36 = inttoptr i256 v35 to ptr<memory>
     v37 = eq v35, 0
     jumpi v37, bb19, bb20
   bb19:
     v38 = alloc 32
-    store v38, 0
+    mstore v38, 0
     v39 = shl 5, v26
     v40 = ptradd v24, v39
     v41 = ptrtoint ptr<memory> v38 to i256
-    store v40+32, v41
+    mstore v40+32, v41
     jump bb20
   bb20:
     v42 = phi [bb16: v36], [bb19: v38]
-    v43 = load v42
+    v43 = mload v42
     v44 = lt v25, v43
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = ptrtoint ptr<memory> v29 to i256
     v47 = shl 5, v25
     v48 = ptradd v42, v47
-    store v48+32, v46
+    mstore v48+32, v46
     jump bb18
   bb18:
     jump bb15
@@ -316,13 +316,13 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
   bb11:
     v14 = shl 5, v12
     v15 = ptradd v11, v14
-    store v15+32, 96
+    mstore v15+32, 96
     v16 = add v12, 1
     jump bb10
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4+32, 96
+    mstore v4+32, 96
     v5 = add v1, 1
     jump bb1
 }

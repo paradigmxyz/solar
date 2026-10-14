@@ -17,8 +17,8 @@
 +   bb2:
       ret v0
 +   bb1:
-+     store 32, 34 !metadata(memory=scratch, span=10..20, modifier_depth=1)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=10..20, modifier_depth=1)
++     mstore 32, 34 !metadata(memory=scratch, span=10..20, modifier_depth=1)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=10..20, modifier_depth=1)
 +     revert 28, 36 !metadata(span=10..20, modifier_depth=1)
   }
   
@@ -46,11 +46,11 @@
 +     v14 = not 31 !metadata(span=20..30, modifier_depth=2)
 +     v15 = and v12, v14 !metadata(span=20..30, modifier_depth=2)
 +     v16 = alloc checked v15 !metadata(span=20..30, modifier_depth=2)
-+     store v16, v7 !metadata(span=20..30, modifier_depth=2)
++     mstore v16, v7 !metadata(span=20..30, modifier_depth=2)
 +     jumpi v3, bb6, bb5 !metadata(span=20..30, modifier_depth=2)
 +   bb5:
 +     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 !metadata(span=20..30, modifier_depth=2)
-+     store v16+32, v17 !metadata(span=20..30, modifier_depth=2)
++     mstore v16+32, v17 !metadata(span=20..30, modifier_depth=2)
 +     jump bb7 !metadata(span=20..30, modifier_depth=2)
 +   bb6:
 +     v18 = storage_array_data_slot arg0 !metadata(span=20..30, modifier_depth=2)
@@ -68,16 +68,16 @@
 +     v22 = sload v21 !metadata(storage=symbolic(v21), span=20..30, modifier_depth=2)
 +     v23 = mul v19, 32 !metadata(span=20..30, modifier_depth=2)
 +     v24 = ptradd v16, v23 !metadata(span=20..30, modifier_depth=2)
-+     store v24+32, v22 !metadata(span=20..30, modifier_depth=2)
++     mstore v24+32, v22 !metadata(span=20..30, modifier_depth=2)
 +     v25 = add v19, 1 !metadata(span=20..30, modifier_depth=2)
 +     jump bb8 !metadata(span=20..30, modifier_depth=2)
 +   bb3:
-+     store 32, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 32, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
 +   bb1:
-+     store 32, 34 !metadata(memory=scratch, span=20..30, modifier_depth=2)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 32, 34 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
   }
   
@@ -108,11 +108,11 @@
 +     v15 = not 31
 +     v16 = and v13, v15
 +     v17 = alloc checked v16
-+     store v17, v8
++     mstore v17, v8
 +     jumpi v4, bb9, bb8
 +   bb8:
 +     v18 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-+     store v17+32, v18
++     mstore v17+32, v18
 +     jump bb10
 +   bb9:
 +     v19 = storage_array_data_slot arg1
@@ -134,16 +134,16 @@
 +     v23 = sload v22 !metadata(storage=symbolic(v22))
 +     v24 = mul v20, 32
 +     v25 = ptradd v17, v24
-+     store v25+32, v23
++     mstore v25+32, v23
 +     v26 = add v20, 1
 +     jump bb11
 +   bb6:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb4:
-+     store 32, 34 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -194,7 +194,7 @@
 +     jumpi v9, bb4, bb5 !metadata(span=40..50, modifier_depth=4)
 +   bb5:
 +     v10 = ptradd arg2, 32 !metadata(span=40..50, modifier_depth=4)
-+     v11 = load arg2 !metadata(span=40..50, modifier_depth=4)
++     v11 = mload arg2 !metadata(span=40..50, modifier_depth=4)
 +     v12 = make_memory_slice v10, v11 !metadata(span=40..50, modifier_depth=4)
 +     v13 = extract_value slice<memory>, v12, 1 !metadata(span=40..50, modifier_depth=4)
 +     v14 = add v7, 31 !metadata(span=40..50, modifier_depth=4)
@@ -235,7 +235,7 @@
 +     v50 = extract_value slice<memory>, v12, 0 !metadata(span=40..50, modifier_depth=4)
 +     v51 = ptrtoint ptr<memory> v50 to i256 !metadata(span=40..50, modifier_depth=4)
 +     v52 = add v51, v49 !metadata(span=40..50, modifier_depth=4)
-+     v53 = load v52 !metadata(span=40..50, modifier_depth=4)
++     v53 = mload v52 !metadata(span=40..50, modifier_depth=4)
 +     v54 = sub 32, v47 !metadata(span=40..50, modifier_depth=4)
 +     v55 = mul v54, 8 !metadata(span=40..50, modifier_depth=4)
 +     v56 = shl v55, 1 !metadata(span=40..50, modifier_depth=4)
@@ -250,14 +250,14 @@
 +     v41 = extract_value slice<memory>, v12, 0 !metadata(span=40..50, modifier_depth=4)
 +     v42 = ptrtoint ptr<memory> v41 to i256 !metadata(span=40..50, modifier_depth=4)
 +     v43 = add v42, v40 !metadata(span=40..50, modifier_depth=4)
-+     v44 = load v43 !metadata(span=40..50, modifier_depth=4)
++     v44 = mload v43 !metadata(span=40..50, modifier_depth=4)
 +     v45 = add v36, v38 !metadata(span=40..50, modifier_depth=4)
 +     sstore v45, v44 !metadata(storage=symbolic(v45), span=40..50, modifier_depth=4)
 +     v46 = add v38, 1 !metadata(span=40..50, modifier_depth=4)
 +     jump bb13 !metadata(span=40..50, modifier_depth=4)
 +   bb10:
 +     v24 = extract_value slice<memory>, v12, 0 !metadata(span=40..50, modifier_depth=4)
-+     v25 = load v24 !metadata(span=40..50, modifier_depth=4)
++     v25 = mload v24 !metadata(span=40..50, modifier_depth=4)
 +     v26 = sub 32, v13 !metadata(span=40..50, modifier_depth=4)
 +     v27 = mul v26, 8 !metadata(span=40..50, modifier_depth=4)
 +     v28 = shl v27, 1 !metadata(span=40..50, modifier_depth=4)
@@ -275,12 +275,12 @@
 +     v0 = phi [bb12: 1], [bb2: 2]
       ret v0
 +   bb6:
-+     store 32, 65 !metadata(memory=scratch, span=40..50, modifier_depth=4)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 32, 65 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
 +   bb4:
-+     store 32, 34 !metadata(memory=scratch, span=40..50, modifier_depth=4)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 32, 34 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
 +     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
   }
   
@@ -341,8 +341,8 @@
 +     sstore arg1, 0 !metadata(storage=symbolic(arg1))
       jump bb3
 +   bb8:
-+     store 32, 34 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
     bb1:
 -     store_storage_bytes_literal arg1, hex"61" !metadata(span=50..60, modifier_depth=5)
@@ -374,8 +374,8 @@
 +     v0 = phi [bb7: 1], [bb14: 2]
       ret v0
 +   bb4:
-+     store 32, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
-+     store 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     mstore 32, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
   }
   
@@ -439,8 +439,8 @@
 +     sstore arg0, 0x7800000000000000000000000000000000000000000000000000000000000002 !metadata(storage=symbolic(arg0))
 +     ret
 +   bb1:
-+     store 32, 34 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

@@ -5,7 +5,7 @@
 
 fn @six(arg0: ptr<memory>) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = checked_add u256, v0, 4
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, 1
@@ -18,7 +18,7 @@ fn @six(arg0: ptr<memory>) -> struct0 [selector=0xb84d18fb, pure, abi_params=[by
 
 fn @sixString(arg0: ptr<memory>) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = checked_add u256, v0, 4
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, 1
@@ -47,7 +47,7 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -56,7 +56,7 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
   bb2:
     v9 = gas
     v10 = alloc 32
-    store v10, 0
+    mstore v10, 0
     v11 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
@@ -72,22 +72,22 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
   bb4:
     v19 = ptrtoint ptr<memory> v12 to i256
     v20 = add v19, 0
-    v21 = load v20
+    v21 = mload v20
     v22 = ptrtoint ptr<memory> v12 to i256
     v23 = add v22, 32
-    v24 = load v23
+    v24 = mload v23
     v25 = ptrtoint ptr<memory> v12 to i256
     v26 = add v25, 64
-    v27 = load v26
+    v27 = mload v26
     v28 = ptrtoint ptr<memory> v12 to i256
     v29 = add v28, 96
-    v30 = load v29
+    v30 = mload v29
     v31 = ptrtoint ptr<memory> v12 to i256
     v32 = add v31, 128
-    v33 = load v32
+    v33 = mload v32
     v34 = ptrtoint ptr<memory> v12 to i256
     v35 = add v34, 160
-    v36 = load v35
+    v36 = mload v35
     v37 = insert_value struct0, undef struct0, 0, v21
     v38 = insert_value struct0, v37, 1, v24
     v39 = insert_value struct0, v38, 2, v27
@@ -114,7 +114,7 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -123,7 +123,7 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb2:
     v9 = gas
     v10 = alloc 32
-    store v10, 0
+    mstore v10, 0
     v11 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
@@ -144,22 +144,22 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb3:
     v19 = ptrtoint ptr<memory> v12 to i256
     v20 = add v19, 0
-    v21 = load v20
+    v21 = mload v20
     v22 = ptrtoint ptr<memory> v12 to i256
     v23 = add v22, 32
-    v24 = load v23
+    v24 = mload v23
     v25 = ptrtoint ptr<memory> v12 to i256
     v26 = add v25, 64
-    v27 = load v26
+    v27 = mload v26
     v28 = ptrtoint ptr<memory> v12 to i256
     v29 = add v28, 96
-    v30 = load v29
+    v30 = mload v29
     v31 = ptrtoint ptr<memory> v12 to i256
     v32 = add v31, 128
-    v33 = load v32
+    v33 = mload v32
     v34 = ptrtoint ptr<memory> v12 to i256
     v35 = add v34, 160
-    v36 = load v35
+    v36 = mload v35
     v37 = checked_add u256, v21, v36
     jump bb5
   bb5:
@@ -177,7 +177,7 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -186,7 +186,7 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
   bb2:
     v9 = gas
     v10 = alloc 32
-    store v10, 0
+    mstore v10, 0
     v11 = abi_encode [memory_bytes], selector 0xa52f51f100000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
@@ -202,22 +202,22 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
   bb4:
     v19 = ptrtoint ptr<memory> v12 to i256
     v20 = add v19, 0
-    v21 = load v20
+    v21 = mload v20
     v22 = ptrtoint ptr<memory> v12 to i256
     v23 = add v22, 32
-    v24 = load v23
+    v24 = mload v23
     v25 = ptrtoint ptr<memory> v12 to i256
     v26 = add v25, 64
-    v27 = load v26
+    v27 = mload v26
     v28 = ptrtoint ptr<memory> v12 to i256
     v29 = add v28, 96
-    v30 = load v29
+    v30 = mload v29
     v31 = ptrtoint ptr<memory> v12 to i256
     v32 = add v31, 128
-    v33 = load v32
+    v33 = mload v32
     v34 = ptrtoint ptr<memory> v12 to i256
     v35 = add v34, 160
-    v36 = load v35
+    v36 = mload v35
     v37 = insert_value struct0, undef struct0, 0, v21
     v38 = insert_value struct0, v37, 1, v24
     v39 = insert_value struct0, v38, 2, v27

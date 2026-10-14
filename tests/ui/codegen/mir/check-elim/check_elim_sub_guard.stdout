@@ -38,7 +38,7 @@
       v0 = gt arg1, arg0
       jumpi v0, bb1, bb2
     bb2:
-      v1 = load 0
+      v1 = mload 0
       v2 = sub v1, arg1
       v3 = lt v1, arg1
       jumpi v3, bb3, bb4

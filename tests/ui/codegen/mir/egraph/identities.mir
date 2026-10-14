@@ -197,14 +197,14 @@ fn @unknown_field(arg0: struct0, arg1: i256) -> i256 {
 
 // CHECK-LABEL: @raw_word_carrier
 // CHECK: {{v[0-9]+}} = extract_value struct0, {{v[0-9]+}}, 0
-// CHECK: {{v[0-9]+}} = load {{v[0-9]+|arg0}}
+// CHECK: {{v[0-9]+}} = mload {{v[0-9]+|arg0}}
 fn @raw_word_carrier(arg0: ptr<memory>) -> i256 {
   bb0:
     v3 = ptrtoint ptr<memory> arg0 to i256
     v0 = insert_value struct0, undef struct0, 0, v3
     v1 = extract_value struct0, v0, 0
     v4 = inttoptr i256 v1 to ptr<memory>
-    v2 = load v4
+    v2 = mload v4
     ret v2
 }
 

@@ -30,8 +30,8 @@
   
   fn @hash() -> i256 {
     bb0:
-      store 0, 1
-      store 32, 2
+      mstore 0, 1
+      mstore 32, 2
       v0 = keccak256 0, 64
       ret v0
   }
@@ -227,11 +227,11 @@
   
   fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
     bb0:
-      v0 = load arg0+32
-      v1 = load arg0+64, ptr<memory>
-      v2 = load calldata arg1+4
-      store v1+32, v0
-      store8 arg0+1, v2
+      v0 = mload arg0+32
+      v1 = mload arg0+64, ptr<memory>
+      v2 = calldataload arg1+4
+      mstore v1+32, v0
+      mstore8 arg0+1, v2
       stop
   }
   

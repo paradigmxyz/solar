@@ -29,7 +29,7 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0x1597ee44, pure, abi
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v34]
@@ -42,14 +42,14 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0x1597ee44, pure, abi
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
-    v28 = load calldata v27
+    v28 = calldataload v27
     v29 = shr 8, v28
     v30 = eq v29, 0
     v31 = eq v30, false
     icall revert_if<empty>, v31
     v32 = shl 5, v23
     v33 = ptradd v22, v32
-    store v33+32, v28
+    mstore v33+32, v28
     v34 = add v23, 1
     jump bb1
 }

@@ -175,7 +175,7 @@ fn initialize(
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-    // ptr = load 64
+    // ptr = mload 64
     // object = inttoptr ptr
     let kind = if builder.func().inst(inst).result_ty.is_some_and(crate::mir::MirType::is_pointer) {
         let block = builder.current_block();

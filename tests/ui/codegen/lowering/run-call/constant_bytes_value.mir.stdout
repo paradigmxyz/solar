@@ -3,21 +3,21 @@
 fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    store v0, 40
-    store v0+32, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
-    store v0+64, 0x102030405060708000000000000000000000000000000000000000000000000
-    v1 = load v0
+    mstore v0, 40
+    mstore v0+32, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    mstore v0+64, 0x102030405060708000000000000000000000000000000000000000000000000
+    v1 = mload v0
     ret v1
 }
 
 fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    store v0, 40
-    store v0+32, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
-    store v0+64, 0x102030405060708000000000000000000000000000000000000000000000000
+    mstore v0, 40
+    mstore v0+32, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    mstore v0+64, 0x102030405060708000000000000000000000000000000000000000000000000
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
-    v3 = load v2
+    v3 = mload v2
     ret v3
 }

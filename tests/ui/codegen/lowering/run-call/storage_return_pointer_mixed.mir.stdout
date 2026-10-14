@@ -45,10 +45,10 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     icall revert_if<tuple_data_too_short>, v13
     v14 = ptrtoint ptr<memory> v8 to i256
     v15 = add v14, 0
-    v16 = load v15
+    v16 = mload v15
     v17 = ptrtoint ptr<memory> v8 to i256
     v18 = add v17, 32
-    v19 = load v18
+    v19 = mload v18
     v20 = insert_value struct1, undef struct1, 0, v16
     v21 = insert_value struct1, v20, 1, v19
     v22 = extract_value struct1, v21, 0

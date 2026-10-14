@@ -9,7 +9,7 @@
 // CHECK: -     {{v[0-9]+}} = alloc 32
 // CHECK: +     [[BASE:v[0-9]+]] = ptrtoint ptr<memory> 128 to i256
 // CHECK:       {{v[0-9]+}} = add [[BASE]], 0
-// CHECK:       [[LOAD:v[0-9]+]] = load {{v[0-9]+}}
+// CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK:       ret [[LOAD]]
 fn @derived_chain() -> i256 [selector=0x01020304] {
   bb0:
@@ -18,7 +18,7 @@ fn @derived_chain() -> i256 [selector=0x01020304] {
     jump bb5
   bb1:
     v5 = add v4, 0
-    v6 = load v5
+    v6 = mload v5
     ret v6
   bb2:
     v4 = add v3, 0
@@ -37,7 +37,7 @@ fn @derived_chain() -> i256 [selector=0x01020304] {
 // Storage promotion gives another entry a 32-byte frame, providing the shadow
 // region used by the explicit static-allocation pass.
 // CHECK-LABEL:   fn @reserve_frame{{.*}}
-// CHECK:       store 128, 1
+// CHECK:       mstore 128, 1
 fn @reserve_frame() [selector=0x01020305] {
   bb0:
     sstore 0, 1

@@ -18,13 +18,13 @@ fn @zeroed(arg0: slice<calldata>) -> ptr<memory> [selector=0x84322464, pure, abi
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     v16 = ptrtoint ptr<memory> v12 to i256
-    store v12, 0
+    mstore v12, 0
     ret v12
 }
 
@@ -46,13 +46,13 @@ fn @shortened(arg0: slice<calldata>) -> ptr<memory> [selector=0x6ee28a05, pure, 
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     v16 = ptrtoint ptr<memory> v12 to i256
-    store v12, 1
+    mstore v12, 1
     ret v12
 }
 
@@ -74,10 +74,10 @@ fn @kept(arg0: slice<calldata>) -> ptr<memory> [selector=0xc57c8563, pure, abi_p
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     ret v12
 }

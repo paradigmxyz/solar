@@ -27,7 +27,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -62,12 +62,12 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb2:
     v11 = icall returndata_bytes<>
     v12 = ptradd v11, 32
-    v13 = load v11
+    v13 = mload v11
     v14 = make_memory_slice v12, v13
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
-    v18 = load v17
+    v18 = mload v17
     v19 = shr 224, v18
     v20 = eq v19, 0x4e487b71
     v21 = lt v16, 36
@@ -79,7 +79,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     revert v15, v16
   bb4:
     v25 = ptradd v11, 36
-    v26 = load v11+36
+    v26 = mload v11+36
     ret v26
   bb1:
     jump bb3
@@ -105,12 +105,12 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb2:
     v11 = icall returndata_bytes<>
     v12 = ptradd v11, 32
-    v13 = load v11
+    v13 = mload v11
     v14 = make_memory_slice v12, v13
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
-    v18 = load v17
+    v18 = mload v17
     v19 = shr 224, v18
     v20 = eq v19, 0x4e487b71
     v21 = lt v16, 36
@@ -122,7 +122,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     revert v15, v16
   bb4:
     v25 = ptradd v11, 36
-    v26 = load v11+36
+    v26 = mload v11+36
     ret v26
   bb1:
     jump bb3

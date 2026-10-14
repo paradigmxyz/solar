@@ -9,20 +9,20 @@ fn @fresh_array() -> ptr<memory> {
   bb0:
     v0 = alloc 96
     v1 = ptrtoint ptr<memory> v0 to i256
-    store v1, 2
+    mstore v1, 2
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @terminal{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
-// CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
+// CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
 // CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
 // CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
-// CHECK: + copy [[DESTINATION]], [[SOURCE]], [[BYTES]]
-// CHECK: + store [[OBJECT]], 32
-// CHECK: + store [[OBJECT]]+32, [[ENCODE_LENGTH]]
+// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[BYTES]]
+// CHECK: + mstore [[OBJECT]], 32
+// CHECK: + mstore [[OBJECT]]+32, [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[OBJECT]], [[TOTAL]]
 fn @terminal() {
@@ -36,7 +36,7 @@ fn @terminal() {
 
 // A caller-visible array cannot be destructively encoded.
 // CHECK-LABEL: {{^[ +].*}}fn @borrowed{{[( ]}}
-// CHECK: + copy
+// CHECK: + mcopy
 // CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc
 // CHECK-NEXT: + {{v[0-9]+}} = make_memory_slice [[BUFFER_PTR]], {{v[0-9]+}}
 fn @borrowed(arg0: ptr<memory>) {
@@ -51,7 +51,7 @@ fn @fresh_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 96
     v1 = ptrtoint ptr<memory> v0 to i256
-    store v1, arg0
+    mstore v1, arg0
     ret v0
 }
 
@@ -65,15 +65,15 @@ fn @fresh_bytes_wrapper(arg0: i256) -> ptr<memory> {
 // clears the padding before moving the payload over its old length word.
 // CHECK-LABEL: {{^[ +].*}}fn @terminal_bytes{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
-// CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
+// CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = ptradd [[OBJECT]], 32
 // CHECK: + [[SOURCE_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[SOURCE]] to i256
 // CHECK-NEXT: + [[LAST:v[0-9]+]] = add [[SOURCE_WORD]],
-// CHECK: + store [[LAST]], 0
+// CHECK: + mstore [[LAST]], 0
 // CHECK: + [[DESTINATION:v[0-9]+]] = ptradd [[OBJECT]], 64
-// CHECK: + copy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
-// CHECK: + store [[OBJECT]], 32
+// CHECK: + mcopy [[DESTINATION]], [[SOURCE]], [[ENCODE_LENGTH]]
+// CHECK: + mstore [[OBJECT]], 32
 fn @terminal_bytes(arg0: i256) {
   bb0:
     v0 = icall @fresh_bytes_wrapper, arg0

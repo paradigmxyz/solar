@@ -120,10 +120,10 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      store 0, 2
+      mstore 0, 2
       jumpi arg1, bb3, bb1
     bb3:
-      store 32, 3
+      mstore 32, 3
 -     jumpi arg0, bb4, bb5
 -   bb5:
       ret 5

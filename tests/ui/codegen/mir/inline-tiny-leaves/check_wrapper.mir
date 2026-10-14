@@ -35,7 +35,7 @@ fn @effect_caller(arg0: i1) {
 
 fn @effect(arg0: i1) {
   bb0:
-    store 0, 42
+    mstore 0, 42
     icall revert_if<empty>, arg0
     ret
 }

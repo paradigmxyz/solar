@@ -49,7 +49,7 @@ fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21
-    store v23, v1
+    mstore v23, v1
     jump bb1
   bb1:
     v24 = phi [bb0: 0], [bb2: v78]
@@ -78,7 +78,7 @@ fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_
     v30 = sub v29, v28
     v31 = slt v30, 32
     icall revert_if<calldata_tail_too_short>, v31
-    v32 = load calldata v28
+    v32 = calldataload v28
     v33 = ptrtoint ptr<calldata> v2 to i256
     v34 = add v33, v32
     v35 = calldatasize
@@ -93,14 +93,14 @@ fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_
     v43 = sub v42, v34
     v44 = slt v43, 32
     icall revert_if<calldata_tail_too_short>, v44
-    v45 = load calldata v34
-    store v41, v45
+    v45 = calldataload v34
+    mstore v41, v45
     v46 = add v34, 32
     v47 = calldatasize
     v48 = sub v47, v46
     v49 = slt v48, 32
     icall revert_if<calldata_tail_too_short>, v49
-    v50 = load calldata v46
+    v50 = calldataload v46
     v51 = add v34, v50
     v52 = calldatasize
     v53 = sub v52, v34
@@ -108,7 +108,7 @@ fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_
     v55 = slt v50, v54
     v56 = eq v55, false
     icall revert_if<invalid_calldata_tail_offset>, v56
-    v57 = load calldata v51
+    v57 = calldataload v51
     v58 = calldatasize
     v59 = gt v57, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v59
@@ -125,17 +125,17 @@ fn @forwardStructs(arg0: slice<calldata>, arg1: i160) [selector=0x87c604a5, abi_
     v68 = not 31
     v69 = and v66, v68
     v70 = alloc v69
-    store v70, v65
+    mstore v70, v65
     v71 = ptradd v70, 32
     v72 = extract_value slice<calldata>, v64, 0
     v73 = extract_value slice<calldata>, v64, 1
-    copy calldata v71, v72, v73
+    calldatacopy v71, v72, v73
     v74 = ptrtoint ptr<memory> v70 to i256
-    store v41+32, v74
+    mstore v41+32, v74
     v75 = ptrtoint ptr<memory> v41 to i256
     v76 = shl 5, v24
     v77 = ptradd v23, v76
-    store v77+32, v75
+    mstore v77+32, v75
     v78 = add v24, 1
     jump bb1
 }

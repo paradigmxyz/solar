@@ -10,18 +10,18 @@
 +     v3 = add v2, 32
 +     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
-+     store v1, v5
++     mstore v1, v5
 +     v6 = extract_value slice<calldata>, arg0, 1
 +     v7 = not 31
 +     v8 = add v6, 31
 +     v9 = and v8, v7
 +     v10 = add v3, 32
 +     v11 = add v3, v9
-+     store v11, 0
-+     store v3, v6
++     mstore v11, 0
++     mstore v3, v6
 +     v12 = extract_value slice<calldata>, arg0, 0
 +     v13 = add v10, v9
-+     copy calldata v10, v12, v6 !metadata(memory=heap)
++     calldatacopy v10, v12, v6 !metadata(memory=heap)
 +     v14 = ptrtoint ptr<memory> v1 to i256
 +     v15 = sub v13, v14
 +     v16 = add v15, 0

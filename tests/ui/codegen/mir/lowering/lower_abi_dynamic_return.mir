@@ -12,7 +12,7 @@ fn @canonicalAddresses() -> ptr<memory> {
     v0 = alloc checked 96
     v1 = add 2, 0
     v6 = ptrtoint ptr<memory> v0 to i256
-    store v6, v1
+    mstore v6, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -23,7 +23,7 @@ fn @canonicalAddresses() -> ptr<memory> {
     v112 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v112
-    store v9002, v4
+    mstore v9002, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -47,7 +47,7 @@ fn @canonicalAddressArrays() -> ptr<memory> {
     v0 = alloc checked 64
     v1 = add 1, 0
     v10 = ptrtoint ptr<memory> v0 to i256
-    store v10, v1
+    mstore v10, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -61,7 +61,7 @@ fn @canonicalAddressArrays() -> ptr<memory> {
     v113 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v113
-    store v9002, v6
+    mstore v9002, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -85,7 +85,7 @@ fn @dirtyAddressArrays() -> ptr<memory> {
     v0 = alloc checked 64
     v1 = add 1, 0
     v7 = ptrtoint ptr<memory> v0 to i256
-    store v7, v1
+    mstore v7, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -94,12 +94,12 @@ fn @dirtyAddressArrays() -> ptr<memory> {
   bb2:
     v4 = icall @canonicalAddresses
     v9001 = ptradd v4, 32
-    store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = ptrtoint ptr<memory> v4 to i256
     v114 = shl 5, v2
     v9002 = ptradd v0, 32
     v9003 = ptradd v9002, v114
-    store v9003, v6
+    mstore v9003, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -131,7 +131,7 @@ fn @dirtyAddressAliases() -> ptr<memory> {
     v0 = alloc checked 64
     v1 = add 1, 0
     v8 = ptrtoint ptr<memory> v0 to i256
-    store v8, v1
+    mstore v8, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -142,11 +142,11 @@ fn @dirtyAddressAliases() -> ptr<memory> {
     v6 = ptrtoint ptr<memory> v4 to i256
     v7 = inttoptr i256 v6 to ptr<memory>
     v9001 = ptradd v7, 32
-    store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v115 = shl 5, v2
     v9002 = ptradd v0, 32
     v9003 = ptradd v9002, v115
-    store v9003, v6
+    mstore v9003, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -158,7 +158,7 @@ fn @dirtyAddressReloads() -> ptr<memory> {
     v0 = alloc checked 64
     v1 = add 1, 0
     v9 = ptrtoint ptr<memory> v0 to i256
-    store v9, v1
+    mstore v9, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -170,14 +170,14 @@ fn @dirtyAddressReloads() -> ptr<memory> {
     v116 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v116
-    store v9002, v6
+    mstore v9002, v6
     v117 = shl 5, v2
     v9003 = ptradd v0, 32
     v9004 = ptradd v9003, v117
-    v7 = load v9004
+    v7 = mload v9004
     v8 = inttoptr i256 v7 to ptr<memory>
     v9005 = ptradd v8, 32
-    store v9005, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v9005, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -189,7 +189,7 @@ fn @escapingAddressArrays() -> ptr<memory> {
     v0 = alloc checked 64
     v1 = add 1, 0
     v7 = ptrtoint ptr<memory> v0 to i256
-    store v7, v1
+    mstore v7, v1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -201,7 +201,7 @@ fn @escapingAddressArrays() -> ptr<memory> {
     v118 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v118
-    store v9002, v6
+    mstore v9002, v6
     icall @dirtyNestedArray, v0
     v5 = add v2, 1
     jump bb1
@@ -212,10 +212,10 @@ fn @escapingAddressArrays() -> ptr<memory> {
 fn @dirtyNestedArray(arg0: ptr<memory>) {
   bb0:
     v9001 = ptradd arg0, 32
-    v0 = load v9001
+    v0 = mload v9001
     v1 = inttoptr i256 v0 to ptr<memory>
     v9002 = ptradd v1, 32
-    store v9002, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v9002, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret
 }
 
@@ -242,7 +242,7 @@ fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns
     v0 = alloc checked 32
     v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 32
-    store v0, 256
+    mstore v0, 256
     ret v0
 }
 
@@ -271,7 +271,7 @@ fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f,
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
   bb1:
-    store v0, 1
+    mstore v0, 1
     jump bb2
   bb2:
     ret v0
@@ -281,11 +281,11 @@ fn @aliasedAddressContainer(arg0: ptr<memory>, arg1: ptr<memory>) -> ptr<memory>
   bb0:
     v0 = icall @canonicalAddresses
     v1 = ptrtoint ptr<memory> v0 to i256
-    store arg0, v1
-    v2 = load arg1
+    mstore arg0, v1
+    v2 = mload arg1
     v3 = inttoptr i256 v2 to ptr<memory>
     v9001 = ptradd v3, 32
-    store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
@@ -299,7 +299,7 @@ fn @givesAliasedAddressContainer() -> ptr<memory> [selector=0x0dead010, abi_retu
 fn @givesRawMemoryWrite() -> ptr<memory> [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @canonicalAddresses
-    store 0, 256
+    mstore 0, 256
     ret v0
 }
 
@@ -308,7 +308,7 @@ fn @conditionalFixedArray(arg0: i1) -> ptr<memory> {
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
   bb1:
-    store v0, 1
+    mstore v0, 1
     jump bb2
   bb2:
     ret v0
@@ -325,7 +325,7 @@ fn @bypassedArrayLoop(arg0: i1) -> ptr<memory> {
     v0 = alloc checked 96
     v1 = add 2, 0
     v6 = ptrtoint ptr<memory> v0 to i256
-    store v6, v1
+    mstore v6, v1
     jumpi arg0, bb1, bb3
   bb1:
     v2 = phi [bb0: 0], [bb2: v5]
@@ -336,7 +336,7 @@ fn @bypassedArrayLoop(arg0: i1) -> ptr<memory> {
     v119 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v119
-    store v9002, v4
+    mstore v9002, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -354,12 +354,12 @@ fn @lateArrayLength() -> ptr<memory> {
     jumpi v3, bb2, bb3
   bb2:
     v6 = ptrtoint ptr<memory> v0 to i256
-    store v6, v1
+    mstore v6, v1
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     v120 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v120
-    store v9002, v4
+    mstore v9002, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -382,9 +382,9 @@ fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_r
   bb0:
     v0 = alloc checked 32
     v1 = alloc checked 32
-    store v1, 1
+    mstore v1, 1
     v9001 = ptradd v0, 32
-    store v9001, 256
+    mstore v9001, 256
     ret v1
 }
 
@@ -405,7 +405,7 @@ fn @dirtyStorageAddresses(arg0: i256) -> ptr<memory> {
     v0 = load_storage_array u160, arg0
     v9001 = ptradd v0, 32
     v2 = ptrtoint ptr<memory> v9001 to i256
-    store v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
@@ -419,6 +419,6 @@ fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params
   bb0:
     v0 = alloc checked 32
     v1 = zext i128 arg0 to i256
-    store v0, v1
+    mstore v0, v1
     ret v0
 }

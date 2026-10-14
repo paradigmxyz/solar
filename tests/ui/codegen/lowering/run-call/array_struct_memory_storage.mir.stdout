@@ -3,7 +3,7 @@
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
+    mstore v0, 3
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -12,86 +12,86 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb3:
     v10 = alloc 96
     v11 = alloc 96
-    store v11, 1
-    store v11+32, 2
-    store v11+64, 3
+    mstore v11, 1
+    mstore v11+32, 2
+    mstore v11+64, 3
     v12 = ptrtoint ptr<memory> v11 to i256
     v13 = alloc zeroed checked 128
-    store v13, 3
+    mstore v13, 3
     v14 = ptrtoint ptr<memory> v13 to i256
-    store v10, 0
-    store v10+32, v12
-    store v10+64, v14
-    v15 = load v0
+    mstore v10, 0
+    mstore v10+32, v12
+    mstore v10+64, v14
+    v15 = mload v0
     v16 = lt 1, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptrtoint ptr<memory> v10 to i256
-    store v0+64, v18
-    v19 = load v0
+    mstore v0+64, v18
+    v19 = mload v0
     v20 = lt 1, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = load v0+64
+    v22 = mload v0+64
     v23 = inttoptr i256 v22 to ptr<memory>
     v24 = eq v22, 0
     jumpi v24, bb4, bb5
   bb4:
     v25 = icall @default_struct_0
     v26 = ptrtoint ptr<memory> v25 to i256
-    store v0+64, v26
+    mstore v0+64, v26
     jump bb5
   bb5:
     v27 = phi [bb3: v23], [bb4: v25]
-    v28 = load v27+64, ptr<memory>
-    v29 = load v28
+    v28 = mload v27+64, ptr<memory>
+    v29 = mload v28
     v30 = lt 0, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    store v28+32, 1
-    v32 = load v0
+    mstore v28+32, 1
+    v32 = mload v0
     v33 = lt 1, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
-    v35 = load v0+64
+    v35 = mload v0+64
     v36 = inttoptr i256 v35 to ptr<memory>
     v37 = eq v35, 0
     jumpi v37, bb6, bb7
   bb6:
     v38 = icall @default_struct_0
     v39 = ptrtoint ptr<memory> v38 to i256
-    store v0+64, v39
+    mstore v0+64, v39
     jump bb7
   bb7:
     v40 = phi [bb5: v36], [bb6: v38]
-    v41 = load v40+64, ptr<memory>
-    v42 = load v41
+    v41 = mload v40+64, ptr<memory>
+    v42 = mload v41
     v43 = lt 1, v42
     v44 = eq v43, false
     icall panic_if<0x32>, v44
-    store v41+64, 2
-    v45 = load v0
+    mstore v41+64, 2
+    v45 = mload v0
     v46 = lt 1, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
-    v48 = load v0+64
+    v48 = mload v0+64
     v49 = inttoptr i256 v48 to ptr<memory>
     v50 = eq v48, 0
     jumpi v50, bb8, bb9
   bb8:
     v51 = icall @default_struct_0
     v52 = ptrtoint ptr<memory> v51 to i256
-    store v0+64, v52
+    mstore v0+64, v52
     jump bb9
   bb9:
     v53 = phi [bb7: v49], [bb8: v51]
-    v54 = load v53+64, ptr<memory>
-    v55 = load v54
+    v54 = mload v53+64, ptr<memory>
+    v55 = mload v54
     v56 = lt 2, v55
     v57 = eq v56, false
     icall panic_if<0x32>, v57
-    store v54+96, 3
-    v58 = load v0
+    mstore v54+96, 3
+    v58 = mload v0
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = gt v59, v58
     jumpi v60, bb10, bb11
@@ -177,7 +177,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb19:
     v82 = shl 5, v80
     v83 = ptradd v0, v82
-    v84 = load v83+32
+    v84 = mload v83+32
     v85 = inttoptr i256 v84 to ptr<memory>
     v86 = eq v84, 0
     jumpi v86, bb21, bb22
@@ -186,14 +186,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v88 = shl 5, v80
     v89 = ptradd v0, v88
     v90 = ptrtoint ptr<memory> v87 to i256
-    store v89+32, v90
+    mstore v89+32, v90
     jump bb22
   bb22:
     v91 = phi [bb19: v85], [bb21: v87]
     v92 = storage_array_data_slot 0
     v93 = mul v80, 4
     v94 = add v92, v93
-    v95 = load v91
+    v95 = mload v91
     v96 = sload v94 !metadata(storage=symbolic(v94))
     v97 = not 0xffffffffffffffffffffffffffffffffff
     v98 = and v96, v97
@@ -201,7 +201,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v100 = or v98, v99
     sstore v94, v100 !metadata(storage=symbolic(v94))
     v101 = add v94, 1
-    v102 = load v91+32
+    v102 = mload v91+32
     jump bb23
   bb23:
     v103 = phi [bb22: 0], [bb28: v130]
@@ -209,8 +209,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jumpi v104, bb24, bb25
   bb25:
     v131 = add v94, 3
-    v132 = load v91+64
-    v133 = load v132
+    v132 = mload v91+64
+    v133 = mload v132
     v134 = sload v131 !metadata(storage=offset(v94, 3))
     v135 = gt v134, v133
     jumpi v135, bb29, bb30
@@ -251,7 +251,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v154 = shl 5, v152
     v155 = inttoptr i256 v132 to ptr<memory>
     v156 = ptradd v155, v154
-    v157 = load v156+32
+    v157 = mload v156+32
     v158 = storage_array_data_slot v131
     v159 = div v152, 2
     v160 = add v158, v159
@@ -307,7 +307,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v110 = shl 5, v103
     v111 = inttoptr i256 v102 to ptr<memory>
     v112 = ptradd v111, v110
-    v113 = load v112
+    v113 = mload v112
     v114 = mul v108, 8
     v115 = shl v114, 0xffffffffffffffffffffffffffffffff
     v116 = sload v106 !metadata(storage=symbolic(v106))
@@ -352,16 +352,16 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jump bb15
   bb2:
     v3 = alloc 96 !metadata(preserves_fmp)
-    store v3, 0
+    mstore v3, 0
     v4 = alloc 96 !metadata(preserves_fmp)
     memory_zero v4, 96
     v5 = ptrtoint ptr<memory> v4 to i256
-    store v3+32, v5
-    store v3+64, 96
+    mstore v3+32, v5
+    mstore v3+64, 96
     v6 = shl 5, v1
     v7 = ptradd v0, v6
     v8 = ptrtoint ptr<memory> v3 to i256
-    store v7+32, v8
+    mstore v7+32, v8
     v9 = add v1, 1
     jump bb1
 }
@@ -369,14 +369,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
 fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 96
-    store v0, 0
+    mstore v0, 0
     v1 = alloc 96
     memory_zero v1, 96
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+32, v2
+    mstore v0+32, v2
     v3 = alloc 32
-    store v3, 0
+    mstore v3, 0
     v4 = ptrtoint ptr<memory> v3 to i256
-    store v0+64, v4
+    mstore v0+64, v4
     ret v0
 }

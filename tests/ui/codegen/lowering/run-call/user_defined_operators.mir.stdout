@@ -2,17 +2,17 @@
 @module UserDefinedOperators
 fn @addressEq(arg0: ptr<memory>) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = load arg0+32
+    v3 = mload arg0+32
     v4 = trunc i256 v3 to i160
-    v5 = load arg0
+    v5 = mload arg0
     v6 = lt 1, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = load arg0+64
+    v8 = mload arg0+64
     v9 = trunc i256 v8 to i160
     v10 = icall @sameAccount, v4, v9
     ret v10

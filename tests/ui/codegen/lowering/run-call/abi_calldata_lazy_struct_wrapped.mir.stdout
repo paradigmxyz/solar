@@ -16,7 +16,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -31,7 +31,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v20 = extract_value slice<calldata>, v19, 0
     v21 = ptrtoint ptr<calldata> v20 to i256
     v22 = add v21, 0
-    v23 = load calldata v22
+    v23 = calldataload v22
     v24 = extract_value slice<calldata>, arg0, 1
     v25 = lt 0, v24
     v26 = eq v25, false
@@ -43,7 +43,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v31 = sub v30, v29
     v32 = slt v31, 32
     icall revert_if<calldata_tail_too_short>, v32
-    v33 = load calldata v29
+    v33 = calldataload v29
     v34 = ptrtoint ptr<calldata> v27 to i256
     v35 = add v34, v33
     v36 = calldatasize
@@ -62,7 +62,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v48 = sub v47, v46
     v49 = slt v48, 32
     icall revert_if<calldata_tail_too_short>, v49
-    v50 = load calldata v46
+    v50 = calldataload v46
     v51 = ptrtoint ptr<calldata> v44 to i256
     v52 = add v51, v50
     v53 = calldatasize
@@ -72,7 +72,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v57 = slt v50, v56
     v58 = eq v57, false
     icall revert_if<invalid_calldata_tail_offset>, v58
-    v59 = load calldata v52
+    v59 = calldataload v52
     v60 = calldatasize
     v61 = gt v59, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v61
@@ -98,11 +98,11 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v77 = not 31
     v78 = and v75, v77
     v79 = alloc v78
-    store v79, v74
+    mstore v79, v74
     v80 = ptradd v79, 32
     v81 = extract_value slice<calldata>, v66, 0
     v82 = extract_value slice<calldata>, v66, 1
-    copy calldata v80, v81, v82
+    calldatacopy v80, v81, v82
     v83 = insert_value struct0, undef struct0, 0, v23
     v84 = insert_value struct0, v83, 1, v79
     ret v84

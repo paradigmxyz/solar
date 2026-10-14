@@ -26,8 +26,8 @@
   
   fn @calldata_reads(arg0: i256) -> i256 {
     bb0:
-      v0 = load calldata arg0
--     v1 = load calldata arg0
+      v0 = calldataload arg0
+-     v1 = calldataload arg0
 -     ret v1
 +     ret v0
   }

@@ -7,8 +7,8 @@
 // exits. mstore(i, ...) therefore writes bytes [0, 96), overlapping load 0's
 // The range [0, 32) overlaps, so the mload must not be hoisted.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_descending_iv{{[( ]}}
-// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = load 0
-// CHECK: {{^[ +](.*[^a-z_])?}}store
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 0
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 fn @keep_mload_descending_iv() -> i256 {
   bb0:
     jump bb1
@@ -18,9 +18,9 @@ fn @keep_mload_descending_iv() -> i256 {
     v2 = lt v1, 100
     jumpi v2, bb2, bb3
   bb2:
-    v3 = load 0
+    v3 = mload 0
     sstore v1, v3
-    store v1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    mstore v1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     v9 = sub v1, 1
     jump bb1
   bb3:
@@ -30,8 +30,8 @@ fn @keep_mload_descending_iv() -> i256 {
 // Ascending control: i = 64..99, the mstore range [64, 131) really is disjoint
 // from load 0's [0, 32); hoisting here is correct.
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_ascending_iv{{[( ]}}
-// CHECK: + [[LOAD:v[0-9]+]] = load 0
-// CHECK: - [[LOAD]] = load 0
+// CHECK: + [[LOAD:v[0-9]+]] = mload 0
+// CHECK: - [[LOAD]] = mload 0
 fn @hoist_mload_ascending_iv() -> i256 {
   bb0:
     jump bb1
@@ -41,9 +41,9 @@ fn @hoist_mload_ascending_iv() -> i256 {
     v2 = lt v1, 100
     jumpi v2, bb2, bb3
   bb2:
-    v3 = load 0
+    v3 = mload 0
     sstore v1, v3
-    store v1, 7
+    mstore v1, 7
     v9 = add v1, 1
     jump bb1
   bb3:

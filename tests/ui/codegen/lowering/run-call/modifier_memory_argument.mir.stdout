@@ -29,17 +29,17 @@ fn @f(arg0: slice<calldata>) -> i256 [selector=0x7bc5bbbf, pure, abi_params=[arr
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     v23 = make_calldata_slice v1, v13
     v24 = ptradd v22, 32
     v25 = extract_value slice<calldata>, v23, 0
     v26 = extract_value slice<calldata>, v23, 1
-    copy calldata v24, v25, v26
-    v27 = load v22
+    calldatacopy v24, v25, v26
+    v27 = mload v22
     v28 = lt 0, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    store v22+32, 9
+    mstore v22+32, 9
     v30 = extract_value slice<calldata>, arg0, 1
     v31 = lt 0, v30
     v32 = eq v31, false
@@ -47,7 +47,7 @@ fn @f(arg0: slice<calldata>) -> i256 [selector=0x7bc5bbbf, pure, abi_params=[arr
     v33 = extract_value slice<calldata>, arg0, 0
     v34 = ptrtoint ptr<calldata> v33 to i256
     v35 = add v34, 0
-    v36 = load calldata v35
+    v36 = calldataload v35
     jump bb2
   bb2:
     jump bb1

@@ -140,7 +140,7 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v10 = extract_value slice<memory>, v0, 0
     v11 = ptrtoint ptr<memory> v9 to i256
     v12 = add v11, v2
-    copy v12, v10, v1 !metadata(memory=heap)
+    mcopy v12, v10, v1 !metadata(memory=heap)
     v13 = create 0, v9, v3
     v14 = ne v13, i160 0
     jumpi v14, bb2, bb1
@@ -161,7 +161,7 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
-    v24 = load v23
+    v24 = mload v23
     v25 = gas
     v26 = abi_encode [word], selector 0x710422c600000000000000000000000000000000000000000000000000000000, args arg0
     v27 = extract_value slice<memory>, v26, 0
@@ -176,7 +176,7 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
-    v34 = load v33
+    v34 = mload v33
     v35 = shl 8, v34
     v36 = eq v35, 0
     v37 = eq v36, false

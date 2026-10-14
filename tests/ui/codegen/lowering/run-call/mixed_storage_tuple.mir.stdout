@@ -7,25 +7,25 @@
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32
-    store v0, 7
+    mstore v0, 7
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    v6 = load v0
+    v6 = mload v0
     sstore v5, v6 !metadata(storage=symbolic(v5))
     sstore 0, v3 !metadata(storage=slot(0))
     v7 = alloc 32
-    store v7, 8
+    mstore v7, 8
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gt v8, 0xffffffffffffffff
     icall panic_if<0x41>, v9
     v10 = add v8, 1
     v11 = storage_array_data_slot 0
     v12 = add v11, v8
-    v13 = load v7
+    v13 = mload v7
     sstore v12, v13 !metadata(storage=symbolic(v12))
     sstore 0, v10 !metadata(storage=slot(0))
     ret
@@ -57,8 +57,8 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     v7 = add v6, 1
     v8 = alloc checked 32
     v9 = sload v2 !metadata(storage=symbolic(v2))
-    store v8, v9
-    v10 = load v8
+    mstore v8, v9
+    v10 = mload v8
     sstore v7, v10 !metadata(storage=offset(v6, 1))
     sstore 1, v1 !metadata(storage=slot(1))
     v11 = sload 1 !metadata(storage=slot(1))

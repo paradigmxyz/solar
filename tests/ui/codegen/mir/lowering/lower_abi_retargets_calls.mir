@@ -21,17 +21,17 @@ fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 }
 
 // CHECK: + fn @literal()
-// CHECK: + store 128, 32
-// CHECK: + store 160, 1
-// CHECK: + store 192, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK: + mstore 128, 32
+// CHECK: + mstore 160, 1
+// CHECK: + mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
 // CHECK: + returndata 128, 96
 fn @literal() -> ptr<memory> [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc 64
     v1 = ptrtoint ptr<memory> v0 to i256
-    store v1, 1
+    mstore v1, 1
     v9001 = ptradd v0, 32
-    store v9001, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v9001, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
@@ -44,21 +44,21 @@ fn @literalCaller() -> ptr<memory> [selector=0x0a0a0a04, abi_params=[], abi_retu
 }
 
 // CHECK-LABEL: + fn @longLiteral()
-// CHECK: + store 128, 32
-// CHECK: + store 160, 33
-// CHECK: + store 192, 5
-// CHECK: + store 224, 0x3100000000000000000000000000000000000000000000000000000000000000
+// CHECK: + mstore 128, 32
+// CHECK: + mstore 160, 33
+// CHECK: + mstore 192, 5
+// CHECK: + mstore 224, 0x3100000000000000000000000000000000000000000000000000000000000000
 // CHECK: + returndata 128, 128
 fn @longLiteral() -> ptr<memory> [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc 96
     v4 = ptrtoint ptr<memory> v0 to i256
-    store v4, 33
+    mstore v4, 33
     v9001 = ptradd v0, 32
     v1 = ptrtoint ptr<memory> v9001 to i256
-    store v1, 5
+    mstore v1, 5
     v2 = add v1, 32
-    store v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
@@ -68,20 +68,20 @@ fn @overlappingLiteral() -> ptr<memory> [selector=0x0a0a0a06, abi_params=[], abi
   bb0:
     v0 = alloc 96
     v3 = ptrtoint ptr<memory> v0 to i256
-    store v3, 33
+    mstore v3, 33
     v9001 = ptradd v0, 32
     v1 = ptrtoint ptr<memory> v9001 to i256
-    store v1, 5
+    mstore v1, 5
     v2 = add v1, 16
-    store v2, 7
+    mstore v2, 7
     ret v0
 }
 
 // CHECK-LABEL: + fn @constantEncoding()
-// CHECK: + store 128, 32
-// CHECK: + store 160, 64
-// CHECK: + store 192, 1
-// CHECK: + store 224, 2
+// CHECK: + mstore 128, 32
+// CHECK: + mstore 160, 64
+// CHECK: + mstore 192, 1
+// CHECK: + mstore 224, 2
 // CHECK: + returndata 128, 128
 fn @constantEncoding() -> ptr<memory> [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
@@ -90,8 +90,8 @@ fn @constantEncoding() -> ptr<memory> [selector=0x0a0a0a07, abi_params=[], abi_r
 }
 
 // CHECK-LABEL: + fn @emptyEncoding()
-// CHECK: + store 128, 32
-// CHECK-NEXT: + store 160, 0
+// CHECK: + mstore 128, 32
+// CHECK-NEXT: + mstore 160, 0
 // CHECK-NEXT: + returndata 128, 64
 fn @emptyEncoding() -> ptr<memory> [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:

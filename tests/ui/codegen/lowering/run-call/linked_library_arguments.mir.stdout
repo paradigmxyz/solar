@@ -29,17 +29,17 @@ fn @test_storage_write() -> i256 [selector=0x66f2b6c3, abi_params=[], abi_return
 fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
-    v1 = load v0
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 7
-    v4 = load v0
+    mstore v0+32, 7
+    v4 = mload v0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 8
+    mstore v0+64, 8
     v7 = icall @pick, v0
     v8 = extract_value struct0, v7, 0
     v9 = extract_value struct0, v7, 1
@@ -57,17 +57,17 @@ fn @test_calldata(arg0: slice<calldata>) -> i256 [selector=0x46370830, pure, abi
 fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
-    v1 = load v0
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 7
-    v4 = load v0
+    mstore v0+32, 7
+    v4 = mload v0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 8
+    mstore v0+64, 8
     v7 = icall @pick, v0
     v8 = extract_value struct0, v7, 0
     v9 = extract_value struct0, v7, 1
@@ -97,16 +97,16 @@ fn @bump(arg0: i256) {
 
 fn @pick(arg0: ptr<memory>) -> struct0 [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = load arg0+32
-    v4 = load arg0
+    v3 = mload arg0+32
+    v4 = mload arg0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = load arg0+64
+    v7 = mload arg0+64
     v8 = insert_value struct0, undef struct0, 0, v3
     v9 = insert_value struct0, v8, 1, v7
     ret v9
@@ -121,6 +121,6 @@ fn @first(arg0: slice<calldata>) -> i256 [pure] {
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
-    v6 = load calldata v5
+    v6 = calldataload v5
     ret v6
 }

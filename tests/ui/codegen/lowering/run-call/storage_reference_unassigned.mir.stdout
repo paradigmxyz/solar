@@ -43,7 +43,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     icall panic_if<0x41>, v17
     v18 = ptrtoint ptr<calldata> v10 to i256
     v19 = add v18, v11
-    v20 = load calldata v19
+    v20 = calldataload v19
     v21 = ne v1, v20
     jumpi v21, bb7, bb8
   bb8:
@@ -64,7 +64,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     icall panic_if<0x41>, v32
     v33 = ptrtoint ptr<calldata> v25 to i256
     v34 = add v33, v26
-    v35 = load calldata v34
+    v35 = calldataload v34
     v36 = mapping_slot v35, 1
     jump bb9
   bb9:

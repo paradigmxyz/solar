@@ -62,7 +62,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     sstore v39, 9 !metadata(storage=symbolic(v39))
     sstore v34, v37 !metadata(storage=offset(v33, 1))
     v40 = alloc zeroed checked 64
-    store v40, 1
+    mstore v40, 1
     jump bb1
   bb1:
     v41 = phi [bb0: 0], [bb2: v45]
@@ -70,35 +70,35 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     jumpi v42, bb2, bb3
   bb3:
     v46 = alloc zeroed checked 64
-    store v46, 1
-    v47 = load v40
+    mstore v46, 1
+    v47 = mload v40
     v48 = lt 0, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
     v50 = ptrtoint ptr<memory> v46 to i256
-    store v40+32, v50
-    v51 = load v40
+    mstore v40+32, v50
+    v51 = mload v40
     v52 = lt 0, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
-    v54 = load v40+32
+    v54 = mload v40+32
     v55 = inttoptr i256 v54 to ptr<memory>
     v56 = eq v54, 0
     jumpi v56, bb4, bb5
   bb4:
     v57 = alloc 32
-    store v57, 0
+    mstore v57, 0
     v58 = ptrtoint ptr<memory> v57 to i256
-    store v40+32, v58
+    mstore v40+32, v58
     jump bb5
   bb5:
     v59 = phi [bb3: v55], [bb4: v57]
-    v60 = load v59
+    v60 = mload v59
     v61 = lt 0, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
-    store v59+32, 23
-    v63 = load v40
+    mstore v59+32, 23
+    v63 = mload v40
     v64 = sload 0 !metadata(storage=slot(0))
     v65 = gt v64, v63
     jumpi v65, bb6, bb7
@@ -119,10 +119,10 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     jumpi v78, bb15, bb16
   bb16:
     sstore 0, 2 !metadata(storage=slot(0))
-    store 0, 0 !metadata(memory=scratch)
+    mstore 0, 0 !metadata(memory=scratch)
     v108 = keccak256 0, 32 !metadata(memory=scratch)
     v109 = add v108, 1
-    store 0, v109 !metadata(memory=scratch)
+    mstore 0, v109 !metadata(memory=scratch)
     v110 = keccak256 0, 32 !metadata(memory=scratch)
     v111 = add v108, 1
     v112 = sload v111 !metadata(storage=offset(v108, 1))
@@ -133,23 +133,23 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
   bb15:
     v79 = shl 5, v77
     v80 = ptradd v40, v79
-    v81 = load v80+32
+    v81 = mload v80+32
     v82 = inttoptr i256 v81 to ptr<memory>
     v83 = eq v81, 0
     jumpi v83, bb17, bb18
   bb17:
     v84 = alloc 32
-    store v84, 0
+    mstore v84, 0
     v85 = shl 5, v77
     v86 = ptradd v40, v85
     v87 = ptrtoint ptr<memory> v84 to i256
-    store v86+32, v87
+    mstore v86+32, v87
     jump bb18
   bb18:
     v88 = phi [bb15: v82], [bb17: v84]
     v89 = storage_array_data_slot 0
     v90 = add v89, v77
-    v91 = load v88
+    v91 = mload v88
     v92 = sload v90 !metadata(storage=symbolic(v90))
     v93 = gt v92, v91
     jumpi v93, bb19, bb20
@@ -174,7 +174,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
   bb25:
     v101 = shl 5, v99
     v102 = ptradd v88, v101
-    v103 = load v102+32
+    v103 = mload v102+32
     v104 = storage_array_data_slot v90
     v105 = add v104, v99
     sstore v105, v103 !metadata(storage=symbolic(v105))
@@ -208,7 +208,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
   bb2:
     v43 = shl 5, v41
     v44 = ptradd v40, v43
-    store v44+32, 96
+    mstore v44+32, 96
     v45 = add v41, 1
     jump bb1
 }

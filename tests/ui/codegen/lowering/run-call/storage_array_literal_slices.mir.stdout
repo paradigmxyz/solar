@@ -43,14 +43,14 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v31 = lt v30, 32
     icall panic_if<0x41>, v31
     v32 = alloc v30
-    store v32, v10
+    mstore v32, v10
     v33 = make_calldata_slice v11, v23
     v34 = ptradd v32, 32
     v35 = extract_value slice<calldata>, v33, 0
     v36 = extract_value slice<calldata>, v33, 1
-    copy calldata v34, v35, v36
+    calldatacopy v34, v35, v36
     v37 = ptrtoint ptr<memory> v32 to i256
-    store v0, v37
+    mstore v0, v37
     v38 = extract_value slice<calldata>, arg0, 0
     v39 = extract_value slice<calldata>, arg0, 1
     v40 = gt 3, v39
@@ -88,14 +88,14 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v68 = lt v67, 32
     icall panic_if<0x41>, v68
     v69 = alloc v67
-    store v69, v47
+    mstore v69, v47
     v70 = make_calldata_slice v48, v60
     v71 = ptradd v69, 32
     v72 = extract_value slice<calldata>, v70, 0
     v73 = extract_value slice<calldata>, v70, 1
-    copy calldata v71, v72, v73
+    calldatacopy v71, v72, v73
     v74 = ptrtoint ptr<memory> v69 to i256
-    store v0+32, v74
+    mstore v0+32, v74
     jump bb1
   bb1:
     v75 = phi [bb0: 0], [bb6: v116]
@@ -145,8 +145,8 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     jumpi v78, bb4, bb5
   bb5:
     v99 = alloc 32
-    store v99, 0
-    v100 = load v99
+    mstore v99, 0
+    v100 = mload v99
     v101 = sload v77 !metadata(storage=symbolic(v75))
     v102 = gt v101, v100
     jumpi v102, bb15, bb16
@@ -170,7 +170,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
   bb21:
     v110 = shl 5, v108
     v111 = ptradd v99, v110
-    v112 = load v111+32
+    v112 = mload v111+32
     v113 = storage_array_data_slot v77
     v114 = add v113, v108
     sstore v114, v112 !metadata(storage=symbolic(v114))
@@ -185,8 +185,8 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
   bb4:
     v79 = shl 5, v75
     v80 = ptradd v0, v79
-    v81 = load v80
-    v82 = load v81
+    v81 = mload v80
+    v82 = mload v81
     v83 = sload v77 !metadata(storage=symbolic(v75))
     v84 = gt v83, v82
     jumpi v84, bb7, bb8
@@ -214,7 +214,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v92 = shl 5, v90
     v93 = inttoptr i256 v81 to ptr<memory>
     v94 = ptradd v93, v92
-    v95 = load v94+32
+    v95 = mload v94+32
     v96 = storage_array_data_slot v77
     v97 = add v96, v90
     sstore v97, v95 !metadata(storage=symbolic(v97))

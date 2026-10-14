@@ -28,7 +28,7 @@ fn @keep_sload_zero_trip() -> i256 {
 // when the loop runs zero times (out-of-gas risk).
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_zero_trip{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi
-// CHECK: {{^[ +].*}}load 0x1000000
+// CHECK: {{^[ +].*}}mload 0x1000000
 fn @keep_mload_zero_trip() -> i256 {
   bb0:
     v0 = calldatasize
@@ -39,7 +39,7 @@ fn @keep_mload_zero_trip() -> i256 {
     v2 = lt v1, v0
     jumpi v2, bb2, bb3
   bb2:
-    v3 = load 0x1000000
+    v3 = mload 0x1000000
     v9 = add v1, 1
     jump bb1
   bb3:
@@ -70,14 +70,14 @@ fn @hoist_sload_known_trip() -> i256 {
 // Do-while shape: the mload's block dominates the loop exit, so it executes
 // whenever the loop is entered and may be hoisted despite the unknown bound.
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_dominates_exits{{[( ]}}
-// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = load 64
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 64
 // CHECK: + jump bb1
 fn @hoist_mload_dominates_exits() -> i256 {
   bb0:
     jump bb1
   bb1:
-    v0 = load 64
-    v1 = load calldata 0
+    v0 = mload 64
+    v1 = calldataload 0
     v2 = lt v0, v1
     jumpi v2, bb1, bb2
   bb2:
@@ -88,7 +88,7 @@ fn @hoist_mload_dominates_exits() -> i256 {
 // keep the mload in place even though the trip count is known.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_msize_in_function{{[( ]}}
 // CHECK: {{^[ +].*}}msize
-// CHECK: {{^[ +].*}}load 64
+// CHECK: {{^[ +].*}}mload 64
 fn @keep_mload_msize_in_function() -> i256 {
   bb0:
     jump bb1
@@ -98,7 +98,7 @@ fn @keep_mload_msize_in_function() -> i256 {
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
   bb2:
-    v3 = load 64
+    v3 = mload 64
     v9 = add v1, 1
     jump bb1
   bb3:

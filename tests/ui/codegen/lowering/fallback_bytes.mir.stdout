@@ -11,9 +11,9 @@ fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes
     v3 = icall returndata_bytes<>
     v4 = eq v2, false
     icall revert_if<empty>, v4
-    v5 = load v3
+    v5 = mload v3
     v6 = ptradd v3, 32
-    v7 = load v3
+    v7 = mload v3
     v8 = keccak256 v6, v7
     v9 = insert_value struct0, undef struct0, 0, v5
     v10 = insert_value struct0, v9, 1, v8
@@ -38,10 +38,10 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     ret v12
 }

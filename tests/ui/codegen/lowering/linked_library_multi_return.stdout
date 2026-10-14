@@ -32,10 +32,10 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v6
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     v10 = ptrtoint ptr<memory> v1 to i256
     v11 = add v10, 32
-    v12 = load v11
+    v12 = mload v11
     v13 = insert_value struct0, undef struct0, 0, v9
     v14 = insert_value struct0, v13, 1, v12
     v15 = extract_value struct0, v14, 0

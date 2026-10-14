@@ -9,15 +9,15 @@ fn @overwrite(arg0: i256) -> i256 [selector=0x9dc8c3ab, pure, abi_params=[u256],
     v2 = lt 0, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v1, 7
+    mstore v1, 7
     v4 = ptrtoint ptr<memory> v0 to i256
     v5 = add v4, 32
     v6 = sub v5, arg0
     v7 = add arg0, v6
-    store v7, 9
+    mstore v7, 9
     v8 = lt 0, 1
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = load v1
+    v10 = mload v1
     ret v10
 }

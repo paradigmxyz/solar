@@ -29,7 +29,7 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v77]
@@ -49,7 +49,7 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     v29 = sub v28, v27
     v30 = slt v29, 32
     icall revert_if<calldata_tail_too_short>, v30
-    v31 = load calldata v27
+    v31 = calldataload v27
     v32 = ptrtoint ptr<calldata> v1 to i256
     v33 = add v32, v31
     v34 = calldatasize
@@ -64,7 +64,7 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     v42 = sub v41, v33
     v43 = slt v42, 32
     icall revert_if<calldata_tail_too_short>, v43
-    v44 = load calldata v33
+    v44 = calldataload v33
     v45 = add v33, v44
     v46 = calldatasize
     v47 = sub v46, v33
@@ -72,7 +72,7 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     v49 = slt v44, v48
     v50 = eq v49, false
     icall revert_if<invalid_calldata_tail_offset>, v50
-    v51 = load calldata v45
+    v51 = calldataload v45
     v52 = calldatasize
     v53 = gt v51, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v53
@@ -93,19 +93,19 @@ fn @hash(arg0: slice<calldata>) -> i256 [selector=0x43298469, pure, abi_params=[
     v66 = lt v65, 32
     icall panic_if<0x41>, v66
     v67 = alloc v65
-    store v67, v51
+    mstore v67, v51
     v68 = inttoptr i256 v55 to ptr<calldata>
     v69 = make_calldata_slice v68, v58
     v70 = ptradd v67, 32
     v71 = extract_value slice<calldata>, v69, 0
     v72 = extract_value slice<calldata>, v69, 1
-    copy calldata v70, v71, v72
+    calldatacopy v70, v71, v72
     v73 = ptrtoint ptr<memory> v67 to i256
-    store v40, v73
+    mstore v40, v73
     v74 = ptrtoint ptr<memory> v40 to i256
     v75 = shl 5, v23
     v76 = ptradd v22, v75
-    store v76+32, v74
+    mstore v76+32, v74
     v77 = add v23, 1
     jump bb1
 }

@@ -902,7 +902,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Builds a memory slice of a dynamic memory object's payload, reading its length word.
     pub(crate) fn memory_slice(&mut self, object: ValueId) -> ValueId {
-        // slice = make_memory_slice (memory_data object), load object
+        // slice = make_memory_slice (memory_data object), mload object
         let data = self.memory_data(object);
         let len = self.load(object, PtrLocation::Memory);
         self.make_slice(data, len, PtrLocation::Memory)
@@ -923,13 +923,13 @@ impl<'a> FunctionBuilder<'a> {
         if matches!(self.func.value_ty(value), Some(MirType::Slice(_))) {
             return self.slice_len(value);
         }
-        // len = load object
+        // len = mload object
         self.load(value, PtrLocation::Memory)
     }
 
     /// Writes the length word of a fresh dynamic memory object.
     pub(crate) fn set_memory_len(&mut self, object: ValueId, len: ValueId) {
-        // store object, len
+        // mstore object, len
         self.store(object, len);
     }
 
@@ -956,7 +956,8 @@ impl<'a> FunctionBuilder<'a> {
         let (data, len) = match self.func.value_slice_location(value) {
             Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
                 // data = fmp
-                // copy location data, (extract_value value, 0), (extract_value value, 1)
+                // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value
+                // value, 1)
                 let source = self.slice_ptr(value);
                 let len = self.slice_len(value);
                 let data = self.fmp();
@@ -1019,7 +1020,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Loads one byte from a bytes object or slice.
     pub(crate) fn memory_load_byte(&mut self, value: ValueId, index: ValueId) -> ValueId {
-        // byte = byte 0, (load location (data + index))
+        // byte = byte 0, (mload|calldataload|returndataload (data + index))
         let (address, offset, location) =
             self.object_address(value, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index);
         let word = self.load_as(address, offset, location, MirType::I256);
@@ -1108,13 +1109,13 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
         let (address, offset) = self.access_base(address, offset);
-        // result = load location address+offset
+        // result = mload|calldataload|returndataload address+offset
         self.emit_inst(InstKind::Load(address, offset, location), Some(result))
     }
 
     /// Returns the pointer an access address casts to a word, so the access takes the pointer.
     fn access_address(&self, address: ValueId) -> ValueId {
-        // load (ptrtoint pointer to i256) -> load pointer
+        // mload (ptrtoint pointer to i256) -> mload pointer
         if let Value::Inst(inst) = self.func.value(address)
             && let InstKind::PtrToInt(pointer, 256) = self.func.inst(*inst).kind
         {
@@ -1127,7 +1128,7 @@ impl<'a> FunctionBuilder<'a> {
     /// constant `ptradd` of the address into the offset.
     fn access_base(&self, address: ValueId, offset: u64) -> (ValueId, u64) {
         let address = self.access_address(address);
-        // load (ptradd pointer, k)+offset -> load pointer+(k + offset)
+        // mload (ptradd pointer, k)+offset -> mload pointer+(k + offset)
         if let Value::Inst(inst) = self.func.value(address)
             && let InstKind::PtrAdd(pointer, delta) = self.func.inst(*inst).kind
             && let Some(offset) = self.func.value_u64(delta).and_then(|k| k.checked_add(offset))
@@ -1191,7 +1192,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Copies a slice's bytes to `destination` in memory.
     fn copy_slice(&mut self, destination: ValueId, source: ValueId) {
-        // copy location destination, (extract_value source, 0), (extract_value source, 1)
+        // mcopy|calldatacopy|returndatacopy destination, (extract_value source, 0), (extract_value
+        // source, 1)
         let location = self.func.value_slice_location(source).unwrap_or(PtrLocation::Memory);
         let source_ptr = self.slice_ptr(source);
         let len = self.slice_len(source);
@@ -1431,7 +1433,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a word store to memory at `ptr + offset`.
     pub(crate) fn store_at(&mut self, ptr: ValueId, offset: u64, value: ValueId) {
         let (ptr, offset) = self.access_base(ptr, offset);
-        // store ptr+offset, value
+        // mstore ptr+offset, value
         self.emit_void_inst(InstKind::Store(ptr, offset, value));
     }
 
@@ -1443,7 +1445,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a byte store to memory at `ptr + offset`.
     pub(crate) fn store8_at(&mut self, ptr: ValueId, offset: u64, value: ValueId) {
         let (ptr, offset) = self.access_base(ptr, offset);
-        // store8 ptr+offset, value
+        // mstore8 ptr+offset, value
         self.emit_void_inst(InstKind::Store8(ptr, offset, value));
     }
 
@@ -1456,7 +1458,7 @@ impl<'a> FunctionBuilder<'a> {
         location: PtrLocation,
     ) {
         let (dest, src) = (self.access_address(dest), self.access_address(src));
-        // copy location dest, src, len
+        // mcopy|calldatacopy|returndatacopy dest, src, len
         self.emit_void_inst(InstKind::Copy(dest, src, len, location))
     }
 

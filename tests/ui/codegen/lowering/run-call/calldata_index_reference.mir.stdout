@@ -45,7 +45,7 @@ fn @staticFixed(arg0: slice<calldata>) -> struct0 [selector=0xc2cb46f3, pure, ab
     v13 = extract_value slice<calldata>, v7, 0
     v14 = ptrtoint ptr<calldata> v13 to i256
     v15 = add v14, 0
-    v16 = load calldata v15
+    v16 = calldataload v15
     v17 = extract_value slice<calldata>, v7, 1
     v18 = lt 1, v17
     v19 = eq v18, false
@@ -53,7 +53,7 @@ fn @staticFixed(arg0: slice<calldata>) -> struct0 [selector=0xc2cb46f3, pure, ab
     v20 = extract_value slice<calldata>, v7, 0
     v21 = ptrtoint ptr<calldata> v20 to i256
     v22 = add v21, 32
-    v23 = load calldata v22
+    v23 = calldataload v22
     v24 = insert_value struct0, undef struct0, 0, v9
     v25 = insert_value struct0, v24, 1, v16
     v26 = insert_value struct0, v25, 2, v23
@@ -73,7 +73,7 @@ fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, 
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -83,7 +83,7 @@ fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, 
     v16 = slt v9, v15
     v17 = eq v16, false
     icall revert_if<invalid_calldata_tail_offset>, v17
-    v18 = load calldata v11
+    v18 = calldataload v11
     v19 = calldatasize
     v20 = gt v18, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v20
@@ -104,7 +104,7 @@ fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, 
     v33 = extract_value slice<calldata>, v26, 0
     v34 = ptrtoint ptr<calldata> v33 to i256
     v35 = add v34, 32
-    v36 = load calldata v35
+    v36 = calldataload v35
     v37 = insert_value struct0, undef struct0, 0, v28
     v38 = insert_value struct0, v37, 1, v29
     v39 = insert_value struct0, v38, 2, v36
@@ -124,7 +124,7 @@ fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, a
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -134,7 +134,7 @@ fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, a
     v16 = slt v9, v15
     v17 = eq v16, false
     icall revert_if<invalid_calldata_tail_offset>, v17
-    v18 = load calldata v11
+    v18 = calldataload v11
     v19 = calldatasize
     v20 = gt v18, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v20
@@ -153,7 +153,7 @@ fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, a
     icall panic_if<0x32>, v31
     v32 = extract_value slice<calldata>, v25, 0
     v33 = extract_value slice<calldata>, v25, 0
-    v34 = load calldata v33+1
+    v34 = calldataload v33+1
     v35 = byte 0, v34
     v36 = shl 248, v35
     v37 = shr 248, v36

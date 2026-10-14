@@ -139,11 +139,11 @@ fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     v1 = lt 0, 257
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0, 7
+    mstore v0, 7
     v3 = lt 256, 257
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    store v0+8192, 9
+    mstore v0+8192, 9
     v5 = icall @dirtyUint8, 256
     v6 = trunc i256 v5 to i8
     v7 = zext i8 v6 to i256
@@ -152,7 +152,7 @@ fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     icall panic_if<0x32>, v9
     v10 = shl 5, v7
     v11 = ptradd v0, v10
-    v12 = load v11
+    v12 = mload v11
     ret v12
 }
 
@@ -179,7 +179,7 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
-    v9 = load v8
+    v9 = mload v8
     ret v9
 }
 
@@ -193,7 +193,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1

@@ -20,7 +20,7 @@ contract C {
     // CHECK-LABEL: fn @build(
     // CHECK: icall @build,
     // CHECK: [[RESULT:v[0-9]+]] = alloc 64
-    // CHECK: store [[RESULT]], {{v[0-9]+}}
+    // CHECK: mstore [[RESULT]], {{v[0-9]+}}
     // CHECK: ret
     function build(uint256 n) public pure returns (P memory) {
         if (n == 0) return P({x: 0, y: 0});
@@ -31,7 +31,7 @@ contract C {
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc zeroed checked
-    // CHECK-NEXT: store [[ARRAY]], arg0
+    // CHECK-NEXT: mstore [[ARRAY]], arg0
     // CHECK: ret
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
         uint256[] memory r = new uint256[](n);
@@ -42,12 +42,12 @@ contract C {
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
     // CHECK: checked_mul
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = load arg0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = mload arg0
     // CHECK-NEXT: lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg1
     // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, [[OFF1]]
-    // CHECK-NEXT: store [[ELEM]]+32,
+    // CHECK-NEXT: mstore [[ELEM]]+32,
     // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]

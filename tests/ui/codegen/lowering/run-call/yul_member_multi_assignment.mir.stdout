@@ -29,7 +29,7 @@ fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_para
     v15 = extract_value slice<calldata>, v10, 0
     v16 = ptrtoint ptr<calldata> v15 to i256
     v17 = add v16, 0
-    v18 = load calldata v17
+    v18 = calldataload v17
     v19 = extract_value slice<calldata>, v10, 1
     v20 = lt 1, v19
     v21 = eq v20, false
@@ -37,7 +37,7 @@ fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_para
     v22 = extract_value slice<calldata>, v10, 0
     v23 = ptrtoint ptr<calldata> v22 to i256
     v24 = add v23, 32
-    v25 = load calldata v24
+    v25 = calldataload v24
     v26 = insert_value struct0, undef struct0, 0, v11
     v27 = insert_value struct0, v26, 1, v18
     v28 = insert_value struct0, v27, 2, v25
@@ -66,7 +66,7 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc v17
-    store v18, v13
+    mstore v18, v13
     v19 = extract_value slice<calldata>, v12, 0
     v20 = extract_value slice<calldata>, v12, 1
     v21 = calldatasize
@@ -79,7 +79,7 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v26 = ptradd v18, 32
     v27 = extract_value slice<calldata>, v12, 0
     v28 = extract_value slice<calldata>, v12, 1
-    copy calldata v26, v27, v28
+    calldatacopy v26, v27, v28
     v29 = insert_value struct2, undef struct2, 0, v4
     v30 = insert_value struct2, v29, 1, v7
     v31 = insert_value struct2, v30, 2, v18
@@ -107,7 +107,7 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc v16
-    store v17, v12
+    mstore v17, v12
     v18 = extract_value slice<calldata>, v11, 0
     v19 = extract_value slice<calldata>, v11, 1
     v20 = calldatasize
@@ -120,7 +120,7 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v25 = ptradd v17, 32
     v26 = extract_value slice<calldata>, v11, 0
     v27 = extract_value slice<calldata>, v11, 1
-    copy calldata v25, v26, v27
+    calldatacopy v25, v26, v27
     v28 = insert_value struct4, undef struct4, 0, v5
     v29 = insert_value struct4, v28, 1, v17
     ret v29
@@ -164,7 +164,7 @@ fn @reversed(arg0: slice<calldata>) -> struct1 [selector=0xed6a1217, pure, abi_p
     v15 = extract_value slice<calldata>, v10, 0
     v16 = ptrtoint ptr<calldata> v15 to i256
     v17 = add v16, 0
-    v18 = load calldata v17
+    v18 = calldataload v17
     v19 = insert_value struct1, undef struct1, 0, v11
     v20 = insert_value struct1, v19, 1, v18
     ret v20

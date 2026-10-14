@@ -94,7 +94,7 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns
     v33 = lt v32, 32
     icall revert_if<tuple_data_too_short>, v33
     v34 = add 0, 0
-    v35 = load v34
+    v35 = mload v34
     ret v35
 }
 
@@ -186,7 +186,7 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v20 = lt v19, 32
     icall revert_if<tuple_data_too_short>, v20
     v21 = add 0, 0
-    v22 = load v21
+    v22 = mload v21
     v23 = lt v22, 2
     v24 = eq v23, false
     icall revert_if<empty>, v24
@@ -248,7 +248,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1

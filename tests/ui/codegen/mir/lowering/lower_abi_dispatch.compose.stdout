@@ -10,7 +10,7 @@
 +   bb3:
 +     jump bb1
 +   bb1:
-      store 128, arg0
+      mstore 128, arg0
       returndata 128, 32
 +   bb2:
 +     revert 0, 0
@@ -27,7 +27,7 @@
     bb3:
       jump bb1
     bb1:
-      store 128, arg0
+      mstore 128, arg0
       returndata 128, 32
     bb2:
 +     revert 0, 0
@@ -39,7 +39,7 @@
 +     v1 = ne v0, 0
 +     jumpi v1, bb3, bb1
 +   bb1:
-+     v2 = load calldata 0
++     v2 = calldataload 0
 +     v3 = shr 224, v2
 +     switch v3, default bb3, [0x9507d39a => bb2]
 +   bb2:

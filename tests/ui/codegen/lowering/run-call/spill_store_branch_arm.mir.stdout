@@ -69,7 +69,7 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
     v5 = extract_value slice<calldata>, arg0, 0
     v6 = ptrtoint ptr<calldata> v5 to i256
     v7 = add v6, 64
-    v8 = load calldata v7
+    v8 = calldataload v7
     v9 = shr 24, v8
     v10 = eq v9, 0
     v11 = eq v10, false
@@ -79,7 +79,7 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
     v14 = extract_value slice<calldata>, arg1, 0
     v15 = ptrtoint ptr<calldata> v14 to i256
     v16 = add v15, 64
-    v17 = load calldata v16
+    v17 = calldataload v16
     v18 = shr 160, v17
     v19 = eq v18, 0
     v20 = eq v19, false
@@ -130,7 +130,7 @@ fn @constructor() [constructor] {
     v18 = extract_value slice<memory>, v14, 0
     v19 = ptrtoint ptr<memory> v17 to i256
     v20 = add v19, v15
-    copy v20, v18, 0 !metadata(memory=heap)
+    mcopy v20, v18, 0 !metadata(memory=heap)
     v21 = create 0, v17, v15
     v22 = ne v21, i160 0
     jumpi v22, bb2, bb1
@@ -166,7 +166,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
-    v12 = load v11
+    v12 = mload v11
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = trunc i256 v13 to i160
     v15 = gas
@@ -185,7 +185,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = load v25
+    v26 = mload v25
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = trunc i256 v27 to i160
     v29 = gas
@@ -203,7 +203,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
     v38 = add 0, 0
-    v39 = load v38
+    v39 = mload v38
     v40 = insert_value struct0, undef struct0, 0, v12
     v41 = insert_value struct0, v40, 1, v26
     v42 = insert_value struct0, v41, 2, v39
@@ -229,7 +229,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
-    v12 = load v11
+    v12 = mload v11
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = trunc i256 v13 to i160
     v15 = gas
@@ -248,7 +248,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = load v25
+    v26 = mload v25
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = trunc i256 v27 to i160
     v29 = gas
@@ -266,7 +266,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
     v38 = add 0, 0
-    v39 = load v38
+    v39 = mload v38
     v40 = insert_value struct0, undef struct0, 0, v12
     v41 = insert_value struct0, v40, 1, v26
     v42 = insert_value struct0, v41, 2, v39
@@ -397,7 +397,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v64 = lt v63, 32
     icall revert_if<tuple_data_too_short>, v64
     v65 = add 0, 0
-    v66 = load v65
+    v66 = mload v65
     v67 = eq v66, 100
     icall require<short_string>, v67, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     ret 1
@@ -407,25 +407,25 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
   bb0:
     v0 = alloc 160
     v1 = sext i24 60 to i256
-    store v0, 1
-    store v0+32, 2
-    store v0+64, 0xbb8
-    store v0+96, v1
-    store v0+128, 3
+    mstore v0, 1
+    mstore v0+32, 2
+    mstore v0+64, 0xbb8
+    mstore v0+96, v1
+    mstore v0+128, 3
     v2 = alloc 96
-    store v2, 1
-    store v2+32, 101
-    store v2+64, 99
+    mstore v2, 1
+    mstore v2+32, 101
+    mstore v2+64, 99
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 4
-    store v3+32, 0x1234567800000000000000000000000000000000000000000000000000000000
-    v4 = load v0
+    mstore v3, 4
+    mstore v3+32, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v4 = mload v0
     v5 = trunc i256 v4 to i160
     v6 = icall @fetchRich, v5
     v7 = extract_value struct0, v6, 0
     v8 = extract_value struct0, v6, 1
     v9 = extract_value struct0, v6, 2
-    v10 = load v0+32
+    v10 = mload v0+32
     v11 = trunc i256 v10 to i160
     v12 = icall @fetchRich, v11
     v13 = extract_value struct0, v12, 0
@@ -451,29 +451,29 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v27 = lt v26, 32
     icall revert_if<tuple_data_too_short>, v27
     v28 = add 0, 0
-    v29 = load v28
-    v30 = load v0
+    v29 = mload v28
+    v30 = mload v0
     v31 = trunc i256 v30 to i160
     v32 = icall @fetchRich, v31
     v33 = extract_value struct0, v32, 0
     v34 = extract_value struct0, v32, 1
     v35 = extract_value struct0, v32, 2
-    v36 = load v0+32
+    v36 = mload v0+32
     v37 = trunc i256 v36 to i160
     v38 = icall @fetchRich, v37
     v39 = extract_value struct0, v38, 0
     v40 = extract_value struct0, v38, 1
     v41 = extract_value struct0, v38, 2
-    v42 = load v2
+    v42 = mload v2
     v43 = eq v42, 0
     v44 = eq v43, false
     jumpi v44, bb3, bb4
   bb4:
-    v57 = load v2+32
+    v57 = mload v2+32
     v58 = slt v57, 0
     jumpi v58, bb9, bb10
   bb10:
-    v64 = load v2+32
+    v64 = mload v2+32
     v65 = sgt v41, v64
     v66 = eq v65, false
     icall require<short_string>, v66, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
@@ -482,7 +482,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     icall require<short_string>, v68, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     jump bb11
   bb9:
-    v59 = load v2+32
+    v59 = mload v2+32
     v60 = slt v41, v59
     v61 = eq v60, false
     icall require<short_string>, v61, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
@@ -493,20 +493,20 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
   bb11:
     jump bb5
   bb3:
-    v45 = load v2+32
+    v45 = mload v2+32
     v46 = slt v45, 0
     jumpi v46, bb6, bb7
   bb7:
     v52 = sgt v35, 0
     v53 = eq v52, false
     icall require<short_string>, v53, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
-    v54 = load v2+32
+    v54 = mload v2+32
     v55 = sgt v41, v54
     v56 = eq v55, false
     icall require<short_string>, v56, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     jump bb8
   bb6:
-    v47 = load v2+32
+    v47 = mload v2+32
     v48 = slt v35, v47
     v49 = eq v48, false
     icall require<short_string>, v49, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
@@ -605,7 +605,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v113 = lt v112, 32
     icall revert_if<tuple_data_too_short>, v113
     v114 = add 0, 0
-    v115 = load v114
+    v115 = mload v114
     v116 = eq v115, 100
     icall require<short_string>, v116, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     ret 2

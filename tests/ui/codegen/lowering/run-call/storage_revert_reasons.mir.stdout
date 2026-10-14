@@ -68,11 +68,11 @@ fn @calldataReason(arg0: slice<calldata>) [selector=0x3f2c0e1e, pure, abi_params
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     icall require<error_string>, false, v12
     invalid
 }

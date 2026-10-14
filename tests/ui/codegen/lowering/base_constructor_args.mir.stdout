@@ -51,8 +51,8 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 2
-    store v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    mstore v1, 2
+    mstore v1+32, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v2 = checked_add u256, v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, v1
@@ -71,7 +71,7 @@ fn @labelHash() -> i256 [selector=0x7e0a41bc, view, abi_params=[], abi_returns=[
   bb0:
     v0 = load_storage_bytes 1
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     ret v3
 }
@@ -456,8 +456,8 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 1
-    store v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 1
+    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, arg0
     icall @store_storage_bytes, 1, v0
     jump bb1
@@ -503,17 +503,17 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x546f6b656e000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x546f6b656e000000000000000000000000000000000000000000000000000000
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 5
-    store v1+32, 0x546f6b656e000000000000000000000000000000000000000000000000000000
+    mstore v1, 5
+    mstore v1+32, 0x546f6b656e000000000000000000000000000000000000000000000000000000
     v2 = alloc 64 !metadata(preserves_fmp)
-    store v2, 3
-    store v2+32, 0x544b4e0000000000000000000000000000000000000000000000000000000000
+    mstore v2, 3
+    mstore v2+32, 0x544b4e0000000000000000000000000000000000000000000000000000000000
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 1
-    store v3+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v3, 1
+    mstore v3+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
     icall @store_storage_bytes, 0, v0

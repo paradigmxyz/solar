@@ -9,7 +9,7 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_returndata{{[( ]}}
 // CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = returndatasize
-// CHECK: + copy returndata {{v[0-9]+}}, ptr<returndata> 0, [[LENGTH]]
+// CHECK: + returndatacopy {{v[0-9]+}}, ptr<returndata> 0, [[LENGTH]]
 fn @copy_returndata() -> i256 {
   bb0:
     v0 = returndatasize
@@ -19,10 +19,10 @@ fn @copy_returndata() -> i256 {
     v4 = add v3, 32
     v5 = alloc v4
     v6 = ptrtoint ptr<memory> v5 to i256
-    store v6, v3
+    mstore v6, v3
     v9001 = ptradd v5, 32
     v8 = ptrtoint ptr<memory> v9001 to i256
-    copy returndata v8, v2, v3
+    returndatacopy v8, v2, v3
     ret v6
 }
 

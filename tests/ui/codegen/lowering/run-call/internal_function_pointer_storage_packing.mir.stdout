@@ -118,6 +118,6 @@ fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<
     v3 = and v2, 0xffffffffffffffff
     v4 = eq v1, v3
     v5 = zext i1 v4 to i256
-    store 0, v5 !metadata(memory=scratch)
+    mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
 }

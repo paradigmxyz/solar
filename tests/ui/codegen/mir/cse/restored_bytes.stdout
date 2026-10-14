@@ -12,11 +12,11 @@
   
   fn @temporary_byte(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       v1 = add arg0, 31
-      store8 v1, arg1
-      v2 = load arg0
-      store arg0, v0
+      mstore8 v1, arg1
+      v2 = mload arg0
+      mstore arg0, v0
       ret v2
   }
   
@@ -30,11 +30,11 @@
   
   fn @outside_byte(arg0: i256) -> i256 {
     bb0:
-      v0 = load arg0
+      v0 = mload arg0
       v1 = add arg0, 32
-      store8 v1, 7
--     v2 = load arg0
-      store arg0, v0
+      mstore8 v1, 7
+-     v2 = mload arg0
+      mstore arg0, v0
 -     ret v2
 +     ret v0
   }
@@ -49,11 +49,11 @@
   
   fn @dirty_byte(arg0: i256, arg1: i1) -> i256 {
     bb0:
-      v0 = load arg0
-      store8 arg0, 7
+      v0 = mload arg0
+      mstore8 arg0, 7
       jumpi arg1, bb1, bb2
     bb1:
-      store arg0, v0
+      mstore arg0, v0
       jump bb2
     bb2:
       ret v0
@@ -74,22 +74,22 @@
       v1 = add arg0, 64
       v2 = add arg0, 96
       v3 = add arg0, 128
-      v4 = load arg0
-      v5 = load v0
-      v6 = load v1
-      v7 = load v2
-      v8 = load v3
-      store8 arg0, 1
-      store8 v0, 2
-      store8 v1, 3
-      store8 v2, 4
-      store8 v3, 5
-      v9 = load arg0
-      store v3, v8
-      store v2, v7
-      store v1, v6
-      store v0, v5
-      store arg0, v4
+      v4 = mload arg0
+      v5 = mload v0
+      v6 = mload v1
+      v7 = mload v2
+      v8 = mload v3
+      mstore8 arg0, 1
+      mstore8 v0, 2
+      mstore8 v1, 3
+      mstore8 v2, 4
+      mstore8 v3, 5
+      v9 = mload arg0
+      mstore v3, v8
+      mstore v2, v7
+      mstore v1, v6
+      mstore v0, v5
+      mstore arg0, v4
       ret v9
   }
   

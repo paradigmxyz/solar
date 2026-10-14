@@ -19,8 +19,8 @@ contract NestedStaticStructParam {
     // CHECK-LABEL: fn @take{{[( ]}}
     // CHECK: abi_params=[tuple<u256, tuple<u256, u256>, u256>]
     // CHECK: extract_value slice<calldata>, arg0, 0
-    // CHECK: load calldata
-    // CHECK: load calldata
+    // CHECK: calldataload
+    // CHECK: calldataload
     function take(Outer calldata o) external pure returns (uint256, uint256) {
         return (o.inner.b, o.y);
     }

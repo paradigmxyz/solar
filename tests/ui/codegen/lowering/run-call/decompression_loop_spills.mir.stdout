@@ -19,10 +19,10 @@ fn @fallback() [fallback, payable] {
     ret
   bb1:
     v3 = calldatasize
-    copy calldata 0, 0, v3 !metadata(memory=scratch)
+    calldatacopy 0, 0, v3 !metadata(memory=scratch)
     v4 = calldatasize
     v5 = keccak256 0, v4 !metadata(memory=scratch)
-    store 0, v5 !metadata(memory=scratch)
+    mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -57,7 +57,7 @@ fn @_decompress() {
     v43 = delegatecall v42, v41, 0, v9, v39, 0
     v44 = zext i1 v43 to i256
     v45 = returndatasize
-    copy returndata 0, 0, v45 !metadata(memory=scratch)
+    returndatacopy 0, 0, v45 !metadata(memory=scratch)
     v46 = eq v44, 0
     v47 = zext i1 v46 to i256
     v48 = ne v47, 0
@@ -71,7 +71,7 @@ fn @_decompress() {
     v49 = returndatasize
     revert 0, v49
   bb6:
-    v14 = load calldata v8
+    v14 = calldataload v8
     v15 = add v8, v7
     v16 = xor v15, v14
     v17 = byte 0, v16
@@ -83,19 +83,19 @@ fn @_decompress() {
   bb10:
     jump bb11
   bb11:
-    store8 v9, v17
+    mstore8 v9, v17
     v38 = add v9, 1
     jump bb8
   bb8:
     jump bb4
   bb9:
-    v22 = load calldata v18
+    v22 = calldataload v18
     v23 = add v18, v7
     v24 = xor v23, v22
     v25 = byte 0, v24
     v26 = add v18, 1
     v27 = not 0
-    store v9, v27
+    mstore v9, v27
     v28 = gt v25, 127
     v29 = zext i1 v28 to i256
     v30 = eq v29, 0
@@ -107,7 +107,7 @@ fn @_decompress() {
   bb12:
     v33 = add v25, 1
     v34 = calldatasize
-    copy calldata v9, v34, v33
+    calldatacopy v9, v34, v33
     jump bb14
   bb14:
     v35 = and v25, 127
@@ -135,7 +135,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -144,8 +144,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v9 = gas
     v10 = alloc 64 !metadata(preserves_fmp)
-    store v10, 4
-    store v10+32, 0xff80ff8000000000000000000000000000000000000000000000000000000000
+    mstore v10, 4
+    mstore v10+32, 0xff80ff8000000000000000000000000000000000000000000000000000000000
     v11 = address_call v7, v10, gas v9
     v12 = icall returndata_bytes<>
     icall require<short_string>, v11, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000

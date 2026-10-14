@@ -2,13 +2,13 @@
 @module Bounds
 fn @bytesMemory(arg0: ptr<memory>) -> i256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     ret v0
 }
 
 fn @wordsMemory(arg0: ptr<memory>) -> i256 [selector=0xb59b137f, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     ret v0
 }
 
@@ -26,58 +26,58 @@ fn @wordsCalldata(arg0: slice<calldata>) -> i256 [selector=0x6918e29e, pure, abi
 
 fn @dynamicStruct(arg0: ptr<memory>) -> i256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = load arg0, ptr<memory>
-    v1 = load v0
+    v0 = mload arg0, ptr<memory>
+    v1 = mload v0
     ret v1
 }
 
 fn @wideDynamic(arg0: ptr<memory>) -> i256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = load arg0+32, ptr<memory>
-    v1 = load v0
+    v0 = mload arg0+32, ptr<memory>
+    v1 = mload v0
     ret v1
 }
 
 fn @staticStructs(arg0: ptr<memory>) -> i256 [selector=0xb2bb789c, pure, abi_params=[array<_, tuple<u256, address>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = load arg0
-    v1 = load arg0
+    v0 = mload arg0
+    v1 = mload arg0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = load arg0+32
+    v4 = mload arg0+32
     v5 = inttoptr i256 v4 to ptr<memory>
     v6 = eq v4, 0
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc 64
-    store v7, 0
-    store v7+32, 0
+    mstore v7, 0
+    mstore v7+32, 0
     v8 = ptrtoint ptr<memory> v7 to i256
-    store arg0+32, v8
+    mstore arg0+32, v8
     jump bb2
   bb2:
     v9 = phi [bb0: v5], [bb1: v7]
-    v10 = load v9
+    v10 = mload v9
     v11 = checked_add u256, v0, v10
-    v12 = load arg0
+    v12 = mload arg0
     v13 = lt 1, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = load arg0+64
+    v15 = mload arg0+64
     v16 = inttoptr i256 v15 to ptr<memory>
     v17 = eq v15, 0
     jumpi v17, bb3, bb4
   bb3:
     v18 = alloc 64
-    store v18, 0
-    store v18+32, 0
+    mstore v18, 0
+    mstore v18+32, 0
     v19 = ptrtoint ptr<memory> v18 to i256
-    store arg0+64, v19
+    mstore arg0+64, v19
     jump bb4
   bb4:
     v20 = phi [bb2: v16], [bb3: v18]
-    v21 = load v20
+    v21 = mload v20
     v22 = checked_add u256, v11, v21
     ret v22
 }

@@ -149,8 +149,8 @@
       v1 = insert_value struct0, undef struct0, 0, v0
 -     v2 = extract_value struct0, v1, 0
 -     v3 = inttoptr i256 v2 to ptr<memory>
--     v4 = load v3
-+     v4 = load arg0
+-     v4 = mload v3
++     v4 = mload arg0
       ret v4
   }
   

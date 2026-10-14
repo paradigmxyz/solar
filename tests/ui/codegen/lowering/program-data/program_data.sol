@@ -20,7 +20,7 @@ contract C {
     // CHECK-LABEL: fn @data(
     // CHECK: datacopy literal_0, {{.*}}, 288
     // SIZE-LABEL: fn @data(
-    // SIZE: store {{.*}}, 0
+    // SIZE: mstore {{.*}}, 0
     // SIZE: datacopy literal_0, {{.*}}, 257
     function data() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
@@ -29,7 +29,7 @@ contract C {
     // CHECK-LABEL: fn @subslice(
     // CHECK: datacopy literal_1, {{.*}}, 192
     // SIZE-LABEL: fn @subslice(
-    // SIZE: store {{.*}}, 0
+    // SIZE: mstore {{.*}}, 0
     // SIZE: datacopy literal_1, {{.*}}, 161
     function subslice() external pure returns (bytes memory) {
         return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ";
@@ -50,7 +50,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @zeroWord{{[.(]}}
-    // CHECK: store {{.*}}, 0
+    // CHECK: mstore {{.*}}, 0
     function zeroWord() public pure returns (bytes memory) {
         return hex"0000000000000000000000000000000000000000000000000000000000000000";
     }
@@ -58,9 +58,9 @@ contract C {
     // CHECK-LABEL: fn @splatData{{[.(]}}
     // CHECK: datacopy literal_2, {{.*}}, 160
     // SPLAT-LABEL: fn @splatData.body() -> i256
-    // SPLAT-COUNT-2: store {{.*}}, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    // SPLAT: copy {{.*}}, 64
-    // SPLAT: copy {{.*}}, 32
+    // SPLAT-COUNT-2: mstore {{.*}}, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    // SPLAT: mcopy {{.*}}, 64
+    // SPLAT: mcopy {{.*}}, 32
     function splatData() public pure returns (bytes memory) {
         return hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00";
     }

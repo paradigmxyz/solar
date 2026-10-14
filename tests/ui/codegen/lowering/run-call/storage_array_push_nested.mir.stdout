@@ -54,19 +54,19 @@ fn @pushEmpty() -> i256 [selector=0x19d30117, abi_params=[], abi_returns=[word],
 fn @pushMemory() -> i256 [selector=0x4d735002, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
-    v1 = load v0
+    mstore v0, 3
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 1
+    mstore v0+32, 1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = gt v4, 0xffffffffffffffff
     icall panic_if<0x41>, v5
     v6 = add v4, 1
     v7 = storage_array_data_slot 0
     v8 = add v7, v4
-    v9 = load v0
+    v9 = mload v0
     v10 = sload v8 !metadata(storage=symbolic(v8))
     v11 = gt v10, v9
     jumpi v11, bb1, bb2
@@ -126,7 +126,7 @@ fn @pushMemory() -> i256 [selector=0x4d735002, abi_params=[], abi_returns=[word]
   bb7:
     v30 = shl 5, v28
     v31 = ptradd v0, v30
-    v32 = load v31+32
+    v32 = mload v31+32
     v33 = storage_array_data_slot v8
     v34 = div v28, 2
     v35 = add v33, v34
@@ -169,25 +169,25 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v1 = alloc 96 !metadata(preserves_fmp)
     memory_zero v1, 96
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+64, v2
-    store v0+96, 96
-    store v0, 2
-    store v0+32, 3
-    v3 = load v0+64, ptr<memory>
+    mstore v0+64, v2
+    mstore v0+96, 96
+    mstore v0, 2
+    mstore v0+32, 3
+    v3 = mload v0+64, ptr<memory>
     v4 = lt 2, 3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    store v3+64, 4
+    mstore v3+64, 4
     v6 = alloc zeroed checked 160
-    store v6, 4
+    mstore v6, 4
     v7 = ptrtoint ptr<memory> v6 to i256
-    store v0+96, v7
-    v8 = load v0+96, ptr<memory>
-    v9 = load v8
+    mstore v0+96, v7
+    v8 = mload v0+96, ptr<memory>
+    v9 = mload v8
     v10 = lt 2, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    store v8+96, 5
+    mstore v8+96, 5
     v12 = sload 1 !metadata(storage=slot(1))
     v13 = gt v12, 0xffffffffffffffff
     icall panic_if<0x41>, v13
@@ -195,14 +195,14 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v15 = storage_array_data_slot 1
     v16 = mul v12, 3
     v17 = add v15, v16
-    v18 = load v0
+    v18 = mload v0
     v19 = sload v17 !metadata(storage=symbolic(v17))
     v20 = not 0xffff
     v21 = and v19, v20
     v22 = and v18, 0xffff
     v23 = or v21, v22
     sstore v17, v23 !metadata(storage=symbolic(v17))
-    v24 = load v0+32
+    v24 = mload v0+32
     v25 = shl 16, 0xffff
     v26 = sload v17 !metadata(storage=symbolic(v17))
     v27 = not v25
@@ -212,7 +212,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v31 = or v28, v30
     sstore v17, v31 !metadata(storage=symbolic(v17))
     v32 = add v17, 1
-    v33 = load v0+64
+    v33 = mload v0+64
     jump bb1
   bb1:
     v34 = phi [bb0: 0], [bb6: v61]
@@ -220,8 +220,8 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     jumpi v35, bb2, bb3
   bb3:
     v62 = add v17, 2
-    v63 = load v0+96
-    v64 = load v63
+    v63 = mload v0+96
+    v64 = mload v63
     v65 = sload v62 !metadata(storage=offset(v17, 2))
     v66 = gt v65, v64
     jumpi v66, bb7, bb8
@@ -331,7 +331,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v85 = shl 5, v83
     v86 = inttoptr i256 v63 to ptr<memory>
     v87 = ptradd v86, v85
-    v88 = load v87+32
+    v88 = mload v87+32
     v89 = storage_array_data_slot v62
     v90 = div v83, 16
     v91 = add v89, v90
@@ -387,7 +387,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v41 = shl 5, v34
     v42 = inttoptr i256 v33 to ptr<memory>
     v43 = ptradd v42, v41
-    v44 = load v43
+    v44 = mload v43
     v45 = mul v39, 8
     v46 = shl v45, 0xffff
     v47 = sload v37 !metadata(storage=symbolic(v37))
@@ -406,8 +406,8 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
 fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 3
-    store v0+32, 0x6162630000000000000000000000000000000000000000000000000000000000
+    mstore v0, 3
+    mstore v0+32, 0x6162630000000000000000000000000000000000000000000000000000000000
     v1 = sload 2 !metadata(storage=slot(2))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
@@ -417,8 +417,8 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     icall @store_storage_bytes, v5, v0
     sstore 2, v3 !metadata(storage=slot(2))
     v6 = alloc 64 !metadata(preserves_fmp)
-    store v6, 32
-    store v6+32, 0x6162636465666768616263646566676861626364656667686162636465666768
+    mstore v6, 32
+    mstore v6+32, 0x6162636465666768616263646566676861626364656667686162636465666768
     v7 = sload 2 !metadata(storage=slot(2))
     v8 = gt v7, 0xffffffffffffffff
     icall panic_if<0x41>, v8
@@ -428,7 +428,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     icall @store_storage_bytes, v11, v6
     sstore 2, v9 !metadata(storage=slot(2))
     v12 = alloc 96 !metadata(preserves_fmp)
-    store v12, 64
+    mstore v12, 64
     v13 = ptradd v12, 32
     datacopy literal_0, v13, 64
     v14 = sload 2 !metadata(storage=slot(2))

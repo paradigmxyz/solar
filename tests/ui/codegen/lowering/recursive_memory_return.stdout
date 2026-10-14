@@ -4,8 +4,8 @@ fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[u25
   bb0:
     v0 = eq arg0, 0
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 0
-    store v1+32, 0
+    mstore v1, 0
+    mstore v1+32, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
@@ -13,17 +13,17 @@ fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[u25
     v3 = checked_sub u256, arg0, 1
     v4 = icall @build, v3
     v5 = alloc 64
-    v6 = load v4
+    v6 = mload v4
     v7 = checked_add u256, v6, arg0
-    v8 = load v4+32
+    v8 = mload v4+32
     v9 = checked_add u256, v8, 1
-    store v5, v7
-    store v5+32, v9
+    mstore v5, v7
+    mstore v5+32, v9
     ret v5
   bb1:
     v2 = alloc 64
-    store v2, 0
-    store v2+32, 0
+    mstore v2, 0
+    mstore v2+32, 0
     ret v2
 }
 
@@ -49,7 +49,7 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u25
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc zeroed checked v9
-    store v16, arg0
+    mstore v16, arg0
     jump bb1
   bb1:
     v17 = phi [bb0: arg0], [bb3: v17]
@@ -64,13 +64,13 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u25
     ret v18
   bb4:
     v22 = checked_mul u256, v20, 10
-    v23 = load v18
+    v23 = mload v18
     v24 = lt v20, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = shl 5, v20
     v27 = ptradd v18, v26
-    store v27+32, v22
+    mstore v27+32, v22
     jump bb6
   bb6:
     jump bb3
@@ -81,20 +81,20 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[u25
 
 fn @fillImpl(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = eq arg1, v0
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb3:
     v2 = checked_mul u256, arg1, arg1
-    v3 = load arg0
+    v3 = mload arg0
     v4 = lt arg1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = shl 5, arg1
     v7 = ptradd arg0, v6
-    store v7+32, v2
+    mstore v7+32, v2
     v8 = checked_add u256, arg1, 1
     v9 = icall @fillImpl, arg0, v8
     ret v9
@@ -124,7 +124,7 @@ fn @squares(arg0: i256) -> ptr<memory> [selector=0x1d1d15d4, pure, abi_params=[u
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc zeroed checked v9
-    store v16, arg0
+    mstore v16, arg0
     v17 = icall @fillImpl, v16, 0
     ret v17
 }

@@ -29,55 +29,55 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v65]
     v24 = lt v23, v0
     jumpi v24, bb2, bb3
   bb3:
-    v66 = load v22
+    v66 = mload v22
     v67 = lt 0, v66
     v68 = eq v67, false
     icall panic_if<0x32>, v68
-    v69 = load v22+32
+    v69 = mload v22+32
     v70 = inttoptr i256 v69 to ptr<memory>
     v71 = eq v69, 0
     jumpi v71, bb4, bb5
   bb4:
     v72 = alloc 32
-    store v72, 0
+    mstore v72, 0
     v73 = ptrtoint ptr<memory> v72 to i256
-    store v22+32, v73
+    mstore v22+32, v73
     jump bb5
   bb5:
     v74 = phi [bb3: v70], [bb4: v72]
-    v75 = load v74
+    v75 = mload v74
     v76 = lt 0, v75
     v77 = eq v76, false
     icall panic_if<0x32>, v77
-    v78 = load v74+32
-    v79 = load v22
+    v78 = mload v74+32
+    v79 = mload v22
     v80 = lt 1, v79
     v81 = eq v80, false
     icall panic_if<0x32>, v81
-    v82 = load v22+64
+    v82 = mload v22+64
     v83 = inttoptr i256 v82 to ptr<memory>
     v84 = eq v82, 0
     jumpi v84, bb6, bb7
   bb6:
     v85 = alloc 32
-    store v85, 0
+    mstore v85, 0
     v86 = ptrtoint ptr<memory> v85 to i256
-    store v22+64, v86
+    mstore v22+64, v86
     jump bb7
   bb7:
     v87 = phi [bb5: v83], [bb6: v85]
-    v88 = load v87
+    v88 = mload v87
     v89 = lt 1, v88
     v90 = eq v89, false
     icall panic_if<0x32>, v90
-    v91 = load v87+64
+    v91 = mload v87+64
     v92 = checked_add u256, v78, v91
     ret v92
   bb2:
@@ -88,7 +88,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v29 = sub v28, v27
     v30 = slt v29, 32
     icall revert_if<calldata_tail_too_short>, v30
-    v31 = load calldata v27
+    v31 = calldataload v27
     v32 = ptrtoint ptr<calldata> v1 to i256
     v33 = add v32, v31
     v34 = calldatasize
@@ -98,7 +98,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v38 = slt v31, v37
     v39 = eq v38, false
     icall revert_if<invalid_calldata_tail_offset>, v39
-    v40 = load calldata v33
+    v40 = calldataload v33
     v41 = calldatasize
     v42 = gt v40, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v42
@@ -119,17 +119,17 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v55 = lt v54, 32
     icall panic_if<0x41>, v55
     v56 = alloc v54
-    store v56, v40
+    mstore v56, v40
     v57 = inttoptr i256 v44 to ptr<calldata>
     v58 = make_calldata_slice v57, v47
     v59 = ptradd v56, 32
     v60 = extract_value slice<calldata>, v58, 0
     v61 = extract_value slice<calldata>, v58, 1
-    copy calldata v59, v60, v61
+    calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
     v63 = shl 5, v23
     v64 = ptradd v22, v63
-    store v64+32, v62
+    mstore v64+32, v62
     v65 = add v23, 1
     jump bb1
 }
@@ -163,7 +163,7 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v65]
@@ -171,7 +171,7 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     jumpi v24, bb2, bb3
   bb3:
     v66 = abi_encode [memory_array<memory_array<word>>], object, args v22
-    v67 = load v66
+    v67 = mload v66
     ret v67
   bb2:
     v25 = mul v23, 32
@@ -181,7 +181,7 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     v29 = sub v28, v27
     v30 = slt v29, 32
     icall revert_if<calldata_tail_too_short>, v30
-    v31 = load calldata v27
+    v31 = calldataload v27
     v32 = ptrtoint ptr<calldata> v1 to i256
     v33 = add v32, v31
     v34 = calldatasize
@@ -191,7 +191,7 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     v38 = slt v31, v37
     v39 = eq v38, false
     icall revert_if<invalid_calldata_tail_offset>, v39
-    v40 = load calldata v33
+    v40 = calldataload v33
     v41 = calldatasize
     v42 = gt v40, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v42
@@ -212,17 +212,17 @@ fn @encodeLength(arg0: slice<calldata>) -> i256 [selector=0xb50dc8e6, pure, abi_
     v55 = lt v54, 32
     icall panic_if<0x41>, v55
     v56 = alloc v54
-    store v56, v40
+    mstore v56, v40
     v57 = inttoptr i256 v44 to ptr<calldata>
     v58 = make_calldata_slice v57, v47
     v59 = ptradd v56, 32
     v60 = extract_value slice<calldata>, v58, 0
     v61 = extract_value slice<calldata>, v58, 1
-    copy calldata v59, v60, v61
+    calldatacopy v59, v60, v61
     v62 = ptrtoint ptr<memory> v56 to i256
     v63 = shl 5, v23
     v64 = ptradd v22, v63
-    store v64+32, v62
+    mstore v64+32, v62
     v65 = add v23, 1
     jump bb1
 }

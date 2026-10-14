@@ -9,7 +9,7 @@ contract ChainedCalldataSlice {
     // CHECK: make_calldata_slice
     // CHECK: make_calldata_slice
     // CHECK: [[OUT:v[0-9]+]] = alloc
-    // CHECK: store [[OUT]], {{v[0-9]+}}
+    // CHECK: mstore [[OUT]], {{v[0-9]+}}
     function bytesChain(bytes calldata x) external pure returns (bytes memory) {
         return x[1:][1:];
     }

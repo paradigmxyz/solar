@@ -21,7 +21,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -56,12 +56,12 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
   bb2:
     v11 = icall returndata_bytes<>
     v12 = ptradd v11, 32
-    v13 = load v11
+    v13 = mload v11
     v14 = make_memory_slice v12, v13
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = extract_value slice<memory>, v14, 0
-    v18 = load v17
+    v18 = mload v17
     v19 = shr 224, v18
     v20 = eq v19, 0x8c379a0
     jumpi v20, bb4, bb5
@@ -81,12 +81,12 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
   bb9:
     ret 0
   bb7:
-    v24 = load v11
+    v24 = mload v11
     v25 = ptradd v11, 36
     v26 = sub v24, 4
     v27 = make_memory_slice v25, v26
     v28 = abi_decode [bytes], v27
-    v29 = load v28
+    v29 = mload v28
     ret v29
   bb1:
     ret 0
@@ -101,7 +101,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
-    v3 = load v2
+    v3 = mload v2
     v4 = gt v3, 0xffffffffffffffff
     v5 = add v3, 36
     v6 = gt v5, arg1
@@ -110,7 +110,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     jumpi v7, bb3, bb2
   bb2:
     v9 = add v2, v3
-    v10 = load v9
+    v10 = mload v9
     v11 = gt v10, 0xffffffffffffffff
     v12 = sub arg1, v5
     v13 = gt v10, v12

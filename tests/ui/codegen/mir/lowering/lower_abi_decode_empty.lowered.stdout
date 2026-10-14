@@ -5,7 +5,7 @@
     bb0:
 -     abi_decode [], arg0
 +     v0 = ptradd arg0, 32
-+     v1 = load arg0
++     v1 = mload arg0
 +     v2 = ptrtoint ptr<memory> v0 to i256
 +     v3 = add v2, v1
 +     v4 = slt v1, 0
@@ -21,13 +21,13 @@
 -     v0 = abi_decode [u256], arg0
 -     ret v0
 +     v1 = ptradd arg0, 32
-+     v2 = load arg0
++     v2 = mload arg0
 +     v3 = ptrtoint ptr<memory> v1 to i256
 +     v4 = add v3, v2
 +     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
 +   bb2:
-+     v6 = load arg0+32
++     v6 = mload arg0+32
 +     ret v6
 +   bb1:
 +     revert 0, 0

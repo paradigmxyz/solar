@@ -4,6 +4,6 @@
 
 fn @f(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = load arg0, i256
-    ret v0 //~ ERROR: load annotation must be `ptr<memory>`
+    v0 = mload arg0, i256
+    ret v0 //~ ERROR: `mload` annotation must be `ptr<memory>`
 }

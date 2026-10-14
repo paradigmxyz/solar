@@ -19,7 +19,7 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
     v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = load v1
+    v4 = mload v1
     v5 = lt v0, v4
     jumpi v5, bb4, bb5
   bb5:
@@ -27,13 +27,13 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
   bb2:
     ret
   bb4:
-    v6 = load v1
+    v6 = mload v1
     v7 = lt v0, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = shl 5, v0
     v10 = ptradd v1, v9
-    v11 = load v10+32
+    v11 = mload v10+32
     v12 = trunc i256 v11 to i96
     v13 = icall @mint, v3, v12
     jump bb6
@@ -80,22 +80,22 @@ fn @push(arg0: i256, arg1: i96, arg2: i160) {
     v9 = alloc 64
     v10 = zext i96 arg1 to i256
     v11 = zext i160 arg2 to i256
-    store v9, v10
-    store v9+32, v11
+    mstore v9, v10
+    mstore v9+32, v11
     v12 = sload arg0 !metadata(storage=symbolic(arg0))
     v13 = gt v12, 0xffffffffffffffff
     icall panic_if<0x41>, v13
     v14 = add v12, 1
     v15 = storage_array_data_slot arg0
     v16 = add v15, v12
-    v17 = load v9
+    v17 = mload v9
     v18 = sload v16 !metadata(storage=symbolic(v16))
     v19 = not 0xffffffffffffffffffffffff
     v20 = and v18, v19
     v21 = and v17, 0xffffffffffffffffffffffff
     v22 = or v20, v21
     sstore v16, v22 !metadata(storage=symbolic(v16))
-    v23 = load v9+32
+    v23 = mload v9+32
     v24 = shl 96, 0xffffffffffffffffffffffffffffffffffffffff
     v25 = sload v16 !metadata(storage=symbolic(v16))
     v26 = not v24
@@ -136,7 +136,7 @@ fn @latest(arg0: i256) -> struct0 [view] {
 
 fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    store 0, arg0 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     v1 = add v0, arg1
     ret v1
@@ -150,7 +150,7 @@ fn @mint(arg0: i160, arg1: i96) -> i96 {
     icall @push, 6, v2, arg0
     v3 = zext i96 v0 to i256
     v4 = zext i96 v2 to i256
-    store 0, v4 !metadata(memory=scratch)
+    mstore 0, v4 !metadata(memory=scratch)
     v5 = zext i160 arg0 to i256
     log 0, 32, 0x229942c5a471c3f0451428ffe170bda041510cfed1329d10dc894225df5e352b, v3, v5
     ret v0
@@ -183,17 +183,17 @@ fn @nextId() -> i96 [view] {
 fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
-    v1 = load v0
+    mstore v0, 2
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 0xf52
-    v4 = load v0
+    mstore v0+32, 0xf52
+    v4 = mload v0
     v5 = lt 1, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v0+64, 6
+    mstore v0+64, 6
     v7 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
     v8 = extract_value slice<memory>, v7, 1
     v9 = datasize CheckpointTarget_creation_code_0
@@ -210,7 +210,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v17 = extract_value slice<memory>, v7, 0
     v18 = ptrtoint ptr<memory> v16 to i256
     v19 = add v18, v9
-    copy v19, v17, v8 !metadata(memory=heap)
+    mcopy v19, v17, v8 !metadata(memory=heap)
     v20 = create 0, v16, v10
     v21 = ne v20, i160 0
     jumpi v21, bb2, bb1
@@ -231,7 +231,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v29 = lt v28, 32
     icall revert_if<tuple_data_too_short>, v29
     v30 = add 0, 0
-    v31 = load v30
+    v31 = mload v30
     v32 = shr 96, v31
     v33 = eq v32, 0
     v34 = eq v33, false
@@ -250,7 +250,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -271,7 +271,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v16 = lt v15, 32
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
-    v18 = load v17
+    v18 = mload v17
     v19 = shr 8, v18
     v20 = eq v19, 0
     v21 = eq v20, false

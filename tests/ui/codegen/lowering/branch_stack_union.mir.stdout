@@ -28,7 +28,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v9 = extract_value slice<memory>, v5, 0
     v10 = ptrtoint ptr<memory> v8 to i256
     v11 = add v10, v6
-    copy v11, v9, 0 !metadata(memory=heap)
+    mcopy v11, v9, 0 !metadata(memory=heap)
     v12 = create 0, v8, v6
     v13 = ne v12, i160 0
     jumpi v13, bb2, bb1
@@ -52,7 +52,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = load v25
+    v26 = mload v25
     v27 = lt v26, 2
     v28 = eq v27, false
     icall revert_if<empty>, v28
@@ -135,7 +135,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v90 = extract_value slice<memory>, v86, 0
     v91 = ptrtoint ptr<memory> v89 to i256
     v92 = add v91, v87
-    copy v92, v90, 0 !metadata(memory=heap)
+    mcopy v92, v90, 0 !metadata(memory=heap)
     v93 = create 0, v89, v87
     v94 = ne v93, i160 0
     jumpi v94, bb12, bb11
@@ -147,9 +147,9 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v97 = loadimmutable sI
     v98 = zext i24 v97 to i256
     v99 = sload 6 !metadata(storage=slot(6))
-    store v96, v98
-    store v96+32, v99
-    v100 = load v96
+    mstore v96, v98
+    mstore v96+32, v99
+    v100 = mload v96
     v101 = trunc i256 v100 to i24
     v102 = sload 0 !metadata(storage=slot(0))
     v103 = lt v0, v102
@@ -187,7 +187,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v129 = lt v128, 32
     icall revert_if<tuple_data_too_short>, v129
     v130 = add 0, 0
-    v131 = load v130
+    v131 = mload v130
     v132 = lt v131, 2
     v133 = eq v132, false
     icall revert_if<empty>, v133

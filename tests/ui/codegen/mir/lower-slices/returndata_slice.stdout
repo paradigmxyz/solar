@@ -11,12 +11,12 @@
 +     v4 = add v0, 32
       v5 = alloc v4
       v6 = ptrtoint ptr<memory> v5 to i256
--     store v6, v3
-+     store v6, v0
+-     mstore v6, v3
++     mstore v6, v0
       v7 = ptradd v5, 32
       v8 = ptrtoint ptr<memory> v7 to i256
--     copy returndata v8, v2, v3
-+     copy returndata v8, ptr<returndata> 0, v0
+-     returndatacopy v8, v2, v3
++     returndatacopy v8, ptr<returndata> 0, v0
       ret v6
   }
   

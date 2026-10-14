@@ -10,7 +10,7 @@ fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns
     v4 = not 31
     v5 = and v2, v4
     v6 = alloc v5
-    store v6, v1
+    mstore v6, v1
     v7 = extract_value slice<calldata>, v0, 0
     v8 = extract_value slice<calldata>, v0, 1
     v9 = calldatasize
@@ -23,8 +23,8 @@ fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns
     v14 = ptradd v6, 32
     v15 = extract_value slice<calldata>, v0, 0
     v16 = extract_value slice<calldata>, v0, 1
-    copy calldata v14, v15, v16
-    v17 = load v6
+    calldatacopy v14, v15, v16
+    v17 = mload v6
     ret v17
 }
 
@@ -40,7 +40,7 @@ fn @prefix(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x15de319
     v6 = not 31
     v7 = and v4, v6
     v8 = alloc v7
-    store v8, v3
+    mstore v8, v3
     v9 = extract_value slice<calldata>, v2, 0
     v10 = extract_value slice<calldata>, v2, 1
     v11 = calldatasize
@@ -53,7 +53,7 @@ fn @prefix(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x15de319
     v16 = ptradd v8, 32
     v17 = extract_value slice<calldata>, v2, 0
     v18 = extract_value slice<calldata>, v2, 1
-    copy calldata v16, v17, v18
+    calldatacopy v16, v17, v18
     ret v8
 }
 
@@ -67,7 +67,7 @@ fn @redirected(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [sel
     v4 = not 31
     v5 = and v2, v4
     v6 = alloc v5
-    store v6, v1
+    mstore v6, v1
     v7 = extract_value slice<calldata>, v0, 0
     v8 = extract_value slice<calldata>, v0, 1
     v9 = calldatasize
@@ -80,7 +80,7 @@ fn @redirected(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [sel
     v14 = ptradd v6, 32
     v15 = extract_value slice<calldata>, v0, 0
     v16 = extract_value slice<calldata>, v0, 1
-    copy calldata v14, v15, v16
+    calldatacopy v14, v15, v16
     ret v6
 }
 

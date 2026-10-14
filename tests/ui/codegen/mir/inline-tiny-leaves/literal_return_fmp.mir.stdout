@@ -15,7 +15,7 @@ fn @retainedLiteral() -> struct0 [selector=0xe174bc9a, pure, abi_params=[], abi_
 fn @literal() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 1
-    store v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v0, 1
+    mstore v0+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

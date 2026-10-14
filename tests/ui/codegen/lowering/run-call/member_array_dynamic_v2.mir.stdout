@@ -9,7 +9,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tu
     v4 = sub v2, v3
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = load calldata v0
+    v6 = calldataload v0
     v7 = ptrtoint ptr<calldata> v0 to i256
     v8 = add v7, v6
     v9 = calldatasize
@@ -19,7 +19,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tu
     v13 = slt v6, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = load calldata v8
+    v15 = calldataload v8
     v16 = calldatasize
     v17 = gt v15, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v17
@@ -40,15 +40,15 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tu
     v30 = lt v29, 32
     icall panic_if<0x41>, v30
     v31 = alloc v29
-    store v31, v15
+    mstore v31, v15
     v32 = inttoptr i256 v19 to ptr<calldata>
     v33 = make_calldata_slice v32, v22
     v34 = ptradd v31, 32
     v35 = extract_value slice<calldata>, v33, 0
     v36 = extract_value slice<calldata>, v33, 1
-    copy calldata v34, v35, v36
+    calldatacopy v34, v35, v36
     v37 = ptrtoint ptr<memory> v31 to i256
-    store v1, v37
+    mstore v1, v37
     v38 = abi_encode [tuple<memory_array<word>>], object, args v1
     ret v38
 }
@@ -64,7 +64,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tu
     v6 = sub v4, v5
     v7 = slt v6, 32
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = load calldata v2
+    v8 = calldataload v2
     v9 = ptrtoint ptr<calldata> v2 to i256
     v10 = add v9, v8
     v11 = calldatasize
@@ -74,7 +74,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tu
     v15 = slt v8, v14
     v16 = eq v15, false
     icall revert_if<invalid_calldata_tail_offset>, v16
-    v17 = load calldata v10
+    v17 = calldataload v10
     v18 = calldatasize
     v19 = gt v17, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v19
@@ -95,15 +95,15 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tu
     v32 = lt v31, 32
     icall panic_if<0x41>, v32
     v33 = alloc v31
-    store v33, v17
+    mstore v33, v17
     v34 = inttoptr i256 v21 to ptr<calldata>
     v35 = make_calldata_slice v34, v24
     v36 = ptradd v33, 32
     v37 = extract_value slice<calldata>, v35, 0
     v38 = extract_value slice<calldata>, v35, 1
-    copy calldata v36, v37, v38
+    calldatacopy v36, v37, v38
     v39 = ptrtoint ptr<memory> v33 to i256
-    store v3, v39
+    mstore v3, v39
     v40 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
     v41 = extract_value slice<memory>, v40, 0
     v42 = extract_value slice<memory>, v40, 1

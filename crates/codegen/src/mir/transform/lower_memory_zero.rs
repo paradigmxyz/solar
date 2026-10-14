@@ -6,7 +6,7 @@
 use crate::mir::{Function, FunctionBuilder, InstKind, Module, PtrLocation, pass::MirPass};
 use solar_sema::Gcx;
 
-/// Lowers `memory_zero` instructions to `calldatasize` and `copy calldata`.
+/// Lowers `memory_zero` instructions to `calldatasize` and `calldatacopy`.
 pub(crate) struct LowerMemoryZero;
 
 impl MirPass for LowerMemoryZero {

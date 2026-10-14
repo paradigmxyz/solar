@@ -12,7 +12,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc zeroed checked v6
-    store v7, arg0
+    mstore v7, arg0
     jump bb1
   bb1:
     v8 = phi [bb0: 0], [bb3: v23]
@@ -24,9 +24,9 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
   bb5:
     jump bb2
   bb2:
-    v24 = load 64 !metadata(memory=scratch)
+    v24 = mload 64 !metadata(memory=scratch)
     v25 = add v24, 512
-    v26 = load 64 !metadata(memory=scratch)
+    v26 = mload 64 !metadata(memory=scratch)
     jump bb7
   bb7:
     v27 = phi [bb2: v8], [bb9: v27]
@@ -45,7 +45,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v38 = abi_encode [memory_bytes, memory_bytes], object, args v30, v30
     v39 = checked_add u256, v29, 31
     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = load v38
+    v41 = mload v38
     v42 = checked_mul u256, v40, 2
     v43 = checked_add u256, 128, v42
     v44 = eq v41, v43
@@ -53,10 +53,10 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     icall revert_if<empty>, v45
     v46 = ptrtoint ptr<memory> v38 to i256
     v47 = add v46, 32
-    v48 = load v47
+    v48 = mload v47
     v49 = ptrtoint ptr<memory> v38 to i256
     v50 = add v49, 64
-    v51 = load v50
+    v51 = mload v50
     v52 = eq v48, 64
     jumpi v52, bb13, bb14
   bb14:
@@ -100,7 +100,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v71 = ptrtoint ptr<memory> v60 to i256
     v72 = add v71, 32
     v73 = add v72, v70
-    v74 = load v73
+    v74 = mload v73
     v75 = eq v74, v64
     v76 = eq v75, false
     icall revert_if<empty>, v76
@@ -134,12 +134,12 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
   bb28:
     v92 = checked_add u256, v88, 32
     v93 = checked_add u256, v92, v80
-    v94 = load v82
+    v94 = mload v82
     v95 = lt v93, v94
     v96 = eq v95, false
     icall panic_if<0x32>, v96
     v97 = ptradd v82, v93
-    v98 = load v97+32
+    v98 = mload v97+32
     v99 = byte 0, v98
     v100 = shl 248, v99
     v101 = lt v80, v86
@@ -147,12 +147,12 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
   bb32:
     jump bb33
   bb31:
-    v102 = load v81
+    v102 = mload v81
     v103 = lt v80, v102
     v104 = eq v103, false
     icall panic_if<0x32>, v104
     v105 = ptradd v81, v80
-    v106 = load v105+32
+    v106 = mload v105+32
     v107 = byte 0, v106
     v108 = shl 248, v107
     jump bb33
@@ -169,7 +169,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     jump bb25
   bb10:
     v36 = not 0
-    store v28, v36
+    mstore v28, v36
     jump bb12
   bb12:
     jump bb9
@@ -182,13 +182,13 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v15 = trunc i256 v14 to i8
     v16 = zext i8 v15 to i256
     v17 = shl 248, v16
-    v18 = load v10
+    v18 = mload v10
     v19 = lt v8, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = byte 0, v17
     v22 = ptradd v10, v8
-    store8 v22+32, v21
+    mstore8 v22+32, v21
     jump bb6
   bb6:
     jump bb3

@@ -12,8 +12,8 @@ fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
     v2 = lt v1, 3
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    store v0, v1
-    v4 = load v0
+    mstore v0, v1
+    v4 = mload v0
     v5 = lt v4, 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
@@ -31,11 +31,11 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
     v2 = lt v1, 3
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    store v0, v1
+    mstore v0, v1
     v4 = lt 0, 1
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = load v0
+    v6 = mload v0
     v7 = lt v6, 3
     v8 = eq v7, false
     icall panic_if<0x21>, v8
@@ -49,21 +49,21 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
 fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = icall @dirty
-    v2 = load v0
+    v2 = mload v0
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = lt v1, 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
-    store v0+32, v1
-    v7 = load v0
+    mstore v0+32, v1
+    v7 = mload v0
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = load v0+32
+    v10 = mload v0+32
     v11 = lt v10, 3
     v12 = eq v11, false
     icall panic_if<0x21>, v12

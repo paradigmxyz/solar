@@ -9,8 +9,8 @@
 fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v1 = insert_value struct0, undef struct0, 0, v0
     v2 = insert_value struct0, v1, 1, 42
     ret v2
@@ -19,8 +19,8 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_return
 fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x776f726c64000000000000000000000000000000000000000000000000000000
     v1 = insert_value struct1, undef struct1, 0, 42
     v2 = insert_value struct1, v1, 1, v0
     ret v2
@@ -29,11 +29,11 @@ fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_return
 fn @twoStrings() -> struct2 [selector=0x477be19f, pure, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 2
-    store v1+32, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    mstore v1, 2
+    mstore v1+32, 0xaabb000000000000000000000000000000000000000000000000000000000000
     v2 = insert_value struct2, undef struct2, 0, v0
     v3 = insert_value struct2, v2, 1, v1
     ret v3
@@ -42,15 +42,15 @@ fn @twoStrings() -> struct2 [selector=0x477be19f, pure, abi_params=[], abi_retur
 fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
-    v1 = load v0
+    mstore v0, 3
+    v1 = mload v0
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    store v0+32, 7
+    mstore v0+32, 7
     v4 = alloc 64 !metadata(preserves_fmp)
-    store v4, 1
-    store v4+32, 0xcc00000000000000000000000000000000000000000000000000000000000000
+    mstore v4, 1
+    mstore v4+32, 0xcc00000000000000000000000000000000000000000000000000000000000000
     v5 = insert_value struct3, undef struct3, 0, v0
     v6 = insert_value struct3, v5, 1, 7
     v7 = insert_value struct3, v6, 2, v4
@@ -80,7 +80,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -105,7 +105,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v20 = insert_value struct1, v19, 1, v18
     v21 = extract_value struct1, v20, 0
     v22 = extract_value struct1, v20, 1
-    v23 = load v21
+    v23 = mload v21
     v24 = insert_value struct0, undef struct0, 0, v23
     v25 = insert_value struct0, v24, 1, v22
     ret v25
@@ -121,7 +121,7 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -146,7 +146,7 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v20 = insert_value struct2, v19, 1, v18
     v21 = extract_value struct2, v20, 0
     v22 = extract_value struct2, v20, 1
-    v23 = load v22
+    v23 = mload v22
     v24 = insert_value struct0, undef struct0, 0, v21
     v25 = insert_value struct0, v24, 1, v23
     ret v25
@@ -162,7 +162,7 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -187,8 +187,8 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v20 = insert_value struct3, v19, 1, v18
     v21 = extract_value struct3, v20, 0
     v22 = extract_value struct3, v20, 1
-    v23 = load v21
-    v24 = load v22
+    v23 = mload v21
+    v24 = mload v22
     v25 = insert_value struct0, undef struct0, 0, v23
     v26 = insert_value struct0, v25, 1, v24
     ret v26
@@ -204,7 +204,7 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -232,15 +232,15 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v23 = extract_value struct5, v22, 0
     v24 = extract_value struct5, v22, 1
     v25 = extract_value struct5, v22, 2
-    v26 = load v23
-    v27 = load v23
+    v26 = mload v23
+    v27 = mload v23
     v28 = lt 0, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = load v23+32
+    v30 = mload v23+32
     v31 = checked_sub u256, v24, 7
     v32 = checked_add u256, v30, v31
-    v33 = load v25
+    v33 = mload v25
     v34 = insert_value struct4, undef struct4, 0, v26
     v35 = insert_value struct4, v34, 1, v32
     v36 = insert_value struct4, v35, 2, v33

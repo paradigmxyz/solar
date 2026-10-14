@@ -36,7 +36,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v23 = lt v22, 32
     icall panic_if<0x41>, v23
     v24 = alloc v22
-    store v24, v2
+    mstore v24, v2
     jump bb1
   bb1:
     v25 = phi [bb0: 0], [bb6: v89]
@@ -56,7 +56,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v96 = lt v95, 32
     icall revert_if<tuple_data_too_short>, v96
     v97 = add 0, 0
-    v98 = load v97
+    v98 = mload v97
     ret v98
   bb2:
     v27 = mul v25, 32
@@ -66,7 +66,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v31 = sub v30, v29
     v32 = slt v31, 32
     icall revert_if<calldata_tail_too_short>, v32
-    v33 = load calldata v29
+    v33 = calldataload v29
     v34 = ptrtoint ptr<calldata> v3 to i256
     v35 = add v34, v33
     v36 = calldatasize
@@ -90,7 +90,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v86 = ptrtoint ptr<memory> v45 to i256
     v87 = shl 5, v25
     v88 = ptradd v24, v87
-    store v88+32, v86
+    mstore v88+32, v86
     v89 = add v25, 1
     jump bb1
   bb5:
@@ -100,7 +100,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v51 = sub v50, v49
     v52 = slt v51, 32
     icall revert_if<calldata_tail_too_short>, v52
-    v53 = load calldata v49
+    v53 = calldataload v49
     v54 = add v35, v53
     v55 = calldatasize
     v56 = sub v55, v35
@@ -108,7 +108,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v58 = slt v53, v57
     v59 = eq v58, false
     icall revert_if<invalid_calldata_tail_offset>, v59
-    v60 = load calldata v54
+    v60 = calldataload v54
     v61 = calldatasize
     v62 = gt v60, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v62
@@ -129,17 +129,17 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0x4a848537, view, abi_params=[arr
     v75 = lt v74, 32
     icall panic_if<0x41>, v75
     v76 = alloc v74
-    store v76, v60
+    mstore v76, v60
     v77 = inttoptr i256 v64 to ptr<calldata>
     v78 = make_calldata_slice v77, v67
     v79 = ptradd v76, 32
     v80 = extract_value slice<calldata>, v78, 0
     v81 = extract_value slice<calldata>, v78, 1
-    copy calldata v79, v80, v81
+    calldatacopy v79, v80, v81
     v82 = ptrtoint ptr<memory> v76 to i256
     v83 = shl 5, v46
     v84 = ptradd v45, v83
-    store v84, v82
+    mstore v84, v82
     v85 = add v46, 1
     jump bb4
 }

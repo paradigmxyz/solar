@@ -10,11 +10,11 @@ fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, pure, abi_params=[u256]
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0, arg0
+    mstore v0, arg0
     v3 = lt 0, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = load v0
+    v5 = mload v0
     ret v5
 }
 
@@ -36,11 +36,11 @@ fn @dynamic(arg0: slice<calldata>) -> ptr<memory> [selector=0xd543852a, pure, ab
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     ret v12
 }
 
@@ -55,7 +55,7 @@ fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_retu
 
 fn @rawAssembly() -> i256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = load 64 !metadata(memory=scratch)
-    store 64, v0 !metadata(memory=scratch)
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
     ret v0
 }

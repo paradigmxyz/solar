@@ -3,7 +3,7 @@
   @module EffectfulDependencies
   fn @read() -> i256 {
     bb0:
-      v0 = load 0x10000 !metadata(effect=pure)
+      v0 = mload 0x10000 !metadata(effect=pure)
       ret v0
   }
   
@@ -20,7 +20,7 @@
   
   fn @argument_entry() [selector=0x05060708] {
     bb0:
-      v0 = load 0x10000
+      v0 = mload 0x10000
       icall @unused, v0
       ret
   }

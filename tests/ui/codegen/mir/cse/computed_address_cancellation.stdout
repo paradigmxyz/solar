@@ -5,8 +5,8 @@
     bb0:
       v0 = sub 128, arg0
       v1 = add arg0, v0
-      store v1, 42
--     v2 = load 128
+      mstore v1, 42
+-     v2 = mload 128
 -     ret v2
 +     ret 42
   }
@@ -15,19 +15,19 @@
     bb0:
       v0 = sub 128, arg0
       v1 = add v0, arg0
-      store v1, 43
--     v2 = load 128
+      mstore v1, 43
+-     v2 = mload 128
 -     ret v2
 +     ret 43
   }
   
   fn @different_base(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      store 128, 42
+      mstore 128, 42
       v0 = sub 128, arg0
       v1 = add arg1, v0
-      store v1, 43
-      v2 = load 128
+      mstore v1, 43
+      v2 = mload 128
       ret v2
   }
   

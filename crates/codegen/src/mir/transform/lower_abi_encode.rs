@@ -793,7 +793,7 @@ fn lower_encode(
         )
     {
         // buffer = alloc padded_size
-        // store buffer, selector (when present)
+        // mstore buffer, selector (when present)
         // encode_tuple buffer + selector_size, args
         // make_slice buffer, total_size
         let size = builder.imm(total_size.next_multiple_of(32));
@@ -821,7 +821,7 @@ fn lower_encode(
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
         // object = alloc allocation_size !metadata(preserves_fmp)
-        // store object, total
+        // mstore object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
         preserve_encoding_address(builder, object);
@@ -1462,7 +1462,7 @@ fn encode_word_array(
         // delta = data_source - data_dest
         // remaining = len; destination = data_dest
         // if remaining != 0: do:
-        //   store destination, clean(load destination + delta)
+        //   mstore destination, clean(mload destination + delta)
         //   remaining -= 1; destination += 32
         // while remaining != 0
         let delta = builder.sub(data_source, data_dest);
@@ -1523,7 +1523,7 @@ fn encode_bytes(
         PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_len(value),
     };
     if !branchless_padding {
-        // store dest, len
+        // mstore dest, len
         builder.store(dest, len);
     }
 
@@ -1537,7 +1537,7 @@ fn encode_bytes(
     if branchless_padding {
         // last = dest + padded
         // store last, 0
-        // store dest, len
+        // mstore dest, len
         // For an empty tail, last == dest; write the header after zeroing it.
         let last = builder.add(dest, padded);
         let zero = builder.imm(0);
@@ -1576,7 +1576,7 @@ fn copy_source_data(
     source: ValueId,
     size: ValueId,
 ) {
-    // copy location dest, source, size [!metadata(disjoint) for memory]
+    // mcopy|calldatacopy|returndatacopy dest, source, size [!metadata(disjoint) for memory]
     let copy = builder.copy_heap(dest, source, size, location);
     if location == PtrLocation::Memory {
         builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);

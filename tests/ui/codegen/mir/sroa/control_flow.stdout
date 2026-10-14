@@ -6,13 +6,13 @@
       v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb2:
--     store v0, arg2
+-     mstore v0, arg2
       jump bb3
     bb1:
--     store v0, arg1
+-     mstore v0, arg1
       jump bb3
     bb3:
--     v1 = load v0
+-     v1 = mload v0
 -     ret v1
 +     v2 = phi [bb1: arg1], [bb2: arg2]
 +     ret v2
@@ -25,7 +25,7 @@
 -     memory_zero v1, 32
       jump bb1
     bb1:
--     v2 = load v0
+-     v2 = mload v0
 -     v3 = lt v2, arg0
 +     v5 = phi [bb0: 0], [bb2: v4]
 +     v3 = lt v5, arg0
@@ -35,7 +35,7 @@
 +     ret v5
     bb2:
 -     v4 = add v2, 1
--     store v0, v4
+-     mstore v0, v4
 +     v4 = add v5, 1
       jump bb1
   }
@@ -45,10 +45,10 @@
       v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb1:
-      store v0, 7
+      mstore v0, 7
       jump bb2
     bb2:
-      v1 = load v0
+      v1 = mload v0
       ret v1
   }
   
@@ -59,14 +59,14 @@
 -     memory_zero v1, 64
       jumpi arg0, bb1, bb2
     bb1:
--     store v0, arg1
--     v2 = load v0
+-     mstore v0, arg1
+-     v2 = mload v0
 -     v3 = ptradd v0, 32
--     store v3, v2
+-     mstore v3, v2
       jump bb2
     bb2:
 -     v4 = ptradd v0, 32
--     v5 = load v4
+-     v5 = mload v4
 -     ret v5
 +     v6 = phi [bb0: 0], [bb1: arg1]
 +     ret v6
@@ -77,7 +77,7 @@
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
-      store v0, 7
+      mstore v0, 7
       v2 = msize
       ret v2
   }
@@ -88,7 +88,7 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       v2 = ptradd v0, 32
-      v3 = load v2
+      v3 = mload v2
       ret v3
   }
   
@@ -128,10 +128,10 @@
       v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb1:
-      store v0, 7
+      mstore v0, 7
       jump bb2
     bb2:
-      v1 = load v0
+      v1 = mload v0
       ret v1
   }
   
@@ -151,7 +151,7 @@
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
-      store v0, 7
+      mstore v0, 7
       v2 = msize
       ret v2
   }
@@ -162,7 +162,7 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       v2 = ptradd v0, 32
-      v3 = load v2
+      v3 = mload v2
       ret v3
   }
   

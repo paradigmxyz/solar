@@ -5,7 +5,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 36
-    v35 = load calldata 4
+    v35 = calldataload 4
     v36 = add v35, 4
     v37 = add v36, 32
     v38 = gt v35, 0xffffffffffffffff
@@ -14,32 +14,32 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v133 = or v34, v40
     jumpi v133, bb4, bb5
   bb5:
-    v42 = load calldata v36
+    v42 = calldataload v36
     v44 = add v42, 63
     v45 = lt v44, v42
     jumpi v45, bb6, bb7
   bb7:
     v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v89 = load 64 !metadata(memory=scratch)
+    v89 = mload 64 !metadata(memory=scratch)
     v90 = add v89, v47
     v91 = lt v90, v89
     v92 = gt v90, 0xffffffffffffffff
     v93 = or v91, v92
     jumpi v93, bb6, bb9
   bb9:
-    store 64, v90 !metadata(memory=scratch)
-    store v89, v42
+    mstore 64, v90 !metadata(memory=scratch)
+    mstore v89, v42
     v49 = sub v33, v37
     v50 = gt v42, v49
     jumpi v50, bb4, bb8
   bb8:
     v86 = add v89, 32
-    copy calldata v86, v37, v42
-    v2 = load 64 !metadata(memory=scratch)
+    calldatacopy v86, v37, v42
+    v2 = mload 64 !metadata(memory=scratch)
     v3 = add v2, 2
     v4 = add v42, v42
-    store v3, v4
-    store 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
+    mstore v3, v4
+    mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
     v7 = add v89, v42
     v128 = sub v7, v89
@@ -48,16 +48,16 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     jumpi v130, bb10, bb11
   bb10:
     v102 = add v89, 1
-    v103 = load v102
+    v103 = mload v102
     v104 = and v103, 15
-    v105 = load v104
+    v105 = mload v104
     v106 = add v5, 1
-    store8 v106, v105
-    v107 = load v102
+    mstore8 v106, v105
+    v107 = mload v102
     v108 = shr 4, v107
     v109 = and v108, 15
-    v110 = load v109
-    store8 v5, v110
+    v110 = mload v109
+    mstore8 v5, v110
     v111 = add v5, 2
     jump bb11
   bb11:
@@ -70,59 +70,59 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v16 = ne v9, v7
     jumpi v16, bb3, bb2
   bb2:
-    store v8, 0
+    mstore v8, 0
     v31 = add v8, 32
-    store 64, v31 !metadata(memory=scratch)
+    mstore 64, v31 !metadata(memory=scratch)
     v61 = add v31, 32
-    store v31, 32
+    mstore v31, 32
     v66 = ne v3, 0
     v67 = zext i1 v66 to i256
-    v64 = load v3
+    v64 = mload v3
     v68 = mul v64, v67
     v70 = add v68, 31
     v71 = and v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v72 = add v61, 32
     v73 = add v61, v71
-    store v73, 0
-    store v61, v68
+    mstore v73, 0
+    mstore v61, v68
     v75 = add v72, v71
-    copy v72, v5, v68 !metadata(disjoint)
+    mcopy v72, v5, v68 !metadata(disjoint)
     v77 = sub v75, v31
     v79 = add v77, 31
     v81 = and v79, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v96 = load 64 !metadata(memory=scratch)
+    v96 = mload 64 !metadata(memory=scratch)
     v97 = add v96, v81
-    store 64, v97 !metadata(memory=scratch)
+    mstore 64, v97 !metadata(memory=scratch)
     returndata v96, v77
   bb3:
     v20 = add v9, 1
-    v21 = load v20
+    v21 = mload v20
     v22 = and v21, 15
-    v23 = load v22
+    v23 = mload v22
     v24 = add v8, 1
-    store8 v24, v23
-    v25 = load v20
+    mstore8 v24, v23
+    v25 = mload v20
     v26 = shr 4, v25
     v27 = and v26, 15
-    v28 = load v27
-    store8 v8, v28
+    v28 = mload v27
+    mstore8 v8, v28
     v117 = add v20, 1
-    v118 = load v117
+    v118 = mload v117
     v119 = and v118, 15
-    v120 = load v119
+    v120 = mload v119
     v121 = add v8, 3
-    store8 v121, v120
-    v122 = load v117
+    mstore8 v121, v120
+    v122 = mload v117
     v123 = shr 4, v122
     v124 = and v123, 15
-    v125 = load v124
+    v125 = mload v124
     v29 = add v8, 2
-    store8 v29, v125
+    mstore8 v29, v125
     v126 = add v8, 4
     jump bb1
   bb6:
-    store 32, 65 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -132,7 +132,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb0:
     v18 = calldatasize
     v19 = lt v18, 36
-    v20 = load calldata 4
+    v20 = calldataload 4
     v21 = add v20, 4
     v22 = add v21, 32
     v23 = gt v20, 0xffffffffffffffff
@@ -141,7 +141,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v75 = or v19, v25
     jumpi v75, bb4, bb5
   bb5:
-    v27 = load calldata v21
+    v27 = calldataload v21
     v29 = shl 5, v27
     v31 = shr 5, v29
     v35 = ne v31, v27
@@ -150,28 +150,28 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v76 = or v35, v37
     jumpi v76, bb6, bb7
   bb7:
-    v53 = load 64 !metadata(memory=scratch)
+    v53 = mload 64 !metadata(memory=scratch)
     v54 = add v53, v36
     v55 = lt v54, v53
     v56 = gt v54, 0xffffffffffffffff
     v57 = or v55, v56
     jumpi v57, bb6, bb9
   bb9:
-    store 64, v54 !metadata(memory=scratch)
-    store v53, v27
+    mstore 64, v54 !metadata(memory=scratch)
+    mstore v53, v27
     v39 = sub v18, v22
     v40 = shr 5, v39
     v41 = gt v27, v40
     jumpi v41, bb4, bb8
   bb8:
     v50 = add v53, 32
-    copy calldata v50, v22, v29
+    calldatacopy v50, v22, v29
     v5 = add v50, v29
     v71 = and v27, 1
     v72 = ne v71, 0
     jumpi v72, bb10, bb11
   bb10:
-    v62 = load v50
+    v62 = mload v50
     v63 = add 0, v62
     v64 = add v50, 32
     jump bb11
@@ -185,19 +185,19 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v12 = ne v7, v5
     jumpi v12, bb3, bb2
   bb2:
-    store 128, v8
+    mstore 128, v8
     returndata 128, 32
   bb3:
-    v15 = load v7
+    v15 = mload v7
     v16 = add v8, v15
     v17 = add v7, 32
-    v68 = load v17
+    v68 = mload v17
     v69 = add v16, v68
     v70 = add v7, 64
     jump bb1
   bb6:
-    store 32, 65 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb4:
     revert 0, 0
@@ -227,7 +227,7 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
   bb2:
-    store 128, v1
+    mstore 128, v1
     returndata 128, 32
   bb3:
     v9 = add v1, v3
@@ -245,7 +245,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb5, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb5, [0x5a761098 => bb2, 0xbf2eba92 => bb3, 0xc5bec6fc => bb4]
   bb4:

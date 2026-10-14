@@ -3,7 +3,7 @@
 fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
-    store v0, 96
+    mstore v0, 96
     v1 = extract_value slice<calldata>, arg0, 1
     v2 = extract_value slice<calldata>, arg0, 0
     v3 = mul v1, 32
@@ -31,7 +31,7 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21
-    store v23, v1
+    mstore v23, v1
     jump bb1
   bb1:
     v24 = phi [bb0: 0], [bb2: v37]
@@ -39,15 +39,15 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     jumpi v25, bb2, bb3
   bb3:
     v38 = ptrtoint ptr<memory> v23 to i256
-    store v0, v38
+    mstore v0, v38
     v39 = alloc 32 !metadata(preserves_fmp)
-    store v39, 96
+    mstore v39, 96
     ret v0
   bb2:
     v26 = mul v24, 32
     v27 = ptrtoint ptr<calldata> v2 to i256
     v28 = add v27, v26
-    v29 = load calldata v28
+    v29 = calldataload v28
     v30 = shl 192, v29
     v31 = eq v30, 0
     v32 = eq v31, false
@@ -56,7 +56,7 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v34 = shl 64, v33
     v35 = shl 5, v24
     v36 = ptradd v23, v35
-    store v36+32, v34
+    mstore v36+32, v34
     v37 = add v24, 1
     jump bb1
 }
@@ -76,7 +76,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -96,37 +96,37 @@ fn @constructor() [constructor] {
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 128
-    store v0, 3
+    mstore v0, 3
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xd24c5a36
-    v5 = load v0
+    v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 64, v4
-    store v0+32, v8
+    mstore v0+32, v8
     v9 = address
     v10 = zext i160 v9 to i256
     v11 = shl 32, v10
     v12 = or v11, 0xc5337ed4
-    v13 = load v0
+    v13 = mload v0
     v14 = lt 1, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = shl 64, v12
-    store v0+64, v16
+    mstore v0+64, v16
     v17 = address
     v18 = zext i160 v17 to i256
     v19 = shl 32, v18
     v20 = or v19, 0xafb0db5f
-    v21 = load v0
+    v21 = mload v0
     v22 = lt 2, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = shl 64, v20
-    store v0+96, v24
+    mstore v0+96, v24
     v25 = sload 0 !metadata(storage=slot(0))
     v26 = trunc i256 v25 to i160
     v27 = gas
@@ -141,17 +141,17 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
   bb2:
     v33 = icall returndata_bytes<>
     v34 = abi_decode [tuple<array<_, function>>], v33
-    v35 = load v34, ptr<memory>
-    v36 = load v35
+    v35 = mload v34, ptr<memory>
+    v36 = mload v35
     v37 = eq v36, 3
     v38 = eq v37, false
     icall revert_if<empty>, v38
-    v39 = load v34, ptr<memory>
-    v40 = load v39
+    v39 = mload v34, ptr<memory>
+    v40 = mload v39
     v41 = lt 0, v40
     v42 = eq v41, false
     icall panic_if<0x32>, v42
-    v43 = load v39+32
+    v43 = mload v39+32
     v44 = shr 64, v43
     v45 = address
     v46 = zext i160 v45 to i256
@@ -160,12 +160,12 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v49 = eq v44, v48
     v50 = eq v49, false
     icall revert_if<empty>, v50
-    v51 = load v34, ptr<memory>
-    v52 = load v51
+    v51 = mload v34, ptr<memory>
+    v52 = mload v51
     v53 = lt 1, v52
     v54 = eq v53, false
     icall panic_if<0x32>, v54
-    v55 = load v51+64
+    v55 = mload v51+64
     v56 = shr 64, v55
     v57 = address
     v58 = zext i160 v57 to i256
@@ -174,12 +174,12 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v61 = eq v56, v60
     v62 = eq v61, false
     icall revert_if<empty>, v62
-    v63 = load v34, ptr<memory>
-    v64 = load v63
+    v63 = mload v34, ptr<memory>
+    v64 = mload v63
     v65 = lt 2, v64
     v66 = eq v65, false
     icall panic_if<0x32>, v66
-    v67 = load v63+96
+    v67 = mload v63+96
     v68 = shr 64, v67
     v69 = address
     v70 = zext i160 v69 to i256

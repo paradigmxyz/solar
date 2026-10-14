@@ -37,7 +37,7 @@ fn @constructor() [constructor] {
     v18 = add v16, 1
     v19 = storage_array_data_slot 1
     v20 = add v19, v16
-    v21 = load v15
+    v21 = mload v15
     v22 = sload v20 !metadata(storage=symbolic(v20))
     v23 = gt v22, v21
     jumpi v23, bb1, bb2
@@ -70,7 +70,7 @@ fn @constructor() [constructor] {
   bb7:
     v31 = shl 5, v29
     v32 = ptradd v15, v31
-    v33 = load v32+32
+    v33 = mload v32+32
     v34 = storage_array_data_slot v20
     v35 = add v34, v29
     sstore v35, v33 !metadata(storage=symbolic(v35))
@@ -130,7 +130,7 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
     v8 = add v6, 1
     v9 = storage_array_data_slot 1
     v10 = add v9, v6
-    v11 = load v5
+    v11 = mload v5
     v12 = sload v10 !metadata(storage=symbolic(v10))
     v13 = gt v12, v11
     jumpi v13, bb1, bb2
@@ -180,7 +180,7 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
   bb7:
     v21 = shl 5, v19
     v22 = ptradd v5, v21
-    v23 = load v22+32
+    v23 = mload v22+32
     v24 = storage_array_data_slot v10
     v25 = add v24, v19
     sstore v25, v23 !metadata(storage=symbolic(v25))
@@ -198,7 +198,7 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
   bb0:
     v0 = icall @load_storage_word_array, 0
     v1 = ptrtoint ptr<memory> v0 to i256
-    v2 = load v0
+    v2 = mload v0
     v3 = sload 2 !metadata(storage=slot(2))
     v4 = gt v3, v2
     jumpi v4, bb1, bb2
@@ -242,7 +242,7 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
   bb7:
     v12 = shl 5, v10
     v13 = ptradd v0, v12
-    v14 = load v13+32
+    v14 = mload v13+32
     v15 = storage_array_data_slot 2
     v16 = add v15, v10
     sstore v16, v14 !metadata(storage=symbolic(v16))

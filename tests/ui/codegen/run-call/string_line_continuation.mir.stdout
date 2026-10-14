@@ -3,15 +3,15 @@
 fn @unicodeLine() -> ptr<memory> [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 20
-    store v0+32, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
+    mstore v0, 20
+    mstore v0+32, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
     ret v0
 }
 
 fn @asciiLine() -> ptr<memory> [selector=0x9c02ba08, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 5
-    store v0+32, 0x6120202062000000000000000000000000000000000000000000000000000000
+    mstore v0, 5
+    mstore v0+32, 0x6120202062000000000000000000000000000000000000000000000000000000
     ret v0
 }

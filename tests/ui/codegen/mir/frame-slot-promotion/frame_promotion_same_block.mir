@@ -8,16 +8,16 @@ fn @same_block() -> i256 {
   bb0:
     v8 = internal_frame_addr 128
     v1 = ptrtoint ptr<memory> v8 to i256
-    store v1, 7
+    mstore v1, 7
     v9 = internal_frame_addr 128
     v2 = ptrtoint ptr<memory> v9 to i256
-    v3 = load v2
+    v3 = mload v2
     v4 = add v3, 1
     v10 = internal_frame_addr 128
     v5 = ptrtoint ptr<memory> v10 to i256
-    store v5, v4
+    mstore v5, v4
     v11 = internal_frame_addr 128
     v6 = ptrtoint ptr<memory> v11 to i256
-    v7 = load v6
+    v7 = mload v6
     ret v7
 }

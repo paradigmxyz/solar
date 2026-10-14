@@ -5,22 +5,22 @@
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1
-+     store 128, 1
++     mstore 128, 1
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
-+     v5 = load 128
++     v5 = mload 128
 +     sstore v0, v5
       stop
     bb2:
       v1 = add arg0, 1
 -     v2 = sload v1
-+     v2 = load 128
++     v2 = mload 128
       v3 = mul v2, 2
       v4 = add arg0, 1
 -     sstore v4, v3
-+     store 128, v3
++     mstore 128, v3
       jump bb3
     bb3:
       jump bb1
@@ -47,24 +47,24 @@
   
   fn @promote_store_only_without_initial_load() [selector=0x01020304] {
     bb0:
-+     store 160, 0
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
-+     v0 = load 160
++     v0 = mload 160
 +     v1 = ne v0, 0
 +     jumpi v1, bb6, bb5
 +   bb6:
-+     v2 = load 128
++     v2 = mload 128
 +     sstore 0, v2
 +     jump bb5
 +   bb5:
       stop
     bb2:
 -     sstore 0, 7
-+     store 128, 7
-+     store 160, 1
++     mstore 128, 7
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1
@@ -74,28 +74,28 @@
     bb0:
 -     sstore 0, 1
 -     sstore 1, 2
-+     store 128, 1
-+     store 160, 2
++     mstore 128, 1
++     mstore 160, 2
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
-+     v5 = load 160
++     v5 = mload 160
 +     sstore 1, v5
-+     v4 = load 128
++     v4 = mload 128
 +     sstore 0, v4
       stop
     bb2:
 -     v0 = sload 0
-+     v0 = load 128
++     v0 = mload 128
       v1 = mul v0, 2
 -     sstore 0, v1
 -     v2 = sload 1
-+     store 128, v1
-+     v2 = load 160
++     mstore 128, v1
++     v2 = mload 160
       v3 = add v2, 3
 -     sstore 1, v3
-+     store 160, v3
++     mstore 160, v3
       jump bb3
     bb3:
       jump bb1
@@ -104,17 +104,17 @@
   fn @promote_without_init_rewrites_successor_phi() -> i256 [selector=0x01020304] {
     bb0:
 +     v3 = sload 0
-+     store 128, v3
-+     store 160, 0
++     mstore 128, v3
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
-+     v4 = load 160
++     v4 = mload 160
 +     v5 = ne v4, 0
 +     jumpi v5, bb8, bb7
 +   bb8:
-+     v6 = load 128
++     v6 = mload 128
 +     sstore 0, v6
 +     jump bb7
 +   bb7:
@@ -125,11 +125,11 @@
       ret v2
     bb2:
 -     v0 = sload 0
-+     v0 = load 128
++     v0 = mload 128
       v1 = add v0, 2
 -     sstore 0, v1
-+     store 128, v1
-+     store 160, 1
++     mstore 128, v1
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1

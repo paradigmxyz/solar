@@ -2,7 +2,7 @@
 @module ConstructorAggregateBase
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, v0
     jumpi v2, bb1, bb2
@@ -26,7 +26,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256
   bb9:
     v21 = shl 5, v19
     v22 = ptradd arg0, v21
-    v23 = load v22+32
+    v23 = mload v22+32
     v24 = inttoptr i256 v23 to ptr<memory>
     v25 = eq v23, 0
     jumpi v25, bb11, bb12
@@ -35,17 +35,17 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256
     v27 = shl 5, v19
     v28 = ptradd arg0, v27
     v29 = ptrtoint ptr<memory> v26 to i256
-    store v28+32, v29
+    mstore v28+32, v29
     jump bb12
   bb12:
     v30 = phi [bb9: v24], [bb11: v26]
     v31 = storage_array_data_slot 0
     v32 = mul v19, 2
     v33 = add v31, v32
-    v34 = load v30
+    v34 = mload v30
     sstore v33, v34 !metadata(storage=symbolic(v33))
     v35 = add v33, 1
-    v36 = load v30+32
+    v36 = mload v30+32
     v37 = inttoptr i256 v36 to ptr<memory>
     icall @store_storage_bytes, v35, v37
     v38 = add v19, 1
@@ -79,11 +79,11 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256
 fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 64
-    store v0, 0
+    mstore v0, 0
     v1 = alloc 32
-    store v1, 0
+    mstore v1, 0
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+32, v2
+    mstore v0+32, v2
     ret v0
 }
 
@@ -97,7 +97,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 @module ConstructorAggregateMain
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256, bytes>>]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, v0
     jumpi v2, bb2, bb3
@@ -125,7 +125,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256
   bb10:
     v21 = shl 5, v19
     v22 = ptradd arg0, v21
-    v23 = load v22+32
+    v23 = mload v22+32
     v24 = inttoptr i256 v23 to ptr<memory>
     v25 = eq v23, 0
     jumpi v25, bb12, bb13
@@ -134,17 +134,17 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<u256
     v27 = shl 5, v19
     v28 = ptradd arg0, v27
     v29 = ptrtoint ptr<memory> v26 to i256
-    store v28+32, v29
+    mstore v28+32, v29
     jump bb13
   bb13:
     v30 = phi [bb10: v24], [bb12: v26]
     v31 = storage_array_data_slot 0
     v32 = mul v19, 2
     v33 = add v31, v32
-    v34 = load v30
+    v34 = mload v30
     sstore v33, v34 !metadata(storage=symbolic(v33))
     v35 = add v33, 1
-    v36 = load v30+32
+    v36 = mload v30+32
     v37 = inttoptr i256 v36 to ptr<memory>
     icall @store_storage_bytes, v35, v37
     v38 = add v19, 1
@@ -234,11 +234,11 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
 fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 64
-    store v0, 0
+    mstore v0, 0
     v1 = alloc 32
-    store v1, 0
+    mstore v1, 0
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+32, v2
+    mstore v0+32, v2
     ret v0
 }
 
@@ -256,85 +256,85 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
+    mstore v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v8 = load v0
+    v8 = mload v0
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = load v0+32
+    v11 = mload v0+32
     v12 = inttoptr i256 v11 to ptr<memory>
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = icall @default_struct_0
     v15 = ptrtoint ptr<memory> v14 to i256
-    store v0+32, v15
+    mstore v0+32, v15
     jump bb5
   bb5:
     v16 = phi [bb3: v12], [bb4: v14]
-    store v16, 7
+    mstore v16, 7
     v17 = alloc 64 !metadata(preserves_fmp)
-    store v17, 2
-    store v17+32, 0x102000000000000000000000000000000000000000000000000000000000000
-    v18 = load v0
+    mstore v17, 2
+    mstore v17+32, 0x102000000000000000000000000000000000000000000000000000000000000
+    v18 = mload v0
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = load v0+32
+    v21 = mload v0+32
     v22 = inttoptr i256 v21 to ptr<memory>
     v23 = eq v21, 0
     jumpi v23, bb6, bb7
   bb6:
     v24 = icall @default_struct_0
     v25 = ptrtoint ptr<memory> v24 to i256
-    store v0+32, v25
+    mstore v0+32, v25
     jump bb7
   bb7:
     v26 = phi [bb5: v22], [bb6: v24]
     v27 = ptrtoint ptr<memory> v17 to i256
-    store v26+32, v27
-    v28 = load v0
+    mstore v26+32, v27
+    v28 = mload v0
     v29 = lt 1, v28
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = load v0+64
+    v31 = mload v0+64
     v32 = inttoptr i256 v31 to ptr<memory>
     v33 = eq v31, 0
     jumpi v33, bb8, bb9
   bb8:
     v34 = icall @default_struct_0
     v35 = ptrtoint ptr<memory> v34 to i256
-    store v0+64, v35
+    mstore v0+64, v35
     jump bb9
   bb9:
     v36 = phi [bb7: v32], [bb8: v34]
-    store v36, 11
+    mstore v36, 11
     v37 = alloc 64 !metadata(preserves_fmp)
-    store v37, 3
-    store v37+32, 0x304050000000000000000000000000000000000000000000000000000000000
-    v38 = load v0
+    mstore v37, 3
+    mstore v37+32, 0x304050000000000000000000000000000000000000000000000000000000000
+    v38 = mload v0
     v39 = lt 1, v38
     v40 = eq v39, false
     icall panic_if<0x32>, v40
-    v41 = load v0+64
+    v41 = mload v0+64
     v42 = inttoptr i256 v41 to ptr<memory>
     v43 = eq v41, 0
     jumpi v43, bb10, bb11
   bb10:
     v44 = icall @default_struct_0
     v45 = ptrtoint ptr<memory> v44 to i256
-    store v0+64, v45
+    mstore v0+64, v45
     jump bb11
   bb11:
     v46 = phi [bb9: v42], [bb10: v44]
     v47 = ptrtoint ptr<memory> v37 to i256
-    store v46+32, v47
+    mstore v46+32, v47
     v48 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
     v49 = extract_value slice<memory>, v48, 1
     v50 = datasize ConstructorAggregateMain_creation_code_0
@@ -351,7 +351,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v58 = extract_value slice<memory>, v48, 0
     v59 = ptrtoint ptr<memory> v57 to i256
     v60 = add v59, v50
-    copy v60, v58, v49 !metadata(memory=heap)
+    mcopy v60, v58, v49 !metadata(memory=heap)
     v61 = create 0, v57, v51
     v62 = ne v61, i160 0
     jumpi v62, bb13, bb12
@@ -372,16 +372,16 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v70 = lt v69, 32
     icall revert_if<tuple_data_too_short>, v70
     v71 = add 0, 0
-    v72 = load v71
+    v72 = mload v71
     ret v72
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
-    store v3, 0
-    store v3+32, 96
+    mstore v3, 0
+    mstore v3+32, 96
     v4 = shl 5, v1
     v5 = ptradd v0, v4
     v6 = ptrtoint ptr<memory> v3 to i256
-    store v5+32, v6
+    mstore v5+32, v6
     v7 = add v1, 1
     jump bb1
 }
@@ -389,10 +389,10 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
 fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 64
-    store v0, 0
+    mstore v0, 0
     v1 = alloc 32
-    store v1, 0
+    mstore v1, 0
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0+32, v2
+    mstore v0+32, v2
     ret v0
 }

@@ -14,7 +14,7 @@ fn @emitDynamicArray(arg0: ptr<memory>) [selector=0xf38510d4, abi_params=[array<
   bb0:
     v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     log 0, 0, 0x8786d2e40590df58388ef33167c85cc850817db2389c82328af07e1b626441cf, v3
     ret

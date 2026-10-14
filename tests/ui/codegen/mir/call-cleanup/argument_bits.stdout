@@ -120,7 +120,7 @@
     bb0:
       v0 = internal_frame_addr 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 511
+      mstore v1, 511
       v2 = and arg0, 255
       ret v2
   }
@@ -157,9 +157,9 @@
       v0 = trunc i256 arg0 to i160
 -     v1 = zext i160 v0 to i256
 -     v2 = eq v0, i160 0
--     store 0, v1
+-     mstore 0, v1
 +     v2 = eq arg0, 0
-+     store 0, arg0
++     mstore 0, arg0
       ret v2
   }
   

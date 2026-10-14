@@ -5,16 +5,16 @@ fn @mappingEmpty() -> i1 [selector=0x20f98002, abi_params=[], abi_returns=[word<
     v0 = not 31
     v1 = and 63, v0
     v2 = alloc zeroed checked v1
-    store v2, 0
+    mstore v2, 0
     v3 = mapping_slot 0, 0
     icall @store_storage_bytes, v3, v2
     v4 = mapping_slot 0, 0
     v5 = icall @load_storage_bytes, v4
     v6 = ptradd v5, 32
-    v7 = load v5
+    v7 = mload v5
     v8 = keccak256 v6, v7
     v9 = ptradd v2, 32
-    v10 = load v2
+    v10 = mload v2
     v11 = keccak256 v9, v10
     v12 = eq v8, v11
     ret v12
@@ -29,10 +29,10 @@ fn @mappingLong(arg0: i256, arg1: i256) -> i1 [selector=0xa4972bce, abi_params=[
     v3 = mapping_slot 0, 0
     v4 = icall @load_storage_bytes, v3
     v5 = ptradd v4, 32
-    v6 = load v4
+    v6 = mload v4
     v7 = keccak256 v5, v6
     v8 = ptradd v1, 32
-    v9 = load v1
+    v9 = mload v1
     v10 = keccak256 v8, v9
     v11 = eq v7, v10
     ret v11
@@ -47,10 +47,10 @@ fn @mappingShort(arg0: i256) -> i1 [selector=0xd17dedff, abi_params=[bytes31], a
     v3 = mapping_slot 1, 0
     v4 = icall @load_storage_bytes, v3
     v5 = ptradd v4, 32
-    v6 = load v4
+    v6 = mload v4
     v7 = keccak256 v5, v6
     v8 = ptradd v1, 32
-    v9 = load v1
+    v9 = mload v1
     v10 = keccak256 v8, v9
     v11 = eq v7, v10
     ret v11
@@ -64,10 +64,10 @@ fn @mappingWord(arg0: i256) -> i1 [selector=0x95027de5, abi_params=[bytes32], ab
     v2 = mapping_slot 2, 0
     v3 = icall @load_storage_bytes, v2
     v4 = ptradd v3, 32
-    v5 = load v3
+    v5 = mload v3
     v6 = keccak256 v4, v5
     v7 = ptradd v0, 32
-    v8 = load v0
+    v8 = mload v0
     v9 = keccak256 v7, v8
     v10 = eq v6, v9
     ret v10
@@ -82,10 +82,10 @@ fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xb0efa5
     v3 = mapping_slot 3, 0
     v4 = icall @load_storage_bytes, v3
     v5 = ptradd v4, 32
-    v6 = load v4
+    v6 = mload v4
     v7 = keccak256 v5, v6
     v8 = ptradd v1, 32
-    v9 = load v1
+    v9 = mload v1
     v10 = keccak256 v8, v9
     v11 = eq v7, v10
     ret v11
@@ -100,10 +100,10 @@ fn @mappingReference(arg0: i256, arg1: i256) -> i1 [selector=0xe1bd71bc, abi_par
     v3 = mapping_slot 4, 0
     v4 = icall @load_storage_bytes, v3
     v5 = ptradd v4, 32
-    v6 = load v4
+    v6 = mload v4
     v7 = keccak256 v5, v6
     v8 = ptradd v1, 32
-    v9 = load v1
+    v9 = mload v1
     v10 = keccak256 v8, v9
     v11 = eq v7, v10
     ret v11
@@ -120,10 +120,10 @@ fn @nestedMapping(arg0: i256, arg1: i256) -> i1 [selector=0x9670c676, abi_params
     v5 = mapping_slot 1, v4
     v6 = icall @load_storage_bytes, v5
     v7 = ptradd v6, 32
-    v8 = load v6
+    v8 = mload v6
     v9 = keccak256 v7, v8
     v10 = ptradd v1, 32
-    v11 = load v1
+    v11 = mload v1
     v12 = keccak256 v10, v11
     v13 = eq v9, v12
     ret v13
@@ -136,10 +136,10 @@ fn @structField(arg0: i256, arg1: i256) -> i1 [selector=0xc85878d4, abi_params=[
     icall @store_storage_bytes, 3, v1
     v2 = icall @load_storage_bytes, 3
     v3 = ptradd v2, 32
-    v4 = load v2
+    v4 = mload v2
     v5 = keccak256 v3, v4
     v6 = ptradd v1, 32
-    v7 = load v1
+    v7 = mload v1
     v8 = keccak256 v6, v7
     v9 = eq v5, v8
     ret v9
@@ -152,10 +152,10 @@ fn @directValue(arg0: i256, arg1: i256) -> i1 [selector=0xdb5536af, abi_params=[
     icall @store_storage_bytes, 4, v1
     v2 = icall @load_storage_bytes, 4
     v3 = ptradd v2, 32
-    v4 = load v2
+    v4 = mload v2
     v5 = keccak256 v3, v4
     v6 = ptradd v1, 32
-    v7 = load v1
+    v7 = mload v1
     v8 = keccak256 v6, v7
     v9 = eq v5, v8
     ret v9
@@ -170,7 +170,7 @@ fn @internalReference(arg0: i256, arg1: i256) -> i1 [selector=0xd14b1bf5, abi_pa
     v3 = mapping_slot 5, 0
     v4 = icall @hashStorageBytes, v3
     v5 = ptradd v1, 32
-    v6 = load v1
+    v6 = mload v1
     v7 = keccak256 v5, v6
     v8 = eq v4, v7
     ret v8
@@ -180,7 +180,7 @@ fn @hashStorageBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = icall @load_storage_bytes, arg0
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     ret v3
 }
@@ -194,10 +194,10 @@ fn @mappingString(arg0: i256, arg1: i256) -> i1 [selector=0x4cbcb134, abi_params
     v3 = mapping_slot 0, 2
     v4 = icall @load_storage_bytes, v3
     v5 = ptradd v4, 32
-    v6 = load v4
+    v6 = mload v4
     v7 = keccak256 v5, v6
     v8 = ptradd v1, 32
-    v9 = load v1
+    v9 = mload v1
     v10 = keccak256 v8, v9
     v11 = eq v7, v10
     ret v11

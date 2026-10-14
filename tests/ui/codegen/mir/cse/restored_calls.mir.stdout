@@ -13,19 +13,19 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc zeroed checked v4
-    store v5, 64
+    mstore v5, 64
     v6 = ptrtoint ptr<memory> v5 to i256
     v7 = add v6, 32
-    store v7, arg0
+    mstore v7, arg0
     v8 = ptrtoint ptr<memory> v5 to i256
     v9 = add v8, 64
-    store v9, 1
+    mstore v9, 1
     v10 = icall @scan, v5, arg1
     v11 = icall @scan, v5, arg1
     v12 = checked_add u256, v10, v11
     v13 = ptrtoint ptr<memory> v5 to i256
     v14 = add v13, 32
-    v15 = load v14
+    v15 = mload v14
     v16 = insert_value struct0, undef struct0, 0, v12
     v17 = insert_value struct0, v16, 1, v15
     ret v17
@@ -40,13 +40,13 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, 
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc zeroed checked v4
-    store v5, 64
+    mstore v5, 64
     v6 = ptrtoint ptr<memory> v5 to i256
     v7 = add v6, 32
-    store v7, arg0
+    mstore v7, arg0
     v8 = ptrtoint ptr<memory> v5 to i256
     v9 = add v8, 64
-    store v9, 1
+    mstore v9, 1
     v10 = icall @scan, v5, arg1
     jumpi arg2, bb1, bb2
   bb2:
@@ -54,13 +54,13 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, 
   bb1:
     v11 = ptrtoint ptr<memory> v5 to i256
     v12 = add v11, 95
-    store8 v12, 0
+    mstore8 v12, 0
     jump bb3
   bb3:
     v13 = icall @scan, v5, arg1
     v14 = ptrtoint ptr<memory> v5 to i256
     v15 = add v14, 32
-    v16 = load v15
+    v16 = mload v15
     v17 = insert_value struct1, undef struct1, 0, v10
     v18 = insert_value struct1, v17, 1, v13
     v19 = insert_value struct1, v18, 2, v16
@@ -71,8 +71,8 @@ fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
-    v2 = load v1
-    store v1, 0
+    v2 = mload v1
+    mstore v1, 0
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
@@ -88,11 +88,11 @@ fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb5:
     jump bb2
   bb2:
-    store v6, v3
+    mstore v6, v3
     ret v4
   bb4:
     v12 = add v6, 32
-    v13 = load v12
+    v13 = mload v12
     v14 = add v4, v13
     jump bb6
   bb6:
@@ -111,14 +111,14 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
     v3 = not 31
     v4 = and 95, v3
     v5 = alloc zeroed checked v4
-    store v5, 32
+    mstore v5, 32
     v6 = ptrtoint ptr<memory> v5 to i256
     v7 = add v6, 32
-    store v7, arg0
+    mstore v7, arg0
     v8 = icall @temporary, v5, arg1
     v9 = ptrtoint ptr<memory> v5 to i256
     v10 = add v9, 32
-    v11 = load v10
+    v11 = mload v10
     v12 = insert_value struct0, undef struct0, 0, v8
     v13 = insert_value struct0, v12, 1, v11
     ret v13
@@ -128,8 +128,8 @@ fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
-    v2 = load v1
-    store v1, 17
+    v2 = mload v1
+    mstore v1, 17
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
@@ -145,10 +145,10 @@ fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb5:
     jump bb2
   bb2:
-    store v6, v3
+    mstore v6, v3
     ret v4
   bb4:
-    v12 = load v6
+    v12 = mload v6
     v13 = add v4, v12
     jump bb6
   bb6:
@@ -163,14 +163,14 @@ fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, arg0
+    mstore v4, arg0
     icall @conditional, v2, arg1
     v5 = ptrtoint ptr<memory> v2 to i256
     v6 = add v5, 32
-    v7 = load v6
+    v7 = mload v6
     ret v7
 }
 
@@ -178,14 +178,14 @@ fn @conditional(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
-    v2 = load v1
-    store v1, 17
+    v2 = mload v1
+    mstore v1, 17
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    store v1, v2
+    mstore v1, v2
     jump bb3
   bb3:
     ret

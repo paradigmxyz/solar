@@ -26,12 +26,12 @@
 +     jump bb2
 +   bb2:
 +     v0 = ptradd v10, 32
-      v1 = load v0
+      v1 = mload v0
       v2 = inttoptr i256 v1 to ptr<memory>
-      v3 = load v2
+      v3 = mload v2
 -     v4 = add v3, arg1
 +     v4 = add v3, arg4
-      store 0, v4
+      mstore 0, v4
       stop
 +   bb6:
 +     v13 = mul v11, 64
@@ -46,16 +46,16 @@
 +     v24 = shl 5, v11
 +     v25 = ptradd v10, v24
 +     v26 = ptrtoint ptr<memory> v15 to i256
-+     store v25, v26
++     mstore v25, v26
 +     v27 = add v11, 1
 +     jump bb5
 +   bb9:
 +     v18 = mul v16, 32
 +     v19 = add v14, v18
-+     v20 = load v19
++     v20 = mload v19
 +     v21 = shl 5, v16
 +     v22 = ptradd v15, v21
-+     store v22, v20
++     mstore v22, v20
 +     v23 = add v16, 1
 +     jump bb8
 +   bb3:

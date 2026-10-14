@@ -20,7 +20,7 @@ fn @constructor() [constructor] {
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -69,7 +69,7 @@ fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<
 @module BareCatchReturndata
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    store 0, 42 !metadata(memory=scratch)
+    mstore 0, 42 !metadata(memory=scratch)
     revert 0, 32
 }
 
@@ -93,8 +93,8 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     icall revert_if<empty>, true
     invalid
   bb4:
-    copy returndata 0, 0, 32 !metadata(memory=scratch)
-    v10 = load 0 !metadata(memory=scratch)
+    returndatacopy 0, 0, 32 !metadata(memory=scratch)
+    v10 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb1:
     jump bb3

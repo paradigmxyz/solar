@@ -6,14 +6,14 @@
 // default pipeline the require guard must fold the subtraction's
 // Panic(0x11) underflow branch.
 // CHECK-LABEL: fn @guarded{{[( ]}}
-// CHECK-NOT: {{store 4, 17|revert 0, 36}}
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 // CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
-// CHECK-NOT: {{store 4, 17|revert 0, 36}}
-// CHECK: store 128, [[SUB]]
-// CHECK-NOT: {{store 4, 17|revert 0, 36}}
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
+// CHECK: mstore 128, [[SUB]]
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 fn @guarded(arg0: i256, arg1: i256) {
   bb0:
-    store 128, 0
+    mstore 128, 0
     v5 = gt arg1, arg0
     v6 = eq v5, false
     v7 = eq v6, false
@@ -25,11 +25,11 @@ fn @guarded(arg0: i256, arg1: i256) {
     v11 = lt arg0, arg1
     jumpi v11, bb3, bb4
   bb3:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    store 4, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    store 128, v10
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -39,19 +39,19 @@ fn @guarded(arg0: i256, arg1: i256) {
 // CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
 // CHECK: [[UNDERFLOW:v[0-9]+]] = lt arg0, arg1
 // CHECK: jumpi [[UNDERFLOW]], bb1, bb2
-// CHECK: store 4, 17 !metadata(memory=scratch)
+// CHECK: mstore 4, 17 !metadata(memory=scratch)
 // CHECK: revert 0, 36
 fn @unguarded(arg0: i256, arg1: i256) {
   bb0:
-    store 128, 0
+    mstore 128, 0
     v5 = sub arg0, arg1
     v6 = lt arg0, arg1
     jumpi v6, bb1, bb2
   bb1:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    store 4, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    store 128, v5
+    mstore 128, v5
     returndata 128, 32
 }

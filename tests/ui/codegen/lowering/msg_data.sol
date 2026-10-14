@@ -18,7 +18,7 @@ contract MsgData {
     // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
     // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, [[SRC]], 0
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value slice<calldata>, [[SRC]], 1
-    // CHECK-NEXT: copy calldata [[DST]], [[PTR]], [[LEN]]
+    // CHECK-NEXT: calldatacopy [[DST]], [[PTR]], [[LEN]]
     function copy() external pure returns (bytes memory) {
         return msg.data;
     }
@@ -33,7 +33,7 @@ contract MsgData {
     // CHECK: chainid
     // CHECK: basefee
     // CHECK: blobbasefee
-    // CHECK: load calldata
+    // CHECK: calldataload
     // CHECK: origin
     // CHECK: gasprice
     // CHECK: gas
@@ -60,7 +60,7 @@ contract MsgData {
     // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
     // CHECK-NEXT: [[PTR:v[0-9]+]] = extract_value slice<calldata>, [[SRC]], 0
     // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value slice<calldata>, [[SRC]], 1
-    // CHECK-NEXT: copy calldata [[DST]], [[PTR]], [[LEN]]
+    // CHECK-NEXT: calldatacopy [[DST]], [[PTR]], [[LEN]]
     function tail(uint256 a, uint256 b) external pure returns (bytes memory) {
         return msg.data[a:b];
     }

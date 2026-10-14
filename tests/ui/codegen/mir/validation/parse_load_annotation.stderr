@@ -1,4 +1,4 @@
-error: load annotation must be `ptr<memory>`
+error: `mload` annotation must be `ptr<memory>`
    ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_load_annotation.mir:LL:CC
    │
 LL │     ret v0

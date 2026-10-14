@@ -2954,11 +2954,11 @@ impl LowerAbiCx {
     /// cross, `pending`, and a constant offset first covers them:
     ///
     /// ```text
-    /// load slice                 -> extract_value slice, 1 (or load calldata at field 0)
-    /// load slice+(header + k)    -> load calldata (extract_value slice, 0)+k
+    /// mload slice                 -> extract_value slice, 1 (or calldataload at field 0)
+    /// mload slice+(header + k)    -> calldataload (extract_value slice, 0)+k
     /// ptradd slice, offset       -> ptradd (extract_value slice, 0), offset - min(offset, header)
     /// ptradd address, offset     -> ptradd address, offset - min(offset, pending)
-    /// load address+(pending + k) -> load calldata address+k
+    /// mload address+(pending + k) -> calldataload address+k
     /// ```
     fn rebase_calldata_objects(func: &mut Function, mut headers: FxHashMap<ValueId, u64>) {
         if headers.is_empty() {
@@ -3016,11 +3016,11 @@ impl LowerAbiCx {
                         if let Some(&header) = headers.get(&object) =>
                     {
                         Some(if header != 0 && offset == 0 {
-                            // load object -> extract_value object, 1
+                            // mload object -> extract_value object, 1
                             InstKind::slice_field(builder.func(), object, MirType::SLICE_LEN_FIELD)
                                 .0
                         } else {
-                            // load object+(header + k) -> load calldata (extract_value object, 0)+k
+                            // mload object+(header + k) -> calldataload (extract_value object, 0)+k
                             let data = builder.slice_ptr(object);
                             InstKind::Load(
                                 data,
@@ -3064,7 +3064,7 @@ impl LowerAbiCx {
                     InstKind::Load(address, offset, PtrLocation::Memory)
                         if let Some(&pending) = addresses.get(&address) =>
                     {
-                        // load address+(pending + k) -> load calldata address+k
+                        // mload address+(pending + k) -> calldataload address+k
                         Some(InstKind::Load(
                             address,
                             element_offset(offset, pending),
@@ -3094,7 +3094,7 @@ impl LowerAbiCx {
         element: Option<(bool, ValueId, u64)>,
         ty: &crate::mir::AbiParamType,
     ) -> bool {
-        // load object: a length, or a fixed array's first element
+        // mload object: a length, or a fixed array's first element
         let Some((byte_read, address, offset)) = element else {
             return matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty);
         };
@@ -3801,7 +3801,7 @@ fn slice_word(func: &Function, address: ValueId) -> Option<(ValueId, ValueId)> {
 }
 
 /// Returns the calldata slice a copy of `len` bytes from `data` reads whole:
-/// `copy calldata dest, (extract_value slice, 0), (extract_value slice, 1)`.
+/// `calldatacopy dest, (extract_value slice, 0), (extract_value slice, 1)`.
 fn calldata_slice_copy(func: &Function, data: ValueId, len: ValueId) -> Option<ValueId> {
     let Value::Inst(ptr) = func.value(data) else { return None };
     let Some((slice, MirType::SLICE_PTR_FIELD)) = func.inst(*ptr).kind.slice_projection() else {

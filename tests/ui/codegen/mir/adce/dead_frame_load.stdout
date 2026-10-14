@@ -12,7 +12,7 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb1:
-      v0 = load 0x1000
+      v0 = mload 0x1000
       jump bb2
     bb2:
       v1 = msize
@@ -23,7 +23,7 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb1:
-      v0 = load 0x1000
+      v0 = mload 0x1000
       jump bb2
     bb2:
       v1 = icall @observe_memory

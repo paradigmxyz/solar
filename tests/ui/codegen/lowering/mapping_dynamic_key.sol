@@ -50,8 +50,8 @@ contract MappingDynamicKeyPaths {
     // Literal keys hash exactly the literal's bytes, hitting the same slot
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
-    // CHECK: store [[LITERAL:v[0-9]+]], 5
-    // CHECK: store [[LITERAL]]+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    // CHECK: mstore [[LITERAL:v[0-9]+]], 5
+    // CHECK: mstore [[LITERAL]]+32, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes [[LITERAL]], 0
     // CHECK: sstore [[SLOT]], arg0
     function setLit(uint256 v) public {
@@ -114,7 +114,7 @@ contract MappingDynamicKeyPaths {
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sstore [[SLOT]], arg1
     // CHECK: [[OUT:v[0-9]+]] = alloc zeroed checked
-    // CHECK: store [[OUT]], 32
+    // CHECK: mstore [[OUT]], 32
     function setThenAlloc(string calldata k, uint256 v) public returns (uint256) {
         flat[k] = v;
         bytes memory out = new bytes(32);

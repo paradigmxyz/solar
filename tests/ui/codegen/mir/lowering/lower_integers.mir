@@ -179,9 +179,9 @@ fn @pointer_casts(arg0: i256) {
     v3 = ptrtoint ptr<memory> v0 to i256
     v4 = zext i1 v1 to i256
     v5 = zext i160 v2 to i256
-    store 0, v4
-    store 32, v5
-    store 64, v3
+    mstore 0, v4
+    mstore 32, v5
+    mstore 64, v3
     stop
 }
 
@@ -191,7 +191,7 @@ fn @bool_sext(arg0: i1) {
     v0 = sext i1 arg0 to i256
     v1 = sext i1 arg0 to i160
     v2 = zext i160 v1 to i256
-    store 0, v0
-    store 32, v2
+    mstore 0, v0
+    mstore 32, v2
     stop
 }

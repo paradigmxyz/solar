@@ -12,7 +12,7 @@
 // CHECK: icall @[[ENCODER]]
 // CHECK: fn @[[DECODER]]
 // CHECK: fn @[[ENCODER]]
-// CHECK: {{(^|[^a-z_])}}store
+// CHECK: {{(^|[^a-z_])}}mstore
 // CHECK: ret
 
 contract SharedAbiCodecs {

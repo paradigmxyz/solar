@@ -82,16 +82,16 @@
   
   fn @diamond_mload_clobbered_arm(arg0: i1) -> i256 {
     bb0:
-      store 0, 11
--     v0 = load 0
+      mstore 0, 11
+-     v0 = mload 0
       jumpi arg0, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      store 0, 22
+      mstore 0, 22
       jump bb3
     bb3:
-      v1 = load 0
+      v1 = mload 0
 -     v2 = add v0, v1
 +     v2 = add 11, v1
       ret v2
@@ -120,16 +120,16 @@
     bb0:
       jump bb1
     bb1:
-      v0 = load 0
+      v0 = mload 0
       v1 = lt v0, arg0
       jumpi v1, bb2, bb3
     bb3:
       ret v0
     bb2:
--     v2 = load 0
+-     v2 = mload 0
 -     v3 = add v0, v2
 +     v3 = add v0, v0
-      store 0, v3
+      mstore 0, v3
       jump bb1
   }
   

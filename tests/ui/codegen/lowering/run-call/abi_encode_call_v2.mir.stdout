@@ -9,7 +9,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v4 = sub v3, v2
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = load calldata v2
+    v6 = calldataload v2
     v7 = ptrtoint ptr<calldata> v0 to i256
     v8 = add v7, v6
     v9 = calldatasize
@@ -19,7 +19,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v13 = slt v6, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = load calldata v8
+    v15 = calldataload v8
     v16 = calldatasize
     v17 = gt v15, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v17
@@ -41,7 +41,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v31 = sub v30, v29
     v32 = slt v31, 32
     icall revert_if<calldata_tail_too_short>, v32
-    v33 = load calldata v29
+    v33 = calldataload v29
     v34 = ptrtoint ptr<calldata> v27 to i256
     v35 = add v34, v33
     v36 = calldatasize
@@ -51,7 +51,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v40 = slt v33, v39
     v41 = eq v40, false
     icall revert_if<invalid_calldata_tail_offset>, v41
-    v42 = load calldata v35
+    v42 = calldataload v35
     v43 = calldatasize
     v44 = gt v42, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v44
@@ -69,7 +69,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v54 = extract_value slice<calldata>, v50, 0
     v55 = ptrtoint ptr<calldata> v54 to i256
     v56 = add v55, 0
-    v57 = load calldata v56
+    v57 = calldataload v56
     v58 = eq v57, 0
     v59 = eq v58, false
     icall panic_if<0x1>, v59
@@ -80,7 +80,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v64 = sub v63, v62
     v65 = slt v64, 32
     icall revert_if<calldata_tail_too_short>, v65
-    v66 = load calldata v62
+    v66 = calldataload v62
     v67 = ptrtoint ptr<calldata> v60 to i256
     v68 = add v67, v66
     v69 = calldatasize
@@ -90,7 +90,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v73 = slt v66, v72
     v74 = eq v73, false
     icall revert_if<invalid_calldata_tail_offset>, v74
-    v75 = load calldata v68
+    v75 = calldataload v68
     v76 = calldatasize
     v77 = gt v75, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v77
@@ -108,7 +108,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v87 = extract_value slice<calldata>, v83, 0
     v88 = ptrtoint ptr<calldata> v87 to i256
     v89 = add v88, 32
-    v90 = load calldata v89
+    v90 = calldataload v89
     v91 = eq v90, 1
     v92 = eq v91, false
     icall panic_if<0x1>, v92
@@ -119,7 +119,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v97 = sub v96, v95
     v98 = slt v97, 32
     icall revert_if<calldata_tail_too_short>, v98
-    v99 = load calldata v95
+    v99 = calldataload v95
     v100 = ptrtoint ptr<calldata> v93 to i256
     v101 = add v100, v99
     v102 = calldatasize
@@ -129,7 +129,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v106 = slt v99, v105
     v107 = eq v106, false
     icall revert_if<invalid_calldata_tail_offset>, v107
-    v108 = load calldata v101
+    v108 = calldataload v101
     v109 = calldatasize
     v110 = gt v108, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v110
@@ -147,14 +147,14 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v120 = extract_value slice<calldata>, v116, 0
     v121 = ptrtoint ptr<calldata> v120 to i256
     v122 = add v121, 64
-    v123 = load calldata v122
+    v123 = calldataload v122
     v124 = eq v123, 2
     v125 = eq v124, false
     icall panic_if<0x1>, v125
     v126 = extract_value slice<calldata>, arg0, 0
     v127 = ptrtoint ptr<calldata> v126 to i256
     v128 = add v127, 32
-    v129 = load calldata v128
+    v129 = calldataload v128
     v130 = eq v129, 6
     v131 = eq v130, false
     icall panic_if<0x1>, v131
@@ -165,7 +165,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v136 = sub v135, v134
     v137 = slt v136, 32
     icall revert_if<calldata_tail_too_short>, v137
-    v138 = load calldata v134
+    v138 = calldataload v134
     v139 = ptrtoint ptr<calldata> v132 to i256
     v140 = add v139, v138
     v141 = calldatasize
@@ -175,7 +175,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v145 = slt v138, v144
     v146 = eq v145, false
     icall revert_if<invalid_calldata_tail_offset>, v146
-    v147 = load calldata v140
+    v147 = calldataload v140
     v148 = calldatasize
     v149 = gt v147, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v149
@@ -201,13 +201,13 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v165 = not 31
     v166 = and v163, v165
     v167 = alloc v166
-    store v167, v162
+    mstore v167, v162
     v168 = ptradd v167, 32
     v169 = extract_value slice<calldata>, v154, 0
     v170 = extract_value slice<calldata>, v154, 1
-    copy calldata v168, v169, v170
+    calldatacopy v168, v169, v170
     v171 = ptradd v167, 32
-    v172 = load v167
+    v172 = mload v167
     v173 = keccak256 v171, v172
     v174 = eq v173, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
     v175 = eq v174, false
@@ -219,7 +219,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v180 = sub v179, v178
     v181 = slt v180, 32
     icall revert_if<calldata_tail_too_short>, v181
-    v182 = load calldata v178
+    v182 = calldataload v178
     v183 = ptrtoint ptr<calldata> v176 to i256
     v184 = add v183, v182
     v185 = calldatasize
@@ -229,7 +229,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v189 = slt v182, v188
     v190 = eq v189, false
     icall revert_if<invalid_calldata_tail_offset>, v190
-    v191 = load calldata v184
+    v191 = calldataload v184
     v192 = calldatasize
     v193 = gt v191, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v193
@@ -255,13 +255,13 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v209 = not 31
     v210 = and v207, v209
     v211 = alloc v210
-    store v211, v206
+    mstore v211, v206
     v212 = ptradd v211, 32
     v213 = extract_value slice<calldata>, v198, 0
     v214 = extract_value slice<calldata>, v198, 1
-    copy calldata v212, v213, v214
+    calldatacopy v212, v213, v214
     v215 = ptradd v211, 32
-    v216 = load v211
+    v216 = mload v211
     v217 = keccak256 v215, v216
     v218 = eq v217, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
     v219 = eq v218, false
@@ -269,7 +269,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v220 = extract_value slice<calldata>, arg0, 0
     v221 = ptrtoint ptr<calldata> v220 to i256
     v222 = add v221, 128
-    v223 = load calldata v222
+    v223 = calldataload v222
     v224 = lt v223, 3
     v225 = eq v224, false
     icall revert_if<empty>, v225
@@ -281,7 +281,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v230 = eq v229, false
     icall panic_if<0x1>, v230
     v231 = ptradd arg2, 32
-    v232 = load arg2
+    v232 = mload arg2
     v233 = keccak256 v231, v232
     v234 = eq v233, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
     v235 = eq v234, false
@@ -293,51 +293,51 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
   bb0:
     v0 = alloc 160 !metadata(preserves_fmp)
     memory_zero v0, 160
-    store v0, 96
-    store v0+64, 96
-    store v0+96, 96
+    mstore v0, 96
+    mstore v0+64, 96
+    mstore v0+96, 96
     v1 = alloc zeroed checked 128
-    store v1, 3
+    mstore v1, 3
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0, v2
-    v3 = load v0, ptr<memory>
-    v4 = load v3
+    mstore v0, v2
+    v3 = mload v0, ptr<memory>
+    v4 = mload v3
     v5 = lt 0, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v3+32, 0
-    v7 = load v0, ptr<memory>
-    v8 = load v7
+    mstore v3+32, 0
+    v7 = mload v0, ptr<memory>
+    v8 = mload v7
     v9 = lt 1, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    store v7+64, 1
-    v11 = load v0, ptr<memory>
-    v12 = load v11
+    mstore v7+64, 1
+    v11 = mload v0, ptr<memory>
+    v12 = mload v11
     v13 = lt 2, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    store v11+96, 2
-    store v0+32, 6
+    mstore v11+96, 2
+    mstore v0+32, 6
     v15 = alloc 64 !metadata(preserves_fmp)
-    store v15, 10
-    store v15+32, 0x5374727563744e616d6500000000000000000000000000000000000000000000
+    mstore v15, 10
+    mstore v15+32, 0x5374727563744e616d6500000000000000000000000000000000000000000000
     v16 = ptrtoint ptr<memory> v15 to i256
-    store v0+64, v16
+    mstore v0+64, v16
     v17 = alloc 64 !metadata(preserves_fmp)
-    store v17, 4
-    store v17+32, 0x3132333400000000000000000000000000000000000000000000000000000000
+    mstore v17, 4
+    mstore v17+32, 0x3132333400000000000000000000000000000000000000000000000000000000
     v18 = ptrtoint ptr<memory> v17 to i256
-    store v0+96, v18
+    mstore v0+96, v18
     v19 = lt i8 1, i8 3
     v20 = eq v19, false
     icall panic_if<0x21>, v20
-    store v0+128, 1
+    mstore v0+128, 1
     v21 = address
     v22 = gas
     v23 = alloc 64 !metadata(preserves_fmp)
-    store v23, 8
-    store v23+32, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    mstore v23, 8
+    mstore v23+32, 0x546573744e616d65000000000000000000000000000000000000000000000000
     v24 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v23
     v25 = address_call v21, v24, gas v22
     ret v25

@@ -99,7 +99,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
   bb19:
     jump bb20
   bb18:
-    store 0, v28 !metadata(memory=scratch)
+    mstore 0, v28 !metadata(memory=scratch)
     log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v24
     jump bb20
   bb20:
@@ -124,7 +124,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     icall panic_if<0x41>, v42
     v43 = ptrtoint ptr<calldata> v35 to i256
     v44 = add v43, v36
-    v45 = load calldata v44
+    v45 = calldataload v44
     v46 = shr 160, v45
     v47 = eq v46, 0
     v48 = eq v47, false
@@ -145,7 +145,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     icall panic_if<0x41>, v60
     v61 = ptrtoint ptr<calldata> v53 to i256
     v62 = add v61, v54
-    v63 = load calldata v62
+    v63 = calldataload v62
     v64 = extract_value slice<calldata>, v23, 1
     v65 = lt v26, v64
     v66 = eq v65, false
@@ -165,7 +165,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v78 = sub v77, v76
     v79 = slt v78, 32
     icall revert_if<calldata_tail_too_short>, v79
-    v80 = load calldata v76
+    v80 = calldataload v76
     v81 = ptrtoint ptr<calldata> v67 to i256
     v82 = add v81, v80
     v83 = calldatasize
@@ -175,7 +175,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v87 = slt v80, v86
     v88 = eq v87, false
     icall revert_if<invalid_calldata_tail_offset>, v88
-    v89 = load calldata v82
+    v89 = calldataload v82
     v90 = calldatasize
     v91 = gt v89, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v91

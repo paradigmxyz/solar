@@ -8,7 +8,7 @@ fn @probe(arg0: slice<calldata>) -> struct0 [selector=0xaf74ef39, pure, abi_para
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
     v2 = ptrtoint ptr<calldata> v1 to i256
-    v3 = load calldata v1
+    v3 = calldataload v1
     v4 = insert_value struct0, undef struct0, 0, v0
     v5 = insert_value struct0, v4, 1, v3
     ret v5

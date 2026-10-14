@@ -1,4 +1,4 @@
-//! Lower `copy` for EVM versions that predate Cancun.
+//! Lower `mcopy` for EVM versions that predate Cancun.
 //!
 //! Each copy becomes word-copy loops, since the target has no `MCOPY` opcode.
 //! The identity precompile would be smaller, but calling it is observable:
@@ -49,7 +49,7 @@ use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::{collections::BTreeMap, sync::Arc};
 
-/// Lowers `copy` to overlap-safe word-copy loops without an `MCOPY` opcode.
+/// Lowers `mcopy` to overlap-safe word-copy loops without an `MCOPY` opcode.
 pub(crate) struct LowerMCopy;
 
 impl MirPass for LowerMCopy {
@@ -118,14 +118,14 @@ fn is_mcopy(func: &Function, inst: InstId) -> bool {
     matches!(func.inst(inst).kind, InstKind::Copy(_, _, _, PtrLocation::Memory))
 }
 
-/// The loop a `copy` expands to.
+/// The loop a `mcopy` expands to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CopyShape {
     direction: CopyDirection,
     whole_words: bool,
 }
 
-/// One `copy` and the loop it expands to.
+/// One `mcopy` and the loop it expands to.
 struct CopySite {
     inst: InstId,
     shape: CopyShape,
@@ -291,7 +291,7 @@ fn copy_direction(
     }
 }
 
-/// Replaces a `copy` with a call of the shared helper.
+/// Replaces a `mcopy` with a call of the shared helper.
 fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
     let InstKind::Copy(dest, src, len, PtrLocation::Memory) = func.inst(inst).kind else {
         unreachable!()

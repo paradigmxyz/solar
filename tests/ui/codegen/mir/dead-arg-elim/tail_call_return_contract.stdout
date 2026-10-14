@@ -16,7 +16,7 @@
 + fn @user() {
     bb0:
       v0 = icall @keep
-      store 0, v0
+      mstore 0, v0
 -     ret 7
 +     ret
   }

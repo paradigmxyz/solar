@@ -5,21 +5,21 @@ fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word
     v0 = not 31
     v1 = and 159, v0
     v2 = alloc zeroed checked v1
-    store v2, 96
-    v3 = load v2
+    mstore v2, 96
+    v3 = mload v2
     v4 = lt 5, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    store8 v2+37, v6
-    v7 = load v2
+    mstore8 v2+37, v6
+    v7 = mload v2
     v8 = lt 95, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    store8 v2+127, v10
+    mstore8 v2+127, v10
     v11 = ptradd v2, 32
-    v12 = load v2
+    v12 = mload v2
     v13 = keccak256 v11, v12
     ret v13
 }
@@ -27,16 +27,16 @@ fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 10
-    store v0+32, 0x1020304050607080900000000000000000000000000000000000000000000
-    v1 = load v0
+    mstore v0, 10
+    mstore v0+32, 0x1020304050607080900000000000000000000000000000000000000000000
+    v1 = mload v0
     v2 = lt 5, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    store8 v0+37, v4
+    mstore8 v0+37, v4
     v5 = ptradd v0, 32
-    v6 = load v0
+    v6 = mload v0
     v7 = keccak256 v5, v6
     ret v7
 }
@@ -49,26 +49,26 @@ fn @allocDynamic(arg0: i256) -> i256 [selector=0x2ab2abe8, pure, abi_params=[u25
     v2 = not 31
     v3 = and v0, v2
     v4 = alloc zeroed checked v3
-    store v4, arg0
-    v5 = load v4
+    mstore v4, arg0
+    v5 = mload v4
     ret v5
 }
 
 fn @readWrite(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x4b25a5a7, pure, abi_params=[bytes, u256, bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = lt arg1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = byte 0, arg2
     v4 = ptradd arg0, arg1
-    store8 v4+32, v3
-    v5 = load arg0
+    mstore8 v4+32, v3
+    v5 = mload arg0
     v6 = lt arg1, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, arg1
-    v9 = load v8+32
+    v9 = mload v8+32
     v10 = byte 0, v9
     v11 = shl 248, v10
     ret v11

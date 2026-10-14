@@ -35,8 +35,8 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     v0 = alloc 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = alloc 64
-    store v1, 1
-    store v1+32, 2
+    mstore v1, 1
+    mstore v1+32, 2
     v2 = insert_value struct0, undef struct0, 0, arg0
     v3 = insert_value struct0, v2, 1, v1
     ret v3
@@ -71,7 +71,7 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = load v7
+    v8 = mload v7
     v9 = sload v8 !metadata(storage=symbolic(v8))
     ret v9
 }
@@ -91,7 +91,7 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = load v7
+    v8 = mload v7
     v9 = sload v8 !metadata(storage=symbolic(v8))
     validate_storage_bytes v9
     v10 = and v9, 1
@@ -118,7 +118,7 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = load v7
+    v8 = mload v7
     v9 = sload v8 !metadata(storage=symbolic(v8))
     ret v9
 }
@@ -139,10 +139,10 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v6
     v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 0
-    v9 = load v8
+    v9 = mload v8
     v10 = ptrtoint ptr<memory> v1 to i256
     v11 = add v10, 32
-    v12 = load v11
+    v12 = mload v11
     v13 = insert_value struct0, undef struct0, 0, v9
     v14 = insert_value struct0, v13, 1, v12
     v15 = extract_value struct0, v14, 0
@@ -168,7 +168,7 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = load v7
+    v8 = mload v7
     v9 = lt 2, 3
     v10 = eq v9, false
     icall panic_if<0x32>, v10
@@ -192,7 +192,7 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = load v7
+    v8 = mload v7
     v9 = mapping_slot arg0, v8
     v10 = sload v9 !metadata(storage=symbolic(v9))
     ret v10
@@ -225,7 +225,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v17 = lt 1, 2
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = load v15+32
+    v19 = mload v15+32
     v20 = insert_value struct0, undef struct0, 0, v16
     v21 = insert_value struct0, v20, 1, v19
     ret v21
@@ -246,7 +246,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
-    v8 = load v7
+    v8 = mload v7
     v9 = sload v8 !metadata(storage=symbolic(v8))
     ret v9
 }

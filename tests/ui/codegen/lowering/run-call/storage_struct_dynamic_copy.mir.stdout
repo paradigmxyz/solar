@@ -9,23 +9,23 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v1, 13 !metadata(storage=slot(2))
     v2 = alloc checked 96
     v3 = sload 0 !metadata(storage=slot(0))
-    store v2, v3
+    mstore v2, v3
     v4 = add 0, 1
     v5 = icall @load_storage_bytes, v4
     v6 = ptrtoint ptr<memory> v5 to i256
-    store v2+32, v6
+    mstore v2+32, v6
     v7 = add 0, 2
     v8 = sload v7 !metadata(storage=slot(2))
-    store v2+64, v8
+    mstore v2+64, v8
     v9 = ptrtoint ptr<memory> v2 to i256
-    v10 = load v2
+    v10 = mload v2
     sstore 3, v10 !metadata(storage=slot(3))
     v11 = add 3, 1
-    v12 = load v2+32
+    v12 = mload v2+32
     v13 = inttoptr i256 v12 to ptr<memory>
     icall @store_storage_bytes, v11, v13
     v14 = add 3, 2
-    v15 = load v2+64
+    v15 = mload v2+64
     sstore v14, v15 !metadata(storage=slot(5))
     sstore 0, 9 !metadata(storage=slot(0))
     v16 = add 0, 1
@@ -206,23 +206,23 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v46 = add v44, v45
     v47 = alloc checked 96
     v48 = sload v40 !metadata(storage=symbolic(v40))
-    store v47, v48
+    mstore v47, v48
     v49 = add v40, 1
     v50 = icall @load_storage_bytes, v49
     v51 = ptrtoint ptr<memory> v50 to i256
-    store v47+32, v51
+    mstore v47+32, v51
     v52 = add v40, 2
     v53 = sload v52 !metadata(storage=offset(v40, 2))
-    store v47+64, v53
+    mstore v47+64, v53
     v54 = ptrtoint ptr<memory> v47 to i256
-    v55 = load v47
+    v55 = mload v47
     sstore v46, v55 !metadata(storage=symbolic(v46))
     v56 = add v46, 1
-    v57 = load v47+32
+    v57 = mload v47+32
     v58 = inttoptr i256 v57 to ptr<memory>
     icall @store_storage_bytes, v56, v58
     v59 = add v46, 2
-    v60 = load v47+64
+    v60 = mload v47+64
     sstore v59, v60 !metadata(storage=offset(v46, 2))
     v61 = sload 6 !metadata(storage=slot(6))
     v62 = lt 0, v61

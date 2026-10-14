@@ -2221,8 +2221,8 @@ fn inline_literal_call(
     let mut instructions = Vec::new();
     // object = icall @literal
     //   => object = alloc size
-    //      store object, length
-    //      store (ptradd object, 32), word
+    //      mstore object, length
+    //      mstore (ptradd object, 32), word
     for &inst in &callee.blocks[BlockId::ENTRY].instructions {
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;

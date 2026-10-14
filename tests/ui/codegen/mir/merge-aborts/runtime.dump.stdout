@@ -7,11 +7,11 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb6, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
-    v4 = load calldata 4
-    v5 = load calldata 36
-    v6 = load calldata 68
+    v4 = calldataload 4
+    v5 = calldataload 36
+    v6 = calldataload 68
     switch v3, default bb6, [0x41cb7983 => bb2, 0x4256913b => bb3, 0xca939f26 => bb4, 0xd412532e => bb5]
   bb5:
     v44 = calldatasize
@@ -25,7 +25,7 @@ fn @entry() [entry] {
     v193 = or v49, v47
     jumpi v193, bb10, bb24
   bb24:
-    store 128, v46
+    mstore 128, v46
     returndata 128, 32
   bb4:
     v28 = calldatasize
@@ -51,7 +51,7 @@ fn @entry() [entry] {
     v33 = lt v32, v6
     jumpi v33, bb20, bb19
   bb19:
-    store 128, v30
+    mstore 128, v30
     returndata 128, 32
   bb20:
     v54 = gt v31, v53
@@ -132,7 +132,7 @@ fn @entry() [entry] {
     v24 = lt v22, v5
     jumpi v24, bb15, bb14
   bb14:
-    store 128, v23
+    mstore 128, v23
     returndata 128, 32
   bb15:
     v25 = add v23, v22
@@ -174,7 +174,7 @@ fn @entry() [entry] {
     v12 = lt v9, v6
     jumpi v12, bb9, bb8
   bb8:
-    store 128, v10
+    mstore 128, v10
     returndata 128, 32
   bb9:
     v189 = gt v11, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
@@ -230,8 +230,8 @@ fn @entry() [entry] {
     v98 = add v55, 4
     jump bb26
   bb10:
-    store 32, 17
-    store 0, 0x4e487b71
+    mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
   bb6:
     revert 0, 0

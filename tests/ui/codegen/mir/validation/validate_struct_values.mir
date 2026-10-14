@@ -134,14 +134,14 @@ fn @integer_ptrtoint(arg0: i256) -> i256 {
 fn @implicit_object_index(arg0: ptr<memory>, arg1: i1) -> i256 {
   bb0:
     v1 = ptradd arg0, arg1
-    v0 = load v1
+    v0 = mload v1
     ret v0
 }
 
-//~? ERROR: [fn19] [bb0, inst0] `store` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn19] [bb0, inst0] `mstore` has incompatible scalar types; use an explicit cast
 fn @implicit_object_value(arg0: ptr<memory>, arg1: i160) {
   bb0:
-    store arg0, arg1
+    mstore arg0, arg1
     ret
 }
 
@@ -186,10 +186,10 @@ fn @nested_calldata_array(arg0: slice<calldata>) -> slice<memory> {
     ret v0
 }
 
-//~? ERROR: [fn26] [bb0, inst0] `load` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn26] [bb0, inst0] `mload` has incompatible scalar types; use an explicit cast
 fn @calldata_as_memory(arg0: slice<calldata>) -> i256 {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     ret v0
 }
 

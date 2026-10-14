@@ -22,7 +22,7 @@ contract MappingNestedStructCopy {
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = alloc 96
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot
-    // CHECK-NEXT: [[HEAD:v[0-9]+]] = load [[OUTER]]
+    // CHECK-NEXT: [[HEAD:v[0-9]+]] = mload [[OUTER]]
     // CHECK-NEXT: sstore [[SLOT]], [[HEAD]]
     function set(uint256 key, uint256 head, uint256 left, uint256 right, uint256 tail) external {
         values[key] = Outer(head, Inner(left, right), tail);
@@ -32,7 +32,7 @@ contract MappingNestedStructCopy {
     // CHECK: = mapping_slot
     // CHECK: [[OUTER:v[0-9]+]] = alloc checked 96
     // CHECK-NEXT: [[HEAD:v[0-9]+]] = sload
-    // CHECK-NEXT: store [[OUTER]], [[HEAD]]
+    // CHECK-NEXT: mstore [[OUTER]], [[HEAD]]
     function get(uint256 key)
         external
         view

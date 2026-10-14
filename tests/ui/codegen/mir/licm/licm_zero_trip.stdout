@@ -31,7 +31,7 @@
     bb3:
       ret v1
     bb2:
-      v4 = load 0x1000000
+      v4 = mload 0x1000000
       v5 = add v2, 1
       jump bb1
   }
@@ -57,8 +57,8 @@
     bb0:
 -     jump bb1
 -   bb1:
-      v0 = load 64
-      v1 = load calldata 0
+      v0 = mload 64
+      v1 = calldataload 0
       v2 = lt v0, v1
 +     jump bb1
 +   bb1:
@@ -80,7 +80,7 @@
       v6 = add v0, v5
       ret v6
     bb2:
-      v3 = load 64
+      v3 = mload 64
       v4 = add v1, 1
       jump bb1
   }

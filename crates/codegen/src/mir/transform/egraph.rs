@@ -1229,7 +1229,7 @@ fn resolve_replacement(
 
 /// Returns whether an instruction is a pure expression the e-graph may number.
 ///
-/// `load calldata`, `blockhash`, and `blobhash` are stable within one execution
+/// `calldataload`, `blockhash`, and `blobhash` are stable within one execution
 /// and join the pure operations. Reads that need clobber tracking stay with
 /// CSE.
 fn is_node(kind: &InstKind) -> bool {

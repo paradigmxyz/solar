@@ -46,8 +46,8 @@ fn @roundTrip(arg0: i256) -> i256 [selector=0xe2d2fb76, pure, abi_params=[bytes1
 fn @encodeSelector(arg0: i256) -> i256 [selector=0xe234433f, pure, abi_params=[bytes4], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = abi_encode [word], object, selector arg0, args 1
-    v1 = load v0+32
-    v2 = load v0
+    v1 = mload v0+32
+    v2 = mload v0
     v3 = lt v2, 4
     v4 = sub 4, v2
     v5 = mul 8, v4
@@ -61,12 +61,12 @@ fn @encodeLocalSelector() -> i256 [selector=0x0e6d4a3f, pure, abi_params=[], abi
   bb0:
     v0 = shl 224, 0x12345678
     v1 = alloc 64 !metadata(preserves_fmp)
-    store v1, 3
-    store v1+32, 0x6162630000000000000000000000000000000000000000000000000000000000
+    mstore v1, 3
+    mstore v1+32, 0x6162630000000000000000000000000000000000000000000000000000000000
     v2 = ptrtoint ptr<memory> v1 to i256
     v3 = abi_encode [memory_bytes], object, selector v0, args v1
-    v4 = load v3+32
-    v5 = load v3
+    v4 = mload v3+32
+    v5 = mload v3
     v6 = lt v5, 4
     v7 = sub 4, v5
     v8 = mul 8, v7

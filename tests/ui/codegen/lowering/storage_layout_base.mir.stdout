@@ -74,8 +74,8 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 12
-    store v0+32, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    mstore v0, 12
+    mstore v0+32, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
     v1 = icall @erc7201Reference, v0
     v2 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v1
     ret v2
@@ -84,13 +84,13 @@ fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_retu
 fn @erc7201Reference(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptradd arg0, 32
-    v1 = load arg0
+    v1 = mload arg0
     v2 = keccak256 v0, v1
     v3 = checked_sub u256, v2, 1
     v4 = shl 0, v3
     v5 = abi_encode_packed (bytes32 v4)
     v6 = ptradd v5, 32
-    v7 = load v5
+    v7 = mload v5
     v8 = keccak256 v6, v7
     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     ret v9

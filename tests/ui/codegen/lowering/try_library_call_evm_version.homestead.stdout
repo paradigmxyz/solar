@@ -29,7 +29,7 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     v1 = fmp
     v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
-    store v3, 0
+    mstore v3, 0
     v4 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
@@ -52,7 +52,7 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
   bb1:
     v14 = ptrtoint ptr<memory> v5 to i256
     v15 = add v14, 0
-    v16 = load v15
+    v16 = mload v15
     sstore 0, v16 !metadata(storage=slot(0))
     jump bb3
   bb3:

@@ -16,14 +16,14 @@ fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word
 fn @file() -> ptr<memory> [selector=0x8525855d, view, abi_params=[], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
-    store v0, 0
+    mstore v0, 0
     v1 = alloc 32
     v2 = address
     v3 = zext i160 v2 to i256
     v4 = shl 32, v3
     v5 = or v4, 0x78710d37
     v6 = shl 64, v5
-    store v1, v6
+    mstore v1, v6
     ret v1
 }
 
@@ -35,8 +35,8 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v3 = shl 32, v2
     v4 = or v3, 0xeee97206
     v5 = shl 64, v4
-    store v0, v5
-    v6 = load v0
+    mstore v0, v5
+    v6 = mload v0
     v7 = shr 64, v6
     v8 = and v7, 0xffffffff
     v9 = shl 224, v8
@@ -59,7 +59,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
-    v19 = load v18
+    v19 = mload v18
     ret v19
   bb3:
     ret 0
@@ -84,7 +84,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     icall revert_if<tuple_data_too_short>, v9
     v10 = make_memory_slice v5, 32
     v11 = abi_decode [tuple<function>], v10
-    v12 = load v11
+    v12 = mload v11
     v13 = shr 64, v12
     v14 = and v13, 0xffffffff
     v15 = shl 224, v14
@@ -107,7 +107,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
-    v25 = load v24
+    v25 = mload v24
     ret v25
   bb5:
     ret 0

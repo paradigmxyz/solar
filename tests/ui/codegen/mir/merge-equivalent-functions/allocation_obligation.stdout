@@ -19,8 +19,8 @@
     bb0:
       v0 = icall @movable
       v1 = icall @reserved
-      store v0, 42
-      store v1, 7
+      mstore v0, 42
+      mstore v1, 7
       returndata v1, 32
   }
   

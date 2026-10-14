@@ -16,16 +16,16 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v0 = icall @getX
     v1 = icall @getY
     v2 = alloc 320
-    store v2, 1
-    store v2+32, 2
-    store v2+64, 3
-    store v2+96, 4
-    store v2+128, 5
-    store v2+160, 6
-    store v2+192, 7
-    store v2+224, 8
-    store v2+256, 9
-    store v2+288, 10
+    mstore v2, 1
+    mstore v2+32, 2
+    mstore v2+64, 3
+    mstore v2+96, 4
+    mstore v2+128, 5
+    mstore v2+160, 6
+    mstore v2+192, 7
+    mstore v2+224, 8
+    mstore v2+256, 9
+    mstore v2+288, 10
     v3 = lt 0, 1
     v4 = eq v3, false
     icall panic_if<0x32>, v4
@@ -106,7 +106,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb13:
     v36 = shl 5, v32
     v37 = ptradd v23, v36
-    v38 = load v37
+    v38 = mload v37
     sstore v34, v38 !metadata(storage=symbolic(v34))
     jump bb15
   bb15:
@@ -117,7 +117,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v27 = sload v26 !metadata(storage=symbolic(v26))
     v28 = shl 5, v24
     v29 = ptradd v23, v28
-    store v29, v27
+    mstore v29, v27
     v30 = add v24, 1
     jump bb7
   bb2:
@@ -130,7 +130,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb4:
     v11 = shl 5, v7
     v12 = ptradd v2, v11
-    v13 = load v12
+    v13 = mload v12
     sstore v9, v13 !metadata(storage=symbolic(v9))
     jump bb6
   bb6:

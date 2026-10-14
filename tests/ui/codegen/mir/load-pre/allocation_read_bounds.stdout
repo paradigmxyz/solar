@@ -8,15 +8,15 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 31
       v4 = ptrtoint ptr<memory> v1 to i256
-      v5 = load v3
+      v5 = mload v3
       jumpi arg0, bb1, bb2
     bb2:
       jump bb3
     bb1:
       jump bb3
     bb3:
-      store v4, 7
-      v6 = load v3
+      mstore v4, 7
+      v6 = mload v3
       v7 = add v5, v6
       ret v7
   }
@@ -35,7 +35,7 @@
     bb1:
       jump bb3
     bb3:
-      store v4, 7
+      mstore v4, 7
       v6 = keccak256 v3, 33
       v7 = add v5, v6
       ret v7
@@ -55,7 +55,7 @@
     bb1:
       jump bb3
     bb3:
-      store v4, 7
+      mstore v4, 7
       v6 = keccak256 v3, arg1
       v7 = add v5, v6
       ret v7
@@ -68,15 +68,15 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 31
       v4 = ptrtoint ptr<memory> v1 to i256
-      store v3, 99
+      mstore v3, 99
       jumpi arg0, bb1, bb2
     bb2:
       jump bb3
     bb1:
       jump bb3
     bb3:
-      store v4, 7
-      v5 = load v3
+      mstore v4, 7
+      v5 = mload v3
       ret v5
   }
   

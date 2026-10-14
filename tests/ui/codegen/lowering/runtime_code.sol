@@ -12,12 +12,12 @@ contract RuntimeCode {
     // CHECK: [[LEN:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0
     // CHECK: [[SIZE:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 63, aligned
     // CHECK: [[OBJECT:v[0-9]+]] = alloc [[SIZE]] !metadata(preserves_fmp)
-    // CHECK: store [[OBJECT]], [[LEN]]
+    // CHECK: mstore [[OBJECT]], [[LEN]]
     // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd [[OBJECT]], 32
     // CHECK: [[TAIL:v[0-9]+]] = datasize RuntimeCodeTarget_runtime_code_0, 31, aligned
     // CHECK: [[BASE:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
     // CHECK: [[TAIL_PTR:v[0-9]+]] = add [[BASE]], [[TAIL]]
-    // CHECK: store [[TAIL_PTR]], 0
+    // CHECK: mstore [[TAIL_PTR]], 0
     // CHECK: datacopy RuntimeCodeTarget_runtime_code_0, [[DATA]], [[LEN]]
     function runtime() external pure returns (uint256) {
         return type(RuntimeCodeTarget).runtimeCode.length;

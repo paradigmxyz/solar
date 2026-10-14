@@ -8,15 +8,15 @@ fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_retu
 fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = shl 32, 0
     v2 = or v1, 0xd4b83992
-    v3 = load v0
+    v3 = mload v0
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = shl 64, v2
-    store v0+32, v6
+    mstore v0+32, v6
     v7 = abi_encode_packed (array<function> memoryarray<1> v0)
     ret v7
 }
@@ -50,7 +50,7 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
     v22 = alloc v20
-    store v22, v0
+    mstore v22, v0
     jump bb1
   bb1:
     v23 = phi [bb0: 0], [bb2: v36]
@@ -63,7 +63,7 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v25 = mul v23, 32
     v26 = ptrtoint ptr<calldata> v1 to i256
     v27 = add v26, v25
-    v28 = load calldata v27
+    v28 = calldataload v27
     v29 = shl 192, v28
     v30 = eq v29, 0
     v31 = eq v30, false
@@ -72,7 +72,7 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v33 = shl 64, v32
     v34 = shl 5, v23
     v35 = ptradd v22, v34
-    store v35+32, v33
+    mstore v35+32, v33
     v36 = add v23, 1
     jump bb1
 }

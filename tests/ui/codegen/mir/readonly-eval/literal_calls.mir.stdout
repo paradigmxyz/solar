@@ -12,16 +12,16 @@ fn @constructor() [constructor] {
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, 41
+    mstore v4, 41
     v5 = icall @readWord, v2
     v6 = checked_add u256, v5, 1
     storeimmutable answer, v6
     v7 = alloc 64 !metadata(preserves_fmp)
-    store v7, 1
-    store v7+32, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v7, 1
+    mstore v7+32, 0x3100000000000000000000000000000000000000000000000000000000000000
     v8 = icall @toShort, v7
     storeimmutable shortWord, v8
     ret
@@ -41,10 +41,10 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, arg0
+    mstore v4, arg0
     v5 = icall @readWord, v2
     ret v5
 }
@@ -54,10 +54,10 @@ fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], ab
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, 42
+    mstore v4, 42
     v5 = icall @choose, v2, arg0
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = insert_value struct0, undef struct0, 0, v5
@@ -70,10 +70,10 @@ fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[u256], 
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc zeroed checked v1
-    store v2, 32
+    mstore v2, 32
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
-    store v4, 42
+    mstore v4, 42
     icall @overwrite, v2, arg0
     v5 = icall @readWord, v2
     ret v5
@@ -82,40 +82,40 @@ fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[u256], 
 fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 32
-    store v0, 0
+    mstore v0, 0
     v1 = icall @readWord, v0
     ret v1
 }
 
 fn @readWord(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = eq v0, 32
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = ptrtoint ptr<memory> arg0 to i256
     v4 = add v3, 32
-    v5 = load v4
+    v5 = mload v4
     ret v5
 }
 
 fn @toShort(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = lt v0, 32
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = not 0
     v4 = ptrtoint ptr<memory> arg0 to i256
-    v5 = load arg0
+    v5 = mload arg0
     v6 = sub 32, v5
     v7 = mul v6, 8
     v8 = shl v7, v3
     v9 = ptrtoint ptr<memory> arg0 to i256
-    v10 = load arg0
+    v10 = mload arg0
     v11 = ptrtoint ptr<memory> arg0 to i256
     v12 = add v11, 32
-    v13 = load v12
+    v13 = mload v12
     v14 = and v13, v8
     v15 = or v14, v10
     ret v15
@@ -140,6 +140,6 @@ fn @overwrite(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
-    store v1, arg1
+    mstore v1, arg1
     ret
 }

@@ -47,13 +47,13 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     v37 = lt v36, 32
     icall panic_if<0x41>, v37
     v38 = alloc v36
-    store v38, v16
+    mstore v38, v16
     v39 = make_calldata_slice v17, v29
     v40 = ptradd v38, 32
     v41 = extract_value slice<calldata>, v39, 0
     v42 = extract_value slice<calldata>, v39, 1
-    copy calldata v40, v41, v42
-    v43 = load v38
+    calldatacopy v40, v41, v42
+    v43 = mload v38
     v44 = sload 0 !metadata(storage=slot(0))
     v45 = gt v44, v43
     jumpi v45, bb1, bb2
@@ -84,7 +84,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
   bb7:
     v53 = shl 5, v51
     v54 = ptradd v38, v53
-    v55 = load v54+32
+    v55 = mload v54+32
     v56 = storage_array_data_slot 0
     v57 = add v56, v51
     sstore v57, v55 !metadata(storage=symbolic(v57))

@@ -435,7 +435,7 @@ fn @clearDynamicDirtyWord() -> i256 [selector=0xa7b98e77, abi_params=[], abi_ret
     v22 = mod v16, 32
     v23 = mul v22, 1
     sstore 0, v18 !metadata(storage=slot(0))
-    store 0, 0 !metadata(memory=scratch)
+    mstore 0, 0 !metadata(memory=scratch)
     v24 = keccak256 0, 32 !metadata(memory=scratch)
     v25 = not 0
     sstore v24, v25 !metadata(storage=symbolic(v24))
@@ -474,7 +474,7 @@ fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_retur
 fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     sstore 2, 7 !metadata(storage=slot(2))
-    store 0, 2 !metadata(memory=scratch)
+    mstore 0, 2 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     v1 = not 0
     sstore v0, v1 !metadata(storage=symbolic(v0))
@@ -508,21 +508,21 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     jumpi v19, bb2, bb3
   bb3:
     v22 = sload v0 !metadata(storage=symbolic(v0))
-    store 0, v22 !metadata(memory=scratch)
+    mstore 0, v22 !metadata(memory=scratch)
     v23 = add v0, 1
     v24 = sload v23 !metadata(storage=offset(v0, 1))
-    store 32, v24 !metadata(memory=scratch)
+    mstore 32, v24 !metadata(memory=scratch)
     v25 = add v0, 2
     v26 = sload v25 !metadata(storage=offset(v0, 2))
-    store 64, v26 !metadata(memory=scratch)
+    mstore 64, v26 !metadata(memory=scratch)
     v27 = sload 3 !metadata(storage=slot(3))
-    store 96, v27 !metadata(memory=scratch)
+    mstore 96, v27 !metadata(memory=scratch)
     v28 = add 3, 1
     v29 = sload v28 !metadata(storage=slot(4))
-    store 128, v29
+    mstore 128, v29
     v30 = add 3, 2
     v31 = sload v30 !metadata(storage=slot(5))
-    store 160, v31
+    mstore 160, v31
     returndata 0, 192
   bb2:
     v20 = add 3, v18

@@ -10,7 +10,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
   bb0:
     v44 = lt 0, arg1
     v45 = add arg0, 0
-    v46 = load calldata v45
+    v46 = calldataload v45
     v47 = byte 0, v46
     v48 = or 0, v47
     v53 = shl 8, v48
@@ -18,7 +18,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v55 = lt 1, arg1
     v83 = and v44, v55
     v56 = add arg0, 1
-    v57 = load calldata v56
+    v57 = calldataload v56
     v58 = byte 0, v57
     v59 = or v54, v58
     v64 = shl 8, v59
@@ -26,7 +26,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     v66 = lt 2, arg1
     v84 = and v83, v66
     v67 = add arg0, 2
-    v68 = load calldata v67
+    v68 = calldataload v67
     v69 = byte 0, v68
     v70 = or v65, v69
     v75 = shl 8, v70
@@ -38,7 +38,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     tail_call @revert_stub
   bb2:
     v78 = add arg0, 3
-    v79 = load calldata v78
+    v79 = calldataload v78
     v80 = byte 0, v79
     v81 = or v76, v80
     ret v81, 4
@@ -48,7 +48,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
   bb0:
     v45 = lt arg2, arg1
     v46 = add arg0, arg2
-    v47 = load calldata v46
+    v47 = calldataload v46
     v48 = byte 0, v47
     v49 = or 0, v48
     v50 = add arg2, 1
@@ -62,7 +62,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
   bb2:
     v63 = add v50, 1
     v59 = add arg0, v50
-    v60 = load calldata v59
+    v60 = calldataload v59
     v61 = byte 0, v60
     v62 = or v57, v61
     ret v62, v63
@@ -72,13 +72,13 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
-    v10 = load calldata 4
+    v10 = calldataload 4
     v11 = add v10, 4
     v12 = add v11, 32
     v13 = gt v10, 0xffffffffffffffff
     v14 = gt v12, v8
     v15 = or v13, v14
-    v17 = load calldata v11
+    v17 = calldataload v11
     v19 = sub v8, v12
     v20 = gt v17, v19
     v23 = or v15, v20
@@ -86,12 +86,12 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     jumpi v46, bb1, bb2
   bb2:
     v31 = icall @u32, v12, v17
-    v39 = load 32 !metadata(memory=scratch)
+    v39 = mload 32 !metadata(memory=scratch)
     v33 = add v39, 32
-    v34 = load v33
+    v34 = mload v33
     v35 = icall @u16, v12, v17, v34
-    store 128, v31
-    store 160, v35
+    mstore 128, v31
+    mstore 160, v35
     returndata 128, 64
   bb1:
     revert 0, 0
@@ -103,26 +103,26 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     v25 = lt v24, 132
     jumpi v25, bb2, bb3
   bb3:
-    v34 = load calldata 4
+    v34 = calldataload 4
     v35 = add 0, v34
-    v43 = load calldata 36
+    v43 = calldataload 36
     v44 = add v35, v43
     v45 = lt v44, v35
-    v52 = load calldata 68
+    v52 = calldataload 68
     v53 = add v44, v52
     v54 = lt v53, v44
     v65 = or v45, v54
-    v61 = load calldata 100
+    v61 = calldataload 100
     v62 = add v53, v61
     v63 = lt v62, v53
     v66 = or v65, v63
     jumpi v66, bb1, bb4
   bb4:
-    store 128, v62
+    mstore 128, v62
     returndata 128, 32
   bb1:
-    store 32, 17 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     revert 0, 0
@@ -130,8 +130,8 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
 
 fn @revert_stub() {
   bb0:
-    store 32, 50 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
@@ -141,7 +141,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
   bb3:

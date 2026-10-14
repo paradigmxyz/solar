@@ -40,7 +40,7 @@ fn @deep_dependency_tree(
 // CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg2, arg3
 // CHECK-NEXT: + [[ADD1]] = add arg0, arg1
 // CHECK-NEXT: [[SUB1:v[0-9]+]] = sub [[ADD1]], [[MUL1]]
-// CHECK-NEXT: store 0, [[SUB1]]
+// CHECK-NEXT: mstore 0, [[SUB1]]
 // CHECK-NEXT: - [[ADD2:v[0-9]+]] = add arg0, arg2
 // CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg3
 // CHECK-NEXT: + [[ADD2]] = add arg0, arg2
@@ -50,7 +50,7 @@ fn @independent_barrier_segments(arg0: i256, arg1: i256, arg2: i256, arg3: i256)
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
     v6 = sub v4, v5
-    store 0, v6
+    mstore 0, v6
     v7 = add arg0, arg2
     v8 = mul arg1, arg3
     v9 = div v7, v8
@@ -144,17 +144,17 @@ fn @disconnected_root_is_retained(arg0: i256, arg1: i256) -> i256 {
 
 // Memory, transient-storage, and environment reads may share one movable segment.
 // CHECK-LABEL: {{^[ +].*}}fn @read_effects_are_movable{{[( ]}}
-// CHECK: - [[MEMORY:v[0-9]+]] = load arg0
+// CHECK: - [[MEMORY:v[0-9]+]] = mload arg0
 // CHECK-NEXT: - [[TRANSIENT:v[0-9]+]] = tload arg1
 // CHECK-NEXT: [[ADDRESS:v[0-9]+]] = caller
 // CHECK-NEXT: [[CALLER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[ADDRESS]]
 // CHECK-NEXT: + [[TRANSIENT]] = tload arg1
-// CHECK-NEXT: + [[MEMORY]] = load arg0
+// CHECK-NEXT: + [[MEMORY]] = mload arg0
 // CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[MEMORY]], [[TRANSIENT]]
 // CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[CALLER]]
 fn @read_effects_are_movable(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = load arg0
+    v2 = mload arg0
     v3 = tload arg1
     v14 = caller
     v4 = zext i160 v14 to i256

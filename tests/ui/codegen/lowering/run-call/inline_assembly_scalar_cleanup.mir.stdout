@@ -77,7 +77,7 @@ fn @signedModifier() -> i256 [selector=0xbea1d853, pure, abi_params=[], abi_retu
 fn @signedSource() -> struct0 [selector=0xeacc97f1, pure, abi_params=[], abi_returns=[word<i8>, memory_bytes], abi_return_params=[i8, bytes]] {
   bb0:
     v0 = alloc 32
-    store v0, 0
+    mstore v0, 0
     v1 = sext i8 255 to i256
     v2 = insert_value struct0, undef struct0, 0, v1
     v3 = insert_value struct0, v2, 1, v0

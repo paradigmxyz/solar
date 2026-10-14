@@ -24,7 +24,7 @@
 //! zeroings at constant addresses have replaced all of its bytes, as Seaport's token transfers do
 //! when they lay call data out over the slot, or execution ends.
 //!
-//! A `load` of the slot reads the word as the pointer when the loaded word, or one computed from
+//! A `mload` of the slot reads the word as the pointer when the loaded word, or one computed from
 //! it, addresses or sizes memory or becomes the pointer again, in the function, in a callee it is
 //! passed to, or in a caller it is returned to, as every allocation in assembly does; a loaded word
 //! only compared, stored, hashed, encoded, used as a key or an index, or returned from an external
@@ -67,11 +67,11 @@
 //! and before a return to the dispatcher:
 //!
 //! ```text
-//! word = load 64
+//! word = mload 64
 //! floor = heap_floor
 //! below = lt word, floor
 //! clamped = select below, floor, word
-//! store 64, clamped
+//! mstore 64, clamped
 //! ```
 //!
 //! A callee that also reads the slot as data is entered and clamped inside. A helper that stores
@@ -207,7 +207,7 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
 fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let InstKind::Store(address, offset, value) = func.inst(inst).kind else {
-        unreachable!("a floor store is a `store`")
+        unreachable!("a floor store is a `mstore`")
     };
     let metadata = func.inst(inst).metadata.clone();
     // floor = heap_floor
@@ -216,7 +216,7 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let (clamp, clamped) = floor_max(func, value, &metadata);
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
-    // store 64, clamped
+    // mstore 64, clamped
     func.inst_mut(inst).kind = InstKind::Store(address, offset, clamped);
 }
 
@@ -239,7 +239,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
         }
         copies.insert(word, clamped);
-        // word = load 64 | icall @f | extract_value result, i
+        // word = mload 64 | icall @f | extract_value result, i
         // floor = heap_floor
         // below = lt word, floor
         // clamped = select below, floor, word
@@ -351,11 +351,11 @@ fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
     let store = func.alloc_inst(emit(InstKind::Store(slot, 0, clamped), None));
     let position = before
         .map_or(func.blocks[block].instructions.len(), |inst| index_in_block(func, block, inst));
-    // word = load 64
+    // word = mload 64
     // floor = heap_floor
     // below = lt word, floor
     // clamped = select below, floor, word
-    // store 64, clamped
+    // mstore 64, clamped
     let sequence = std::iter::once(load).chain(clamp).chain(std::iter::once(store));
     func.blocks[block].instructions.splice(position..position, sequence);
 }

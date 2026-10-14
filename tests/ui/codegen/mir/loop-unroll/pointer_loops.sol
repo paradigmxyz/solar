@@ -28,7 +28,7 @@
 contract PointerLoops {
     // The hex digits of `raw`, written as Solady's `toHexStringNoPrefix` does.
     // CHECK-LABEL: fn @toHex()
-    // CHECK: store 15, 0x30313233343536373839616263646566
+    // CHECK: mstore 15, 0x30313233343536373839616263646566
     // CHECK: [[LEFT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LEFT]], 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
@@ -42,7 +42,7 @@ contract PointerLoops {
     // pointer, and the pair advances it by four once.
     // CHECK: {{v[0-9]+}} = add [[O]], 3
     // CHECK: [[TWO:v[0-9]+]] = add [[O]], 2
-    // CHECK-NEXT: store8 [[TWO]],
+    // CHECK-NEXT: mstore8 [[TWO]],
     // CHECK-NEXT: {{v[0-9]+}} = add [[O]], 4
     function toHex(bytes memory raw) external pure returns (bytes memory result) {
         assembly {
@@ -67,7 +67,7 @@ contract PointerLoops {
     // end adds the length shifted by five to the start, so that bit is the length's lowest.
     // CHECK-LABEL: fn @sumWords()
     // CHECK: [[SHIFTED:v[0-9]+]] = shl 5, [[LENGTH:v[0-9]+]]
-    // CHECK: copy calldata
+    // CHECK: calldatacopy
     // CHECK: = add {{v[0-9]+}}, [[SHIFTED]]
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LENGTH]], 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0

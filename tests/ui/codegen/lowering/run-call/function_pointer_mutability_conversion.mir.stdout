@@ -36,7 +36,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v3 = shl 32, v2
     v4 = or v3, 0xbfbc85ef
     v5 = shl 64, v4
-    store v0, v5
+    mstore v0, v5
     jump bb1
   bb1:
     v6 = phi [bb0: 0], [bb6: v33]
@@ -44,7 +44,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jumpi v7, bb2, bb3
   bb3:
     v34 = alloc 32
-    store v34, 5
+    mstore v34, 5
     jump bb7
   bb7:
     v35 = phi [bb3: 0], [bb12: v61]
@@ -79,7 +79,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v82 = lt v81, 32
     icall revert_if<tuple_data_too_short>, v82
     v83 = add 0, 0
-    v84 = load v83
+    v84 = mload v83
     v85 = lt 0, 1
     v86 = eq v85, false
     icall panic_if<0x32>, v86
@@ -117,7 +117,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
   bb10:
     v42 = shl 5, v35
     v43 = ptradd v34, v42
-    v44 = load v43
+    v44 = mload v43
     v45 = mul v40, 8
     v46 = shl v45, 0xffffffffffffffff
     v47 = sload v38 !metadata(storage=offset(v37, 3))
@@ -152,7 +152,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
   bb4:
     v13 = shl 5, v6
     v14 = ptradd v0, v13
-    v15 = load v14
+    v15 = mload v14
     v16 = shr 64, v15
     v17 = mul v11, 8
     v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -177,7 +177,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v3 = shl 32, v2
     v4 = or v3, 0xf620336b
     v5 = shl 64, v4
-    store v0, v5
+    mstore v0, v5
     jump bb1
   bb1:
     v6 = phi [bb0: 0], [bb6: v33]
@@ -185,7 +185,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jumpi v7, bb2, bb3
   bb3:
     v34 = alloc 32
-    store v34, 6
+    mstore v34, 6
     jump bb7
   bb7:
     v35 = phi [bb3: 0], [bb12: v61]
@@ -220,7 +220,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v82 = lt v81, 32
     icall revert_if<tuple_data_too_short>, v82
     v83 = add 0, 0
-    v84 = load v83
+    v84 = mload v83
     v85 = lt 0, 1
     v86 = eq v85, false
     icall panic_if<0x32>, v86
@@ -258,7 +258,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
   bb10:
     v42 = shl 5, v35
     v43 = ptradd v34, v42
-    v44 = load v43
+    v44 = mload v43
     v45 = mul v40, 8
     v46 = shl v45, 0xffffffffffffffff
     v47 = sload v38 !metadata(storage=offset(v37, 3))
@@ -293,7 +293,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
   bb4:
     v13 = shl 5, v6
     v14 = ptradd v0, v13
-    v15 = load v14
+    v15 = mload v14
     v16 = shr 64, v15
     v17 = mul v11, 8
     v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -318,7 +318,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v3 = shl 32, v2
     v4 = or v3, 0xf620336b
     v5 = shl 64, v4
-    store v0, v5
+    mstore v0, v5
     jump bb1
   bb1:
     v6 = phi [bb0: 0], [bb6: v33]
@@ -326,7 +326,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jumpi v7, bb2, bb3
   bb3:
     v34 = alloc 32
-    store v34, 6
+    mstore v34, 6
     jump bb7
   bb7:
     v35 = phi [bb3: 0], [bb12: v61]
@@ -361,7 +361,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v82 = lt v81, 32
     icall revert_if<tuple_data_too_short>, v82
     v83 = add 0, 0
-    v84 = load v83
+    v84 = mload v83
     v85 = lt 0, 1
     v86 = eq v85, false
     icall panic_if<0x32>, v86
@@ -399,7 +399,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
   bb10:
     v42 = shl 5, v35
     v43 = ptradd v34, v42
-    v44 = load v43
+    v44 = mload v43
     v45 = mul v40, 8
     v46 = shl v45, 0xffffffffffffffff
     v47 = sload v38 !metadata(storage=offset(v37, 4))
@@ -434,7 +434,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
   bb4:
     v13 = shl 5, v6
     v14 = ptradd v0, v13
-    v15 = load v14
+    v15 = mload v14
     v16 = shr 64, v15
     v17 = mul v11, 8
     v18 = shl v17, 0xffffffffffffffffffffffffffffffffffffffffffffffff

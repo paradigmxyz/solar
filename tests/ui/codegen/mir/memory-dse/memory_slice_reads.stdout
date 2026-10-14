@@ -3,44 +3,44 @@
   @module MemorySliceReads
   fn @copy_reads_slice_range(arg0: ptr<memory>) {
     bb0:
--     store 0, 7
+-     mstore 0, 7
       v0 = ptrtoint ptr<memory> arg0 to i256
       v1 = add v0, 32
-      copy v1, 128, 32
-      store 0, 8
+      mcopy v1, 128, 32
+      mstore 0, 8
       stop
   }
   
   fn @copy_at_reads_slice_range(arg0: ptr<memory>, arg1: i256) {
     bb0:
--     store 0, 7
+-     mstore 0, 7
       v0 = ptrtoint ptr<memory> arg0 to i256
       v1 = add v0, 32
       v2 = add v1, arg1
-      copy v2, 128, 32
-      store 0, 8
+      mcopy v2, 128, 32
+      mstore 0, 8
       stop
   }
   
   fn @copy_keeps_read_store(arg0: ptr<memory>) {
     bb0:
-      store 0, 7
+      mstore 0, 7
       v0 = ptrtoint ptr<memory> arg0 to i256
       v1 = add v0, 32
-      copy v1, 0, 32
-      store 0, 8
+      mcopy v1, 0, 32
+      mstore 0, 8
       stop
   }
   
   fn @copy_unknown_slice(arg0: ptr<memory>, arg1: slice<memory>) {
     bb0:
-      store 0, 7
+      mstore 0, 7
       v0 = ptrtoint ptr<memory> arg0 to i256
       v1 = add v0, 32
       v2 = extract_value slice<memory>, arg1, 0
       v3 = extract_value slice<memory>, arg1, 1
-      copy v1, v2, v3
-      store 0, 8
+      mcopy v1, v2, v3
+      mstore 0, 8
       stop
   }
   

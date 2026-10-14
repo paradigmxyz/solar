@@ -41,14 +41,14 @@ fn @callcode(arg0: i256, arg1: i256) -> i256 {
 }
 
 // CHECK-LABEL: @hash
-// CHECK: {{^ +}}store 0, 1
-// CHECK: {{^ +}}store 32, 2
+// CHECK: {{^ +}}mstore 0, 1
+// CHECK: {{^ +}}mstore 32, 2
 // CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^ +}}ret [[HASH]]
 fn @hash() -> i256 {
   bb0:
-    store 0, 1
-    store 32, 2
+    mstore 0, 1
+    mstore 32, 2
     v0 = keccak256 0, 64
     ret v0
 }
@@ -319,17 +319,17 @@ fn @bool_bitwise(arg0: i1, arg1: i1) -> i256 {
 }
 
 // CHECK-LABEL: @access_offsets
-// CHECK: {{^ +}}[[WORD:v[0-9]+]] = load arg0+32
-// CHECK: {{^ +}}[[POINTER:v[0-9]+]] = load arg0+64, ptr<memory>
-// CHECK: {{^ +}}[[DATA:v[0-9]+]] = load calldata arg1+4
-// CHECK: {{^ +}}store [[POINTER]]+32, [[WORD]]
-// CHECK: {{^ +}}store8 arg0+1, [[DATA]]
+// CHECK: {{^ +}}[[WORD:v[0-9]+]] = mload arg0+32
+// CHECK: {{^ +}}[[POINTER:v[0-9]+]] = mload arg0+64, ptr<memory>
+// CHECK: {{^ +}}[[DATA:v[0-9]+]] = calldataload arg1+4
+// CHECK: {{^ +}}mstore [[POINTER]]+32, [[WORD]]
+// CHECK: {{^ +}}mstore8 arg0+1, [[DATA]]
 fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
   bb0:
-    v0 = load arg0+32
-    v1 = load arg0+64, ptr<memory>
-    v2 = load calldata arg1+4
-    store v1+32, v0
-    store8 arg0+1, v2
+    v0 = mload arg0+32
+    v1 = mload arg0+64, ptr<memory>
+    v2 = calldataload arg1+4
+    mstore v1+32, v0
+    mstore8 arg0+1, v2
     stop
 }

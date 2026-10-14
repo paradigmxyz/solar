@@ -224,11 +224,11 @@ fn @memoryCopy() -> i256 [selector=0x2dbaeee9, abi_params=[], abi_returns=[word]
     sstore v4, 1 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
     v5 = icall @load_storage_word_array, 1
-    v6 = load v5
+    v6 = mload v5
     v7 = lt 0, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    store v5+32, 9
+    mstore v5+32, 9
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = lt 0, v9
     v11 = eq v10, false
@@ -333,7 +333,7 @@ fn @stringWrite() -> i1 [selector=0xbe9c4022, abi_params=[], abi_returns=[word<b
     sstore v12, v23 !metadata(storage=symbolic(v12))
     v24 = icall @load_storage_bytes, 8
     v25 = ptradd v24, 32
-    v26 = load v24
+    v26 = mload v24
     v27 = keccak256 v25, v26
     v28 = eq v27, 0x3a23e4bd396e5a1f6ca1e1e0a95873fc0dfa15493c9ae32d9772dc7c1838fa69
     ret v28
@@ -481,7 +481,7 @@ fn @longStringWrite() -> i1 [selector=0xe6b30d9b, abi_params=[], abi_returns=[wo
     sstore v12, v23 !metadata(storage=symbolic(v12))
     v24 = icall @load_storage_bytes, 8
     v25 = ptradd v24, 32
-    v26 = load v24
+    v26 = mload v24
     v27 = keccak256 v25, v26
     v28 = eq v27, 0x96d09c53053b9d611bf356cf2ed7bfdba5ff2593d53730b8c06d1d5408a38757
     ret v28
@@ -562,7 +562,7 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
   bb6:
     v48 = icall @load_storage_bytes, 8
     v49 = ptradd v48, 32
-    v50 = load v48
+    v50 = mload v48
     v51 = keccak256 v49, v50
     v52 = eq v51, 0x7a6f737e43d8df6b957106ab38e3ee7356f9640efbd029c659cfb25aa1f033a1
     jump bb8
@@ -650,7 +650,7 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
   bb6:
     v52 = icall @load_storage_bytes, 8
     v53 = ptradd v52, 32
-    v54 = load v52
+    v54 = mload v52
     v55 = keccak256 v53, v54
     v56 = eq v55, 0x3543932457eeb70fdd26eee26b08ef8d5b039e5d2936242e767026359c7bf7ea
     jump bb8
@@ -664,7 +664,7 @@ fn @bytesToString() -> i1 [selector=0x6ae58365, abi_params=[], abi_returns=[word
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     v4 = eq v3, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
     ret v4
@@ -676,7 +676,7 @@ fn @bytesToStringConcat() -> i1 [selector=0xad6c47b6, abi_params=[], abi_returns
     v0 = icall @load_storage_bytes, 9
     v1 = abi_encode_packed (bytes v0, data hex"64")
     v2 = ptradd v1, 32
-    v3 = load v1
+    v3 = mload v1
     v4 = keccak256 v2, v3
     v5 = eq v4, 0x48bed44d1bcd124a28c27f343a817e5f5243190d3c52bf347daf876de1dbbf77
     ret v5
@@ -706,7 +706,7 @@ fn @assignMemory() -> i1 [selector=0xcf39e051, abi_params=[], abi_returns=[word<
     store_storage_bytes_literal 9, hex"616263"
     v0 = icall @load_storage_bytes, 9
     v1 = ptradd v0, 32
-    v2 = load v0
+    v2 = mload v0
     v3 = keccak256 v1, v2
     v4 = eq v3, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
     ret v4
@@ -718,7 +718,7 @@ fn @concatBytes() -> i1 [selector=0xceafa9e0, abi_params=[], abi_returns=[word<b
     v0 = icall @load_storage_bytes, 8
     v1 = abi_encode_packed (bytes v0, data hex"63")
     v2 = ptradd v1, 32
-    v3 = load v1
+    v3 = mload v1
     v4 = keccak256 v2, v3
     v5 = eq v4, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
     ret v5

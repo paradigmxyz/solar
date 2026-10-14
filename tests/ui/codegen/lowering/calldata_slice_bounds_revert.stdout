@@ -8,7 +8,7 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     jumpi v26, bb1, bb4
   bb4:
     v27 = icall @decode_calldata_slice
-    v28 = load calldata v27
+    v28 = calldataload v27
     v2 = gt arg1, v28
     v3 = eq arg1, 0
     v4 = or v2, v3
@@ -25,27 +25,27 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb3:
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = load 64 !metadata(memory=scratch)
+    v59 = mload 64 !metadata(memory=scratch)
     v60 = add v59, v20
-    store 64, v60 !metadata(memory=scratch)
-    store v59, v6
-    v61 = load 64 !metadata(memory=scratch)
+    mstore 64, v60 !metadata(memory=scratch)
+    mstore v59, v6
+    v61 = mload 64 !metadata(memory=scratch)
     v37 = add v61, 32
-    store v61, 32
+    mstore v61, 32
     v42 = add v6, 31
     v43 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = add v37, 32
     v45 = add v37, v43
-    store v45, 0
-    store v37, v6
+    mstore v45, 0
+    mstore v37, v6
     v47 = add v44, v43
-    copy calldata v44, v56, v6
+    calldatacopy v44, v56, v6
     v49 = sub v47, v61
     v51 = add v49, 31
     v53 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = load 64 !metadata(memory=scratch)
+    v62 = mload 64 !metadata(memory=scratch)
     v63 = add v62, v53
-    store 64, v63 !metadata(memory=scratch)
+    mstore 64, v63 !metadata(memory=scratch)
     returndata v62, v49
   bb1:
     revert 0, 0
@@ -58,7 +58,7 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     jumpi v26, bb1, bb4
   bb4:
     v27 = icall @decode_calldata_slice
-    v28 = load calldata v27
+    v28 = calldataload v27
     v29 = add v27, 32
     v2 = gt arg2, v28
     v3 = lt arg2, arg1
@@ -76,27 +76,27 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb3:
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = load 64 !metadata(memory=scratch)
+    v59 = mload 64 !metadata(memory=scratch)
     v60 = add v59, v20
-    store 64, v60 !metadata(memory=scratch)
-    store v59, v6
-    v61 = load 64 !metadata(memory=scratch)
+    mstore 64, v60 !metadata(memory=scratch)
+    mstore v59, v6
+    v61 = mload 64 !metadata(memory=scratch)
     v37 = add v61, 32
-    store v61, 32
+    mstore v61, 32
     v42 = add v6, 31
     v43 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = add v37, 32
     v45 = add v37, v43
-    store v45, 0
-    store v37, v6
+    mstore v45, 0
+    mstore v37, v6
     v47 = add v44, v43
-    copy calldata v44, v56, v6
+    calldatacopy v44, v56, v6
     v49 = sub v47, v61
     v51 = add v49, 31
     v53 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = load 64 !metadata(memory=scratch)
+    v62 = mload 64 !metadata(memory=scratch)
     v63 = add v62, v53
-    store 64, v63 !metadata(memory=scratch)
+    mstore 64, v63 !metadata(memory=scratch)
     returndata v62, v49
   bb1:
     revert 0, 0
@@ -105,13 +105,13 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
 fn @decode_calldata_slice() -> i256 {
   bb0:
     v0 = calldatasize
-    v1 = load calldata 4
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5
-    v8 = load calldata v2
+    v8 = calldataload v2
     v10 = sub v0, v3
     v11 = gt v8, v10
     v14 = or v6, v11
@@ -128,7 +128,7 @@ fn @entry() [entry] {
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
   bb1:
-    v2 = load calldata 0
+    v2 = calldataload 0
     v3 = shr 224, v2
     switch v3, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
   bb3:

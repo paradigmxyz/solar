@@ -120,7 +120,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v16 = lt v15, 32
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
-    v18 = load v17
+    v18 = mload v17
     v19 = lt 1, 2
     v20 = eq v19, false
     icall panic_if<0x32>, v20
@@ -145,7 +145,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v35 = lt v34, 32
     icall revert_if<tuple_data_too_short>, v35
     v36 = add 0, 0
-    v37 = load v36
+    v37 = mload v36
     v38 = insert_value struct0, undef struct0, 0, v18
     v39 = insert_value struct0, v38, 1, v37
     ret v39

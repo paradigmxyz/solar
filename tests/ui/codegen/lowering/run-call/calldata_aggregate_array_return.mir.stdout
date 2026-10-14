@@ -78,7 +78,7 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     v15 = sub v14, v13
     v16 = slt v15, 32
     icall revert_if<calldata_tail_too_short>, v16
-    v17 = load calldata v13
+    v17 = calldataload v13
     v18 = ptrtoint ptr<calldata> v4 to i256
     v19 = add v18, v17
     v20 = calldatasize
@@ -88,7 +88,7 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     v24 = slt v17, v23
     v25 = eq v24, false
     icall revert_if<invalid_calldata_tail_offset>, v25
-    v26 = load calldata v19
+    v26 = calldataload v19
     v27 = calldatasize
     v28 = gt v26, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v28
@@ -112,7 +112,7 @@ fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure,
     v5 = sub v4, v3
     v6 = slt v5, 32
     icall revert_if<calldata_tail_too_short>, v6
-    v7 = load calldata v3
+    v7 = calldataload v3
     v8 = ptrtoint ptr<calldata> v1 to i256
     v9 = add v8, v7
     v10 = calldatasize
@@ -122,7 +122,7 @@ fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure,
     v14 = slt v7, v13
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
-    v16 = load calldata v9
+    v16 = calldataload v9
     v17 = calldatasize
     v18 = gt v16, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v18

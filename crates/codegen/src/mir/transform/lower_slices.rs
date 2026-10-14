@@ -99,7 +99,7 @@ fn split_slice_phis(
             func.blocks[pred].instructions.push(len_inst);
             (pointer, length)
         } else {
-            // length = load object
+            // length = mload object
             // pointer = inttoptr object to ptr<location>, for an object typed as a word
             let (len_inst, length) =
                 new_word_inst(func, InstKind::Load(value, 0, PtrLocation::Memory));
@@ -762,7 +762,7 @@ impl LowerSlices {
                 (MirType::I256, true) => func.inst_mut(inst).kind = InstKind::IntToPtr(slice),
                 // extract_value word, 1 -> word
                 (MirType::I256, false) if physical_word => replace(slice),
-                // extract_value object, 1 -> load object
+                // extract_value object, 1 -> mload object
                 (MirType::I256 | MirType::MEMPTR, false) => {
                     func.inst_mut(inst).kind = InstKind::Load(slice, 0, PtrLocation::Memory);
                 }

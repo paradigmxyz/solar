@@ -69,12 +69,12 @@ fn @memParam(arg0: ptr<memory>, arg1: i1) -> i256 [selector=0x7f0132b5, pure, ab
     jump bb3
   bb1:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 3
-    store v0+32, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    mstore v0, 3
+    mstore v0+32, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
     v1 = phi [bb1: v0], [bb2: arg0]
-    v2 = load v1
+    v2 = mload v1
     ret v2
 }
 
@@ -85,11 +85,11 @@ fn @deferredMemory(arg0: i1) -> i256 [selector=0xfd723601, pure, abi_params=[boo
     jump bb3
   bb1:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 3
-    store v0+32, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    mstore v0, 3
+    mstore v0+32, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
     v1 = phi [bb1: v0], [bb2: ptr<memory> 96]
-    v2 = load v1
+    v2 = mload v1
     ret v2
 }

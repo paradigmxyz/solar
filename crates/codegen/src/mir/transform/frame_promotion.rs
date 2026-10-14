@@ -3,7 +3,7 @@
 //! This is Solar's EVM-shaped version of LLVM's mem2reg: promote compiler-owned
 //! local slots from memory traffic into SSA values. The pass is deliberately
 //! conservative. A slot is promotable only when its address is used as the exact
-//! address of full-word `load`/`store` instructions, and the function has no
+//! address of full-word `mload`/`mstore` instructions, and the function has no
 //! observations that could make removing that memory traffic visible.
 //!
 //! Safety contract:

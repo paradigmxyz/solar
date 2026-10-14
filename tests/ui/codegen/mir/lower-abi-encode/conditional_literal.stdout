@@ -5,12 +5,12 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ne arg0, 0
       jumpi v2, bb1, bb2
     bb1:
       v3 = ptradd v0, 32
-      store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       jump bb2
     bb2:
 -     v4 = abi_encode [memory_bytes], args v0
@@ -20,8 +20,8 @@
 +     v7 = add v6, 32
 +     v8 = ptrtoint ptr<memory> v5 to i256
 +     v9 = sub v7, v8
-+     store v5, v9
-+     v10 = load v0
++     mstore v5, v9
++     v10 = mload v0
 +     v11 = ptrtoint ptr<memory> v0 to i256
 +     v12 = eq v11, 0
 +     v13 = eq v12, false
@@ -32,11 +32,11 @@
 +     v18 = and v17, v16
 +     v19 = add v7, 32
 +     v20 = add v7, v18
-+     store v20, 0
-+     store v7, v15
++     mstore v20, 0
++     mstore v7, v15
 +     v21 = ptradd v0, 32
 +     v22 = add v19, v18
-+     copy v19, v21, v15 !metadata(memory=heap, disjoint)
++     mcopy v19, v21, v15 !metadata(memory=heap, disjoint)
 +     v23 = ptrtoint ptr<memory> v5 to i256
 +     v24 = sub v22, v23
 +     v25 = add v24, 0
@@ -52,14 +52,14 @@
     bb0:
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
       v3 = alloc 64
       v4 = ptrtoint ptr<memory> v3 to i256
-      store v4, 1
+      mstore v4, 1
       v5 = ptradd v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-      store v5, arg0
+      mstore v5, arg0
 -     v6 = abi_encode [memory_bytes], args v0
 -     ret v6
 +     v7 = fmp
@@ -67,8 +67,8 @@
 +     v9 = add v8, 32
 +     v10 = ptrtoint ptr<memory> v7 to i256
 +     v11 = sub v9, v10
-+     store v7, v11
-+     v12 = load v0
++     mstore v7, v11
++     v12 = mload v0
 +     v13 = ptrtoint ptr<memory> v0 to i256
 +     v14 = eq v13, 0
 +     v15 = eq v14, false
@@ -79,11 +79,11 @@
 +     v20 = and v19, v18
 +     v21 = add v9, 32
 +     v22 = add v9, v20
-+     store v22, 0
-+     store v9, v17
++     mstore v22, 0
++     mstore v9, v17
 +     v23 = ptradd v0, 32
 +     v24 = add v21, v20
-+     copy v21, v23, v17 !metadata(memory=heap, disjoint)
++     mcopy v21, v23, v17 !metadata(memory=heap, disjoint)
 +     v25 = ptrtoint ptr<memory> v7 to i256
 +     v26 = sub v24, v25
 +     v27 = add v26, 0
@@ -99,9 +99,9 @@
     bb0:
       v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
       v2 = ptradd v0, 32
-      store v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
 -     v3 = abi_encode [memory_bytes], args v0
 -     ret v3
 +     v4 = fmp
@@ -109,8 +109,8 @@
 +     v6 = add v5, 32
 +     v7 = ptrtoint ptr<memory> v4 to i256
 +     v8 = sub v6, v7
-+     store v4, v8
-+     v9 = load v0
++     mstore v4, v8
++     v9 = mload v0
 +     v10 = ptrtoint ptr<memory> v0 to i256
 +     v11 = eq v10, 0
 +     v12 = eq v11, false
@@ -121,11 +121,11 @@
 +     v17 = and v16, v15
 +     v18 = add v6, 32
 +     v19 = add v6, v17
-+     store v19, 0
-+     store v6, v14
++     mstore v19, 0
++     mstore v6, v14
 +     v20 = ptradd v0, 32
 +     v21 = add v18, v17
-+     copy v18, v20, v14 !metadata(memory=heap, disjoint)
++     mcopy v18, v20, v14 !metadata(memory=heap, disjoint)
 +     v22 = ptrtoint ptr<memory> v4 to i256
 +     v23 = sub v21, v22
 +     v24 = add v23, 0

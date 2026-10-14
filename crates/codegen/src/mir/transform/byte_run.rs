@@ -98,7 +98,7 @@ struct Leaf {
     base: Vec<ValueId>,
     /// Constant part of the read's address.
     offset: u64,
-    /// Result of the `load` the byte came from.
+    /// Result of the `mload` the byte came from.
     word: ValueId,
 }
 
@@ -235,7 +235,7 @@ fn collect(
     }
 }
 
-/// Whether an instruction extracts the low byte of a `load`: a possible run leaf.
+/// Whether an instruction extracts the low byte of a `mload`: a possible run leaf.
 fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
     let word = match *kind {
         InstKind::Byte(index, word) if func.value_u64(index) == Some(0) => word,
@@ -255,7 +255,7 @@ fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
     matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Memory)))
 }
 
-/// Records one `load` whose low byte the run combines.
+/// Records one `mload` whose low byte the run combines.
 fn push_leaf(
     func: &Function,
     word: ValueId,

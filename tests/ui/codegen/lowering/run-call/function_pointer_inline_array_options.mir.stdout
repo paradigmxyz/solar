@@ -26,17 +26,17 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v3 = shl 32, v2
     v4 = or v3, 0x26121ff0
     v5 = shl 64, v4
-    store v0, v5
+    mstore v0, v5
     v6 = address
     v7 = zext i160 v6 to i256
     v8 = shl 32, v7
     v9 = or v8, 0xe2179b8e
     v10 = shl 64, v9
-    store v0+32, v10
+    mstore v0+32, v10
     v11 = lt 0, 2
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = load v0
+    v13 = mload v0
     v14 = shr 64, v13
     v15 = and v14, 0xffffffff
     v16 = shl 224, v15
@@ -54,6 +54,6 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
-    v26 = load v25
+    v26 = mload v25
     ret v26
 }

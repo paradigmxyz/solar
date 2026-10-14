@@ -3,10 +3,10 @@
 @module StoragePromotionRevertExit
 // CHECK-LABEL: {{^[ +].*}}fn @promote_checked_sum_loop{{[( ]}}
 // CHECK: + [[INITIAL:v[0-9]+]] = sload 0
-// CHECK: + store 128, [[INITIAL]]
-// CHECK: + [[FLUSH:v[0-9]+]] = load 128
+// CHECK: + mstore 128, [[INITIAL]]
+// CHECK: + [[FLUSH:v[0-9]+]] = mload 128
 // CHECK: + sstore 0, [[FLUSH]]
-// CHECK: + {{v[0-9]+}} = load 128
+// CHECK: + {{v[0-9]+}} = mload 128
 fn @promote_checked_sum_loop(arg0: i256) [selector=0x01020304] {
   bb0:
     jump bb1
@@ -32,11 +32,11 @@ fn @promote_checked_sum_loop(arg0: i256) [selector=0x01020304] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @promote_revert_exit_reads_slot{{[( ]}}
-// CHECK: + store 128, 1
-// CHECK: + [[FLUSH:v[0-9]+]] = load 128
+// CHECK: + mstore 128, 1
+// CHECK: + [[FLUSH:v[0-9]+]] = mload 128
 // CHECK: + sstore 0, [[FLUSH]]
-// CHECK: + {{v[0-9]+}} = load 128
-// CHECK: + {{v[0-9]+}} = load 128
+// CHECK: + {{v[0-9]+}} = mload 128
+// CHECK: + {{v[0-9]+}} = mload 128
 fn @promote_revert_exit_reads_slot(arg0: i256) [selector=0x01020304] {
   bb0:
     sstore 0, 1
@@ -51,7 +51,7 @@ fn @promote_revert_exit_reads_slot(arg0: i256) [selector=0x01020304] {
     jumpi v3, bb3, bb4
   bb4:
     v4 = sload 0
-    store 0, v4
+    mstore 0, v4
     revert 0, 32
   bb3:
     jump bb1
@@ -134,7 +134,7 @@ fn @reject_revert_exit_with_storage_bytes(arg0: i256) [selector=0x01020305] {
     v4 = load_storage_bytes 0
     v9001 = ptradd v4, 32
     v5 = ptrtoint ptr<memory> v9001 to i256
-    v6 = load v4
+    v6 = mload v4
     revert v5, v6
   bb3:
     jump bb1

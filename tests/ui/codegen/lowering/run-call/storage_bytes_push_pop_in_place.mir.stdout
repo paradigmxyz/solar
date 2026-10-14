@@ -506,7 +506,7 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     jump bb2
   bb2:
     v52 = sload 0 !metadata(storage=slot(0))
-    store 0, 0 !metadata(memory=scratch)
+    mstore 0, 0 !metadata(memory=scratch)
     v53 = keccak256 0, 32 !metadata(memory=scratch)
     v54 = sload v53 !metadata(storage=symbolic(v53))
     v55 = add v53, 1
@@ -1567,7 +1567,7 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[u2
     v2 = mul v1, 2
     v3 = add v2, 1
     sstore 0, v3 !metadata(storage=slot(0))
-    store 0, 0 !metadata(memory=scratch)
+    mstore 0, 0 !metadata(memory=scratch)
     v4 = keccak256 0, 32 !metadata(memory=scratch)
     v5 = not 0
     sstore v4, v5 !metadata(storage=symbolic(v4))
@@ -1629,7 +1629,7 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[u2
     v43 = mul v41, 8
     v44 = shr v43, v42
     v45 = shl 248, v44
-    store 0, 0 !metadata(memory=scratch)
+    mstore 0, 0 !metadata(memory=scratch)
     v46 = sload 0 !metadata(storage=slot(0))
     v47 = keccak256 0, 32 !metadata(memory=scratch)
     v48 = add v47, 1

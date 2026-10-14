@@ -7,42 +7,42 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v3 = lt v2, 68
     jumpi v3, bb1, bb2
   bb2:
-    v4 = load calldata 4
+    v4 = calldataload 4
     v5 = shr 160, v4
     v6 = eq v5, 0
     jumpi v6, bb3, bb1
   bb3:
-    v52 = load 64 !metadata(memory=scratch)
+    v52 = mload 64 !metadata(memory=scratch)
     v53 = add v52, 128
-    store 64, v53 !metadata(memory=scratch)
-    store v52, 68
+    mstore 64, v53 !metadata(memory=scratch)
+    mstore v52, 68
     v42 = add v52, 32
-    store v42, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    mstore v42, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v46 = add v52, 36
-    store v46, arg0
+    mstore v46, arg0
     v14 = add v46, 32
-    store v14, arg1
-    v54 = load 64 !metadata(memory=scratch)
+    mstore v14, arg1
+    v54 = mload 64 !metadata(memory=scratch)
     v17 = add v54, 32
-    store v54, 32
+    mstore v54, 32
     v23 = ne v52, 0
     v24 = zext i1 v23 to i256
-    v20 = load v52
+    v20 = mload v52
     v25 = mul v20, v24
     v27 = add v25, 31
     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v29 = add v17, 32
     v30 = add v17, v28
-    store v30, 0
-    store v17, v25
+    mstore v30, 0
+    mstore v17, v25
     v32 = add v29, v28
-    copy v29, v42, v25 !metadata(disjoint)
+    mcopy v29, v42, v25 !metadata(disjoint)
     v34 = sub v32, v54
     v36 = add v34, 31
     v38 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v55 = load 64 !metadata(memory=scratch)
+    v55 = mload 64 !metadata(memory=scratch)
     v56 = add v55, v38
-    store 64, v56 !metadata(memory=scratch)
+    mstore 64, v56 !metadata(memory=scratch)
     returndata v55, v34
   bb1:
     revert 0, 0
@@ -54,30 +54,30 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v9 = lt v8, 100
     jumpi v9, bb1, bb2
   bb2:
-    v10 = load calldata 4
+    v10 = calldataload 4
     v11 = shr 160, v10
     v12 = eq v11, 0
     jumpi v12, bb3, bb1
   bb3:
-    v13 = load calldata 36
+    v13 = calldataload 36
     v14 = shr 160, v13
     v15 = eq v14, 0
     jumpi v15, bb4, bb1
   bb4:
     v0 = gas
-    v35 = load 64 !metadata(memory=scratch)
+    v35 = mload 64 !metadata(memory=scratch)
     v36 = add v35, 128
-    store 64, v36 !metadata(memory=scratch)
-    store v35, 68
+    mstore 64, v36 !metadata(memory=scratch)
+    mstore v35, 68
     v27 = add v35, 32
-    store v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v31 = add v35, 36
-    store v31, arg1
+    mstore v31, arg1
     v25 = add v31, 32
-    store v25, arg2
+    mstore v25, arg2
     v7 = call v0, arg0, 0, v27, 68, 0, 0
     v18 = zext i1 v7 to i256
-    store 128, v18
+    mstore 128, v18
     returndata 128, 32
   bb1:
     revert 0, 0
@@ -93,7 +93,7 @@ fn @entry() [entry] {
     v3 = lt v2, 4
     jumpi v3, bb5, bb2
   bb2:
-    v4 = load calldata 0
+    v4 = calldataload 0
     v5 = shr 224, v4
     switch v5, default bb5, [0x23d014a1 => bb3, 0x440a9300 => bb4]
   bb4:

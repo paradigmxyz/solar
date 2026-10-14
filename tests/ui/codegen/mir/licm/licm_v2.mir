@@ -82,7 +82,7 @@ fn @hoist_affine_memory_base(arg0: i256) -> i256 {
     v3 = add arg0, 32
     v4 = mul v1, 32
     v5 = add v3, v4
-    store v5, v1
+    mstore v5, v1
     v7 = add v1, 1
     jump bb1
   bb3:
@@ -103,7 +103,7 @@ fn @hoist_unknown_trip_affine_memory_base(arg0: i256, arg1: i256) -> i256 {
     v3 = add arg0, 32
     v4 = mul v1, 32
     v5 = add v3, v4
-    store v5, v1
+    mstore v5, v1
     v7 = add v1, 1
     jump bb1
   bb3:

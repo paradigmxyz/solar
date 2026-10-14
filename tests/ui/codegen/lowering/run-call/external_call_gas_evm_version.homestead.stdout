@@ -46,11 +46,11 @@ fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0, 11
+    mstore v0, 11
     v3 = lt 1, 2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    store v0+32, 22
+    mstore v0+32, 22
     ret v0
 }
 
@@ -78,7 +78,7 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -113,7 +113,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -123,7 +123,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v9 = fmp
     v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 32
-    store v11, 0
+    mstore v11, 0
     v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v13 = extract_value slice<memory>, v12, 0
     v14 = extract_value slice<memory>, v12, 1
@@ -141,7 +141,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
   bb4:
     v22 = ptrtoint ptr<memory> v13 to i256
     v23 = add v22, 0
-    v24 = load v23
+    v24 = mload v23
     ret v24
 }
 
@@ -155,7 +155,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -165,7 +165,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     v9 = fmp
     v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 32
-    store v11, 0
+    mstore v11, 0
     v12 = abi_encode [], selector 0x295b4e1700000000000000000000000000000000000000000000000000000000
     v13 = extract_value slice<memory>, v12, 0
     v14 = extract_value slice<memory>, v12, 1
@@ -183,7 +183,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
   bb4:
     v22 = ptrtoint ptr<memory> v13 to i256
     v23 = add v22, 0
-    v24 = load v23
+    v24 = mload v23
     ret v24
 }
 
@@ -197,7 +197,7 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -207,7 +207,7 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v9 = fmp
     v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 64
-    store v11, 0
+    mstore v11, 0
     v12 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
     v13 = extract_value slice<memory>, v12, 0
     v14 = extract_value slice<memory>, v12, 1
@@ -225,10 +225,10 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
   bb4:
     v22 = ptrtoint ptr<memory> v13 to i256
     v23 = add v22, 0
-    v24 = load v23
+    v24 = mload v23
     v25 = ptrtoint ptr<memory> v13 to i256
     v26 = add v25, 32
-    v27 = load v26
+    v27 = mload v26
     v28 = insert_value struct0, undef struct0, 0, v24
     v29 = insert_value struct0, v28, 1, v27
     v30 = extract_value struct0, v29, 0
@@ -247,7 +247,7 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -257,7 +257,7 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v9 = fmp
     v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 256
-    store v11, 0
+    mstore v11, 0
     v12 = abi_encode [], selector 0xcb94343e00000000000000000000000000000000000000000000000000000000
     v13 = extract_value slice<memory>, v12, 0
     v14 = extract_value slice<memory>, v12, 1
@@ -275,28 +275,28 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
   bb4:
     v22 = ptrtoint ptr<memory> v13 to i256
     v23 = add v22, 0
-    v24 = load v23
+    v24 = mload v23
     v25 = ptrtoint ptr<memory> v13 to i256
     v26 = add v25, 32
-    v27 = load v26
+    v27 = mload v26
     v28 = ptrtoint ptr<memory> v13 to i256
     v29 = add v28, 64
-    v30 = load v29
+    v30 = mload v29
     v31 = ptrtoint ptr<memory> v13 to i256
     v32 = add v31, 96
-    v33 = load v32
+    v33 = mload v32
     v34 = ptrtoint ptr<memory> v13 to i256
     v35 = add v34, 128
-    v36 = load v35
+    v36 = mload v35
     v37 = ptrtoint ptr<memory> v13 to i256
     v38 = add v37, 160
-    v39 = load v38
+    v39 = mload v38
     v40 = ptrtoint ptr<memory> v13 to i256
     v41 = add v40, 192
-    v42 = load v41
+    v42 = mload v41
     v43 = ptrtoint ptr<memory> v13 to i256
     v44 = add v43, 224
-    v45 = load v44
+    v45 = mload v44
     v46 = insert_value struct1, undef struct1, 0, v24
     v47 = insert_value struct1, v46, 1, v27
     v48 = insert_value struct1, v47, 2, v30
@@ -333,7 +333,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -344,7 +344,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v10 = fmp
     v11 = ptrtoint ptr<memory> v10 to i256
     v12 = add v11, 64
-    store v12, 0
+    mstore v12, 0
     v13 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
@@ -360,17 +360,17 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
   bb3:
     revert_returndata
   bb4:
-    copy v9, v14, 64
+    mcopy v9, v14, 64
     v23 = make_memory_slice v9, 64
     v24 = abi_decode [array<2, u256>], v23
     v25 = lt 0, 2
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = load v24
+    v27 = mload v24
     v28 = lt 1, 2
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = load v24+32
+    v30 = mload v24+32
     v31 = checked_add u256, v27, v30
     ret v31
 }
@@ -385,7 +385,7 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
@@ -415,7 +415,7 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
     v4 = extract_value slice<memory>, v0, 0
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, v1
-    copy v6, v4, 0 !metadata(memory=heap)
+    mcopy v6, v4, 0 !metadata(memory=heap)
     v7 = create 0, v3, v1
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1

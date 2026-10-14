@@ -44,8 +44,8 @@ fn @counted(arg0: i256) -> i256 {
 
 fn @panic() {
   bb0:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    store 4, 17
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 36
 }
 
@@ -105,7 +105,7 @@ fn @revert_payload(arg0: i256) -> i256 {
     jump bb1
   bb4:
     v6 = phi [bb2: v3]
-    store 0, v6
+    mstore 0, v6
     revert 0, 32
   bb5:
     ret v1
@@ -200,7 +200,7 @@ fn @exit_use(arg0: i256) -> i256 {
     v5 = add v0, 1
     jump bb1
   bb4:
-    store 0, v3
+    mstore 0, v3
     revert 0, 32
   bb5:
     ret v1
@@ -293,7 +293,7 @@ fn @effectful_header(arg0: i256) -> i256 {
   bb1:
     v0 = phi [bb0: 0], [bb2: v4]
     v1 = phi [bb0: 0], [bb2: v3]
-    store 128, v1
+    mstore 128, v1
     v2 = lt v0, arg0
     jumpi v2, bb2, bb3
   bb2:
@@ -374,7 +374,7 @@ fn @pointer_counter(arg0: ptr<memory>, arg1: i256) -> i256 {
     ret v2
   bb3:
     v6 = add v4, 1
-    v7 = load v6
+    v7 = mload v6
     v8 = add v2, v7
     v9 = inttoptr i256 v6 to ptr<memory>
     jump bb1
@@ -388,7 +388,7 @@ fn @pointer_counter(arg0: ptr<memory>, arg1: i256) -> i256 {
 // CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
 // CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
 // CHECK: [[SECOND:v[0-9]+]] = add v0, 32
-// CHECK: + {{v[0-9]+}} = load [[SECOND]]
+// CHECK: + {{v[0-9]+}} = mload [[SECOND]]
 // CHECK: + {{v[0-9]+}} = add v0, 64
 fn @word_scan(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -399,7 +399,7 @@ fn @word_scan(arg0: i256, arg1: i256) -> i256 {
     v2 = ne arg1, v0
     jumpi v2, bb2, bb3
   bb2:
-    v5 = load v0
+    v5 = mload v0
     v3 = add v1, v5
     v4 = add v0, 32
     jump bb1
@@ -425,7 +425,7 @@ fn @word_scan_to_end(arg0: i256, arg1: i256) -> i256 {
     v2 = ne v0, v7
     jumpi v2, bb2, bb3
   bb2:
-    v5 = load v0
+    v5 = mload v0
     v3 = add v1, v5
     v4 = add v0, 32
     jump bb1
@@ -446,7 +446,7 @@ fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
     v2 = lt v0, arg1
     jumpi v2, bb2, bb3
   bb2:
-    v5 = load v0
+    v5 = mload v0
     v3 = add v1, v5
     v4 = add v0, 32
     jump bb1
@@ -492,7 +492,7 @@ fn @eq_exit(arg0: i256, arg1: i256) -> i256 {
     v2 = eq v0, arg1
     jumpi v2, bb3, bb2
   bb2:
-    v5 = load v0
+    v5 = mload v0
     v3 = add v1, v5
     v4 = add v0, 32
     jump bb1
@@ -704,7 +704,7 @@ fn @variant_test(arg0: i256, arg1: i256) -> i256 {
     v7 = ne v1, arg1
     jumpi v7, bb3, bb4
   bb3:
-    v3 = load v0
+    v3 = mload v0
     v4 = add v3, v8
     v5 = add v0, 1
     jump bb1
@@ -778,7 +778,7 @@ fn @search_exit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v1 = ne v0, arg1
     jumpi v1, bb2, bb5
   bb2:
-    v2 = load calldata v0
+    v2 = calldataload v0
     v3 = eq v2, arg2
     jumpi v3, bb3, bb4
   bb4:
@@ -807,7 +807,7 @@ fn @search_return(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v1 = ne v0, arg1
     jumpi v1, bb2, bb5
   bb2:
-    v2 = load calldata v0
+    v2 = calldataload v0
     v3 = eq v2, arg2
     jumpi v3, bb3, bb4
   bb4:

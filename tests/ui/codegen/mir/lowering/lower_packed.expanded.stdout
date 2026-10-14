@@ -6,7 +6,7 @@
 -     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
 -     ret v0
 +     v1 = ptradd arg1, 32
-+     v2 = load arg1
++     v2 = mload arg1
 +     v3 = make_memory_slice v1, v2
 +     v4 = extract_value slice<memory>, v3, 1
 +     v5 = add 5, v4
@@ -17,20 +17,20 @@
 +     v8 = not 31
 +     v9 = and v6, v8
 +     v10 = alloc v9 !metadata(preserves_fmp)
-+     store v10, v5
++     mstore v10, v5
 +     v11 = zext i16 arg0 to i256
 +     v12 = shl 216, v11
 +     v13 = or 0x1020000000000000000000000000000000000000000000000000000000000, v12
-+     store v10+32, v13
++     mstore v10+32, v13
 +     v14 = ptradd v10, 37
 +     v15 = extract_value slice<memory>, v3, 0
 +     v16 = extract_value slice<memory>, v3, 1
-+     copy v14, v15, v16
++     mcopy v14, v15, v16
 +     v17 = add 5, v4
 +     ret v10
 +   bb1:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -42,8 +42,8 @@
 +     v2 = and v1, 0xffff
 +     v3 = shl 232, v2
 +     v4 = or 0xab00000000000000000000000000000000000000000000000000000000000000, v3
-+     store 0, v4 !metadata(memory=scratch)
-+     store 3, 0xcdef000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 0, v4 !metadata(memory=scratch)
++     mstore 3, 0xcdef000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     v5 = keccak256 0, 5 !metadata(memory=scratch)
 +     ret v5
   }
@@ -52,7 +52,7 @@
     bb0:
 -     v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
 -     ret v0
-+     v1 = load arg0
++     v1 = mload arg0
 +     v2 = mul v1, 32
 +     v3 = eq 32, 0
 +     v4 = div v2, 32
@@ -79,7 +79,7 @@
 +     jumpi v20, bb1, bb4
 +   bb4:
 +     v21 = alloc v19 !metadata(preserves_fmp)
-+     store v21, v18
++     mstore v21, v18
 +     v22 = mul v1, 32
 +     v23 = eq 32, 0
 +     v24 = div v22, 32
@@ -126,12 +126,12 @@
 +     v55 = extract_value slice<calldata>, arg1, 0
 +     v56 = ptrtoint ptr<calldata> v55 to i256
 +     v57 = add v56, v53
-+     v58 = load calldata v57
++     v58 = calldataload v57
 +     v59 = eq v58, 0
 +     v60 = eq v59, false
 +     v61 = ptradd v21, v54
 +     v62 = zext i1 v60 to i256
-+     store v61+32, v62
++     mstore v61+32, v62
 +     v63 = add v51, 1
 +     jump bb12
 +   bb8:
@@ -139,15 +139,15 @@
 +     v34 = add 0, v33
 +     v35 = shl 5, v31
 +     v36 = ptradd arg0, v35
-+     v37 = load v36+32
++     v37 = mload v36+32
 +     v38 = signextend 1, v37
 +     v39 = ptradd v21, v34
-+     store v39+32, v38
++     mstore v39+32, v38
 +     v40 = add v31, 1
 +     jump bb7
 +   bb1:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -156,7 +156,7 @@
 -     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
 -     ret v0
 +     v1 = alloc 160 !metadata(preserves_fmp)
-+     store v1, 128
++     mstore v1, 128
 +     jump bb1
 +   bb1:
 +     v2 = phi [bb0: 0], [bb8: v22]
@@ -169,7 +169,7 @@
 +     v5 = add 0, v4
 +     v6 = shl 5, v2
 +     v7 = ptradd arg0, v6
-+     v8 = load v7
++     v8 = mload v7
 +     v9 = add v5, 64
 +     v10 = lt v9, v5
 +     jumpi v10, bb4, bb5
@@ -188,21 +188,21 @@
 +     v15 = shl 5, v11
 +     v16 = inttoptr i256 v8 to ptr<memory>
 +     v17 = ptradd v16, v15
-+     v18 = load v17
++     v18 = mload v17
 +     v19 = lt v18, 3
 +     jumpi v19, bb10, bb9
 +   bb9:
-+     store 32, 33 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 33 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb10:
 +     v20 = ptradd v1, v14
-+     store v20+32, v18
++     mstore v20+32, v18
 +     v21 = add v11, 1
 +     jump bb6
 +   bb4:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -213,7 +213,7 @@
       jump bb3
     bb1:
 -     v0 = abi_encode_packed (array<word> memoryarray<1> arg1)
-+     v2 = load arg1
++     v2 = mload arg1
 +     v3 = mul v2, 32
 +     v4 = eq 32, 0
 +     v5 = div v3, 32
@@ -229,7 +229,7 @@
 +     jumpi v12, bb4, bb6
 +   bb6:
 +     v13 = alloc v11 !metadata(preserves_fmp)
-+     store v13, v10
++     mstore v13, v10
 +     v14 = mul v2, 32
 +     v15 = eq 32, 0
 +     v16 = div v14, 32
@@ -259,14 +259,14 @@
 +     v26 = add 0, v25
 +     v27 = shl 5, v23
 +     v28 = ptradd arg1, v27
-+     v29 = load v28+32
++     v29 = mload v28+32
 +     v30 = ptradd v13, v26
-+     store v30+32, v29
++     mstore v30+32, v29
 +     v31 = add v23, 1
 +     jump bb9
 +   bb4:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
@@ -274,7 +274,7 @@
     bb0:
 -     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
 -     ret v0
-+     v1 = load arg0
++     v1 = mload arg0
 +     v2 = mul v1, 32
 +     v3 = eq 32, 0
 +     v4 = div v2, 32
@@ -292,8 +292,8 @@
 +     v12 = not 31
 +     v13 = and v10, v12
 +     v14 = alloc v13 !metadata(preserves_fmp)
-+     store v14, v9
-+     store v14+32, 0xab00000000000000000000000000000000000000000000000000000000000000
++     mstore v14, v9
++     mstore v14+32, 0xab00000000000000000000000000000000000000000000000000000000000000
 +     v15 = mul v1, 32
 +     v16 = eq 32, 0
 +     v17 = div v15, 32
@@ -319,15 +319,15 @@
 +     v27 = add 1, v26
 +     v28 = shl 5, v24
 +     v29 = ptradd arg0, v28
-+     v30 = load v29+32
++     v30 = mload v29+32
 +     v31 = and v30, 255
 +     v32 = ptradd v14, v27
-+     store v32+32, v31
++     mstore v32+32, v31
 +     v33 = add v24, 1
 +     jump bb6
 +   bb1:
-+     store 32, 65 !metadata(memory=scratch)
-+     store 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   

@@ -9,7 +9,7 @@ fn @edge(arg0: slice<calldata>) -> i256 [selector=0xf583b19b, pure, abi_params=[
     v4 = sub v3, v2
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = load calldata v2
+    v6 = calldataload v2
     v7 = ptrtoint ptr<calldata> v0 to i256
     v8 = add v7, v6
     v9 = calldatasize
@@ -19,7 +19,7 @@ fn @edge(arg0: slice<calldata>) -> i256 [selector=0xf583b19b, pure, abi_params=[
     v13 = slt v6, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = load calldata v8
+    v15 = calldataload v8
     v16 = calldatasize
     v17 = gt v15, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v17
@@ -43,7 +43,7 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     v4 = sub v3, v2
     v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = load calldata v2
+    v6 = calldataload v2
     v7 = ptrtoint ptr<calldata> v0 to i256
     v8 = add v7, v6
     v9 = calldatasize
@@ -53,7 +53,7 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     v13 = slt v6, v12
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
-    v15 = load calldata v8
+    v15 = calldataload v8
     v16 = calldatasize
     v17 = gt v15, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v17
@@ -79,13 +79,13 @@ fn @abiEdge(arg0: slice<calldata>) -> i256 [selector=0xdff25446, pure, abi_param
     v33 = not 31
     v34 = and v31, v33
     v35 = alloc v34
-    store v35, v30
+    mstore v35, v30
     v36 = ptradd v35, 32
     v37 = extract_value slice<calldata>, v22, 0
     v38 = extract_value slice<calldata>, v22, 1
-    copy calldata v36, v37, v38
+    calldatacopy v36, v37, v38
     v39 = abi_decode [array<_, tuple<address, u256, bytes>>], v35
-    v40 = load v39
+    v40 = mload v39
     ret v40
 }
 
@@ -93,7 +93,7 @@ fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = ptrtoint ptr<calldata> v0 to i256
-    v2 = load calldata v0
+    v2 = calldataload v0
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, v2
@@ -107,7 +107,7 @@ fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v13 = extract_value slice<calldata>, v12, 1
     v14 = inttoptr i256 v11 to ptr<calldata>
     v15 = make_calldata_slice v14, v13
-    v16 = load calldata v5
+    v16 = calldataload v5
     v17 = extract_value slice<calldata>, v15, 0
     v18 = make_calldata_slice v17, v16
     v19 = extract_value slice<calldata>, v18, 1
@@ -124,6 +124,6 @@ fn @_decodeBatch(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb3:
     ret v18
   bb1:
-    store 0, 0xba597e7e !metadata(memory=scratch)
+    mstore 0, 0xba597e7e !metadata(memory=scratch)
     revert 28, 4
 }

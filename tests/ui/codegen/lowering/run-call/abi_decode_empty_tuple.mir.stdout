@@ -53,11 +53,11 @@ fn @decodeCalldata(arg0: slice<calldata>) -> i256 [selector=0xea59e64a, abi_para
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    store v12, v7
+    mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
     v15 = extract_value slice<calldata>, arg0, 1
-    copy calldata v13, v14, v15
+    calldatacopy v13, v14, v15
     abi_decode [], v12
     v16 = sload 0 !metadata(storage=slot(0))
     ret v16
@@ -86,7 +86,7 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc v17
-    store v18, v13
+    mstore v18, v13
     v19 = extract_value slice<calldata>, v12, 0
     v20 = extract_value slice<calldata>, v12, 1
     v21 = calldatasize
@@ -99,7 +99,7 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     v26 = ptradd v18, 32
     v27 = extract_value slice<calldata>, v12, 0
     v28 = extract_value slice<calldata>, v12, 1
-    copy calldata v26, v27, v28
+    calldatacopy v26, v27, v28
     abi_decode [], v18
     ret 3
 }
@@ -109,9 +109,9 @@ fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_param
     v0 = not 31
     v1 = and 63, v0
     v2 = alloc zeroed checked v1
-    store v2, 0
+    mstore v2, 0
     v3 = ptrtoint ptr<memory> v2 to i256
-    store v2, arg0
+    mstore v2, arg0
     abi_decode [], v2
     ret 4
 }

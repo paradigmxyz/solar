@@ -18,7 +18,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v9 = extract_value slice<calldata>, v8, 0
     v10 = ptrtoint ptr<calldata> v9 to i256
     v11 = add v10, 0
-    v12 = load calldata v11
+    v12 = calldataload v11
     v13 = extract_value slice<calldata>, arg0, 1
     v14 = lt 0, v13
     v15 = eq v14, false
@@ -31,7 +31,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v21 = extract_value slice<calldata>, v20, 0
     v22 = ptrtoint ptr<calldata> v21 to i256
     v23 = add v22, 32
-    v24 = load calldata v23
+    v24 = calldataload v23
     v25 = extract_value slice<calldata>, arg0, 1
     v26 = lt 1, v25
     v27 = eq v26, false
@@ -44,7 +44,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v33 = extract_value slice<calldata>, v32, 0
     v34 = ptrtoint ptr<calldata> v33 to i256
     v35 = add v34, 0
-    v36 = load calldata v35
+    v36 = calldataload v35
     v37 = extract_value slice<calldata>, arg0, 1
     v38 = lt 1, v37
     v39 = eq v38, false
@@ -57,7 +57,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v45 = extract_value slice<calldata>, v44, 0
     v46 = ptrtoint ptr<calldata> v45 to i256
     v47 = add v46, 32
-    v48 = load calldata v47
+    v48 = calldataload v47
     v49 = insert_value struct0, undef struct0, 0, v0
     v50 = insert_value struct0, v49, 1, v12
     v51 = insert_value struct0, v50, 2, v24

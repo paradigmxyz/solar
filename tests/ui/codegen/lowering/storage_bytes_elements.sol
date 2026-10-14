@@ -71,9 +71,9 @@ contract StorageStringBase {
 contract StorageStringDerived is StorageStringBase {
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: [[STR:v[0-9]+]] = alloc
-    // CHECK: store [[STR]], 9
+    // CHECK: mstore [[STR]], 9
     // CHECK: [[STR:v[0-9]+]] = alloc
-    // CHECK: store [[STR]], 4
+    // CHECK: mstore [[STR]], 4
     // CHECK: icall @store_storage_bytes, 0,
     // CHECK: icall @store_storage_bytes, 1,
     // CHECK-LABEL: fn @name{{[( ]}}
@@ -85,9 +85,9 @@ contract StorageStringDerived is StorageStringBase {
 
 // CHECK-LABEL: fn @constructor{{[( ]}}
 // CHECK: [[STR:v[0-9]+]] = alloc
-// CHECK: store [[STR]], 17
+// CHECK: mstore [[STR]], 17
 // CHECK: [[STR:v[0-9]+]] = alloc
-// CHECK: store [[STR]], 3
+// CHECK: mstore [[STR]], 3
 // CHECK: icall @store_storage_bytes, 0,
 // CHECK: icall @store_storage_bytes, 1,
 contract StorageStringImplicitDerived is StorageStringBase("Base Literal Name", "BLN") {}

@@ -21,7 +21,7 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitAnonymous
-    // CHECK: store 0, arg1
+    // CHECK: mstore 0, arg1
     // CHECK: [[WORD:v[0-9]+]] = zext {{i(1|160)}} arg0
     // CHECK: log 0, 32, [[WORD]]
     function emitAnonymous(address sender, uint256 value) external {
@@ -30,7 +30,7 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitIndexedBytes
     // CHECK: [[DATA:v[0-9]+]] = ptradd arg0, 32
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = load arg0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = mload arg0
     // CHECK-NEXT: [[HASH:v[0-9]+]] = keccak256 [[DATA]], [[LEN]]
     // CHECK: log 0, 0, {{[^,]+}}, [[HASH]]
     function emitIndexedBytes(bytes memory value) external {

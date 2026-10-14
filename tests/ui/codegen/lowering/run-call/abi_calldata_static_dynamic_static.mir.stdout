@@ -20,11 +20,11 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_para
     v12 = not 31
     v13 = and v10, v12
     v14 = alloc v13
-    store v14, v9
+    mstore v14, v9
     v15 = ptradd v14, 32
     v16 = extract_value slice<calldata>, v1, 0
     v17 = extract_value slice<calldata>, v1, 1
-    copy calldata v15, v16, v17
+    calldatacopy v15, v16, v17
     ret v14
 }
 
@@ -48,11 +48,11 @@ fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_par
     v12 = not 31
     v13 = and v10, v12
     v14 = alloc v13
-    store v14, v9
+    mstore v14, v9
     v15 = ptradd v14, 32
     v16 = extract_value slice<calldata>, v1, 0
     v17 = extract_value slice<calldata>, v1, 1
-    copy calldata v15, v16, v17
+    calldatacopy v15, v16, v17
     ret v14
 }
 
@@ -60,7 +60,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb0:
     v0 = alloc 32
     v1 = alloc zeroed checked 64
-    store v1, 1
+    mstore v1, 1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v8]
@@ -68,27 +68,27 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     jumpi v3, bb2, bb3
   bb3:
     v9 = ptrtoint ptr<memory> v1 to i256
-    store v0, v9
+    mstore v0, v9
     v10 = lt 0, 1
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = load v0
+    v12 = mload v0
     v13 = inttoptr i256 v12 to ptr<memory>
     v14 = eq v12, 0
     jumpi v14, bb4, bb5
   bb4:
     v15 = alloc 32
-    store v15, 0
+    mstore v15, 0
     v16 = ptrtoint ptr<memory> v15 to i256
-    store v0, v16
+    mstore v0, v16
     jump bb5
   bb5:
     v17 = phi [bb3: v13], [bb4: v15]
-    v18 = load v17
+    v18 = mload v17
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = load v17+32
+    v21 = mload v17+32
     v22 = inttoptr i256 v21 to ptr<memory>
     v23 = eq v21, 0
     jumpi v23, bb6, bb7
@@ -96,14 +96,14 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     v24 = alloc 32
     memory_zero v24, 32
     v25 = ptrtoint ptr<memory> v24 to i256
-    store v17+32, v25
+    mstore v17+32, v25
     jump bb7
   bb7:
     v26 = phi [bb5: v22], [bb6: v24]
     v27 = lt 0, 1
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    store v26, 42
+    mstore v26, 42
     v29 = address
     v30 = gas
     v31 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
@@ -124,7 +124,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     v5 = shl 5, v2
     v6 = ptradd v1, v5
     v7 = ptrtoint ptr<memory> v4 to i256
-    store v6+32, v7
+    mstore v6+32, v7
     v8 = add v2, 1
     jump bb1
 }
@@ -133,7 +133,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb0:
     v0 = alloc 64
     v1 = alloc zeroed checked 64
-    store v1, 1
+    mstore v1, 1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb2: v8]
@@ -141,9 +141,9 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     jumpi v3, bb2, bb3
   bb3:
     v9 = ptrtoint ptr<memory> v1 to i256
-    store v0, v9
+    mstore v0, v9
     v10 = alloc zeroed checked 64
-    store v10, 1
+    mstore v10, 1
     jump bb4
   bb4:
     v11 = phi [bb3: 0], [bb5: v17]
@@ -151,27 +151,27 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     jumpi v12, bb5, bb6
   bb6:
     v18 = ptrtoint ptr<memory> v10 to i256
-    store v0+32, v18
+    mstore v0+32, v18
     v19 = lt 0, 2
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = load v0
+    v21 = mload v0
     v22 = inttoptr i256 v21 to ptr<memory>
     v23 = eq v21, 0
     jumpi v23, bb7, bb8
   bb7:
     v24 = alloc 32
-    store v24, 0
+    mstore v24, 0
     v25 = ptrtoint ptr<memory> v24 to i256
-    store v0, v25
+    mstore v0, v25
     jump bb8
   bb8:
     v26 = phi [bb6: v22], [bb7: v24]
-    v27 = load v26
+    v27 = mload v26
     v28 = lt 0, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = load v26+32
+    v30 = mload v26+32
     v31 = inttoptr i256 v30 to ptr<memory>
     v32 = eq v30, 0
     jumpi v32, bb9, bb10
@@ -179,34 +179,34 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v33 = alloc 64
     memory_zero v33, 64
     v34 = ptrtoint ptr<memory> v33 to i256
-    store v26+32, v34
+    mstore v26+32, v34
     jump bb10
   bb10:
     v35 = phi [bb8: v31], [bb9: v33]
     v36 = lt 0, 2
     v37 = eq v36, false
     icall panic_if<0x32>, v37
-    store v35, 66
+    mstore v35, 66
     v38 = lt 0, 2
     v39 = eq v38, false
     icall panic_if<0x32>, v39
-    v40 = load v0
+    v40 = mload v0
     v41 = inttoptr i256 v40 to ptr<memory>
     v42 = eq v40, 0
     jumpi v42, bb11, bb12
   bb11:
     v43 = alloc 32
-    store v43, 0
+    mstore v43, 0
     v44 = ptrtoint ptr<memory> v43 to i256
-    store v0, v44
+    mstore v0, v44
     jump bb12
   bb12:
     v45 = phi [bb10: v41], [bb11: v43]
-    v46 = load v45
+    v46 = mload v45
     v47 = lt 0, v46
     v48 = eq v47, false
     icall panic_if<0x32>, v48
-    v49 = load v45+32
+    v49 = mload v45+32
     v50 = inttoptr i256 v49 to ptr<memory>
     v51 = eq v49, 0
     jumpi v51, bb13, bb14
@@ -214,34 +214,34 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v52 = alloc 64
     memory_zero v52, 64
     v53 = ptrtoint ptr<memory> v52 to i256
-    store v45+32, v53
+    mstore v45+32, v53
     jump bb14
   bb14:
     v54 = phi [bb12: v50], [bb13: v52]
     v55 = lt 1, 2
     v56 = eq v55, false
     icall panic_if<0x32>, v56
-    store v54+32, 322
+    mstore v54+32, 322
     v57 = lt 1, 2
     v58 = eq v57, false
     icall panic_if<0x32>, v58
-    v59 = load v0+32
+    v59 = mload v0+32
     v60 = inttoptr i256 v59 to ptr<memory>
     v61 = eq v59, 0
     jumpi v61, bb15, bb16
   bb15:
     v62 = alloc 32
-    store v62, 0
+    mstore v62, 0
     v63 = ptrtoint ptr<memory> v62 to i256
-    store v0+32, v63
+    mstore v0+32, v63
     jump bb16
   bb16:
     v64 = phi [bb14: v60], [bb15: v62]
-    v65 = load v64
+    v65 = mload v64
     v66 = lt 0, v65
     v67 = eq v66, false
     icall panic_if<0x32>, v67
-    v68 = load v64+32
+    v68 = mload v64+32
     v69 = inttoptr i256 v68 to ptr<memory>
     v70 = eq v68, 0
     jumpi v70, bb17, bb18
@@ -249,34 +249,34 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v71 = alloc 64
     memory_zero v71, 64
     v72 = ptrtoint ptr<memory> v71 to i256
-    store v64+32, v72
+    mstore v64+32, v72
     jump bb18
   bb18:
     v73 = phi [bb16: v69], [bb17: v71]
     v74 = lt 0, 2
     v75 = eq v74, false
     icall panic_if<0x32>, v75
-    store v73, 0x10042
+    mstore v73, 0x10042
     v76 = lt 1, 2
     v77 = eq v76, false
     icall panic_if<0x32>, v77
-    v78 = load v0+32
+    v78 = mload v0+32
     v79 = inttoptr i256 v78 to ptr<memory>
     v80 = eq v78, 0
     jumpi v80, bb19, bb20
   bb19:
     v81 = alloc 32
-    store v81, 0
+    mstore v81, 0
     v82 = ptrtoint ptr<memory> v81 to i256
-    store v0+32, v82
+    mstore v0+32, v82
     jump bb20
   bb20:
     v83 = phi [bb18: v79], [bb19: v81]
-    v84 = load v83
+    v84 = mload v83
     v85 = lt 0, v84
     v86 = eq v85, false
     icall panic_if<0x32>, v86
-    v87 = load v83+32
+    v87 = mload v83+32
     v88 = inttoptr i256 v87 to ptr<memory>
     v89 = eq v87, 0
     jumpi v89, bb21, bb22
@@ -284,14 +284,14 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v90 = alloc 64
     memory_zero v90, 64
     v91 = ptrtoint ptr<memory> v90 to i256
-    store v83+32, v91
+    mstore v83+32, v91
     jump bb22
   bb22:
     v92 = phi [bb20: v88], [bb21: v90]
     v93 = lt 1, 2
     v94 = eq v93, false
     icall panic_if<0x32>, v94
-    store v92+32, 0x10142
+    mstore v92+32, 0x10142
     v95 = address
     v96 = gas
     v97 = abi_encode [array<2, memory_array<array<2, word>>>], selector 0xdc0ee23300000000000000000000000000000000000000000000000000000000, args v0
@@ -312,7 +312,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v14 = shl 5, v11
     v15 = ptradd v10, v14
     v16 = ptrtoint ptr<memory> v13 to i256
-    store v15+32, v16
+    mstore v15+32, v16
     v17 = add v11, 1
     jump bb4
   bb2:
@@ -321,7 +321,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v5 = shl 5, v2
     v6 = ptradd v1, v5
     v7 = ptrtoint ptr<memory> v4 to i256
-    store v6+32, v7
+    mstore v6+32, v7
     v8 = add v2, 1
     jump bb1
 }

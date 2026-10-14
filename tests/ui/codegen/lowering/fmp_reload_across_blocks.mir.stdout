@@ -26,29 +26,29 @@ fn @ln(arg0: i256) -> i256 [pure] {
     v15 = div v14, 0x100000000000000000000000000000000
     v16 = or v14, v15
     v17 = add v16, 1
-    v18 = load 64 !metadata(memory=scratch)
-    store v18, 0xf8f9cbfae6cc78fbefe7cdc3a1793dfcf4f0e8bbd8cec470b6a28a7a5a3e1efd
+    v18 = mload 64 !metadata(memory=scratch)
+    mstore v18, 0xf8f9cbfae6cc78fbefe7cdc3a1793dfcf4f0e8bbd8cec470b6a28a7a5a3e1efd
     v19 = add v18, 32
-    store v19, 0xf5ecf1b3e9debc68e1d9cfabc5997135bfb7a7a3938b7b606b5b4b3f2f1f0ffe
+    mstore v19, 0xf5ecf1b3e9debc68e1d9cfabc5997135bfb7a7a3938b7b606b5b4b3f2f1f0ffe
     v20 = add v18, 64
-    store v20, 0xf6e4ed9ff2d6b458eadcdf97bd91692de2d4da8fd2d0ac50c6ae9a8272523616
+    mstore v20, 0xf6e4ed9ff2d6b458eadcdf97bd91692de2d4da8fd2d0ac50c6ae9a8272523616
     v21 = add v18, 96
-    store v21, 0xc8c0b887b0a8a4489c948c7f847c6125746c645c544c444038302820181008ff
+    mstore v21, 0xc8c0b887b0a8a4489c948c7f847c6125746c645c544c444038302820181008ff
     v22 = add v18, 128
-    store v22, 0xf7cae577eec2a03cf3bad76fb589591debb2dd67e0aa9834bea6925f6a4a2e0e
+    mstore v22, 0xf7cae577eec2a03cf3bad76fb589591debb2dd67e0aa9834bea6925f6a4a2e0e
     v23 = add v18, 160
-    store v23, 0xe39ed557db96902cd38ed14fad815115c786af479b7e83247363534337271707
+    mstore v23, 0xe39ed557db96902cd38ed14fad815115c786af479b7e83247363534337271707
     v24 = add v18, 192
-    store v24, 0xc976c13bb96e881cb166a933a55e490d9d56952b8d4e801485467d2362422606
+    mstore v24, 0xc976c13bb96e881cb166a933a55e490d9d56952b8d4e801485467d2362422606
     v25 = add v18, 224
-    store v25, 0x753a6d1b65325d0c552a4d1345224105391a310b29122104190a110309020100
+    mstore v25, 0x753a6d1b65325d0c552a4d1345224105391a310b29122104190a110309020100
     v26 = add v18, 256
-    store 64, v26 !metadata(memory=scratch)
+    mstore 64, v26 !metadata(memory=scratch)
     v27 = mul v17, 0x818283848586878898a8b8c8d8e8f929395969799a9b9d9e9faaeb6bedeeff
     v28 = div v27, 0x100000000000000000000000000000000000000000000000000000000000000
     v29 = sub 255, v28
     v30 = add v18, v29
-    v31 = load v30
+    v31 = mload v30
     v32 = div v31, 0x100000000000000000000000000000000000000000000000000000000000000
     v33 = gt arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     v34 = zext i1 v33 to i256
@@ -118,6 +118,6 @@ fn @onERC1155Received(arg0: i160, arg1: i160, arg2: i256, arg3: i256, arg4: slic
     v12 = checked_div u256, v11, 4
     v13 = mul v12, 32
     v14 = mul v12, 32
-    copy calldata 0, 0, v14 !metadata(memory=scratch)
+    calldatacopy 0, 0, v14 !metadata(memory=scratch)
     revert 0, v13
 }

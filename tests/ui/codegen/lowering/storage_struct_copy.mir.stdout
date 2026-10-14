@@ -41,19 +41,19 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256
-    store v0, v3
+    mstore v0, v3
     v4 = add 0, 1
     v5 = icall @load_storage_packed_array_4_2, v4
     v6 = ptrtoint ptr<memory> v5 to i256
-    store v0+32, v6
-    v7 = load v0
+    mstore v0+32, v6
+    v7 = mload v0
     v8 = trunc i256 v7 to i160
-    v9 = load v0+32, ptr<memory>
-    v10 = load v9
+    v9 = mload v0+32, ptr<memory>
+    v10 = mload v9
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = load v9+32
+    v13 = mload v9+32
     v14 = and v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v15 = insert_value struct0, undef struct0, 0, v8
     v16 = insert_value struct0, v15, 1, v14
@@ -66,19 +66,19 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256
-    store v0, v3
+    mstore v0, v3
     v4 = add 0, 1
     v5 = icall @load_storage_packed_array_4_2, v4
     v6 = ptrtoint ptr<memory> v5 to i256
-    store v0+32, v6
-    v7 = load v0
+    mstore v0+32, v6
+    v7 = mload v0
     v8 = trunc i256 v7 to i160
-    v9 = load v0+32, ptr<memory>
-    v10 = load v9
+    v9 = mload v0+32, ptr<memory>
+    v10 = mload v9
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = load v9+32
+    v13 = mload v9+32
     v14 = and v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v15 = insert_value struct0, undef struct0, 0, v8
     v16 = insert_value struct0, v15, 1, v14

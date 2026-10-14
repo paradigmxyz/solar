@@ -6,11 +6,11 @@
 fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc 64
-    store v0, 5
-    store v0+32, 6
+    mstore v0, 5
+    mstore v0+32, 6
     v1 = alloc 64
-    store v1, 9
-    store v1+32, 9
+    mstore v1, 9
+    mstore v1+32, 9
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, 0xffffffffffffffff
     icall panic_if<0x41>, v3
@@ -75,7 +75,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
   bb4:
     v12 = shl 5, v8
     v13 = ptradd v0, v12
-    v14 = load v13
+    v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))
     jump bb6
   bb6:
@@ -86,8 +86,8 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
 fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc 64
-    store v0, 1
-    store v0+32, 2
+    mstore v0, 1
+    mstore v0+32, 2
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
@@ -152,7 +152,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
   bb4:
     v11 = shl 5, v7
     v12 = ptradd v0, v11
-    v13 = load v12
+    v13 = mload v12
     sstore v9, v13 !metadata(storage=symbolic(v9))
     jump bb6
   bb6:
@@ -163,8 +163,8 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
 fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc 64
-    store v0, 7
-    store v0+32, 8
+    mstore v0, 7
+    mstore v0+32, 8
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
@@ -229,7 +229,7 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
   bb4:
     v11 = shl 5, v7
     v12 = ptradd v0, v11
-    v13 = load v12
+    v13 = mload v12
     sstore v9, v13 !metadata(storage=symbolic(v9))
     jump bb6
   bb6:

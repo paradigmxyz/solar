@@ -5,20 +5,20 @@
   value: u256
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}
-// CHECK: - {{v[0-9]+}} = load 0
+// CHECK: - {{v[0-9]+}} = mload 0
 // CHECK: + ret 22
 // CHECK: + ret 11
 fn @dominating_mload(arg0: i1) -> i256 {
   bb0:
-    store 0, 11
-    v1 = load 0
+    mstore 0, 11
+    v1 = mload 0
     jumpi arg0, bb1, bb2
   bb1:
-    v2 = load 0
+    v2 = mload 0
     ret v2
   bb2:
-    store 0, 22
-    v3 = load 0
+    mstore 0, 22
+    v3 = mload 0
     ret v3
 }
 

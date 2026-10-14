@@ -6,30 +6,30 @@
 fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
-    store v0, 96
+    mstore v0, 96
     v1 = alloc zeroed checked 64
-    store v1, 1
+    mstore v1, 1
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0, v2
-    v3 = load v0, ptr<memory>
-    v4 = load v3
+    mstore v0, v2
+    v3 = mload v0, ptr<memory>
+    v4 = mload v3
     v5 = lt 0, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    store v3+32, 7
+    mstore v3+32, 7
     v7 = alloc 32
     v8 = alloc 32
-    store v8, 0
+    mstore v8, 0
     v9 = ptrtoint ptr<memory> v8 to i256
-    store v7, v9
-    v10 = load v7, ptr<memory>
-    v11 = load v10
-    v12 = load v0, ptr<memory>
-    v13 = load v12
+    mstore v7, v9
+    v10 = mload v7, ptr<memory>
+    v11 = mload v10
+    v12 = mload v0, ptr<memory>
+    v13 = mload v12
     v14 = lt 0, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
-    v16 = load v12+32
+    v16 = mload v12+32
     v17 = insert_value struct0, undef struct0, 0, v11
     v18 = insert_value struct0, v17, 1, v16
     ret v18
@@ -42,17 +42,17 @@ fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_retur
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    store v0, 7
+    mstore v0, 7
     v3 = alloc 64
     memory_zero v3, 64
     v4 = lt 0, 2
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = load v3
+    v6 = mload v3
     v7 = lt 0, 2
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = load v0
+    v9 = mload v0
     v10 = insert_value struct0, undef struct0, 0, v6
     v11 = insert_value struct0, v10, 1, v9
     ret v11

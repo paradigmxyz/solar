@@ -7,24 +7,24 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x
   bb0:
     v0 = alloc 96
     v1 = alloc 64
-    store v1, arg2
-    store v1+32, arg3
+    mstore v1, arg2
+    mstore v1+32, arg3
     v2 = ptrtoint ptr<memory> v1 to i256
-    store v0, arg1
-    store v0+32, v2
-    store v0+64, arg4
+    mstore v0, arg1
+    mstore v0+32, v2
+    mstore v0+64, arg4
     v3 = mapping_slot arg0, 0
-    v4 = load v0
+    v4 = mload v0
     sstore v3, v4 !metadata(storage=symbolic(v3))
     v5 = add v3, 1
-    v6 = load v0+32
-    v7 = load v6
+    v6 = mload v0+32
+    v7 = mload v6
     sstore v5, v7 !metadata(storage=offset(v3, 1))
     v8 = add v5, 1
-    v9 = load v6+32
+    v9 = mload v6+32
     sstore v8, v9 !metadata(storage=offset(v3, 2))
     v10 = add v3, 3
-    v11 = load v0+64
+    v11 = mload v0+64
     sstore v10, v11 !metadata(storage=offset(v3, 3))
     ret
 }
@@ -34,25 +34,25 @@ fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     v0 = mapping_slot arg0, 0
     v1 = alloc checked 96
     v2 = sload v0 !metadata(storage=symbolic(v0))
-    store v1, v2
+    mstore v1, v2
     v3 = add v0, 1
     v4 = alloc checked 64
     v5 = sload v3 !metadata(storage=offset(v0, 1))
-    store v4, v5
+    mstore v4, v5
     v6 = add v3, 1
     v7 = sload v6 !metadata(storage=offset(v0, 2))
-    store v4+32, v7
+    mstore v4+32, v7
     v8 = ptrtoint ptr<memory> v4 to i256
-    store v1+32, v8
+    mstore v1+32, v8
     v9 = add v0, 3
     v10 = sload v9 !metadata(storage=offset(v0, 3))
-    store v1+64, v10
-    v11 = load v1
-    v12 = load v1+32, ptr<memory>
-    v13 = load v12
-    v14 = load v1+32, ptr<memory>
-    v15 = load v14+32
-    v16 = load v1+64
+    mstore v1+64, v10
+    v11 = mload v1
+    v12 = mload v1+32, ptr<memory>
+    v13 = mload v12
+    v14 = mload v1+32, ptr<memory>
+    v15 = mload v14+32
+    v16 = mload v1+64
     v17 = insert_value struct0, undef struct0, 0, v11
     v18 = insert_value struct0, v17, 1, v13
     v19 = insert_value struct0, v18, 2, v15

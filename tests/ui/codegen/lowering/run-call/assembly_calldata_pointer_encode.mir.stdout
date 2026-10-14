@@ -15,7 +15,7 @@ fn @arrayCopy() -> ptr<memory> [selector=0xb192499e, pure, abi_params=[], abi_re
     v8 = make_calldata_slice v2, 64
     v9 = extract_value slice<calldata>, v8, 0
     v10 = extract_value slice<calldata>, v8, 1
-    copy calldata v7, v9, v10
+    calldatacopy v7, v9, v10
     ret v7
 }
 
@@ -33,7 +33,7 @@ fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_re
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc v9
-    store v10, v5
+    mstore v10, v5
     v11 = extract_value slice<calldata>, v4, 0
     v12 = extract_value slice<calldata>, v4, 1
     v13 = calldatasize
@@ -46,7 +46,7 @@ fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_re
     v18 = ptradd v10, 32
     v19 = extract_value slice<calldata>, v4, 0
     v20 = extract_value slice<calldata>, v4, 1
-    copy calldata v18, v19, v20
+    calldatacopy v18, v19, v20
     ret v10
 }
 
@@ -64,7 +64,7 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc v9
-    store v10, v5
+    mstore v10, v5
     v11 = extract_value slice<calldata>, v4, 0
     v12 = extract_value slice<calldata>, v4, 1
     v13 = calldatasize
@@ -77,9 +77,9 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v18 = ptradd v10, 32
     v19 = extract_value slice<calldata>, v4, 0
     v20 = extract_value slice<calldata>, v4, 1
-    copy calldata v18, v19, v20
+    calldatacopy v18, v19, v20
     v21 = ptradd v10, 32
-    v22 = load v10
+    v22 = mload v10
     v23 = keccak256 v21, v22
     ret v23
 }
@@ -105,7 +105,7 @@ fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=
     v4 = extract_value slice<calldata>, v0, 0
     v5 = ptrtoint ptr<calldata> v4 to i256
     v6 = add v5, 32
-    v7 = load calldata v6
+    v7 = calldataload v6
     ret v7
 }
 
@@ -115,7 +115,7 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v1 = extract_value slice<calldata>, v0, 0
     v2 = ptrtoint ptr<calldata> v1 to i256
     v3 = add v2, 0
-    v4 = load calldata v3
+    v4 = calldataload v3
     v5 = shr 8, v4
     v6 = eq v5, 0
     v7 = eq v6, false

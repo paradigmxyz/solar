@@ -16,8 +16,8 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v6 = shr 32, v3
     v7 = gas
     v8 = alloc 64 !metadata(preserves_fmp)
-    store v8, 10
-    store v8+32, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    mstore v8, 10
+    mstore v8+32, 0x74657374537472696e6700000000000000000000000000000000000000000000
     v9 = abi_encode [memory_bytes], selector v5, args v8
     v10 = extract_value slice<memory>, v9, 0
     v11 = extract_value slice<memory>, v9, 1
@@ -30,7 +30,7 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
-    v16 = load v15
+    v16 = mload v15
     v17 = lt v16, 2
     v18 = eq v17, false
     icall revert_if<empty>, v18

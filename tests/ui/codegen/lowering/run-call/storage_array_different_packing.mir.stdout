@@ -6,8 +6,8 @@
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>], abi_return_params=[bytes10, bytes10, bytes10, bytes10, bytes10]] {
   bb0:
     v0 = alloc zeroed checked 320
-    store v0, 9
-    v1 = load v0
+    mstore v0, 9
+    v1 = mload v0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, v1
     jumpi v3, bb1, bb2
@@ -58,7 +58,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb12:
     v80 = icall @load_storage_packed_array_8_2, 0
     v81 = ptrtoint ptr<memory> v80 to i256
-    v82 = load v80
+    v82 = mload v80
     v83 = sload 1 !metadata(storage=slot(1))
     v84 = gt v83, v82
     jumpi v84, bb17, bb18
@@ -167,7 +167,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb23:
     v104 = shl 5, v102
     v105 = ptradd v80, v104
-    v106 = load v105+32
+    v106 = mload v105+32
     v107 = storage_array_data_slot 1
     v108 = div v102, 3
     v109 = add v107, v108
@@ -235,7 +235,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb7:
     v23 = shl 5, v21
     v24 = ptradd v0, v23
-    v25 = load v24+32
+    v25 = mload v24+32
     v26 = storage_array_data_slot 0
     v27 = div v21, 4
     v28 = add v26, v27

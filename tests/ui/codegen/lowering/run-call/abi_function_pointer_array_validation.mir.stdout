@@ -19,7 +19,7 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[arr
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
-    v6 = load calldata v5
+    v6 = calldataload v5
     v7 = shl 192, v6
     v8 = eq v7, 0
     v9 = eq v8, false
@@ -54,17 +54,17 @@ fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_
 fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb0:
     v0 = alloc zeroed checked 64
-    store v0, 1
+    mstore v0, 1
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xd4b83992
-    v5 = load v0
+    v5 = mload v0
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 64, v4
-    store v0+32, v8
+    mstore v0+32, v8
     v9 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
   bb2:
@@ -73,7 +73,7 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 32
     v12 = add v11, 92
-    store8 v12, 88
+    mstore8 v12, 88
     jump bb3
   bb3:
     v13 = address

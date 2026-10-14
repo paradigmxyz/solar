@@ -3,11 +3,11 @@
   @module ByteCopyLoop
   fn @copy(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = load 64
+      v0 = mload 64
       v1 = add arg1, 32
       v2 = add v0, v1
-      store 64, v2
-      store v0, arg1
+      mstore 64, v2
+      mstore v0, arg1
       v3 = add arg0, 32
       v4 = add v0, 32
       jump bb1
@@ -19,21 +19,21 @@
       ret v0
     bb2:
       v7 = add v3, v5
-      v8 = load v7
+      v8 = mload v7
       v9 = byte 0, v8
       v10 = add v4, v5
-      store8 v10, v9
+      mstore8 v10, v9
       v11 = add v5, 1
       jump bb1
   }
   
   fn @copy_pointer(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = load 64
+      v0 = mload 64
       v1 = add arg1, 32
       v2 = add v0, v1
-      store 64, v2
-      store v0, arg1
+      mstore 64, v2
+      mstore v0, arg1
       v3 = ptrtoint ptr<memory> arg0 to i256
       v4 = add v3, 32
       v5 = add v0, 32
@@ -46,21 +46,21 @@
       ret v0
     bb2:
       v8 = add v4, v6
-      v9 = load v8
+      v9 = mload v8
       v10 = byte 0, v9
       v11 = add v5, v6
-      store8 v11, v10
+      mstore8 v11, v10
       v12 = add v6, 1
       jump bb1
   }
   
   fn @copy_object(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = load 64
+      v0 = mload 64
       v1 = add arg1, 32
       v2 = add v0, v1
-      store 64, v2
-      store v0, arg1
+      mstore 64, v2
+      mstore v0, arg1
       v3 = ptrtoint ptr<memory> arg0 to i256
       v4 = add v3, 32
       v5 = add v0, 32
@@ -73,17 +73,17 @@
       ret v0
     bb2:
       v8 = add v4, v6
-      v9 = load v8
+      v9 = mload v8
       v10 = byte 0, v9
       v11 = add v5, v6
-      store8 v11, v10
+      mstore8 v11, v10
       v12 = add v6, 1
       jump bb1
   }
   
   fn @overlap_caller() -> i256 {
     bb0:
-      v0 = load 64
+      v0 = mload 64
       v1 = sub v0, 1
       v2 = inttoptr i256 v1 to ptr<memory>
       v3 = icall @copy_object, v2, 4
@@ -100,7 +100,7 @@
       v5 = add v3, 32
 +     v13 = add v2, 32
 +     v14 = add v3, 32
-+     copy v14, v13, 4
++     mcopy v14, v13, 4
       jump bb1
     bb1:
 -     v6 = phi [bb0: 0], [bb2: v12]
@@ -112,10 +112,10 @@
 +     jump bb2
     bb2:
 -     v8 = add v4, v6
--     v9 = load v8
+-     v9 = mload v8
 -     v10 = byte 0, v9
 -     v11 = add v5, v6
--     store8 v11, v10
+-     mstore8 v11, v10
 -     v12 = add v6, 1
 -     jump bb1
 +     ret v3
@@ -138,10 +138,10 @@
       ret v3
     bb2:
       v8 = add v4, v6
-      v9 = load v8
+      v9 = mload v8
       v10 = byte 0, v9
       v11 = add v5, v6
-      store8 v11, v10
+      mstore8 v11, v10
       v12 = add v6, 1
       jump bb1
   }
@@ -164,10 +164,10 @@
       ret v13
     bb2:
       v8 = add v4, v6
-      v9 = load v8
+      v9 = mload v8
       v10 = byte 0, v9
       v11 = add v5, v6
-      store8 v11, v10
+      mstore8 v11, v10
       v12 = add v6, 1
       jump bb1
   }
@@ -189,10 +189,10 @@
       tail_call @observe_size
     bb2:
       v8 = add v4, v6
-      v9 = load v8
+      v9 = mload v8
       v10 = byte 0, v9
       v11 = add v5, v6
-      store8 v11, v10
+      mstore8 v11, v10
       v12 = add v6, 1
       jump bb1
   }

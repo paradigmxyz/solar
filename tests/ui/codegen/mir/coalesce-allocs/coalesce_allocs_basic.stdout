@@ -9,7 +9,7 @@
 -     v0 = alloc 64
 +     v0 = alloc 160
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 1
+      mstore v1, 1
 -     v2 = alloc 32
 +     v7 = ptrtoint ptr<memory> v0 to i256
 +     v8 = add v7, 64
@@ -20,9 +20,9 @@
 +     v10 = add v9, 96
 +     v4 = inttoptr i256 v10 to ptr<memory>
       v5 = ptrtoint ptr<memory> v4 to i256
-      store v3, 2
-      store v5, 3
-      v6 = load v3
+      mstore v3, 2
+      mstore v5, 3
+      v6 = mload v3
       ret v6
   }
   
@@ -38,7 +38,7 @@
 +     v2 = inttoptr i256 v6 to ptr<memory>
 +     memory_zero v2, 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      v4 = load v3
+      v4 = mload v3
       ret v4
   }
   
@@ -48,14 +48,14 @@
 +     v0 = alloc 64
 +     memory_zero v0, 32
       v1 = ptrtoint ptr<memory> v0 to i256
-      store 160, 7
+      mstore 160, 7
 -     v2 = alloc zeroed 32
 +     v5 = ptrtoint ptr<memory> v0 to i256
 +     v6 = add v5, 32
 +     v2 = inttoptr i256 v6 to ptr<memory>
 +     memory_zero v2, 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      v4 = load v3
+      v4 = mload v3
       ret v4
   }
   
@@ -65,7 +65,7 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = sub 64, v1
       v3 = add v1, v2
-      store v3, 0x10000
+      mstore v3, 0x10000
       v4 = alloc 32
       v5 = ptrtoint ptr<memory> v4 to i256
       ret v5
@@ -79,8 +79,8 @@
       v3 = ptrtoint ptr<memory> v2 to i256
       v4 = alloc 32
       v5 = ptrtoint ptr<memory> v4 to i256
-      store v1, 1
-      store v5, 2
+      mstore v1, 1
+      mstore v5, 2
       ret v3
   }
   
@@ -88,10 +88,10 @@
     bb0:
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
-      store 64, 0x10000
+      mstore 64, 0x10000
       v2 = alloc 32
       v3 = ptrtoint ptr<memory> v2 to i256
-      store v3, 4
+      mstore v3, 4
       ret v3
   }
   
@@ -103,7 +103,7 @@
       set_fmp v2
       v3 = alloc 32
       v4 = ptrtoint ptr<memory> v3 to i256
-      store v4, 5
+      mstore v4, 5
       ret v4
   }
   
@@ -140,7 +140,7 @@
 -     v0 = alloc 32
 +     v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
-      store v1, 42
+      mstore v1, 42
       storeimmutable stored, 7
 -     v2 = alloc 32
 +     v4 = ptrtoint ptr<memory> v0 to i256

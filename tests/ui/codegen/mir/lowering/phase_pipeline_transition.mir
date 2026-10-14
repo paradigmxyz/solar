@@ -8,6 +8,6 @@
 fn @f(arg0: i256) {
   bb0:
     v1 = add arg0, 1
-    store 128, v1
+    mstore 128, v1
     returndata 128, 32
 }

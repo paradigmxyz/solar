@@ -7,10 +7,10 @@ fn @same_block() -> i256 {
     v0 = ptrtoint ptr<memory> v4 to i256
     v5 = internal_frame_addr 160
     v1 = ptrtoint ptr<memory> v5 to i256
-    store v0, 42
-    v2 = load v0
-    store v1, v2
-    v3 = load v1
+    mstore v0, 42
+    v2 = mload v0
+    mstore v1, v2
+    v3 = mload v1
     ret v3
 }
 
@@ -20,11 +20,11 @@ fn @dominated_store() -> i256 {
     v0 = ptrtoint ptr<memory> v6 to i256
     v7 = internal_frame_addr 160
     v1 = ptrtoint ptr<memory> v7 to i256
-    store v0, 42
-    v2 = load v0
-    store v1, v2
+    mstore v0, 42
+    v2 = mload v0
+    mstore v1, v2
     jump bb1
   bb1:
-    v3 = load v1
+    v3 = mload v1
     ret v3
 }

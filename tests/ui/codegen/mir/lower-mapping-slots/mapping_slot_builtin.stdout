@@ -20,7 +20,7 @@
 +     v2 = add v0, v0
       ret v2
     bb1:
-      store 0, 1
+      mstore 0, 1
       revert 0, 0
   }
   
@@ -28,7 +28,7 @@
     bb0:
       v0 = inttoptr i256 arg0 to ptr<memory>
       v1 = mapping_slot_bytes v0, 9
-      store arg0, 1
+      mstore arg0, 1
       v2 = mapping_slot_bytes v0, 9
       v3 = add v1, v2
       ret v3
@@ -45,7 +45,7 @@
   fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = mapping_slot arg0, 7
-      store 0, arg1
+      mstore 0, arg1
       v1 = mapping_slot arg0, 7
       v2 = add v0, v1
       ret v2
@@ -54,7 +54,7 @@
   fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = storage_array_data_slot arg0
-      store 32, arg1
+      mstore 32, arg1
 -     v1 = storage_array_data_slot arg0
 -     v2 = add v0, v1
 +     v2 = add v0, v0
@@ -68,8 +68,8 @@
     bb0:
 -     v0 = mapping_slot arg0, 7
 -     v2 = add v0, v0
-+     store 0, arg0 !metadata(memory=scratch)
-+     store 32, 7 !metadata(memory=scratch)
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, 7 !metadata(memory=scratch)
 +     v3 = keccak256 0, 64 !metadata(memory=scratch)
 +     v2 = add v3, v3
       ret v2
@@ -78,8 +78,8 @@
   fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
     bb0:
 -     v0 = mapping_slot arg0, 7
-+     store 0, arg0 !metadata(memory=scratch)
-+     store 32, 7 !metadata(memory=scratch)
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, 7 !metadata(memory=scratch)
 +     v3 = keccak256 0, 64 !metadata(memory=scratch)
       jumpi arg1, bb1, bb2
     bb2:
@@ -87,7 +87,7 @@
 +     v2 = add v3, v3
       ret v2
     bb1:
-      store 0, 1
+      mstore 0, 1
       revert 0, 0
   }
   
@@ -95,26 +95,26 @@
     bb0:
       v0 = inttoptr i256 arg0 to ptr<memory>
 -     v1 = mapping_slot_bytes v0, 9
-+     v4 = load v0
++     v4 = mload v0
 +     v5 = add v4, 32
 +     v6 = fmp
 +     v7 = ptradd v0, 32
-+     copy v6, v7, v4 !metadata(memory=heap)
++     mcopy v6, v7, v4 !metadata(memory=heap)
 +     v8 = ptrtoint ptr<memory> v6 to i256
 +     v9 = add v8, v4
-+     store v9, 9
++     mstore v9, 9
 +     v10 = keccak256 v6, v5
-      store arg0, 1
+      mstore arg0, 1
 -     v2 = mapping_slot_bytes v0, 9
 -     v3 = add v1, v2
-+     v11 = load v0
++     v11 = mload v0
 +     v12 = add v11, 32
 +     v13 = fmp
 +     v14 = ptradd v0, 32
-+     copy v13, v14, v11 !metadata(memory=heap)
++     mcopy v13, v14, v11 !metadata(memory=heap)
 +     v15 = ptrtoint ptr<memory> v13 to i256
 +     v16 = add v15, v11
-+     store v16, 9
++     mstore v16, 9
 +     v17 = keccak256 v13, v12
 +     v3 = add v10, v17
       ret v3
@@ -129,19 +129,19 @@
 +     v4 = add v3, 32
 +     v5 = fmp
 +     v6 = extract_value slice<calldata>, arg0, 0
-+     copy calldata v5, v6, v3 !metadata(memory=heap)
++     calldatacopy v5, v6, v3 !metadata(memory=heap)
 +     v7 = ptrtoint ptr<memory> v5 to i256
 +     v8 = add v7, v3
-+     store v8, 11
++     mstore v8, 11
 +     v9 = keccak256 v5, v4
 +     v10 = extract_value slice<calldata>, arg0, 1
 +     v11 = add v10, 32
 +     v12 = fmp
 +     v13 = extract_value slice<calldata>, arg0, 0
-+     copy calldata v12, v13, v10 !metadata(memory=heap)
++     calldatacopy v12, v13, v10 !metadata(memory=heap)
 +     v14 = ptrtoint ptr<memory> v12 to i256
 +     v15 = add v14, v10
-+     store v15, 11
++     mstore v15, 11
 +     v16 = keccak256 v12, v11
 +     v2 = add v9, v16
       ret v2
@@ -150,14 +150,14 @@
   fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = mapping_slot arg0, 7
-+     store 0, arg0 !metadata(memory=scratch)
-+     store 32, 7 !metadata(memory=scratch)
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, 7 !metadata(memory=scratch)
 +     v3 = keccak256 0, 64 !metadata(memory=scratch)
-      store 0, arg1
+      mstore 0, arg1
 -     v1 = mapping_slot arg0, 7
 -     v2 = add v0, v1
-+     store 0, arg0 !metadata(memory=scratch)
-+     store 32, 7 !metadata(memory=scratch)
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, 7 !metadata(memory=scratch)
 +     v4 = keccak256 0, 64 !metadata(memory=scratch)
 +     v2 = add v3, v4
       ret v2
@@ -166,9 +166,9 @@
   fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = storage_array_data_slot arg0
-+     store 0, arg0 !metadata(memory=scratch)
++     mstore 0, arg0 !metadata(memory=scratch)
 +     v3 = keccak256 0, 32 !metadata(memory=scratch)
-      store 32, arg1
+      mstore 32, arg1
 -     v2 = add v0, v0
 +     v2 = add v3, v3
       ret v2
@@ -179,8 +179,8 @@
   @module MappingSlotBuiltin
   fn @word(arg0: i256) -> i256 {
     bb0:
-      store 0, arg0 !metadata(memory=scratch)
-      store 32, 7 !metadata(memory=scratch)
+      mstore 0, arg0 !metadata(memory=scratch)
+      mstore 32, 7 !metadata(memory=scratch)
       v3 = keccak256 0, 64 !metadata(memory=scratch)
       v2 = add v3, v3
       ret v2
@@ -188,39 +188,39 @@
   
   fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
     bb0:
-      store 0, arg0 !metadata(memory=scratch)
-      store 32, 7 !metadata(memory=scratch)
+      mstore 0, arg0 !metadata(memory=scratch)
+      mstore 32, 7 !metadata(memory=scratch)
       v3 = keccak256 0, 64 !metadata(memory=scratch)
       jumpi arg1, bb1, bb2
     bb2:
       v2 = add v3, v3
       ret v2
     bb1:
-      store 0, 1
+      mstore 0, 1
       revert 0, 0
   }
   
   fn @memory(arg0: i256) -> i256 {
     bb0:
       v0 = inttoptr i256 arg0 to ptr<memory>
-      v4 = load v0
+      v4 = mload v0
       v5 = add v4, 32
       v6 = fmp
       v7 = ptradd v0, 32
-      copy v6, v7, v4 !metadata(memory=heap)
+      mcopy v6, v7, v4 !metadata(memory=heap)
       v8 = ptrtoint ptr<memory> v6 to i256
       v9 = add v8, v4
-      store v9, 9
+      mstore v9, 9
       v10 = keccak256 v6, v5
-      store arg0, 1
-      v11 = load v0
+      mstore arg0, 1
+      v11 = mload v0
       v12 = add v11, 32
       v13 = fmp
       v14 = ptradd v0, 32
-      copy v13, v14, v11 !metadata(memory=heap)
+      mcopy v13, v14, v11 !metadata(memory=heap)
       v15 = ptrtoint ptr<memory> v13 to i256
       v16 = add v15, v11
-      store v16, 9
+      mstore v16, 9
       v17 = keccak256 v13, v12
       v3 = add v10, v17
       ret v3
@@ -234,26 +234,26 @@
 +     v4 = add arg1, 32
       v5 = fmp
 -     v6 = extract_value slice<calldata>, arg0, 0
--     copy calldata v5, v6, v3 !metadata(memory=heap)
+-     calldatacopy v5, v6, v3 !metadata(memory=heap)
 +     v6 = inttoptr i256 arg0 to ptr<calldata>
-+     copy calldata v5, v6, arg1
++     calldatacopy v5, v6, arg1
       v7 = ptrtoint ptr<memory> v5 to i256
 -     v8 = add v7, v3
 +     v8 = add v7, arg1
-      store v8, 11
+      mstore v8, 11
       v9 = keccak256 v5, v4
 -     v10 = extract_value slice<calldata>, arg0, 1
 -     v11 = add v10, 32
 +     v11 = add arg1, 32
       v12 = fmp
 -     v13 = extract_value slice<calldata>, arg0, 0
--     copy calldata v12, v13, v10 !metadata(memory=heap)
+-     calldatacopy v12, v13, v10 !metadata(memory=heap)
 +     v13 = inttoptr i256 arg0 to ptr<calldata>
-+     copy calldata v12, v13, arg1
++     calldatacopy v12, v13, arg1
       v14 = ptrtoint ptr<memory> v12 to i256
 -     v15 = add v14, v10
 +     v15 = add v14, arg1
-      store v15, 11
+      mstore v15, 11
       v16 = keccak256 v12, v11
       v2 = add v9, v16
       ret v2
@@ -261,12 +261,12 @@
   
   fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      store 0, arg0 !metadata(memory=scratch)
-      store 32, 7 !metadata(memory=scratch)
+      mstore 0, arg0 !metadata(memory=scratch)
+      mstore 32, 7 !metadata(memory=scratch)
       v3 = keccak256 0, 64 !metadata(memory=scratch)
-      store 0, arg1
-      store 0, arg0 !metadata(memory=scratch)
-      store 32, 7 !metadata(memory=scratch)
+      mstore 0, arg1
+      mstore 0, arg0 !metadata(memory=scratch)
+      mstore 32, 7 !metadata(memory=scratch)
       v4 = keccak256 0, 64 !metadata(memory=scratch)
       v2 = add v3, v4
       ret v2
@@ -274,9 +274,9 @@
   
   fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      store 0, arg0 !metadata(memory=scratch)
+      mstore 0, arg0 !metadata(memory=scratch)
       v3 = keccak256 0, 32 !metadata(memory=scratch)
-      store 32, arg1
+      mstore 32, arg1
       v2 = add v3, v3
       ret v2
   }

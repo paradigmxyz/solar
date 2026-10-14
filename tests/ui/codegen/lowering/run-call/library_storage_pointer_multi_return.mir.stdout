@@ -69,18 +69,18 @@ fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi
 fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[u256, tuple<u256, array<_, u256>>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    store v0, 0
-    store v0+32, 96
+    mstore v0, 0
+    mstore v0+32, 96
     v1 = icall @structPair, 2
     v2 = extract_value struct1, v1, 0
     v3 = extract_value struct1, v1, 1
     v4 = alloc checked 64
     v5 = sload v3 !metadata(storage=symbolic(v3))
-    store v4, v5
+    mstore v4, v5
     v6 = add v3, 1
     v7 = icall @load_storage_word_array, v6
     v8 = ptrtoint ptr<memory> v7 to i256
-    store v4+32, v8
+    mstore v4+32, v8
     v9 = insert_value struct0, undef struct0, 0, v2
     v10 = insert_value struct0, v9, 1, v4
     ret v10

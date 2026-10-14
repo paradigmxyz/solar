@@ -88,7 +88,7 @@ fn @memory_arm(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = load arg1
+    v0 = mload arg1
     jump bb2
   bb2:
     v1 = phi [bb0: 0], [bb1: v0]
@@ -212,7 +212,7 @@ fn @pointer_arms(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 {
   bb2:
     v0 = phi [bb0: arg1], [bb1: arg2]
     v2 = ptrtoint ptr<memory> v0 to i256
-    v1 = load v2
+    v1 = mload v2
     ret v1
 }
 

@@ -3,9 +3,9 @@
 fn @shorten(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xe05b43e0, pure, abi_params=[bytes, u256], abi_returns=[word<bytes16>], abi_return_params=[bytes16]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
-    store arg0, arg1
-    v1 = load arg0+32
-    v2 = load arg0
+    mstore arg0, arg1
+    v1 = mload arg0+32
+    v2 = mload arg0
     v3 = lt v2, 16
     v4 = sub 16, v2
     v5 = mul 8, v4

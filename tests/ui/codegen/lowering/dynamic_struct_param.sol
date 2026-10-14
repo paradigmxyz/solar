@@ -31,7 +31,7 @@ contract DynamicStructParam {
     // Calldata structs stay as slices until code reads a field. Dynamic fields
     // keep their source base and are decoded only when accessed.
     // CHECK-LABEL: fn @init{{[( ]}}
-    // CHECK: load calldata
+    // CHECK: calldataload
     // CHECK: {{v[0-9]+}} = shr 8, {{v[0-9]+}}
     // CHECK: gt {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
@@ -40,14 +40,14 @@ contract DynamicStructParam {
 
     // Static scalar structs load fields directly from calldata.
     // CHECK-LABEL: fn @flat{{[( ]}}
-    // CHECK: load calldata
+    // CHECK: calldataload
     function flat(StaticPair calldata pair) external pure returns (uint256) {
         return pair.x;
     }
 
     // A full-word dynamic array field stays a calldata slice.
     // CHECK-LABEL: fn @words{{[( ]}}
-    // CHECK: load calldata
+    // CHECK: calldataload
     // CHECK: extract_value slice<calldata>, {{[^,]+}}, 1
     function words(WordList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
@@ -55,7 +55,7 @@ contract DynamicStructParam {
 
     // Signed full-word arrays use the same calldata slice path.
     // CHECK-LABEL: fn @signedWords{{[( ]}}
-    // CHECK: load calldata
+    // CHECK: calldataload
     // CHECK: extract_value slice<calldata>, {{[^,]+}}, 1
     function signedWords(SignedList calldata input) external pure returns (uint256) {
         return input.values.length + input.bias;
@@ -63,7 +63,7 @@ contract DynamicStructParam {
 
     // Nested dynamic arrays remain lazy until their accessed element.
     // CHECK-LABEL: fn @nestedWords{{[( ]}}
-    // CHECK: load calldata
+    // CHECK: calldataload
     // CHECK: extract_value slice<calldata>, {{[^,]+}}, 1
     function nestedWords(NestedList calldata input) external pure returns (uint256) {
         return input.values.length + input.values[0].length;

@@ -10,9 +10,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = icall @getArray
     v1 = alloc 96
-    store v1, 11
-    store v1+32, 12
-    store v1+64, 13
+    mstore v1, 11
+    mstore v1+32, 12
+    mstore v1+64, 13
     v2 = lt 0, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
@@ -68,7 +68,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb4:
     v10 = shl 5, v6
     v11 = ptradd v1, v10
-    v12 = load v11
+    v12 = mload v11
     sstore v8, v12 !metadata(storage=symbolic(v8))
     jump bb6
   bb6:

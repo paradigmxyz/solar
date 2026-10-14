@@ -7,7 +7,7 @@ fn @guarded(arg0: i256, arg1: i256) {
     jumpi v0, bb1, bb2
   bb2:
     v3 = sub arg0, arg1
-    store 128, v3
+    mstore 128, v3
     returndata 128, 32
   bb1:
     revert 0, 0
@@ -19,11 +19,11 @@ fn @unguarded(arg0: i256, arg1: i256) {
     v1 = lt arg0, arg1
     jumpi v1, bb1, bb2
   bb2:
-    store 128, v0
+    mstore 128, v0
     returndata 128, 32
   bb1:
-    store 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    store 4, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 

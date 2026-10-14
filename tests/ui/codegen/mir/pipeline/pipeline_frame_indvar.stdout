@@ -13,7 +13,7 @@ fn @frame_counter_feeds_affine_address(arg0: i256, arg1: i256) -> i256 {
   bb3:
     ret 0
   bb2:
-    store v14, v12
+    mstore v14, v12
     v9 = add v12, 1
     v15 = add v14, 32
     jump bb1

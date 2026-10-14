@@ -30,7 +30,7 @@ fn @encodeNoPadding(arg0: ptr<memory>) -> ptr<memory> [selector=0x3d92c956, pure
 
 fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = checked_rem u256, v0, 3
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
@@ -59,7 +59,7 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     v13 = not 31
     v14 = and v11, v13
     v15 = alloc zeroed checked v14
-    store v15, v10
+    mstore v15, v10
     jump bb7
   bb7:
     v16 = phi [bb6: arg0], [bb9: v16]
@@ -79,12 +79,12 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
   bb8:
     ret v25
   bb10:
-    v27 = load v16
+    v27 = mload v16
     v28 = lt v21, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v16, v21
-    v31 = load v30+32
+    v31 = mload v30+32
     v32 = byte 0, v31
     v33 = shl 248, v32
     v34 = shr 248, v33
@@ -98,12 +98,12 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     jump bb15
   bb13:
     v40 = checked_add u256, v21, 1
-    v41 = load v16
+    v41 = mload v16
     v42 = lt v40, v41
     v43 = eq v42, false
     icall panic_if<0x32>, v43
     v44 = ptradd v16, v40
-    v45 = load v44+32
+    v45 = mload v44+32
     v46 = byte 0, v45
     v47 = shl 248, v46
     v48 = shr 248, v47
@@ -121,12 +121,12 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     jump bb18
   bb16:
     v56 = checked_add u256, v21, 2
-    v57 = load v16
+    v57 = mload v16
     v58 = lt v56, v57
     v59 = eq v58, false
     icall panic_if<0x32>, v59
     v60 = ptradd v16, v56
-    v61 = load v60+32
+    v61 = mload v60+32
     v62 = byte 0, v61
     v63 = shl 248, v62
     v64 = shr 248, v63
@@ -139,24 +139,24 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     v69 = shr 18, v68
     v70 = and v69, 63
     v71 = icall @_encode, v70, v19
-    v72 = load v25
+    v72 = mload v25
     v73 = lt v18, v72
     v74 = eq v73, false
     icall panic_if<0x32>, v74
     v75 = byte 0, v71
     v76 = ptradd v25, v18
-    store8 v76+32, v75
+    mstore8 v76+32, v75
     v77 = shr 12, v68
     v78 = and v77, 63
     v79 = icall @_encode, v78, v19
     v80 = checked_add u256, v18, 1
-    v81 = load v25
+    v81 = mload v25
     v82 = lt v80, v81
     v83 = eq v82, false
     icall panic_if<0x32>, v83
     v84 = byte 0, v79
     v85 = ptradd v25, v80
-    store8 v85+32, v84
+    mstore8 v85+32, v84
     v86 = checked_add u256, v18, 2
     v87 = lt v86, v23
     jumpi v87, bb19, bb20
@@ -176,13 +176,13 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
   bb24:
     v93 = phi [bb22: v92], [bb23: 0x3d00000000000000000000000000000000000000000000000000000000000000]
     v94 = checked_add u256, v18, 2
-    v95 = load v25
+    v95 = mload v25
     v96 = lt v94, v95
     v97 = eq v96, false
     icall panic_if<0x32>, v97
     v98 = byte 0, v93
     v99 = ptradd v25, v94
-    store8 v99+32, v98
+    mstore8 v99+32, v98
     jump bb21
   bb21:
     v100 = checked_add u256, v18, 3
@@ -203,13 +203,13 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
   bb30:
     v106 = phi [bb28: v105], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
     v107 = checked_add u256, v18, 3
-    v108 = load v25
+    v108 = mload v25
     v109 = lt v107, v108
     v110 = eq v109, false
     icall panic_if<0x32>, v110
     v111 = byte 0, v106
     v112 = ptradd v25, v107
-    store8 v112+32, v111
+    mstore8 v112+32, v111
     jump bb27
   bb27:
     v113 = checked_add u256, v18, 4
@@ -282,7 +282,7 @@ fn @encode.7(arg0: ptr<memory>, arg1: i1) -> ptr<memory> [pure] {
 
 fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
-    v0 = load arg0
+    v0 = mload arg0
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:
@@ -295,12 +295,12 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     jumpi v8, bb4, bb5
   bb5:
     v11 = checked_sub u256, v0, 1
-    v12 = load arg0
+    v12 = mload arg0
     v13 = lt v11, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd arg0, v11
-    v16 = load v15+32
+    v16 = mload v15+32
     v17 = byte 0, v16
     v18 = shl 248, v17
     v19 = eq v18, 0x3d00000000000000000000000000000000000000000000000000000000000000
@@ -313,12 +313,12 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb9:
     v21 = phi [bb7: v20], [bb8: v6]
     v22 = checked_sub u256, v0, 2
-    v23 = load arg0
+    v23 = mload arg0
     v24 = lt v22, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = ptradd arg0, v22
-    v27 = load v26+32
+    v27 = mload v26+32
     v28 = byte 0, v27
     v29 = shl 248, v28
     v30 = eq v29, 0x3d00000000000000000000000000000000000000000000000000000000000000
@@ -343,7 +343,7 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v36 = not 31
     v37 = and v34, v36
     v38 = alloc zeroed checked v37
-    store v38, v33
+    mstore v38, v33
     jump bb13
   bb13:
     v39 = phi [bb6: v0], [bb15: v39]
@@ -361,12 +361,12 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb14:
     ret v43
   bb16:
-    v48 = load v45
+    v48 = mload v45
     v49 = lt v40, v48
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = ptradd v45, v40
-    v52 = load v51+32
+    v52 = mload v51+32
     v53 = byte 0, v52
     v54 = shl 248, v53
     v55 = icall @_decode, v54
@@ -378,12 +378,12 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     jump bb21
   bb19:
     v59 = checked_add u256, v40, 1
-    v60 = load v45
+    v60 = mload v45
     v61 = lt v59, v60
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = ptradd v45, v59
-    v64 = load v63+32
+    v64 = mload v63+32
     v65 = byte 0, v64
     v66 = shl 248, v65
     v67 = icall @_decode, v66
@@ -399,12 +399,12 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     jump bb24
   bb22:
     v73 = checked_add u256, v40, 2
-    v74 = load v45
+    v74 = mload v45
     v75 = lt v73, v74
     v76 = eq v75, false
     icall panic_if<0x32>, v76
     v77 = ptradd v45, v73
-    v78 = load v77+32
+    v78 = mload v77+32
     v79 = byte 0, v78
     v80 = shl 248, v79
     v81 = icall @_decode, v80
@@ -420,12 +420,12 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     jump bb27
   bb25:
     v87 = checked_add u256, v40, 3
-    v88 = load v45
+    v88 = mload v45
     v89 = lt v87, v88
     v90 = eq v89, false
     icall panic_if<0x32>, v90
     v91 = ptradd v45, v87
-    v92 = load v91+32
+    v92 = mload v91+32
     v93 = byte 0, v92
     v94 = shl 248, v93
     v95 = icall @_decode, v94
@@ -442,13 +442,13 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v100 = trunc i256 v99 to i8
     v101 = zext i8 v100 to i256
     v102 = shl 248, v101
-    v103 = load v43
+    v103 = mload v43
     v104 = lt v46, v103
     v105 = eq v104, false
     icall panic_if<0x32>, v105
     v106 = byte 0, v102
     v107 = ptradd v43, v46
-    store8 v107+32, v106
+    mstore8 v107+32, v106
     jump bb30
   bb30:
     v108 = checked_add u256, v46, 1
@@ -462,13 +462,13 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v112 = zext i8 v111 to i256
     v113 = shl 248, v112
     v114 = checked_add u256, v46, 1
-    v115 = load v43
+    v115 = mload v43
     v116 = lt v114, v115
     v117 = eq v116, false
     icall panic_if<0x32>, v117
     v118 = byte 0, v113
     v119 = ptradd v43, v114
-    store8 v119+32, v118
+    mstore8 v119+32, v118
     jump bb33
   bb33:
     v120 = checked_add u256, v46, 2
@@ -481,13 +481,13 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v123 = zext i8 v122 to i256
     v124 = shl 248, v123
     v125 = checked_add u256, v46, 2
-    v126 = load v43
+    v126 = mload v43
     v127 = lt v125, v126
     v128 = eq v127, false
     icall panic_if<0x32>, v128
     v129 = byte 0, v124
     v130 = ptradd v43, v125
-    store8 v130+32, v129
+    mstore8 v130+32, v129
     jump bb36
   bb36:
     v131 = checked_add u256, v46, 3
@@ -501,7 +501,7 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v2 = not 31
     v3 = and 63, v2
     v4 = alloc zeroed checked v3
-    store v4, 0
+    mstore v4, 0
     ret v4
 }
 

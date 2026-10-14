@@ -34,15 +34,15 @@ fn @reuse_projections(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @invalidate_length{{[( ]}}
-// CHECK: - {{v[0-9]+}} = load arg0
+// CHECK: - {{v[0-9]+}} = mload arg0
 // CHECK: + {{v[0-9]+}} = add [[LENGTH:v[0-9]+]], [[LENGTH]]
 fn @invalidate_length(arg0: ptr<memory>) -> i256 {
   bb0:
-    v1 = load arg0
-    v2 = load arg0
+    v1 = mload arg0
+    v2 = mload arg0
     v8 = ptrtoint ptr<memory> arg0 to i256
-    store v8, 9
-    v3 = load arg0
+    mstore v8, 9
+    v3 = mload arg0
     v4 = add v1, v2
     v5 = add v4, v3
     ret v5
@@ -50,32 +50,32 @@ fn @invalidate_length(arg0: ptr<memory>) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_local_length{{[( ]}}
 // CHECK:       bb1:
-// CHECK-NEXT:  {{^ +}}[[LOCAL:v[0-9]+]] = load
+// CHECK-NEXT:  {{^ +}}[[LOCAL:v[0-9]+]] = mload
 // CHECK-NEXT:  {{^ +}}ret [[LOCAL]]
 fn @keep_local_length() -> i256 {
   bb0:
     v0 = alloc 32
-    v1 = load v0
+    v1 = mload v0
     v3 = ne v1, 0
     jumpi v3, bb1, bb2
   bb1:
-    v2 = load v0
+    v2 = mload v0
     ret v2
   bb2:
     ret 0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_live_length{{[( ]}}
-// CHECK: -     {{v[0-9]+}} = load
+// CHECK: -     {{v[0-9]+}} = mload
 // CHECK: +     {{v[0-9]+}} = add [[LIVE:v[0-9]+]], [[LIVE]]
 fn @reuse_live_length() -> i256 {
   bb0:
     v0 = alloc 32
-    v1 = load v0
+    v1 = mload v0
     v4 = ne v1, 0
     jumpi v4, bb1, bb2
   bb1:
-    v2 = load v0
+    v2 = mload v0
     v3 = add v1, v2
     ret v3
   bb2:
@@ -84,21 +84,21 @@ fn @reuse_live_length() -> i256 {
 
 // A struct field load is a plain load, reused before and after lowering.
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_struct_field{{[( ]}}
-// CHECK:       [[FIELD:v[0-9]+]] = load
-// CHECK: -     {{v[0-9]+}} = load
+// CHECK:       [[FIELD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
 // CHECK: +     {{v[0-9]+}} = add [[FIELD]], [[FIELD]]
 // LOWERED-LABEL: {{^[ +].*}}fn @reuse_struct_field{{[( ]}}
-// LOWERED:       [[FIELD:v[0-9]+]] = load
-// LOWERED: -     {{v[0-9]+}} = load
+// LOWERED:       [[FIELD:v[0-9]+]] = mload
+// LOWERED: -     {{v[0-9]+}} = mload
 // LOWERED: +     {{v[0-9]+}} = add [[FIELD]], [[FIELD]]
 fn @reuse_struct_field() -> i256 {
   bb0:
     v0 = alloc 32
-    v2 = load v0
+    v2 = mload v0
     v5 = ne v2, 0
     jumpi v5, bb1, bb2
   bb1:
-    v3 = load v0
+    v3 = mload v0
     v4 = add v2, v3
     ret v4
   bb2:
@@ -108,116 +108,116 @@ fn @reuse_struct_field() -> i256 {
 // The header read is a plain load, so CSE forwards the stored length.
 // CHECK-LABEL: {{^[ +].*}}fn @forward_initialized_length{{[( ]}}
 // CHECK:       bb1:
-// CHECK-NEXT:  -     {{v[0-9]+}} = load
+// CHECK-NEXT:  -     {{v[0-9]+}} = mload
 // CHECK:       +     ret 3
 // LOWERED-LABEL: {{^[ +].*}}fn @forward_initialized_length{{[( ]}}
 // LOWERED:       bb1:
-// LOWERED:       -     {{v[0-9]+}} = load
+// LOWERED:       -     {{v[0-9]+}} = mload
 // LOWERED:       +     ret 3
 fn @forward_initialized_length() -> i256 {
   bb0:
     v0 = alloc 64
     v26 = ptrtoint ptr<memory> v0 to i256
-    store v26, 3
+    mstore v26, 3
     v9001 = ptradd v0, 32
     v1 = ptrtoint ptr<memory> v9001 to i256
-    store v1, 0
+    mstore v1, 0
     jump bb1
   bb1:
-    v2 = load v0
+    v2 = mload v0
     ret v2
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @raw_header_clobber{{[( ]}}
-// CHECK:       -     {{v[0-9]+}} = load arg0
+// CHECK:       -     {{v[0-9]+}} = mload arg0
 // CHECK:       +     ret arg1
 fn @raw_header_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     v2 = ptrtoint ptr<memory> arg0 to i256
-    store v2, 3
-    store v2, arg1
-    v3 = load arg0
+    mstore v2, 3
+    mstore v2, arg1
+    v3 = mload arg0
     ret v3
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @diamond_header_clobber{{[( ]}}
 // CHECK:       bb3:
-// CHECK-NEXT:  {{^ +}}[[LENGTH:v[0-9]+]] = load arg0
+// CHECK-NEXT:  {{^ +}}[[LENGTH:v[0-9]+]] = mload arg0
 // CHECK-NEXT:  {{^ +}}ret [[LENGTH]]
 fn @diamond_header_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     v4 = ptrtoint ptr<memory> arg0 to i256
-    store v4, 3
+    mstore v4, 3
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb1:
-    store v4, 4
+    mstore v4, 4
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v2 = load arg0
+    v2 = mload arg0
     ret v2
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @loop_header_clobber{{[( ]}}
 // CHECK:       bb1:
-// CHECK-NEXT:  {{^ +}}[[LENGTH:v[0-9]+]] = load arg0
+// CHECK-NEXT:  {{^ +}}[[LENGTH:v[0-9]+]] = mload arg0
 // CHECK-NEXT:       [[COND:v[0-9]+]] = ne [[LENGTH]], 0
 // CHECK-NEXT:       jumpi [[COND]],
 fn @loop_header_clobber(arg0: ptr<memory>) -> i256 {
   bb0:
     v3 = ptrtoint ptr<memory> arg0 to i256
-    store v3, 7
+    mstore v3, 7
     jump bb1
   bb1:
-    v1 = load arg0
+    v1 = mload arg0
     v2 = ne v1, 0
     jumpi v2, bb2, bb3
   bb2:
-    store v3, 0
+    mstore v3, 0
     jump bb1
   bb3:
     ret v1
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @recycled_header_clobber{{[( ]}}
-// CHECK:       {{^ +}}[[LENGTH:v[0-9]+]] = load
+// CHECK:       {{^ +}}[[LENGTH:v[0-9]+]] = mload
 // CHECK-NEXT:  {{^ +}}ret [[LENGTH]]
 fn @recycled_header_clobber() -> i256 {
   bb0:
     v0 = alloc 32
     v1 = ptrtoint ptr<memory> v0 to i256
-    store v1, 3
+    mstore v1, 3
     v4 = inttoptr i256 v1 to ptr<memory>
     set_fmp v4
     v2 = alloc 32
     v5 = ptrtoint ptr<memory> v2 to i256
-    store v5, 4
-    v3 = load v0
+    mstore v5, 4
+    v3 = mload v0
     ret v3
 }
 
 // A caller can fabricate an object at the next allocation address.
 // CHECK-LABEL: fn @parameter_may_overlap_allocation
-// CHECK: [[LEN:v[0-9]+]] = load arg0
-// CHECK: store {{v[0-9]+}}, 7
-// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = load arg0
+// CHECK: [[LEN:v[0-9]+]] = mload arg0
+// CHECK: mstore {{v[0-9]+}}, 7
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload arg0
 // CHECK: add [[LEN]], [[AFTER]]
 fn @parameter_may_overlap_allocation(arg0: ptr<memory>) -> i256 {
   bb0:
     v0 = alloc 32
-    v1 = load arg0
+    v1 = mload arg0
     v5 = ptrtoint ptr<memory> v0 to i256
-    store v5, 7
-    v2 = load arg0
+    mstore v5, 7
+    v2 = mload arg0
     v3 = add v1, v2
     ret v3
 }
 
 fn @fabricated_parameter() -> i256 {
   bb0:
-    v0 = load 64
+    v0 = mload 64
     v1 = inttoptr i256 v0 to ptr<memory>
     v3 = icall @parameter_may_overlap_allocation, v1
     ret v3

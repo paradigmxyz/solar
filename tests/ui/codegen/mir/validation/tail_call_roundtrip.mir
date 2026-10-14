@@ -7,20 +7,20 @@
 @phase semantic
 fn @wrapper(arg0: i256) {
   bb0:
-    store 128, arg0
+    mstore 128, arg0
     returndata 128, 32
 }
 // CHECK-LABEL: {{^[ +].*}}fn @entry{{[( ]}}
-// CHECK: {{^[ +].*}}[[ARG:v[0-9]+]] = load calldata 4
+// CHECK: {{^[ +].*}}[[ARG:v[0-9]+]] = calldataload 4
 // CHECK: {{^[ +].*}}tail_call @wrapper, [[ARG]]
 fn @entry() [entry] {
   bb0:
-    v1 = load calldata 0
+    v1 = calldataload 0
     v3 = shr 224, v1
     v4 = eq v3, 0x9507d39a
     jumpi v4, bb1, bb2
   bb1:
-    v6 = load calldata 4
+    v6 = calldataload 4
     tail_call fn0, v6
   bb2:
     revert 0, 0

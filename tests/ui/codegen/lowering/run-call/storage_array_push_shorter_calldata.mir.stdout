@@ -17,7 +17,7 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
     v6 = make_calldata_slice v0, 64
     v7 = extract_value slice<calldata>, v6, 0
     v8 = extract_value slice<calldata>, v6, 1
-    copy calldata v5, v7, v8
+    calldatacopy v5, v7, v8
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = gt v9, 0xffffffffffffffff
     icall panic_if<0x41>, v10
@@ -82,7 +82,7 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
   bb4:
     v19 = shl 5, v15
     v20 = ptradd v5, v19
-    v21 = load v20
+    v21 = mload v20
     sstore v17, v21 !metadata(storage=symbolic(v17))
     jump bb6
   bb6:
@@ -108,7 +108,7 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     v16 = make_calldata_slice v0, 64
     v17 = extract_value slice<calldata>, v16, 0
     v18 = extract_value slice<calldata>, v16, 1
-    copy calldata v5, v17, v18
+    calldatacopy v5, v17, v18
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = gt v19, 0xffffffffffffffff
     icall panic_if<0x41>, v20
@@ -173,7 +173,7 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
   bb7:
     v29 = shl 5, v25
     v30 = ptradd v5, v29
-    v31 = load v30
+    v31 = mload v30
     sstore v27, v31 !metadata(storage=symbolic(v27))
     jump bb9
   bb9:
@@ -183,7 +183,7 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
-    v11 = load calldata v10
+    v11 = calldataload v10
     v12 = shr 8, v11
     v13 = eq v12, 0
     v14 = eq v13, false
@@ -355,7 +355,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
   bb19:
     v48 = shl 5, v44
     v49 = ptradd v43, v48
-    v50 = load v49
+    v50 = mload v49
     sstore v46, v50 !metadata(storage=symbolic(v46))
     jump bb21
   bb21:
@@ -364,7 +364,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
   bb7:
     v31 = shl 5, v26
     v32 = ptradd v5, v31
-    v33 = load v32
+    v33 = mload v32
     jump bb10
   bb10:
     v34 = phi [bb7: 0], [bb15: v42]
@@ -386,7 +386,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v38 = shl 5, v34
     v39 = inttoptr i256 v33 to ptr<memory>
     v40 = ptradd v39, v38
-    v41 = load v40
+    v41 = mload v40
     sstore v36, v41 !metadata(storage=symbolic(v36))
     jump bb15
   bb15:
@@ -401,11 +401,11 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v13 = make_calldata_slice v12, 64
     v14 = extract_value slice<calldata>, v13, 0
     v15 = extract_value slice<calldata>, v13, 1
-    copy calldata v11, v14, v15
+    calldatacopy v11, v14, v15
     v16 = ptrtoint ptr<memory> v11 to i256
     v17 = shl 5, v6
     v18 = ptradd v5, v17
-    store v18, v16
+    mstore v18, v16
     v19 = add v6, 1
     jump bb1
 }
@@ -422,7 +422,7 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
     v6 = make_calldata_slice v0, 64
     v7 = extract_value slice<calldata>, v6, 0
     v8 = extract_value slice<calldata>, v6, 1
-    copy calldata v5, v7, v8
+    calldatacopy v5, v7, v8
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = gt v9, 0xffffffffffffffff
     icall panic_if<0x41>, v10
@@ -474,7 +474,7 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
   bb4:
     v19 = shl 5, v15
     v20 = ptradd v5, v19
-    v21 = load v20
+    v21 = mload v20
     sstore v17, v21 !metadata(storage=symbolic(v17))
     jump bb6
   bb6:

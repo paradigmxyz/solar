@@ -13,7 +13,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v7 = sub v6, v5
     v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
-    v9 = load calldata v5
+    v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
     v11 = add v10, v9
     v12 = calldatasize
@@ -23,7 +23,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v16 = slt v9, v15
     v17 = eq v16, false
     icall revert_if<invalid_calldata_tail_offset>, v17
-    v18 = load calldata v11
+    v18 = calldataload v11
     v19 = calldatasize
     v20 = gt v18, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v20
@@ -61,14 +61,14 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v48 = lt v47, 32
     icall panic_if<0x41>, v48
     v49 = alloc v47
-    store v49, v27
+    mstore v49, v27
     jump bb1
   bb1:
     v50 = phi [bb0: 0], [bb6: v98]
     v51 = lt v50, v27
     jumpi v51, bb2, bb3
   bb3:
-    v99 = load v49
+    v99 = mload v49
     v100 = sload 0 !metadata(storage=slot(0))
     v101 = gt v100, v99
     jumpi v101, bb7, bb8
@@ -182,23 +182,23 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
   bb13:
     v116 = shl 5, v114
     v117 = ptradd v49, v116
-    v118 = load v117+32
+    v118 = mload v117+32
     v119 = inttoptr i256 v118 to ptr<memory>
     v120 = eq v118, 0
     jumpi v120, bb15, bb16
   bb15:
     v121 = alloc 32
-    store v121, 0
+    mstore v121, 0
     v122 = shl 5, v114
     v123 = ptradd v49, v122
     v124 = ptrtoint ptr<memory> v121 to i256
-    store v123+32, v124
+    mstore v123+32, v124
     jump bb16
   bb16:
     v125 = phi [bb13: v119], [bb15: v121]
     v126 = storage_array_data_slot 0
     v127 = add v126, v114
-    v128 = load v125
+    v128 = mload v125
     v129 = sload v127 !metadata(storage=symbolic(v127))
     v130 = gt v129, v128
     jumpi v130, bb17, bb18
@@ -238,7 +238,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
   bb23:
     v149 = shl 5, v147
     v150 = ptradd v125, v149
-    v151 = load v150+32
+    v151 = mload v150+32
     v152 = storage_array_data_slot v127
     v153 = div v147, 32
     v154 = add v152, v153
@@ -294,7 +294,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v56 = sub v55, v54
     v57 = slt v56, 32
     icall revert_if<calldata_tail_too_short>, v57
-    v58 = load calldata v54
+    v58 = calldataload v54
     v59 = ptrtoint ptr<calldata> v28 to i256
     v60 = add v59, v58
     v61 = calldatasize
@@ -304,7 +304,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v65 = slt v58, v64
     v66 = eq v65, false
     icall revert_if<invalid_calldata_tail_offset>, v66
-    v67 = load calldata v60
+    v67 = calldataload v60
     v68 = calldatasize
     v69 = gt v67, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v69
@@ -325,7 +325,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v82 = lt v81, 32
     icall panic_if<0x41>, v82
     v83 = alloc v81
-    store v83, v67
+    mstore v83, v67
     jump bb4
   bb4:
     v84 = phi [bb2: 0], [bb5: v94]
@@ -335,20 +335,20 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v95 = ptrtoint ptr<memory> v83 to i256
     v96 = shl 5, v50
     v97 = ptradd v49, v96
-    store v97+32, v95
+    mstore v97+32, v95
     v98 = add v50, 1
     jump bb1
   bb5:
     v86 = mul v84, 32
     v87 = add v71, v86
-    v88 = load calldata v87
+    v88 = calldataload v87
     v89 = shr 8, v88
     v90 = eq v89, 0
     v91 = eq v90, false
     icall revert_if<empty>, v91
     v92 = shl 5, v84
     v93 = ptradd v83, v92
-    store v93+32, v88
+    mstore v93+32, v88
     v94 = add v84, 1
     jump bb4
 }
@@ -356,14 +356,14 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
 fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, array<_, u8>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 96
-    store v0, 2
+    mstore v0, 2
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v6 = load v0
+    v6 = mload v0
     v7 = sload 1 !metadata(storage=slot(1))
     v8 = gt v7, v6
     jumpi v8, bb4, bb5
@@ -410,7 +410,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v141 = lt v140, 32
     icall panic_if<0x41>, v141
     v142 = alloc v140
-    store v142, v120
+    mstore v142, v120
     jump bb37
   bb37:
     v143 = phi [bb14: 0], [bb42: v191]
@@ -423,7 +423,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     icall panic_if<0x32>, v194
     v195 = storage_array_data_slot 1
     v196 = add v195, 0
-    v197 = load v142
+    v197 = mload v142
     v198 = sload v196 !metadata(storage=symbolic(v195))
     v199 = gt v198, v197
     jumpi v199, bb43, bb44
@@ -583,23 +583,23 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
   bb49:
     v214 = shl 5, v212
     v215 = ptradd v142, v214
-    v216 = load v215+32
+    v216 = mload v215+32
     v217 = inttoptr i256 v216 to ptr<memory>
     v218 = eq v216, 0
     jumpi v218, bb51, bb52
   bb51:
     v219 = alloc 32
-    store v219, 0
+    mstore v219, 0
     v220 = shl 5, v212
     v221 = ptradd v142, v220
     v222 = ptrtoint ptr<memory> v219 to i256
-    store v221+32, v222
+    mstore v221+32, v222
     jump bb52
   bb52:
     v223 = phi [bb49: v217], [bb51: v219]
     v224 = storage_array_data_slot v196
     v225 = add v224, v212
-    v226 = load v223
+    v226 = mload v223
     v227 = sload v225 !metadata(storage=symbolic(v225))
     v228 = gt v227, v226
     jumpi v228, bb53, bb54
@@ -639,7 +639,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
   bb59:
     v247 = shl 5, v245
     v248 = ptradd v223, v247
-    v249 = load v248+32
+    v249 = mload v248+32
     v250 = storage_array_data_slot v225
     v251 = div v245, 32
     v252 = add v250, v251
@@ -695,7 +695,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v149 = sub v148, v147
     v150 = slt v149, 32
     icall revert_if<calldata_tail_too_short>, v150
-    v151 = load calldata v147
+    v151 = calldataload v147
     v152 = ptrtoint ptr<calldata> v121 to i256
     v153 = add v152, v151
     v154 = calldatasize
@@ -705,7 +705,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v158 = slt v151, v157
     v159 = eq v158, false
     icall revert_if<invalid_calldata_tail_offset>, v159
-    v160 = load calldata v153
+    v160 = calldataload v153
     v161 = calldatasize
     v162 = gt v160, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v162
@@ -726,7 +726,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v175 = lt v174, 32
     icall panic_if<0x41>, v175
     v176 = alloc v174
-    store v176, v160
+    mstore v176, v160
     jump bb40
   bb40:
     v177 = phi [bb38: 0], [bb41: v187]
@@ -736,42 +736,42 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v188 = ptrtoint ptr<memory> v176 to i256
     v189 = shl 5, v143
     v190 = ptradd v142, v189
-    store v190+32, v188
+    mstore v190+32, v188
     v191 = add v143, 1
     jump bb37
   bb41:
     v179 = mul v177, 32
     v180 = add v164, v179
-    v181 = load calldata v180
+    v181 = calldataload v180
     v182 = shr 8, v181
     v183 = eq v182, 0
     v184 = eq v183, false
     icall revert_if<empty>, v184
     v185 = shl 5, v177
     v186 = ptradd v176, v185
-    store v186+32, v181
+    mstore v186+32, v181
     v187 = add v177, 1
     jump bb40
   bb13:
     v29 = shl 5, v27
     v30 = ptradd v0, v29
-    v31 = load v30+32
+    v31 = mload v30+32
     v32 = inttoptr i256 v31 to ptr<memory>
     v33 = eq v31, 0
     jumpi v33, bb15, bb16
   bb15:
     v34 = alloc 32
-    store v34, 0
+    mstore v34, 0
     v35 = shl 5, v27
     v36 = ptradd v0, v35
     v37 = ptrtoint ptr<memory> v34 to i256
-    store v36+32, v37
+    mstore v36+32, v37
     jump bb16
   bb16:
     v38 = phi [bb13: v32], [bb15: v34]
     v39 = storage_array_data_slot 1
     v40 = add v39, v27
-    v41 = load v38
+    v41 = mload v38
     v42 = sload v40 !metadata(storage=symbolic(v40))
     v43 = gt v42, v41
     jumpi v43, bb17, bb18
@@ -796,23 +796,23 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
   bb23:
     v58 = shl 5, v56
     v59 = ptradd v38, v58
-    v60 = load v59+32
+    v60 = mload v59+32
     v61 = inttoptr i256 v60 to ptr<memory>
     v62 = eq v60, 0
     jumpi v62, bb25, bb26
   bb25:
     v63 = alloc 32
-    store v63, 0
+    mstore v63, 0
     v64 = shl 5, v56
     v65 = ptradd v38, v64
     v66 = ptrtoint ptr<memory> v63 to i256
-    store v65+32, v66
+    mstore v65+32, v66
     jump bb26
   bb26:
     v67 = phi [bb23: v61], [bb25: v63]
     v68 = storage_array_data_slot v40
     v69 = add v68, v56
-    v70 = load v67
+    v70 = mload v67
     v71 = sload v69 !metadata(storage=symbolic(v69))
     v72 = gt v71, v70
     jumpi v72, bb27, bb28
@@ -852,7 +852,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
   bb33:
     v91 = shl 5, v89
     v92 = ptradd v67, v91
-    v93 = load v92+32
+    v93 = mload v92+32
     v94 = storage_array_data_slot v69
     v95 = div v89, 32
     v96 = add v94, v95
@@ -930,7 +930,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
   bb2:
     v3 = shl 5, v1
     v4 = ptradd v0, v3
-    store v4+32, 96
+    mstore v4+32, 96
     v5 = add v1, 1
     jump bb1
 }

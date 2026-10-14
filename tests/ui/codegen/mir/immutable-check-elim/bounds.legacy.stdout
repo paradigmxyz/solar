@@ -149,7 +149,7 @@
 +     v0 = zext i8 v3 to i64
       v1 = add v0, i64 1
       v2 = zext i64 v1 to i256
-      store 0, v2
+      mstore 0, v2
       ret
   }
   

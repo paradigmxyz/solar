@@ -15,13 +15,13 @@ fn @runtime() -> i256 [selector=0x54d75aa6, pure, abi_params=[], abi_returns=[wo
     v0 = datasize RuntimeCodeTarget_runtime_code_0
     v1 = datasize RuntimeCodeTarget_runtime_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
-    store v2, v0
+    mstore v2, v0
     v3 = ptradd v2, 32
     v4 = datasize RuntimeCodeTarget_runtime_code_0, 31, aligned
     v5 = ptrtoint ptr<memory> v2 to i256
     v6 = add v5, v4
-    store v6, 0
+    mstore v6, 0
     datacopy RuntimeCodeTarget_runtime_code_0, v3, v0
-    v7 = load v2
+    v7 = mload v2
     ret v7
 }

@@ -15,7 +15,7 @@ contract AbiDecodeStructs {
 
     // ADS-LABEL: fn @dFlat
     // Static struct: fields decode inline from the head, no tail offset.
-    // ADS: {{(^|[^a-z_])}}load
+    // ADS: {{(^|[^a-z_])}}mload
     function dFlat(bytes memory b) public pure returns (uint256, address, bool) {
         Flat memory f = abi.decode(b, (Flat));
         return (f.a, f.b, f.c);
@@ -24,7 +24,7 @@ contract AbiDecodeStructs {
     // ADS-LABEL: fn @dNested
     // A static sub-struct followed by dynamic fields; the sub-struct occupies
     // its full head width so later field offsets are correct.
-    // ADS: {{(^|[^a-z_])}}copy
+    // ADS: {{(^|[^a-z_])}}mcopy
     function dNested(bytes memory b) public pure returns (uint256, string memory, uint256) {
         Nested memory n = abi.decode(b, (Nested));
         return (n.flat.a, n.dyn.name, n.tail.length);
@@ -33,7 +33,7 @@ contract AbiDecodeStructs {
     // The element loop steps a pointer through the fresh array and compares it
     // with the array's end instead of counting to two.
     // ADS-LABEL: fn @dFixed
-    // ADS: store 64, {{v[0-9]+}}
+    // ADS: mstore 64, {{v[0-9]+}}
     // ADS-NEXT: [[END:v[0-9]+]] = add [[BASE:v[0-9]+]], 64
     // ADS: [[PTR:v[0-9]+]] = phi [bb{{[0-9]+}}: [[BASE]]]
     // ADS: lt [[PTR]], [[END]]
@@ -47,7 +47,7 @@ contract AbiDecodeStructs {
     // A dynamic array of dynamic structs: elements rebuild one at a time into
     // a fresh memory array of pointers.
     // ADS: icall @[[CALLDATA_HELPER:decode_calldata_type]]
-    // ADS: {{(^|[^a-z_])}}load
+    // ADS: {{(^|[^a-z_])}}mload
     // ADS: fn @[[CALLDATA_HELPER]]
     function dDynArr(bytes memory b) public pure returns (uint256 count) {
         Dyn[] memory ds = abi.decode(b, (Dyn[]));

@@ -1099,7 +1099,7 @@ impl InstKind {
         matches!(self, Self::PtrAdd(..)) || self.access_offset().is_some_and(|offset| offset != 0)
     }
 
-    /// Returns the immediate byte offset of a `load`, `store`, or `store8`.
+    /// Returns the immediate byte offset of a `mload`, `mstore`, or `mstore8`.
     #[must_use]
     pub(crate) const fn access_offset(&self) -> Option<u64> {
         match *self {

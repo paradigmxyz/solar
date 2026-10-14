@@ -3,22 +3,22 @@
   @module MemoryDseCrossBlock
   fn @remove_store_overwritten_on_unique_edge() -> i256 {
     bb0:
--     store 128, 1
+-     mstore 128, 1
       jump bb1
     bb1:
-      store 128, 2
--     v0 = load 128
+      mstore 128, 2
+-     v0 = mload 128
 -     ret v0
 +     ret 2
   }
   
   fn @keep_store_read_before_successor_overwrite() -> i256 {
     bb0:
-      store 128, 1
+      mstore 128, 1
       jump bb1
     bb1:
-      v0 = load 128
-      store 128, 2
+      v0 = mload 128
+      mstore 128, 2
       ret v0
   }
   
@@ -28,11 +28,11 @@
     bb2:
       jump bb3
     bb1:
-      store 128, 1
+      mstore 128, 1
       jump bb3
     bb3:
-      store 128, 2
--     v0 = load 128
+      mstore 128, 2
+-     v0 = mload 128
 -     ret v0
 +     ret 2
   }
