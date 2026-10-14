@@ -2,7 +2,7 @@
 //!
 //! This ports the division by zero (1211) and modulo zero (4195) checks of solc's
 //! `StaticAnalyzer`. They only apply to values that solc's constant evaluator computes, which
-//! [`Gcx::basic_const_eval`] computes too: `x / 0` is not reported unless `x` is constant too, and
+//! [`Gcx::early_const_eval`] computes too: `x / 0` is not reported unless `x` is constant too, and
 //! neither are operands that only the full evaluation folds.
 //!
 //! As in solc, this runs after type checking, before the view and pure checks, and only when no
@@ -38,7 +38,7 @@ struct Checker<'gcx> {
 impl Checker<'_> {
     /// Returns whether solc's constant evaluator gives the given expression the value zero.
     fn is_zero(&self, expr: &hir::Expr<'_>) -> bool {
-        self.gcx.basic_const_eval().eval_expr(expr).is_ok_and(ConstValue::is_zero)
+        self.gcx.early_const_eval().eval_expr(expr).is_ok_and(ConstValue::is_zero)
     }
 }
 
@@ -55,7 +55,7 @@ impl<'gcx> Visit<'gcx> for Checker<'gcx> {
                 if matches!(op.kind, hir::BinOpKind::Div | hir::BinOpKind::Rem)
                     && self.gcx.user_operator(expr.id).is_none()
                     && self.is_zero(rhs)
-                    && self.gcx.basic_const_eval().eval_expr(lhs).is_ok() =>
+                    && self.gcx.early_const_eval().eval_expr(lhs).is_ok() =>
             {
                 let msg =
                     if op.kind == hir::BinOpKind::Div { "division by zero" } else { "modulo zero" };

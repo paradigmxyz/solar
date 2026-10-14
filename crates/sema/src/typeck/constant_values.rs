@@ -4,7 +4,7 @@
 //!
 //! - The base slot of a storage layout specifier must fit in `uint256`, and so must the contract's
 //!   storage after it, like solc's `PostTypeContractLevelChecker` checks. Type checking checks the
-//!   base slots that solc's evaluator computes, with [`check_basic_base_slot`]. Unlike solc, a base
+//!   base slots that solc's evaluator computes, with [`check_early_base_slot`]. Unlike solc, a base
 //!   slot that only the full evaluation computes is accepted; see CONTRACT-001 in
 //!   `docs/SOLC_DIVERGENCE.md`. Its errors get solc's code for expressions its evaluator cannot
 //!   evaluate, 1505.
@@ -32,7 +32,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
     }
     for id in gcx.hir.contract_ids() {
         if let Some(slot) = gcx.hir.contract(id).layout
-            && gcx.basic_const_eval().eval_int(slot).is_err_and(|err| err.kind.is_unsupported())
+            && gcx.early_const_eval().eval_int(slot).is_err_and(|err| err.kind.is_unsupported())
         {
             match gcx.const_eval().eval_int(slot) {
                 Ok(value) => check_base_slot_value(gcx, id, slot, value, false),
@@ -51,16 +51,16 @@ pub(super) fn check(gcx: Gcx<'_>) {
 /// Checks the value of the base slot `slot` of `contract` if solc's evaluator computes it, or
 /// reports the error that solc's evaluator reports. The check after type checking checks the other
 /// base slots.
-pub(super) fn check_basic_base_slot(gcx: Gcx<'_>, contract: hir::ContractId, slot: &hir::Expr<'_>) {
-    let basic = gcx.basic_const_eval();
-    match basic.eval_int(slot) {
+pub(super) fn check_early_base_slot(gcx: Gcx<'_>, contract: hir::ContractId, slot: &hir::Expr<'_>) {
+    let early = gcx.early_const_eval();
+    match early.eval_int(slot) {
         Ok(value) => check_base_slot_value(gcx, contract, slot, value, true),
         Err(err) if err.kind.is_unsupported() => {}
         // solc reports cycles in the `PostTypeChecker`, before it evaluates base slots, so leave
         // them to the constant cycle check.
         Err(err) if err.kind == EvalErrorKind::Cycle => {}
         Err(err) => {
-            let _ = basic.emit_error(slot, err, ConstContext::BaseSlot);
+            let _ = early.emit_error(slot, err, ConstContext::BaseSlot);
         }
     }
 }

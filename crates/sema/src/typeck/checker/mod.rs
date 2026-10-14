@@ -249,7 +249,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         }
         let contract = self.contract.expect("storage layout specifier outside a contract");
-        super::constant_values::check_basic_base_slot(self.gcx, contract, slot);
+        super::constant_values::check_early_base_slot(self.gcx, contract, slot);
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
@@ -276,7 +276,7 @@ impl<'gcx> TypeChecker<'gcx> {
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let fails = self
             .gcx
-            .basic_const_eval()
+            .early_const_eval()
             .eval_int(size)
             .is_err_and(|err| err.kind.is_undefined_literal_op());
         let prev = std::mem::replace(&mut self.in_failed_array_len, fails);
@@ -447,7 +447,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     && !op.kind.is_cmp()
                     && !op.kind.is_logical()
                 {
-                    match self.gcx.basic_const_eval().eval_expr(expr) {
+                    match self.gcx.early_const_eval().eval_expr(expr) {
                         Ok(value) => {
                             if let Some(ty) = value.literal_ty(self.gcx) {
                                 return ty;
@@ -462,7 +462,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Like solc, reject literal operations that have no value, such as `1 / 0`.
                         Err(err) if err.kind.is_undefined_literal_op() => {
                             let guar =
-                                self.gcx.basic_const_eval().emit_literal_op_error(expr, err.kind);
+                                self.gcx.early_const_eval().emit_literal_op_error(expr, err.kind);
                             return self.gcx.mk_ty_err(guar);
                         }
                         Err(_) => {}
@@ -668,7 +668,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| self.gcx.basic_const_eval().eval_array_len(index));
+                            .and_then(|()| self.gcx.early_const_eval().eval_array_len(index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -979,7 +979,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if valid_unop(ty, op.kind) {
                     if ty.is_number_literal()
-                        && let Ok(value) = self.gcx.basic_const_eval().eval_expr(expr)
+                        && let Ok(value) = self.gcx.early_const_eval().eval_expr(expr)
                         && let Some(lit_ty) = value.literal_ty(self.gcx)
                     {
                         return lit_ty;
@@ -1180,7 +1180,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let msg = if is_literal_too_large(ty) {
             EvalErrorKind::LiteralTooLarge.msg()
         } else if ty.kind == TyKind::RationalLiteral
-            && self.gcx.basic_const_eval().eval_expr(expr).is_ok_and(|v| v.is_fraction_too_large())
+            && self.gcx.early_const_eval().eval_expr(expr).is_ok_and(|v| v.is_fraction_too_large())
         {
             "literal is too large for any fixed-point type"
         } else {
@@ -4021,7 +4021,7 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
 }
 
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
-    gcx.basic_const_eval()
+    gcx.early_const_eval()
         .eval_int(expr)
         .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
 }

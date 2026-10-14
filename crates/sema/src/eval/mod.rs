@@ -9,7 +9,7 @@
 //! Type checking needs array lengths before it knows the types of expressions, so evaluation has
 //! two modes, each with its own memoized results:
 //!
-//! - [`Gcx::basic_const_eval`] evaluates what solc's `ConstantEvaluator` evaluates: number and
+//! - [`Gcx::early_const_eval`] evaluates what solc's `ConstantEvaluator` evaluates: number and
 //!   string literals, constants of integer and string types named by identifiers, at most 32 deep,
 //!   unary and binary arithmetic, and `erc7201` of a string. It only uses name resolution and never
 //!   reaches a type, so type checking uses it for array lengths and literal arithmetic. Checks that
@@ -19,7 +19,7 @@
 //!   checking, with the declarations it selected, such as the function in `this.f.selector`.
 //!   Codegen, base slots and other checks after type checking use it.
 //!
-//! The full mode computes the same value as the basic mode wherever the basic mode computes one.
+//! The full mode computes the same value as the early mode wherever the early mode computes one.
 //! Both are memoized queries: every expression and constant is evaluated at most once in each
 //! mode, so constants that share other constants as a DAG take linear time, and repeated queries
 //! are free.
@@ -34,7 +34,7 @@
 //! The constants of a reference cycle, found as strongly connected components of that graph, all
 //! evaluate to [`EvalErrorKind::Cycle`]. The cycle check after type checking reports the cycles
 //! themselves. Neither mode evaluates a constant through a type, so the graph has every edge: the
-//! basic mode reaches no types, and the full mode reads types that type checking computed.
+//! early mode reaches no types, and the full mode reads types that type checking computed.
 //!
 //! # Values
 //!
@@ -117,12 +117,12 @@ const SOLC_MAX_DEPTH: u32 = 32;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mode {
     /// What solc's `ConstantEvaluator` computes, from name resolution alone.
-    Basic,
+    Early,
     /// Everything a constant initializer can contain, with the results of type checking.
     Full,
 }
 
-/// A value and the depth of the constants it reads, which only the basic mode limits, like solc.
+/// A value and the depth of the constants it reads, which only the early mode limits, like solc.
 #[derive(Clone, Debug)]
 pub(crate) struct Folded {
     value: ConstValue,
@@ -141,7 +141,7 @@ pub(crate) type EvalResult = Result<Folded, EvalError>;
 /// The memoized results of constant evaluation.
 #[derive(Default)]
 pub(crate) struct ConstEvalCache {
-    basic: ModeCache,
+    early: ModeCache,
     full: ModeCache,
     /// The errors of literal operations that have no value, see
     /// [`ConstEval::emit_literal_op_error`].
@@ -171,15 +171,15 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the evaluator of what solc's constant evaluator computes, which type checking can
     /// use.
-    pub fn basic_const_eval(self) -> ConstEval<'gcx> {
-        ConstEval { gcx: self, mode: Mode::Basic }
+    pub fn early_const_eval(self) -> ConstEval<'gcx> {
+        ConstEval { gcx: self, mode: Mode::Early }
     }
 }
 
 /// The constant evaluator, with memoized queries for the values of expressions and constants.
 ///
 /// See the [module docs](self) for the design, and [`Gcx::const_eval`] and
-/// [`Gcx::basic_const_eval`] to get one.
+/// [`Gcx::early_const_eval`] to get one.
 #[derive(Clone, Copy)]
 pub struct ConstEval<'gcx> {
     gcx: Gcx<'gcx>,
@@ -208,11 +208,11 @@ impl<'gcx> ConstEval<'gcx> {
 
     /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
     ///
-    /// Like solc, this needs the basic evaluator.
+    /// Like solc, this needs the early evaluator.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L336-L366>
     pub fn eval_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
-        debug_assert_eq!(self.mode, Mode::Basic, "array lengths use the basic evaluator");
+        debug_assert_eq!(self.mode, Mode::Early, "array lengths use the early evaluator");
         let cx = ConstContext::ArrayLength;
         let dcx = self.gcx.dcx();
         let int = match self.eval_expr(size) {
@@ -253,9 +253,9 @@ impl<'gcx> ConstEval<'gcx> {
         if let Some(result) = cache.get(&expr.id) {
             return result;
         }
-        // The full mode has the value that the basic mode computed.
+        // The full mode has the value that the early mode computed.
         if self.mode == Mode::Full
-            && let Some(result @ Ok(_)) = self.gcx.const_eval_cache.basic.exprs.get(&expr.id)
+            && let Some(result @ Ok(_)) = self.gcx.const_eval_cache.early.exprs.get(&expr.id)
         {
             return result;
         }
@@ -270,7 +270,7 @@ impl<'gcx> ConstEval<'gcx> {
             return result;
         }
         if self.mode == Mode::Full
-            && let Some(result @ Ok(_)) = self.gcx.const_eval_cache.basic.vars.get(&id)
+            && let Some(result @ Ok(_)) = self.gcx.const_eval_cache.early.vars.get(&id)
         {
             return result;
         }
@@ -286,7 +286,7 @@ impl<'gcx> ConstEval<'gcx> {
     fn cache(self) -> &'gcx ModeCache {
         let cache = &self.gcx.const_eval_cache;
         match self.mode {
-            Mode::Basic => &cache.basic,
+            Mode::Early => &cache.early,
             Mode::Full => &cache.full,
         }
     }
@@ -370,7 +370,7 @@ impl<'gcx> ConstEval<'gcx> {
         self.res(expr)?.as_variable().filter(|&id| self.gcx.hir.variable(id).is_constant())
     }
 
-    /// Returns the declaration that the given path names: in the basic mode only identifiers,
+    /// Returns the declaration that the given path names: in the early mode only identifiers,
     /// which solc's evaluator follows, by name resolution, and in the full mode identifiers and
     /// member accesses of paths, such as `this.f`, by the declaration type checking selected.
     ///
@@ -386,7 +386,7 @@ impl<'gcx> ConstEval<'gcx> {
         }
 
         match (self.mode, &expr.kind) {
-            (Mode::Basic, hir::ExprKind::Ident(_)) => self.gcx.resolve_path_expr(expr),
+            (Mode::Early, hir::ExprKind::Ident(_)) => self.gcx.resolve_path_expr(expr),
             (Mode::Full, _) if is_path(expr) => {
                 self.gcx.resolved_expr(expr).or_else(|| self.gcx.resolve_path_expr(expr))
             }
