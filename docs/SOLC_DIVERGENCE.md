@@ -257,7 +257,15 @@ nested `uint256[2][2] memory w = [[1, 2], [3, 4]];`. `solar` seeds the
 literal's element type with the element type of the destination, so it accepts
 all of them and stores the widened values. A copy into storage, such as
 `s = [[1, 2], [3, 4]];` or `a.push([1, 2])`, is accepted by both, because a
-storage copy converts element-wise.
+storage copy converts element-wise. The seed also gives a common type to
+elements that have none of their own: `solar` accepts
+`int256[3] memory a = [100, 0, int256(-100)];`, where `solc` reports error 6378
+because `uint8` and `int256` have no common type. Positional base constructor
+arguments are seeded too, in an inheritance specifier such as
+`contract E is B([100, int256(-100)])` and in a constructor header, and so is
+the empty literal: `s = [];` clears a `uint256[]` storage array, where `solc`
+reports error 6378. Named base constructor arguments, function call arguments
+and `abi.encode` operands are not seeded and keep `solc`'s rule.
 
 Rationale: we deliberately support this extended form. The seed gives a
 literal the element type of its destination, which is how a nested literal
@@ -267,7 +275,9 @@ values are correct; only the acceptance is wider than `solc`'s, and every
 program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/inline_array_reference_elements.sol`,
-`tests/ui/typeck/array_push_element_locations.sol`, and
+`tests/ui/typeck/inline_array_common_type.sol`,
+`tests/ui/typeck/array_push_element_locations.sol`,
+`tests/ui/codegen/lowering/run-call/inline_array_mixed_elements.sol`, and
 `tests/ui/codegen/lowering/run-call/nested_array_storage_memory.sol`.
 
 ### TYPECK-004: Named arguments in base constructor and modifier invocations

@@ -1,4 +1,4 @@
-error: cannot infer array element type
+error[6378]: cannot infer array element type
    ╭▸ ROOT/tests/ui/typeck/inline_array_reference_elements.sol:LL:CC
    │
 LL │         [1, "a"];

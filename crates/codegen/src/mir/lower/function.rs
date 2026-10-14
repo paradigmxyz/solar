@@ -52,7 +52,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
     /// Contracts whose bytecode this contract embeds.
-    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
+    pub(super) bytecode_dependencies: &'ctx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) state: &'ctx mut LoweringState,
