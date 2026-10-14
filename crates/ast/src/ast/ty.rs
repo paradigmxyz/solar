@@ -91,13 +91,6 @@ pub enum ElementaryType {
     /// `bytes`
     Bytes,
 
-    /// Signed fixed-point number.
-    /// `fixedMxN where M @ 0..=32, N @ 0..=80`. M is the number of bytes, **not bits**.
-    Fixed(TypeSize, TypeFixedSize),
-    /// Unsigned fixed-point number.
-    /// `ufixedMxN where M @ 0..=32, N @ 0..=80`. M is the number of bytes, **not bits**.
-    UFixed(TypeSize, TypeFixedSize),
-
     /// Signed integer. The number is the number of bytes, **not bits**.
     /// `0 => int`
     /// `size @ 1..=32 => int{size*8}`
@@ -122,8 +115,6 @@ impl fmt::Debug for ElementaryType {
             Self::Bool => f.write_str("Bool"),
             Self::String => f.write_str("String"),
             Self::Bytes => f.write_str("Bytes"),
-            Self::Fixed(size, fixed) => write!(f, "Fixed({}, {})", size.bytes_raw(), fixed.get()),
-            Self::UFixed(size, fixed) => write!(f, "UFixed({}, {})", size.bytes_raw(), fixed.get()),
             Self::Int(size) => write!(f, "Int({})", size.bits_raw()),
             Self::UInt(size) => write!(f, "UInt({})", size.bits_raw()),
             Self::FixedBytes(size) => write!(f, "FixedBytes({})", size.bytes_raw()),
@@ -149,8 +140,6 @@ impl ElementaryType {
             Self::Bool => "bool".into(),
             Self::String => "string".into(),
             Self::Bytes => "bytes".into(),
-            Self::Fixed(_size, _fixed) => "fixed".into(),
-            Self::UFixed(_size, _fixed) => "ufixed".into(),
             Self::Int(size) => format!("int{}", size.bits()).into(),
             Self::UInt(size) => format!("uint{}", size.bits()).into(),
             Self::FixedBytes(size) => format!("bytes{}", size.bytes()).into(),
@@ -164,8 +153,6 @@ impl ElementaryType {
             Self::Bool => "bool",
             Self::String => "string",
             Self::Bytes => "bytes",
-            Self::Fixed(m, n) => return write!(f, "fixed{}x{}", m.bits(), n.get()),
-            Self::UFixed(m, n) => return write!(f, "ufixed{}x{}", m.bits(), n.get()),
             Self::Int(size) => return write!(f, "int{}", size.bits()),
             Self::UInt(size) => return write!(f, "uint{}", size.bits()),
             Self::FixedBytes(size) => return write!(f, "bytes{}", size.bytes()),
@@ -179,13 +166,7 @@ impl ElementaryType {
     pub const fn is_value_type(self) -> bool {
         matches!(
             self,
-            Self::Address(_)
-                | Self::Bool
-                | Self::Fixed(..)
-                | Self::UFixed(..)
-                | Self::Int(..)
-                | Self::UInt(..)
-                | Self::FixedBytes(..)
+            Self::Address(_) | Self::Bool | Self::Int(..) | Self::UInt(..) | Self::FixedBytes(..)
         )
     }
 
@@ -195,29 +176,31 @@ impl ElementaryType {
         matches!(self, Self::String | Self::Bytes)
     }
 
-    /// Parses a `fixedMxN` or `ufixedMxN` type name, where `M` is a multiple of 8 in `8..=256`
-    /// and `N` is in `0..=80`.
+    /// Returns `true` if the name is a `fixedMxN` or `ufixedMxN` type name, where `M` is a
+    /// multiple of 8 in `8..=256` and `N` is in `0..=80`.
     ///
-    /// Returns `None` for any other name, including `fixed` and `ufixed`.
-    pub fn parse_fixed_mxn(name: Symbol) -> Option<Self> {
+    /// Returns `false` for any other name, including `fixed` and `ufixed`. Like solc, these names
+    /// are keywords, but fixed-point types are not supported.
+    pub fn is_fixed_mxn(name: Symbol) -> bool {
         if name.is_preinterned() {
-            return None;
+            return false;
         }
         let s = name.as_str();
-        let (unsigned, s) = s.strip_prefix('u').map_or((false, s), |s| (true, s));
-        let (m, n) = s.strip_prefix("fixed")?.split_once('x')?;
+        let s = s.strip_prefix('u').unwrap_or(s);
+        let Some((m, n)) = s.strip_prefix("fixed").and_then(|s| s.split_once('x')) else {
+            return false;
+        };
         // Reject leading zeros such as `fixed08x8`.
         // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/liblangutil/Token.cpp#L197-L199>
         let size = |s: &str| {
             if s.len() > 1 && s.starts_with('0') { None } else { s.parse::<u16>().ok() }
         };
-        let m = TypeSize::try_new_int_bits(size(m)?).filter(|m| m.bits_raw() != 0)?;
-        let n = TypeFixedSize::new(size(n)?.try_into().ok()?)?;
-        Some(if unsigned { Self::UFixed(m, n) } else { Self::Fixed(m, n) })
+        size(m).and_then(TypeSize::try_new_int_bits).is_some_and(|m| m.bits_raw() != 0)
+            && size(n).is_some_and(|n| n <= 80)
     }
 }
 
-/// Bit size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=256.
+/// Bit size of a fixed-bytes or integer type. Valid values: 0..=256.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeSize(u16);
 
@@ -346,36 +329,6 @@ impl TypeSize {
     #[track_caller]
     pub const fn bytes_keyword(self) -> Symbol {
         kw::fixed_bytes(self.bytes_raw())
-    }
-}
-
-/// Size of a fixed-point number (N) type. Valid values: 0..=80.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TypeFixedSize(u8);
-
-impl fmt::Debug for TypeFixedSize {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TypeFixedSize({})", self.0)
-    }
-}
-
-impl TypeFixedSize {
-    /// The value zero.
-    pub const ZERO: Self = Self(0);
-
-    /// The maximum value of a `TypeFixedSize`.
-    pub const MAX: u8 = 80;
-
-    /// Creates a new `TypeFixedSize` from a `u8`.
-    #[inline]
-    pub const fn new(value: u8) -> Option<Self> {
-        if value > Self::MAX { None } else { Some(Self(value)) }
-    }
-
-    /// Returns the value.
-    #[inline]
-    pub const fn get(self) -> u8 {
-        self.0
     }
 }
 

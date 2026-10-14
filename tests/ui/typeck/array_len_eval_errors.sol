@@ -5,7 +5,7 @@ enum E {
 }
 
 contract C {
-    uint[7 / 2] fractional; //~ ERROR: failed to evaluate constant: the result is not an integer
+    uint[7 / 2] fractional; //~ ERROR: array length cannot be fractional
     uint[E.B] enumValue; //~ ERROR: failed to evaluate constant: expected an integer
     uint[address(0)] addressValue; //~ ERROR: failed to evaluate constant: expected an integer
     uint[int8(-1)] negative; //~ ERROR: array length cannot be negative
@@ -14,7 +14,7 @@ contract C {
     uint[keccak256("x")] hash; //~ ERROR: failed to evaluate constant: expected an integer
 }
 
-// solc evaluates `(7 / 2) * 2` exactly to 7; see TYPECK-021.
+// Literal arithmetic is exact, so `(7 / 2) * 2` is 7.
 contract Fractional {
-    uint[(7 / 2) * 2] intermediate; //~ ERROR: failed to evaluate constant: the result is not an integer
+    uint[(7 / 2) * 2] intermediate;
 }

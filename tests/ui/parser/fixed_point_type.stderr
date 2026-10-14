@@ -1,0 +1,8 @@
+error: fixed-point types are not supported
+   ╭▸ ROOT/tests/ui/parser/fixed_point_type.sol:LL:CC
+   │
+LL │     function f(uint a, ufixed8x80 b) public pure {}
+   ╰╴                       ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

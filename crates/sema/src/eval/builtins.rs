@@ -148,6 +148,7 @@ fn packed(value: &ConstValue, data: &mut Vec<u8>) -> Result<(), EE> {
         ConstValue::Bytes(bytes, _) => data.extend_from_slice(bytes.as_byte_str()),
         ConstValue::Enum(_, index) => data.push(u8::try_from(*index).map_err(|_| EE::OutOfRange)?),
         ConstValue::Udvt(_, value) => packed(value, data)?,
+        ConstValue::Rational(_) => return Err(EE::Fractional),
     }
     Ok(())
 }

@@ -183,6 +183,41 @@ just as a plain comment can.
 Coverage: `tests/ui/lexer/direction_override/markers.sol`;
 [#1844](https://github.com/paradigmxyz/solar/issues/1844).
 
+### PARSE-004: Fixed-point types
+
+Status: intentional.
+
+Difference: solc accepts `fixed`, `ufixed`, `fixedMxN` and `ufixedMxN` types in
+declarations, conversions, operators, the ABI and storage layouts, and fails
+only when code generation reaches a fixed-point operation. It also compares
+fractional literals, such as `0.3 < 0.5`, through their fixed-point mobile
+types. Solar rejects every fixed-point type during parsing and rejects every
+comparison of a fractional literal. Valid fixed-point type names stay keywords,
+like in solc.
+
+Rationale: solc cannot generate code for fixed-point operations, so we do not
+represent fixed-point types.
+
+Coverage: `tests/ui/parser/fixed_point_type.sol`,
+`tests/ui/parser/fixed_point_type_default.sol`,
+`tests/ui/parser/fixed_mxn_types.sol`,
+`tests/ui/parser/fixed_mxn_declaration_names.sol`, and
+`tests/ui/typeck/rational_literal_operators.sol`; the upstream fixtures that use
+fixed-point types are excluded from solc parity testing.
+
+### PARSE-005: Yul number literals
+
+Status: intentional.
+
+Difference: solc accepts only plain decimal and hexadecimal integers in Yul and
+inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828. Solar
+accepts any number literal whose value is an integer, as in Solidity.
+
+Rationale: these literals have one obvious value, so rejecting them only makes
+the language harder to use.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings
@@ -485,22 +520,6 @@ does not compute either.
 Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
 `tests/ui/typeck/array_len_eval_errors.sol` and
 `tests/ui/typeck/division_by_zero_solc_values.sol`.
-
-### TYPECK-021: Fractional intermediate values in constants
-
-Status: parity debt.
-
-Difference: `solc` computes literal arithmetic with rational numbers, so
-`(7 / 2) * 2` is 7 and `(4 ** -1) * 8` is 2. `solar` does not model rationals,
-and constant evaluation refuses a literal division or negative power with a
-fractional result, so it rejects an array length or base slot such as
-`(7 / 2) * 2` with error 3208 or 1763. Literals such as `1.5` are not supported
-either.
-
-Rationale: fractional literals are not supported yet; see
-[#1752](https://github.com/paradigmxyz/solar/pull/1752).
-
-Coverage: `tests/ui/typeck/array_len_eval_errors.sol`.
 
 ## Contract-Level Checks
 

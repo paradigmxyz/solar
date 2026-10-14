@@ -6,7 +6,9 @@ use super::{
 };
 use crate::{builtins::Builtin, hir, ty::Gcx};
 use alloy_primitives::U256;
-use solar_ast::{ElementaryType, LitKind};
+use num_bigint::{BigInt, Sign};
+use num_rational::Ratio;
+use solar_ast::{ElementaryType, LitKind, LitUint};
 use solar_data_structures::map::FxHashSet;
 use solar_interface::{ByteSymbol, Symbol, sym};
 
@@ -27,7 +29,8 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
     let Some(init) = var.initializer else {
         return Err(already_emitted(gcx).spanned(var.span));
     };
-    let Folded { value, solc } = gcx.const_eval().expr_result(init).clone()?;
+    let Folded { value, solc } =
+        gcx.const_eval().expr_result(init).clone().map_err(|err| err.in_constant(id))?;
     let Some(ty) = ValueTy::from_hir(&var.ty) else {
         return Err(EE::UnsupportedExpr.spanned(init.span));
     };
@@ -44,6 +47,7 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
                 Err(_) => ConstValue::Int(value),
             }
         }
+        (value @ ConstValue::Rational(_), ValueTy::Int(_)) => value,
         (value, ty) => value.implicit_to(gcx, ty).map_err(|kind| kind.spanned(init.span))?,
     };
     Ok(Folded::solc(value, solc))
@@ -66,10 +70,10 @@ fn eval_inner(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
         hir::ExprKind::Member(base, member) => eval_member(gcx, base, member.name),
         hir::ExprKind::Unary(op, inner) => {
             let Folded { value, solc } = ev(inner)?;
-            // solc folds `-` and `~` of integers.
+            // solc folds `-` and `~` of numbers.
             let solc = solc.filter(|_| {
                 matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot)
-                    && matches!(value, ConstValue::Int(_))
+                    && matches!(value, ConstValue::Int(_) | ConstValue::Rational(_))
             });
             let value =
                 value.unop(op.kind).map_err(|kind| EvalError::from(kind).solc(solc.is_some()))?;
@@ -88,6 +92,7 @@ fn eval_inner(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
                 && !matches!(op.kind, hir::BinOpKind::And | hir::BinOpKind::Or)
                 && match (&l.value, &r.value) {
                     (ConstValue::Int(l), ConstValue::Int(r)) => l.solc_folds_binop(r, op.kind),
+                    (ConstValue::Rational(_), _) | (_, ConstValue::Rational(_)) => true,
                     _ => false,
                 };
             let solc = l.solc.zip(r.solc).filter(|_| folds).map(|(l, r)| l.max(r));
@@ -134,12 +139,20 @@ fn eval_inner(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
 fn eval_lit(lit: &hir::Lit<'_>) -> EvalResult {
     Ok(match lit.kind {
         LitKind::Number(n) => Folded::solc(ConstValue::Int(IntScalar::new(n)), Some(0)),
+        LitKind::BigNumber(n) => Folded::solc(ConstValue::literal(lit_uint(n).into()), Some(0)),
+        LitKind::Rational(numer, denom) => {
+            let value = Ratio::new_raw(lit_uint(numer), lit_uint(denom));
+            Folded::solc(ConstValue::Rational(Box::new(value)), Some(0))
+        }
         LitKind::Str(_, s, _) => Folded::solc(ConstValue::Bytes(s, BytesKind::Literal), Some(0)),
         LitKind::Address(address) => Folded::new(ConstValue::Address(address)),
         LitKind::Bool(value) => Folded::new(ConstValue::Bool(value)),
         LitKind::Err(guar) => return Err(EE::AlreadyEmitted(guar).into()),
-        LitKind::Rational(_) => return Err(EE::UnsupportedLiteral.into()),
     })
+}
+
+fn lit_uint(n: LitUint) -> BigInt {
+    BigInt::from_bytes_be(Sign::Plus, n.to_be_bytes())
 }
 
 /// Evaluates a name.

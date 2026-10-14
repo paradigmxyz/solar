@@ -676,7 +676,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
-        // not fit any integer type. Constant names fold in `lower_constant_variable`.
+        // be fractions or may not fit any integer type. Constant names fold in
+        // `lower_constant_variable`.
         // value = const_eval(expr)
         let foldable = matches!(
             expr.kind,
@@ -690,13 +691,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 | ExprKind::Tuple(_)
         ) && ((!self.in_inline_assembly
             && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type()))
-            || expr.is_int_literal());
+            || is_literal_operation(self.cx.gcx, expr));
         if foldable
             && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
             && !matches!(value, ConstValue::Bytes(..))
-            && let Some(value) = self.lower_const_value(value)
         {
-            return Some(value);
+            // Fractions have no runtime value.
+            if let ConstValue::Rational(_) = value {
+                return self.cx.report_unsupported(expr.span, "fractional value");
+            }
+            if let Some(value) = self.lower_const_value(value) {
+                return Some(value);
+            }
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
@@ -1145,14 +1151,10 @@ fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {
     match ty.peel_refs().kind {
         TyKind::Udvt(inner, _) => arithmetic_kind(inner),
         TyKind::Elementary(elementary) => match elementary {
-            solar_sema::hir::ElementaryType::UInt(size)
-            | solar_sema::hir::ElementaryType::UFixed(size, _) => {
+            solar_sema::hir::ElementaryType::UInt(size) => {
                 Some(ArithmeticKind::Unsigned(size.bits()))
             }
-            solar_sema::hir::ElementaryType::Int(size)
-            | solar_sema::hir::ElementaryType::Fixed(size, _) => {
-                Some(ArithmeticKind::Signed(size.bits()))
-            }
+            solar_sema::hir::ElementaryType::Int(size) => Some(ArithmeticKind::Signed(size.bits())),
             _ => None,
         },
         _ => None,
@@ -1195,4 +1197,16 @@ fn reinterpret_word(
             .map_or(word, |validator| validator.cleanup(builder, word))
     };
     builder.cast(word, carrier)
+}
+
+/// Returns `true` if `expr` is an operation on number literals, including a comparison of them.
+///
+/// Only literal arithmetic has literal types, so this needs no walk of the operands.
+fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    let is_literal =
+        |expr: &hir::Expr<'_>| gcx.type_of_expr(expr.id).is_some_and(Ty::is_number_literal);
+    match &expr.kind {
+        ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
+        _ => is_literal(expr),
+    }
 }

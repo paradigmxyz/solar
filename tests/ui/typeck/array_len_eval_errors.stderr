@@ -1,8 +1,8 @@
-error[3208]: failed to evaluate constant: the result is not an integer
+error[3208]: array length cannot be fractional
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
    │
 LL │     uint[7 / 2] fractional;
-   ╰╴         ━━━━━ evaluation of constant value failed here
+   ╰╴         ━━━━━
 
 error[5462]: failed to evaluate constant: expected an integer
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
@@ -40,13 +40,5 @@ error[5462]: failed to evaluate constant: expected an integer
 LL │     uint[keccak256("x")] hash;
    ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error[3208]: failed to evaluate constant: the result is not an integer
-   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
-   │
-LL │     uint[(7 / 2) * 2] intermediate;
-   │          ━┬────━━━━━
-   │           │
-   ╰╴          evaluation of constant value failed here
-
-error: aborting due to 8 previous errors
+error: aborting due to 7 previous errors
 

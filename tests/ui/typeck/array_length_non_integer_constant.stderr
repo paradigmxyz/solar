@@ -7,8 +7,20 @@ LL │     uint256[T] t;
 error[5462]: failed to evaluate constant: expected an integer
    ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
    │
+LL │     uint256["lol"] l;
+   ╰╴            ━━━━━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: expected an integer
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
+LL │     uint256[S] s;
+   ╰╴            ━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: expected an integer
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
 LL │         abi.decode("", (uint256[S]));
    ╰╴                                ━ evaluation of constant value failed here
 
-error: aborting due to 2 previous errors
+error: aborting due to 4 previous errors
 

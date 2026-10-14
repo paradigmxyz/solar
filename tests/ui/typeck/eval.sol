@@ -18,9 +18,11 @@ contract C {
 
     int constant signedTwo = 6 / 3;
     int constant signedNegTwo = (-6) / 3;
-    // Literal division keeps the fraction, which constant evaluation does not model.
     int constant signedFraction = 7 / 3; //~ ERROR: mismatched types
-    int constant signedNegFraction = (-7) / 3;
+    int constant signedNegFraction = (-7) / 3; //~ ERROR: mismatched types
+    int constant SEVEN = 7;
+    int constant typedTwo = SEVEN / 3;
+    int constant typedNegTwo = (-SEVEN) / 3;
 
     int8 constant maxInt8 = 127;
     int8 constant minInt8 = -128;
@@ -29,7 +31,7 @@ contract C {
     uint private stateVar = 69;
     uint public stateVarPublic = 420;
 
-    function early(uint[fails] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
+    function early(uint[fails] memory) public {}
 
     function a(uint[x / 0] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
     function a2(uint[x / zeroPublic] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
@@ -42,8 +44,10 @@ contract C {
     function d5(uint[signedTwo] memory) public {}
     function d6(uint[-signedNegTwo] memory) public {}
     function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
-    function d7a(uint[signedFraction] memory) public {} //~ ERROR: failed to evaluate constant: the result is not an integer
-    function d7b(uint[-signedNegFraction] memory) public {} //~ ERROR: failed to evaluate constant: the result is not an integer
+    function d7c(uint[typedTwo] memory) public {}
+    function d7d(uint[typedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
+    function d7a(uint[signedFraction] memory) public {} //~ ERROR: array length cannot be fractional
+    function d7b(uint[-signedNegFraction] memory) public {} //~ ERROR: array length cannot be fractional
     function d8(uint[maxInt8] memory) public {}
     function d9(uint[maxUint8] memory) public {}
     function d10(uint[-(minInt8 + 1)] memory) public {}
@@ -68,4 +72,12 @@ contract C {
     function m(uint[stateVarPublic] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
 
     function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: array length must be greater than zero
+
+    function zeroDivision() external pure returns (uint) {
+        return 1 / 0; //~ ERROR: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+    }
+    uint fractional = 0.5; //~ ERROR: mismatched types
+    uint quotient = 7 / 3; //~ ERROR: mismatched types
+    uint shift = 1 << 0.5; //~ ERROR: cannot apply builtin operator
+    uint power = 2 ** 0.5; //~ ERROR: cannot apply builtin operator
 }

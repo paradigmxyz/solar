@@ -49,9 +49,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Address(value) => Some(self.builder.alloc_value(Value::Immediate(
                 Immediate::for_type(Some(MirType::I160), U256::from_be_slice(value.as_slice())),
             ))),
-            LitKind::Rational(value) if *value.denom() == U256::from(1) => {
-                Some(self.builder.imm(*value.numer()))
-            }
             _ => self.cx.report_unsupported(span, "literal"),
         }
     }

@@ -23,11 +23,13 @@
 //!
 //! # Values
 //!
-//! A [`ConstValue`] carries its type: integers with their integer type, integer literals, which
-//! are exact like solc's rationals, booleans, `bytesN`, addresses and contracts, string literals,
+//! A [`ConstValue`] carries its type: integers with their integer type, number literals, which
+//! are exact rationals like solc's, booleans, `bytesN`, addresses and contracts, string literals,
 //! `bytes` and `string` values, enum variants and user-defined value types. Operations follow the
-//! language: typed arithmetic is checked against its type, literal arithmetic is exact up to 4096
-//! bits, and conversions follow Solidity's implicit and explicit conversion rules.
+//! language: typed arithmetic is checked against its type, literal arithmetic is exact with 4096
+//! bits in the numerator and denominator, so `7 / 2 * 2` is 7, and conversions follow Solidity's
+//! implicit and explicit conversion rules. Fractions only exist as literals: they convert to no
+//! type, so they never reach codegen.
 //!
 //! # What folds
 //!
@@ -40,8 +42,7 @@
 //!
 //! An operation that reverts at runtime, such as an overflow, a division by zero or an
 //! out-of-range conversion, does not fold. Neither does anything that reads state or the
-//! environment, calls a function, or builds arrays and structs, nor a literal division with a
-//! fractional result, since rational numbers are not modeled, nor a selector whose signature
+//! environment, calls a function, or builds arrays and structs, nor a selector whose signature
 //! depends on a constant. Like in solc's evaluator, every operand must evaluate, even the branch
 //! a conditional does not take and the second operand of `&&` and `||`.
 //!
@@ -63,7 +64,7 @@ use solar_interface::{
     diagnostics::{DiagId, ErrorGuaranteed},
     error_code,
 };
-use std::{cell::RefCell, fmt};
+use std::{cell::RefCell, fmt, ops::ControlFlow};
 
 mod builtins;
 mod expr;
@@ -140,6 +141,9 @@ pub(crate) struct ConstEvalCache {
     exprs: crate::ty::FxOnceMap<hir::ExprId, Box<EvalResult>>,
     /// The values of constant variables in their declared types.
     vars: crate::ty::FxOnceMap<hir::VariableId, Box<EvalResult>>,
+    /// The errors of literal operations that have no value, see
+    /// [`ConstEval::emit_literal_op_error`].
+    literal_op_errors: crate::ty::FxOnceMap<hir::ExprId, ErrorGuaranteed>,
 }
 
 thread_local! {
@@ -201,6 +205,11 @@ impl<'gcx> ConstEval<'gcx> {
         let cx = ConstContext::ArrayLength;
         let (int, solc) = match self.expr_result(size) {
             Ok(Folded { value: ConstValue::Int(int), solc }) => (int, solc.is_some()),
+            Ok(Folded { value: ConstValue::Rational(_), solc }) => {
+                let code = cx.value_code(solc.is_some(), error_code!(3208));
+                let msg = "array length cannot be fractional";
+                return Err(self.gcx.dcx().err(msg).code(code).span(size.span).emit());
+            }
             Ok(_) => {
                 let err = EvalErrorKind::NotAnInteger.spanned(size.span);
                 return Err(self.emit_error(size, err, cx));
@@ -209,12 +218,14 @@ impl<'gcx> ConstEval<'gcx> {
         };
         let code = |code| cx.value_code(solc, code);
         let Some(int) = int.as_u256() else {
-            let (code, msg) = if int.is_negative() {
-                (code(error_code!(3658)), "array length cannot be negative")
+            let dcx = self.gcx.dcx();
+            let err = if int.is_negative() {
+                dcx.err("array length cannot be negative").code(code(error_code!(3658)))
             } else {
-                (code(error_code!(1847)), "array length is too large")
+                let err = dcx.err("array length is too large").code(code(error_code!(1847)));
+                err.note("the maximum is `2**256 - 1`")
             };
-            return Err(self.gcx.dcx().err(msg).code(code).span(size.span).emit());
+            return Err(err.span(size.span).emit());
         };
         if int.is_zero() {
             let msg = "array length must be greater than zero";
@@ -373,6 +384,20 @@ impl<'gcx> ConstEval<'gcx> {
         err: EvalError,
         cx: ConstContext,
     ) -> ErrorGuaranteed {
+        // A failed literal operation in the initializer of a constant reads like it does
+        // anywhere else.
+        if err.kind.is_undefined_literal_op()
+            && let Some(id) = err.constant
+            && let Some(init) = self.gcx.hir.variable(id).initializer
+            && let ControlFlow::Break(guar) = init.visit(&mut |op| match op.kind {
+                hir::ExprKind::Binary(..) if op.span == err.span => {
+                    ControlFlow::Break(self.emit_literal_op_error(op, err.kind))
+                }
+                _ => ControlFlow::Continue(()),
+            })
+        {
+            return guar;
+        }
         let code = match err.kind {
             EE::AlreadyEmitted(guar) => return guar,
             EE::LiteralTooLarge => return self.gcx.literal_too_large(err.span),
@@ -383,10 +408,6 @@ impl<'gcx> ConstEval<'gcx> {
             EE::UnaryOverflow => error_code!(3667),
             // solc gives these literal operations no type.
             kind if kind.is_undefined_literal_op() => error_code!(6020),
-            EE::Fractional => match cx {
-                ConstContext::ArrayLength => error_code!(3208),
-                ConstContext::BaseSlot => error_code!(1763),
-            },
             _ => cx.unsupported_code(),
         };
         let msg = format!("failed to evaluate constant: {}", err.kind.msg());
@@ -397,6 +418,27 @@ impl<'gcx> ConstEval<'gcx> {
             .span(expr.span)
             .span_label(err.span, "evaluation of constant value failed here")
             .emit()
+    }
+
+    /// Reports the literal binary operation `expr`, which has no value, such as `1 / 0`.
+    ///
+    /// Type checking reports the operation, and so does the evaluation of an array length or base
+    /// slot that reads a constant containing it. Either reports it once, in the same way.
+    pub(crate) fn emit_literal_op_error(
+        self,
+        expr: &hir::Expr<'_>,
+        kind: EvalErrorKind,
+    ) -> ErrorGuaranteed {
+        let hir::ExprKind::Binary(lhs, op, rhs) = expr.kind else {
+            unreachable!("not a binary operation: {expr:?}")
+        };
+        self.gcx.const_eval_cache.literal_op_errors.insert_cloned(expr.id, |_| {
+            let operand = |expr: &hir::Expr<'_>| {
+                let ty = self.eval_expr(expr).ok().and_then(|value| value.literal_ty(self.gcx));
+                (expr.span, ty.expect("literal operation operands have values"))
+            };
+            self.gcx.binop_err(op, operand(lhs), operand(rhs), false).note(kind.msg()).emit()
+        })
     }
 }
 
@@ -422,7 +464,7 @@ pub enum EvalErrorKind {
     NegativeShift,
     /// A literal exponent that solc gives no value.
     ExponentTooLarge,
-    /// A literal division whose result is not an integer.
+    /// A fraction where a value of a type is required.
     Fractional,
     /// Literal arithmetic beyond the 4096 bits of solc's rational numbers.
     LiteralPrecision,
@@ -430,7 +472,6 @@ pub enum EvalErrorKind {
     OutOfRange,
     /// The value is not an integer.
     NotAnInteger,
-    UnsupportedLiteral,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
     UnsupportedExpr,
@@ -440,7 +481,7 @@ pub enum EvalErrorKind {
 
 impl EvalErrorKind {
     pub fn spanned(self, span: Span) -> EvalError {
-        EvalError { kind: self, span, solc: false }
+        EvalError { kind: self, span, solc: false, constant: None }
     }
 
     pub fn msg(&self) -> &'static str {
@@ -452,12 +493,11 @@ impl EvalErrorKind {
             Self::DivisionByZero { .. } => "attempted to divide by zero",
             Self::ShiftTooLarge => "shift amount is too large",
             Self::NegativeShift => "shift amount is negative",
-            Self::LiteralPrecision => "literals are limited to 4096 bits",
+            Self::LiteralPrecision => "the precision of literal arithmetic is limited to 4096 bits",
             Self::ExponentTooLarge => "exponent is too large",
             Self::Fractional => "the result is not an integer",
             Self::OutOfRange => "value out of range",
             Self::NotAnInteger => "expected an integer",
-            Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",
@@ -487,11 +527,19 @@ pub struct EvalError {
     /// Whether solc's constant evaluator reports this error too, rather than giving the
     /// expression no value.
     pub solc: bool,
+    /// The constant whose initializer contains the failed expression, if any.
+    pub constant: Option<hir::VariableId>,
 }
 
 impl EvalError {
     pub(crate) fn solc(self, solc: bool) -> Self {
         Self { solc, ..self }
+    }
+
+    /// Records that the failed expression is in the initializer of the constant `id`, unless it is
+    /// in a constant that one reads.
+    pub(crate) fn in_constant(self, id: hir::VariableId) -> Self {
+        Self { constant: self.constant.or(Some(id)), ..self }
     }
 }
 

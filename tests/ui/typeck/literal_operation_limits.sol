@@ -1,10 +1,5 @@
-// ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/112_exp_operator_exponent_too_big.sol
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/370_shift_constant_left_excessive_rvalue.sol
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/371_shift_constant_right_excessive_rvalue.sol
-
-contract ExpOperatorExponentTooBig {
-    function f() public returns (uint d) { return 2 ** 10000000000; } //~ ERROR: cannot apply builtin operator `**`
-}
 
 contract ShiftConstantLeftExcessiveRvalue {
     uint public a = 0x42 << 0x100000000; //~ ERROR: cannot apply builtin operator `<<`

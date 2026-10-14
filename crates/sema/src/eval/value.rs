@@ -3,10 +3,11 @@
 use super::EvalErrorKind as EE;
 use crate::{
     hir::{self, BinOpKind},
-    ty::Gcx,
+    ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::{Address, B256, U256};
 use num_bigint::{BigInt, BigUint, Sign};
+use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, TypeSize};
 use solar_interface::ByteSymbol;
@@ -21,6 +22,10 @@ const MAX_INTERMEDIATE_BITS: u64 = 4096;
 pub enum ConstValue {
     /// An integer literal, or a value of an integer type.
     Int(IntScalar),
+    /// A fractional value of literal arithmetic, such as `0.5` or `1 / 3`.
+    ///
+    /// Integral values of literal arithmetic are [`Self::Int`] literals.
+    Rational(Box<Ratio<BigInt>>),
     /// A `bool` value.
     Bool(bool),
     /// A `bytesN` value.
@@ -49,6 +54,15 @@ pub enum BytesKind {
 }
 
 impl ConstValue {
+    /// Creates the value of literal arithmetic.
+    pub(super) fn literal(value: Ratio<BigInt>) -> Self {
+        if value.is_integer() {
+            Self::Int(IntScalar { data: value.into_raw().0, ty: None })
+        } else {
+            Self::Rational(Box::new(value))
+        }
+    }
+
     /// Returns the integer value, if this is one.
     pub fn as_int(&self) -> Option<&IntScalar> {
         match self {
@@ -88,7 +102,7 @@ impl ConstValue {
             }
             Self::Enum(_, index) => Some(U256::from(*index)),
             Self::Udvt(_, value) => value.as_word(),
-            Self::Bytes(..) => None,
+            Self::Rational(_) | Self::Bytes(..) => None,
         }
     }
 
@@ -100,7 +114,7 @@ impl ConstValue {
             Self::FixedBytes(value) => ValueTy::FixedBytes(value.size),
             Self::Address(_) => ValueTy::Address,
             Self::Contract(id, _) => ValueTy::Contract(*id),
-            Self::Bytes(_, BytesKind::Literal) => return None,
+            Self::Rational(_) | Self::Bytes(_, BytesKind::Literal) => return None,
             Self::Bytes(_, BytesKind::Bytes) => ValueTy::Bytes,
             Self::Bytes(_, BytesKind::String) => ValueTy::String,
             Self::Enum(id, _) => ValueTy::Enum(*id),
@@ -117,8 +131,46 @@ impl ConstValue {
                 Self::Int(value.retype(Some(ty))?)
             }
             Self::Bytes(data, BytesKind::Literal) => Self::Bytes(data, BytesKind::String),
+            // solc gives fractions a fixed-point mobile type, which we do not support.
+            Self::Rational(_) => return Err(EE::Fractional),
             value => value,
         })
+    }
+
+    /// Returns whether this is a number literal.
+    fn is_literal(&self) -> bool {
+        matches!(self, Self::Int(IntScalar { ty: None, .. }) | Self::Rational(_))
+    }
+
+    /// Returns the exact value of a number literal.
+    fn into_literal(self) -> Ratio<BigInt> {
+        match self {
+            Self::Int(IntScalar { data, ty: None }) => data.into(),
+            Self::Rational(value) => *value,
+            _ => unreachable!("not a number literal: {self:?}"),
+        }
+    }
+
+    /// Returns the type of a number literal: an integer or fractional literal type.
+    pub(crate) fn literal_ty<'gcx>(&self, gcx: Gcx<'gcx>) -> Option<Ty<'gcx>> {
+        match self {
+            Self::Int(value) if value.is_literal() => Some(gcx.mk_ty_int_literal_with_fixed_bytes(
+                value.is_negative(),
+                value.bit_len(),
+                value.is_zero().then_some(TypeSize::ZERO),
+            )),
+            Self::Rational(_) => Some(gcx.mk_ty(TyKind::RationalLiteral)),
+            _ => None,
+        }
+    }
+
+    /// Returns `true` if this is a fraction too large for any fixed-point type, which would be
+    /// its mobile type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1231-L1267>
+    pub fn is_fraction_too_large(&self) -> bool {
+        let Self::Rational(value) = self else { return false };
+        **value < IntTy::full_width(true).min().into() || **value > IntTy::UINT256.max().into()
     }
 
     /// Implicitly converts this value to `ty`, like an assignment does.
@@ -151,6 +203,7 @@ impl ConstValue {
             }
             (value @ Self::Enum(id, _), ValueTy::Enum(to)) if id == to => value,
             (value @ Self::Udvt(id, _), ValueTy::Udvt(to)) if id == to => value,
+            (Self::Rational(_), _) => return Err(EE::Fractional),
             _ => return Err(EE::UnsupportedExpr),
         })
     }
@@ -246,6 +299,7 @@ impl ConstValue {
     pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         Ok(match (self, op) {
             (Self::Int(value), op) => Self::Int(value.unop(op)?),
+            (Self::Rational(value), hir::UnOpKind::Neg) => Self::Rational(Box::new(-*value)),
             (Self::Bool(value), hir::UnOpKind::Not) => Self::Bool(!value),
             (Self::FixedBytes(value), hir::UnOpKind::BitNot) => {
                 Self::FixedBytes(FixedBytes::from_word(value.size, !value.word()))
@@ -258,6 +312,9 @@ impl ConstValue {
     ///
     /// `&&` and `||` evaluate both operands here; the evaluator short-circuits them first.
     pub fn binop(self, rhs: Self, op: BinOpKind) -> Result<Self, EE> {
+        if self.is_literal() && rhs.is_literal() {
+            return literal_binop(self.into_literal(), rhs.into_literal(), op);
+        }
         Ok(match (self, rhs) {
             (Self::Int(lhs), Self::Int(rhs)) => match op {
                 _ if op.is_cmp() => {
@@ -305,6 +362,94 @@ impl ConstValue {
     }
 }
 
+/// Applies the given binary operation to number literals.
+///
+/// Arithmetic is exact, so quotients and negative powers can be fractions. Bitwise operators and
+/// shifts only apply to integers, and exponents must be integers. The most significant bit of the
+/// result's numerator and denominator is at most bit 4096.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/ConstantEvaluator.cpp#L76-L219>
+fn literal_binop(l: Ratio<BigInt>, r: Ratio<BigInt>, op: BinOpKind) -> Result<ConstValue, EE> {
+    let value = match op {
+        _ if op.is_cmp() => return Ok(ConstValue::Bool(compare(l.cmp(&r), op))),
+        BinOpKind::Add => l + r,
+        BinOpKind::Sub => l - r,
+        BinOpKind::Mul => l * r,
+        BinOpKind::Div | BinOpKind::Rem if r.is_zero() => {
+            return Err(EE::DivisionByZero { literal: true });
+        }
+        BinOpKind::Div => l / r,
+        // Truncates the quotient, like integer division.
+        BinOpKind::Rem => l % r,
+        BinOpKind::Pow if r.is_integer() => literal_pow(l, r.into_raw().0)?,
+        BinOpKind::BitOr
+        | BinOpKind::BitAnd
+        | BinOpKind::BitXor
+        | BinOpKind::Shl
+        | BinOpKind::Shr
+            if l.is_integer() && r.is_integer() =>
+        {
+            literal_int_binop(l.into_raw().0, r.into_raw().0, op)?.into()
+        }
+        _ => return Err(EE::UnsupportedBinaryOp),
+    };
+    if exceeds_precision(value.numer()) || exceeds_precision(value.denom()) {
+        return Err(EE::LiteralPrecision);
+    }
+    Ok(ConstValue::literal(value))
+}
+
+/// Applies a bitwise operator or a shift to integer literals.
+///
+/// The shift amount must fit in 32 bits, and a left shift must fit in `MAX_INTERMEDIATE_BITS`.
+fn literal_int_binop(l: BigInt, r: BigInt, op: BinOpKind) -> Result<BigInt, EE> {
+    Ok(match op {
+        BinOpKind::BitOr => l | r,
+        BinOpKind::BitAnd => l & r,
+        BinOpKind::BitXor => l ^ r,
+        _ if r.is_negative() => return Err(EE::NegativeShift),
+        _ => {
+            let amount = u32::try_from(&r).map_err(|_| EE::ShiftTooLarge)?;
+            if op == BinOpKind::Shr {
+                // Rounds towards negative infinity, like `sar`.
+                l >> amount
+            } else if l.is_zero() {
+                l
+            } else if l.bits() + u64::from(amount) > MAX_INTERMEDIATE_BITS {
+                return Err(EE::ShiftTooLarge);
+            } else {
+                l << amount
+            }
+        }
+    })
+}
+
+/// Returns whether an integer's most significant bit is past index `MAX_INTERMEDIATE_BITS`, like
+/// solc allows.
+fn exceeds_precision(value: &BigInt) -> bool {
+    value.magnitude().bits() > MAX_INTERMEDIATE_BITS + 1
+}
+
+/// Raises a number literal to an integer power by raising its numerator and denominator.
+///
+/// `0`, `1` and `-1` raised to any power are exact, and `0` raised to a negative power is `0`.
+fn literal_pow(base: Ratio<BigInt>, exp: BigInt) -> Result<Ratio<BigInt>, EE> {
+    if exp.is_zero() {
+        return Ok(Ratio::one());
+    }
+    if base.denom().is_one() && (base.is_zero() || base.numer().magnitude().is_one()) {
+        return Ok(if exp.magnitude().bit(0) { base } else { base.abs() });
+    }
+    let negative = exp.is_negative();
+    let exp = u32::try_from(exp.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
+    let (numer, denom) = base.into_raw();
+    if [&numer, &denom].iter().any(|n| n.bits() * u64::from(exp) > MAX_INTERMEDIATE_BITS) {
+        return Err(EE::ExponentTooLarge);
+    }
+    let value = Ratio::new_raw(numer.pow(exp), denom.pow(exp));
+    Ok(if negative { value.recip() } else { value })
+}
+
 /// Returns the result of the comparison `op` given how its operands order.
 fn compare(ordering: Ordering, op: BinOpKind) -> bool {
     match op {
@@ -338,7 +483,7 @@ impl ValueTy {
     /// Returns the value type denoted by the given type, if it has constant values.
     pub(super) fn from_hir(ty: &hir::Type<'_>) -> Option<Self> {
         Some(match ty.kind {
-            hir::TypeKind::Elementary(ty) => Self::from_elementary(ty)?,
+            hir::TypeKind::Elementary(ty) => Self::from_elementary(ty),
             hir::TypeKind::Custom(hir::ItemId::Contract(id)) => Self::Contract(id),
             hir::TypeKind::Custom(hir::ItemId::Enum(id)) => Self::Enum(id),
             hir::TypeKind::Custom(hir::ItemId::Udvt(id)) => Self::Udvt(id),
@@ -346,9 +491,9 @@ impl ValueTy {
         })
     }
 
-    /// Returns the value type denoted by the given elementary type, if it has constant values.
-    pub(super) fn from_elementary(ty: ElementaryType) -> Option<Self> {
-        Some(match ty {
+    /// Returns the value type denoted by the given elementary type.
+    pub(super) fn from_elementary(ty: ElementaryType) -> Self {
+        match ty {
             ElementaryType::Int(size) => Self::Int(IntTy { signed: true, size }),
             ElementaryType::UInt(size) => Self::Int(IntTy { signed: false, size }),
             ElementaryType::Bool => Self::Bool,
@@ -356,8 +501,7 @@ impl ValueTy {
             ElementaryType::FixedBytes(size) => Self::FixedBytes(size.bytes()),
             ElementaryType::Bytes => Self::Bytes,
             ElementaryType::String => Self::String,
-            ElementaryType::Fixed(..) | ElementaryType::UFixed(..) => return None,
-        })
+        }
     }
 }
 
@@ -631,8 +775,7 @@ impl IntScalar {
     }
 
     fn checked(data: BigInt) -> Result<Self, EE> {
-        // Like solc, allow a most significant bit up to index `MAX_INTERMEDIATE_BITS`.
-        if data.magnitude().bits() > MAX_INTERMEDIATE_BITS + 1 {
+        if exceeds_precision(&data) {
             return Err(EE::ArithmeticOverflow);
         }
         Ok(Self { data, ty: None })
@@ -691,10 +834,6 @@ impl IntScalar {
         !value.is_zero() && (value & (value - BigUint::one())).is_zero()
     }
 
-    fn negate(self) -> Result<Self, EE> {
-        Self::checked(-self.data)
-    }
-
     fn shift_amount(r: Self) -> Option<usize> {
         r.as_u256()?.try_into().ok()
     }
@@ -706,24 +845,25 @@ impl IntScalar {
     /// Applies the given unary operation to this value.
     ///
     /// The operation is performed in the operand's type, so a result outside of that type's range
-    /// is an error rather than the mathematical value.
+    /// is an error rather than the mathematical value. Like in solc, unary operators on literals
+    /// are exact at any precision.
     pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         let ty = self.ty;
-        let value = match op {
+        let data = match op {
             hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec
             | hir::UnOpKind::Not => return Err(EE::UnsupportedUnaryOp),
-            hir::UnOpKind::BitNot => Self::checked(!self.data)?,
+            hir::UnOpKind::BitNot => !self.data,
             // Negating an unsigned value is not arithmetic that overflows but an operator the
             // operand's type does not have, which is what solc reports for it.
             hir::UnOpKind::Neg if ty.is_some_and(|ty| !ty.signed) => {
                 return Err(EE::NegateUnsigned);
             }
-            hir::UnOpKind::Neg => self.negate()?,
+            hir::UnOpKind::Neg => -self.data,
         };
-        value.retype(ty).map_err(|_| EE::UnaryOverflow)
+        Self { data, ty: None }.retype(ty).map_err(|_| EE::UnaryOverflow)
     }
 
     /// Returns the mobile type of a literal operand.
@@ -755,10 +895,8 @@ impl IntScalar {
     /// Returns the type the given binary operation is performed in, if any.
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
-    /// in the common type of both operands. Two literals stay untyped and keep their exact value up
-    /// to `MAX_INTERMEDIATE_BITS`, and operands without a common type stay untyped because the
-    /// type checker already rejects them. A shift or exponentiation
-    /// of two literals must also pass [`Self::check_literal_bounds`].
+    /// in the common type of both operands. Two literals stay untyped, and operands without a
+    /// common type stay untyped because the type checker already rejects them.
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -784,10 +922,7 @@ impl IntScalar {
                     l.mobile_ty()?;
                     Some(IntTy::full_width(l.is_negative()))
                 }
-                (None, None) => {
-                    l.check_literal_bounds(r, op)?;
-                    None
-                }
+                (None, None) => None,
             },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
@@ -796,35 +931,6 @@ impl IntScalar {
                 (Some(l), Some(r)) => l.common(r),
             },
         })
-    }
-
-    /// Rejects a literal shift or exponentiation that solc's
-    /// `ConstantEvaluator::evaluateBinaryOperator` gives no value.
-    ///
-    /// The shift amount or exponent must fit in 32 bits, and a left shift or power must fit in
-    /// `MAX_INTERMEDIATE_BITS`.
-    fn check_literal_bounds(&self, r: &Self, op: BinOpKind) -> Result<(), EE> {
-        match op {
-            BinOpKind::Shl | BinOpKind::Shr if r.is_negative() => return Err(EE::NegativeShift),
-            BinOpKind::Shl | BinOpKind::Shr => {
-                let amount = u32::try_from(&r.data).map_err(|_| EE::ShiftTooLarge)?;
-                if op == BinOpKind::Shl
-                    && !self.is_zero()
-                    && self.data.bits() + u64::from(amount) > MAX_INTERMEDIATE_BITS
-                {
-                    return Err(EE::ShiftTooLarge);
-                }
-            }
-            // Powers of `0`, `1` and `-1` are exact for any exponent.
-            BinOpKind::Pow if !self.is_zero() && !self.data.magnitude().is_one() => {
-                let exp = u32::try_from(r.data.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
-                if self.data.bits() * u64::from(exp) > MAX_INTERMEDIATE_BITS {
-                    return Err(EE::ExponentTooLarge);
-                }
-            }
-            _ => {}
-        }
-        Ok(())
     }
 
     /// Returns whether solc's constant evaluator gives the binary operation the same value, or
@@ -847,43 +953,34 @@ impl IntScalar {
         }
     }
 
-    /// Applies the given binary operation to this value.
+    /// Applies the given binary operation to this value, at least one of the operands being typed.
     ///
-    /// For literal arithmetic, this preserves the exact mathematical value. Typed arithmetic stays
-    /// checked: a result outside of the operation's type is an error, like it is at runtime.
-    pub fn binop(self, r: Self, op: BinOpKind) -> Result<Self, EE> {
+    /// The arithmetic stays checked: a result outside of the operation's type is an error, like it
+    /// is at runtime. [`ConstValue::binop`] computes literal arithmetic exactly instead.
+    fn binop(self, r: Self, op: BinOpKind) -> Result<Self, EE> {
         let ty = Self::binop_ty(&self, &r, op)?;
-        let literal = ty.is_none() && self.ty.is_none() && r.ty.is_none();
-        match self.binop_value(r, op, literal) {
-            // solc gives literal arithmetic beyond its precision no type.
-            Err(EE::ArithmeticOverflow) if literal => Err(EE::LiteralPrecision),
-            value => value?.retype(ty),
-        }
+        self.binop_value(r, op)?.retype(ty)
     }
 
-    fn binop_value(self, r: Self, op: BinOpKind, literal: bool) -> Result<Self, EE> {
+    fn binop_value(self, r: Self, op: BinOpKind) -> Result<Self, EE> {
         Ok(match op {
             BinOpKind::Add => Self::checked(self.data + r.data)?,
             BinOpKind::Sub => Self::checked(self.data - r.data)?,
             BinOpKind::Mul => Self::checked(self.data * r.data)?,
             BinOpKind::Div => {
                 if r.data.is_zero() {
-                    return Err(EE::DivisionByZero { literal });
-                }
-                // A literal quotient is a rational number, which we do not model.
-                if literal && !(&self.data % &r.data).is_zero() {
-                    return Err(EE::Fractional);
+                    return Err(EE::DivisionByZero { literal: false });
                 }
                 Self::checked(self.data / r.data)?
             }
             BinOpKind::Rem => {
                 if r.data.is_zero() {
-                    return Err(EE::DivisionByZero { literal });
+                    return Err(EE::DivisionByZero { literal: false });
                 }
                 Self::checked(self.data % r.data)?
             }
             BinOpKind::Pow => {
-                if r.is_negative() && !literal {
+                if r.is_negative() {
                     return Err(EE::ArithmeticOverflow);
                 }
                 self.checked_pow(r)?
@@ -936,11 +1033,6 @@ impl IntScalar {
         if self.data == BigInt::from(-1) {
             let is_odd = r.data.magnitude().bit(0);
             return Self::checked(if is_odd { self.data } else { BigInt::one() });
-        }
-        // Like solc, a negative literal exponent keeps `0`, `1` and `-1` above; other bases give
-        // a fraction.
-        if r.is_negative() {
-            return Err(EE::Fractional);
         }
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
         let exp = u32::try_from(exp).map_err(|_| EE::ArithmeticOverflow)?;
