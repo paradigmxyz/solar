@@ -1,7 +1,7 @@
 //@ compile-flags: --emit=bin
 // A constant is its value, which constant evaluation computes once. solc evaluates the initializer
 // at every use instead, which can revert there; we report a constant without a value at its first
-// use, once. See CODEGEN-012 in docs/SOLC_DIVERGENCE.md.
+// use, once. See CODEGEN-013 in docs/SOLC_DIVERGENCE.md.
 
 contract D {}
 

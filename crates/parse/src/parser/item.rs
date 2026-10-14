@@ -1220,7 +1220,10 @@ bitflags::bitflags! {
                            | Self::SEMI.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclarationStatement
-        const VAR = Self::DATALOC.bits() | Self::INITIALIZER.bits();
+        const VAR = Self::DATALOC.bits() | Self::NAME.bits() | Self::INITIALIZER.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclarationTuple
+        const VAR_TUPLE = Self::DATALOC.bits() | Self::NAME.bits();
     }
 
     /// Flags for parsing function headers.

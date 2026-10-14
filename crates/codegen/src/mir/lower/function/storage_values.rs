@@ -157,9 +157,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // storage access, in the struct constructor's order.
         let mut values = Vec::new();
         self.lower_constant_storage_fields(ty, rhs, &mut values)?;
-        let Some(access) = self.storage_access(lhs) else {
-            return self.cx.report_unsupported(lhs.span, "storage access");
-        };
+        let access = self.require_storage_access(lhs)?;
         self.store_constant_storage_value(ty, access, rhs, &mut values.into_iter())
     }
 
@@ -261,20 +259,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Like [`Self::storage_access`], but reports an unsupported error when it fails.
+    pub(super) fn require_storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
+        self.storage_access(expr)
+            .or_else(|| self.cx.report_unsupported(expr.span, "storage access"))
+    }
+
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         let expr = self.peel_bytes_conversion(expr);
-        if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+        if matches!(expr.kind, ExprKind::Member(..))
             && let Some(id) = self.cx.gcx.resolved_variable(expr)
             && self.cx.gcx.hir.variable(id).is_state_variable()
         {
-            let location = self.cx.storage.get(id)?;
-            let slot = self.builder.imm(location.slot);
-            return Some(StorageAccess { slot, location, offset: None });
+            return self.variable_storage_access(id);
         }
         match &expr.kind {
             ExprKind::Ident(_) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                self.storage_refs.get(&id).copied()
+                self.variable_storage_access(id)
             }
             ExprKind::Member(receiver, _) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
@@ -647,10 +649,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: Option<&hir::Expr<'_>>,
         capture_value: bool,
     ) -> Option<CallResult> {
-        let Some(access) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(receiver.span, "storage access");
-        };
-        let slot = access.slot;
+        let slot = self.require_storage_access(receiver)?.slot;
         let byte_ty = self.cx.gcx.types.fixed_bytes(1);
         let Some(argument) = argument else {
             // The zero byte a plain `push()` appends is written by the growth itself, so the
@@ -756,9 +755,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
+            let access = self.require_storage_access(receiver)?;
             return self.lower_storage_bytes_pop(access.slot, expr.span);
         }
 
@@ -857,9 +854,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
-        let Some(base) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(receiver.span, "storage access");
-        };
+        let base = self.require_storage_access(receiver)?;
         let ty = self.cx.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
         Some((base, element))
@@ -1781,6 +1776,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // sstore(slot, 0)
         self.builder.switch_to_block(write_block);
         self.builder.sstore(slot, zero);
+    }
+
+    /// Returns the storage a state variable or a bound storage reference names.
+    pub(super) fn variable_storage_access(&mut self, id: VariableId) -> Option<StorageAccess> {
+        if !self.cx.gcx.hir.variable(id).is_state_variable() {
+            return self.storage_refs.get(&id).copied();
+        }
+        let location = self.cx.storage.get(id)?;
+        let slot = self.builder.imm(location.slot);
+        Some(StorageAccess { slot, location, offset: None })
+    }
+
+    /// Points the storage reference `id` at `slot`, keeping its known layout.
+    pub(super) fn set_storage_ref_slot(&mut self, id: VariableId, slot: ValueId) {
+        // storage_ref.slot = slot
+        self.storage_refs
+            .entry(id)
+            .or_insert(StorageAccess {
+                slot,
+                location: StorageLocation::word(U256::ZERO),
+                offset: None,
+            })
+            .slot = slot;
     }
 }
 
