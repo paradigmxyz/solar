@@ -363,14 +363,13 @@ fn dumps(config: &TestConfig, build_manager: &BuildManager) -> Dumps {
         Err(error) => return Arc::new(Err(format!("cannot rebuild the command: {error:?}"))),
     };
     let key = format!("{command:?}");
-    let mut cache = CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
-    let cache = cache.get_or_insert_with(HashMap::new);
-    if let Some(dumps) = cache.get(&key) {
+    let cache = || CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
+    if let Some(dumps) = cache().get_or_insert_with(HashMap::new).get(&key) {
         return dumps.clone();
     }
+    // Compile without the lock, so tests on other threads dump in parallel.
     let dumps = Arc::new(run_dump(command));
-    cache.insert(key, dumps.clone());
-    dumps
+    cache().get_or_insert_with(HashMap::new).entry(key).or_insert(dumps).clone()
 }
 
 /// Returns `command` with its dumps replaced by a dump of the MIR the backend compiles, also
