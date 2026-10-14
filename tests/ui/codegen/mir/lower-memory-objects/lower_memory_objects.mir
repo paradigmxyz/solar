@@ -15,17 +15,13 @@
 // CHECK: + {{v[0-9]+}} = add [[DATA]], 32
 // CHECK: + [[FIELD_BASE:v[0-9]+]] = ptrtoint memptr arg2 to i256
 // CHECK-NEXT: + [[FIELD:v[0-9]+]] = add [[FIELD_BASE]], 32
-// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[FIELD]] to memptr
 // CHECK-NEXT: + store [[FIELD]], [[LEN]]
 // CHECK: + [[ARRAY_BASE:v[0-9]+]] = ptrtoint memptr arg1 to i256
 // CHECK-NEXT: + [[ARRAY_DATA:v[0-9]+]] = add [[ARRAY_BASE]], 32
-// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[ARRAY_DATA]] to memptr
 // CHECK-NEXT: + [[ELEMENT:v[0-9]+]] = add [[ARRAY_DATA]], {{v[0-9]+}}
-// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[ELEMENT]] to memptr
 // CHECK-NEXT: + store [[ELEMENT]], [[LEN]]
 // CHECK: + [[FIXED_BASE:v[0-9]+]] = ptrtoint memptr arg3 to i256
 // CHECK-NEXT: + [[FIXED:v[0-9]+]] = add [[FIXED_BASE]], {{v[0-9]+}}
-// CHECK-NEXT: + {{v[0-9]+}} = inttoptr i256 [[FIXED]] to memptr
 // CHECK-NEXT: + store [[FIXED]], [[LEN]]
 fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
   bb0:
@@ -89,8 +85,7 @@ fn @copy_object(arg0: memptr, arg1: memptr, arg2: i256) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @word_carrier{{[( ]}}
 // CHECK: {{^[ +].*}}[[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
-// CHECK: {{^[ +].*}}[[OBJECT_POINTER:v[0-9]+]] = inttoptr i256 [[POINTER]] to memptr
-// CHECK-NOT: + {{.*}}ptrtoint
+// CHECK-NOT: + {{.*}}{{ptrtoint|inttoptr}}
 // CHECK: + {{v[0-9]+}} = load [[POINTER]]
 fn @word_carrier(arg0: memptr) -> i256 {
   bb0:
@@ -127,4 +122,26 @@ fn @merged_allocations() -> memptr {
     v3 = ptrtoint memptr v1 to i256
     store v3, 0
     ret v1
+}
+
+// An access's immediate offset becomes an `add` to its address word.
+// CHECK-LABEL: {{^[ +].*}}fn @access_offsets{{[( ]}}
+// CHECK: + [[BASE:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK-NEXT: + [[LOAD_ADDRESS:v[0-9]+]] = add [[BASE]], 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = load [[LOAD_ADDRESS]]
+// CHECK: + [[STORE_ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, 64
+// CHECK-NEXT: + store [[STORE_ADDRESS]], [[WORD]]
+// CHECK: + [[BYTE_ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, 1
+// CHECK-NEXT: + store8 [[BYTE_ADDRESS]], [[WORD]]
+// CHECK-NEXT: + [[CALLDATA_ADDRESS:v[0-9]+]] = add arg1, 4
+// CHECK-NEXT: + {{v[0-9]+}} = load calldata [[CALLDATA_ADDRESS]]
+// CHECK-NOT: +{{.*}}+{{[0-9]+}}
+fn @access_offsets(arg0: memptr, arg1: i256) {
+  bb0:
+    v0 = load arg0+32
+    store arg0+64, v0
+    store8 arg0+1, v0
+    v1 = load calldata arg1+4
+    store arg0, v1
+    stop
 }

@@ -1129,10 +1129,7 @@ fn is_small_literal_return(func: &Function) -> bool {
             continue;
         }
         let InstKind::Store(address, offset, value) = func.inst(inst).kind else { return false };
-        let address = func
-            .object_address(address)
-            .and_then(|(base, address_offset)| Some((base, address_offset.checked_add(offset)?)));
-        match address {
+        match func.object_access(address, offset) {
             Some((base, 0)) if base == object && length.is_none() => {
                 length = func.value_u64(value);
             }
@@ -1617,6 +1614,10 @@ fn estimate_inst_cost(
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
         let op = kind.op();
         if select::opcode_lowering(&op).is_some() {
+            // An access at an immediate offset first adds it to the address.
+            if kind.access_offset().is_some_and(|offset| offset != 0) {
+                return (target.op(&op, |_| None).plus(seq(&[op::ADD])), 2);
+            }
             return (target.op(&op, |_| None), 1);
         }
     }

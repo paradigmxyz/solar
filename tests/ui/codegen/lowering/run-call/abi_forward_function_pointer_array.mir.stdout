@@ -33,29 +33,29 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
     store v23, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v37]
+    v24 = phi [bb0: 0], [bb2: v36]
     v25 = lt v24, v2
     jumpi v25, bb2, bb3
   bb3:
-    v38 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = zext i160 v0 to i256
-    v42 = staticcall v1, v41, v39, v40, 0, 32
-    jumpi v42, bb5, bb4
+    v37 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = zext i160 v0 to i256
+    v41 = staticcall v1, v40, v38, v39, 0, 32
+    jumpi v41, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v43 = returndatasize
-    v44 = lt v43, 32
-    icall revert_if<tuple_data_too_short>, v44
-    v45 = add 0, 0
-    v46 = load v45
-    v47 = lt v46, 2
-    v48 = eq v47, false
-    icall revert_if<empty>, v48
-    v49 = ne v46, 0
-    ret v49
+    v42 = returndatasize
+    v43 = lt v42, 32
+    icall revert_if<tuple_data_too_short>, v43
+    v44 = add 0, 0
+    v45 = load v44
+    v46 = lt v45, 2
+    v47 = eq v46, false
+    icall revert_if<empty>, v47
+    v48 = ne v45, 0
+    ret v48
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
@@ -67,10 +67,9 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
     v32 = shr 64, v28
     v33 = shl 64, v32
     v34 = shl 5, v24
-    v35 = ptradd v23, 32
-    v36 = ptradd v35, v34
-    store v36, v33
-    v37 = add v24, 1
+    v35 = ptradd v23, v34
+    store v35+32, v33
+    v36 = add v24, 1
     jump bb1
 }
 

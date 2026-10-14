@@ -43,7 +43,7 @@ fn @copy(arg0: memptr) -> memptr [pure] {
     jump bb1
   bb1:
     v6 = phi [bb0: v5], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v25]
+    v7 = phi [bb0: 0], [bb3: v23]
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = load v8
     v10 = lt v7, v9
@@ -57,23 +57,21 @@ fn @copy(arg0: memptr) -> memptr [pure] {
     v12 = lt v7, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = ptradd v8, 32
-    v15 = ptradd v14, v7
-    v16 = load v15
-    v17 = byte 0, v16
-    v18 = shl 248, v17
-    v19 = load v6
-    v20 = lt v7, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = byte 0, v18
-    v23 = ptradd v6, 32
-    v24 = ptradd v23, v7
-    store8 v24, v22
+    v14 = ptradd v8, v7
+    v15 = load v14+32
+    v16 = byte 0, v15
+    v17 = shl 248, v16
+    v18 = load v6
+    v19 = lt v7, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = byte 0, v17
+    v22 = ptradd v6, v7
+    store8 v22+32, v21
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v25 = checked_add u256, v7, 1
+    v23 = checked_add u256, v7, 1
     jump bb1
 }

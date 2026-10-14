@@ -4,8 +4,7 @@ fn @branch(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xc4013ae4, pure,
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = ptradd v0, 32
-    store v1, 0
+    store v0+32, 0
     jumpi arg0, bb1, bb2
   bb2:
     store v0, arg2
@@ -14,39 +13,38 @@ fn @branch(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xc4013ae4, pure,
     store v0, arg1
     jump bb3
   bb3:
-    v2 = load v0
-    ret v2
+    v1 = load v0
+    ret v1
 }
 
 fn @accumulate(arg0: i256) -> i256 [selector=0xb4e7d02a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = ptradd v0, 32
-    store v1, 0
+    store v0+32, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v10]
-    v5 = phi [bb0: 0], [bb3: v5]
-    v6 = lt v4, v2
-    jumpi v6, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v9]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = lt v3, v1
+    jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v11 = load v3
-    ret v11
+    v10 = load v2
+    ret v10
   bb4:
-    v7 = checked_add u256, v4, 1
-    v8 = load v3
-    v9 = checked_add u256, v8, v7
-    store v3, v9
+    v6 = checked_add u256, v3, 1
+    v7 = load v2
+    v8 = checked_add u256, v7, v6
+    store v2, v8
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v4, 1
+    v9 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -54,8 +52,8 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v10]
-    v1 = phi [bb0: 0], [bb3: v9]
+    v0 = phi [bb0: 0], [bb3: v9]
+    v1 = phi [bb0: 0], [bb3: v8]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = lt v0, v2
     jumpi v3, bb4, bb5
@@ -66,24 +64,23 @@ fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb4:
     v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v4, 0
-    v5 = ptradd v4, 32
-    store v5, 0
-    v6 = checked_rem u256, v0, 2
-    v7 = eq v6, 0
-    jumpi v7, bb7, bb8
+    store v4+32, 0
+    v5 = checked_rem u256, v0, 2
+    v6 = eq v5, 0
+    jumpi v6, bb7, bb8
   bb8:
     jump bb9
   bb7:
     store v4, 5
     jump bb9
   bb9:
-    v8 = load v4
-    v9 = checked_add u256, v1, v8
+    v7 = load v4
+    v8 = checked_add u256, v1, v7
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = checked_add u256, v0, 1
+    v9 = checked_add u256, v0, 1
     jump bb1
 }
 
@@ -91,19 +88,16 @@ fn @coupled(arg0: i1, arg1: i256) -> i256 [selector=0x1055d423, pure, abi_params
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = ptradd v0, 32
-    store v1, 0
+    store v0+32, 0
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     store v0, arg1
-    v2 = load v0
-    v3 = ptradd v0, 32
-    store v3, v2
+    v1 = load v0
+    store v0+32, v1
     jump bb3
   bb3:
-    v4 = ptradd v0, 32
-    v5 = load v4
-    ret v5
+    v2 = load v0+32
+    ret v2
 }

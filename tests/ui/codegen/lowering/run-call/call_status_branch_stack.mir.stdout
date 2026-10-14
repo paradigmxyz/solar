@@ -22,12 +22,9 @@ fn @get(arg0: i256) -> memptr [selector=0x9507d39a, pure, abi_params=[u256], abi
     v5 = checked_add u256, arg0, 3
     v6 = checked_add u256, arg0, 4
     store v2, v3
-    v7 = ptradd v2, 32
-    store v7, v4
-    v8 = ptradd v2, 64
-    store v8, v5
-    v9 = ptradd v2, 96
-    store v9, v6
+    store v2+32, v4
+    store v2+64, v5
+    store v2+96, v6
     ret v2
 }
 
@@ -76,11 +73,10 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[u256], ab
     v11 = make_memory_slice v10, 128
     v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
     v13 = load v12
-    v14 = ptradd v12, 32
-    v15 = load v14
-    v16 = checked_add u256, v13, v15
-    v17 = checked_sub u256, v16, 1
-    ret v17
+    v14 = load v12+32
+    v15 = checked_add u256, v13, v14
+    v16 = checked_sub u256, v15, 1
+    ret v16
 }
 
 fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -103,10 +99,8 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi
     v10 = ptrtoint memptr v5 to i256
     v11 = make_memory_slice v10, 128
     v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
-    v13 = ptradd v12, 64
-    v14 = load v13
-    v15 = ptradd v12, 96
-    v16 = load v15
-    v17 = checked_add u256, v14, v16
-    ret v17
+    v13 = load v12+64
+    v14 = load v12+96
+    v15 = checked_add u256, v13, v14
+    ret v15
 }

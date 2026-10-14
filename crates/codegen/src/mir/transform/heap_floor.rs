@@ -391,8 +391,7 @@ fn index_in_block(func: &Function, block: BlockId, inst: InstId) -> usize {
 
 /// Whether a value is the address of the free memory pointer's slot.
 fn is_slot(func: &Function, address: ValueId, offset: u64) -> bool {
-    func.value_u64(address).and_then(|address| address.checked_add(offset))
-        == Some(EvmMemoryLayout::FMP_SLOT)
+    func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
 }
 
 /// Whether a function returns to code that ends execution without reading the free memory
@@ -493,6 +492,9 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
             kind,
             InstKind::FrameLoad { .. }
                 | InstKind::FrameStore { .. }
+                | InstKind::Load(..)
+                | InstKind::Store(..)
+                | InstKind::Store8(..)
                 | InstKind::MemoryZero(..)
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)
@@ -1311,8 +1313,7 @@ impl<'a> PointerUses<'a> {
                             );
                     }
                     RawMemoryAccess::Write => {
-                        if let Some(start) =
-                            func.value_u64(address).and_then(|address| address.checked_add(offset))
+                        if let Some(start) = func.constant_address(address, offset)
                             && let Some(size) = size.constant(func)
                         {
                             *written |= slot_bytes(start, size);

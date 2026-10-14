@@ -51,8 +51,7 @@ fn @agg() -> memptr [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[arra
     v4 = lt 1, 2
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = ptradd v0, 32
-    store v6, 22
+    store v0+32, 22
     ret v0
 }
 
@@ -347,10 +346,9 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v27 = lt 1, 2
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = ptradd v23, 32
-    v30 = load v29
-    v31 = checked_add u256, v26, v30
-    ret v31
+    v29 = load v23+32
+    v30 = checked_add u256, v26, v29
+    ret v30
 }
 
 fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

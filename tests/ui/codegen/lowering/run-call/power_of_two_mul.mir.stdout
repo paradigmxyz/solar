@@ -37,8 +37,7 @@ fn @at(arg0: memptr, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_params=
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = shl 5, arg1
-    v4 = ptradd arg0, 32
-    v5 = ptradd v4, v3
-    v6 = load v5
-    ret v6
+    v4 = ptradd arg0, v3
+    v5 = load v4+32
+    ret v5
 }

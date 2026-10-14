@@ -4,7 +4,7 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v33]
+    v0 = phi [bb0: 0], [bb3: v30]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: memptr 96], [bb3: v5]
     v3 = phi [bb0: 0], [bb3: v3]
@@ -24,54 +24,51 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = ptradd v5, 32
-    v12 = load v11
-    v13 = byte 0, v12
-    v14 = shl 248, v13
-    v15 = ne v14, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v11 = load v5+32
+    v12 = byte 0, v11
+    v13 = shl 248, v12
+    v14 = ne v13, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb8:
     jump bb9
   bb9:
-    v16 = phi [bb7: v15], [bb8: true]
-    jumpi v16, bb10, bb11
+    v15 = phi [bb7: v14], [bb8: true]
+    jumpi v15, bb10, bb11
   bb11:
     jump bb12
   bb12:
-    v17 = ne v0, 0
-    jumpi v17, bb13, bb14
+    v16 = ne v0, 0
+    jumpi v16, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v18 = load v2
-    v19 = lt 0, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptradd v2, 32
-    v22 = load v21
-    v23 = byte 0, v22
-    v24 = shl 248, v23
-    v25 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v26 = ne v24, v25
+    v17 = load v2
+    v18 = lt 0, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = load v2+32
+    v21 = byte 0, v20
+    v22 = shl 248, v21
+    v23 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v24 = ne v22, v23
     jump bb15
   bb15:
-    v27 = phi [bb13: v26], [bb14: false]
-    jumpi v27, bb16, bb17
+    v25 = phi [bb13: v24], [bb14: false]
+    jumpi v25, bb16, bb17
   bb17:
     jump bb18
   bb18:
-    v28 = load v5
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = byte 0, v1
-    v32 = ptradd v5, 32
-    store8 v32, v31
+    v26 = load v5
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v1
+    store8 v5+32, v29
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v33 = checked_add u256, v0, 1
+    v30 = checked_add u256, v0, 1
     jump bb1
   bb16:
     ret false

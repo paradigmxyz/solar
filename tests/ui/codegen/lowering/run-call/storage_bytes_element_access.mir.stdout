@@ -19,7 +19,7 @@ fn @_fill(arg0: i256) {
   bb1:
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: v4], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v19]
+    v7 = phi [bb0: 0], [bb3: v18]
     v8 = lt v7, v5
     jumpi v8, bb4, bb5
   bb5:
@@ -37,14 +37,13 @@ fn @_fill(arg0: i256) {
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = byte 0, v12
-    v17 = ptradd v6, 32
-    v18 = ptradd v17, v7
-    store8 v18, v16
+    v17 = ptradd v6, v7
+    store8 v17+32, v16
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add u256, v7, 1
+    v18 = checked_add u256, v7, 1
     jump bb1
 }
 

@@ -31,7 +31,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v62]
+    v22 = phi [bb0: 0], [bb2: v61]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -81,10 +81,9 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     copy calldata v55, v56, v57
     v58 = ptrtoint memptr v53 to i256
     v59 = shl 5, v22
-    v60 = ptradd v21, 32
-    v61 = ptradd v60, v59
-    store v61, v58
-    v62 = add v22, 1
+    v60 = ptradd v21, v59
+    store v60+32, v58
+    v61 = add v22, 1
     jump bb1
 }
 
@@ -100,14 +99,12 @@ fn @sumMemory(arg0: memptr) -> i256 [selector=0x13201b5d, pure, abi_params=[arra
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = ptradd arg0, 32
-    v4 = load v3
-    v5 = load arg0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd arg0, 64
-    v9 = load v8
-    v10 = checked_add u256, v4, v9
-    ret v10
+    v3 = load arg0+32
+    v4 = load arg0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = load arg0+64
+    v8 = checked_add u256, v3, v7
+    ret v8
 }

@@ -12,7 +12,8 @@
 //! together before mutation, including full-object zero fills. The allocation
 //! stays in place. Full-width pointer casts retain the same object identity;
 //! escapes, narrowing casts, dynamic indices and partial/unknown accesses reject promotion.
-//! Run before memory-object lowering, while `ptradd` keeps object offsets explicit.
+//! Run before memory-object lowering, while access offsets and `ptradd` keep object offsets
+//! explicit.
 
 use crate::mir::{
     AllocationKind, BlockId, Function, Immediate, InstKind, MemoryObjectLayout, Module,

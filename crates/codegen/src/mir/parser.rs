@@ -1576,7 +1576,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    /// Parses an optional non-memory location before a memory access's operands.
     /// Parses the immediate byte offset of a memory access address, `+offset`, if present.
     fn parse_address_offset(&mut self) -> PResult<'sess, u64> {
         if !self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
@@ -1585,6 +1584,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(self.parser.parse_uint()?.to::<u64>())
     }
 
+    /// Parses an optional non-memory location before a memory access's operands.
     fn parse_ptr_location(&mut self) -> PtrLocation {
         if self.parser.eat_keyword(kw::Calldata) {
             PtrLocation::Calldata

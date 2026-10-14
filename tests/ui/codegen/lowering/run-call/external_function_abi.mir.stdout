@@ -15,8 +15,7 @@ fn @echoHolder(arg0: memptr) -> memptr [selector=0x030fb1b2, pure, abi_params=[t
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = ptradd v0, 32
-    store v1, 0
+    store v0+32, 0
     ret arg0
 }
 
@@ -73,90 +72,85 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = shl 64, v3
     store v34, v35
-    v36 = ptradd v34, 32
-    store v36, 7
-    v37 = address
-    v38 = gas
-    v39 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v34
-    v40 = slice_ptr v39
-    v41 = slice_len v39
-    v42 = alloc raw, exact, uninitialized, infallible, 64
-    v43 = zext i160 v37 to i256
-    v44 = ptrtoint memptr v42 to i256
-    v45 = staticcall v38, v43, v40, v41, v44, 64
-    jumpi v45, bb4, bb3
+    store v34+32, 7
+    v36 = address
+    v37 = gas
+    v38 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v34
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = alloc raw, exact, uninitialized, infallible, 64
+    v42 = zext i160 v36 to i256
+    v43 = ptrtoint memptr v41 to i256
+    v44 = staticcall v37, v42, v39, v40, v43, 64
+    jumpi v44, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v46 = returndatasize
-    v47 = lt v46, 64
-    icall revert_if<tuple_data_too_short>, v47
-    v48 = ptrtoint memptr v42 to i256
-    v49 = make_memory_slice v48, 64
-    v50 = abi_decode [tuple<function, u256>], v49
-    v51 = load v50
-    v52 = shr 64, v51
-    v53 = shr 32, v52
-    v54 = and v53, 0xffffffffffffffffffffffffffffffffffffffff
-    v55 = trunc i256 v54 to i160
-    v56 = address
-    v57 = eq v55, v56
-    icall require<short_string>, v57, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
-    v58 = load v50
-    v59 = shr 64, v58
-    v60 = and v59, 0xffffffff
-    v61 = shl 224, v60
-    v62 = eq v61, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    icall require<short_string>, v62, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
-    v63 = ptradd v50, 32
-    v64 = load v63
-    v65 = eq v64, 7
-    icall require<short_string>, v65, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
-    v66 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    store v66, 1
-    v67 = load v66
-    v68 = lt 0, v67
-    v69 = eq v68, false
-    icall panic_if<0x32>, v69
-    v70 = shl 64, v3
-    v71 = ptradd v66, 32
-    store v71, v70
-    v72 = address
-    v73 = gas
-    v74 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v66
-    v75 = slice_ptr v74
-    v76 = slice_len v74
-    v77 = zext i160 v72 to i256
-    v78 = staticcall v73, v77, v75, v76, 0, 0
-    jumpi v78, bb6, bb5
+    v45 = returndatasize
+    v46 = lt v45, 64
+    icall revert_if<tuple_data_too_short>, v46
+    v47 = ptrtoint memptr v41 to i256
+    v48 = make_memory_slice v47, 64
+    v49 = abi_decode [tuple<function, u256>], v48
+    v50 = load v49
+    v51 = shr 64, v50
+    v52 = shr 32, v51
+    v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffff
+    v54 = trunc i256 v53 to i160
+    v55 = address
+    v56 = eq v54, v55
+    icall require<short_string>, v56, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
+    v57 = load v49
+    v58 = shr 64, v57
+    v59 = and v58, 0xffffffff
+    v60 = shl 224, v59
+    v61 = eq v60, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v61, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
+    v62 = load v49+32
+    v63 = eq v62, 7
+    icall require<short_string>, v63, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
+    v64 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    store v64, 1
+    v65 = load v64
+    v66 = lt 0, v65
+    v67 = eq v66, false
+    icall panic_if<0x32>, v67
+    v68 = shl 64, v3
+    store v64+32, v68
+    v69 = address
+    v70 = gas
+    v71 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v64
+    v72 = slice_ptr v71
+    v73 = slice_len v71
+    v74 = zext i160 v69 to i256
+    v75 = staticcall v70, v74, v72, v73, 0, 0
+    jumpi v75, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v79 = icall returndata_bytes<>
-    v80 = abi_decode [array<_, function>], v79
-    v81 = load v80
-    v82 = lt 0, v81
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = ptradd v80, 32
-    v85 = load v84
-    v86 = shr 64, v85
-    v87 = shr 32, v86
-    v88 = and v87, 0xffffffffffffffffffffffffffffffffffffffff
-    v89 = trunc i256 v88 to i160
-    v90 = address
-    v91 = eq v89, v90
-    icall require<short_string>, v91, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
-    v92 = load v80
-    v93 = lt 0, v92
-    v94 = eq v93, false
-    icall panic_if<0x32>, v94
-    v95 = ptradd v80, 32
-    v96 = load v95
-    v97 = shr 64, v96
-    v98 = and v97, 0xffffffff
-    v99 = shl 224, v98
-    v100 = eq v99, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    icall require<short_string>, v100, 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
+    v76 = icall returndata_bytes<>
+    v77 = abi_decode [array<_, function>], v76
+    v78 = load v77
+    v79 = lt 0, v78
+    v80 = eq v79, false
+    icall panic_if<0x32>, v80
+    v81 = load v77+32
+    v82 = shr 64, v81
+    v83 = shr 32, v82
+    v84 = and v83, 0xffffffffffffffffffffffffffffffffffffffff
+    v85 = trunc i256 v84 to i160
+    v86 = address
+    v87 = eq v85, v86
+    icall require<short_string>, v87, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
+    v88 = load v77
+    v89 = lt 0, v88
+    v90 = eq v89, false
+    icall panic_if<0x32>, v90
+    v91 = load v77+32
+    v92 = shr 64, v91
+    v93 = and v92, 0xffffffff
+    v94 = shl 224, v93
+    v95 = eq v94, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v95, 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
     ret 1
 }

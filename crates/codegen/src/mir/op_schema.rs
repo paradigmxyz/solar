@@ -902,14 +902,6 @@ macro_rules! define_mir_ops {
                 {
                     return Some("memory-object");
                 }
-                if matches!(
-                    self,
-                    Self::Load(_, offset, _) | Self::Store(_, offset, _) | Self::Store8(_, offset, _)
-                        if *offset != 0
-                ) && phase >= MirPhase::Lowered
-                {
-                    return Some("pointer arithmetic");
-                }
                 if matches!(self, Self::Alloc { .. })
                     && phase >= MirPhase::Lowered
                     && !metadata.deferred_alloc()

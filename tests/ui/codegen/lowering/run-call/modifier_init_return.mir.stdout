@@ -14,8 +14,7 @@ fn @f(arg0: i256) -> memptr [selector=0xb3de648b, pure, abi_params=[u256], abi_r
     v4 = lt 2, 5
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = ptradd v0, 64
-    store v6, 3
+    store v0+64, 3
     jump bb5
   bb5:
     jump bb4

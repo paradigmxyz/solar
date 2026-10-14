@@ -58,22 +58,18 @@ fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i2
     copy calldata v40, v41, v42
     v43 = ptrtoint memptr v39 to i256
     store v0, arg0
-    v44 = ptradd v0, 32
-    store v44, v27
-    v45 = ptradd v0, 64
-    store v45, v43
-    v46 = load v0
-    v47 = ptradd v0, 32
-    v48 = load v47, memptr
-    v49 = load v48
-    v50 = checked_mul u256, v49, 10
-    v51 = checked_add u256, v46, v50
-    v52 = ptradd v0, 64
-    v53 = load v52, memptr
-    v54 = load v53
-    v55 = checked_mul u256, v54, 100
-    v56 = checked_add u256, v51, v55
-    ret v56
+    store v0+32, v27
+    store v0+64, v43
+    v44 = load v0
+    v45 = load v0+32, memptr
+    v46 = load v45
+    v47 = checked_mul u256, v46, 10
+    v48 = checked_add u256, v44, v47
+    v49 = load v0+64, memptr
+    v50 = load v49
+    v51 = checked_mul u256, v50, 100
+    v52 = checked_add u256, v48, v51
+    ret v52
 }
 
 fn @viaDeclaration(arg0: calldataslice) -> i256 [selector=0xcd64a752, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {

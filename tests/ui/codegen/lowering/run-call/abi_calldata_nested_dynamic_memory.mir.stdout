@@ -31,7 +31,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb6: v99]
+    v22 = phi [bb0: 0], [bb6: v97]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -76,16 +76,15 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     store v53, v36
     jump bb4
   bb4:
-    v54 = phi [bb2: 0], [bb5: v94]
+    v54 = phi [bb2: 0], [bb5: v93]
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    v95 = ptrtoint memptr v53 to i256
-    v96 = shl 5, v22
-    v97 = ptradd v21, 32
-    v98 = ptradd v97, v96
-    store v98, v95
-    v99 = add v22, 1
+    v94 = ptrtoint memptr v53 to i256
+    v95 = shl 5, v22
+    v96 = ptradd v21, v95
+    store v96+32, v94
+    v97 = add v22, 1
     jump bb1
   bb5:
     v56 = mul v54, 32
@@ -132,10 +131,9 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     copy calldata v87, v88, v89
     v90 = ptrtoint memptr v85 to i256
     v91 = shl 5, v54
-    v92 = ptradd v53, 32
-    v93 = ptradd v92, v91
-    store v93, v90
-    v94 = add v54, 1
+    v92 = ptradd v53, v91
+    store v92+32, v90
+    v93 = add v54, 1
     jump bb4
 }
 
@@ -170,7 +168,7 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb6: v77]
+    v22 = phi [bb0: 0], [bb6: v75]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -215,16 +213,15 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     store v53, v36
     jump bb4
   bb4:
-    v54 = phi [bb2: 0], [bb5: v72]
+    v54 = phi [bb2: 0], [bb5: v71]
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    v73 = ptrtoint memptr v53 to i256
-    v74 = shl 5, v22
-    v75 = ptradd v21, 32
-    v76 = ptradd v75, v74
-    store v76, v73
-    v77 = add v22, 1
+    v72 = ptrtoint memptr v53 to i256
+    v73 = shl 5, v22
+    v74 = ptradd v21, v73
+    store v74+32, v72
+    v75 = add v22, 1
     jump bb1
   bb5:
     v56 = mul v54, 64
@@ -243,9 +240,8 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     copy calldata v64, v66, v67
     v68 = ptrtoint memptr v64 to i256
     v69 = shl 5, v54
-    v70 = ptradd v53, 32
-    v71 = ptradd v70, v69
-    store v71, v68
-    v72 = add v54, 1
+    v70 = ptradd v53, v69
+    store v70+32, v68
+    v71 = add v54, 1
     jump bb4
 }

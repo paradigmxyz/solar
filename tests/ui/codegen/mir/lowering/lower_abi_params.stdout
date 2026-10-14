@@ -78,10 +78,8 @@
 +     store v14, v41
 +     v42 = add v9, 32
 +     v43 = load calldata v42
-+     v44 = ptradd v14, 32
-+     store v44, v43
-+     v45 = ptradd v14, 64
-+     store v45, v9
++     store v14+32, v43
++     store v14+64, v9
 +     jump bb1
 +   bb1:
 +     v0 = load v14
@@ -93,9 +91,9 @@
       v5 = add v2, v4
 -     ret v5
 +     store 128, v5
-+     v46 = add 128, 32
-+     v47 = sub v46, 128
-+     returndata 128, v47
++     v44 = add 128, 32
++     v45 = sub v44, 128
++     returndata 128, v45
 +   bb8:
 +     store 32, 65 !metadata(memory=scratch)
 +     store 0, 0x4e487b71 !metadata(memory=scratch)

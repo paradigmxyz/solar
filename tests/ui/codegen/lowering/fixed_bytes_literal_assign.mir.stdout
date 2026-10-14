@@ -16,19 +16,17 @@ fn @patch(arg0: i1) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi_r
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
-    v7 = ptradd v0, 32
-    store8 v7, v6
+    store8 v0+32, v6
     jump bb3
   bb3:
-    v8 = load v0
-    v9 = lt 0, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = ptradd v0, 32
-    v12 = load v11
-    v13 = byte 0, v12
-    v14 = shl 248, v13
-    ret v14
+    v7 = load v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = load v0+32
+    v11 = byte 0, v10
+    v12 = shl 248, v11
+    ret v12
 }
 
 fn @store() -> i256 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

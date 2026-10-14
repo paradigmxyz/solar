@@ -46,9 +46,8 @@ contract C {
     // CHECK-NEXT: lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg1
-    // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd arg0, 32
-    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[DATA]], [[OFF1]]
-    // CHECK-NEXT: store [[ELEM]],
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, [[OFF1]]
+    // CHECK-NEXT: store [[ELEM]]+32,
     // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]

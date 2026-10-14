@@ -275,66 +275,57 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 160
     store v0, 96
-    v2 = ptradd v0, 64
-    store v2, 96
-    v3 = ptradd v0, 96
-    store v3, 96
-    v4 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    store v4, 3
-    v5 = ptrtoint memptr v4 to i256
-    store v0, v5
-    v6 = load v0, memptr
-    v7 = load v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = ptradd v6, 32
-    store v10, 0
-    v11 = load v0, memptr
-    v12 = load v11
-    v13 = lt 1, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v11, 64
-    store v15, 1
-    v16 = load v0, memptr
-    v17 = load v16
-    v18 = lt 2, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v16, 96
-    store v20, 2
-    v21 = ptradd v0, 32
-    store v21, 6
-    v22 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    store v22, 10
-    v23 = ptrtoint memptr v22 to i256
-    v24 = add v23, 32
-    store v24, 0x5374727563744e616d6500000000000000000000000000000000000000000000
-    v25 = ptrtoint memptr v22 to i256
-    v26 = ptradd v0, 64
-    store v26, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    store v27, 4
-    v28 = ptrtoint memptr v27 to i256
-    v29 = add v28, 32
-    store v29, 0x3132333400000000000000000000000000000000000000000000000000000000
-    v30 = ptrtoint memptr v27 to i256
-    v31 = ptradd v0, 96
-    store v31, v30
-    v32 = lt i8 1, i8 3
-    v33 = eq v32, false
-    icall panic_if<0x21>, v33
-    v34 = ptradd v0, 128
-    store v34, 1
-    v35 = address
-    v36 = gas
-    v37 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    store v37, 8
-    v38 = ptrtoint memptr v37 to i256
-    v39 = add v38, 32
-    store v39, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v40 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v37
-    v41 = address_call v35, v40, gas v36
-    ret v41
+    store v0+64, 96
+    store v0+96, 96
+    v2 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    store v2, 3
+    v3 = ptrtoint memptr v2 to i256
+    store v0, v3
+    v4 = load v0, memptr
+    v5 = load v4
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    store v4+32, 0
+    v8 = load v0, memptr
+    v9 = load v8
+    v10 = lt 1, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    store v8+64, 1
+    v12 = load v0, memptr
+    v13 = load v12
+    v14 = lt 2, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    store v12+96, 2
+    store v0+32, 6
+    v16 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    store v16, 10
+    v17 = ptrtoint memptr v16 to i256
+    v18 = add v17, 32
+    store v18, 0x5374727563744e616d6500000000000000000000000000000000000000000000
+    v19 = ptrtoint memptr v16 to i256
+    store v0+64, v19
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    store v20, 4
+    v21 = ptrtoint memptr v20 to i256
+    v22 = add v21, 32
+    store v22, 0x3132333400000000000000000000000000000000000000000000000000000000
+    v23 = ptrtoint memptr v20 to i256
+    store v0+96, v23
+    v24 = lt i8 1, i8 3
+    v25 = eq v24, false
+    icall panic_if<0x21>, v25
+    store v0+128, 1
+    v26 = address
+    v27 = gas
+    v28 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    store v28, 8
+    v29 = ptrtoint memptr v28 to i256
+    v30 = add v29, 32
+    store v30, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v31 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v28
+    v32 = address_call v26, v31, gas v27
+    ret v32
 }

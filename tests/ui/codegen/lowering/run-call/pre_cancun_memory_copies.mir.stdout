@@ -8,27 +8,24 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = ptradd v0, 32
-    store v4, 1
-    v5 = load v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd v0, 64
-    store v8, 2
-    v9 = load v0
-    v10 = lt 2, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v0, 96
-    store v12, 3
-    v13 = abi_encode [memory_array<word>], scratch, args v0
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = keccak256 v14, v15
-    v17 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
-    v18 = eq v16, v17
-    ret v18
+    store v0+32, 1
+    v4 = load v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    store v0+64, 2
+    v7 = load v0
+    v8 = lt 2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    store v0+96, 3
+    v10 = abi_encode [memory_array<word>], scratch, args v0
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = keccak256 v11, v12
+    v14 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
+    v15 = eq v13, v14
+    ret v15
 }
 
 fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -40,45 +37,44 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v17]
+    v4 = phi [bb0: 0], [bb3: v16]
     v5 = phi [bb0: 0], [bb3: v5]
     v6 = lt v4, 33
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v18 = abi_encode [memory_bytes], object, args v3
-    v19 = ptrtoint memptr v18 to i256
-    v20 = add v19, 128
-    v21 = load v20
-    v22 = load v18
-    v23 = eq v22, 128
-    jumpi v23, bb7, bb8
+    v17 = abi_encode [memory_bytes], object, args v3
+    v18 = ptrtoint memptr v17 to i256
+    v19 = add v18, 128
+    v20 = load v19
+    v21 = load v17
+    v22 = eq v21, 128
+    jumpi v22, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v24 = load v18
-    v25 = lt 64, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = ptradd v18, 96
-    v28 = load v27
-    v29 = byte 0, v28
-    v30 = shl 248, v29
-    v31 = eq v30, 0x100000000000000000000000000000000000000000000000000000000000000
+    v23 = load v17
+    v24 = lt 64, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = load v17+96
+    v27 = byte 0, v26
+    v28 = shl 248, v27
+    v29 = eq v28, 0x100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb9:
-    v32 = phi [bb7: v31], [bb8: false]
-    jumpi v32, bb10, bb11
+    v30 = phi [bb7: v29], [bb8: false]
+    jumpi v30, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v33 = shl 248, 33
-    v34 = eq v21, v33
+    v31 = shl 248, 33
+    v32 = eq v20, v31
     jump bb12
   bb12:
-    v35 = phi [bb10: v34], [bb11: false]
-    ret v35
+    v33 = phi [bb10: v32], [bb11: false]
+    ret v33
   bb4:
     v7 = checked_add u256, v4, 1
     v8 = trunc i256 v7 to i8
@@ -89,14 +85,13 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, v10
-    v15 = ptradd v3, 32
-    v16 = ptradd v15, v4
-    store8 v16, v14
+    v15 = ptradd v3, v4
+    store8 v15+32, v14
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u256, v4, 1
+    v16 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -186,20 +181,17 @@ fn @fresh() -> memptr [selector=0xb466b76f, pure, abi_params=[], abi_returns=[me
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = ptradd v0, 32
-    store v4, 1
-    v5 = load v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd v0, 64
-    store v8, 2
-    v9 = load v0
-    v10 = lt 2, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v0, 96
-    store v12, 3
+    store v0+32, 1
+    v4 = load v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    store v0+64, 2
+    v7 = load v0
+    v8 = lt 2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    store v0+96, 3
     ret v0
 }
 

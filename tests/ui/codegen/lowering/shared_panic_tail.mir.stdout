@@ -16,15 +16,13 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, pure, abi_params=[u256], abi_re
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     store v0, 1
-    v1 = ptradd v0, 32
-    store v1, 2
-    v2 = ptradd v0, 64
-    store v2, 3
-    v3 = lt arg0, 3
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = shl 5, arg0
-    v6 = ptradd v0, v5
-    v7 = load v6
-    ret v7
+    store v0+32, 2
+    store v0+64, 3
+    v1 = lt arg0, 3
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = shl 5, arg0
+    v4 = ptradd v0, v3
+    v5 = load v4
+    ret v5
 }

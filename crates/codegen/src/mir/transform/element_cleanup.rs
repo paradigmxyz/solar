@@ -30,7 +30,7 @@
 //!
 //! Only word-element arrays, contiguous low-bit masks, and `zext iN (trunc i256 x to iN) to
 //! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
-//! Runs early in the optimized phase, while `ptradd` keeps element addresses
+//! Runs early in the optimized phase, while access offsets and `ptradd` keep element addresses
 //! explicit and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
 

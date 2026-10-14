@@ -34,20 +34,18 @@ fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_retur
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = ptradd v0, 32
-    store v4, 7
-    v5 = load v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd v0, 64
-    store v8, 8
-    v9 = icall @pick, v0
-    v10 = extract_value struct0, v9, 0
-    v11 = extract_value struct0, v9, 1
-    v12 = insert_value struct0, undef struct0, 0, v10
-    v13 = insert_value struct0, v12, 1, v11
-    ret v13
+    store v0+32, 7
+    v4 = load v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    store v0+64, 8
+    v7 = icall @pick, v0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @test_calldata(arg0: calldataslice) -> i256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -64,19 +62,17 @@ fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = ptradd v0, 32
-    store v4, 7
-    v5 = load v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd v0, 64
-    store v8, 8
-    v9 = icall @pick, v0
-    v10 = extract_value struct0, v9, 0
-    v11 = extract_value struct0, v9, 1
-    v12 = checked_add u256, v10, v11
-    ret v12
+    store v0+32, 7
+    v4 = load v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    store v0+64, 8
+    v7 = icall @pick, v0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = checked_add u256, v8, v9
+    ret v10
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
@@ -105,17 +101,15 @@ fn @pick(arg0: memptr) -> struct0 [pure] {
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = ptradd arg0, 32
-    v4 = load v3
-    v5 = load arg0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd arg0, 64
-    v9 = load v8
-    v10 = insert_value struct0, undef struct0, 0, v4
-    v11 = insert_value struct0, v10, 1, v9
-    ret v11
+    v3 = load arg0+32
+    v4 = load arg0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = load arg0+64
+    v8 = insert_value struct0, undef struct0, 0, v3
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }
 
 fn @first(arg0: calldataslice) -> i256 [pure] {

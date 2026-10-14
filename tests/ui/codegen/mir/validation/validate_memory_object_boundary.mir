@@ -20,3 +20,12 @@ fn @syntax_only_integer(arg0: i8) -> i8 {
   bb0:
     ret arg0
 }
+
+//~? ERROR: [fn2] [bb0, inst0] pointer arithmetic instruction `load` survives the `lowered` phase boundary
+//~? ERROR: [fn2] [bb0, inst1] pointer arithmetic instruction `store` survives the `lowered` phase boundary
+fn @access_offset(arg0: i256) {
+  bb0:
+    v0 = load arg0+32
+    store arg0+64, v0
+    stop
+}

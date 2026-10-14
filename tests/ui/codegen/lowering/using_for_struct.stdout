@@ -8,26 +8,20 @@ fn @viaMethod(arg0: i256, arg1: i256) -> i256 [selector=0x36245213, pure, abi_pa
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     store v0, arg0
-    v1 = ptradd v0, 32
-    store v1, 0
-    v2 = ptradd v0, 64
-    store v2, 0
-    v3 = ptradd v0, 96
-    store v3, arg1
-    v4 = icall @hashLib, v0
-    ret v4
+    store v0+32, 0
+    store v0+64, 0
+    store v0+96, arg1
+    v1 = icall @hashLib, v0
+    ret v1
 }
 
 fn @hashLib(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = load arg0
-    v1 = ptradd arg0, 32
-    v2 = load v1
-    v3 = trunc i256 v2 to i32
-    v4 = ptradd arg0, 64
-    v5 = load v4
-    v6 = ptradd arg0, 96
-    v7 = load v6
-    v8 = keccak256_packed (data hex"78", bytes32 v0, u32 v3, u256 v5, bytes32 v7)
-    ret v8
+    v1 = load arg0+32
+    v2 = trunc i256 v1 to i32
+    v3 = load arg0+64
+    v4 = load arg0+96
+    v5 = keccak256_packed (data hex"78", bytes32 v0, u32 v2, u256 v3, bytes32 v4)
+    ret v5
 }

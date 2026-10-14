@@ -31,57 +31,52 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v74]
+    v22 = phi [bb0: 0], [bb2: v73]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
+    v74 = load v21
     v75 = load v21
-    v76 = load v21
-    v77 = lt 0, v76
-    v78 = eq v77, false
-    icall panic_if<0x32>, v78
-    v79 = ptradd v21, 32
-    v80 = load v79
-    v81 = inttoptr i256 v80 to memptr
-    v82 = eq v80, 0
-    jumpi v82, bb4, bb5
+    v76 = lt 0, v75
+    v77 = eq v76, false
+    icall panic_if<0x32>, v77
+    v78 = load v21+32
+    v79 = inttoptr i256 v78 to memptr
+    v80 = eq v78, 0
+    jumpi v80, bb4, bb5
   bb4:
-    v83 = icall @default_struct_0
-    v84 = ptradd v21, 32
-    v85 = ptrtoint memptr v83 to i256
-    store v84, v85
+    v81 = icall @default_struct_0
+    v82 = ptrtoint memptr v81 to i256
+    store v21+32, v82
     jump bb5
   bb5:
-    v86 = phi [bb3: v81], [bb4: v83]
-    v87 = load v86, memptr
-    v88 = load v87
-    v89 = checked_add u256, v75, v88
-    v90 = load v21
-    v91 = lt 1, v90
-    v92 = eq v91, false
-    icall panic_if<0x32>, v92
-    v93 = ptradd v21, 64
-    v94 = load v93
-    v95 = inttoptr i256 v94 to memptr
-    v96 = eq v94, 0
-    jumpi v96, bb6, bb7
+    v83 = phi [bb3: v79], [bb4: v81]
+    v84 = load v83, memptr
+    v85 = load v84
+    v86 = checked_add u256, v74, v85
+    v87 = load v21
+    v88 = lt 1, v87
+    v89 = eq v88, false
+    icall panic_if<0x32>, v89
+    v90 = load v21+64
+    v91 = inttoptr i256 v90 to memptr
+    v92 = eq v90, 0
+    jumpi v92, bb6, bb7
   bb6:
-    v97 = icall @default_struct_0
-    v98 = ptradd v21, 64
-    v99 = ptrtoint memptr v97 to i256
-    store v98, v99
+    v93 = icall @default_struct_0
+    v94 = ptrtoint memptr v93 to i256
+    store v21+64, v94
     jump bb7
   bb7:
-    v100 = phi [bb5: v95], [bb6: v97]
-    v101 = load v100, memptr
-    v102 = load v101
-    v103 = lt 0, v102
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = ptradd v101, 32
-    v106 = load v105
-    v107 = checked_add u256, v89, v106
-    ret v107
+    v95 = phi [bb5: v91], [bb6: v93]
+    v96 = load v95, memptr
+    v97 = load v96
+    v98 = lt 0, v97
+    v99 = eq v98, false
+    icall panic_if<0x32>, v99
+    v100 = load v96+32
+    v101 = checked_add u256, v86, v100
+    ret v101
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -142,10 +137,9 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     store v36, v69
     v70 = ptrtoint memptr v36 to i256
     v71 = shl 5, v22
-    v72 = ptradd v21, 32
-    v73 = ptradd v72, v71
-    store v73, v70
-    v74 = add v22, 1
+    v72 = ptradd v21, v71
+    store v72+32, v70
+    v73 = add v22, 1
     jump bb1
 }
 

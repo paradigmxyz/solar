@@ -4,9 +4,9 @@ fn @sort(arg0: memptr) -> memptr [selector=0x9ec8b026, pure, abi_params=[array<_
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb3: v49]
-    v1 = phi [bb0: memptr 96], [bb3: v16]
-    v2 = phi [bb0: arg0], [bb3: v13]
+    v0 = phi [bb0: 1], [bb3: v44]
+    v1 = phi [bb0: memptr 96], [bb3: v15]
+    v2 = phi [bb0: arg0], [bb3: v12]
     v3 = load v2
     v4 = lt v0, v3
     jumpi v4, bb4, bb5
@@ -20,71 +20,66 @@ fn @sort(arg0: memptr) -> memptr [selector=0x9ec8b026, pure, abi_params=[array<_
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl 5, v0
-    v9 = ptradd v2, 32
-    v10 = ptradd v9, v8
-    v11 = load v10
+    v9 = ptradd v2, v8
+    v10 = load v9+32
     jump bb7
   bb7:
-    v12 = phi [bb4: v11], [bb14: v12]
-    v13 = phi [bb4: v2], [bb14: v13]
-    v14 = phi [bb4: v0], [bb14: v14]
-    v15 = phi [bb4: v0], [bb14: v42]
-    v16 = phi [bb4: v1], [bb14: v16]
-    v17 = ne v15, 0
-    jumpi v17, bb9, bb10
+    v11 = phi [bb4: v10], [bb14: v11]
+    v12 = phi [bb4: v2], [bb14: v12]
+    v13 = phi [bb4: v0], [bb14: v13]
+    v14 = phi [bb4: v0], [bb14: v38]
+    v15 = phi [bb4: v1], [bb14: v15]
+    v16 = ne v14, 0
+    jumpi v16, bb9, bb10
   bb10:
     jump bb11
   bb9:
-    v18 = checked_sub u256, v15, 1
-    v19 = load v13
-    v20 = lt v18, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = shl 5, v18
-    v23 = ptradd v13, 32
-    v24 = ptradd v23, v22
-    v25 = load v24
-    v26 = gt v25, v12
+    v17 = checked_sub u256, v14, 1
+    v18 = load v12
+    v19 = lt v17, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = shl 5, v17
+    v22 = ptradd v12, v21
+    v23 = load v22+32
+    v24 = gt v23, v11
     jump bb11
   bb11:
-    v27 = phi [bb9: v26], [bb10: false]
-    jumpi v27, bb12, bb13
+    v25 = phi [bb9: v24], [bb10: false]
+    jumpi v25, bb12, bb13
   bb13:
     jump bb8
   bb8:
-    v43 = load v13
-    v44 = lt v15, v43
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = shl 5, v15
-    v47 = ptradd v13, 32
-    v48 = ptradd v47, v46
-    store v48, v12
+    v39 = load v12
+    v40 = lt v14, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = shl 5, v14
+    v43 = ptradd v12, v42
+    store v43+32, v11
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v49 = checked_add u256, v14, 1
+    v44 = checked_add u256, v13, 1
     jump bb1
   bb12:
-    v28 = checked_sub u256, v15, 1
-    v29 = load v13
-    v30 = lt v28, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = shl 5, v28
-    v33 = ptradd v13, 32
-    v34 = ptradd v33, v32
-    v35 = load v34
-    v36 = load v13
-    v37 = lt v15, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = shl 5, v15
-    v40 = ptradd v13, 32
-    v41 = ptradd v40, v39
-    store v41, v35
-    v42 = checked_sub u256, v15, 1
+    v26 = checked_sub u256, v14, 1
+    v27 = load v12
+    v28 = lt v26, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = shl 5, v26
+    v31 = ptradd v12, v30
+    v32 = load v31+32
+    v33 = load v12
+    v34 = lt v14, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = shl 5, v14
+    v37 = ptradd v12, v36
+    store v37+32, v32
+    v38 = checked_sub u256, v14, 1
     jump bb14
   bb14:
     jump bb7
@@ -103,17 +98,15 @@ fn @shiftAt(arg0: memptr, arg1: i256) -> memptr [selector=0xa227bfd8, pure, abi_
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = shl 5, v1
-    v6 = ptradd arg0, 32
-    v7 = ptradd v6, v5
-    v8 = load v7
-    v9 = load arg0
-    v10 = lt arg1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = shl 5, arg1
-    v13 = ptradd arg0, 32
-    v14 = ptradd v13, v12
-    store v14, v8
+    v6 = ptradd arg0, v5
+    v7 = load v6+32
+    v8 = load arg0
+    v9 = lt arg1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl 5, arg1
+    v12 = ptradd arg0, v11
+    store v12+32, v7
     jump bb3
   bb3:
     ret arg0

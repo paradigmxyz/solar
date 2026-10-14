@@ -11,23 +11,20 @@ fn @aggregate() -> memptr [selector=0xaf36778b, pure, abi_params=[], abi_returns
     store v1, v4
     v5 = ptrtoint memptr v1 to i256
     store v0, v5
-    v6 = ptradd v0, 32
-    store v6, 0
-    v7 = load v0, memptr
-    v8 = load v7, memptr
-    v9 = lt 0, 2
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    store v8, 11
-    v11 = load v0, memptr
-    v12 = load v11, memptr
-    v13 = lt 1, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v12, 32
-    store v15, 22
-    v16 = ptradd v0, 32
-    store v16, 33
+    store v0+32, 0
+    v6 = load v0, memptr
+    v7 = load v6, memptr
+    v8 = lt 0, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    store v7, 11
+    v10 = load v0, memptr
+    v11 = load v10, memptr
+    v12 = lt 1, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    store v11+32, 22
+    store v0+32, 33
     ret v0
 }
 
@@ -64,14 +61,12 @@ fn @check(arg0: memptr) -> i256 [pure] {
     v8 = lt 1, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = ptradd v7, 32
-    v11 = load v10
-    v12 = eq v11, 22
-    icall require<short_string>, v12, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
-    v13 = ptradd arg0, 32
-    v14 = load v13
-    v15 = eq v14, 33
-    icall require<short_string>, v15, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
+    v10 = load v7+32
+    v11 = eq v10, 22
+    icall require<short_string>, v11, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    v12 = load arg0+32
+    v13 = eq v12, 33
+    icall require<short_string>, v13, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -158,9 +153,8 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v26 = lt 1, 2
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = ptradd v25, 32
-    v29 = load v28
-    ret v29
+    v28 = load v25+32
+    ret v28
 }
 
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

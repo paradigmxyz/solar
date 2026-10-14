@@ -56,29 +56,25 @@ fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[],
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     store v0, 42
-    v11 = ptradd v0, 64
-    store v11, 4
-    v12 = ptradd v0, 32
-    store v12, v2
+    store v0+64, 4
+    store v0+32, v2
     store v0, 1
-    v13 = lt 2, 3
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v0, 64
-    v16 = load v15
-    v17 = lt 1, 3
+    v11 = lt 2, 3
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = load v0+64
+    v14 = lt 1, 3
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = load v0+32
+    v17 = lt 0, 3
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = ptradd v0, 32
-    v20 = load v19
-    v21 = lt 0, 3
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = load v0
-    v24 = insert_value struct1, undef struct1, 0, v16
-    v25 = insert_value struct1, v24, 1, v20
-    v26 = insert_value struct1, v25, 2, v23
-    ret v26
+    v19 = load v0
+    v20 = insert_value struct1, undef struct1, 0, v13
+    v21 = insert_value struct1, v20, 1, v16
+    v22 = insert_value struct1, v21, 2, v19
+    ret v22
 }
 
 fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -131,13 +127,12 @@ fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_r
     v15 = lt 1, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = ptradd v0, 32
-    v18 = load v17
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = insert_value struct1, undef struct1, 0, v14
-    v21 = insert_value struct1, v20, 1, v18
-    v22 = insert_value struct1, v21, 2, v19
-    ret v22
+    v17 = load v0+32
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct1, undef struct1, 0, v14
+    v20 = insert_value struct1, v19, 1, v17
+    v21 = insert_value struct1, v20, 2, v18
+    ret v21
 }
 
 fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {

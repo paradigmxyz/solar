@@ -44,72 +44,63 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     store v22, v1
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v63]
+    v23 = phi [bb0: 0], [bb2: v62]
     v24 = lt v23, v1
     jumpi v24, bb2, bb3
   bb3:
-    v64 = ptrtoint memptr v22 to i256
+    v63 = ptrtoint memptr v22 to i256
     store v0, arg0
-    v65 = ptradd v0, 32
-    store v65, v64
-    v66 = icall @encodeFirst, v0
-    v67 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v66
+    store v0+32, v63
+    v64 = icall @encodeFirst, v0
+    v65 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v64
+    v66 = load v65
+    v67 = load v65+32, memptr
     v68 = load v67
-    v69 = ptradd v67, 32
-    v70 = load v69, memptr
-    v71 = load v70
-    v72 = lt 0, v71
-    v73 = eq v72, false
-    icall panic_if<0x32>, v73
-    v74 = ptradd v70, 32
-    v75 = load v74
-    v76 = inttoptr i256 v75 to memptr
-    v77 = eq v75, 0
-    jumpi v77, bb4, bb5
+    v69 = lt 0, v68
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    v71 = load v67+32
+    v72 = inttoptr i256 v71 to memptr
+    v73 = eq v71, 0
+    jumpi v73, bb4, bb5
   bb4:
-    v78 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    store v78, 0
-    v79 = ptradd v70, 32
-    v80 = ptrtoint memptr v78 to i256
-    store v79, v80
+    v74 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    store v74, 0
+    v75 = ptrtoint memptr v74 to i256
+    store v67+32, v75
     jump bb5
   bb5:
-    v81 = phi [bb3: v76], [bb4: v78]
-    v82 = load v81
-    v83 = lt 0, v82
-    v84 = eq v83, false
-    icall panic_if<0x32>, v84
-    v85 = ptradd v81, 32
-    v86 = load v85
-    v87 = checked_add u256, v68, v86
-    v88 = ptradd v67, 32
-    v89 = load v88, memptr
-    v90 = load v89
-    v91 = lt 1, v90
-    v92 = eq v91, false
-    icall panic_if<0x32>, v92
-    v93 = ptradd v89, 64
-    v94 = load v93
-    v95 = inttoptr i256 v94 to memptr
-    v96 = eq v94, 0
-    jumpi v96, bb6, bb7
+    v76 = phi [bb3: v72], [bb4: v74]
+    v77 = load v76
+    v78 = lt 0, v77
+    v79 = eq v78, false
+    icall panic_if<0x32>, v79
+    v80 = load v76+32
+    v81 = checked_add u256, v66, v80
+    v82 = load v65+32, memptr
+    v83 = load v82
+    v84 = lt 1, v83
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = load v82+64
+    v87 = inttoptr i256 v86 to memptr
+    v88 = eq v86, 0
+    jumpi v88, bb6, bb7
   bb6:
-    v97 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    store v97, 0
-    v98 = ptradd v89, 64
-    v99 = ptrtoint memptr v97 to i256
-    store v98, v99
+    v89 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    store v89, 0
+    v90 = ptrtoint memptr v89 to i256
+    store v82+64, v90
     jump bb7
   bb7:
-    v100 = phi [bb5: v95], [bb6: v97]
-    v101 = load v100
-    v102 = lt 0, v101
-    v103 = eq v102, false
-    icall panic_if<0x32>, v103
-    v104 = ptradd v100, 32
-    v105 = load v104
-    v106 = checked_add u256, v87, v105
-    ret v106
+    v91 = phi [bb5: v87], [bb6: v89]
+    v92 = load v91
+    v93 = lt 0, v92
+    v94 = eq v93, false
+    icall panic_if<0x32>, v94
+    v95 = load v91+32
+    v96 = checked_add u256, v81, v95
+    ret v96
   bb2:
     v25 = mul v23, 32
     v26 = add v2, v25
@@ -155,9 +146,8 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     copy calldata v56, v57, v58
     v59 = ptrtoint memptr v54 to i256
     v60 = shl 5, v23
-    v61 = ptradd v22, 32
-    v62 = ptradd v61, v60
-    store v62, v59
-    v63 = add v23, 1
+    v61 = ptradd v22, v60
+    store v61+32, v59
+    v62 = add v23, 1
     jump bb1
 }

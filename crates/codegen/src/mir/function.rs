@@ -257,6 +257,14 @@ impl Function {
         Some((value, offset))
     }
 
+    /// Resolves the address `address + offset` of a memory access to the object it points into and
+    /// its byte offset from the object start, as [`Self::object_address`] does.
+    #[must_use]
+    pub(crate) fn object_access(&self, address: ValueId, offset: u64) -> Option<(ValueId, u64)> {
+        let (object, base) = self.object_address(address)?;
+        Some((object, base.checked_add(offset)?))
+    }
+
     /// Resolves the address of a runtime-indexed word, `ptradd base, shl 5, index`, to the object
     /// it points into, the byte offset of word zero from the object start, and the index.
     #[must_use]
@@ -277,14 +285,13 @@ impl Function {
         address: ValueId,
         offset: u64,
     ) -> Option<(ValueId, u64, Option<ValueId>)> {
-        let (object, base, index) = match self.element_address(address) {
-            Some((object, base, index)) => (object, base, Some(index)),
+        let (object, offset, index) = match self.element_address(address) {
+            Some((object, base, index)) => (object, base.checked_add(offset)?, Some(index)),
             None => {
-                let (object, base) = self.object_address(address)?;
-                (object, base, None)
+                let (object, offset) = self.object_access(address, offset)?;
+                (object, offset, None)
             }
         };
-        let offset = base.checked_add(offset)?;
         super::memory::EvmMemoryLayout::word_slot(offset).map(|_| (object, offset, index))
     }
 

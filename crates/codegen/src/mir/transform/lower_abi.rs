@@ -2722,8 +2722,7 @@ impl LowerAbiCx {
             InstKind::Load(address, offset, PtrLocation::Memory)
             | InstKind::Store(address, offset, _)
             | InstKind::Store8(address, offset, _)
-                if func.value_u64(*address).and_then(|address| address.checked_add(*offset))
-                    == Some(EvmMemoryLayout::FMP_SLOT) =>
+                if func.constant_address(*address, *offset) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 true
             }
@@ -3743,8 +3742,8 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
 /// constant offset into a fixed array or struct.
 fn fixed_word_store(func: &Function, inst: InstId) -> Option<(ValueId, u64, ValueId)> {
     let InstKind::Store(address, offset, value) = func.inst(inst).kind else { return None };
-    let (object, base) = func.object_address(address)?;
-    let slot = EvmMemoryLayout::word_slot(base.checked_add(offset)?)?;
+    let (object, offset) = func.object_access(address, offset)?;
+    let slot = EvmMemoryLayout::word_slot(offset)?;
     Some((pointer_alias_root(func, object), slot, value))
 }
 
@@ -4570,8 +4569,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             continue;
         }
         let InstKind::Store(address, offset, stored) = func.inst(inst).kind else { return None };
-        let (base, address_offset) = func.object_address(address)?;
-        let offset = address_offset.checked_add(offset)?;
+        let (base, offset) = func.object_access(address, offset)?;
         if base != *object {
             return None;
         }

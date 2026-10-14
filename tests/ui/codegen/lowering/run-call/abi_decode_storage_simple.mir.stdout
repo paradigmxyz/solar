@@ -16,14 +16,13 @@ fn @decode(arg0: memptr) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes], ab
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = ptradd v3, 32
-    v9 = load v8
-    v10 = byte 0, v9
-    v11 = shl 248, v10
-    v12 = insert_value struct0, undef struct0, 0, v2
-    v13 = insert_value struct0, v12, 1, v4
-    v14 = insert_value struct0, v13, 2, v11
-    ret v14
+    v8 = load v3+32
+    v9 = byte 0, v8
+    v10 = shl 248, v9
+    v11 = insert_value struct0, undef struct0, 0, v2
+    v12 = insert_value struct0, v11, 1, v4
+    v13 = insert_value struct0, v12, 2, v10
+    ret v13
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memptr) {

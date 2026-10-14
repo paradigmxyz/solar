@@ -53,8 +53,7 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v37 = slice_len arg1
     copy calldata v35, v36, v37
     v38 = ptrtoint memptr v34 to i256
-    v39 = ptradd v6, 32
-    store v39, v38
+    store v6+32, v38
     ret v6
   bb2:
     v3 = shl 5, v1

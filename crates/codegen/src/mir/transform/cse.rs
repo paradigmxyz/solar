@@ -324,6 +324,8 @@ struct GlobalCseContext<'a> {
     cfg: &'a CfgInfo,
     /// Compute liveness and loop membership only for a reused load on a cycle.
     reuse: Option<OnceCell<MemoryReuseFacts>>,
+    /// The values the clobber summaries read, built for the first merged memory read.
+    summary_inputs: OnceCell<DenseBitSet<ValueId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -527,6 +529,7 @@ impl CommonSubexprEliminator {
             side_effect_clobbers: &side_effect_clobbers,
             cfg,
             reuse,
+            summary_inputs: OnceCell::new(),
             replacements: &mut replacements,
             dead: &mut dead,
         };
@@ -704,7 +707,8 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
-                    self.eliminated_settled += usize::from(Self::settles_in_walk(key));
+                    self.eliminated_settled +=
+                        usize::from(Self::settles_in_walk(func, ctx, key, *result));
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -908,10 +912,67 @@ impl CommonSubexprEliminator {
         (summaries, side_effects)
     }
 
-    /// Whether merging `key` changes nothing the rest of the dominator-scoped pass has already
-    /// summarized: a state-independent expression.
-    fn settles_in_walk(key: &ExprKey) -> bool {
+    /// Whether merging `key`, which `result` computes, changes nothing the rest of the
+    /// dominator-scoped pass has already summarized: a state-independent expression, or a memory
+    /// word that no summarized clobber reads as an address, a size, or a slot.
+    fn settles_in_walk(
+        func: &Function,
+        ctx: &GlobalCseContext<'_>,
+        key: &ExprKey,
+        result: ValueId,
+    ) -> bool {
         !Self::is_path_sensitive_expr(key)
+            || matches!(key, ExprKey::MLoad(_))
+                && !ctx
+                    .summary_inputs
+                    .get_or_init(|| Self::summary_inputs(func, ctx.side_effect_clobbers))
+                    .contains(result)
+    }
+
+    /// The values clobber summaries may read: the operands of the summarized side effects other
+    /// than stored words, and the values they derive from through pointer arithmetic, casts,
+    /// slices, and merges.
+    fn summary_inputs(func: &Function, side_effects: &SideEffectClobbers) -> DenseBitSet<ValueId> {
+        let mut worklist = Vec::new();
+        for &inst in side_effects.keys() {
+            let kind = &func.inst(inst).kind;
+            let stored = match *kind {
+                InstKind::Store(_, _, value)
+                | InstKind::Store8(_, _, value)
+                | InstKind::SStore(_, value)
+                | InstKind::TStore(_, value) => Some(value),
+                _ => None,
+            };
+            kind.visit_operands(|operand| {
+                if Some(operand) != stored {
+                    worklist.push(operand);
+                }
+            });
+        }
+        let mut inputs = DenseBitSet::new_empty(func.num_values());
+        while let Some(value) = worklist.pop() {
+            if !inputs.insert(value) {
+                continue;
+            }
+            let Value::Inst(inst) = *func.value(value) else { continue };
+            let kind = &func.inst(inst).kind;
+            if matches!(
+                kind,
+                InstKind::PtrToInt(..)
+                    | InstKind::IntToPtr(_)
+                    | InstKind::Zext(_)
+                    | InstKind::Add(..)
+                    | InstKind::Sub(..)
+                    | InstKind::PtrAdd(..)
+                    | InstKind::MakeSlice { .. }
+                    | InstKind::SlicePtr(_)
+                    | InstKind::Phi(_)
+                    | InstKind::Select(..)
+            ) {
+                kind.visit_operands(|operand| worklist.push(operand));
+            }
+        }
+        inputs
     }
 
     /// Whether a side effect can ever invalidate `key`.

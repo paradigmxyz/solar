@@ -6,159 +6,119 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v1 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v2 = sext i24 60 to i256
     store v1, 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    v3 = ptradd v1, 32
-    store v3, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
-    v4 = ptradd v1, 64
-    store v4, 0xbb8
-    v5 = ptradd v1, 96
-    store v5, v2
-    v6 = ptradd v1, 128
-    store v6, 0
-    v7 = ptrtoint memptr v1 to i256
-    v8 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v9 = sext i24 0xffff88 to i256
-    v10 = sext i24 120 to i256
-    store v8, v9
-    v11 = ptradd v8, 32
-    store v11, v10
-    v12 = ptradd v8, 64
-    store v12, 0xde0b6b3a7640000
-    v13 = ptradd v8, 96
-    store v13, 0
-    v14 = ptrtoint memptr v8 to i256
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    store v15, 0
-    v16 = ptrtoint memptr v15 to i256
-    v17 = ptrtoint memptr v15 to i256
+    store v1+32, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    store v1+64, 0xbb8
+    store v1+96, v2
+    store v1+128, 0
+    v3 = ptrtoint memptr v1 to i256
+    v4 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v5 = sext i24 0xffff88 to i256
+    v6 = sext i24 120 to i256
+    store v4, v5
+    store v4+32, v6
+    store v4+64, 0xde0b6b3a7640000
+    store v4+96, 0
+    v7 = ptrtoint memptr v4 to i256
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    store v8, 0
+    v9 = ptrtoint memptr v8 to i256
+    v10 = ptrtoint memptr v8 to i256
     store v0, 0x7fa9385be102ac3eac297483dd6233d62b3e1496
-    v18 = ptradd v0, 32
-    store v18, v7
-    v19 = ptradd v0, 64
-    store v19, v14
-    v20 = ptradd v0, 96
-    store v20, v17
-    v21 = ptradd v0, 128
-    store v21, 0
-    v22 = ptradd v0, 160
-    store v22, 0
-    v23 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
-    v24 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v23
-    v25 = load v24
-    v26 = trunc i256 v25 to i160
-    v27 = load v0
-    v28 = trunc i256 v27 to i160
-    v29 = eq v26, v28
-    icall require<short_string>, v29, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
-    v30 = ptradd v24, 32
-    v31 = load v30, memptr
-    v32 = load v31
-    v33 = trunc i256 v32 to i160
-    v34 = ptradd v0, 32
-    v35 = load v34, memptr
-    v36 = load v35
-    v37 = trunc i256 v36 to i160
-    v38 = eq v33, v37
-    icall require<short_string>, v38, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
-    v39 = ptradd v24, 32
-    v40 = load v39, memptr
-    v41 = ptradd v40, 32
-    v42 = load v41
-    v43 = trunc i256 v42 to i160
-    v44 = ptradd v0, 32
-    v45 = load v44, memptr
-    v46 = ptradd v45, 32
-    v47 = load v46
+    store v0+32, v3
+    store v0+64, v7
+    store v0+96, v10
+    store v0+128, 0
+    store v0+160, 0
+    v11 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
+    v12 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v11
+    v13 = load v12
+    v14 = trunc i256 v13 to i160
+    v15 = load v0
+    v16 = trunc i256 v15 to i160
+    v17 = eq v14, v16
+    icall require<short_string>, v17, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
+    v18 = load v12+32, memptr
+    v19 = load v18
+    v20 = trunc i256 v19 to i160
+    v21 = load v0+32, memptr
+    v22 = load v21
+    v23 = trunc i256 v22 to i160
+    v24 = eq v20, v23
+    icall require<short_string>, v24, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
+    v25 = load v12+32, memptr
+    v26 = load v25+32
+    v27 = trunc i256 v26 to i160
+    v28 = load v0+32, memptr
+    v29 = load v28+32
+    v30 = trunc i256 v29 to i160
+    v31 = eq v27, v30
+    icall require<short_string>, v31, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
+    v32 = load v12+32, memptr
+    v33 = load v32+64
+    v34 = trunc i256 v33 to i24
+    v35 = load v0+32, memptr
+    v36 = load v35+64
+    v37 = trunc i256 v36 to i24
+    v38 = eq v34, v37
+    icall require<short_string>, v38, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
+    v39 = load v12+32, memptr
+    v40 = load v39+96
+    v41 = trunc i256 v40 to i24
+    v42 = load v0+32, memptr
+    v43 = load v42+96
+    v44 = trunc i256 v43 to i24
+    v45 = eq v41, v44
+    icall require<short_string>, v45, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
+    v46 = load v12+32, memptr
+    v47 = load v46+128
     v48 = trunc i256 v47 to i160
-    v49 = eq v43, v48
-    icall require<short_string>, v49, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
-    v50 = ptradd v24, 32
-    v51 = load v50, memptr
-    v52 = ptradd v51, 64
-    v53 = load v52
-    v54 = trunc i256 v53 to i24
-    v55 = ptradd v0, 32
-    v56 = load v55, memptr
-    v57 = ptradd v56, 64
-    v58 = load v57
+    v49 = load v0+32, memptr
+    v50 = load v49+128
+    v51 = trunc i256 v50 to i160
+    v52 = eq v48, v51
+    icall require<short_string>, v52, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
+    v53 = load v12+64, memptr
+    v54 = load v53
+    v55 = trunc i256 v54 to i24
+    v56 = eq v55, i24 0xffff88
+    icall require<short_string>, v56, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
+    v57 = load v12+64, memptr
+    v58 = load v57+32
     v59 = trunc i256 v58 to i24
-    v60 = eq v54, v59
-    icall require<short_string>, v60, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
-    v61 = ptradd v24, 32
-    v62 = load v61, memptr
-    v63 = ptradd v62, 96
-    v64 = load v63
-    v65 = trunc i256 v64 to i24
-    v66 = ptradd v0, 32
-    v67 = load v66, memptr
-    v68 = ptradd v67, 96
-    v69 = load v68
-    v70 = trunc i256 v69 to i24
-    v71 = eq v65, v70
-    icall require<short_string>, v71, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
-    v72 = ptradd v24, 32
-    v73 = load v72, memptr
-    v74 = ptradd v73, 128
-    v75 = load v74
-    v76 = trunc i256 v75 to i160
-    v77 = ptradd v0, 32
-    v78 = load v77, memptr
-    v79 = ptradd v78, 128
-    v80 = load v79
-    v81 = trunc i256 v80 to i160
-    v82 = eq v76, v81
-    icall require<short_string>, v82, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
-    v83 = ptradd v24, 64
-    v84 = load v83, memptr
-    v85 = load v84
-    v86 = trunc i256 v85 to i24
-    v87 = eq v86, i24 0xffff88
-    icall require<short_string>, v87, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
-    v88 = ptradd v24, 64
-    v89 = load v88, memptr
-    v90 = ptradd v89, 32
-    v91 = load v90
-    v92 = trunc i256 v91 to i24
-    v93 = eq v92, i24 120
-    icall require<short_string>, v93, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
-    v94 = ptradd v24, 64
-    v95 = load v94, memptr
-    v96 = ptradd v95, 64
-    v97 = load v96
-    v98 = eq v97, 0xde0b6b3a7640000
-    icall require<short_string>, v98, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
-    v99 = ptradd v24, 96
-    v100 = load v99, memptr
-    v101 = load v100
-    v102 = eq v101, 0
-    icall require<short_string>, v102, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
-    v103 = ptradd v24, 128
-    v104 = load v103
-    v105 = eq v104, 0
-    v106 = eq v105, false
-    v107 = eq v106, false
-    jumpi v107, bb1, bb2
+    v60 = eq v59, i24 120
+    icall require<short_string>, v60, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
+    v61 = load v12+64, memptr
+    v62 = load v61+64
+    v63 = eq v62, 0xde0b6b3a7640000
+    icall require<short_string>, v63, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
+    v64 = load v12+96, memptr
+    v65 = load v64
+    v66 = eq v65, 0
+    icall require<short_string>, v66, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
+    v67 = load v12+128
+    v68 = eq v67, 0
+    v69 = eq v68, false
+    v70 = eq v69, false
+    jumpi v70, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v108 = ptradd v24, 160
-    v109 = load v108
-    v110 = eq v109, 0
-    v111 = eq v110, false
-    v112 = eq v111, false
+    v71 = load v12+160
+    v72 = eq v71, 0
+    v73 = eq v72, false
+    v74 = eq v73, false
     jump bb3
   bb3:
-    v113 = phi [bb1: v112], [bb2: false]
-    icall require<short_string>, v113, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
-    v114 = ptradd v0, 32
-    v115 = load v114, memptr
-    v116 = ptradd v24, 32
-    v117 = load v116, memptr
-    v118 = ptrtoint memptr v115 to i256
-    v119 = keccak256 v118, 160
-    v120 = ptrtoint memptr v117 to i256
-    v121 = keccak256 v120, 160
-    v122 = eq v119, v121
-    icall require<short_string>, v122, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v75 = phi [bb1: v74], [bb2: false]
+    icall require<short_string>, v75, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
+    v76 = load v0+32, memptr
+    v77 = load v12+32, memptr
+    v78 = ptrtoint memptr v76 to i256
+    v79 = keccak256 v78, 160
+    v80 = ptrtoint memptr v77 to i256
+    v81 = keccak256 v80, 160
+    v82 = eq v79, v81
+    icall require<short_string>, v82, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -170,49 +130,41 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     v1 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v2 = sext i24 60 to i256
     store v1, 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    v3 = ptradd v1, 32
-    store v3, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
-    v4 = ptradd v1, 64
-    store v4, 0xbb8
-    v5 = ptradd v1, 96
-    store v5, v2
-    v6 = ptradd v1, 128
-    store v6, 0
-    v7 = ptrtoint memptr v1 to i256
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    store v8, 0
-    v9 = ptrtoint memptr v8 to i256
-    v10 = ptrtoint memptr v8 to i256
+    store v1+32, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    store v1+64, 0xbb8
+    store v1+96, v2
+    store v1+128, 0
+    v3 = ptrtoint memptr v1 to i256
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    store v4, 0
+    v5 = ptrtoint memptr v4 to i256
+    v6 = ptrtoint memptr v4 to i256
     store v0, 0x7fa9385be102ac3eac297483dd6233d62b3e1496
-    v11 = ptradd v0, 32
-    store v11, v7
-    v12 = ptradd v0, 64
-    store v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88
-    v13 = ptradd v0, 96
-    store v13, v10
-    v14 = ptradd v0, 32
-    v15 = load v14, memptr
-    v16 = ptrtoint memptr v15 to i256
-    v17 = keccak256 v16, 160
-    v18 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
-    v19 = address
-    v20 = gas
-    v21 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v18
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v19 to i256
-    v25 = staticcall v20, v24, v22, v23, 0, 32
-    jumpi v25, bb2, bb1
+    store v0+32, v3
+    store v0+64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88
+    store v0+96, v6
+    v7 = load v0+32, memptr
+    v8 = ptrtoint memptr v7 to i256
+    v9 = keccak256 v8, 160
+    v10 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
+    v11 = address
+    v12 = gas
+    v13 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v10
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v11 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 32
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v26 = returndatasize
-    v27 = lt v26, 32
-    icall revert_if<tuple_data_too_short>, v27
-    v28 = add 0, 0
-    v29 = load v28
-    v30 = eq v17, v29
-    icall require<short_string>, v30, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = load v20
+    v22 = eq v9, v21
+    icall require<short_string>, v22, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -239,11 +191,10 @@ fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, pure, abi_params=[b
     v14 = slice_len arg0
     copy calldata v12, v13, v14
     v15 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], v11
-    v16 = ptradd v15, 32
-    v17 = load v16, memptr
-    v18 = ptrtoint memptr v17 to i256
-    v19 = keccak256 v18, 160
-    ret v19
+    v16 = load v15+32, memptr
+    v17 = ptrtoint memptr v16 to i256
+    v18 = keccak256 v17, 160
+    ret v18
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
@@ -267,64 +218,57 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = sext i24 60 to i256
     store v0, 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    v2 = ptradd v0, 32
-    store v2, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
-    v3 = ptradd v0, 64
-    store v3, 0xbb8
-    v4 = ptradd v0, 96
-    store v4, v1
-    v5 = ptradd v0, 128
-    store v5, 0
-    v6 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v7 = sext i24 0xffff88 to i256
-    v8 = sext i24 120 to i256
-    store v6, v7
-    v9 = ptradd v6, 32
-    store v9, v8
-    v10 = ptradd v6, 64
-    store v10, 0xde0b6b3a7640000
-    v11 = ptradd v6, 96
-    store v11, 0
-    v12 = ptrtoint memptr v0 to i256
-    v13 = keccak256 v12, 160
-    v14 = address
-    v15 = gas
-    v16 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = zext i160 v14 to i256
-    v20 = staticcall v15, v19, v17, v18, 0, 32
-    jumpi v20, bb2, bb1
+    store v0+32, 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    store v0+64, 0xbb8
+    store v0+96, v1
+    store v0+128, 0
+    v2 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v3 = sext i24 0xffff88 to i256
+    v4 = sext i24 120 to i256
+    store v2, v3
+    store v2+32, v4
+    store v2+64, 0xde0b6b3a7640000
+    store v2+96, 0
+    v5 = ptrtoint memptr v0 to i256
+    v6 = keccak256 v5, 160
+    v7 = address
+    v8 = gas
+    v9 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = zext i160 v7 to i256
+    v13 = staticcall v8, v12, v10, v11, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = load v23
-    v25 = address
-    v26 = gas
-    v27 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    store v27, 0
-    v28 = ptrtoint memptr v27 to i256
-    v29 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v6, v27
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = zext i160 v25 to i256
-    v33 = staticcall v26, v32, v30, v31, 0, 32
-    jumpi v33, bb4, bb3
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = load v16
+    v18 = address
+    v19 = gas
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    store v20, 0
+    v21 = ptrtoint memptr v20 to i256
+    v22 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v2, v20
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = zext i160 v18 to i256
+    v26 = staticcall v19, v25, v23, v24, 0, 32
+    jumpi v26, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = load v36
-    v38 = eq v24, v13
-    icall require<short_string>, v38, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
-    v39 = eq v37, v13
-    icall require<short_string>, v39, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = add 0, 0
+    v30 = load v29
+    v31 = eq v17, v6
+    icall require<short_string>, v31, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
+    v32 = eq v30, v6
+    icall require<short_string>, v32, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     ret 1
 }

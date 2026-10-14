@@ -268,9 +268,9 @@ bb27 [loop]:
   dup 3
   push 5
   shl
-  push 32
-  dup 4
+  dup 3
   add
+  push 32
   add
   mstore
   swap 1

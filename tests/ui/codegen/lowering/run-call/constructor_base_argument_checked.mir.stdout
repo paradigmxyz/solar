@@ -224,8 +224,7 @@ fn @table() -> memptr [pure] {
     v4 = lt 1, 2
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = ptradd v0, 32
-    store v6, 6
+    store v0+32, 6
     ret v0
 }
 

@@ -8,10 +8,9 @@ fn @mutateFirst(arg0: memptr) -> i256 [selector=0x781f0687, pure, abi_params=[by
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
-    v5 = ptradd arg0, 63
-    store8 v5, v4
-    v6 = load v0
-    ret v6
+    store8 arg0+63, v4
+    v5 = load v0
+    ret v5
 }
 
 fn @mutateSecond(arg0: memptr) -> i256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -22,10 +21,9 @@ fn @mutateSecond(arg0: memptr) -> i256 [selector=0xe7eeece1, pure, abi_params=[b
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    v5 = ptradd arg0, 63
-    store8 v5, v4
-    v6 = load v0
-    ret v6
+    store8 arg0+63, v4
+    v5 = load v0
+    ret v5
 }
 
 fn @mutateAlias(arg0: memptr) -> i256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -48,10 +46,9 @@ fn @mutateAliasInner(arg0: memptr, arg1: memptr) -> i256 [pure] {
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
-    v7 = ptradd arg1, 63
-    store8 v7, v6
-    v8 = load v0
-    ret v8
+    store8 arg1+63, v6
+    v7 = load v0
+    ret v7
   bb1:
     ret 0
 }

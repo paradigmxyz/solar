@@ -47,14 +47,12 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     v34 = slt v33, 32
     icall revert_if<calldata_tail_too_short>, v34
     v35 = load calldata v31
-    v36 = ptradd v1, 32
-    store v36, v35
-    v37 = load v1, memptr
-    v38 = load v37
-    v39 = ptradd v1, 32
-    v40 = load v39
-    v41 = checked_add u256, v38, v40
-    ret v41
+    store v1+32, v35
+    v36 = load v1, memptr
+    v37 = load v36
+    v38 = load v1+32
+    v39 = checked_add u256, v37, v38
+    ret v39
 }
 
 fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -97,14 +95,13 @@ fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_par
     v29 = lt 64, v28
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = ptradd v27, 96
-    v32 = load v31
-    v33 = byte 0, v32
-    v34 = shl 248, v33
-    v35 = shr 248, v34
-    v36 = trunc i256 v35 to i8
-    v37 = zext i8 v36 to i256
-    ret v37
+    v31 = load v27+96
+    v32 = byte 0, v31
+    v33 = shl 248, v32
+    v34 = shr 248, v33
+    v35 = trunc i256 v34 to i8
+    v36 = zext i8 v35 to i256
+    ret v36
 }
 
 fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -147,14 +144,13 @@ fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, a
     v29 = lt 0, v28
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = ptradd v27, 32
-    v32 = load v31
-    v33 = byte 0, v32
-    v34 = shl 248, v33
-    v35 = shr 248, v34
-    v36 = trunc i256 v35 to i8
-    v37 = zext i8 v36 to i256
-    ret v37
+    v31 = load v27+32
+    v32 = byte 0, v31
+    v33 = shl 248, v32
+    v34 = shr 248, v33
+    v35 = trunc i256 v34 to i8
+    v36 = zext i8 v35 to i256
+    ret v36
 }
 
 fn @hashField(arg0: calldataslice) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -385,10 +381,9 @@ fn @copyWords(arg0: calldataslice) -> i256 [selector=0x7ce58428, pure, abi_param
     v28 = lt 0, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = ptradd v21, 32
-    v31 = load v30
-    v32 = checked_add u256, v26, v31
-    ret v32
+    v30 = load v21+32
+    v31 = checked_add u256, v26, v30
+    ret v31
 }
 
 fn @emitBytes(arg0: calldataslice) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -445,30 +440,28 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v58]
+    v22 = phi [bb0: 0], [bb2: v57]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v59 = load v21
-    v60 = lt 0, v59
-    v61 = eq v60, false
-    icall panic_if<0x32>, v61
-    v62 = ptradd v21, 32
-    v63 = load v62
-    v64 = inttoptr i256 v63 to memptr
-    v65 = eq v63, 0
-    jumpi v65, bb4, bb5
+    v58 = load v21
+    v59 = lt 0, v58
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = load v21+32
+    v62 = inttoptr i256 v61 to memptr
+    v63 = eq v61, 0
+    jumpi v63, bb4, bb5
   bb4:
-    v66 = alloc memorybytes, exact, uninitialized, infallible, 32
-    store v66, 0
-    v67 = ptradd v21, 32
-    v68 = ptrtoint memptr v66 to i256
-    store v67, v68
+    v64 = alloc memorybytes, exact, uninitialized, infallible, 32
+    store v64, 0
+    v65 = ptrtoint memptr v64 to i256
+    store v21+32, v65
     jump bb5
   bb5:
-    v69 = phi [bb3: v64], [bb4: v66]
-    v70 = load v69
-    ret v70
+    v66 = phi [bb3: v62], [bb4: v64]
+    v67 = load v66
+    ret v67
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -509,9 +502,8 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     copy calldata v51, v52, v53
     v54 = ptrtoint memptr v50 to i256
     v55 = shl 5, v22
-    v56 = ptradd v21, 32
-    v57 = ptradd v56, v55
-    store v57, v54
-    v58 = add v22, 1
+    v56 = ptradd v21, v55
+    store v56+32, v54
+    v57 = add v22, 1
     jump bb1
 }

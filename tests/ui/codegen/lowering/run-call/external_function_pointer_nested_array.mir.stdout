@@ -6,86 +6,81 @@ fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, functio
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = ptradd arg0, 32
-    v4 = load v3
-    v5 = shr 64, v4
-    v6 = and v5, 0xffffffff
-    v7 = shl 224, v6
-    v8 = shr 32, v5
-    v9 = gas
-    v10 = abi_encode [], selector v7
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = call v9, v8, 0, v11, v12, 0, 0
-    jumpi v13, bb2, bb1
+    v3 = load arg0+32
+    v4 = shr 64, v3
+    v5 = and v4, 0xffffffff
+    v6 = shl 224, v5
+    v7 = shr 32, v4
+    v8 = gas
+    v9 = abi_encode [], selector v6
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v7, 0, v10, v11, 0, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = icall returndata_bytes<>
-    v15 = abi_decode [function], v14
-    v16 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v17 = ptrtoint memptr v16 to i256
-    memory_zero v17, 96
-    v18 = lt 0, 3
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = shl 64, v15
-    store v16, v20
-    v21 = load arg0
-    v22 = lt 1, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = ptradd arg0, 64
-    v25 = load v24
-    v26 = shr 64, v25
-    v27 = and v26, 0xffffffff
-    v28 = shl 224, v27
-    v29 = shr 32, v26
-    v30 = gas
-    v31 = abi_encode [], selector v28
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = call v30, v29, 0, v32, v33, 0, 0
-    jumpi v34, bb4, bb3
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [function], v13
+    v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v16 = ptrtoint memptr v15 to i256
+    memory_zero v16, 96
+    v17 = lt 0, 3
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = shl 64, v14
+    store v15, v19
+    v20 = load arg0
+    v21 = lt 1, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = load arg0+64
+    v24 = shr 64, v23
+    v25 = and v24, 0xffffffff
+    v26 = shl 224, v25
+    v27 = shr 32, v24
+    v28 = gas
+    v29 = abi_encode [], selector v26
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = call v28, v27, 0, v30, v31, 0, 0
+    jumpi v32, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v35 = icall returndata_bytes<>
-    v36 = abi_decode [function], v35
-    v37 = lt 1, 3
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = shl 64, v36
-    v40 = ptradd v16, 32
-    store v40, v39
-    v41 = load arg0
-    v42 = lt 2, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = ptradd arg0, 96
-    v45 = load v44
-    v46 = shr 64, v45
-    v47 = and v46, 0xffffffff
-    v48 = shl 224, v47
-    v49 = shr 32, v46
-    v50 = gas
-    v51 = abi_encode [], selector v48
-    v52 = slice_ptr v51
-    v53 = slice_len v51
-    v54 = call v50, v49, 0, v52, v53, 0, 0
-    jumpi v54, bb6, bb5
+    v33 = icall returndata_bytes<>
+    v34 = abi_decode [function], v33
+    v35 = lt 1, 3
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = shl 64, v34
+    store v15+32, v37
+    v38 = load arg0
+    v39 = lt 2, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = load arg0+96
+    v42 = shr 64, v41
+    v43 = and v42, 0xffffffff
+    v44 = shl 224, v43
+    v45 = shr 32, v42
+    v46 = gas
+    v47 = abi_encode [], selector v44
+    v48 = slice_ptr v47
+    v49 = slice_len v47
+    v50 = call v46, v45, 0, v48, v49, 0, 0
+    jumpi v50, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v55 = icall returndata_bytes<>
-    v56 = abi_decode [function], v55
-    v57 = lt 2, 3
-    v58 = eq v57, false
-    icall panic_if<0x32>, v58
-    v59 = shl 64, v56
-    v60 = ptradd v16, 64
-    store v60, v59
-    ret v16
+    v51 = icall returndata_bytes<>
+    v52 = abi_decode [function], v51
+    v53 = lt 2, 3
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = shl 64, v52
+    store v15+64, v55
+    ret v15
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
@@ -102,7 +97,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     store v0, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb3: v19]
+    v1 = phi [bb0: 0], [bb3: v18]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
@@ -113,124 +108,121 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb5:
     jump bb2
   bb2:
-    v20 = address
-    v21 = zext i160 v20 to i256
-    v22 = shl 32, v21
-    v23 = or v22, 0x573a6b2f
-    v24 = load v3
-    v25 = lt 0, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = shl 64, v23
-    v28 = ptradd v3, 32
-    store v28, v27
-    v29 = abi_encode []
-    v30 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
-    v31 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
-    v32 = alloc raw, exact, uninitialized, infallible, v31
-    v33 = ptrtoint memptr v32 to i256
-    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v33, v30
-    v34 = slice_ptr v29
-    v35 = ptrtoint memptr v32 to i256
-    v36 = add v35, v30
-    copy v36, v34, 0 !metadata(memory=heap)
-    v37 = ptrtoint memptr v32 to i256
-    v38 = create 0, v37, v30
-    v39 = ne v38, i160 0
-    jumpi v39, bb8, bb7
+    v19 = address
+    v20 = zext i160 v19 to i256
+    v21 = shl 32, v20
+    v22 = or v21, 0x573a6b2f
+    v23 = load v3
+    v24 = lt 0, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl 64, v22
+    store v3+32, v26
+    v27 = abi_encode []
+    v28 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
+    v29 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
+    v30 = alloc raw, exact, uninitialized, infallible, v29
+    v31 = ptrtoint memptr v30 to i256
+    datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v31, v28
+    v32 = slice_ptr v27
+    v33 = ptrtoint memptr v30 to i256
+    v34 = add v33, v28
+    copy v34, v32, 0 !metadata(memory=heap)
+    v35 = ptrtoint memptr v30 to i256
+    v36 = create 0, v35, v28
+    v37 = ne v36, i160 0
+    jumpi v37, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v40 = gas
-    v41 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
-    v42 = slice_ptr v41
-    v43 = slice_len v41
-    v44 = alloc raw, exact, uninitialized, infallible, 96
-    v45 = zext i160 v38 to i256
-    v46 = ptrtoint memptr v44 to i256
-    v47 = call v40, v45, 0, v42, v43, v46, 96
-    jumpi v47, bb10, bb9
+    v38 = gas
+    v39 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
+    v40 = slice_ptr v39
+    v41 = slice_len v39
+    v42 = alloc raw, exact, uninitialized, infallible, 96
+    v43 = zext i160 v36 to i256
+    v44 = ptrtoint memptr v42 to i256
+    v45 = call v38, v43, 0, v40, v41, v44, 96
+    jumpi v45, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v48 = returndatasize
-    v49 = lt v48, 96
-    icall revert_if<tuple_data_too_short>, v49
-    v50 = ptrtoint memptr v44 to i256
-    v51 = make_memory_slice v50, 96
-    v52 = abi_decode [array<3, function>], v51
-    v53 = lt 0, 3
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = load v52
-    v56 = shr 64, v55
-    v57 = and v56, 0xffffffff
-    v58 = shl 224, v57
-    v59 = shr 32, v56
-    v60 = gas
-    v61 = abi_encode [], selector v58
-    v62 = slice_ptr v61
-    v63 = slice_len v61
-    v64 = call v60, v59, 0, v62, v63, 0, 32
-    jumpi v64, bb12, bb11
+    v46 = returndatasize
+    v47 = lt v46, 96
+    icall revert_if<tuple_data_too_short>, v47
+    v48 = ptrtoint memptr v42 to i256
+    v49 = make_memory_slice v48, 96
+    v50 = abi_decode [array<3, function>], v49
+    v51 = lt 0, 3
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = load v50
+    v54 = shr 64, v53
+    v55 = and v54, 0xffffffff
+    v56 = shl 224, v55
+    v57 = shr 32, v54
+    v58 = gas
+    v59 = abi_encode [], selector v56
+    v60 = slice_ptr v59
+    v61 = slice_len v59
+    v62 = call v58, v57, 0, v60, v61, 0, 32
+    jumpi v62, bb12, bb11
   bb11:
     revert_returndata
   bb12:
-    v65 = returndatasize
-    v66 = lt v65, 32
-    icall revert_if<tuple_data_too_short>, v66
-    v67 = add 0, 0
-    v68 = load v67
-    v69 = lt 1, 3
-    v70 = eq v69, false
-    icall panic_if<0x32>, v70
-    v71 = ptradd v52, 32
-    v72 = load v71
-    v73 = shr 64, v72
-    v74 = and v73, 0xffffffff
-    v75 = shl 224, v74
-    v76 = shr 32, v73
-    v77 = gas
-    v78 = abi_encode [], selector v75
-    v79 = slice_ptr v78
-    v80 = slice_len v78
-    v81 = call v77, v76, 0, v79, v80, 0, 32
-    jumpi v81, bb14, bb13
+    v63 = returndatasize
+    v64 = lt v63, 32
+    icall revert_if<tuple_data_too_short>, v64
+    v65 = add 0, 0
+    v66 = load v65
+    v67 = lt 1, 3
+    v68 = eq v67, false
+    icall panic_if<0x32>, v68
+    v69 = load v50+32
+    v70 = shr 64, v69
+    v71 = and v70, 0xffffffff
+    v72 = shl 224, v71
+    v73 = shr 32, v70
+    v74 = gas
+    v75 = abi_encode [], selector v72
+    v76 = slice_ptr v75
+    v77 = slice_len v75
+    v78 = call v74, v73, 0, v76, v77, 0, 32
+    jumpi v78, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v82 = returndatasize
-    v83 = lt v82, 32
-    icall revert_if<tuple_data_too_short>, v83
-    v84 = add 0, 0
-    v85 = load v84
-    v86 = lt 2, 3
-    v87 = eq v86, false
-    icall panic_if<0x32>, v87
-    v88 = ptradd v52, 64
-    v89 = load v88
-    v90 = shr 64, v89
-    v91 = and v90, 0xffffffff
-    v92 = shl 224, v91
-    v93 = shr 32, v90
-    v94 = gas
-    v95 = abi_encode [], selector v92
-    v96 = slice_ptr v95
-    v97 = slice_len v95
-    v98 = call v94, v93, 0, v96, v97, 0, 32
-    jumpi v98, bb16, bb15
+    v79 = returndatasize
+    v80 = lt v79, 32
+    icall revert_if<tuple_data_too_short>, v80
+    v81 = add 0, 0
+    v82 = load v81
+    v83 = lt 2, 3
+    v84 = eq v83, false
+    icall panic_if<0x32>, v84
+    v85 = load v50+64
+    v86 = shr 64, v85
+    v87 = and v86, 0xffffffff
+    v88 = shl 224, v87
+    v89 = shr 32, v86
+    v90 = gas
+    v91 = abi_encode [], selector v88
+    v92 = slice_ptr v91
+    v93 = slice_len v91
+    v94 = call v90, v89, 0, v92, v93, 0, 32
+    jumpi v94, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v99 = returndatasize
-    v100 = lt v99, 32
-    icall revert_if<tuple_data_too_short>, v100
-    v101 = add 0, 0
-    v102 = load v101
-    v103 = insert_value struct0, undef struct0, 0, v68
-    v104 = insert_value struct0, v103, 1, v85
-    v105 = insert_value struct0, v104, 2, v102
-    ret v105
+    v95 = returndatasize
+    v96 = lt v95, 32
+    icall revert_if<tuple_data_too_short>, v96
+    v97 = add 0, 0
+    v98 = load v97
+    v99 = insert_value struct0, undef struct0, 0, v66
+    v100 = insert_value struct0, v99, 1, v82
+    v101 = insert_value struct0, v100, 2, v98
+    ret v101
   bb4:
     v8 = address
     v9 = zext i160 v8 to i256
@@ -242,14 +234,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v14
     v15 = shl 64, v11
     v16 = shl 5, v1
-    v17 = ptradd v3, 32
-    v18 = ptradd v17, v16
-    store v18, v15
+    v17 = ptradd v3, v16
+    store v17+32, v15
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add u256, v1, 1
+    v18 = checked_add u256, v1, 1
     jump bb1
 }
 

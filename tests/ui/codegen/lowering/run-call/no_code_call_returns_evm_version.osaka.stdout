@@ -17,8 +17,7 @@ fn @pair() -> memptr [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[arr
     v4 = lt 1, 2
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = ptradd v0, 32
-    store v6, 2
+    store v0+32, 2
     ret v0
 }
 
@@ -234,9 +233,8 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v27 = lt 1, 2
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = ptradd v23, 32
-    v30 = load v29
-    v31 = insert_value struct0, undef struct0, 0, v26
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    v29 = load v23+32
+    v30 = insert_value struct0, undef struct0, 0, v26
+    v31 = insert_value struct0, v30, 1, v29
+    ret v31
 }

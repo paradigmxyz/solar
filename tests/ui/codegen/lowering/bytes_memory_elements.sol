@@ -11,10 +11,8 @@ contract BytesMemoryElements {
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and 159, [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: store [[BUF]], 96
-    // CHECK: [[P5:v[0-9]+]] = ptradd [[BUF]], 37
-    // CHECK-NEXT: store8 [[P5]], {{v[0-9]+}}
-    // CHECK: [[P95:v[0-9]+]] = ptradd [[BUF]], 127
-    // CHECK-NEXT: store8 [[P95]], {{v[0-9]+}}
+    // CHECK: store8 [[BUF]]+37, {{v[0-9]+}}
+    // CHECK: store8 [[BUF]]+127, {{v[0-9]+}}
     // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
     // CHECK-NEXT: [[LEN:v[0-9]+]] = load [[BUF]]
@@ -29,8 +27,7 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
     // CHECK: store [[BUF]], 10
-    // CHECK: [[P5:v[0-9]+]] = ptradd [[BUF]], 37
-    // CHECK-NEXT: store8 [[P5]], {{v[0-9]+}}
+    // CHECK: store8 [[BUF]]+37, {{v[0-9]+}}
     // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
     // CHECK-NEXT: [[LEN:v[0-9]+]] = load [[BUF]]
@@ -56,13 +53,11 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @readWrite{{[( ]}}
     // CHECK: icall panic_if<0x32>
     // CHECK: [[BYTE:v[0-9]+]] = byte 0, arg2
-    // CHECK-NEXT: [[STORE_DATA:v[0-9]+]] = ptradd arg0, 32
-    // CHECK-NEXT: [[STORE_PTR:v[0-9]+]] = ptradd [[STORE_DATA]], arg1
-    // CHECK-NEXT: store8 [[STORE_PTR]], [[BYTE]]
+    // CHECK-NEXT: [[STORE_PTR:v[0-9]+]] = ptradd arg0, arg1
+    // CHECK-NEXT: store8 [[STORE_PTR]]+32, [[BYTE]]
     // CHECK: icall panic_if<0x32>
-    // CHECK-NEXT: [[LOAD_DATA:v[0-9]+]] = ptradd arg0, 32
-    // CHECK-NEXT: [[LOAD_PTR:v[0-9]+]] = ptradd [[LOAD_DATA]], arg1
-    // CHECK-NEXT: [[WORD:v[0-9]+]] = load [[LOAD_PTR]]
+    // CHECK-NEXT: [[LOAD_PTR:v[0-9]+]] = ptradd arg0, arg1
+    // CHECK-NEXT: [[WORD:v[0-9]+]] = load [[LOAD_PTR]]+32
     // CHECK-NEXT: {{v[0-9]+}} = byte 0, [[WORD]]
     function readWrite(bytes memory b, uint i, bytes1 v) external pure returns (bytes1) {
         b[i] = v;

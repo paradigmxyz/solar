@@ -24,11 +24,10 @@ fn @decode() -> struct0 [selector=0xc0f8940c, pure, abi_params=[], abi_returns=[
     v12 = lt 0, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = ptradd v9, 32
-    v15 = load v14
-    v16 = byte 0, v15
-    v17 = shl 248, v16
-    v18 = insert_value struct0, undef struct0, 0, v10
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v14 = load v9+32
+    v15 = byte 0, v14
+    v16 = shl 248, v15
+    v17 = insert_value struct0, undef struct0, 0, v10
+    v18 = insert_value struct0, v17, 1, v16
+    ret v18
 }

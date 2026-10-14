@@ -144,18 +144,17 @@ fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     v4 = lt 256, 257
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = ptradd v0, 0x2000
-    store v6, 9
-    v7 = icall @dirtyUint8, 256
-    v8 = trunc i256 v7 to i8
-    v9 = zext i8 v8 to i256
-    v10 = lt v9, 257
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = shl 5, v9
-    v13 = ptradd v0, v12
-    v14 = load v13
-    ret v14
+    store v0+8192, 9
+    v6 = icall @dirtyUint8, 256
+    v7 = trunc i256 v6 to i8
+    v8 = zext i8 v7 to i256
+    v9 = lt v8, 257
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl 5, v8
+    v12 = ptradd v0, v11
+    v13 = load v12
+    ret v13
 }
 
 fn @mutate() -> i256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

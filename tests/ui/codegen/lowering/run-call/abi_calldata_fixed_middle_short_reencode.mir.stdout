@@ -38,25 +38,25 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     store v23, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb6: v86]
+    v24 = phi [bb0: 0], [bb6: v85]
     v25 = lt v24, v2
     jumpi v25, bb2, bb3
   bb3:
-    v87 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v23
-    v88 = slice_ptr v87
-    v89 = slice_len v87
-    v90 = zext i160 v0 to i256
-    v91 = staticcall v1, v90, v88, v89, 0, 32
-    jumpi v91, bb8, bb7
+    v86 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v23
+    v87 = slice_ptr v86
+    v88 = slice_len v86
+    v89 = zext i160 v0 to i256
+    v90 = staticcall v1, v89, v87, v88, 0, 32
+    jumpi v90, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v92 = returndatasize
-    v93 = lt v92, 32
-    icall revert_if<tuple_data_too_short>, v93
-    v94 = add 0, 0
-    v95 = load v94
-    ret v95
+    v91 = returndatasize
+    v92 = lt v91, 32
+    icall revert_if<tuple_data_too_short>, v92
+    v93 = add 0, 0
+    v94 = load v93
+    ret v94
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
@@ -85,10 +85,9 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
   bb6:
     v82 = ptrtoint memptr v41 to i256
     v83 = shl 5, v24
-    v84 = ptradd v23, 32
-    v85 = ptradd v84, v83
-    store v85, v82
-    v86 = add v24, 1
+    v84 = ptradd v23, v83
+    store v84+32, v82
+    v85 = add v24, 1
     jump bb1
   bb5:
     v44 = mul v42, 32

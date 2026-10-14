@@ -38,42 +38,36 @@ fn @callArray(arg0: i256, arg1: i256) -> i256 [selector=0xefc06ab0, abi_params=[
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = ptradd v0, 32
-    store v4, 1
-    v5 = load v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd v0, 64
-    store v8, 2
-    v9 = load v0
-    v10 = lt 2, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v0, 96
-    store v12, 3
+    store v0+32, 1
+    v4 = load v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    store v0+64, 2
+    v7 = load v0
+    v8 = lt 2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    store v0+96, 3
+    v10 = load v0
+    v11 = lt 3, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    store v0+128, 4
     v13 = load v0
-    v14 = lt 3, v13
+    v14 = lt 4, v13
     v15 = eq v14, false
     icall panic_if<0x32>, v15
-    v16 = ptradd v0, 128
-    store v16, 4
-    v17 = load v0
-    v18 = lt 4, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v0, 160
-    store v20, 5
-    v21 = load v0
-    v22 = lt arg1, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = shl 5, arg1
-    v25 = ptradd v0, 32
-    v26 = ptradd v25, v24
-    v27 = load v26
-    v28 = icall @internal_dispatcher_p_u256_r_u256, v27, arg0
-    ret v28
+    store v0+160, 5
+    v16 = load v0
+    v17 = lt arg1, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = shl 5, arg1
+    v20 = ptradd v0, v19
+    v21 = load v20+32
+    v22 = icall @internal_dispatcher_p_u256_r_u256, v21, arg0
+    ret v22
 }
 
 fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

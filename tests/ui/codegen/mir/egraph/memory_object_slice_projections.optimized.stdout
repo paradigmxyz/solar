@@ -31,7 +31,7 @@
 + fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
       v0 = slice_ptr arg0
-      v1 = inttoptr i256 v0 to memptr
+-     v1 = inttoptr i256 v0 to memptr
       ret v0
   }
   
@@ -56,9 +56,7 @@
 + fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
 -     v0 = slice_ptr arg0
--     v1 = inttoptr i256 v0 to memptr
 -     ret v0
-+     v1 = inttoptr i256 arg0 to memptr
 +     ret arg0
   }
   
@@ -85,7 +83,6 @@
   @module MemoryObjectSliceProjections
   fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
-      v1 = inttoptr i256 arg0 to memptr
       ret arg0
   }
   
@@ -106,7 +103,6 @@
   @module MemoryObjectSliceProjections
   fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v1 = inttoptr i256 arg0 to memptr
       ret arg0
   }
   

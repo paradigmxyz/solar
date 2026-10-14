@@ -225,3 +225,13 @@
       ret v3
   }
   
+  fn @access_offsets(arg0: memptr, arg1: i256) {
+    bb0:
+      v0 = load arg0+32
+      v1 = load arg0+64, memptr
+      v2 = load calldata arg1+4
+      store v1+32, v0
+      store8 arg0+1, v2
+      stop
+  }
+  

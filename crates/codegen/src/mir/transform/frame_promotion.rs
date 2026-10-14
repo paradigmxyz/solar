@@ -339,7 +339,7 @@ impl FrameSlotPromoter {
         value: ValueId,
         offset: u64,
     ) -> Option<PromotableSlot> {
-        Self::internal_frame_access(func, aa, value, offset)
+        Self::internal_frame_offset(func, aa, value, offset)
             .map(PromotableSlot::InternalFrame)
             .or_else(|| {
                 Self::external_local_addr(func, aa, value, offset)
@@ -353,7 +353,7 @@ impl FrameSlotPromoter {
         value: ValueId,
         offset: u64,
     ) -> Option<u64> {
-        let address = aa.memory_address(func, value)?.checked_add(offset)?.as_absolute()?;
+        let address = aa.memory_address_at(func, value, offset)?.as_absolute()?;
         Self::external_local_addr_in_range(func, address)
     }
 
@@ -365,18 +365,14 @@ impl FrameSlotPromoter {
         .then_some(addr)
     }
 
-    fn internal_frame_offset(func: &Function, aa: &AliasAnalysis, value: ValueId) -> Option<u64> {
-        Self::internal_frame_access(func, aa, value, 0)
-    }
-
-    /// The internal frame offset of an access at `value + offset`.
-    fn internal_frame_access(
+    /// The internal frame offset of the address `value + offset`.
+    fn internal_frame_offset(
         func: &Function,
         aa: &AliasAnalysis,
         value: ValueId,
         offset: u64,
     ) -> Option<u64> {
-        aa.memory_address(func, value)?.checked_add(offset)?.as_internal_frame_offset()
+        aa.memory_address_at(func, value, offset)?.as_internal_frame_offset()
     }
 
     fn internal_frame_add_offset(
@@ -386,7 +382,7 @@ impl FrameSlotPromoter {
         offset: ValueId,
         _depth: usize,
     ) -> Option<u64> {
-        let base = Self::internal_frame_offset(func, aa, base)?;
+        let base = Self::internal_frame_offset(func, aa, base, 0)?;
         base.checked_add(func.value_u64(offset)?)
     }
 
@@ -476,7 +472,7 @@ impl FrameSlotPromoter {
                         Some(32),
                         slot_offset,
                     ))
-                    || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
+                    || Self::internal_frame_offset(func, aa, value, 0) == Some(slot_offset)
             }
             InstKind::Store8(addr, offset, _) => {
                 Self::internal_frame_range_may_overlap(func, aa, addr, offset, Some(1), slot_offset)
@@ -535,13 +531,13 @@ impl FrameSlotPromoter {
                     .is_some();
                 !exact_frame_addr
                     && kind.operands().iter().any(|&value| {
-                        Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
+                        Self::internal_frame_offset(func, aa, value, 0) == Some(slot_offset)
                     })
             }
             _ => kind
                 .operands()
                 .iter()
-                .any(|&value| Self::internal_frame_offset(func, aa, value) == Some(slot_offset)),
+                .any(|&value| Self::internal_frame_offset(func, aa, value, 0) == Some(slot_offset)),
         }
     }
 
@@ -565,7 +561,7 @@ impl FrameSlotPromoter {
             _ => term
                 .operands()
                 .iter()
-                .any(|&value| Self::internal_frame_offset(func, aa, value) == Some(slot_offset)),
+                .any(|&value| Self::internal_frame_offset(func, aa, value, 0) == Some(slot_offset)),
         }
     }
 
@@ -677,8 +673,7 @@ impl FrameSlotPromoter {
         size: Option<u64>,
         slot_addr: u64,
     ) -> bool {
-        let Some(address) = aa.memory_address(func, addr) else { return false };
-        let Some(address) = address.checked_add(offset) else { return true };
+        let Some(address) = aa.memory_address_at(func, addr, offset) else { return false };
         let Some(base) = address.as_absolute() else { return false };
         let Some(local_end) = EvmMemoryLayout::HEAP_START.checked_add(func.internal_frame_size)
         else {
@@ -741,7 +736,7 @@ impl FrameSlotPromoter {
         offset: u64,
         slot_offset: u64,
     ) -> bool {
-        Self::internal_frame_access(func, aa, addr, offset) == Some(slot_offset)
+        Self::internal_frame_offset(func, aa, addr, offset) == Some(slot_offset)
     }
 
     fn internal_frame_range_may_overlap(
@@ -752,10 +747,9 @@ impl FrameSlotPromoter {
         size: Option<u64>,
         slot_offset: u64,
     ) -> bool {
-        let Some(address) = aa.memory_address(func, addr) else {
+        let Some(address) = aa.memory_address_at(func, addr, offset) else {
             return false;
         };
-        let Some(address) = address.checked_add(offset) else { return true };
         if address.as_internal_frame_offset().is_none() {
             return false;
         }

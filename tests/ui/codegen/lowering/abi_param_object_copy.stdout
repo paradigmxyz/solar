@@ -35,7 +35,7 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v8 = phi [bb2: 0], [bb7: v16]
+    v8 = phi [bb2: 0], [bb7: v15]
     v9 = lt v8, v0
     jumpi v9, bb7, bb8
   bb8:
@@ -43,13 +43,12 @@ fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u
     ret
   bb7:
     v10 = shl 5, v8
-    v11 = ptradd arg0, 32
-    v12 = ptradd v11, v10
-    v13 = load v12
-    v14 = storage_array_data_slot 0
-    v15 = add v14, v8
-    sstore v15, v13 !metadata(storage=symbolic(v15))
-    v16 = add v8, 1
+    v11 = ptradd arg0, v10
+    v12 = load v11+32
+    v13 = storage_array_data_slot 0
+    v14 = add v13, v8
+    sstore v14, v12 !metadata(storage=symbolic(v14))
+    v15 = add v8, 1
     jump bb6
   bb4:
     v5 = storage_array_data_slot 0

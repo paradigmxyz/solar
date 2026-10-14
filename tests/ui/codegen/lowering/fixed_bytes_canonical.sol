@@ -18,8 +18,7 @@ contract FixedBytesCanonical {
 
     // CHECK-LABEL: fn @compareElement{{[( ]}}
     // CHECK: icall panic_if<0x32>
-    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, 32
-    // CHECK-NEXT: [[WORD:v[0-9]+]] = load [[ELEM]]
+    // CHECK-NEXT: [[WORD:v[0-9]+]] = load arg0+32
     // CHECK-NEXT: [[BYTE:v[0-9]+]] = byte 0, [[WORD]]
     // CHECK-NEXT: shl 248, [[BYTE]]
     // CHECK: eq

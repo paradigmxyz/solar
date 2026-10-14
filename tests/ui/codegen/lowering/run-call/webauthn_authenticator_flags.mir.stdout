@@ -31,14 +31,13 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
     v3 = lt 32, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = ptradd v1, 64
-    v6 = load v5
-    v7 = byte 0, v6
-    v8 = shl 248, v7
-    v9 = and v8, 0x100000000000000000000000000000000000000000000000000000000000000
-    v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v11 = eq v10, 0x100000000000000000000000000000000000000000000000000000000000000
-    ret v11
+    v5 = load v1+64
+    v6 = byte 0, v5
+    v7 = shl 248, v6
+    v8 = and v7, 0x100000000000000000000000000000000000000000000000000000000000000
+    v9 = and v8, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v10 = eq v9, 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v10
 }
 
 fn @auth() -> memptr [pure] {
@@ -52,18 +51,14 @@ fn @auth() -> memptr [pure] {
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 192
     store v3, 96
-    v5 = ptradd v3, 32
-    store v5, 96
-    v6 = ptrtoint memptr v0 to i256
-    store v3, v6
-    v7 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    v8 = ptrtoint memptr v7 to i256
-    v9 = ptradd v3, 32
-    store v9, v8
-    v10 = ptradd v3, 64
-    store v10, 27
-    v11 = ptradd v3, 96
-    store v11, 2
+    store v3+32, 96
+    v5 = ptrtoint memptr v0 to i256
+    store v3, v5
+    v6 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v7 = ptrtoint memptr v6 to i256
+    store v3+32, v7
+    store v3+64, 27
+    store v3+96, 2
     ret v3
 }
 

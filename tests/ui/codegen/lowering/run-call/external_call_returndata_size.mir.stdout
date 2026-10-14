@@ -12,8 +12,7 @@ fn @f() -> memptr [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<
     v4 = lt 1, 20
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = ptradd v0, 32
-    store v6, 43
+    store v0+32, 43
     ret v0
 }
 

@@ -175,9 +175,7 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                 }
                 if let InstKind::Store(address, offset, value) = instruction.kind
                     && let Some(word) = operand(func, &env, None, value).and_then(Datum::word)
-                    && let Some(address) = alias
-                        .memory_address(func, address)
-                        .and_then(|address| address.checked_add(offset))
+                    && let Some(address) = alias.memory_address_at(func, address, offset)
                     && matches!(address.base, MemoryBase::Allocation(_))
                 {
                     if memory.len() == MAX_WORDS {

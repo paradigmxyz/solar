@@ -17,20 +17,26 @@ memory is a `copy`. `load` and `copy` name the location they read, so
 `load calldata v0` selects `CALLDATALOAD` and `copy returndata v0, v1, v2`
 selects `RETURNDATACOPY`; a plain `load` or `copy` reads memory. Like an LLVM
 load from `ptr`, a memory access takes a `memptr` or a raw `i256` address, and
-`lower-memory-objects` casts it to a word at the opcode boundary.
+`lower-memory-objects` casts it to a word at the opcode boundary. An access also
+takes an immediate byte offset, written `load v0+32` or `store v0+32, v1`, which
+adds to the address as `ptradd` does for a pointer and as `add` does for a word.
+It keeps a constant field or element access to one instruction;
+`lower-memory-objects` turns a nonzero offset into an `add`, so every offset is
+zero in the lowered phase.
 
 `ptradd p, n` addresses `n` bytes into the object `p` points into and keeps
 its type. Like an LLVM `getelementptr inbounds nuw`, it does not wrap: semantic
 lowering emits it only for addresses inside the object, so alias analysis
 places an access at a runtime offset at or after `p`, and assembly's raw
 arithmetic uses `add` on words instead. A fixed array or struct has no length
-word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
+word, so field or element `i` is the word at `v0+32 * i`, and at
 `ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
 `string`, `T[] memory`) is a `memptr` to its length word, which assembly can
-read and rewrite: `load v0` reads the length, and the payload starts at
-`ptradd v0, 32`. Where a slice value is needed, `make_memory_slice` pairs the
-payload address with the length; `slice_ptr` and `slice_len` project it, and
-calldata and returndata slices work the same way.
+read and rewrite: `load v0` reads the length, the payload starts at `v0+32`, and
+element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
+Where a slice value is needed, `make_memory_slice` pairs the payload address
+with the length; `slice_ptr` and `slice_len` project it, and calldata and
+returndata slices work the same way.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.

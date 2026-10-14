@@ -396,24 +396,26 @@ fn display_inst_kind<'a>(
         {
             write!(f, " {location}")?;
         }
-        if let InstKind::Load(ptr, offset, _)
-        | InstKind::Store(ptr, offset, _)
-        | InstKind::Store8(ptr, offset, _) = *kind
-            && offset != 0
-        {
-            write!(f, " {}+{offset}", display_val(ptr, func))?;
-            return kind
-                .operands()
-                .into_iter()
-                .skip(1)
-                .try_for_each(|operand| write!(f, ", {}", display_val(operand, func)));
-        }
+        // An access's immediate offset follows its address, the first operand: `load v0+32`.
+        let offset = kind.access_offset().filter(|&offset| offset != 0);
         let operands = kind.operands();
         if !operands.is_empty() {
             write!(
                 f,
                 " {}",
-                operands.into_iter().map(|operand| display_val(operand, func)).format(", ")
+                operands
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, operand)| {
+                        fmt::from_fn(move |f| {
+                            write!(f, "{}", display_val(operand, func))?;
+                            match offset {
+                                Some(offset) if index == 0 => write!(f, "+{offset}"),
+                                _ => Ok(()),
+                            }
+                        })
+                    })
+                    .format(", ")
             )?;
         }
         Ok(())

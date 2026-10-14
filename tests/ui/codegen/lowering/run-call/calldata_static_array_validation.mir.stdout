@@ -107,10 +107,9 @@ fn @copyToMemory(arg0: calldataslice) -> i8 [selector=0x13aac4cb, pure, abi_para
     v17 = lt 1, 2
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = ptradd v4, 32
-    v20 = load v19
-    v21 = trunc i256 v20 to i8
-    ret v21
+    v19 = load v4+32
+    v20 = trunc i256 v19 to i8
+    ret v20
   bb2:
     v7 = mul v5, 32
     v8 = add v0, v7

@@ -111,11 +111,10 @@ fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_
     v39 = lt 0, v38
     v40 = eq v39, false
     icall panic_if<0x32>, v40
-    v41 = ptradd v37, 32
-    v42 = load v41
-    v43 = insert_value struct1, undef struct1, 0, v36
-    v44 = insert_value struct1, v43, 1, v42
-    ret v44
+    v41 = load v37+32
+    v42 = insert_value struct1, undef struct1, 0, v36
+    v43 = insert_value struct1, v42, 1, v41
+    ret v43
 }
 
 fn @split(arg0: calldataslice) -> struct2 [pure] {
@@ -268,44 +267,43 @@ fn @sliceTuple(arg0: calldataslice) -> struct3 [selector=0x09979d7d, abi_params=
     sstore 5, v35 !metadata(storage=slot(5))
     jump bb6
   bb6:
-    v43 = phi [bb2: 0], [bb7: v51]
+    v43 = phi [bb2: 0], [bb7: v50]
     v44 = lt v43, v35
     jumpi v44, bb7, bb8
   bb8:
-    v52 = sload 5 !metadata(storage=slot(5))
-    v53 = lt 0, v52
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = storage_array_data_slot 5
-    v56 = add v55, 0
-    v57 = sload v56 !metadata(storage=symbolic(v55))
-    v58 = sload 5 !metadata(storage=slot(5))
-    v59 = lt 1, v58
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = storage_array_data_slot 5
-    v62 = add v61, 1
-    v63 = sload v62 !metadata(storage=offset(v61, 1))
-    v64 = sload 5 !metadata(storage=slot(5))
-    v65 = lt 2, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = storage_array_data_slot 5
-    v68 = add v67, 2
-    v69 = sload v68 !metadata(storage=offset(v67, 2))
-    v70 = insert_value struct3, undef struct3, 0, v57
-    v71 = insert_value struct3, v70, 1, v63
-    v72 = insert_value struct3, v71, 2, v69
-    ret v72
+    v51 = sload 5 !metadata(storage=slot(5))
+    v52 = lt 0, v51
+    v53 = eq v52, false
+    icall panic_if<0x32>, v53
+    v54 = storage_array_data_slot 5
+    v55 = add v54, 0
+    v56 = sload v55 !metadata(storage=symbolic(v54))
+    v57 = sload 5 !metadata(storage=slot(5))
+    v58 = lt 1, v57
+    v59 = eq v58, false
+    icall panic_if<0x32>, v59
+    v60 = storage_array_data_slot 5
+    v61 = add v60, 1
+    v62 = sload v61 !metadata(storage=offset(v60, 1))
+    v63 = sload 5 !metadata(storage=slot(5))
+    v64 = lt 2, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = storage_array_data_slot 5
+    v67 = add v66, 2
+    v68 = sload v67 !metadata(storage=offset(v66, 2))
+    v69 = insert_value struct3, undef struct3, 0, v56
+    v70 = insert_value struct3, v69, 1, v62
+    v71 = insert_value struct3, v70, 2, v68
+    ret v71
   bb7:
     v45 = shl 5, v43
-    v46 = ptradd v30, 32
-    v47 = ptradd v46, v45
-    v48 = load v47
-    v49 = storage_array_data_slot 5
-    v50 = add v49, v43
-    sstore v50, v48 !metadata(storage=symbolic(v50))
-    v51 = add v43, 1
+    v46 = ptradd v30, v45
+    v47 = load v46+32
+    v48 = storage_array_data_slot 5
+    v49 = add v48, v43
+    sstore v49, v47 !metadata(storage=symbolic(v49))
+    v50 = add v43, 1
     jump bb6
   bb4:
     v40 = storage_array_data_slot 5

@@ -51,20 +51,20 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     store v22, v1
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v77]
+    v23 = phi [bb0: 0], [bb2: v75]
     v24 = lt v23, v1
     jumpi v24, bb2, bb3
   bb3:
-    v78 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
-    v79 = slice_ptr v78
-    v80 = slice_len v78
-    v81 = zext i160 arg1 to i256
-    v82 = extcodesize v81
-    v83 = eq v82, 0
-    icall revert_if<target_contract_has_no_code>, v83
-    v84 = zext i160 arg1 to i256
-    v85 = call v0, v84, 0, v79, v80, 0, 0
-    jumpi v85, bb5, bb4
+    v76 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
+    v77 = slice_ptr v76
+    v78 = slice_len v76
+    v79 = zext i160 arg1 to i256
+    v80 = extcodesize v79
+    v81 = eq v80, 0
+    icall revert_if<target_contract_has_no_code>, v81
+    v82 = zext i160 arg1 to i256
+    v83 = call v0, v82, 0, v77, v78, 0, 0
+    jumpi v83, bb5, bb4
   bb4:
     revert_returndata
   bb5:
@@ -128,13 +128,11 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v70 = slice_len v61
     copy calldata v68, v69, v70
     v71 = ptrtoint memptr v67 to i256
-    v72 = ptradd v37, 32
-    store v72, v71
-    v73 = ptrtoint memptr v37 to i256
-    v74 = shl 5, v23
-    v75 = ptradd v22, 32
-    v76 = ptradd v75, v74
-    store v76, v73
-    v77 = add v23, 1
+    store v37+32, v71
+    v72 = ptrtoint memptr v37 to i256
+    v73 = shl 5, v23
+    v74 = ptradd v22, v73
+    store v74+32, v72
+    v75 = add v23, 1
     jump bb1
 }

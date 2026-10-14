@@ -70,26 +70,21 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v24 = extract_value struct3, v23, 0
     v25 = extract_value struct3, v23, 1
     v26 = load v25
-    v27 = ptradd v25, 32
-    v28 = load v27
-    v29 = ptradd v25, 64
-    v30 = load v29
-    v31 = ptradd v25, 96
-    v32 = load v31
-    v33 = ptradd v25, 128
-    v34 = load v33, memptr
-    v35 = load v34
-    v36 = ptradd v25, 160
-    v37 = load v36, memptr
-    v38 = load v37
-    v39 = insert_value struct2, undef struct2, 0, v24
-    v40 = insert_value struct2, v39, 1, v26
-    v41 = insert_value struct2, v40, 2, v28
-    v42 = insert_value struct2, v41, 3, v30
-    v43 = insert_value struct2, v42, 4, v32
-    v44 = insert_value struct2, v43, 5, v35
-    v45 = insert_value struct2, v44, 6, v38
-    ret v45
+    v27 = load v25+32
+    v28 = load v25+64
+    v29 = load v25+96
+    v30 = load v25+128, memptr
+    v31 = load v30
+    v32 = load v25+160, memptr
+    v33 = load v32
+    v34 = insert_value struct2, undef struct2, 0, v24
+    v35 = insert_value struct2, v34, 1, v26
+    v36 = insert_value struct2, v35, 2, v27
+    v37 = insert_value struct2, v36, 3, v28
+    v38 = insert_value struct2, v37, 4, v29
+    v39 = insert_value struct2, v38, 5, v31
+    v40 = insert_value struct2, v39, 6, v33
+    ret v40
 }
 
 fn @decode.3(arg0: calldataslice) -> struct1 [pure] {

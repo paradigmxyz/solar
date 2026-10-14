@@ -15,8 +15,8 @@
 //! subsequent phase checks.
 
 use crate::mir::{
-    AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstKind, MirPhase,
-    MirType, Module, Value, pass::MirPass,
+    AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind,
+    MirPhase, MirType, Module, Value, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -90,26 +90,22 @@ fn lower_function(func: &mut Function) -> bool {
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
                 }
-                InstKind::Load(ptr, offset, location) if offset != 0 => {
-                    // address = add (ptrtoint ptr), offset
-                    // result = load location address
-                    let address = builder.cast(ptr, MirType::I256);
-                    let address = builder.add_u64_offset(address, offset);
-                    builder.func_mut().inst_mut(inst).kind = InstKind::Load(address, 0, location);
-                }
-                InstKind::Store(ptr, offset, value) | InstKind::Store8(ptr, offset, value)
+                InstKind::Load(ptr, offset, _)
+                | InstKind::Store(ptr, offset, _)
+                | InstKind::Store8(ptr, offset, _)
                     if offset != 0 =>
                 {
                     // address = add (ptrtoint ptr), offset
-                    // store address, value
+                    // load/store address, ...
                     let address = builder.cast(ptr, MirType::I256);
                     let address = builder.add_u64_offset(address, offset);
-                    let kind = &mut builder.func_mut().inst_mut(inst).kind;
-                    *kind = if matches!(kind, InstKind::Store(..)) {
-                        InstKind::Store(address, 0, value)
-                    } else {
-                        InstKind::Store8(address, 0, value)
-                    };
+                    if let InstKind::Load(ptr, offset, _)
+                    | InstKind::Store(ptr, offset, _)
+                    | InstKind::Store8(ptr, offset, _) =
+                        &mut builder.func_mut().inst_mut(inst).kind
+                    {
+                        (*ptr, *offset) = (address, 0);
+                    }
                 }
                 InstKind::MakeSlice { ptr, len, location }
                     if builder.func().value_ty(ptr) == Some(MirType::MEMPTR) =>
@@ -168,23 +164,31 @@ fn lower_function(func: &mut Function) -> bool {
 /// Removes the pointer casts that folding address casts left without uses, as the `inttoptr` of a
 /// lowered `ptradd` whose every user takes the address word.
 fn remove_unused_pointer_casts(func: &mut Function) {
+    let cast_operand = |func: &Function, inst: InstId| match func.inst(inst).kind {
+        InstKind::IntToPtr(operand) | InstKind::PtrToInt(operand, _) => Some(operand),
+        _ => None,
+    };
     let mut uses = super::egraph::use_counts(func);
+    let mut worklist = func
+        .instructions()
+        .filter(|&inst| {
+            cast_operand(func, inst).is_some()
+                && func.inst_result_value(inst).is_some_and(|value| uses[value] == 0)
+        })
+        .collect::<Vec<_>>();
+    if worklist.is_empty() {
+        return;
+    }
     let mut dead = DenseBitSet::new_empty(func.num_insts());
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for block in func.blocks.iter().rev() {
-            for &inst in block.instructions.iter().rev() {
-                if let InstKind::IntToPtr(operand) | InstKind::PtrToInt(operand, _) =
-                    func.inst(inst).kind
-                    && !dead.contains(inst)
-                    && func.inst_result_value(inst).is_some_and(|value| uses[value] == 0)
-                {
-                    dead.insert(inst);
-                    uses[operand] -= 1;
-                    changed = true;
-                }
-            }
+    while let Some(inst) = worklist.pop() {
+        dead.insert(inst);
+        let operand = cast_operand(func, inst).expect("only casts are removed");
+        uses[operand] -= 1;
+        if uses[operand] == 0
+            && let Value::Inst(def) = *func.value(operand)
+            && cast_operand(func, def).is_some()
+        {
+            worklist.push(def);
         }
     }
     for block in func.blocks.iter_mut() {

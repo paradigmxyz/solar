@@ -1034,17 +1034,13 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Returns `base + offset` as one address value, for a `copy`, which takes no immediate.
     fn address_value(&mut self, base: ValueId, offset: u64) -> ValueId {
-        if offset == 0 {
-            return base;
-        }
-        let offset = self.imm(offset);
-        if self.func.value_ty(base).is_some_and(MirType::is_pointer) {
-            // address = ptradd base, offset
-            self.ptradd(base, offset)
-        } else {
+        if offset == 0 || !self.func.value_ty(base).is_some_and(MirType::is_pointer) {
             // address = add base, offset
-            self.add(base, offset)
+            return self.add_u64_offset(base, offset);
         }
+        // address = ptradd base, offset
+        let offset = self.imm(offset);
+        self.ptradd(base, offset)
     }
 
     /// Loads a word at `address + offset` as a `memptr` when `ty` is one, and as a word otherwise.

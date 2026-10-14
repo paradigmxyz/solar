@@ -1018,11 +1018,7 @@ impl MemoryStoreEliminator {
         }
 
         let const_store = |func: &Function, addr: ValueId, offset: u64, value: ValueId| {
-            let (Value::Immediate(a), Value::Immediate(v)) = (func.value(addr), func.value(value))
-            else {
-                return None;
-            };
-            Some((u64::try_from(a.as_u256()?).ok()?.checked_add(offset)?, v.as_u256()?))
+            func.constant_address(addr, offset).zip(func.value_u256(value))
         };
         let invalidate_overlapping_words = |known: &mut FxHashMap<u64, U256>, address: u64| {
             known.retain(|known_address, _| {
@@ -1589,7 +1585,7 @@ impl MemoryStoreEliminator {
     }
 
     fn internal_frame_offset(&self, func: &Function, value: ValueId, offset: u64) -> Option<u64> {
-        self.alias().memory_address(func, value)?.checked_add(offset)?.as_internal_frame_offset()
+        self.alias().memory_address_at(func, value, offset)?.as_internal_frame_offset()
     }
 
     fn can_mutate_memory(&self, func: &Function, inst_id: InstId) -> bool {

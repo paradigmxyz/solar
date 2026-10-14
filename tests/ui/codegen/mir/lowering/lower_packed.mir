@@ -60,9 +60,8 @@ fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
 // CHECK-NEXT: {{.*}}[[OFFSET:v[0-9]+]] = mul [[INDEX]], 32
 // CHECK-NEXT: {{.*}}[[DEST:v[0-9]+]] = add 1, [[OFFSET]]
 // CHECK-NEXT: {{.*}}[[OFF1:v[0-9]+]] = shl 5, [[INDEX]]
-// CHECK-NEXT: {{.*}}[[DATA:v[0-9]+]] = ptradd arg0, 32
-// CHECK-NEXT: {{.*}}[[ELEMENT:v[0-9]+]] = ptradd [[DATA]], [[OFF1]]
-// CHECK-NEXT: {{.*}}load [[ELEMENT]]
+// CHECK-NEXT: {{.*}}[[ELEMENT:v[0-9]+]] = ptradd arg0, [[OFF1]]
+// CHECK-NEXT: {{.*}}load [[ELEMENT]]+32
 fn @prefixed_array(arg0: memptr) -> memptr {
   bb0:
     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)

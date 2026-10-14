@@ -590,6 +590,17 @@ impl AliasAnalysis {
         self.memory_address_with_depth(func, value, 0)
     }
 
+    /// Canonicalizes the address `value + offset` of a memory access.
+    #[must_use]
+    pub(crate) fn memory_address_at(
+        &self,
+        func: &Function,
+        value: ValueId,
+        offset: u64,
+    ) -> Option<MemoryAddress> {
+        self.memory_address(func, value)?.checked_add(offset)
+    }
+
     /// Creates a memory location at `address + offset`, using instruction metadata to refine its
     /// region.
     #[must_use]
@@ -601,7 +612,7 @@ impl AliasAnalysis {
         offset: u64,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let address = self.memory_address(func, address)?.checked_add(offset)?;
+        let address = self.memory_address_at(func, address, offset)?;
         Self::bounded_memory_location(func, Self::refine_region(func, inst_id, address), size)
     }
 
@@ -621,8 +632,8 @@ impl AliasAnalysis {
 
     /// Returns the memory an access at `address + offset` may touch. Unlike
     /// [`Self::memory_location`], which names the accessed word, this covers everything at or
-    /// after the base of `ptradd base, offset` with a runtime offset: `ptradd` does not wrap, so
-    /// the access stays inside the base's object.
+    /// after `base + offset` for an address `ptradd base, index` with a runtime index: `ptradd`
+    /// does not wrap, so the access stays inside the base's object.
     fn access_extent(
         &self,
         func: &Function,
@@ -634,7 +645,7 @@ impl AliasAnalysis {
         let Some(base) = Self::runtime_offset_base(func, address) else {
             return self.memory_location(func, inst_id, address, offset, size);
         };
-        let base = self.memory_address(func, base)?;
+        let base = self.memory_address_at(func, base, offset)?;
         Some(MemoryLocation::new(Self::refine_region(func, inst_id, base), LocationSize::Unknown))
     }
 
@@ -649,9 +660,10 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         match Self::runtime_offset_base(func, address) {
-            Some(base) => {
-                Some(MemoryLocation::new(self.memory_address(func, base)?, LocationSize::Unknown))
-            }
+            Some(base) => Some(MemoryLocation::new(
+                self.memory_address_at(func, base, offset)?,
+                LocationSize::Unknown,
+            )),
             None => self.bare_memory_location(func, address, offset, size),
         }
     }
@@ -674,7 +686,7 @@ impl AliasAnalysis {
         offset: u64,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        let address = self.memory_address(func, address)?.checked_add(offset)?;
+        let address = self.memory_address_at(func, address, offset)?;
         Self::bounded_memory_location(func, address, size)
     }
 
@@ -1736,8 +1748,7 @@ impl AliasAnalysis {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
             InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
             InstKind::Load(address, offset, PtrLocation::Memory)
-                if func.value_u64(address).and_then(|address| address.checked_add(offset))
-                    == Some(EvmMemoryLayout::FMP_SLOT) =>
+                if func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 MemoryRegion::Heap
             }
@@ -1909,8 +1920,7 @@ impl AliasAnalysis {
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. } => Some(EvmMemoryLayout::HEAP_START),
             InstKind::Load(address, offset, PtrLocation::Memory)
-                if func.value_u64(*address).and_then(|address| address.checked_add(*offset))
-                    == Some(EvmMemoryLayout::FMP_SLOT) =>
+                if func.constant_address(*address, *offset) == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }

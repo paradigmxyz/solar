@@ -7,67 +7,54 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = ptradd v0, 32
-    store v1, 96
+    store v0+32, 96
     store v0, 8
-    v2 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    store v2, 3
-    v3 = ptrtoint memptr v2 to i256
-    v4 = ptradd v0, 32
-    store v4, v3
-    v5 = ptradd v0, 32
-    v6 = load v5, memptr
-    v7 = load v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = ptradd v6, 32
-    store v10, 9
-    v11 = ptradd v0, 32
-    v12 = load v11, memptr
-    v13 = load v12
-    v14 = lt 1, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = ptradd v12, 64
-    store v16, 10
-    v17 = ptradd v0, 32
-    v18 = load v17, memptr
-    v19 = load v18
-    v20 = lt 2, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = ptradd v18, 96
-    store v22, 11
-    v23 = abi_encode [tuple<word, memory_array<word>>], object, args v0
-    icall @store_storage_bytes, 0, v23
-    v24 = load_storage_bytes 0
-    v25 = abi_decode [tuple<u256, array<_, u256>>], v24
-    v26 = load v25
-    v27 = ptradd v25, 32
-    v28 = load v27, memptr
-    v29 = load v28
-    v30 = ptradd v25, 32
-    v31 = load v30, memptr
-    v32 = load v31
-    v33 = lt 0, v32
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = ptradd v31, 32
-    v36 = load v35
-    v37 = ptradd v25, 32
-    v38 = load v37, memptr
-    v39 = load v38
-    v40 = lt 2, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = ptradd v38, 96
-    v43 = load v42
-    v44 = insert_value struct0, undef struct0, 0, v26
-    v45 = insert_value struct0, v44, 1, v29
-    v46 = insert_value struct0, v45, 2, v36
-    v47 = insert_value struct0, v46, 3, v43
-    ret v47
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    store v1, 3
+    v2 = ptrtoint memptr v1 to i256
+    store v0+32, v2
+    v3 = load v0+32, memptr
+    v4 = load v3
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    store v3+32, 9
+    v7 = load v0+32, memptr
+    v8 = load v7
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    store v7+64, 10
+    v11 = load v0+32, memptr
+    v12 = load v11
+    v13 = lt 2, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    store v11+96, 11
+    v15 = abi_encode [tuple<word, memory_array<word>>], object, args v0
+    icall @store_storage_bytes, 0, v15
+    v16 = load_storage_bytes 0
+    v17 = abi_decode [tuple<u256, array<_, u256>>], v16
+    v18 = load v17
+    v19 = load v17+32, memptr
+    v20 = load v19
+    v21 = load v17+32, memptr
+    v22 = load v21
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = load v21+32
+    v26 = load v17+32, memptr
+    v27 = load v26
+    v28 = lt 2, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = load v26+96
+    v31 = insert_value struct0, undef struct0, 0, v18
+    v32 = insert_value struct0, v31, 1, v20
+    v33 = insert_value struct0, v32, 2, v25
+    v34 = insert_value struct0, v33, 3, v30
+    ret v34
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memptr) {

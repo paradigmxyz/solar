@@ -58,20 +58,18 @@ fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
     v5 = lt v1, 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
-    v7 = ptradd v0, 32
-    store v7, v1
-    v8 = load v0
-    v9 = lt 0, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = ptradd v0, 32
-    v12 = load v11
-    v13 = lt v12, 3
-    v14 = eq v13, false
-    icall panic_if<0x21>, v14
-    v15 = trunc i256 v12 to i8
-    v16 = lt v15, i8 3
-    v17 = eq v16, false
-    icall panic_if<0x21>, v17
-    ret v15
+    store v0+32, v1
+    v7 = load v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = load v0+32
+    v11 = lt v10, 3
+    v12 = eq v11, false
+    icall panic_if<0x21>, v12
+    v13 = trunc i256 v10 to i8
+    v14 = lt v13, i8 3
+    v15 = eq v14, false
+    icall panic_if<0x21>, v15
+    ret v13
 }

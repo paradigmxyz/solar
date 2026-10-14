@@ -46,8 +46,7 @@ contract ArrayBoundsPanic {
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK: lt 2, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], 64
-    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
+    // CHECK-NEXT: {{v[0-9]+}} = load [[X]]+64
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -58,8 +57,7 @@ contract ArrayBoundsPanic {
     // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt 5, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], 160
-    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
+    // CHECK-NEXT: {{v[0-9]+}} = load [[X]]+160
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];

@@ -259,26 +259,28 @@ bb29:
   gt
   push bb8
   jumpi
-  push 36
-  calldataload
-  swap 1
+  dup 1
   push 32
   add
+  push 36
+  calldataload
+  swap 3
   swap 2
-  dup 5
-  dup 4
+  swap 5
+  swap 1
   calldatacopy
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   lt
   iszero
   push bb36
   jumpi
-  swap 1
   push 5
   push 2
   exp
   mul
+  add
+  push 32
   add
   mload
   push 128
