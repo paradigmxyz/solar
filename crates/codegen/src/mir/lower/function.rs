@@ -891,9 +891,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
-                    let Some(access) = self.storage_access(rhs) else {
-                        return self.cx.report_unsupported(rhs.span, "storage access");
-                    };
+                    let access = self.require_storage_access(rhs)?;
                     let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
                         return self.cx.report_unsupported(lhs.span, "storage reference target");
                     };

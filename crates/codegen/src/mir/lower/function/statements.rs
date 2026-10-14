@@ -19,10 +19,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let access = if let Some(initializer) = initializer {
-                        let Some(access) = self.storage_access(initializer) else {
-                            return self.cx.report_unsupported(initializer.span, "storage access");
-                        };
-                        access
+                        self.require_storage_access(initializer)?
                     } else {
                         // An unassigned storage reference points at slot zero, like in solc.
                         // storage_ref = slot 0
@@ -130,9 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         let ty = self.cx.gcx.type_of_item((*id).into());
                         if ty.is_ref_at(DataLocation::Storage) {
-                            let Some(access) = self.storage_access(value) else {
-                                return self.cx.report_unsupported(value.span, "storage access");
-                            };
+                            let access = self.require_storage_access(value)?;
                             self.storage_refs.insert(*id, access);
                             continue;
                         }
@@ -383,10 +378,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Member(receiver, _)
                 if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayPop) =>
             {
-                if self.storage_access(receiver).is_none() {
-                    return self.cx.report_unsupported(receiver.span, "storage access");
-                }
-                Some(())
+                self.require_storage_access(receiver).map(drop)
             }
             // A member function, such as `to.transfer`, or a member of an item only evaluates its
             // receiver. Function-typed fields are still read: calldata reads validate them.

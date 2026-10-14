@@ -170,9 +170,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
             })
         {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
+            let access = self.require_storage_access(receiver)?;
             let access = self.grow_storage_bytes(access.slot);
             let ty = self.type_of_expr_or_variable(expr)?;
             return Some(LValuePlace::Storage { ty, access, span: expr.span });

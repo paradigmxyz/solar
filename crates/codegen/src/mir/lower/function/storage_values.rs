@@ -164,9 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // storage access, in the struct constructor's order.
         let mut values = Vec::new();
         self.lower_constant_storage_fields(ty, rhs, &mut values)?;
-        let Some(access) = self.storage_access(lhs) else {
-            return self.cx.report_unsupported(lhs.span, "storage access");
-        };
+        let access = self.require_storage_access(lhs)?;
         self.store_constant_storage_value(ty, access, rhs, &mut values.into_iter())
     }
 
@@ -266,6 +264,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => self.store_storage_value(ty, access, values.next()?, expr.span),
         }
+    }
+
+    /// Like [`Self::storage_access`], but reports an unsupported error when it fails.
+    pub(super) fn require_storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
+        self.storage_access(expr)
+            .or_else(|| self.cx.report_unsupported(expr.span, "storage access"))
     }
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
@@ -654,10 +658,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: Option<&hir::Expr<'_>>,
         capture_value: bool,
     ) -> Option<CallResult> {
-        let Some(access) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(receiver.span, "storage access");
-        };
-        let slot = access.slot;
+        let slot = self.require_storage_access(receiver)?.slot;
         let byte_ty = self.cx.gcx.types.fixed_bytes(1);
         let Some(argument) = argument else {
             // The zero byte a plain `push()` appends is written by the growth itself, so the
@@ -763,9 +764,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
+            let access = self.require_storage_access(receiver)?;
             return self.lower_storage_bytes_pop(access.slot, expr.span);
         }
 
@@ -864,9 +863,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
-        let Some(base) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(receiver.span, "storage access");
-        };
+        let base = self.require_storage_access(receiver)?;
         let ty = self.cx.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
         Some((base, element))
