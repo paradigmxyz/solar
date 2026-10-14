@@ -23,6 +23,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 );
             }
             LitKind::Address(_) | LitKind::Bool(_) => return self.gcx.types.uint(256),
+            LitKind::BigNumber(_) => {
+                let msg = "number literal too large (> 256 bits)";
+                let err = self.dcx().err(msg).code(error_code!(6708)).span(lit.span);
+                return self.gcx.mk_ty_err(err.emit());
+            }
             _ => {}
         }
 

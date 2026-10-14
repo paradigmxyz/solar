@@ -1,17 +1,5 @@
-// `[u]fixedMxN` names with a valid size are elementary types.
+// Only `[u]fixedMxN` names with a valid size are keywords. Other names stay identifiers.
 contract C {
-    fixed40x40 storeMe;
-    mapping(uint256 => fixed80x80) m9;
-    mapping(address => ufixed16x10) m11;
-    mapping(fixed256x0 => ufixed8x80[]) m12;
-
-    function f(ufixed x, fixed32x32 y) public pure {
-        ufixed8x8 a;
-        fixed b;
-        fixed128x18[] memory c;
-    }
-
-    // Other names stay identifiers.
     uint fixed0x0 = 0;
     uint fixed7x1 = 0;
     uint fixed08x8 = 0;

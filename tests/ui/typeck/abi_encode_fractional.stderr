@@ -1,0 +1,48 @@
+error[6090]: fractional numbers cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │        return abi.encode(0.1, 1);
+   ╰╴                         ━━━
+
+error[6090]: fractional numbers cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │        return abi.encodePacked(0.1, 1);
+   ╰╴                               ━━━
+
+error: cannot perform packed encoding for a literal
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │        return abi.encodePacked(0.1, 1);
+   │                                     ━
+   │
+   ╰ help: convert it to an explicit type first
+
+error: cannot perform packed encoding for a literal
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │     function f() pure public { abi.encodePacked(0/1); }
+   │                                                 ━━━
+   │
+   ╰ help: convert it to an explicit type first
+
+error[6090]: fractional numbers cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │         abi.encodeWithSelector(0x12345678, 1 / 3);
+   ╰╴                                           ━━━━━
+
+error[6090]: fractional numbers cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │         abi.encodeWithSignature("g(uint256)", -0.5);
+   ╰╴                                              ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/abi_encode_fractional.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.g, (0.5));
+   ╰╴                               ━━━━━ expected `uint256`, found `rational_literal`
+
+error: aborting due to 7 previous errors
+

@@ -1,0 +1,90 @@
+error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[(1 << 4096) >> 4095] shiftTooLarge;
+   ╰╴         ━━━━━━━━━━━
+
+error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[2 ** 2049 / 2 ** 2048] powTooLarge;
+   ╰╴         ━━━━━━━━━
+
+error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge;
+   ╰╴         ━━━━━━━━━━━
+
+error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge;
+   ╰╴             ━━━━━━━━━
+
+error[6020]: failed to evaluate constant: exponent is too large
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[2 ** 4294967296] exponentTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━
+
+error[6020]: failed to evaluate constant: shift amount is too large
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 << 4294967296] shiftAmountTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━
+
+error[6020]: failed to evaluate constant: shift amount is too large
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 >> 4294967296] rightShiftAmountTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━
+
+error[6020]: failed to evaluate constant: shift amount is too large
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[0 << 4294967295 + 1] zeroShiftAmountTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
+
+error[2271]: cannot apply builtin operator `/` to `rational_literal` and `int_literal[4096]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │         a = 1/(2<<4094)/(2<<4094);
+   │             ┬──────────━───────── int_literal[4096]
+   │             │
+   │             rational_literal
+   │
+   ╰ note: the precision of literal arithmetic is limited to 4096 bits
+
+error[2271]: cannot apply builtin operator `*` to `int_literal[4096]` and `int_literal[4096]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │         a = (1<<4095)*(1<<4095);
+   │             ┬────────━───────── int_literal[4096]
+   │             │
+   │             int_literal[4096]
+   │
+   ╰ note: the precision of literal arithmetic is limited to 4096 bits
+
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge;
+   │                        ┬ ━━ ──── int_literal[12]
+   │                        │
+   │                        int_literal[2]
+   │
+   ╰ note: the precision of literal arithmetic is limited to 4096 bits
+
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge;
+   │                          ┬ ━━ ──── int_literal[12]
+   │                          │
+   │                          int_literal[2]
+   │
+   ╰ note: the precision of literal arithmetic is limited to 4096 bits
+
+error: aborting due to 12 previous errors
+

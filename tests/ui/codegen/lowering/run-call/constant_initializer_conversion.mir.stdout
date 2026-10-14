@@ -1,0 +1,18 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_initializer_conversion.sol:C ===
+@module C
+fn @negative() -> i256 [selector=0x1cb3ef1f, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = sext i16 0xfffb to i256
+    ret v0
+}
+
+fn @allOnes() -> i256 [selector=0xa0f75bc9, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = sext i8 255 to i256
+    ret v0
+}
+
+fn @narrowUnsigned() -> i256 [selector=0x5e6924e9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 255
+}

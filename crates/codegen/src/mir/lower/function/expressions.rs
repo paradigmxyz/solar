@@ -40,9 +40,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Address(value) => Some(self.builder.alloc_value(Value::Immediate(
                 Immediate::for_type(Some(MirType::I160), U256::from_be_slice(value.as_slice())),
             ))),
-            LitKind::Rational(value) if *value.denom() == U256::from(1) => {
-                Some(self.builder.imm(*value.numer()))
-            }
             _ => self.cx.report_unsupported(span, "literal"),
         }
     }
@@ -294,16 +291,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
+                ConstValue::Rational(_) => self.cx.report_unsupported(span, "fractional constant"),
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 // A value wider than the EVM word is no immediate; lower the initializer instead,
                 // as `lower_expr` does for such values.
                 ConstValue::Integer(value) => match value.as_evm_word() {
                     Some(word) => Some(self.builder.imm(word)),
-                    None => self.lower_expr(initializer),
+                    None => self.lower_typed_expr(initializer, ty),
                 },
                 ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
             };
         }
-        self.lower_expr(initializer)
+        self.lower_typed_expr(initializer, ty)
     }
 }
