@@ -1,0 +1,54 @@
+//@ compile-flags: -Zmir-pipeline=memory-address-steps
+//@ filecheck:
+@module MemoryAddressSteps
+@phase lowered
+
+// CHECK-LABEL: fn @words
+// CHECK: v0 = add arg0, 32
+// CHECK: mstore v0, arg2
+// CHECK: v1 = add v0, 32
+// CHECK: mstore v1, arg3
+// CHECK: v2 = add v1, 32
+// CHECK: mstore v2, arg4
+fn @words(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) {
+  bb0:
+    mstore arg0, arg1
+    v0 = add arg0, 32
+    mstore v0, arg2
+    v1 = add arg0, 64
+    mstore v1, arg3
+    v2 = add arg0, 96
+    mstore v2, arg4
+    stop
+}
+
+// CHECK-LABEL: fn @stride
+// CHECK: v0 = add arg0, 7
+// CHECK: mstore v0, arg1
+// CHECK: v1 = add arg0, 20
+// CHECK: mstore v1, arg2
+// CHECK: v2 = add v1, 13
+// CHECK: mstore v2, arg3
+fn @stride(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
+  bb0:
+    v0 = add arg0, 7
+    mstore v0, arg1
+    v1 = add arg0, 20
+    mstore v1, arg2
+    v2 = add arg0, 33
+    mstore v2, arg3
+    stop
+}
+
+// CHECK-LABEL: fn @interrupted
+// CHECK: v1 = add arg0, 64
+fn @interrupted(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
+  bb0:
+    mstore arg0, arg1
+    v0 = add arg0, 32
+    mstore v0, arg2
+    mstore 0, 0
+    v1 = add arg0, 64
+    mstore v1, arg3
+    stop
+}

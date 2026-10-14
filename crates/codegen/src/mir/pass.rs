@@ -106,6 +106,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    &memory_address_steps::MemoryAddressSteps,
     &evm_inst_schedule::EvmInstSchedule,
     &heap_floor::HeapFloor,
 ];
@@ -411,6 +412,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    &memory_address_steps::MemoryAddressSteps,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 

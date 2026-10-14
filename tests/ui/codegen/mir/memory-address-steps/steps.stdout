@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/mir/memory-address-steps/steps.mir (before memory-address-steps) ===
++ // === ROOT/tests/ui/codegen/mir/memory-address-steps/steps.mir (after memory-address-steps) ===
+  @module MemoryAddressSteps
+  @phase lowered
+  fn @words(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) {
+    bb0:
+      mstore arg0, arg1
+      v0 = add arg0, 32
+      mstore v0, arg2
+-     v1 = add arg0, 64
++     v1 = add v0, 32
+      mstore v1, arg3
+-     v2 = add arg0, 96
++     v2 = add v1, 32
+      mstore v2, arg4
+      stop
+  }
+  
+  fn @stride(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
+    bb0:
+      v0 = add arg0, 7
+      mstore v0, arg1
+      v1 = add arg0, 20
+      mstore v1, arg2
+-     v2 = add arg0, 33
++     v2 = add v1, 13
+      mstore v2, arg3
+      stop
+  }
+  
+  fn @interrupted(arg0: i256, arg1: i256, arg2: i256, arg3: i256) {
+    bb0:
+      mstore arg0, arg1
+      v0 = add arg0, 32
+      mstore v0, arg2
+      mstore 0, 0
+      v1 = add arg0, 64
+      mstore v1, arg3
+      stop
+  }
+  
