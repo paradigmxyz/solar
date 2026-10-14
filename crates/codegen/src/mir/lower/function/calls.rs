@@ -473,10 +473,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let parameter = function.parameters[index];
                 let value = if Self::is_storage_parameter(parameter) {
                     // argument = slot of the storage argument
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
-                    access.slot
+                    this.require_storage_access(argument)?.slot
                 } else {
                     let value = this.lower_typed_expr(argument, parameter)?;
                     if !parameter.is_value_type() {
@@ -845,10 +842,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(receiver) = attached_receiver {
             let parameter_ty = self.cx.gcx.type_of_item(function.parameters[0].into());
             let value = if Self::is_storage_parameter(parameter_ty) {
-                let Some(access) = self.storage_access(receiver) else {
-                    return self.cx.report_unsupported(receiver.span, "storage access");
-                };
-                access.slot
+                self.require_storage_access(receiver)?.slot
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
@@ -871,10 +865,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let parameter = function.parameters[argument_index + receiver_count];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
                 let value = if Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
-                    access.slot
+                    this.require_storage_access(argument)?.slot
                 } else {
                     this.lower_typed_expr(argument, parameter_ty)?
                 };
@@ -1026,11 +1017,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             error,
             |this, index, argument| {
                 let parameter_ty = parameter_types[index];
-                if storage_parameters && Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
-                    Some((access.slot, AbiType::Word(None)))
+                if storage_parameters {
+                    this.lower_abi_receiver(argument, parameter_ty)
                 } else {
                     this.lower_abi_call_argument(argument, parameter_ty)
                 }
@@ -1160,10 +1148,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         if Self::is_storage_parameter(parameter_ty) {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
-            Some((access.slot, AbiType::Word(None)))
+            Some((self.require_storage_access(receiver)?.slot, AbiType::Word(None)))
         } else {
             self.lower_abi_call_argument(receiver, parameter_ty)
         }

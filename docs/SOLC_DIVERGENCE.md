@@ -193,6 +193,8 @@ Difference: `solar` checks `pragma solidity` requirements against the `solc`
 version it implements like `solc`, with the same error code 5333, but reports a
 mismatch as a warning instead of a fatal parser error. `SOLC_WRAPPER_VERSION`
 changes only the version that `--version` reports, not the one checked.
+`solc` also uses 4294967295 as its wildcard marker, so it accepts
+`pragma solidity ^4294967295;`; `solar` reads it as a number and warns.
 
 Rationale: a hard error would reject sources pinned to a different `solc`
 release even when `solar` can compile them. The warning still flags sources
@@ -443,6 +445,20 @@ the `solc` depth depends on field order. Real code does not nest structs this
 deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+
+### TYPECK-021: Repeated Yul multi-assignment targets
+
+Status: intentional.
+
+Difference: `solc` rejects a Yul multi-assignment that names the same target
+twice, such as `x, x := f()` or `a.length, a.length := f()`, with error 9005.
+`solar` accepts plain and suffixed repeats, and the leftmost value wins.
+
+Rationale: targets are written right to left, so the result is well defined,
+and rejecting the code would only block programs we compile correctly.
+
+Coverage:
+`tests/ui/codegen/lowering/run-call/yul_multi_assignment_duplicate_targets.sol`.
 
 ## Contract-Level Checks
 
@@ -695,3 +711,17 @@ Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
   fails and which types compile.
 - Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
   `tests/ui/parser/pragma_valid.sol`.
+
+### CODEGEN-012: External function pointer suffixes keep only their field bits
+
+- ID: CODEGEN-012
+- Status: intentional
+- Difference: `solc` keeps an external function pointer in assembly as two
+  raw stack words, so after `f.address := not(0)` and `f.selector := not(0)`
+  both `f.address` and `f.selector` read back as `2^256 - 1`. `solar` stores
+  the pointer as one packed word, so an assignment keeps only the low 160 bits
+  of the address and the low 32 bits of the selector, and assembly reads the
+  cleaned values. Solidity-level reads match in both compilers.
+- Rationale: the packed word cannot hold two raw 256-bit values.
+- Coverage:
+  `tests/ui/codegen/lowering/run-call/yul_function_pointer_suffix_dirty_bits.sol`.
