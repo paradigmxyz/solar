@@ -185,6 +185,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
         if let Some(dialect) = &dialect
+            && self.validate_str_lit(dialect)
             && dialect.value != sym::evmasm
         {
             self.dcx()
@@ -194,7 +195,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 .emit();
         }
         let flags = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.parse_paren_comma_seq(false, Self::parse_str_lit)?
+            self.parse_paren_comma_seq(false, |this| {
+                let flag = this.parse_str_lit()?;
+                this.validate_str_lit(&flag);
+                Ok(flag)
+            })?
         } else {
             Default::default()
         };
