@@ -274,18 +274,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
         let expr = self.peel_bytes_conversion(expr);
-        if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+        if matches!(expr.kind, ExprKind::Member(..))
             && let Some(id) = self.cx.gcx.resolved_variable(expr)
             && self.cx.gcx.hir.variable(id).is_state_variable()
         {
-            let location = self.cx.storage.get(id)?;
-            let slot = self.builder.imm(location.slot);
-            return Some(StorageAccess { slot, location, offset: None });
+            return self.variable_storage_access(id);
         }
         match &expr.kind {
             ExprKind::Ident(_) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                self.storage_refs.get(&id).copied()
+                self.variable_storage_access(id)
             }
             ExprKind::Member(receiver, _) => {
                 let id = self.cx.gcx.resolved_variable(expr)?;
@@ -1785,6 +1783,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // sstore(slot, 0)
         self.builder.switch_to_block(write_block);
         self.builder.sstore(slot, zero);
+    }
+
+    /// Returns the storage a state variable or a bound storage reference names.
+    pub(super) fn variable_storage_access(&mut self, id: VariableId) -> Option<StorageAccess> {
+        if !self.cx.gcx.hir.variable(id).is_state_variable() {
+            return self.storage_refs.get(&id).copied();
+        }
+        let location = self.cx.storage.get(id)?;
+        let slot = self.builder.imm(location.slot);
+        Some(StorageAccess { slot, location, offset: None })
+    }
+
+    /// Points the storage reference `id` at `slot`, keeping its known layout.
+    pub(super) fn set_storage_ref_slot(&mut self, id: VariableId, slot: ValueId) {
+        // storage_ref.slot = slot
+        self.storage_refs
+            .entry(id)
+            .or_insert(StorageAccess {
+                slot,
+                location: StorageLocation::word(U256::ZERO),
+                offset: None,
+            })
+            .slot = slot;
     }
 }
 

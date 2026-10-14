@@ -212,50 +212,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_yul_member(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        receiver: &hir::Expr<'_>,
-        name: Ident,
-    ) -> Option<ValueId> {
-        let receiver_ty = self.type_of_expr_or_variable(receiver)?;
-        if receiver_ty.is_ref_at(DataLocation::Calldata) {
-            let value = self.lower_expr(receiver)?;
-            return match name.name {
-                sym::offset => Some(self.builder.slice_ptr(value)),
-                sym::length => Some(self.builder.slice_len(value)),
-                _ => self.cx.report_unsupported(expr.span, "Yul calldata member"),
-            };
-        }
-
-        if let TyKind::Fn(function) = receiver_ty.peel_refs().kind
-            && function.is_external()
-        {
-            let value = self.lower_expr(receiver)?;
-            return match name.name {
-                kw::Address => Some(self.external_function_address(value)),
-                sym::selector => {
-                    let mask = self.builder.imm(u32::MAX);
-                    Some(self.builder.and(value, mask))
-                }
-                _ => self.cx.report_unsupported(expr.span, "Yul function member"),
-            };
-        }
-
-        let Some(access) = self.storage_access(receiver) else {
-            return self.cx.report_unsupported(expr.span, "Yul storage member");
-        };
-        match name.name {
-            sym::slot => Some(access.slot),
-            sym::offset => Some(
-                access
-                    .offset
-                    .unwrap_or_else(|| self.builder.imm(u64::from(access.location.offset))),
-            ),
-            _ => self.cx.report_unsupported(expr.span, "Yul storage member"),
-        }
-    }
-
     pub(super) fn type_of_expr_or_variable(&self, expr: &hir::Expr<'_>) -> Option<Ty<'gcx>> {
         self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             self.cx.gcx.resolved_variable(expr).map(|id| self.cx.gcx.type_of_item(id.into()))
