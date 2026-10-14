@@ -1,4 +1,5 @@
 use crate::{BytePos, SessionGlobals};
+use solar_data_structures::index::NonMaxU64;
 use std::{
     cmp, fmt,
     ops::{Deref, DerefMut, Range},
@@ -15,6 +16,9 @@ use std::{
 /// Use [`SourceMap::span_to_snippet`](crate::SourceMap::span_to_snippet) to get the actual source
 /// code snippet of the span, or [`SourceMap::span_to_source`](crate::SourceMap::span_to_source) to
 /// get the source file and source code range.
+///
+/// The use of `NonMaxU64` reserves `u64::MAX` as a niche value so that `Option<Span>` is the same
+/// size as `Span`. A span with both positions equal to `u32::MAX` cannot be represented.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(Rust, packed(4))]
 pub struct Span {
@@ -22,7 +26,7 @@ pub struct Span {
     // - improved codegen of derived traits
     // - passed in a single register as an argument/return value
     // - better layout computation for structs containing `Span`s
-    data: u64,
+    data: NonMaxU64,
 }
 
 impl Default for Span {
@@ -82,6 +86,10 @@ impl Span {
     pub const DUMMY: Self = Self::new_(BytePos(0), BytePos(0));
 
     /// Creates a new span from two byte positions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if both positions are `u32::MAX`.
     #[inline]
     pub fn new(mut lo: BytePos, mut hi: BytePos) -> Self {
         if lo > hi {
@@ -95,6 +103,10 @@ impl Span {
     ///
     /// This is not inherently unsafe, however the behavior of various methods is undefined if `lo`
     /// is greater than `hi`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if both positions are `u32::MAX`.
     #[inline]
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn new_unchecked(lo: BytePos, hi: BytePos) -> Self {
@@ -104,7 +116,8 @@ impl Span {
 
     #[inline(always)]
     const fn new_(lo: BytePos, hi: BytePos) -> Self {
-        Self { data: (lo.0 as u64) | ((hi.0 as u64) << 32) }
+        let data = (lo.0 as u64) | ((hi.0 as u64) << 32);
+        Self { data: NonMaxU64::new(data).expect("span positions cannot both be u32::MAX") }
     }
 
     /// Returns the span as a `Range<usize>`.
@@ -131,7 +144,7 @@ impl Span {
     /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn lo(self) -> BytePos {
-        BytePos(self.data as u32)
+        BytePos(self.as_non_max_u64() as u32)
     }
 
     /// Creates a new span with the same hi position as this span and the given lo position.
@@ -146,7 +159,7 @@ impl Span {
     /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn hi(self) -> BytePos {
-        BytePos((self.data >> 32) as u32)
+        BytePos((self.as_non_max_u64() >> 32) as u32)
     }
 
     /// Creates a new span with the same lo position as this span and the given hi position.
@@ -259,6 +272,12 @@ impl Span {
         let first = spans.next().unwrap_or_default();
         if let Some(last) = spans.next_back() { first.to(last) } else { first }
     }
+
+    #[inline(always)]
+    const fn as_non_max_u64(self) -> u64 {
+        let data = self.data;
+        data.get()
+    }
 }
 
 /// A value paired with a source code location.
@@ -368,5 +387,40 @@ impl<T: Deref> SpannedOption<T> {
 impl<T> From<SpannedOption<T>> for Option<T> {
     fn from(spanned: SpannedOption<T>) -> Self {
         spanned.unspan()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sizes() {
+        assert_eq!(std::mem::size_of::<Span>(), 8);
+        assert_eq!(std::mem::size_of::<Option<Span>>(), 8);
+        assert_eq!(std::mem::align_of::<Span>(), 4);
+    }
+
+    #[test]
+    fn positions() {
+        assert_eq!(Span::DUMMY.to_u32_range(), 0..0);
+        for (lo, hi) in [(0, 1), (42, 42), (0, u32::MAX), (u32::MAX - 1, u32::MAX)] {
+            let span = Span::new(BytePos(lo), BytePos(hi));
+            assert_eq!(span.to_u32_range(), lo..hi);
+            assert_eq!(Span::new(BytePos(hi), BytePos(lo)), span);
+            assert_eq!(Span::new_unchecked(BytePos(lo), BytePos(hi)), span);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "span positions cannot both be u32::MAX")]
+    fn reject_niche() {
+        Span::new(BytePos(u32::MAX), BytePos(u32::MAX));
+    }
+
+    #[test]
+    #[should_panic(expected = "span positions cannot both be u32::MAX")]
+    fn reject_niche_unchecked() {
+        Span::new_unchecked(BytePos(u32::MAX), BytePos(u32::MAX));
     }
 }
