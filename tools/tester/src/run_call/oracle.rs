@@ -1,21 +1,12 @@
-//! Checks each `run-call` against the MIR interpreter when `SOLAR_RUN_CALL_MIR` is set, and always
-//! in a test written in MIR.
+//! Checks each `run-call` of a test written in lowered MIR against the MIR interpreter.
 //!
 //! The test runner executes a call in an EVM as usual, then compiles the test again with
 //! `-Zdump=mir-final` and runs the same call on the called contract's dumped MIR through
 //! `solar_codegen::interpret`, with the storage, balances, and code the EVM held just before the
 //! call. Both runs execute the same compiled program, so they must end the same way, return the
-//! same data, emit the same logs, and write the same storage. A call the interpreter cannot run is
-//! skipped, and so is one the EVM ends by running out of gas or stack, which the interpreter does
-//! not model.
-//!
-//! The runner reports checked/skipped counts and skip reasons at the end. With
-//! `SOLAR_RUN_CALL_MIR=1`, disagreements fail the test. Any other
-//! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
-//! or `mismatch`.
-//!
-//! A test written in MIR exists to run its calls both ways, so it is checked without the variable,
-//! and a call the interpreter cannot run fails it instead of being skipped.
+//! same data, emit the same logs, and write the same storage. A test written in MIR exists to run
+//! its calls both ways, so a call the interpreter cannot run, or one the EVM ends by running out
+//! of gas or stack, which the interpreter does not model, fails the test.
 
 use super::CALLER;
 use alloy_primitives::{Address, B256, Log, U256, hex};
@@ -32,19 +23,13 @@ use solar_codegen::{
 use solar_config::EvmVersion;
 use std::{
     cell::Cell,
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     ffi::OsString,
-    fmt::Write as _,
-    fs::OpenOptions,
-    io::Write,
     process::Command,
     rc::Rc,
     sync::{Arc, Mutex},
 };
 use ui_test::{build_manager::BuildManager, per_test_config::TestConfig};
-
-/// The environment variable that enables the check.
-const VARIABLE: &str = "SOLAR_RUN_CALL_MIR";
 
 /// What a compiler command dumped, or why it could not.
 type Dumps = Arc<Result<Dump, String>>;
@@ -67,19 +52,8 @@ pub(super) struct Call<'a> {
     pub(super) evm_version: EvmVersion,
 }
 
-/// Returns whether the check is enabled.
-pub(super) fn enabled() -> bool {
-    std::env::var_os(VARIABLE).is_some_and(|value| !value.is_empty())
-}
-
-/// Returns whether the check runs for the test: always for a test written in MIR, and for every
-/// other test when the check is enabled.
+/// Returns whether the check runs for the test: whether the test is written in MIR.
 pub(super) fn applies(config: &TestConfig) -> bool {
-    enabled() || is_mir(config)
-}
-
-/// Returns whether the test is written in MIR.
-fn is_mir(config: &TestConfig) -> bool {
     config.status.path().extension().is_some_and(|extension| extension == "mir")
 }
 
@@ -252,14 +226,8 @@ pub(super) fn check(
     call: &Call<'_>,
     trace: &Trace,
 ) -> Result<(), String> {
-    let report = |status: &str, detail: &str| record(config, call.name, status, detail);
-    let skip = |reason: &str| {
-        report("skipped", reason);
-        if is_mir(config) {
-            return Err(format!("the MIR interpreter cannot check `{}`: {reason}", call.name));
-        }
-        Ok(())
-    };
+    let skip =
+        |reason: &str| Err(format!("the MIR interpreter cannot check `{}`: {reason}", call.name));
     let dumps = dumps(config, build_manager);
     let dump = match dumps.as_ref() {
         Ok(dump) => dump,
@@ -296,10 +264,10 @@ pub(super) fn check(
         }
         stop if expected_halt(stop, trace.last_opcode, call.evm_version) => Outcome::Halt,
         _ => {
-            let error =
-                format!("unexpected EVM halt: {:?} at opcode {:?}", trace.stop, trace.last_opcode);
-            report("mismatch", &error);
-            return Err(error);
+            return Err(format!(
+                "unexpected EVM halt: {:?} at opcode {:?}",
+                trace.stop, trace.last_opcode
+            ));
         }
     };
     let block = BlockEnv::<BaseEvmTypes>::default();
@@ -308,11 +276,7 @@ pub(super) fn check(
     let options = interpret::Options { evm_version: call.evm_version, ..Default::default() };
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
-        Err(reason) => {
-            let error = format!("invalid final MIR for `{}`: {reason}", call.contract);
-            report("mismatch", &error);
-            return Err(error);
-        }
+        Err(reason) => return Err(format!("invalid final MIR for `{}`: {reason}", call.contract)),
     };
     if let Outcome::Unsupported(reason) = &execution.outcome {
         return skip(reason);
@@ -364,12 +328,9 @@ pub(super) fn check(
         }
     }
     if differences.is_empty() {
-        report("checked", "");
         return Ok(());
     }
-    let message = format!("`{}` disagrees with its MIR: {}", call.name, differences.join("; "));
-    report("mismatch", &message);
-    Err(message)
+    Err(format!("`{}` disagrees with its MIR: {}", call.name, differences.join("; ")))
 }
 
 /// Describes how a run ended, with the EVM's reason for halting if it has one.
@@ -392,29 +353,6 @@ fn describe_logs(logs: &[(Vec<U256>, Vec<u8>)]) -> String {
         format!("topics [{}] data 0x{}", topics.join(", "), hex::encode(data))
     });
     format!("[{}]", logs.collect::<Vec<_>>().join("; "))
-}
-
-/// Appends one line about `call` to the log file the environment variable names, if any.
-fn record(config: &TestConfig, call: &str, status: &str, detail: &str) {
-    {
-        let mut summary = SUMMARY.lock().unwrap_or_else(|poison| poison.into_inner());
-        let summary = summary.get_or_insert_with(Coverage::default);
-        match status {
-            "checked" => summary.checked += 1,
-            "skipped" => *summary.skipped.entry(detail.to_owned()).or_default() += 1,
-            "mismatch" => summary.mismatches += 1,
-            _ => unreachable!("unknown oracle status"),
-        }
-    }
-    static FILE: Mutex<()> = Mutex::new(());
-    let Some(path) = std::env::var_os(VARIABLE).filter(|value| value != "1") else { return };
-    let _guard = FILE.lock().unwrap_or_else(|poison| poison.into_inner());
-    let revision = config.status.revision();
-    let test = config.status.path().display();
-    let line = format!("{status}\t{test} [{revision}]\t{call}\t{}\n", detail.replace('\n', " "));
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
-        let _ = file.write_all(line.as_bytes());
-    }
 }
 
 /// Returns what the test's compiler command dumps, compiling once per command.
@@ -575,24 +513,6 @@ mod halt_tests {
     use super::*;
 
     #[test]
-    fn coverage_report() {
-        let summary = Coverage {
-            checked: 9,
-            mismatches: 1,
-            skipped: [("gas".into(), 2), ("call".into(), 3)].into(),
-        };
-        snapbox::assert_data_eq!(
-            summary.report(),
-            snapbox::str![[r#"
-MIR oracle: 9 checked, 5 skipped, 1 mismatches
-  3 skipped: call
-  2 skipped: gas
-
-"#]]
-        );
-    }
-
-    #[test]
     fn rejects_unexpected_halts() {
         assert!(expected_halt(InstrStop::InvalidOpcode, Some(op::INVALID), EvmVersion::Osaka));
         assert!(expected_halt(InstrStop::NotActivated, Some(op::REVERT), EvmVersion::Homestead));
@@ -605,42 +525,5 @@ MIR oracle: 9 checked, 5 skipped, 1 mismatches
             assert!(!expected_halt(stop, Some(op::JUMP), EvmVersion::Osaka));
             assert!(!expected_halt(stop, Some(op::REVERT), EvmVersion::Osaka));
         }
-    }
-}
-
-#[derive(Default)]
-struct Coverage {
-    checked: usize,
-    skipped: BTreeMap<String, usize>,
-    mismatches: usize,
-}
-
-static SUMMARY: Mutex<Option<Coverage>> = Mutex::new(None);
-
-/// Prints checked and skipped calls, including every unsupported reason.
-pub(crate) fn report_summary() {
-    let summary = SUMMARY.lock().unwrap_or_else(|poison| poison.into_inner()).take();
-    let Some(summary) = summary else { return };
-    let report = summary.report();
-    eprint!("{report}");
-    // Nextest captures successful-test output; keep the coverage visible in CI too.
-    if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY")
-        && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
-    {
-        let _ = writeln!(file, "### MIR oracle\n\n```text\n{report}```");
-    }
-}
-
-impl Coverage {
-    fn report(&self) -> String {
-        let skipped = self.skipped.values().sum::<usize>();
-        let mut report = format!(
-            "MIR oracle: {} checked, {skipped} skipped, {} mismatches\n",
-            self.checked, self.mismatches
-        );
-        for (reason, count) in &self.skipped {
-            writeln!(report, "  {count} skipped: {reason}").unwrap();
-        }
-        report
     }
 }

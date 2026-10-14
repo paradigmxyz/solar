@@ -7,8 +7,9 @@
 //! module, as `-Zdump=mir-final` prints it, and [`parse_dump`] splits such a dump into its
 //! modules. [`Options::trace`] receives a line for every operation a run executes.
 //!
-//! The UI test runner executes every `run-call` directive in an EVM. With `SOLAR_RUN_CALL_MIR` set,
-//! it also runs the call through [`transact`] on the MIR the compiler lowered to that bytecode.
+//! The UI test runner executes every `run-call` directive in an EVM. In a test written in lowered
+//! MIR, it also runs the call through [`transact`] on the MIR the compiler lowered to that
+//! bytecode.
 //! Both execute the same compiled program, so a disagreement is a bug in the backend or in the
 //! interpreter. The `solar-mir-interp` tool runs MIR from the command line.
 //!

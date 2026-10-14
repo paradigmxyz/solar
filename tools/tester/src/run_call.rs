@@ -19,7 +19,6 @@ use ui_test::{
 };
 
 mod oracle;
-pub(crate) use oracle::report_summary as report_mir_summary;
 
 const CALLER: Address = Address::repeat_byte(0x22);
 
@@ -238,7 +237,7 @@ macro_rules! impl_flag {
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
 
-/// Checks the call against the MIR interpreter when that check is enabled.
+/// Checks the call against the MIR interpreter when the test is written in MIR.
 fn check_mir(
     config: &TestConfig,
     build_manager: &BuildManager,
