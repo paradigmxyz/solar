@@ -101,7 +101,7 @@ fn share_checked_allocations(module: &mut Module) -> bool {
                 let result =
                     builder.func().inst_result_value(inst).expect("allocation has a result");
                 // object = icall checked_alloc size
-                let object = builder.icall(helper, vec![size], MirType::MEMPTR);
+                let object = builder.icall(helper, vec![size], MirType::MemPtr);
                 if semantics.initialization == AllocationInitialization::Zeroed {
                     builder.memory_zero(object, size);
                 }
@@ -121,11 +121,11 @@ fn create_checked_alloc(
     {
         let mut builder = FunctionBuilder::new(&mut function);
         let size = builder.add_param(MirType::I256);
-        builder.set_return_type(MirType::MEMPTR);
+        builder.set_return_type(MirType::MemPtr);
         let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
         // ptr = inttoptr (load memory 64) to memptr
-        let free = builder.load(slot, PtrLocation::Memory);
-        let ptr = builder.cast(free, MirType::MEMPTR);
+        let free = builder.mload(slot);
+        let ptr = builder.cast(free, MirType::MemPtr);
         let (size, align_overflow) = aligned_size(&mut builder, size, alignment);
         let next = builder.add(ptr, size);
         let bump_overflow = builder.lt(next, ptr);
@@ -140,7 +140,7 @@ fn create_checked_alloc(
         builder.branch(invalid, panic, continuation);
 
         builder.switch_to_block(continuation);
-        builder.store(slot, next);
+        builder.mstore(slot, next);
         builder.ret([ptr]);
 
         builder.switch_to_block(panic);
