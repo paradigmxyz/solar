@@ -15,9 +15,12 @@ declare_visitors! {
         type BreakValue;
 
         fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit<'ast>) -> ControlFlow<Self::BreakValue> {
-            let SourceUnit { items } = source_unit;
+            let SourceUnit { items, license } = source_unit;
             for item in items.iter #_mut() {
                 self.visit_item #_mut(item)?;
+            }
+            if let Some(license) = license {
+                self.visit_span #_mut(license)?;
             }
             ControlFlow::Continue(())
         }

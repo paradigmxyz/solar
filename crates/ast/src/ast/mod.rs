@@ -130,6 +130,11 @@ impl DocComments<'_> {
 pub struct SourceUnit<'ast> {
     /// The source unit's items.
     pub items: Box<'ast, IndexSlice<ItemId, [Item<'ast>]>>,
+    /// The span of the source unit's SPDX license identifier, such as `MIT` in
+    /// `// SPDX-License-Identifier: MIT`.
+    ///
+    /// This is `None` if the source has no valid SPDX license comment outside of its items.
+    pub license: Option<Span>,
 }
 
 impl fmt::Debug for SourceUnit<'_> {
@@ -142,7 +147,7 @@ impl fmt::Debug for SourceUnit<'_> {
 impl<'ast> SourceUnit<'ast> {
     /// Creates a new source unit from the given items.
     pub fn new(items: BoxSlice<'ast, Item<'ast>>) -> Self {
-        Self { items: IndexSlice::from_slice_mut(items) }
+        Self { items: IndexSlice::from_slice_mut(items), license: None }
     }
 
     /// Counts the number of contracts in the source unit.
@@ -199,7 +204,7 @@ mod tests {
         assert_size::<Span>(str!["8"]);
         assert_size::<DocComments<'_>>(str!["8"]);
 
-        assert_size::<SourceUnit<'_>>(str!["16"]);
+        assert_size::<SourceUnit<'_>>(str!["32"]);
 
         assert_size::<PragmaDirective<'_>>(str!["32"]);
         assert_size::<ImportDirective<'_>>(str!["32"]);

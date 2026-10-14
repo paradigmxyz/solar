@@ -183,6 +183,23 @@ just as a plain comment can.
 Coverage: `tests/ui/lexer/direction_override/markers.sol`;
 [#1844](https://github.com/paradigmxyz/solar/issues/1844).
 
+### PARSE-003: Missing SPDX license identifiers
+
+Status: intentional.
+
+Difference: `solc` warns with 1878 when a source file has no
+`SPDX-License-Identifier:` comment outside its top-level items. `solar` does
+not. Both reject multiple identifiers (3716) and invalid ones (1114), and both
+omit `license` from the metadata of such files.
+
+Rationale: the warning fires for every file without a license comment,
+including scripts, tests, and generated code that are never published, and
+asks for metadata rather than reporting a problem with the code.
+
+Coverage: `tests/ui/parser/license_multiple.sol`,
+`tests/ui/parser/license_invalid.sol`, and the upstream `license` syntax tests;
+[#1881](https://github.com/paradigmxyz/solar/issues/1881).
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings

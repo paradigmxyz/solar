@@ -13,7 +13,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
 };
-use solar_parse::{Lexer, Parser, unescape};
+use solar_parse::{Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
@@ -349,8 +349,7 @@ impl<'gcx> ParsingContext<'gcx> {
         arena: &'ast ast::Arena,
         import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>),
     ) -> Option<ast::SourceUnit<'ast>> {
-        let lexer = Lexer::from_source_file(self.sess, file);
-        let mut parser = Parser::from_lexer(arena, lexer);
+        let mut parser = Parser::from_source_file(self.sess, arena, file);
         if self.resolve_imports {
             parser.set_import_callback(import_callback);
         }

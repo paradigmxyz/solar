@@ -29,11 +29,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("solidity experimental is not implemented");
     }
 
-    // We don't parse licenses.
-    if path_contains("/license/") {
-        return Err("licenses are not checked");
-    }
-
     if path_contains("natspec") {
         return Err("natspec is not checked");
     }
@@ -88,6 +83,12 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // We allow named modifier and base-constructor arguments, which solc rejects.
         | "inherited_constructor_named_parameters"
         | "named_parameters_invocation"
+
+        // The expected warning 1878 mentions `SPDX-License-Identifier:`. solc's test runner
+        // strips expectations before compiling, but we compile the whole file.
+        | "license_in_contract"
+        | "license_in_import"
+        | "license_in_string"
     ) {
         return Err("manually skipped");
     };

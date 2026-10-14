@@ -516,6 +516,8 @@ pub struct Source<'hir> {
     pub usings: &'hir [UsingDirective<'hir>],
     /// The source docs.
     pub docs: &'hir [DocId],
+    /// The span of the SPDX license identifier. See [`ast::SourceUnit::license`].
+    pub license: Option<Span>,
 }
 
 impl fmt::Debug for Source<'_> {

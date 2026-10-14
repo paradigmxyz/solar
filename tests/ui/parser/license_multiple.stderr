@@ -1,0 +1,15 @@
+error[3716]: multiple SPDX license identifiers found in source file
+   ╭▸ ROOT/tests/ui/parser/license_multiple.sol:LL:CC
+   │
+LL │ /* SPDX-License-Identifier: MIT */
+   │    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: first license identifier is here
+   ╭▸ ROOT/tests/ui/parser/license_multiple.sol:LL:CC
+   │
+LL │ // SPDX-License-Identifier: MIT
+   │    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: use `AND` or `OR` to combine multiple licenses
+
+error: aborting due to 1 previous error
+

@@ -3,13 +3,16 @@ use crate::{PErr, PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
+use solar_interface::{BytePos, Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
+use std::ops::Range;
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
-        self.parse_items(TokenKind::Eof).map(SourceUnit::new)
+        let mut source_unit = self.parse_items(TokenKind::Eof).map(SourceUnit::new)?;
+        source_unit.license = self.parse_license(&source_unit.items.raw);
+        Ok(source_unit)
     }
 
     /// Parses a list of items until the given token is encountered.
@@ -1043,6 +1046,64 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             None
         }
     }
+
+    /// Finds and validates the SPDX license comment, returning the span of the license.
+    ///
+    /// Like solc, this searches the source text outside of `items`, so comments inside items are
+    /// ignored, and reports a missing license only through `None`.
+    fn parse_license(&self, items: &[Item<'ast>]) -> Option<Span> {
+        let (start_pos, src) = self.src.as_ref()?;
+        let span = |range: Range<usize>| {
+            Span::new(
+                *start_pos + BytePos::from_usize(range.start),
+                *start_pos + BytePos::from_usize(range.end),
+            )
+        };
+        let mut licenses = SmallVec::<[_; 1]>::new();
+        let mut gap_start = 0;
+        let gaps = items
+            .iter()
+            .map(|item| (item.span.lo() - *start_pos, item.span.hi() - *start_pos))
+            .map(|(lo, hi)| (lo.to_usize(), hi.to_usize()))
+            .chain([(src.len(), src.len())]);
+        for (gap_end, next_gap_start) in gaps {
+            find_licenses(&src.as_bytes()[gap_start..gap_end], |decl, value| {
+                licenses.push((decl + gap_start, value.start + gap_start..value.end + gap_start));
+            });
+            gap_start = next_gap_start;
+        }
+
+        match &licenses[..] {
+            [] => None,
+            [(decl, value)] => {
+                let is_valid = !value.is_empty()
+                    && src.as_bytes()[value.clone()].iter().all(|&b| {
+                        b.is_ascii_alphanumeric()
+                            || matches!(b, b' ' | b'(' | b')' | b'+' | b'.' | b'-')
+                    });
+                if is_valid {
+                    return Some(span(value.clone()));
+                }
+                self.dcx()
+                    .err("invalid SPDX license identifier")
+                    .code(error_code!(1114))
+                    .span(span(*decl..value.end))
+                    .note("license expressions may only contain ASCII letters, digits, spaces, and `()+.-`")
+                    .emit();
+                None
+            }
+            [(first, first_value), (second, second_value), ..] => {
+                self.dcx()
+                    .err("multiple SPDX license identifiers found in source file")
+                    .code(error_code!(3716))
+                    .span(span(*second..second_value.end))
+                    .span_note(span(*first..first_value.end), "first license identifier is here")
+                    .help("use `AND` or `OR` to combine multiple licenses")
+                    .emit();
+                None
+            }
+        }
+    }
 }
 
 struct SemverVersionParser<'p, 'sess, 'ast, 'cb> {
@@ -1415,6 +1476,63 @@ impl FunctionFlags {
         let s = self.intersection(what);
         if s.is_empty() { None } else { Some(s.iter()) }
     }
+}
+
+/// Calls `f` with the start and the trimmed value of each SPDX license declaration in `src`.
+///
+/// This ports solc's search for `SPDX-License-Identifier:\s*(.+?)([\n\r]|(\*/))`.
+fn find_licenses(src: &[u8], mut f: impl FnMut(usize, Range<usize>)) {
+    const PREFIX: &[u8] = b"SPDX-License-Identifier:";
+    let mut pos = 0;
+    while let Some(i) = memchr::memmem::find(&src[pos..], PREFIX) {
+        let decl = pos + i;
+        // The prefix cannot overlap itself, so a failed match resumes after it.
+        pos = decl + PREFIX.len();
+        let Some((value, end)) = match_license_value(src, pos) else { continue };
+        pos = end;
+        let lo = value.start + src[value.clone()].iter().take_while(|&&b| is_c_space(b)).count();
+        let hi =
+            value.end - src[lo..value.end].iter().rev().take_while(|&&b| is_c_space(b)).count();
+        f(decl, lo..hi);
+    }
+}
+
+/// Matches `\s*(.+?)([\n\r]|(\*/))` at `src[at..]` like a backtracking regex engine, returning
+/// the range of `(.+?)` and the end of the match.
+///
+/// The value may start on a later line, and backtracking `\s*` lets an all-whitespace value
+/// match when nothing else does.
+fn match_license_value(src: &[u8], at: usize) -> Option<(Range<usize>, usize)> {
+    let terminator_len = |i: usize| match src.get(i..) {
+        Some([b'\n' | b'\r', ..]) => Some(1),
+        Some([b'*', b'/', ..]) => Some(2),
+        _ => None,
+    };
+    // `.+?` ends at the first terminator after its first byte. It cannot contain line breaks, but
+    // line breaks are terminators themselves. Try the longest `\s*` first, then backtrack while
+    // keeping `next` as the first terminator after `start`.
+    let mut start = src[at..].iter().position(|&b| !is_c_space(b)).map_or(src.len(), |n| at + n);
+    let mut next = (start + 1..src.len()).find_map(|i| Some((i, terminator_len(i)?)));
+    loop {
+        if let Some((end, len)) = next
+            && start < src.len()
+            && !matches!(src[start], b'\n' | b'\r')
+        {
+            return Some((start..end, end + len));
+        }
+        if start == at {
+            return None;
+        }
+        if let Some(len) = terminator_len(start) {
+            next = Some((start, len));
+        }
+        start -= 1;
+    }
+}
+
+/// Returns `true` for the C locale's `isspace` characters, which solc's `\s` and trimming use.
+fn is_c_space(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r')
 }
 
 fn visibility_error(v: Visibility, iter: Option<impl Iterator<Item = Visibility>>) -> String {

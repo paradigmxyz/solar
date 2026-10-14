@@ -15,6 +15,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 items: &[],
                 usings: &[],
                 docs: &[],
+                license: source.ast.as_ref().and_then(|ast| ast.license),
             };
             if let Some(ast) = &source.ast {
                 let mut items = SmallVec::<[_; 16]>::new();

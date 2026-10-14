@@ -1,0 +1,23 @@
+// CHECK-LABEL: "metadata":
+// CHECK-SAME: \"A.sol\":{\"keccak256\":\"{{0x[0-9a-f]+}}\",\"license\":\"MIT OR Apache-2.0\",\"urls\":
+// CHECK-SAME: \"B.sol\":{\"keccak256\":\"{{0x[0-9a-f]+}}\",\"urls\":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "// SPDX-License-Identifier: MIT OR Apache-2.0\nimport \"B.sol\";\ncontract A is B {}\n"
+    },
+    "B.sol": {
+      "content": "contract B {\n    // SPDX-License-Identifier: MIT\n}\n"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "metadata"
+        ]
+      }
+    }
+  }
+}

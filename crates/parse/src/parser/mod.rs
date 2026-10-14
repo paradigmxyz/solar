@@ -11,7 +11,7 @@ use solar_interface::{
     error_code,
     source_map::{FileName, SourceFile},
 };
-use std::{fmt, path::Path};
+use std::{fmt, path::Path, sync::Arc};
 
 mod expr;
 mod item;
@@ -58,6 +58,10 @@ pub struct Parser<'sess, 'ast, 'cb> {
 
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
+    /// The start position and text of the source being parsed, if known.
+    ///
+    /// Used to find the SPDX license comment, which the lexer skips like other comments.
+    src: Option<(BytePos, Arc<String>)>,
 
     /// Whether the parser is in a Yul block.
     in_yul: bool,
@@ -168,6 +172,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             stmts: Vec::new(),
             yul_stmts: Vec::new(),
             tokens: tokens.into_iter(),
+            src: None,
             in_yul: false,
             pure_yul: false,
             in_contract: false,
@@ -233,10 +238,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         arena: &'ast ast::Arena,
         file: &SourceFile,
     ) -> Self {
-        Self::from_lexer(arena, Lexer::from_source_file(sess, file))
+        let mut parser = Self::from_lexer(arena, Lexer::from_source_file(sess, file));
+        parser.src = Some((file.start_pos, file.src.clone()));
+        parser
     }
 
     /// Creates a new parser from a lexer.
+    ///
+    /// The parser does not see the source text, so [`parse_file`](Self::parse_file) does not find
+    /// the SPDX license. Use [`from_source_file`](Self::from_source_file) for that.
     pub fn from_lexer(arena: &'ast ast::Arena, lexer: Lexer<'sess, '_>) -> Self {
         Self::new(lexer.sess, arena, lexer.into_tokens())
     }

@@ -1,0 +1,10 @@
+error[1114]: invalid SPDX license identifier
+   ╭▸ ROOT/tests/ui/parser/license_invalid.sol:LL:CC
+   │
+LL │ // SPDX-License-Identifier: ⡉⡊
+   │    ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: license expressions may only contain ASCII letters, digits, spaces, and `()+.-`
+
+error: aborting due to 1 previous error
+

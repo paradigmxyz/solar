@@ -179,6 +179,10 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
     let content = source.file.src.as_str();
     let mut value = Map::new();
     value.insert("keccak256".into(), json!(format!("{:#x}", keccak256(content.as_bytes()))));
+    if let Some(license) = source.license {
+        let license = gcx.sess.source_map().span_to_snippet(license).unwrap();
+        value.insert("license".into(), json!(license));
+    }
     if metadata.settings.metadata.use_literal_content {
         value.insert("content".into(), json!(content));
     } else {
