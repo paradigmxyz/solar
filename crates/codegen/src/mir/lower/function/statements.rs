@@ -45,7 +45,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let value = if !self.in_inline_assembly
                     && let Some(expr) = initializer
-                    && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
+                    && let Ok(value) = self.cx.gcx.const_eval().eval_int(expr)
                     && let Some(value) = value.as_u256()
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -305,17 +305,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        // Like solc, a constant evaluates its initializer at every use, which can revert.
+        // A constant has a value, so reading it has no effects. One without a value is an error,
+        // unless the value is only too large to fold: then its initializer runs, and can revert.
         let gcx = self.cx.gcx;
         if let Some(id) = gcx.resolved_variable(expr)
-            && let variable = gcx.hir.variable(id)
-            && variable.is_constant()
-            && let Some(initializer) = variable.initializer
+            && gcx.hir.variable(id).is_constant()
         {
-            if gcx.try_eval_const_value(initializer).is_ok() {
-                return Some(());
+            if let Some(initializer) = self.unfolded_constant_initializer(id) {
+                return self.lower_discarded_expr(initializer);
             }
-            return self.lower_discarded_expr(initializer);
+            let _ = gcx.const_eval().require_var(id);
+            return Some(());
         }
         match &expr.kind {
             // Names and `new T` have no effects to evaluate.

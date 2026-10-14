@@ -276,32 +276,65 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             || gcx.type_of_expr(callee.id).is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)))
     }
 
+    /// Lowers a use of a constant to its value, which constant evaluation computes once.
+    ///
+    /// A constant without a value is an error at its first use, and an error value at every use.
+    /// A value too large to fold, such as `new bytes(65537)`, is built from the initializer at
+    /// every use instead, as solc does.
     pub(super) fn lower_constant_variable(
         &mut self,
         id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        let variable = self.cx.gcx.hir.variable(id);
-        let Some(initializer) = variable.initializer else {
-            return self.cx.report_unsupported(span, "constant initializer");
-        };
-        let ty = self.cx.gcx.type_of_item(id.into());
-        if let Some(value) = self.lower_fixed_bytes_literal(ty, initializer) {
-            return Some(value);
+        if let Some(initializer) = self.unfolded_constant_initializer(id) {
+            // value = <initializer>
+            return self.lower_expr(initializer);
         }
-        if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
-            return match value {
-                ConstValue::Rational(_) => self.cx.report_unsupported(span, "fractional constant"),
-                ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                // A value wider than the EVM word is no immediate; lower the initializer instead,
-                // as `lower_expr` does for such values.
-                ConstValue::Integer(value) => match value.as_evm_word() {
-                    Some(word) => Some(self.builder.imm(word)),
-                    None => self.lower_typed_expr(initializer, ty),
-                },
-                ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
-            };
+        match self.cx.gcx.const_eval().require_var(id) {
+            Ok(value) => self
+                .lower_const_value(value, span)
+                .or_else(|| self.cx.report_unsupported(span, "constant")),
+            // value = error
+            Err(guar) => Some(self.builder.error_value(guar)),
         }
-        self.lower_typed_expr(initializer, ty)
+    }
+
+    /// Returns the initializer of a constant whose value is too large to fold, which uses build
+    /// at runtime instead.
+    pub(super) fn unfolded_constant_initializer(
+        &self,
+        id: VariableId,
+    ) -> Option<&'gcx hir::Expr<'gcx>> {
+        let gcx = self.cx.gcx;
+        if let Err(err) = gcx.const_eval().eval_var(id)
+            && matches!(err.kind, EvalErrorKind::ValueTooLarge)
+        {
+            gcx.hir.variable(id).initializer
+        } else {
+            None
+        }
+    }
+
+    /// Lowers a constant value to an immediate, to shared memory for byte arrays, or to the
+    /// bytecode of a contract.
+    ///
+    /// Integer literals wider than an EVM word and aggregates have no immediate.
+    pub(super) fn lower_const_value(&mut self, value: &ConstValue, span: Span) -> Option<ValueId> {
+        match value {
+            // value = imm bool
+            ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
+            // value = shared_bytes(data)
+            ConstValue::Bytes(data, _) => self.lower_shared_bytes_literal(*data),
+            // value = imm i160 address
+            ConstValue::Address(_) | ConstValue::Contract(..) => Some(self.builder.alloc_value(
+                Value::Immediate(Immediate::for_type(Some(MirType::I160), value.as_word()?)),
+            )),
+            ConstValue::Udvt(_, value) => self.lower_const_value(value, span),
+            &ConstValue::Code(contract, kind) => {
+                self.lower_contract_code(span, contract, kind.into())
+            }
+            // value = imm word
+            value => Some(self.builder.imm(value.as_word()?)),
+        }
     }
 }

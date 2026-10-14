@@ -2,8 +2,10 @@ use super::TypeChecker;
 use crate::{
     hir,
     ty::{Ty, TyKind},
+    typeck::constant_cycles::MAX_DEPTH,
 };
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
+use solar_data_structures::map::FxHashSet;
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagId, DiagMsg, ErrorGuaranteed},
@@ -82,6 +84,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         }
 
+        if var.is_constant() && self.is_constant_recursive(var_id) {
+            return Err(self
+                .dcx()
+                .err("constant variable is circular")
+                .code(error_code!(3558))
+                .span(span)
+                .emit());
+        }
+
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
@@ -133,6 +144,44 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(true)
     }
 
+    /// Returns whether following the value of the constant `id` through the constants it names
+    /// reaches a cycle.
+    ///
+    /// Like solc's `isConstantVariableRecursive`, this only follows values that are an identifier
+    /// or a member access. Other sources may not be type checked yet, so this uses name
+    /// resolution alone.
+    ///
+    /// This gives up after [`MAX_DEPTH`] constants, since the constant cycle check after type
+    /// checking reports longer chains.
+    fn is_constant_recursive(&mut self, id: hir::VariableId) -> bool {
+        if let Some(&recursive) = self.circular_constants.get(&id) {
+            return recursive;
+        }
+        let recursive = self.follow_constant_values(id);
+        self.circular_constants.insert(id, recursive);
+        recursive
+    }
+
+    fn follow_constant_values(&self, mut id: hir::VariableId) -> bool {
+        let mut seen = FxHashSet::default();
+        for _ in 0..MAX_DEPTH {
+            if !seen.insert(id) {
+                return true;
+            }
+            let Some(next) = self
+                .gcx
+                .hir
+                .variable(id)
+                .initializer
+                .and_then(|init| self.gcx.const_eval().constant_reference(init))
+            else {
+                return false;
+            };
+            id = next;
+        }
+        false
+    }
+
     pub(super) fn check_yul_member(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
@@ -141,6 +190,7 @@ impl<'gcx> TypeChecker<'gcx> {
         enum ErrorKind {
             NonVariable,
             Immutable,
+            Circular,
             UnsupportedBase,
             UnsupportedMember(YulMemberSet),
             NonExternalFunction,
@@ -151,6 +201,13 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Err(guar) = ty.error_reported() {
             return self.gcx.mk_ty_err(guar);
         }
+        let circular = if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res
+            && self.gcx.hir.variable(var_id).is_constant()
+        {
+            self.is_constant_recursive(var_id)
+        } else {
+            false
+        };
 
         let inner = || -> Result<(), ErrorKind> {
             let Some(res) = res else { return Err(ErrorKind::NonVariable) };
@@ -161,6 +218,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
             if var.is_immutable() {
                 return Err(ErrorKind::Immutable);
+            }
+
+            if circular {
+                return Err(ErrorKind::Circular);
             }
 
             let Some(member_set) = yul_member_set(var, ty) else {
@@ -197,6 +258,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 error_code!(3773),
                 "assembly access to immutable variables is not supported".into(),
             ),
+            Err(ErrorKind::Circular) => {
+                (expr.span, error_code!(3558), "constant variable is circular".into())
+            }
             Err(ErrorKind::UnsupportedBase) => (
                 member.span,
                 error_code!(3622),

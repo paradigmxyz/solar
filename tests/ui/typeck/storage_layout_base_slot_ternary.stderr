@@ -1,4 +1,4 @@
-error: failed to evaluate constant: arithmetic overflow
+error[1505]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_ternary.sol:LL:CC
    │
 LL │ contract B layout at 255 + (true ? 1 : 0) {}

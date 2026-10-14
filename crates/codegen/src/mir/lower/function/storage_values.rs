@@ -130,14 +130,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            // Constant reads qualify even when they do not fold.
-            TyKind::Elementary(_) => {
-                let gcx = self.cx.gcx;
-                gcx.try_eval_const_value(expr).is_ok()
-                    || gcx
-                        .resolved_variable(expr)
-                        .is_some_and(|id| gcx.hir.variable(id).is_constant())
-            }
+            TyKind::Elementary(_) => self.cx.gcx.const_eval().eval_expr(expr).is_ok(),
             _ => false,
         }
     }
@@ -147,7 +140,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let LitKind::Str(_, bytes, _) = lit.kind
         {
             Some(bytes)
-        } else if let Ok(ConstValue::String(bytes)) = self.cx.gcx.try_eval_const_value(expr) {
+        } else if let Ok(ConstValue::Bytes(bytes, _)) = self.cx.gcx.const_eval().eval_expr(expr) {
             Some(*bytes)
         } else {
             None
@@ -202,9 +195,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => {
                 let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                let constant = match self.cx.gcx.try_eval_const_value(expr) {
+                let constant = match self.cx.gcx.const_eval().eval_expr(expr) {
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
-                    Ok(ConstValue::Integer(value)) => {
+                    Ok(ConstValue::Int(value)) => {
                         value.as_u256().map(|value| self.builder.imm(value))
                     }
                     _ => None,

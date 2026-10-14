@@ -4,7 +4,7 @@
 contract CyclicConstant {
     uint constant LEN = LEN;
     function f() public {
-        uint[LEN] a; //~ ERROR: failed to evaluate constant: recursion limit reached
+        uint[LEN] a; //~ ERROR: failed to evaluate constant: cyclic constant definition
     }
 }
 
@@ -13,11 +13,11 @@ contract ComplexCyclicConstant {
     uint constant L1 = L2 / 10;
     uint constant LEN = 10 + L1 * 5;
     function f() public {
-        uint[LEN] a; //~ ERROR: failed to evaluate constant: recursion limit reached
+        uint[LEN] a; //~ ERROR: failed to evaluate constant: cyclic constant definition
     }
 }
 
-// Like solc, constants may be defined by at most 32 levels of other constants.
+// solc stops at 32 levels of constants defined by other constants; see TYPECK-020.
 uint256 constant C0 = 1;
 uint256 constant C1 = C0 + 1;
 uint256 constant C2 = C1 + 1;
@@ -54,5 +54,5 @@ uint256 constant C32 = C31 + 1;
 
 contract Depth {
     uint256[C31] deepest;
-    uint256[C32] tooDeep; //~ ERROR: failed to evaluate constant: recursion limit reached
+    uint256[C32] tooDeep;
 }

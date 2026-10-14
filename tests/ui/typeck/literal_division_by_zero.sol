@@ -60,7 +60,7 @@ contract ArrayLength {
 
 // Fractions cannot be divided by zero either.
 contract Fractions {
-    uint constant c = 0.5 / 0; //~ ERROR: failed to evaluate constant: attempted to divide by zero
+    uint constant c = 0.5 / 0; //~ ERROR: cannot apply builtin operator `/` to `rational_literal` and `int_literal[1]`
     uint constant d = 0.5 % (0.5 - 0.5); //~ ERROR: cannot apply builtin operator `%` to `rational_literal` and `int_literal[1]`
     uint[c] lengths;
     function f() public pure returns (uint) {

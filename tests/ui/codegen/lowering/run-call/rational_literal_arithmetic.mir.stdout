@@ -60,12 +60,9 @@ fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[w
 
 fn @typedDivision() -> struct0 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
   bb0:
-    v0 = checked_div i256, 7, 3
-    v1 = checked_sub i256, 0, 7
-    v2 = checked_div i256, v1, 3
-    v3 = insert_value struct0, undef struct0, 0, v0
-    v4 = insert_value struct0, v3, 1, v2
-    ret v4
+    v0 = insert_value struct0, undef struct0, 0, 2
+    v1 = insert_value struct0, v0, 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    ret v1
 }
 
 fn @discarded() -> i256 [selector=0x96dadfbc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

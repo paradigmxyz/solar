@@ -629,14 +629,9 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     mstore 64, v0 !metadata(memory=scratch)
     mstore 32, 32 !metadata(memory=scratch)
     v1 = keccak256_bytes memptr 32
-    v2 = not 31
-    v3 = and 64, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 1
-    v5 = memory_object_len memorybytes, v4
-    v6 = insert_value struct0, undef struct0, 0, v1
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 1
+    ret v3
 }
 
 fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u256], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
@@ -661,14 +656,9 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v13 = shl 248, v12
     v14 = shr 248, v13
     v15 = trunc i256 v14 to i8
-    v16 = not 31
-    v17 = and 64, v16
-    v18 = alloc memorybytes, exact, zeroed, panic, v17
-    set_memory_object_len memorybytes, v18, 1
-    v19 = memory_object_len memorybytes, v18
-    v20 = insert_value struct1, undef struct1, 0, v15
-    v21 = insert_value struct1, v20, 1, v19
-    ret v21
+    v16 = insert_value struct1, undef struct1, 0, v15
+    v17 = insert_value struct1, v16, 1, 1
+    ret v17
 }
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -689,14 +679,9 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, v7
-    v12 = not 31
-    v13 = and 64, v12
-    v14 = alloc memorybytes, exact, zeroed, panic, v13
-    set_memory_object_len memorybytes, v14, 1
-    v15 = memory_object_len memorybytes, v14
-    v16 = insert_value struct0, undef struct0, 0, v11
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v12 = insert_value struct0, undef struct0, 0, v11
+    v13 = insert_value struct0, v12, 1, 1
+    ret v13
 }
 
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {

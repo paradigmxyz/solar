@@ -21,16 +21,14 @@ contract MulLimit {
 contract Limits {
     uint[(1 << 4095) >> 4094] shiftFits;
     uint[((1 << 4095) * 2) >> 4095] productFits;
-    uint[(1 << 4096) >> 4095] shiftTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+    uint[(1 << 4096) >> 4095] shiftTooLarge; //~ ERROR: failed to evaluate constant: shift amount is too large
     uint[2 ** 2048 / 2 ** 2047] powFits;
-    uint[2 ** 2049 / 2 ** 2048] powTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+    uint[2 ** 2049 / 2 ** 2048] powTooLarge; //~ ERROR: failed to evaluate constant: exponent is too large
     uint[0.5 ** 2048 * 2 ** 2048] fractionPowFits;
-    uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
-    //~^ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
+    uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge; //~ ERROR: failed to evaluate constant: exponent is too large
     uint[2 ** -2048 * 2 ** 2048] negativePowFits;
     uint[1 / (1 << 4095) * (1 << 4095)] denominatorFits;
-    uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge; //~ ERROR: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
-    //~^ ERROR: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
+    uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge; //~ ERROR: failed to evaluate constant: exponent is too large
     uint[(1 << 300) >> 290] wide;
     uint[0 ** 4294967296 + 1 ** 4294967296 + (-1) ** 4294967297 + 2] trivialBases;
     uint[2 ** 4294967296] exponentTooLarge; //~ ERROR: failed to evaluate constant: exponent is too large

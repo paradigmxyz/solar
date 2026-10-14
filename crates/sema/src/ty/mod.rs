@@ -59,7 +59,7 @@ mod ty;
 pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
-type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+pub(crate) type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 type UsingDirectiveKey = usize;
 
@@ -379,8 +379,7 @@ pub struct GlobalCtxt<'gcx> {
     cached_arenas: ThreadLocal<DropArena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::CachedResult>>,
-    pub(crate) expr_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
+    pub(crate) const_eval_cache: crate::eval::ConstEvalCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -417,8 +416,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             cached_arenas: ThreadLocal::new(),
             interner,
             cache: Cache::default(),
-            eval_cache: FxOnceMap::default(),
-            expr_errors: FxOnceMap::default(),
+            const_eval_cache: Default::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -492,7 +490,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the arena for cached values that own heap memory.
-    fn cached_arena(self) -> &'gcx DropArena {
+    pub(crate) fn cached_arena(self) -> &'gcx DropArena {
         self.cached_arenas.get_or_default()
     }
 
@@ -570,6 +568,27 @@ impl<'gcx> Gcx<'gcx> {
             return results.resolved_expr(expr);
         }
         expr.as_res()
+    }
+
+    /// Resolves an identifier, or a member access on a contract, module or builtin name, from
+    /// name resolution alone.
+    ///
+    /// Unlike [`resolved_expr`](Self::resolved_expr), this does not need type checking, so it
+    /// also works on sources that are not type checked yet. Overloaded names resolve to nothing.
+    pub fn resolve_path_expr(self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
+        match expr.kind {
+            hir::ExprKind::Ident(&[res]) => Some(res),
+            hir::ExprKind::Member(base, member) => {
+                let scope = self.symbol_resolver.scope_of(self.resolve_path_expr(base)?)?;
+                // A public variable also declares its getter.
+                let mut declarations = scope.resolve(member)?.iter().map(|d| d.res).filter(|res| {
+                    !res.as_function().is_some_and(|f| self.hir.function(f).is_getter())
+                });
+                let res = declarations.next()?;
+                declarations.next().is_none().then_some(res)
+            }
+            _ => None,
+        }
     }
 
     /// Returns the variable selected for an expression, if available.
@@ -971,6 +990,23 @@ impl<'gcx> Gcx<'gcx> {
         self.item_selector(id.into())
     }
 
+    /// Returns whether the given function, error or event has an ABI signature.
+    ///
+    /// Recursive structs have no ABI type, except in library functions, whose signatures name
+    /// structs instead. Type checking reports them.
+    pub fn has_abi_signature(self, id: impl Into<hir::ItemId>) -> bool {
+        let id = id.into();
+        self.signature_names_structs(id)
+            || !self.item_parameter_types(id).iter().any(|ty| ty.is_recursive(self))
+    }
+
+    /// Returns whether the signature of the given item uses canonical type names, which only
+    /// library functions do; events and errors use ABI types.
+    fn signature_names_structs(self, id: hir::ItemId) -> bool {
+        matches!(id, hir::ItemId::Function(_))
+            && self.hir.item(id).contract().is_some_and(|c| self.hir.contract(c).kind.is_library())
+    }
+
     /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
         let kind = match ty.kind {
@@ -978,7 +1014,7 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match crate::eval::eval_array_len(self, size) {
+                    Some(size) => match self.const_eval().eval_array_len(size) {
                         Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
@@ -1869,9 +1905,7 @@ pub(crate) fn natspec_contract_in_source(
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let tys = gcx.item_parameter_types(id);
-    // Only library functions use canonical type names; events and errors use ABI types.
-    let in_library = matches!(id, hir::ItemId::Function(_))
-        && gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
+    let in_library = gcx.signature_names_structs(id);
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), in_library))
 }
 
@@ -2181,12 +2215,13 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .emit();
     }
 
-    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
+    // stays an array when its length fails to evaluate, so solc reports both errors.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
     if var.is_constant()
         && !ty.is_value_type()
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
-        && !ty.references_error()
+        && (!ty.references_error() || matches!(ty.kind, TyKind::Array(..)))
     {
         let guar = gcx
             .dcx()

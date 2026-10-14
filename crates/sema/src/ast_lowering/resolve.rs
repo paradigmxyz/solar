@@ -2292,7 +2292,7 @@ impl<'gcx> SymbolResolver<'gcx> {
             .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))
     }
 
-    fn scope_of(&self, declaration: Res) -> Option<&Declarations> {
+    pub(crate) fn scope_of(&self, declaration: Res) -> Option<&Declarations> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),

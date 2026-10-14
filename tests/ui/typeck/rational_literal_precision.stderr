@@ -1,50 +1,58 @@
-error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+error[6020]: failed to evaluate constant: shift amount is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[(1 << 4096) >> 4095] shiftTooLarge;
-   ╰╴         ━━━━━━━━━━━
+   │          ━┬────────━━━━━━━━━
+   │           │
+   ╰╴          evaluation of constant value failed here
 
-error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+error[6020]: failed to evaluate constant: exponent is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[2 ** 2049 / 2 ** 2048] powTooLarge;
-   ╰╴         ━━━━━━━━━
+   │          ┬────────━━━━━━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
 
-error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+error[6020]: failed to evaluate constant: exponent is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge;
-   ╰╴         ━━━━━━━━━━━
+   │          ┬──────────━━━━━━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
 
-error[6020]: failed to evaluate constant: the precision of literal arithmetic is limited to 4096 bits
+error[6020]: failed to evaluate constant: exponent is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge;
-   ╰╴             ━━━━━━━━━
+   │          ━━━━┬────────━━━━━━━━━━━━
+   │              │
+   ╰╴             evaluation of constant value failed here
 
 error[6020]: failed to evaluate constant: exponent is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[2 ** 4294967296] exponentTooLarge;
-   ╰╴         ━━━━━━━━━━━━━━━
+   ╰╴         ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error[6020]: failed to evaluate constant: shift amount is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[1 << 4294967296] shiftAmountTooLarge;
-   ╰╴         ━━━━━━━━━━━━━━━
+   ╰╴         ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error[6020]: failed to evaluate constant: shift amount is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[1 >> 4294967296] rightShiftAmountTooLarge;
-   ╰╴         ━━━━━━━━━━━━━━━
+   ╰╴         ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error[6020]: failed to evaluate constant: shift amount is too large
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
    │
 LL │     uint[0 << 4294967295 + 1] zeroShiftAmountTooLarge;
-   ╰╴         ━━━━━━━━━━━━━━━━━━━
+   ╰╴         ━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error[2271]: cannot apply builtin operator `/` to `rational_literal` and `int_literal[4096]`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
@@ -66,25 +74,5 @@ LL │         a = (1<<4095)*(1<<4095);
    │
    ╰ note: the precision of literal arithmetic is limited to 4096 bits
 
-error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
-   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
-   │
-LL │     uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge;
-   │                        ┬ ━━ ──── int_literal[12]
-   │                        │
-   │                        int_literal[2]
-   │
-   ╰ note: the precision of literal arithmetic is limited to 4096 bits
-
-error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `int_literal[12]`
-   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
-   │
-LL │     uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge;
-   │                          ┬ ━━ ──── int_literal[12]
-   │                          │
-   │                          int_literal[2]
-   │
-   ╰ note: the precision of literal arithmetic is limited to 4096 bits
-
-error: aborting due to 12 previous errors
+error: aborting due to 10 previous errors
 

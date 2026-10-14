@@ -22,7 +22,7 @@ use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
-    eval::ConstValue,
+    eval::{ConstValue, EvalErrorKind},
     hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };
@@ -690,23 +690,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        // Literal arithmetic is exact, so its intermediate values may be fractions or may not fit
-        // any integer type.
+        // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
+        // be fractions or may not fit any integer type. Constant names fold in
+        // `lower_constant_variable`.
         // value = const_eval(expr)
-        if is_literal_operation(self.cx.gcx, expr)
-            && let Ok(value) = self.cx.gcx.try_eval_const_value(expr)
+        let foldable = matches!(
+            expr.kind,
+            ExprKind::Unary(..)
+                | ExprKind::Binary(..)
+                | ExprKind::Ternary(..)
+                | ExprKind::Call(..)
+                | ExprKind::Member(..)
+                | ExprKind::Payable(_)
+                | ExprKind::Index(..)
+                | ExprKind::Tuple(_)
+        ) && ((!self.in_inline_assembly
+            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type()))
+            || is_literal_operation(self.cx.gcx, expr));
+        if foldable
+            && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
+            && !matches!(value, ConstValue::Bytes(..))
         {
-            match value {
-                ConstValue::Integer(value) => {
-                    if let Some(word) = value.as_evm_word() {
-                        return Some(self.builder.imm(word));
-                    }
-                }
-                ConstValue::Bool(value) => return Some(self.builder.imm_bool(*value)),
-                ConstValue::Rational(_) => {
-                    return self.cx.report_unsupported(expr.span, "fractional value");
-                }
-                ConstValue::String(_) => {}
+            // Fractions have no runtime value.
+            if let ConstValue::Rational(_) = value {
+                return self.cx.report_unsupported(expr.span, "fractional value");
+            }
+            if let Some(value) = self.lower_const_value(value, expr.span) {
+                return Some(value);
             }
         }
         match &expr.kind {
@@ -1212,7 +1222,6 @@ fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
     let is_literal =
         |expr: &hir::Expr<'_>| gcx.type_of_expr(expr.id).is_some_and(Ty::is_number_literal);
     match &expr.kind {
-        ExprKind::Lit(_) => false,
         ExprKind::Binary(lhs, op, rhs) if op.kind.is_cmp() => is_literal(lhs) && is_literal(rhs),
         _ => is_literal(expr),
     }
