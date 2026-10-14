@@ -121,9 +121,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let parameter = modifier_function.parameters[index];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
                 if Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = this.storage_access(argument) else {
-                        return this.cx.report_unsupported(argument.span, "storage access");
-                    };
+                    let access = this.require_storage_access(argument)?;
                     this.storage_refs.insert(parameter, access);
                 } else {
                     let value = this.lower_typed_expr(argument, parameter_ty)?;

@@ -79,8 +79,12 @@ pub unsafe extern "C" fn solidity_compile(
         std::sync::Arc::new(CReadCallback { read_callback, read_context })
             as std::sync::Arc<dyn StandardJsonReadCallback>
     });
+    let mut opts = CompileOpts::default();
+    // Long-lived hosts compile many times, so free the compiler arenas and the thread pool after
+    // each call.
+    opts.unstable.drop_gcx = true;
     let mut output = Vec::new();
-    compile_standard_json(input, CompileOpts::default(), read_callback, &mut output)
+    compile_standard_json(input, opts, read_callback, &mut output)
         .expect("writing Standard JSON to a Vec must not fail");
     alloc::allocate_c_string(&output)
 }

@@ -78,10 +78,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.returns.len() == 1 {
             let ty = self.cx.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
-                let Some(access) = self.storage_access(expr) else {
-                    return self.cx.report_unsupported(expr.span, "storage access");
-                };
-                return Some(vec![access.slot]);
+                return Some(vec![self.require_storage_access(expr)?.slot]);
             }
             let value = self.lower_typed_expr(expr, ty)?;
             let value = if ty.is_ref_at(DataLocation::Memory) {
@@ -103,10 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = (*value)?;
                     let ty = self.cx.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
-                        let Some(access) = self.storage_access(value) else {
-                            return self.cx.report_unsupported(value.span, "storage access");
-                        };
-                        Some(access.slot)
+                        Some(self.require_storage_access(value)?.slot)
                     } else {
                         let span = value.span;
                         let value = self.lower_typed_expr(value, ty)?;
@@ -197,10 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // `lower_expr` copies a storage state variable to memory, unlike any other storage
         // reference.
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage)) {
-            let Some(access) = self.storage_access(expr) else {
-                return self.cx.report_unsupported(expr.span, "storage access");
-            };
-            return Some(access.slot);
+            return Some(self.require_storage_access(expr)?.slot);
         }
         self.lower_expr(expr)
     }
@@ -487,17 +478,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let value = if self.is_storage_reference_binding(lhs)
                             && source_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
                         {
-                            let Some(access) = self.storage_access(rhs) else {
-                                return self.cx.report_unsupported(rhs.span, "storage access");
-                            };
+                            let access = self.require_storage_access(rhs)?;
                             TupleAssignmentRhs::StorageReference { access }
                         } else if source_ty.is_some_and(|ty| {
                             ty.is_ref_at(DataLocation::Storage)
                                 && self.types.memory_layout(ty).is_some()
                         }) {
-                            let Some(access) = self.storage_access(rhs) else {
-                                return self.cx.report_unsupported(rhs.span, "storage access");
-                            };
+                            let access = self.require_storage_access(rhs)?;
                             TupleAssignmentRhs::StorageCopy {
                                 access,
                                 source_ty: source_ty?,

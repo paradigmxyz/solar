@@ -260,9 +260,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .type_of_expr(source_expr.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
-            let Some(access) = self.storage_access(source_expr) else {
-                return self.cx.report_unsupported(source_expr.span, "storage access");
-            };
+            let access = self.require_storage_access(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span);
         }
         let value = self.lower_expr(expr)?;

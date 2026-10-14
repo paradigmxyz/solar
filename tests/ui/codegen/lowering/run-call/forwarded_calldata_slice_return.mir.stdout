@@ -276,17 +276,15 @@ fn @_delegate(arg0: calldataslice) -> struct1 [pure] {
     v3 = slice_ptr arg0
     v4 = add v3, 20
     v5 = make_calldata_slice 0, 0
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = make_calldata_slice v4, v7
-    v9 = slice_len arg0
-    v10 = sub v9, 20
-    v11 = slice_ptr v8
-    v12 = slice_len v8
-    v13 = make_calldata_slice v11, v10
-    v14 = insert_value struct1, undef struct1, 0, v2
-    v15 = insert_value struct1, v14, 1, v13
-    ret v15
+    v6 = slice_len v5
+    v7 = make_calldata_slice v4, v6
+    v8 = slice_len arg0
+    v9 = sub v8, 20
+    v10 = slice_ptr v7
+    v11 = make_calldata_slice v10, v9
+    v12 = insert_value struct1, undef struct1, 0, v2
+    v13 = insert_value struct1, v12, 1, v11
+    ret v13
 }
 
 fn @_single(arg0: calldataslice) -> struct3 [pure] {
@@ -297,18 +295,16 @@ fn @_single(arg0: calldataslice) -> struct3 [pure] {
     v3 = slice_ptr arg0
     v4 = add v3, 20
     v5 = make_calldata_slice 0, 0
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = make_calldata_slice v4, v7
-    v9 = slice_len arg0
-    v10 = sub v9, 20
-    v11 = slice_ptr v8
-    v12 = slice_len v8
-    v13 = make_calldata_slice v11, v10
-    v14 = insert_value struct3, undef struct3, 0, v2
-    v15 = insert_value struct3, v14, 1, 7
-    v16 = insert_value struct3, v15, 2, v13
-    ret v16
+    v6 = slice_len v5
+    v7 = make_calldata_slice v4, v6
+    v8 = slice_len arg0
+    v9 = sub v8, 20
+    v10 = slice_ptr v7
+    v11 = make_calldata_slice v10, v9
+    v12 = insert_value struct3, undef struct3, 0, v2
+    v13 = insert_value struct3, v12, 1, 7
+    v14 = insert_value struct3, v13, 2, v11
+    ret v14
 }
 
 fn @internal_dispatcher_p_calldataslice_r_calldataslice(arg0: i256, arg1: calldataslice) -> calldataslice [function_pointer_dispatcher] {

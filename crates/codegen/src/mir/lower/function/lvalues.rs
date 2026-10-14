@@ -17,6 +17,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
     ) -> Option<LValuePlace<'gcx>> {
         let expr = expr.peel_parens();
+        if let ExprKind::YulMember(receiver, name) = &expr.kind {
+            return self.resolve_yul_suffix_place(receiver, *name, expr.span);
+        }
         if let Some(place) = self.resolve_storage_byte_place(expr) {
             return Some(place);
         }
@@ -81,6 +84,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    fn resolve_yul_suffix_place(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        name: Ident,
+        span: Span,
+    ) -> Option<LValuePlace<'gcx>> {
+        let Some(id) = self.cx.gcx.resolved_variable(receiver) else {
+            return self.cx.report_unsupported(span, "Yul member");
+        };
+        let ty = self.cx.gcx.type_of_item(id.into());
+        let storage =
+            self.cx.gcx.hir.variable(id).is_state_variable() || ty.is_ref_at(DataLocation::Storage);
+        let calldata = ty.is_ref_at(DataLocation::Calldata);
+        let function = self.is_external_function_value(receiver);
+        let suffix = match name.name {
+            sym::slot if storage => YulSuffix::StorageSlot,
+            sym::offset if storage => YulSuffix::StorageOffset,
+            sym::offset if calldata => YulSuffix::CalldataOffset,
+            sym::length if calldata => YulSuffix::CalldataLength,
+            kw::Address if function => YulSuffix::FunctionAddress,
+            sym::selector if function => YulSuffix::FunctionSelector,
+            _ => return self.cx.report_unsupported(span, "Yul member"),
+        };
+        Some(LValuePlace::YulSuffix { id, suffix, span })
+    }
+
     pub(super) fn load_lvalue_place(&mut self, place: &LValuePlace<'gcx>) -> Option<ValueId> {
         match *place {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
@@ -108,6 +137,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
+            LValuePlace::YulSuffix { id, suffix, span } => self.load_yul_suffix(id, suffix, span),
         }
     }
 
@@ -147,6 +177,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.store_byte(object, index, value);
                 Some(())
             }
+            LValuePlace::YulSuffix { id, suffix, span } => {
+                self.store_yul_suffix(id, suffix, value, span)
+            }
         }
     }
 
@@ -170,9 +203,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
             })
         {
-            let Some(access) = self.storage_access(receiver) else {
-                return self.cx.report_unsupported(receiver.span, "storage access");
-            };
+            let access = self.require_storage_access(receiver)?;
             let access = self.grow_storage_bytes(access.slot);
             let ty = self.type_of_expr_or_variable(expr)?;
             return Some(LValuePlace::Storage { ty, access, span: expr.span });
@@ -334,95 +365,114 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         source_ty: Option<Ty<'gcx>>,
     ) -> Option<()> {
-        let expr = expr.peel_parens();
-        match &expr.kind {
-            ExprKind::Member(receiver, name)
-                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength) =>
-            {
-                return self.store_yul_member(receiver, *name, value, expr.span);
-            }
-            ExprKind::YulMember(receiver, name) => {
-                return self.store_yul_member(receiver, *name, value, expr.span);
-            }
-            _ => {}
-        }
         let place = self.resolve_lvalue_place(expr)?;
         self.store_lvalue_place_with_source(&place, value, source_ty)
     }
 
-    fn store_yul_member(
+    fn load_yul_suffix(
         &mut self,
-        receiver: &hir::Expr<'_>,
-        name: Ident,
+        id: VariableId,
+        suffix: YulSuffix,
+        span: Span,
+    ) -> Option<ValueId> {
+        match suffix {
+            YulSuffix::StorageSlot => {
+                let access = self.yul_storage_access(id, span)?;
+                Some(access.slot)
+            }
+            YulSuffix::StorageOffset => {
+                let access = self.yul_storage_access(id, span)?;
+                Some(
+                    access
+                        .offset
+                        .unwrap_or_else(|| self.builder.imm(u64::from(access.location.offset))),
+                )
+            }
+            YulSuffix::CalldataOffset => {
+                // value = slice_ptr variable
+                let slice = self.load_variable(id, span)?;
+                Some(self.builder.slice_ptr(slice))
+            }
+            YulSuffix::CalldataLength => {
+                // value = slice_len variable
+                let slice = self.load_variable(id, span)?;
+                Some(self.builder.slice_len(slice))
+            }
+            YulSuffix::FunctionAddress => {
+                // value = and (shr 32, variable), address_mask
+                let pointer = self.load_variable(id, span)?;
+                Some(self.external_function_address(pointer))
+            }
+            YulSuffix::FunctionSelector => {
+                // value = and variable, 0xffffffff
+                let pointer = self.load_variable(id, span)?;
+                let mask = self.builder.imm(u32::MAX);
+                Some(self.builder.and(pointer, mask))
+            }
+        }
+    }
+
+    fn yul_storage_access(&mut self, id: VariableId, span: Span) -> Option<StorageAccess> {
+        self.variable_storage_access(id)
+            .or_else(|| self.cx.report_unsupported(span, "Yul storage member"))
+    }
+
+    fn store_yul_suffix(
+        &mut self,
+        id: VariableId,
+        suffix: YulSuffix,
         value: ValueId,
         span: Span,
     ) -> Option<()> {
-        let receiver_ty = self.type_of_expr_or_variable(receiver)?;
-        if receiver_ty.is_ref_at(DataLocation::Calldata) {
-            // pointer, length = slice(receiver)
-            // slice = name == offset ? (value, length) : (pointer, value)
-            // store(receiver, slice)
-            let base = self.lower_expr(receiver)?;
-            let pointer = self.builder.slice_ptr(base);
-            let length = self.builder.slice_len(base);
-            let slice = match name.name {
-                sym::offset => self.builder.make_slice(value, length, PtrLocation::Calldata),
-                sym::length => self.builder.make_slice(pointer, value, PtrLocation::Calldata),
-                _ => return self.cx.report_unsupported(span, "Yul calldata assignment"),
-            };
-            return self.store_lvalue(receiver, slice);
-        }
-
-        if let TyKind::Fn(function) = receiver_ty.peel_refs().kind
-            && function.is_external()
-        {
-            // pointer = load(receiver)
-            // pointer = name == address ? (value, pointer.selector) : (pointer.address, value)
-            // store(receiver, pointer)
-            let Some(id) = self.cx.gcx.resolved_variable(receiver) else {
-                return self.cx.report_unsupported(span, "Yul function assignment target");
-            };
-            let pointer = self.load_variable(id, span)?;
-            let mask = self.builder.imm(u32::MAX);
-            let value = match name.name {
-                kw::Address => {
-                    let address_mask = self.builder.imm(U256::MAX >> 96);
-                    let address = self.builder.and(value, address_mask);
-                    let shift = self.builder.imm(32);
-                    let address = self.builder.shl(shift, address);
-                    let selector = self.builder.and(pointer, mask);
-                    self.builder.or(address, selector)
-                }
-                sym::selector => {
-                    let selector = self.builder.and(value, mask);
-                    let address_mask = self.builder.not(mask);
-                    let address = self.builder.and(pointer, address_mask);
-                    self.builder.or(address, selector)
-                }
-                _ => return self.cx.report_unsupported(span, "Yul function assignment"),
-            };
-            return self.store_variable(id, value, span);
-        }
-
-        if name.name != sym::slot {
-            return self.cx.report_unsupported(span, "Yul storage assignment");
-        }
-        let Some(id) = self.cx.gcx.resolved_variable(receiver) else {
-            return self.cx.report_unsupported(span, "Yul storage assignment target");
+        let value = match suffix {
+            YulSuffix::StorageSlot if self.cx.gcx.hir.variable(id).is_state_variable() => {
+                return self.cx.report_unsupported(span, "Yul state-variable slot assignment");
+            }
+            YulSuffix::StorageSlot => {
+                self.set_storage_ref_slot(id, value);
+                return Some(());
+            }
+            YulSuffix::StorageOffset => {
+                return self.cx.report_unsupported(span, "Yul storage offset assignment");
+            }
+            YulSuffix::CalldataOffset => {
+                // length = slice_len variable
+                // slice = make_calldata_slice value, length
+                let slice = self.load_variable(id, span)?;
+                let length = self.builder.slice_len(slice);
+                self.builder.make_slice(value, length, PtrLocation::Calldata)
+            }
+            YulSuffix::CalldataLength => {
+                // pointer = slice_ptr variable
+                // slice = make_calldata_slice pointer, value
+                let slice = self.load_variable(id, span)?;
+                let pointer = self.builder.slice_ptr(slice);
+                self.builder.make_slice(pointer, value, PtrLocation::Calldata)
+            }
+            YulSuffix::FunctionAddress => {
+                // address = shl 32, (and value, address_mask)
+                // pointer = or address, (and variable, 0xffffffff)
+                let pointer = self.load_variable(id, span)?;
+                let mask = self.builder.imm(u32::MAX);
+                let address_mask = self.builder.imm(U256::MAX >> 96);
+                let address = self.builder.and(value, address_mask);
+                let shift = self.builder.imm(32);
+                let address = self.builder.shl(shift, address);
+                let selector = self.builder.and(pointer, mask);
+                self.builder.or(address, selector)
+            }
+            YulSuffix::FunctionSelector => {
+                // selector = and value, 0xffffffff
+                // pointer = or (and variable, not 0xffffffff), selector
+                let pointer = self.load_variable(id, span)?;
+                let mask = self.builder.imm(u32::MAX);
+                let selector = self.builder.and(value, mask);
+                let address_mask = self.builder.not(mask);
+                let address = self.builder.and(pointer, address_mask);
+                self.builder.or(address, selector)
+            }
         };
-        if self.cx.gcx.hir.variable(id).is_state_variable() {
-            return self.cx.report_unsupported(span, "Yul state-variable slot assignment");
-        }
-        // storage_ref.slot = value
-        self.storage_refs
-            .entry(id)
-            .or_insert(StorageAccess {
-                slot: value,
-                location: StorageLocation::word(U256::ZERO),
-                offset: None,
-            })
-            .slot = value;
-        Some(())
+        self.store_variable(id, value, span)
     }
 
     pub(super) fn delete_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
