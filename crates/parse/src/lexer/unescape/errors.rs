@@ -70,8 +70,6 @@ pub(crate) fn emit_unescape_error(
     // range of the error inside `lit`
     range: Range<usize>,
     error: EscapeError,
-    // whether the literal is in Yul, which changes the solc error code
-    in_yul: bool,
 ) {
     let last_char = || {
         let c = lit[range.clone()].chars().next_back().unwrap();
@@ -81,7 +79,7 @@ pub(crate) fn emit_unescape_error(
     let mut diag = dcx.err(error.msg()).span(err_span);
     if matches!(error, EscapeError::StrNonAsciiChar | EscapeError::StrControlChar) {
         // solc reports both as "Invalid character in string".
-        diag = diag.code(if in_yul { error_code!(1465) } else { error_code!(8936) });
+        diag = diag.code(error_code!(8936));
     }
     if error == EscapeError::StrControlChar {
         diag = diag.help(format!(

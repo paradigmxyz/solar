@@ -163,20 +163,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
 
         let (mut value, _) =
-            unescape::parse_string_literal(lit.symbol.as_str(), mode, span, self.in_yul, self.sess);
+            unescape::parse_string_literal(lit.symbol.as_str(), mode, span, self.sess);
         let mut extra = vec![];
         while let Some(TokenLit { symbol, kind }) = self.token.lit() {
             if kind != lit.kind {
                 break;
             }
             extra.push((self.token.span, symbol));
-            let (parsed, _) = unescape::parse_string_literal(
-                symbol.as_str(),
-                mode,
-                self.token.span,
-                self.in_yul,
-                self.sess,
-            );
+            let (parsed, _) =
+                unescape::parse_string_literal(symbol.as_str(), mode, self.token.span, self.sess);
             value.to_mut().extend_from_slice(&parsed);
             self.bump();
         }

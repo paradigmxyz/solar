@@ -397,13 +397,8 @@ impl<'gcx> ParsingContext<'gcx> {
     ) -> Option<Arc<SourceFile>> {
         let span = import_path.span;
         let path_str = import_path.value.as_str();
-        let (path_bytes, any_error) = unescape::parse_string_literal(
-            path_str,
-            unescape::StrKind::Str,
-            span,
-            false,
-            self.sess,
-        );
+        let (path_bytes, any_error) =
+            unescape::parse_string_literal(path_str, unescape::StrKind::Str, span, self.sess);
         if any_error {
             return None;
         }

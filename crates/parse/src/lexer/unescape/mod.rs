@@ -43,7 +43,6 @@ pub fn parse_string_literal<'a>(
     src: &'a str,
     kind: StrKind,
     lit_span: Span,
-    in_yul: bool,
     sess: &Session,
 ) -> (Cow<'a, [u8]>, bool) {
     let mut has_error = false;
@@ -54,7 +53,7 @@ pub fn parse_string_literal<'a>(
         let lo = content_start + BytePos(start);
         let hi = lo + BytePos(end - start);
         let span = Span::new(lo, hi);
-        emit_unescape_error(&sess.dcx, src, span, range, error, in_yul);
+        emit_unescape_error(&sess.dcx, src, span, range, error);
     });
     (bytes, has_error)
 }
