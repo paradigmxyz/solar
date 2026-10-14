@@ -47,7 +47,7 @@ mod arithmetic;
 pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
 
 mod checks;
-pub(crate) use checks::{PanicCode, RevertKind, RevertPayload, RevertReason};
+pub(crate) use checks::{CalldataTail, PanicCode, RevertKind, RevertPayload, RevertReason};
 
 mod effects;
 pub(crate) use effects::ControlEffects;
@@ -253,8 +253,12 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
                 let errors_before = gcx.dcx().err_count();
+                let module = lower::lower_contract(gcx, id);
+                // Lowering errors leave error values in the module.
+                if gcx.dcx().err_count() != errors_before {
+                    continue;
+                }
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
                     result = Err(format!(

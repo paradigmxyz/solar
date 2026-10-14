@@ -1,0 +1,8 @@
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/shifted_and_fractional_modulus.sol:LL:CC
+   │
+LL │         return addmod(a, b, ONE >> 4294967295);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

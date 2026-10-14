@@ -1,0 +1,42 @@
+error[2271]: cannot apply builtin operator `<` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_comparisons.sol:LL:CC
+   │
+LL │         -1 < 0;
+   │         ┬─ ━ ─ int_literal[1]
+   │         │
+   ╰╴        int_literal[1]
+
+error[2271]: cannot apply builtin operator `!=` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_comparisons.sol:LL:CC
+   │
+LL │         -1 != 1;
+   │         ┬─ ━━ ─ int_literal[1]
+   │         │
+   ╰╴        int_literal[1]
+
+error[2271]: cannot apply builtin operator `>=` to `int_literal[7]` and `int_literal[9]`
+   ╭▸ ROOT/tests/ui/typeck/literal_comparisons.sol:LL:CC
+   │
+LL │         100 >= -200;
+   │         ┬── ━━ ──── int_literal[9]
+   │         │
+   ╰╴        int_literal[7]
+
+error[2271]: cannot apply builtin operator `<` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_comparisons.sol:LL:CC
+   │
+LL │         -1 + 0 < 0;
+   │         ┬───── ━ ─ int_literal[1]
+   │         │
+   ╰╴        int_literal[1]
+
+error[2271]: cannot apply builtin operator `<=` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/literal_comparisons.sol:LL:CC
+   │
+LL │         -(0.5 * 2) <= 0;
+   │         ┬───────── ━━ ─ int_literal[1]
+   │         │
+   ╰╴        int_literal[1]
+
+error: aborting due to 5 previous errors
+

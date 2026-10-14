@@ -132,9 +132,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let options =
             self.lower_call_options(call_opts, builtin == Builtin::AddressCall, "call option")?;
-        // input = materialize_memory(arg)
-        let data = self.lower_typed_expr(data, memory_ty)?;
-        let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
+        let data = if matches!(
+            self.cx.gcx.const_eval().eval_expr(data),
+            Ok(ConstValue::Bytes(bytes, _)) if bytes.as_byte_str().is_empty()
+        ) {
+            // An empty input is only read, so it needs no allocation.
+            self.zero_slot()
+        } else {
+            // input = materialize_memory(arg)
+            let data = self.lower_typed_expr(data, memory_ty)?;
+            self.materialize_memory_argument(memory_ty, data, data_span)?
+        };
         let kind = match builtin {
             Builtin::AddressCall => AddressCallKind::Call,
             Builtin::AddressStaticcall => AddressCallKind::Static,
@@ -251,14 +259,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.lower_bytes_literal(name.as_str().as_bytes())
                     }
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
-                        // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
                         let kind = if builtin == Builtin::ContractCreationCode {
                             CodeKind::Creation
                         } else {
                             CodeKind::Runtime
                         };
-                        let code = self.contract_code(expr.span, contract_id, kind)?;
-                        Some(Self::build_bytecode(&mut self.builder, code))
+                        self.lower_contract_code(expr.span, contract_id, kind)
                     }
                     _ => unreachable!(),
                 }

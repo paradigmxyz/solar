@@ -1,0 +1,22 @@
+error[2271]: cannot apply builtin operator `<<` to `int_literal[7]` and `int_literal[33]`
+   ╭▸ ROOT/tests/ui/typeck/literal_operation_limits.sol:LL:CC
+   │
+LL │     uint public a = 0x42 << 0x100000000;
+   │                     ┬─── ━━ ─────────── int_literal[33]
+   │                     │
+   │                     int_literal[7]
+   │
+   ╰ note: shift amount is too large
+
+error[2271]: cannot apply builtin operator `>>` to `int_literal[7]` and `int_literal[33]`
+   ╭▸ ROOT/tests/ui/typeck/literal_operation_limits.sol:LL:CC
+   │
+LL │     uint public a = 0x42 >> 0x100000000;
+   │                     ┬─── ━━ ─────────── int_literal[33]
+   │                     │
+   │                     int_literal[7]
+   │
+   ╰ note: shift amount is too large
+
+error: aborting due to 2 previous errors
+

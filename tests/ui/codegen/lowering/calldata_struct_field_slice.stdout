@@ -37,12 +37,12 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     jumpi v29, bb6, bb1
   bb6:
     v30 = calldataload v25
-    v31 = gt v30, 0xffffffffffffffff
-    v32 = add v25, 32
-    v33 = calldatasize
-    v34 = sub v33, v30
-    v35 = sgt v32, v34
-    v36 = or v31, v35
+    v31 = calldatasize
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = add v25, 32
+    v34 = sub v31, v30
+    v35 = sgt v33, v34
+    v36 = or v32, v35
     jumpi v36, bb1, bb7
   bb7:
     v37 = lt v30, 20
@@ -61,10 +61,10 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
   bb9:
     v42 = calldatasize
     v43 = sub v42, v30
-    v44 = sgt v32, v43
+    v44 = sgt v33, v43
     jumpi v44, bb1, bb10
   bb10:
-    v45 = calldataload v32
+    v45 = calldataload v33
     v46 = and v45, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v47 = shr 96, v46
     jump bb4
@@ -121,17 +121,17 @@ fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
     jumpi v11, bb3, bb1
   bb3:
     v12 = calldataload v7
-    v13 = gt v12, 0xffffffffffffffff
-    v14 = add v7, 32
-    v15 = calldatasize
-    v16 = sub v15, v12
-    v17 = sgt v14, v16
-    v48 = or v13, v17
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    v15 = add v7, 32
+    v16 = sub v13, v12
+    v17 = sgt v15, v16
+    v48 = or v14, v17
     v21 = lt v12, 32
     v49 = or v48, v21
     jumpi v49, bb1, bb4
   bb4:
-    v23 = calldataload v14
+    v23 = calldataload v15
     mstore 128, v23
     returndata 128, 32
   bb1:
@@ -155,52 +155,52 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     jumpi v10, bb5, bb3
   bb5:
     v12 = calldataload v6
-    v13 = gt v12, 0xffffffffffffffff
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
     v15 = add v6, 32
-    v16 = calldatasize
-    v17 = sub v16, v12
-    v18 = sgt v15, v17
-    v78 = or v13, v18
-    jumpi v78, bb3, bb6
+    v16 = sub v13, v12
+    v17 = sgt v15, v16
+    v74 = or v14, v17
+    jumpi v74, bb3, bb6
   bb6:
-    v22 = lt v12, 20
-    jumpi v22, bb2, bb1
+    v20 = lt v12, 20
+    jumpi v20, bb2, bb1
   bb1:
-    v25 = calldatasize
-    v26 = sub v25, v1
-    v27 = slt v26, 32
-    jumpi v27, bb3, bb7
+    v23 = calldatasize
+    v24 = sub v23, v1
+    v25 = slt v24, 32
+    jumpi v25, bb3, bb7
   bb7:
-    v30 = calldatasize
-    v31 = sub v30, arg0
-    v32 = sub v31, 31
-    v33 = slt v5, v32
-    jumpi v33, bb8, bb3
+    v28 = calldatasize
+    v29 = sub v28, arg0
+    v30 = sub v29, 31
+    v31 = slt v5, v30
+    jumpi v31, bb8, bb3
   bb8:
-    v39 = calldatasize
-    v40 = sub v39, v12
-    v41 = sgt v15, v40
-    v50 = sub v12, 20
-    v51 = add v15, 20
-    v56 = calldatasize
-    v57 = sub v56, v50
-    v58 = sgt v51, v57
-    v79 = or v41, v58
-    jumpi v79, bb3, bb9
+    v34 = calldatasize
+    v37 = sub v34, v12
+    v38 = sgt v15, v37
+    v46 = sub v12, 20
+    v47 = add v15, 20
+    v51 = calldatasize
+    v53 = sub v51, v46
+    v54 = sgt v47, v53
+    v75 = or v38, v54
+    jumpi v75, bb3, bb9
   bb9:
-    v60 = add v50, 63
-    v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = mload 64 !metadata(memory=scratch)
-    v77 = add v76, v63
-    mstore 64, v77 !metadata(memory=scratch)
-    mstore v76, v50
-    v68 = add v76, 32
-    calldatacopy v68, v51, v50
-    v65 = keccak256 v68, v50
+    v56 = add v46, 63
+    v59 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = mload 64 !metadata(memory=scratch)
+    v73 = add v72, v59
+    mstore 64, v73 !metadata(memory=scratch)
+    mstore v72, v46
+    v64 = add v72, 32
+    calldatacopy v64, v47, v46
+    v61 = keccak256 v64, v46
     jump bb2
   bb2:
-    v66 = phi [bb6: 0], [bb9: v65]
-    ret v66
+    v62 = phi [bb6: 0], [bb9: v61]
+    ret v62
   bb3:
     revert 0, 0
 }

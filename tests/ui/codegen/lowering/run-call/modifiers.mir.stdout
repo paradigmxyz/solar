@@ -54,10 +54,10 @@ fn @calldataBytes(arg0: calldataslice) -> memptr [selector=0x7965815f, pure, abi
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = slice_ptr arg0
     v2 = slice_len arg0
-    v3 = gt v2, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v3
-    v4 = calldatasize
-    v5 = sub v4, v2
+    v3 = calldatasize
+    v4 = gt v2, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v4
+    v5 = sub v3, v2
     v6 = sgt v1, v5
     icall revert_if<calldata_tail_too_short>, v6
     v7 = slice_len arg0

@@ -1,0 +1,16 @@
+error[5462]: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_division_by_zero.sol:LL:CC
+   │
+LL │     function f(uint[X / Z] memory) public {}
+   ╰╴                    ━━━━━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_division_by_zero.sol:LL:CC
+   │
+LL │     function g(uint[true ? 1 : X / Z] memory) public {}
+   │                     ━━━━━━━━━━━┬────
+   │                                │
+   ╰╴                               evaluation of constant value failed here
+
+error: aborting due to 2 previous errors
+

@@ -183,6 +183,41 @@ just as a plain comment can.
 Coverage: `tests/ui/lexer/direction_override/markers.sol`;
 [#1844](https://github.com/paradigmxyz/solar/issues/1844).
 
+### PARSE-004: Fixed-point types
+
+Status: intentional.
+
+Difference: solc accepts `fixed`, `ufixed`, `fixedMxN` and `ufixedMxN` types in
+declarations, conversions, operators, the ABI and storage layouts, and fails
+only when code generation reaches a fixed-point operation. It also compares
+fractional literals, such as `0.3 < 0.5`, through their fixed-point mobile
+types. Solar rejects every fixed-point type during parsing and rejects every
+comparison of a fractional literal. Valid fixed-point type names stay keywords,
+like in solc.
+
+Rationale: solc cannot generate code for fixed-point operations, so we do not
+represent fixed-point types.
+
+Coverage: `tests/ui/parser/fixed_point_type.sol`,
+`tests/ui/parser/fixed_point_type_default.sol`,
+`tests/ui/parser/fixed_mxn_types.sol`,
+`tests/ui/parser/fixed_mxn_declaration_names.sol`, and
+`tests/ui/typeck/rational_literal_operators.sol`; the upstream fixtures that use
+fixed-point types are excluded from solc parity testing.
+
+### PARSE-005: Yul number literals
+
+Status: intentional.
+
+Difference: solc accepts only plain decimal and hexadecimal integers in Yul and
+inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828. Solar
+accepts any number literal whose value is an integer, as in Solidity.
+
+Rationale: these literals have one obvious value, so rejecting them only makes
+the language harder to use.
+
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings
@@ -368,6 +403,21 @@ Rationale: the merged `solc` range is invalid and hides unreachable code.
 
 Coverage: `tests/ui/typeck/control_flow/unreachable/cross_source.sol`.
 
+### TYPECK-010: Order of constant dependencies across sources
+
+Status: parity debt.
+
+Difference: when a constant reaches cycles through dependencies declared in
+different sources, error 6161 names the first of them. `solc` orders
+dependencies by AST ID, which follows parse order: the input files by name,
+then each newly imported source. `solar` orders them by declaration after
+sorting sources by imports, so an imported source comes first.
+
+Rationale: `solar` does not track which sources were input files, which `solc`
+needs to number its AST.
+
+Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
+
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.
@@ -456,6 +506,33 @@ deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 
+### TYPECK-020: Array lengths that solc does not evaluate
+
+Status: intentional.
+
+Difference: `solar` accepts array lengths whose value its constant evaluator
+computes but `solc`'s does not, which `solc` rejects with error 5462:
+conversions such as `uint8(3)`, conditionals, `type(T).max`, member accesses
+such as `L.C`, builtins such as `keccak256`, and constants declared after the
+array type. It also accepts chains of more than 32 constants, which `solc`
+rejects with error 5210, and computes typed left shifts that drop bits and `~`
+of unsigned values like the EVM, which `solc` rejects with errors 2643 and
+3667.
+
+When `solc` checks constant operands for a division by zero (1211) or a zero
+`addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
+(2643, 3667, 6020), long chains (5210) and `erc7201` arguments that are not
+strings (9796) it finds in them. `solar` does not.
+
+Rationale: the values are well defined, and codegen folds the same
+expressions. Errors in a value that `solc` does not compute get `solc`'s code
+for it, 5462, except for constants declared after the array type, which `solc`
+does not compute either.
+
+Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
+`tests/ui/typeck/array_len_eval_errors.sol` and
+`tests/ui/typeck/division_by_zero_solc_values.sol`.
+
 ### TYPECK-021: Repeated Yul multi-assignment targets
 
 Status: intentional.
@@ -472,20 +549,24 @@ Coverage:
 
 ## Contract-Level Checks
 
-### CONTRACT-001: Conditionals in storage layout base slots
+### CONTRACT-001: Base slots that solc does not evaluate
 
 Status: intentional.
 
-Difference: `solar` accepts conditionals in the base slot of a storage layout
-specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
-`solc` rejects them with error 1505 because its constant evaluator does not
-support conditionals.
+Difference: `solar` accepts base slots of storage layout specifiers whose value
+its constant evaluator computes but `solc`'s does not, such as conditionals
+(`layout at true ? 42 : 94`), conversions, member accesses and builtins, and
+the constants they read. `solc` rejects them with error 1505, chains of
+more than 32 constants with error 5210, and typed left shifts that drop bits
+and `~` of unsigned values, which `solar` computes like the EVM, with errors
+2643 and 3667.
 
-Rationale: our constant evaluator folds conditionals, so the base slot has a
-well-defined value.
+Rationale: the base slot has a well-defined value. Errors in a value that
+`solc` does not compute get `solc`'s code for it, 1505.
 
-Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
-`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol` and
+`tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
+upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
@@ -533,27 +614,6 @@ Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
   and EIP-170 parity for the rest of the corpus.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
-
-### CODEGEN-003: Integer literal expressions lose arbitrary precision during lowering
-
-- ID: CODEGEN-003
-- Status: intentional
-- Difference: `solc` keeps a number-literal expression at arbitrary precision
-  until conversion to a non-literal type. `solar`'s type checker computes the
-  same literal-only expression with `BigInt` and retains an `IntLiteral` type,
-  but function lowering ignores that computed value. It recursively emits
-  `U256` EVM operations for its leaves and operators. An intermediate that
-  exceeds an EVM word can therefore wrap or, when given a checked integer type
-  by lowering, revert with `Panic(0x11)` before a later literal operation
-  reduces it. `(2**255 + 2**255) % 7` is one reproducer: solc returns `2`;
-  solar reverts. The divergence also covers literal-only expressions with
-  oversized intermediates followed by division, comparison, subtraction,
-  shifts, or another operation that makes the final result representable.
-- Rationale: this codegen path intentionally lowers function-body operations
-  as EVM-width operations, even when type checking has evaluated an all-literal
-  tree. We do not materialize the type checker's literal result here.
-- Coverage: `symbolic-audit/literal_addmod_fold.sol`; upstream source
-  `testdata/solidity/test/libsolidity/semanticTests/arithmetics/addmod_mulmod.sol`.
 
 ### CODEGEN-004: Public array getters return a panic instead of an empty revert
 
@@ -735,3 +795,22 @@ Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
 - Rationale: the packed word cannot hold two raw 256-bit values.
 - Coverage:
   `tests/ui/codegen/lowering/run-call/yul_function_pointer_suffix_dirty_bits.sol`.
+
+### CODEGEN-013: Constants are values
+
+- ID: CODEGEN-013
+- Status: intentional
+- Difference: `solc` evaluates the initializer of a constant at every use, in
+  the arithmetic mode of the use, so a use can revert, as with
+  `uint8 constant C = A + 1` where `A` is `255`, or wrap inside `unchecked`.
+  `solar` evaluates every constant once at compile time and uses its value.
+  A constant that has no value, because its initializer reverts or cannot be
+  evaluated at compile time, such as `keccak256(type(C).creationCode)`, is an
+  error at its first use, even inside `unchecked`. Both branches of a
+  conditional must have values, as must every operand of `&&` and `||`.
+  Unused constants are not reported.
+- Rationale: a constant is one value, and computing it once is cheaper than
+  running its initializer at every use. Constants that revert at every use are
+  mistakes.
+- Coverage: `tests/ui/codegen/lowering/constant_without_value.sol` and
+  `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`.

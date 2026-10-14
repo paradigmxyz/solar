@@ -63,10 +63,10 @@ fn @mixedBytes(arg0: calldataslice) -> struct2 [selector=0x48f52f2f, pure, abi_p
     set_memory_object_len memorybytes, v16, v11
     v17 = slice_ptr v10
     v18 = slice_len v10
-    v19 = gt v18, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v19
-    v20 = calldatasize
-    v21 = sub v20, v18
+    v19 = calldatasize
+    v20 = gt v18, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v20
+    v21 = sub v19, v18
     v22 = sgt v17, v21
     icall revert_if<calldata_tail_too_short>, v22
     memory_object_copy_from_slice memorybytes, v16, v10
@@ -98,10 +98,10 @@ fn @mixedString(arg0: calldataslice) -> struct4 [selector=0x9824992c, pure, abi_
     set_memory_object_len memorybytes, v15, v10
     v16 = slice_ptr v9
     v17 = slice_len v9
-    v18 = gt v17, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = calldatasize
-    v20 = sub v19, v17
+    v18 = calldatasize
+    v19 = gt v17, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v19
+    v20 = sub v18, v17
     v21 = sgt v16, v20
     icall revert_if<calldata_tail_too_short>, v21
     memory_object_copy_from_slice memorybytes, v15, v9

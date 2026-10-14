@@ -61,34 +61,32 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v46 = eq v45, false
     icall revert_if<invalid_calldata_tail_offset>, v46
     v47 = calldataload v41
-    v48 = gt v47, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v48
-    v49 = mul v47, 1
+    v48 = calldatasize
+    v49 = gt v47, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v49
     v50 = add v41, 32
-    v51 = calldatasize
-    v52 = sub v51, v49
-    v53 = sgt v50, v52
-    icall revert_if<calldata_tail_too_short>, v53
-    v54 = add v41, 32
-    v55 = make_calldata_slice v54, v47
-    v56 = slice_ptr v55
-    v57 = slice_len v55
-    v58 = gt v57, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v58
-    v59 = calldatasize
-    v60 = sub v59, v57
-    v61 = sgt v56, v60
-    icall revert_if<calldata_tail_too_short>, v61
-    v62 = slice_len v55
-    v63 = add v62, 63
-    v64 = lt v63, v62
-    icall panic_if<0x41>, v64
-    v65 = not 31
-    v66 = and v63, v65
-    v67 = alloc memorybytes, exact, uninitialized, infallible, v66
-    set_memory_object_len memorybytes, v67, v62
-    memory_object_copy_from_slice memorybytes, v67, v55
-    v68 = insert_value struct0, undef struct0, 0, v18
-    v69 = insert_value struct0, v68, 1, v67
-    ret v69
+    v51 = sub v48, v47
+    v52 = sgt v50, v51
+    icall revert_if<calldata_tail_too_short>, v52
+    v53 = make_calldata_slice v50, v47
+    v54 = slice_ptr v53
+    v55 = slice_len v53
+    v56 = calldatasize
+    v57 = gt v55, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v57
+    v58 = sub v56, v55
+    v59 = sgt v54, v58
+    icall revert_if<calldata_tail_too_short>, v59
+    v60 = slice_len v53
+    v61 = add v60, 63
+    v62 = lt v61, v60
+    icall panic_if<0x41>, v62
+    v63 = not 31
+    v64 = and v61, v63
+    v65 = alloc memorybytes, exact, uninitialized, infallible, v64
+    set_memory_object_len memorybytes, v65, v60
+    memory_object_copy_from_slice memorybytes, v65, v53
+    v66 = insert_value struct0, undef struct0, 0, v18
+    v67 = insert_value struct0, v66, 1, v65
+    ret v67
 }

@@ -154,12 +154,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v16 = icall returndata_bytes<>
     icall require<short_string>, v15, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
     v17 = abi_decode [bytes32], v16
-    v18 = not 31
-    v19 = and 319, v18
-    v20 = alloc memorybytes, exact, zeroed, panic, v19
-    set_memory_object_len memorybytes, v20, 256
-    v21 = keccak256_bytes v20
-    v22 = eq v17, v21
-    icall require<short_string>, v22, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    v18 = eq v17, 0xd397b3b043d87fcd6fad1291ff0bfd16401c274896d8c63a923727f077b8e0b5
+    icall require<short_string>, v18, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

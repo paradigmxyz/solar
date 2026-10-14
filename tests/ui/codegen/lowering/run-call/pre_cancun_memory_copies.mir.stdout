@@ -23,9 +23,8 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v11 = slice_ptr v10
     v12 = slice_len v10
     v13 = keccak256 v11, v12
-    v14 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
-    v15 = eq v13, v14
-    ret v15
+    v14 = eq v13, 0x62e243217b24f0adeab63b697d9c38d64bd4cbf540c9915772ddc377b45b411c
+    ret v14
 }
 
 fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -68,12 +67,11 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
   bb11:
     jump bb12
   bb10:
-    v29 = shl 248, 33
-    v30 = eq v19, v29
+    v29 = eq v19, 0x2100000000000000000000000000000000000000000000000000000000000000
     jump bb12
   bb12:
-    v31 = phi [bb10: v30], [bb11: false]
-    ret v31
+    v30 = phi [bb10: v29], [bb11: false]
+    ret v30
   bb4:
     v7 = checked_add u256, v4, 1
     v8 = trunc i256 v7 to i8

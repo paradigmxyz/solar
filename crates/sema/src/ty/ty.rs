@@ -452,6 +452,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -518,6 +519,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -648,6 +650,11 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
                 | TyKind::IntLiteral(..)
         )
+    }
+
+    /// Returns `true` if the type is an integer or fractional number literal.
+    pub fn is_number_literal(self) -> bool {
+        matches!(self.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
     }
 
     /// Returns `true` if the type is a signed integer, including negative literals.
@@ -1184,10 +1191,11 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::CallOptions(_) => return None,
-            TyKind::IntLiteral(neg, bits, _) => {
+            // solc gives fractions a fixed-point mobile type, which we do not support.
+            TyKind::CallOptions(_) | TyKind::RationalLiteral => return None,
+            TyKind::IntLiteral(negative, bits, _) => {
                 let size = TypeSize::try_new_literal_bits(bits)?;
-                if neg { gcx.types.int_(size) } else { gcx.types.uint_(size) }
+                if negative { gcx.types.int_(size) } else { gcx.types.uint_(size) }
             }
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
             TyKind::Slice(ty)
@@ -1286,12 +1294,17 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, usize),
 
-    /// Any integer or fixed-point number literal.
+    /// Any integer number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
     ///
-    /// Literal arithmetic is exact, so the minimum bits can exceed 256. Such literals have no
-    /// mobile type and do not convert to any integer type.
+    /// Literal arithmetic can produce integers wider than any integer type. They have
+    /// no mobile type and only combine with other literals.
     IntLiteral(bool, u16, Option<TypeSize>),
+
+    /// Any fractional number literal, such as `0.5` or `1 / 3`.
+    ///
+    /// Fractional values only exist in literal arithmetic, and do not convert to any integer type.
+    RationalLiteral,
 
     /// An ephemeral function value with call options.
     CallOptions(Ty<'gcx>),
@@ -1507,6 +1520,7 @@ impl TyFlags {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Enum(_)

@@ -11,8 +11,9 @@ contract C {
     uint8 constant S8 = 8;
 
     function tooWide() public pure {
-        uint256[1 << S256] memory a; //~ ERROR: failed to evaluate constant: arithmetic overflow
-        uint256[(1 << S256) >> S256] memory b; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        // Like the EVM, the shifts drop the bit. solc rejects them with error 2643; see TYPECK-020.
+        uint256[1 << S256] memory a; //~ ERROR: array length must be greater than zero
+        uint256[(1 << S256) >> S256] memory b; //~ ERROR: array length must be greater than zero
         uint256[2 ** S256] memory c; //~ ERROR: failed to evaluate constant: arithmetic overflow
         a;
         b;

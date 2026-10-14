@@ -1,0 +1,34 @@
+error[6020]: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     function f(uint[(1 / 0) + 1] memory) public {}
+   │                     ━┬────━━━━━
+   │                      │
+   ╰╴                     evaluation of constant value failed here
+
+error[6020]: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │     function g(uint[true ? 1 : 1 / 0] memory) public {}
+   │                     ━━━━━━━━━━━┬────
+   │                                │
+   ╰╴                               evaluation of constant value failed here
+
+error[6020]: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │         uint[(1 / 0) + 1] memory a;
+   │              ━┬────━━━━━
+   │               │
+   ╰╴              evaluation of constant value failed here
+
+error[6020]: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/array_len_literal_errors.sol:LL:CC
+   │
+LL │         uint[true ? 1 : 1 / 0] memory b;
+   │              ━━━━━━━━━━━┬────
+   │                         │
+   ╰╴                        evaluation of constant value failed here
+
+error: aborting due to 4 previous errors
+
