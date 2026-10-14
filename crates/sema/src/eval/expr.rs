@@ -25,11 +25,7 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
     let var = gcx.hir.variable(id);
     // The parser reports a constant without an initializer, so an error was already emitted.
     let Some(init) = var.initializer else {
-        return Err(match gcx.dcx().has_errors() {
-            Err(guar) => EE::AlreadyEmitted(guar),
-            Ok(()) => EE::UnsupportedExpr,
-        }
-        .spanned(var.span));
+        return Err(already_emitted(gcx).spanned(var.span));
     };
     let Folded { value, solc } = gcx.const_eval_result(init).clone()?;
     let Some(ty) = ValueTy::from_hir(&var.ty) else {
@@ -169,7 +165,11 @@ fn eval_member(gcx: Gcx<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult
                 }
                 Some(ValueTy::Enum(id)) => {
                     let len = gcx.hir.enumm(id).variants.len() as u32;
-                    ConstValue::Enum(id, if max { len - 1 } else { 0 })
+                    // An enum without variants is already an error.
+                    let Some(last) = len.checked_sub(1) else {
+                        return Err(already_emitted(gcx).into());
+                    };
+                    ConstValue::Enum(id, if max { last } else { 0 })
                 }
                 _ => return Err(EE::UnsupportedExpr.into()),
             }
@@ -354,4 +354,12 @@ fn signature_needs_constants(gcx: Gcx<'_>, id: hir::ItemId) -> bool {
         .iter()
         .chain(returns)
         .any(|&var| needs_constants(gcx, &gcx.hir.variable(var).ty, &mut seen))
+}
+
+/// Returns the error for an expression that an earlier error already rejects.
+fn already_emitted(gcx: Gcx<'_>) -> EE {
+    match gcx.dcx().has_errors() {
+        Err(guar) => EE::AlreadyEmitted(guar),
+        Ok(()) => EE::UnsupportedExpr,
+    }
 }

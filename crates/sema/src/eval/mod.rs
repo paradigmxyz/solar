@@ -228,7 +228,7 @@ impl<'gcx> Gcx<'gcx> {
             return self.alloc(Err(EvalErrorKind::Cycle.spanned(span)));
         }
         let references = self.constant_references(id);
-        if references.iter().all(|&(dep, _)| dep != id && cache.get(&dep).is_some()) {
+        if references.iter().all(|&(dep, _)| dep != id && self.is_evaluated(dep)) {
             let result = self.eval_constant(id);
             return cache.insert(id, |_| Box::new(result));
         }
@@ -263,7 +263,7 @@ impl<'gcx> Gcx<'gcx> {
                 None => self.constant_references(id),
             };
             for (dep, ident) in references {
-                if cache.get(&dep).is_some() {
+                if self.is_evaluated(dep) {
                     continue;
                 }
                 let dep = *index.entry(dep).or_insert_with(|| {
@@ -300,6 +300,16 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
+    /// Returns whether the constant `id` is evaluated and not on a cycle.
+    ///
+    /// Another thread may have evaluated part of a cycle, so the cycle's constants are walked again
+    /// to find the whole cycle.
+    fn is_evaluated(self, id: hir::VariableId) -> bool {
+        self.const_eval_cache.vars.get(&id).is_some_and(|result| {
+            !matches!(result, Err(EvalError { kind: EvalErrorKind::Cycle, .. }))
+        })
+    }
+
     /// Returns the constants that the initializer of the constant `id` names, and whether it names
     /// each by identifier rather than by member access.
     fn constant_references(self, id: hir::VariableId) -> Vec<(hir::VariableId, bool)> {
@@ -316,7 +326,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the constant variable that the given identifier or member access names.
-    pub(crate) fn constant_reference(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
+    pub fn constant_reference(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
         self.resolve_path_expr(expr)?
             .as_variable()
             .filter(|&id| self.hir.variable(id).is_constant())

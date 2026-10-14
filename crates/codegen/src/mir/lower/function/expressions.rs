@@ -381,10 +381,8 @@ fn fits_inline<'gcx>(gcx: Gcx<'gcx>, initializer: &'gcx hir::Expr<'gcx>) -> bool
                 return ControlFlow::Break(());
             }
             self.budget -= 1;
-            if let Some(id) = expr.as_variable()
-                && let variable = self.gcx.hir.variable(id)
-                && variable.is_constant()
-                && let Some(initializer) = variable.initializer
+            if let Some(id) = self.gcx.constant_reference(expr)
+                && let Some(initializer) = self.gcx.hir.variable(id).initializer
                 && self.gcx.const_eval_var(id).is_err()
             {
                 self.visit_expr(initializer)?;

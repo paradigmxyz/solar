@@ -916,7 +916,7 @@ impl IntScalar {
         }
         let shift = u64::try_from(r.as_u256().ok_or(EE::ArithmeticOverflow)?)
             .map_err(|_| EE::ArithmeticOverflow)?;
-        let bits = Self::bits(&self.data);
+        let bits = self.data.magnitude().bits();
         if shift > MAX_INTERMEDIATE_BITS.saturating_sub(bits) {
             return Err(EE::ArithmeticOverflow);
         }

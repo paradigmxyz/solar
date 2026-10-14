@@ -5,6 +5,7 @@
 //@ run-call: ConstantChainExpansion::freshCopy => true
 //@ run-call: ConstantChainHelpers::head => true
 //@ run-call: ConstantChainHelpers::uncheckedUse => 0
+//@ run-call: ConstantChainMembers::last => 0
 //@ run-call-fail: ConstantChainHelpers::checkedUse() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 
 // Each constant names the previous one twice, so inlining every use would lower `a0` 4096 times.
@@ -73,5 +74,27 @@ contract ConstantChainHelpers {
 
     function checkedUse() external pure returns (uint8) {
         return WRAPS;
+    }
+}
+
+// Constants named by member access count towards the bound too.
+contract ConstantChainMembers {
+    // A typed shift that leaves its type does not fold.
+    uint8 constant X0 = uint8(1) << 8;
+    uint8 constant X1 = ConstantChainMembers.X0 | ConstantChainMembers.X0;
+    uint8 constant X2 = ConstantChainMembers.X1 | ConstantChainMembers.X1;
+    uint8 constant X3 = ConstantChainMembers.X2 | ConstantChainMembers.X2;
+    uint8 constant X4 = ConstantChainMembers.X3 | ConstantChainMembers.X3;
+    uint8 constant X5 = ConstantChainMembers.X4 | ConstantChainMembers.X4;
+    uint8 constant X6 = ConstantChainMembers.X5 | ConstantChainMembers.X5;
+    uint8 constant X7 = ConstantChainMembers.X6 | ConstantChainMembers.X6;
+    uint8 constant X8 = ConstantChainMembers.X7 | ConstantChainMembers.X7;
+    uint8 constant X9 = ConstantChainMembers.X8 | ConstantChainMembers.X8;
+    uint8 constant X10 = ConstantChainMembers.X9 | ConstantChainMembers.X9;
+
+    // MIR-LABEL: fn @last()
+    // MIR: icall @constant_value_[[X10:[0-9]+]]
+    function last() external pure returns (uint8) {
+        return X10;
     }
 }
