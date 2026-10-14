@@ -68,9 +68,8 @@ fn share_checked_allocations(module: &mut Module) -> bool {
 
     let helpers = counts
         .into_iter()
-        .filter_map(|(alignment, count)| {
-            (count >= 2).then(|| (alignment, create_checked_alloc(module, alignment)))
-        })
+        .filter(|(_, count)| *count >= 2)
+        .map(|(alignment, _)| (alignment, create_checked_alloc(module, alignment)))
         .collect::<FxHashMap<_, _>>();
     if helpers.is_empty() {
         return false;
@@ -103,6 +102,7 @@ fn share_checked_allocations(module: &mut Module) -> bool {
                 // object = icall checked_alloc size
                 let object = builder.icall(helper, vec![size], MirType::MemPtr);
                 if semantics.initialization == AllocationInitialization::Zeroed {
+                    let size = aligned_size(&mut builder, size, semantics.alignment).0;
                     builder.memory_zero(object, size);
                 }
                 replacements.insert(result, object);

@@ -3,18 +3,12 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 192
-    v32 = lt v31, v30
-    v33 = gt v31, 0xffffffffffffffff
-    v34 = or v32, v33
-    jumpi v34, bb2, bb1
-  bb1:
-    mstore 64, v31 !metadata(memory=scratch)
-    v36 = calldatasize
-    calldatacopy v30, v36, 192
-    mstore v30, 160
-    v29 = add v30, 32
+    v30 = icall @alloc, 192
+    v31 = ptrtoint memptr v30 to i256
+    v32 = calldatasize
+    calldatacopy v31, v32, 192
+    mstore v31, 160
+    v29 = add v31, 32
     mstore v29, 1
     v19 = add v29, 32
     mstore v19, 28
@@ -26,29 +20,19 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v6 = gas
     v8 = staticcall v6, 1, v29, 128, v5, 32
     v10 = mload v5
-    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v37
+    v33 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v33
     returndata 128, 32
-  bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 192
-    v32 = lt v31, v30
-    v33 = gt v31, 0xffffffffffffffff
-    v34 = or v32, v33
-    jumpi v34, bb2, bb1
-  bb1:
-    mstore 64, v31 !metadata(memory=scratch)
-    v36 = calldatasize
-    calldatacopy v30, v36, 192
-    mstore v30, 160
-    v29 = add v30, 32
+    v30 = icall @alloc, 192
+    v31 = ptrtoint memptr v30 to i256
+    v32 = calldatasize
+    calldatacopy v31, v32, 192
+    mstore v31, 160
+    v29 = add v31, 32
     mstore v29, 0
     v19 = add v29, 32
     mstore v19, 0
@@ -60,13 +44,9 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v6 = gas
     v8 = staticcall v6, 1, v29, 128, v5, 32
     v10 = mload v5
-    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v37
+    v33 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v33
     returndata 128, 32
-  bb2:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
@@ -132,4 +112,22 @@ fn @entry() [entry] {
     tail_call @recoverInvalid
   bb10:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> memptr {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to memptr
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

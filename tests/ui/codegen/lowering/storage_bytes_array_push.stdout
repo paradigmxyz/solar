@@ -11,8 +11,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v68 = gt v65, 0xffffffffffffffff
     v69 = gt v67, v63
     v70 = or v68, v69
-    v103 = or v64, v70
-    jumpi v103, bb15, bb16
+    v98 = or v64, v70
+    jumpi v98, bb15, bb16
   bb16:
     v72 = calldataload v66
     v74 = add v72, 63
@@ -20,20 +20,14 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     jumpi v75, bb17, bb18
   bb18:
     v77 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v97 = mload 64 !metadata(memory=scratch)
-    v98 = add v97, v77
-    v99 = lt v98, v97
-    v100 = gt v98, 0xffffffffffffffff
-    v101 = or v99, v100
-    jumpi v101, bb17, bb20
-  bb20:
-    mstore 64, v98 !metadata(memory=scratch)
-    mstore v97, v72
+    v97 = icall @alloc, v77
+    v96 = ptrtoint memptr v97 to i256
+    mstore v96, v72
     v79 = sub v63, v67
     v80 = gt v72, v79
     jumpi v80, bb15, bb19
   bb19:
-    v90 = add v97, 32
+    v90 = add v96, 32
     calldatacopy v90, v67, v72
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -54,7 +48,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v13 = eq v7, v12
     jumpi v13, bb4, bb5
   bb5:
-    v14 = mload v97
+    v14 = mload v96
     v18 = add v11, 31
     v19 = shr 5, v18
     v20 = add v14, 31
@@ -254,33 +248,26 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v11 = shr 5, v10
     v12 = add v7, 63
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = mload 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v33 to memptr !metadata(memory=scratch)
-    v34 = add v33, v15
-    v35 = lt v34, v33
-    v36 = gt v34, 0xffffffffffffffff
-    v37 = or v35, v36
-    jumpi v37, bb9, bb8
-  bb8:
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v7
+    v33 = icall @alloc, v15
+    v32 = ptrtoint memptr v33 to i256
+    mstore v32, v7
     jumpi v3, bb4, bb3
   bb3:
     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v27 = add v33, 32
+    v27 = add v32, 32
     mstore v27, v17
     jump bb5
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     v25 = keccak256 0, 32 !metadata(memory=scratch)
-    v30 = add v33, 32
+    v30 = add v32, 32
     jump bb6
   bb6:
     v19 = phi [bb4: 0], [bb7: v24]
     v20 = lt v19, v11
     jumpi v20, bb7, bb5
   bb5:
-    ret v16
+    ret v33
   bb7:
     v21 = add v25, v19
     v22 = sload v21 !metadata(storage=symbolic(v21))
@@ -289,10 +276,6 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     mstore v31, v22
     v24 = add v19, 1
     jump bb6
-  bb9:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb1:
     tail_call @revert_stub.7
 }
@@ -350,4 +333,22 @@ fn @entry() [entry] {
     tail_call @pushEmpty
   bb6:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> memptr {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to memptr
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

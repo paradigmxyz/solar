@@ -17,31 +17,25 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v75 = eq v74, 0
     jumpi v75, bb13, bb10
   bb13:
-    v91 = mload 64 !metadata(memory=scratch)
-    v92 = add v91, 64
-    v93 = lt v92, v91
-    v94 = gt v92, 0xffffffffffffffff
-    v95 = or v93, v94
-    jumpi v95, bb15, bb14
-  bb14:
-    mstore 64, v92 !metadata(memory=scratch)
-    v97 = calldatasize
-    calldatacopy v91, v97, 64
-    mstore v91, 1
+    v91 = icall @alloc, 64
+    v92 = ptrtoint memptr v91 to i256
+    v93 = calldatasize
+    calldatacopy v92, v93, 64
+    mstore v92, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v83 = add v91, 32
+    v83 = add v92, 32
     mstore v83, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     v89 = ptrtoint memptr v5 to i256
     mstore v89, arg0
     v85 = add v89, 32
-    mstore v85, v91
+    mstore v85, v92
     v9 = sload 0 !metadata(storage=slot(0))
     v11 = and v9, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v12 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v13 = or v11, v12
     sstore 0, v13 !metadata(storage=slot(0))
-    v17 = mload v91
+    v17 = mload v92
     v18 = sload 1 !metadata(storage=slot(1))
     v19 = gt v18, v17
     jumpi v19, bb1, bb2
@@ -111,10 +105,6 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v36 = add v20, 1
     v66 = lt v36, v18
     jump bb3
-  bb15:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb10:
     revert 0, 0
 }
@@ -135,25 +125,19 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v81 = eq v80, 0
     jumpi v81, bb15, bb12
   bb15:
-    v98 = mload 64 !metadata(memory=scratch)
-    v99 = add v98, 64
-    v100 = lt v99, v98
-    v101 = gt v99, 0xffffffffffffffff
-    v102 = or v100, v101
-    jumpi v102, bb10, bb16
-  bb16:
-    mstore 64, v99 !metadata(memory=scratch)
-    v104 = calldatasize
-    calldatacopy v98, v104, 64
-    mstore v98, 1
+    v98 = icall @alloc, 64
+    v99 = ptrtoint memptr v98 to i256
+    v100 = calldatasize
+    calldatacopy v99, v100, 64
+    mstore v99, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v92 = add v98, 32
+    v92 = add v99, 32
     mstore v92, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     v97 = ptrtoint memptr v5 to i256
     mstore v97, arg0
     v94 = add v97, 32
-    mstore v94, v98
+    mstore v94, v99
     v8 = sload 2 !metadata(storage=slot(2))
     v9 = gt v8, 0xffffffffffffffff
     jumpi v9, bb10, bb11
@@ -310,31 +294,25 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v79 = eq v78, 0
     jumpi v79, bb13, bb10
   bb13:
-    v95 = mload 64 !metadata(memory=scratch)
-    v96 = add v95, 64
-    v97 = lt v96, v95
-    v98 = gt v96, 0xffffffffffffffff
-    v99 = or v97, v98
-    jumpi v99, bb15, bb14
-  bb14:
-    mstore 64, v96 !metadata(memory=scratch)
-    v101 = calldatasize
-    calldatacopy v95, v101, 64
-    mstore v95, 1
+    v95 = icall @alloc, 64
+    v96 = ptrtoint memptr v95 to i256
+    v97 = calldatasize
+    calldatacopy v96, v97, 64
+    mstore v96, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v87 = add v95, 32
+    v87 = add v96, 32
     mstore v87, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     v93 = ptrtoint memptr v5 to i256
     mstore v93, arg0
     v89 = add v93, 32
-    mstore v89, v95
+    mstore v89, v96
     v13 = sload 3 !metadata(storage=slot(3))
     v15 = and v13, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v16 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = or v15, v16
     sstore 3, v17 !metadata(storage=slot(3))
-    v21 = mload v95
+    v21 = mload v96
     v22 = sload 4 !metadata(storage=slot(4))
     v23 = gt v22, v21
     jumpi v23, bb1, bb2
@@ -404,10 +382,6 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v40 = add v24, 1
     v70 = lt v40, v22
     jump bb3
-  bb15:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
   bb10:
     revert 0, 0
 }
@@ -431,4 +405,22 @@ fn @entry() [entry] {
     tail_call @assign
   bb6:
     revert 0, 0
+}
+
+fn @alloc(arg0: i256) -> memptr {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to memptr
+    v2 = add v0, arg0
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+  bb1:
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

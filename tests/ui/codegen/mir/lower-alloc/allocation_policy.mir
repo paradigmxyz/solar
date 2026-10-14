@@ -1,21 +1,34 @@
 //@compile-flags: -Zmir-pipeline=lower-alloc
 //@filecheck: --match-full-lines
 // CHECK-LABEL:   fn @checked(arg0: i256) -> memptr {
-// CHECK: +     [[POINTER:v[0-9]+]] = mload 64 !metadata(memory=scratch)
-// CHECK: +     [[OBJECT:v[0-9]+]] = inttoptr i256 [[POINTER]] to memptr !metadata(memory=scratch)
-// CHECK: +     jumpi {{v[0-9]+}}, bb2, bb1
-// CHECK-NOT: +     {{.*}}ptrtoint
-// CHECK: +     memory_zero [[POINTER]], {{v[0-9]+}}
-// CHECK: +     revert 28, 36
+// CHECK: +     [[OBJECT:v[0-9]+]] = icall @alloc, arg0
+// CHECK: +     [[WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK: +     memory_zero [[WORD]], {{v[0-9]+}}
+// CHECK-LABEL:   fn @also_checked(arg0: i256) -> memptr {
+// CHECK: +     [[OBJECT:v[0-9]+]] = icall @alloc, arg0
+// CHECK: +     [[WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK: +     memory_zero [[WORD]], {{v[0-9]+}}
 // CHECK-LABEL:   fn @internal() -> i256 {
 // CHECK: +     [[WORD:v[0-9]+]] = mload 64 !metadata(memory=scratch)
 // CHECK: +     [[PTR:v[0-9]+]] = inttoptr i256 [[WORD]] to memptr !metadata(memory=scratch, span=10..20)
 // CHECK-NOT: +     {{.*}}ptrtoint
 // CHECK: +     [[END:v[0-9]+]] = add [[WORD]], 32
 // CHECK: +     mstore 64, [[END]] !metadata(memory=scratch)
+// CHECK-LABEL: + fn @alloc(arg0: i256) -> memptr {
+// CHECK: +     [[POINTER:v[0-9]+]] = mload 64 !metadata(memory=scratch)
+// CHECK: +     jumpi {{v[0-9]+}}, bb1, bb2
+// CHECK: +     mstore 64, {{v[0-9]+}} !metadata(memory=scratch)
+// CHECK: +     ret {{v[0-9]+}}
+// CHECK: +     revert 28, 36
 @module AllocationPolicy
 
 fn @checked(arg0: i256) -> memptr {
+  bb0:
+    v1 = alloc memorybytes, word, zeroed, panic, arg0 !metadata(preserves_fmp, effect=memory_write)
+    ret v1
+}
+
+fn @also_checked(arg0: i256) -> memptr {
   bb0:
     v1 = alloc memorybytes, word, zeroed, panic, arg0 !metadata(preserves_fmp, effect=memory_write)
     ret v1
