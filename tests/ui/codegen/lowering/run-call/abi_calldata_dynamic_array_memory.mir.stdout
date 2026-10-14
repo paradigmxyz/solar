@@ -31,7 +31,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v56]
+    v22 = phi [bb0: 0], [bb2: v55]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -52,33 +52,32 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     v35 = eq v34, false
     icall revert_if<invalid_calldata_tail_offset>, v35
     v36 = calldataload v30
-    v37 = gt v36, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v37
-    v38 = mul v36, 32
-    v39 = add v30, 32
-    v40 = calldatasize
-    v41 = sub v40, v38
-    v42 = sgt v39, v41
+    v37 = calldatasize
+    v38 = gt v36, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v38
+    v39 = mul v36, 32
+    v40 = add v30, 32
+    v41 = sub v37, v39
+    v42 = sgt v40, v41
     icall revert_if<calldata_tail_too_short>, v42
-    v43 = add v30, 32
-    v44 = mul v36, 32
-    v45 = eq 32, 0
-    v46 = div v44, 32
-    v47 = eq v46, v36
-    v48 = or v45, v47
-    v49 = zext i1 v48 to i256
-    v50 = eq v49, 0
-    icall panic_if<0x41>, v50
-    v51 = add 32, v44
-    v52 = lt v51, 32
-    icall panic_if<0x41>, v52
-    v53 = alloc memoryarray<1>, exact, uninitialized, infallible, v51
-    set_memory_object_len memoryarray, v53, v36
-    v54 = make_calldata_slice v43, v44
-    memory_object_copy_from_slice memoryarray, v53, v54
-    v55 = ptrtoint memptr v53 to i256
-    memory_object_store_element memoryarray<1>, v21, v22, v55
-    v56 = add v22, 1
+    v43 = mul v36, 32
+    v44 = eq 32, 0
+    v45 = div v43, 32
+    v46 = eq v45, v36
+    v47 = or v44, v46
+    v48 = zext i1 v47 to i256
+    v49 = eq v48, 0
+    icall panic_if<0x41>, v49
+    v50 = add 32, v43
+    v51 = lt v50, 32
+    icall panic_if<0x41>, v51
+    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, v50
+    set_memory_object_len memoryarray, v52, v36
+    v53 = make_calldata_slice v40, v43
+    memory_object_copy_from_slice memoryarray, v52, v53
+    v54 = ptrtoint memptr v52 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v54
+    v55 = add v22, 1
     jump bb1
 }
 

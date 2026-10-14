@@ -19,10 +19,10 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x91e145ef, abi_params=[bytes], a
   bb2:
     v11 = slice_ptr v2
     v12 = slice_len v2
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = calldatasize
-    v15 = sub v14, v12
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = sub v13, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = abi_encode [calldata_bytes], object, args v2

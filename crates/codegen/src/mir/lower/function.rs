@@ -7,10 +7,10 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
-    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp,
+    ConcatPart, DataId, DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
+    PanicCode, RevertPayload, RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};

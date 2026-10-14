@@ -187,6 +187,46 @@ impl RevertReason {
     }
 }
 
+/// The debug messages that the checks of a nested calldata value report. All variants apply
+/// the same checks; see [`FunctionBuilder::check_calldata_tail_offset`].
+///
+/// [`FunctionBuilder::check_calldata_tail_offset`]: super::FunctionBuilder::check_calldata_tail_offset
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CalldataTail {
+    /// The calldata tail messages, used when HIR lowering accesses or copies calldata.
+    Access,
+    /// The "Invalid calldata access" messages, used when the encoder copies `bytes[]`.
+    Encode,
+    /// The ABI decoder's messages, used when a returned calldata value is copied to memory.
+    Decode,
+}
+
+impl CalldataTail {
+    pub(crate) const fn offset_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailOffset,
+            Self::Encode => RevertReason::InvalidCalldataAccessOffset,
+            Self::Decode => RevertReason::InvalidCalldataArrayOffset,
+        }
+    }
+
+    pub(crate) const fn length_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::InvalidCalldataTailLength,
+            Self::Encode => RevertReason::InvalidCalldataAccessLength,
+            Self::Decode => RevertReason::InvalidCalldataArrayLength,
+        }
+    }
+
+    pub(crate) const fn stride_reason(self) -> RevertReason {
+        match self {
+            Self::Access => RevertReason::CalldataTailTooShort,
+            Self::Encode => RevertReason::InvalidCalldataAccessStride,
+            Self::Decode => RevertReason::InvalidCalldataArrayStride,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RevertKind {
     Panic(PanicCode),

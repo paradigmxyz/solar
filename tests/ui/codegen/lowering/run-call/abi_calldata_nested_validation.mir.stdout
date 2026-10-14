@@ -26,15 +26,14 @@ fn @g(arg0: calldataslice) -> i256 [selector=0xebcd97f8, pure, abi_params=[array
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
-    v16 = gt v15, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v16
-    v17 = mul v15, 32
-    v18 = add v9, 32
-    v19 = calldatasize
-    v20 = sub v19, v17
-    v21 = sgt v18, v20
+    v16 = calldatasize
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = mul v15, 32
+    v19 = add v9, 32
+    v20 = sub v16, v18
+    v21 = sgt v19, v20
     icall revert_if<calldata_tail_too_short>, v21
-    v22 = add v9, 32
-    v23 = make_calldata_slice v22, v15
+    v22 = make_calldata_slice v19, v15
     ret 42
 }

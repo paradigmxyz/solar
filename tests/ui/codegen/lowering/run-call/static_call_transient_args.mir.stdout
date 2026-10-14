@@ -84,7 +84,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v23 = phi [bb11: arg2], [bb14: v23]
     v24 = phi [bb11: v20], [bb14: v24]
     v25 = phi [bb11: arg3], [bb14: v25]
-    v26 = phi [bb11: 0], [bb14: v103]
+    v26 = phi [bb11: 0], [bb14: v101]
     v27 = phi [bb11: arg0], [bb14: v27]
     v28 = phi [bb11: arg4], [bb14: v28]
     v29 = phi [bb11: arg1], [bb14: v29]
@@ -94,8 +94,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb16:
     jump bb13
   bb13:
-    v104 = ne v28, 0
-    jumpi v104, bb18, bb19
+    v102 = ne v28, 0
+    jumpi v102, bb18, bb19
   bb19:
     jump bb20
   bb18:
@@ -171,34 +171,32 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v83 = eq v82, false
     icall revert_if<invalid_calldata_tail_offset>, v83
     v84 = calldataload v78
-    v85 = gt v84, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v85
-    v86 = mul v84, 1
+    v85 = calldatasize
+    v86 = gt v84, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v86
     v87 = add v78, 32
-    v88 = calldatasize
-    v89 = sub v88, v86
-    v90 = sgt v87, v89
-    icall revert_if<calldata_tail_too_short>, v90
-    v91 = add v78, 32
-    v92 = make_calldata_slice v91, v84
-    v93 = slice_ptr v92
-    v94 = slice_len v92
-    v95 = gt v94, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v95
-    v96 = calldatasize
-    v97 = sub v96, v94
-    v98 = sgt v93, v97
-    icall revert_if<calldata_tail_too_short>, v98
-    v99 = zext i160 v48 to i256
-    v100 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v99, v61, v92, v25, v21
-    v101 = slice_ptr v100
-    v102 = slice_len v100
-    log3 v101, v102, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
+    v88 = sub v85, v84
+    v89 = sgt v87, v88
+    icall revert_if<calldata_tail_too_short>, v89
+    v90 = make_calldata_slice v87, v84
+    v91 = slice_ptr v90
+    v92 = slice_len v90
+    v93 = calldatasize
+    v94 = gt v92, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v94
+    v95 = sub v93, v92
+    v96 = sgt v91, v95
+    icall revert_if<calldata_tail_too_short>, v96
+    v97 = zext i160 v48 to i256
+    v98 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v97, v61, v90, v25, v21
+    v99 = slice_ptr v98
+    v100 = slice_len v98
+    log3 v99, v100, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
     jump bb17
   bb17:
     jump bb14
   bb14:
-    v103 = checked_add u256, v26, 1
+    v101 = checked_add u256, v26, 1
     jump bb12
   bb9:
     v17 = slice_len arg0
