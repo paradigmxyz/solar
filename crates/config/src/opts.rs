@@ -450,10 +450,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub assert_planned_edge_spill_home: bool,
 
-    /// Drop the compiler context after compilation.
-    /// Library callers can enable this to reclaim memory between compilations.
+    /// Leak the compiler context instead of dropping it after compilation.
+    /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
+    /// it unset so that each compilation frees its arenas and thread pool.
     #[cfg_attr(feature = "clap", arg(skip))]
-    pub drop_gcx: bool,
+    pub forget_gcx: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

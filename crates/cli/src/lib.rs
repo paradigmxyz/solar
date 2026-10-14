@@ -69,5 +69,7 @@ where
 {
     let mut args = Args::try_parse_from(itr)?;
     args.compile.finish()?;
+    // The process exits right after compiling, so skip freeing the compiler.
+    args.compile.unstable.forget_gcx = true;
     Ok(args)
 }

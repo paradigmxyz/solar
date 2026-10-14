@@ -1,0 +1,32 @@
+error: unicode characters are not allowed in string literals; use a `unicode"..."` literal instead
+   ╭▸ ROOT/tests/ui/parser/yul/assembly_invalid_str_lit.sol:LL:CC
+   │
+LL │     assembly ("memory-safé") {}
+   ╰╴                         ━
+
+error: unknown character escape
+   ╭▸ ROOT/tests/ui/parser/yul/assembly_invalid_str_lit.sol:LL:CC
+   │
+LL │     assembly ("memory-safe", "memory-safe\q") {}
+   ╰╴                                          ━
+
+error: unicode characters are not allowed in string literals; use a `unicode"..."` literal instead
+   ╭▸ ROOT/tests/ui/parser/yul/assembly_invalid_str_lit.sol:LL:CC
+   │
+LL │     assembly "evmasmé" {}
+   ╰╴                    ━
+
+warning[4430]: unknown inline assembly flag
+   ╭▸ ROOT/tests/ui/parser/yul/assembly_invalid_str_lit.sol:LL:CC
+   │
+LL │     assembly ("memory-safé") {}
+   ╰╴              ━━━━━━━━━━━━━
+
+warning[4430]: unknown inline assembly flag
+   ╭▸ ROOT/tests/ui/parser/yul/assembly_invalid_str_lit.sol:LL:CC
+   │
+LL │     assembly ("memory-safe", "memory-safe\q") {}
+   ╰╴                             ━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors; 2 warnings emitted
+

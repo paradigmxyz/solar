@@ -142,7 +142,7 @@ pub(crate) fn run_compiler_session_with(
         }
         finish_session(compiler.gcx().sess, result)
     });
-    if !compiler.sess().opts.unstable.drop_gcx {
+    if compiler.sess().opts.unstable.forget_gcx {
         std::mem::forget(compiler);
     }
     result

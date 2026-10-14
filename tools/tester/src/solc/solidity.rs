@@ -39,7 +39,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     }
 
     if path_contains("wrong_compiler_") {
-        return Err("Solidity pragma version is not checked");
+        return Err("Solidity pragma version mismatches are warnings");
     }
 
     // Directories starting with `_` are not tests.
@@ -61,8 +61,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "constant_initialized_with_unlimited_arithmetic_expression"
         // `address payable` is allowed by the grammar (see `elementary-type-name`), but not by Solc.
         | "address_payable_type_expression"
-        | "mapping_from_address_payable"
-        // Compiler version requirements are not enforced.
+        // Compiler version mismatches are warnings.
         | "broken_version_1"
         // Checked during AST validation rather than parsing.
         | "unchecked_while_body"

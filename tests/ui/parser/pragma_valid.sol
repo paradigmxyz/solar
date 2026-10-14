@@ -21,4 +21,4 @@ pragma "experimental" SMTChecker;
 pragma "experimental" "SMTChecker";
 
 pragma solidity ^0.8.27.0;
-pragma solidity ^0.8.30.1;
+pragma solidity ^0.8.30.1; //~ WARN: source file requires different compiler version
