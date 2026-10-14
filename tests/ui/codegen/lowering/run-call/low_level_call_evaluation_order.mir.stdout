@@ -39,9 +39,8 @@ fn @data() -> memptr {
     v1 = checked_mul u256, v0, 10
     v2 = checked_add u256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v3, 0
-    v4 = memory_object_data memorybytes, v3
     ret v3
 }
 

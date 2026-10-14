@@ -130,14 +130,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            // Constant reads qualify even when they do not fold.
-            TyKind::Elementary(_) => {
-                let gcx = self.cx.gcx;
-                gcx.const_eval().eval_expr(expr).is_ok()
-                    || gcx
-                        .resolved_variable(expr)
-                        .is_some_and(|id| gcx.hir.variable(id).is_constant())
-            }
+            TyKind::Elementary(_) => self.cx.gcx.const_eval().eval_expr(expr).is_ok(),
             _ => false,
         }
     }

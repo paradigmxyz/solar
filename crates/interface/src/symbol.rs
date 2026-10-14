@@ -1043,8 +1043,6 @@ symbols! {
         codehash,
         cold,
         concat,
-        constant_value,
-        constant_value_unchecked,
         constructor_args_base,
         constructor_args_end,
         continuation,

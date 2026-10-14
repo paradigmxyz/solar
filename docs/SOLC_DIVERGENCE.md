@@ -505,7 +505,9 @@ computes but `solc`'s does not, which `solc` rejects with error 5462:
 conversions such as `uint8(3)`, conditionals, `type(T).max`, member accesses
 such as `L.C`, builtins such as `keccak256`, and constants declared after the
 array type. It also accepts chains of more than 32 constants, which `solc`
-rejects with error 5210.
+rejects with error 5210, and computes typed left shifts that drop bits and `~`
+of unsigned values like the EVM, which `solc` rejects with errors 2643 and
+3667.
 
 When `solc` checks constant operands for a division by zero (1211) or a zero
 `addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
@@ -530,8 +532,10 @@ Status: intentional.
 Difference: `solar` accepts base slots of storage layout specifiers whose value
 its constant evaluator computes but `solc`'s does not, such as conditionals
 (`layout at true ? 42 : 94`), conversions, member accesses and builtins, and
-the constants they read. `solc` rejects them with error 1505, and chains of
-more than 32 constants with error 5210.
+the constants they read. `solc` rejects them with error 1505, chains of
+more than 32 constants with error 5210, and typed left shifts that drop bits
+and `~` of unsigned values, which `solar` computes like the EVM, with errors
+2643 and 3667.
 
 Rationale: the base slot has a well-defined value. Errors in a value that
 `solc` does not compute get `solc`'s code for it, 1505.
@@ -753,3 +757,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   fails and which types compile.
 - Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
   `tests/ui/parser/pragma_valid.sol`.
+
+### CODEGEN-012: Constants are values
+
+- ID: CODEGEN-012
+- Status: intentional
+- Difference: `solc` evaluates the initializer of a constant at every use, in
+  the arithmetic mode of the use, so a use can revert, as with
+  `uint8 constant C = A + 1` where `A` is `255`, or wrap inside `unchecked`.
+  `solar` evaluates every constant once at compile time and uses its value.
+  A constant that has no value, because its initializer reverts or cannot be
+  evaluated at compile time, such as `keccak256(type(C).creationCode)`, is an
+  error at its first use, even inside `unchecked`. Both branches of a
+  conditional must have values, as must every operand of `&&` and `||`.
+  Unused constants are not reported.
+- Rationale: a constant is one value, and computing it once is cheaper than
+  running its initializer at every use. Constants that revert at every use are
+  mistakes.
+- Coverage: `tests/ui/codegen/lowering/constant_without_value.sol` and
+  `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`.

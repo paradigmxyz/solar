@@ -185,18 +185,16 @@ fn @preserve(arg0: i8, arg1: i8) -> i256 [selector=0xced1063a, abi_params=[u8, u
   bb0:
     sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg0 to i256
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = not 0xff00
-    v7 = and v5, v6
-    v8 = zext i8 arg1 to i256
-    v9 = shl 8, v8
-    v10 = or v7, v9
-    sstore 0, v10 !metadata(storage=slot(0))
-    v11 = sload 0 !metadata(storage=slot(0))
-    ret v11
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg0 to i256
+    v3 = or v1, v2
+    sstore 0, v3 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v6 = zext i8 arg1 to i256
+    v7 = shl 8, v6
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
 }

@@ -81,9 +81,13 @@ pub(super) fn fixed_bytes(bytes: &[u8]) -> ConstValue {
     ConstValue::FixedBytes(FixedBytes::new(bytes.len() as u8, bytes))
 }
 
-/// The size of the largest `bytes` or `string` value that folds. Larger values are computed at
-/// runtime, so that doubling concatenations cannot exhaust memory at compile time.
-const MAX_BYTES: usize = 1 << 16;
+/// The size of the largest `bytes` or `string` value that folds, so that doubling concatenations
+/// cannot exhaust memory at compile time.
+pub(super) const MAX_BYTES: usize = 1 << 16;
+
+/// The largest number of values in an array or struct that folds. Every value takes at least an
+/// ABI word.
+pub(super) const MAX_VALUES: usize = MAX_BYTES / 32;
 
 /// Returns a `bytes` value.
 fn byte_array(data: Vec<u8>) -> Result<ConstValue, EE> {
@@ -94,16 +98,16 @@ fn byte_array(data: Vec<u8>) -> Result<ConstValue, EE> {
 /// fold.
 fn append(data: &mut Vec<u8>, bytes: &[u8]) -> Result<(), EE> {
     if data.len() + bytes.len() > MAX_BYTES {
-        return Err(EE::BytesTooLarge);
+        return Err(EE::ValueTooLarge);
     }
     data.extend_from_slice(bytes);
     Ok(())
 }
 
 /// Returns a `bytes` or `string` value, if it is small enough to fold.
-fn bytes_value(data: Vec<u8>, kind: BytesKind) -> Result<ConstValue, EE> {
+pub(super) fn bytes_value(data: Vec<u8>, kind: BytesKind) -> Result<ConstValue, EE> {
     if data.len() > MAX_BYTES {
-        return Err(EE::BytesTooLarge);
+        return Err(EE::ValueTooLarge);
     }
     Ok(ConstValue::Bytes(ByteSymbol::intern(&data), kind))
 }
@@ -125,31 +129,80 @@ fn bytes(value: &ConstValue) -> Result<&[u8], EE> {
     }
 }
 
-/// ABI-encodes the given values, like `abi.encode`.
+/// ABI-encodes the given values as a tuple, like `abi.encode`: the heads of all values, followed
+/// by the tails of the dynamically encoded ones.
 fn abi_encode(values: &[ConstValue]) -> Result<Vec<u8>, EE> {
-    let mut head = Vec::with_capacity(32 * values.len());
+    let head_len = values.iter().map(head_size).sum::<usize>();
+    if head_len > MAX_BYTES {
+        return Err(EE::ValueTooLarge);
+    }
+    let mut head = Vec::with_capacity(head_len);
     let mut tail = Vec::new();
     for value in values {
-        if let ConstValue::Bytes(data, _) = value {
-            let data = data.as_byte_str();
-            head.extend_from_slice(&U256::from(32 * values.len() + tail.len()).to_be_bytes::<32>());
-            tail.extend_from_slice(&U256::from(data.len()).to_be_bytes::<32>());
-            tail.extend_from_slice(data);
-            tail.resize(tail.len().next_multiple_of(32), 0);
-            if 32 * values.len() + tail.len() > MAX_BYTES {
-                return Err(EE::BytesTooLarge);
-            }
+        if is_dynamic(value) {
+            head.extend_from_slice(&word(head_len + tail.len()));
+            tail.extend(abi_encode_value(value)?);
         } else {
-            head.extend_from_slice(&abi_word(value)?.to_be_bytes::<32>());
+            head.extend(abi_encode_value(value)?);
+        }
+        if head_len + tail.len() > MAX_BYTES {
+            return Err(EE::ValueTooLarge);
         }
     }
     head.extend_from_slice(&tail);
     Ok(head)
 }
 
-/// Returns the ABI head word of a statically encoded value.
-fn abi_word(value: &ConstValue) -> Result<U256, EE> {
-    value.clone().mobile()?.as_word().ok_or(EE::UnsupportedExpr)
+/// ABI-encodes a single value.
+fn abi_encode_value(value: &ConstValue) -> Result<Vec<u8>, EE> {
+    Ok(match value {
+        ConstValue::Bytes(data, _) => {
+            let data = data.as_byte_str();
+            let mut encoded = word(data.len()).to_vec();
+            encoded.extend_from_slice(data);
+            encoded.resize(encoded.len().next_multiple_of(32), 0);
+            encoded
+        }
+        ConstValue::Struct(_, fields) => abi_encode(fields)?,
+        ConstValue::Array { elements, dynamic } => {
+            let mut encoded = if *dynamic { word(elements.len()).to_vec() } else { Vec::new() };
+            encoded.extend(abi_encode(elements)?);
+            encoded
+        }
+        ConstValue::Udvt(_, value) => abi_encode_value(value)?,
+        value => {
+            let word = value.clone().mobile()?.as_word().ok_or(EE::UnsupportedExpr)?;
+            word.to_be_bytes::<32>().to_vec()
+        }
+    })
+}
+
+/// Returns whether a value is encoded in the tail of its tuple.
+fn is_dynamic(value: &ConstValue) -> bool {
+    match value {
+        ConstValue::Bytes(..) | ConstValue::Array { dynamic: true, .. } => true,
+        ConstValue::Struct(_, elements) | ConstValue::Array { elements, .. } => {
+            elements.iter().any(is_dynamic)
+        }
+        ConstValue::Udvt(_, value) => is_dynamic(value),
+        _ => false,
+    }
+}
+
+/// Returns the size of the head of a value in its tuple.
+fn head_size(value: &ConstValue) -> usize {
+    match value {
+        ConstValue::Struct(_, elements) | ConstValue::Array { elements, .. }
+            if !is_dynamic(value) =>
+        {
+            elements.iter().map(head_size).sum()
+        }
+        _ => 32,
+    }
+}
+
+fn word(value: usize) -> [u8; 32] {
+    U256::from(value).to_be_bytes()
 }
 
 /// Encodes the given values without padding, like `abi.encodePacked`.
@@ -158,7 +211,7 @@ fn abi_encode_packed(values: &[ConstValue]) -> Result<Vec<u8>, EE> {
     for value in values {
         packed(value, &mut data)?;
         if data.len() > MAX_BYTES {
-            return Err(EE::BytesTooLarge);
+            return Err(EE::ValueTooLarge);
         }
     }
     Ok(data)
@@ -176,6 +229,15 @@ fn packed(value: &ConstValue, data: &mut Vec<u8>) -> Result<(), EE> {
         ConstValue::Bytes(bytes, _) => data.extend_from_slice(bytes.as_byte_str()),
         ConstValue::Enum(_, index) => data.push(u8::try_from(*index).map_err(|_| EE::OutOfRange)?),
         ConstValue::Udvt(_, value) => packed(value, data)?,
+        // Array elements are padded to words.
+        ConstValue::Array { elements, .. } => {
+            for element in elements {
+                let word = element.as_word().ok_or(EE::UnsupportedExpr)?;
+                data.extend_from_slice(&word.to_be_bytes::<32>());
+            }
+        }
+        // Only codegen knows the bytecode of a contract, and type checking rejects packed structs.
+        ConstValue::Code(..) | ConstValue::Struct(..) => return Err(EE::UnsupportedExpr),
         ConstValue::Rational(_) => return Err(EE::Fractional),
     }
     Ok(())

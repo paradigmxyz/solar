@@ -90,7 +90,6 @@ fn @erc7201Reference(arg0: memptr) -> i256 [pure] {
     v2 = shl 0, v1
     v3 = icall concat<bytes32>, v2
     v4 = keccak256_bytes v3
-    v5 = not 255
-    v6 = and v4, v5
-    ret v6
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v5
 }

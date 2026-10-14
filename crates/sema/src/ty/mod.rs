@@ -568,10 +568,12 @@ impl<'gcx> Gcx<'gcx> {
             hir::ExprKind::Ident(&[res]) => Some(res),
             hir::ExprKind::Member(base, member) => {
                 let scope = self.symbol_resolver.scope_of(self.resolve_path_expr(base)?)?;
-                match scope.resolve(member)? {
-                    [declaration] => Some(declaration.res),
-                    _ => None,
-                }
+                // A public variable also declares its getter.
+                let mut declarations = scope.resolve(member)?.iter().map(|d| d.res).filter(|res| {
+                    !res.as_function().is_some_and(|f| self.hir.function(f).is_getter())
+                });
+                let res = declarations.next()?;
+                declarations.next().is_none().then_some(res)
             }
             _ => None,
         }

@@ -700,7 +700,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let ConstValue::Rational(_) = value {
                 return self.cx.report_unsupported(expr.span, "fractional value");
             }
-            if let Some(value) = self.lower_const_value(value) {
+            if let Some(value) = self.lower_const_value(value, expr.span) {
                 return Some(value);
             }
         }

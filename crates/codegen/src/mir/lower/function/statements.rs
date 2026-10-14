@@ -317,17 +317,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        // Like solc, a constant evaluates its initializer at every use, which can revert.
+        // A constant has a value, so reading it has no effects. One without a value is an error.
         let gcx = self.cx.gcx;
         if let Some(id) = gcx.resolved_variable(expr)
-            && let variable = gcx.hir.variable(id)
-            && variable.is_constant()
-            && let Some(initializer) = variable.initializer
+            && gcx.hir.variable(id).is_constant()
         {
-            if gcx.const_eval().eval_var(id).is_ok() {
-                return Some(());
-            }
-            return self.lower_discarded_expr(initializer);
+            let _ = gcx.const_eval().require_var(id);
+            return Some(());
         }
         match &expr.kind {
             // Names and `new T` have no effects to evaluate.

@@ -40,6 +40,21 @@ pub enum ConstValue {
     Enum(hir::EnumId, u32),
     /// A value of a user-defined value type, holding the underlying value.
     Udvt(hir::UdvtId, Box<Self>),
+    /// The creation or runtime bytecode of a contract, which only codegen knows, as `bytes`.
+    Code(hir::ContractId, CodeKind),
+    /// A struct in memory, with its fields in declaration order.
+    Struct(hir::StructId, Box<[Self]>),
+    /// An array in memory: dynamically sized, or of a fixed length.
+    Array { elements: Box<[Self]>, dynamic: bool },
+}
+
+/// The bytecode of a [`ConstValue::Code`] value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodeKind {
+    /// `type(C).creationCode`.
+    Creation,
+    /// `type(C).runtimeCode`.
+    Runtime,
 }
 
 /// The type of a [`ConstValue::Bytes`] value.
@@ -102,11 +117,15 @@ impl ConstValue {
             }
             Self::Enum(_, index) => Some(U256::from(*index)),
             Self::Udvt(_, value) => value.as_word(),
-            Self::Rational(_) | Self::Bytes(..) => None,
+            Self::Rational(_)
+            | Self::Bytes(..)
+            | Self::Code(..)
+            | Self::Struct(..)
+            | Self::Array { .. } => None,
         }
     }
 
-    /// Returns the type of this value, or `None` for literals.
+    /// Returns the type of this value, or `None` for literals and aggregates.
     pub(super) fn ty(&self) -> Option<ValueTy> {
         Some(match self {
             Self::Int(value) => ValueTy::Int(value.ty?),
@@ -114,8 +133,11 @@ impl ConstValue {
             Self::FixedBytes(value) => ValueTy::FixedBytes(value.size),
             Self::Address(_) => ValueTy::Address,
             Self::Contract(id, _) => ValueTy::Contract(*id),
-            Self::Rational(_) | Self::Bytes(_, BytesKind::Literal) => return None,
-            Self::Bytes(_, BytesKind::Bytes) => ValueTy::Bytes,
+            Self::Rational(_)
+            | Self::Bytes(_, BytesKind::Literal)
+            | Self::Struct(..)
+            | Self::Array { .. } => return None,
+            Self::Bytes(_, BytesKind::Bytes) | Self::Code(..) => ValueTy::Bytes,
             Self::Bytes(_, BytesKind::String) => ValueTy::String,
             Self::Enum(id, _) => ValueTy::Enum(*id),
             Self::Udvt(id, _) => ValueTy::Udvt(*id),
@@ -195,6 +217,7 @@ impl ConstValue {
             {
                 Self::FixedBytes(FixedBytes::new(size, data.as_byte_str()))
             }
+            (value @ Self::Code(..), ValueTy::Bytes) => value,
             (Self::Bytes(data, BytesKind::Literal | BytesKind::Bytes), ValueTy::Bytes) => {
                 Self::Bytes(data, BytesKind::Bytes)
             }
@@ -491,6 +514,24 @@ impl ValueTy {
         })
     }
 
+    /// Returns the zero value of this type, which uninitialized memory holds.
+    pub(super) fn zero(self, gcx: Gcx<'_>) -> Result<ConstValue, EE> {
+        Ok(match self {
+            Self::Int(ty) => ConstValue::Int(IntScalar::typed(BigInt::zero(), ty)),
+            Self::Bool => ConstValue::Bool(false),
+            Self::FixedBytes(size) => ConstValue::FixedBytes(FixedBytes::new(size, &[])),
+            Self::Address => ConstValue::Address(Address::ZERO),
+            Self::Contract(id) => ConstValue::Contract(id, Address::ZERO),
+            Self::Bytes => ConstValue::Bytes(ByteSymbol::intern(&[]), BytesKind::Bytes),
+            Self::String => ConstValue::Bytes(ByteSymbol::intern(&[]), BytesKind::String),
+            Self::Enum(id) => ConstValue::Enum(id, 0),
+            Self::Udvt(id) => {
+                let underlying = Self::from_hir(&gcx.hir.udvt(id).ty).ok_or(EE::UnsupportedExpr)?;
+                ConstValue::Udvt(id, Box::new(underlying.zero(gcx)?))
+            }
+        })
+    }
+
     /// Returns the value type denoted by the given elementary type.
     pub(super) fn from_elementary(ty: ElementaryType) -> Self {
         match ty {
@@ -726,6 +767,11 @@ impl IntScalar {
         self.data.is_negative()
     }
 
+    /// Returns whether the value has an unsigned integer type.
+    pub(super) fn is_unsigned(&self) -> bool {
+        self.ty.is_some_and(|ty| !ty.signed)
+    }
+
     /// Returns whether the value is an integer literal rather than a value of an integer type.
     pub fn is_literal(&self) -> bool {
         self.ty.is_none()
@@ -855,10 +901,14 @@ impl IntScalar {
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec
             | hir::UnOpKind::Not => return Err(EE::UnsupportedUnaryOp),
-            hir::UnOpKind::BitNot => !self.data,
+            // `~` flips the bits of the type, which is two's complement for signed types.
+            hir::UnOpKind::BitNot => match ty {
+                Some(ty) if !ty.signed => ty.max() - self.data,
+                _ => !self.data,
+            },
             // Negating an unsigned value is not arithmetic that overflows but an operator the
             // operand's type does not have, which is what solc reports for it.
-            hir::UnOpKind::Neg if ty.is_some_and(|ty| !ty.signed) => {
+            hir::UnOpKind::Neg if self.is_unsigned() => {
                 return Err(EE::NegateUnsigned);
             }
             hir::UnOpKind::Neg => -self.data,
@@ -943,6 +993,8 @@ impl IntScalar {
         match (op, self.ty, r.ty) {
             // solc reports the failed operations of two literals.
             (_, None, None) => true,
+            // solc rejects a left shift that drops bits, which the EVM drops.
+            (BinOpKind::Shl, _, _) if !self.shl_keeps_bits(r) => false,
             // solc converts the right operand of a typed shift or power to the left type.
             (BinOpKind::Pow, Some(ty), _) => ty.contains(&r.data),
             (BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar, Some(ty), _) => {
@@ -953,12 +1005,29 @@ impl IntScalar {
         }
     }
 
+    /// Returns whether a typed left shift by `r` keeps every bit of this value in its type.
+    fn shl_keeps_bits(&self, r: &Self) -> bool {
+        let ty = self.ty.unwrap_or(IntTy::full_width(self.is_negative()));
+        match u16::try_from(&r.data) {
+            Ok(amount) if amount < ty.bits() => ty.contains(&(&self.data << amount)),
+            _ => self.is_zero(),
+        }
+    }
+
     /// Applies the given binary operation to this value, at least one of the operands being typed.
     ///
     /// The arithmetic stays checked: a result outside of the operation's type is an error, like it
     /// is at runtime. [`ConstValue::binop`] computes literal arithmetic exactly instead.
     fn binop(self, r: Self, op: BinOpKind) -> Result<Self, EE> {
         let ty = Self::binop_ty(&self, &r, op)?;
+        // Left shifts drop the bits past the type instead of overflowing.
+        if op == BinOpKind::Shl
+            && let Some(ty) = ty
+        {
+            let amount = r.as_u256().ok_or(EE::NegativeShift)?;
+            let amount = u16::try_from(amount).unwrap_or(u16::MAX).min(ty.bits());
+            return Self { data: self.data << amount, ty: Some(ty) }.explicit_to(ty);
+        }
         self.binop_value(r, op)?.retype(ty)
     }
 
@@ -994,8 +1063,7 @@ impl IntScalar {
                 None if self.is_negative() => Self::checked(-BigInt::one())?,
                 None => Self::checked(BigInt::zero())?,
             },
-            BinOpKind::Shl => self.checked_shl(r)?,
-            BinOpKind::Sar => return Err(EE::UnsupportedBinaryOp),
+            BinOpKind::Sar | BinOpKind::Shl => return Err(EE::UnsupportedBinaryOp),
             BinOpKind::Lt
             | BinOpKind::Le
             | BinOpKind::Gt
@@ -1005,19 +1073,6 @@ impl IntScalar {
             | BinOpKind::Or
             | BinOpKind::And => return Err(EE::UnsupportedBinaryOp),
         })
-    }
-
-    fn checked_shl(self, r: Self) -> Result<Self, EE> {
-        if self.data.is_zero() {
-            return Ok(self);
-        }
-        let shift = u64::try_from(r.as_u256().ok_or(EE::ArithmeticOverflow)?)
-            .map_err(|_| EE::ArithmeticOverflow)?;
-        let bits = self.data.magnitude().bits();
-        if shift > MAX_INTERMEDIATE_BITS.saturating_sub(bits) {
-            return Err(EE::ArithmeticOverflow);
-        }
-        Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
     }
 
     fn checked_pow(self, r: Self) -> Result<Self, EE> {

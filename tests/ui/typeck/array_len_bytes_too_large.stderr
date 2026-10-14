@@ -1,4 +1,4 @@
-error[5462]: failed to evaluate constant: byte value is too large
+error[5462]: failed to evaluate constant: value is too large
    ╭▸ ROOT/tests/ui/typeck/array_len_bytes_too_large.sol:LL:CC
    │
 LL │ bytes constant B12 = bytes.concat(B11, B11);
@@ -7,7 +7,7 @@ LL │ bytes constant B12 = bytes.concat(B11, B11);
 LL │     uint[B12.length] tooLarge;
    ╰╴         ━━━━━━━━━━
 
-error[5462]: failed to evaluate constant: byte value is too large
+error[5462]: failed to evaluate constant: value is too large
    ╭▸ ROOT/tests/ui/typeck/array_len_bytes_too_large.sol:LL:CC
    │
 LL │ string constant S = string.concat(string(B11), string(B11), "x");

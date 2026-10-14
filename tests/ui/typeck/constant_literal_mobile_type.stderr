@@ -37,14 +37,14 @@ LL │         uint256[-32768 * I8] memory mulInt16;
 error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
    │
-LL │         uint256[200 << WIDE] memory shl;
-   ╰╴                ━━━━━━━━━━━ evaluation of constant value failed here
-
-error[2643]: failed to evaluate constant: arithmetic overflow
-   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
-   │
 LL │         uint256[3 ** WIDE] memory pow;
    ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error[1534]: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[200 << WIDE] memory shl;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 8 previous errors
 

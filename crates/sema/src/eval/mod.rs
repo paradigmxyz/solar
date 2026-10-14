@@ -14,6 +14,9 @@
 //! codegen are free. Results only depend on the HIR and name resolution, never on type checking
 //! results, so a value is the same whenever it is first requested.
 //!
+//! Codegen uses the value of a constant at every use, through [`ConstEval::require_var`], which
+//! reports a constant without a value once. Unlike in solc, a use never runs the initializer.
+//!
 //! A constant's value is computed after the values of the constants it names: the query first
 //! walks the reference graph of the constants it has not evaluated yet with an explicit stack,
 //! then evaluates them in dependency order. Long chains of constants therefore do not recurse.
@@ -37,14 +40,17 @@
 //! conditionals, `&&` and `||`, type conversions, `payable`, `type(T).min`,
 //! `type(T).max`, `type(C).name`, `type(I).interfaceId`, enum variants, `.selector` of functions,
 //! errors and events, `.length` and indexing of byte values, `keccak256`, `sha256`, `ripemd160`,
-//! `addmod`, `mulmod`, `erc7201`, the `abi.encode` family except `abi.encodeCall`,
-//! `bytes.concat`, `string.concat`, and `wrap` and `unwrap` of user-defined value types.
+//! `addmod`, `mulmod`, `erc7201`, the `abi.encode` family, `bytes.concat`, `string.concat`,
+//! `wrap` and `unwrap` of user-defined value types, struct constructors, `new` of byte arrays and
+//! dynamic arrays, which hold zero values, and `type(C).creationCode` and `type(C).runtimeCode`,
+//! whose bytes only codegen knows.
 //!
 //! An operation that reverts at runtime, such as an overflow, a division by zero or an
 //! out-of-range conversion, does not fold. Neither does anything that reads state or the
-//! environment, calls a function, or builds arrays and structs, nor a selector whose signature
-//! depends on a constant. Like in solc's evaluator, every operand must evaluate, even the branch
-//! a conditional does not take and the second operand of `&&` and `||`.
+//! environment, calls a function, builds array literals, or uses the bytes of contract code, nor
+//! a selector whose signature depends on a constant, nor a value larger than 64 KiB. Like in solc's
+//! evaluator, every operand must evaluate, even the branch a conditional does not take and the
+//! second operand of `&&` and `||`.
 //!
 //! # solc's evaluator
 //!
@@ -70,7 +76,7 @@ mod builtins;
 mod expr;
 mod value;
 
-pub use value::{BytesKind, ConstValue, FixedBytes, IntScalar};
+pub use value::{BytesKind, CodeKind, ConstValue, FixedBytes, IntScalar};
 
 /// Computes the ERC-7201 storage namespace base slot.
 ///
@@ -144,6 +150,8 @@ pub(crate) struct ConstEvalCache {
     /// The errors of literal operations that have no value, see
     /// [`ConstEval::emit_literal_op_error`].
     literal_op_errors: crate::ty::FxOnceMap<hir::ExprId, ErrorGuaranteed>,
+    /// The errors of constants whose values are required, see [`ConstEval::require_var`].
+    var_errors: crate::ty::FxOnceMap<hir::VariableId, ErrorGuaranteed>,
 }
 
 thread_local! {
@@ -187,6 +195,21 @@ impl<'gcx> ConstEval<'gcx> {
     /// Returns the value of the given constant variable in its declared type.
     pub fn eval_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, EvalError> {
         self.var_result(id).as_ref().map(|folded| &folded.value).map_err(|err| *err)
+    }
+
+    /// Returns the value of the given constant variable where it is required, such as at its uses
+    /// in codegen, reporting its evaluation error once.
+    ///
+    /// Every constant has a value at compile time, unlike in solc, which evaluates the initializer
+    /// at every use and can revert there.
+    pub fn require_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, ErrorGuaranteed> {
+        self.eval_var(id).map_err(|err| {
+            self.gcx.const_eval_cache.var_errors.insert_cloned(id, |_| {
+                let var = self.gcx.hir.variable(id);
+                let span = var.initializer.map_or(var.span, |init| init.span);
+                self.emit_error_at(span, err, None)
+            })
+        })
     }
 
     /// Returns the value of the given expression if solc's constant evaluator computes it too.
@@ -361,7 +384,7 @@ impl<'gcx> ConstEval<'gcx> {
     }
 
     /// Returns the constant variable that the given identifier or member access names.
-    pub fn constant_reference(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
+    pub(crate) fn constant_reference(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
         self.gcx
             .resolve_path_expr(expr)?
             .as_variable()
@@ -384,6 +407,17 @@ impl<'gcx> ConstEval<'gcx> {
         err: EvalError,
         cx: ConstContext,
     ) -> ErrorGuaranteed {
+        self.emit_error_at(expr.span, err, Some(cx))
+    }
+
+    /// Emits a diagnostic for the given constant evaluation error of the expression at `span`,
+    /// whose value is required in `cx`, or at the uses of a constant without a context.
+    fn emit_error_at(
+        self,
+        span: Span,
+        err: EvalError,
+        cx: Option<ConstContext>,
+    ) -> ErrorGuaranteed {
         // A failed literal operation in the initializer of a constant reads like it does
         // anywhere else.
         if err.kind.is_undefined_literal_op()
@@ -398,26 +432,30 @@ impl<'gcx> ConstEval<'gcx> {
         {
             return guar;
         }
-        let code = match err.kind {
-            EE::AlreadyEmitted(guar) => return guar,
-            EE::LiteralTooLarge => return self.gcx.literal_too_large(err.span),
+        let code = match (err.kind, cx) {
+            (EE::AlreadyEmitted(guar), _) => return guar,
+            (EE::LiteralTooLarge, _) => return self.gcx.literal_too_large(err.span),
+            // solc evaluates the uses of constants at runtime.
+            (_, None) => None,
             // solc gives the expression no value instead of reporting this error.
-            _ if !err.solc => cx.unsupported_code(),
-            EE::Cycle => error_code!(5210),
-            EE::ArithmeticOverflow => error_code!(2643),
-            EE::UnaryOverflow => error_code!(3667),
+            (_, Some(cx)) if !err.solc => Some(cx.unsupported_code()),
+            (EE::Cycle, _) => Some(error_code!(5210)),
+            (EE::ArithmeticOverflow, _) => Some(error_code!(2643)),
+            (EE::UnaryOverflow, _) => Some(error_code!(3667)),
             // solc gives these literal operations no type.
-            kind if kind.is_undefined_literal_op() => error_code!(6020),
-            _ => cx.unsupported_code(),
+            (kind, _) if kind.is_undefined_literal_op() => Some(error_code!(6020)),
+            (_, Some(cx)) => Some(cx.unsupported_code()),
         };
         let msg = format!("failed to evaluate constant: {}", err.kind.msg());
-        self.gcx
-            .dcx()
-            .err(msg)
-            .code(code)
-            .span(expr.span)
-            .span_label(err.span, "evaluation of constant value failed here")
-            .emit()
+        let mut diag = self.gcx.dcx().err(msg).span(span);
+        diag = diag.span_label(err.span, "evaluation of constant value failed here");
+        if let Some(code) = code {
+            diag = diag.code(code);
+        }
+        if cx.is_none() {
+            diag = diag.note("constants must have a value at compile time");
+        }
+        diag.emit()
     }
 
     /// Reports the literal binary operation `expr`, which has no value, such as `1 / 0`.
@@ -472,8 +510,8 @@ pub enum EvalErrorKind {
     OutOfRange,
     /// The value is not an integer.
     NotAnInteger,
-    /// A `bytes` or `string` value too large to fold.
-    BytesTooLarge,
+    /// A value too large to fold.
+    ValueTooLarge,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
     UnsupportedExpr,
@@ -500,7 +538,7 @@ impl EvalErrorKind {
             Self::Fractional => "the result is not an integer",
             Self::OutOfRange => "value out of range",
             Self::NotAnInteger => "expected an integer",
-            Self::BytesTooLarge => "byte value is too large",
+            Self::ValueTooLarge => "value is too large",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",

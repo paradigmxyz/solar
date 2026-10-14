@@ -17,6 +17,6 @@ string constant S = string.concat(string(B11), string(B11), "x");
 
 contract C {
     uint[B11.length] fits;
-    uint[B12.length] tooLarge; //~ ERROR: failed to evaluate constant: byte value is too large
-    uint[bytes(S).length] tooLargeString; //~ ERROR: failed to evaluate constant: byte value is too large
+    uint[B12.length] tooLarge; //~ ERROR: failed to evaluate constant: value is too large
+    uint[bytes(S).length] tooLargeString; //~ ERROR: failed to evaluate constant: value is too large
 }
