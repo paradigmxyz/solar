@@ -379,7 +379,7 @@ pub struct GlobalCtxt<'gcx> {
     cached_arenas: ThreadLocal<DropArena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
+    pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::CachedResult>>,
     pub(crate) expr_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }

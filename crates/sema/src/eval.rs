@@ -89,7 +89,7 @@ impl<'gcx> Gcx<'gcx> {
     pub(crate) fn eval_const_value_result(self, expr: &hir::Expr<'_>) -> &'gcx EvalResult {
         // Constant values can own big-integer buffers. Keep them in the cache itself so they
         // are dropped with the compilation instead of leaking from the dropless HIR arena.
-        self.eval_cache.insert(expr.id, |_| Box::new(eval_const(self, expr)))
+        &self.eval_cache.insert(expr.id, |_| Box::new(eval_const(self, expr))).result
     }
 
     /// Emits a diagnostic for the given constant evaluation error.
@@ -123,8 +123,8 @@ impl<'gcx> Gcx<'gcx> {
     }
 }
 
-pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
-    ConstantEvaluator::new(gcx).try_eval_value(expr)
+fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> CachedResult {
+    ConstantEvaluator::new(gcx).eval_cached(|this| this.try_eval_value(expr))
 }
 
 /// Evaluates expressions like solc's constant evaluator, without emitting diagnostics.
@@ -153,6 +153,8 @@ impl<'gcx> SolcConstEvaluator<'gcx> {
 struct ConstantEvaluator<'gcx> {
     gcx: Gcx<'gcx>,
     depth: usize,
+    /// The deepest level of constants the current evaluation reached.
+    deepest: usize,
     /// The values of the constants evaluated so far, as constants can use each other many times.
     constants: FxHashMap<hir::VariableId, CachedResult>,
     /// Whether to give a value only to the expressions solc's constant evaluator gives one, see
@@ -165,21 +167,27 @@ struct ConstantEvaluator<'gcx> {
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
-/// An evaluation result cached by [`ConstantEvaluator`], with the depth it was evaluated at.
-struct CachedResult {
+/// An evaluation result cached by [`ConstantEvaluator`], with the levels of constants it went
+/// through.
+pub(crate) struct CachedResult {
     result: EvalResult,
-    depth: usize,
+    height: usize,
 }
 
 impl CachedResult {
-    /// Returns the result if it holds at the given depth.
+    /// Returns the result if evaluating again at the given depth gives the same result, and
+    /// records the levels of constants it goes through in `deepest`.
     ///
-    /// Reaching the recursion limit depends on the depth that evaluation started at, so the
-    /// failure only holds at the same depth or deeper. Evaluating again from a shallower depth
-    /// can succeed, and happens at most [`RECURSION_LIMIT`] times per entry.
-    fn get(&self, depth: usize) -> Option<&EvalResult> {
+    /// A result holds wherever its constants stay within the recursion limit. Reaching the limit
+    /// depends on the depth that evaluation started at, and evaluating from a shallower depth can
+    /// succeed, so such a failure is evaluated again.
+    fn reuse(&self, depth: usize, deepest: &mut usize) -> Option<EvalResult> {
         let limited = matches!(&self.result, Err(e) if matches!(e.kind, EE::RecursionLimitReached));
-        (!limited || depth >= self.depth).then_some(&self.result)
+        if limited || depth + self.height > RECURSION_LIMIT {
+            return None;
+        }
+        *deepest = (*deepest).max(depth + self.height);
+        Some(self.result.clone())
     }
 }
 
@@ -188,10 +196,22 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         Self {
             gcx,
             depth: 0,
+            deepest: 0,
             constants: FxHashMap::default(),
             like_solc: false,
             solc_operands: FxHashMap::default(),
         }
+    }
+
+    /// Evaluates with `eval` at the current depth, recording how many levels of constants it goes
+    /// through.
+    fn eval_cached(&mut self, eval: impl FnOnce(&mut Self) -> EvalResult) -> CachedResult {
+        let depth = self.depth;
+        let outer = std::mem::replace(&mut self.deepest, depth);
+        let result = eval(self);
+        let height = self.deepest - depth;
+        self.deepest = self.deepest.max(outer);
+        CachedResult { result, height }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -252,20 +272,23 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                     self.gcx.dcx().has_errors().map_err(EE::AlreadyEmitted)?;
                     return Err(EE::UnsupportedExpr.into());
                 };
-                let depth = self.depth;
-                let value = match self.constants.get(&id).and_then(|c| c.get(depth)) {
-                    Some(value) => value.clone(),
+                let cached = self.constants.get(&id);
+                let value = match cached.and_then(|c| c.reuse(self.depth, &mut self.deepest)) {
+                    Some(value) => value,
                     None => {
                         // Only constants count towards the limit, which stops cyclic
                         // definitions.
-                        if depth >= RECURSION_LIMIT {
+                        if self.depth >= RECURSION_LIMIT {
                             return Err(EE::RecursionLimitReached.spanned(expr.span));
                         }
-                        self.depth += 1;
-                        let result = self.try_eval_value(initializer);
-                        self.depth -= 1;
-                        self.constants.insert(id, CachedResult { result: result.clone(), depth });
-                        result
+                        let cached = self.eval_cached(|this| {
+                            this.depth += 1;
+                            this.deepest = this.deepest.max(this.depth);
+                            let result = this.try_eval_value(initializer);
+                            this.depth -= 1;
+                            result
+                        });
+                        self.constants.entry(id).insert_entry(cached).get().result.clone()
                     }
                 }?;
                 // The constant's declared type carries over into the surrounding expression, so
@@ -309,21 +332,23 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         let peeled = expr.peel_parens();
         // The cache holds values evaluated the usual way.
         if self.like_solc {
-            let depth = self.depth;
-            if let Some(result) = self.solc_operands.get(&peeled.id).and_then(|c| c.get(depth)) {
-                return result.clone();
+            let cached = self.solc_operands.get(&peeled.id);
+            if let Some(result) = cached.and_then(|c| c.reuse(self.depth, &mut self.deepest)) {
+                return result;
             }
-            let result = self.try_eval_value(expr);
-            self.solc_operands.insert(peeled.id, CachedResult { result: result.clone(), depth });
-            return result;
+            let cached = self.eval_cached(|this| this.try_eval_value(expr));
+            return self.solc_operands.entry(peeled.id).insert_entry(cached).get().result.clone();
         }
         match peeled.kind {
             // The cache holds the value of a whole ternary, without the type an operand needs.
             hir::ExprKind::Ternary(cond, t, f) => self.eval_ternary_operand(expr.span, cond, t, f),
-            _ => match self.gcx.eval_cache.get(&peeled.id) {
-                Some(result) => result.clone(),
-                None => self.try_eval_value(expr),
-            },
+            _ => {
+                let cached = self.gcx.eval_cache.get(&peeled.id);
+                match cached.and_then(|c| c.reuse(self.depth, &mut self.deepest)) {
+                    Some(result) => result,
+                    None => self.try_eval_value(expr),
+                }
+            }
         }
     }
 
