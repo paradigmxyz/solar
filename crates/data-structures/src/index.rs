@@ -2,7 +2,7 @@
 
 pub use oxc_index::{
     Idx, IdxRangeBounds, IdxSliceIndex, IndexBox, IndexSlice, IndexVec, index_box, index_vec,
-    nonmax::{NonMaxU32, NonMaxU64},
+    nonmax::NonMaxU32,
 };
 
 /// Creates a new index type backed by `NonMaxU32`, with niche optimization for `Option<T>`.

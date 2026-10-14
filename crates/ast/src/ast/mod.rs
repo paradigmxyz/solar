@@ -197,7 +197,6 @@ mod tests {
         }
 
         assert_size::<Span>(str!["8"]);
-        assert_size::<Option<Span>>(str!["8"]);
         assert_size::<DocComments<'_>>(str!["8"]);
 
         assert_size::<SourceUnit<'_>>(str!["16"]);

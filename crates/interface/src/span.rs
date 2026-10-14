@@ -1,9 +1,11 @@
 use crate::{BytePos, SessionGlobals};
-use solar_data_structures::index::NonMaxU64;
 use std::{
     cmp, fmt,
     ops::{Deref, DerefMut, Range},
 };
+
+#[cfg(feature = "nightly")]
+use core::num::niche_types::U64NotAllOnes;
 
 /// A source code location.
 ///
@@ -17,8 +19,8 @@ use std::{
 /// code snippet of the span, or [`SourceMap::span_to_source`](crate::SourceMap::span_to_source) to
 /// get the source file and source code range.
 ///
-/// The use of `NonMaxU64` reserves `u64::MAX` as a niche value so that `Option<Span>` is the same
-/// size as `Span`. A span with both positions equal to `u32::MAX` cannot be represented.
+/// With the `nightly` feature, the use of `U64NotAllOnes` means `u64::MAX` serves as a niche value
+/// and `Option<Span>` is the same size as `Span`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(Rust, packed(4))]
 pub struct Span {
@@ -26,7 +28,10 @@ pub struct Span {
     // - improved codegen of derived traits
     // - passed in a single register as an argument/return value
     // - better layout computation for structs containing `Span`s
-    data: NonMaxU64,
+    #[cfg(not(feature = "nightly"))]
+    data: u64,
+    #[cfg(feature = "nightly")]
+    data: U64NotAllOnes,
 }
 
 impl Default for Span {
@@ -89,7 +94,7 @@ impl Span {
     ///
     /// # Panics
     ///
-    /// Panics if both positions are `u32::MAX`.
+    /// With the `nightly` feature, panics if both positions are `u32::MAX`.
     #[inline]
     pub fn new(mut lo: BytePos, mut hi: BytePos) -> Self {
         if lo > hi {
@@ -106,7 +111,7 @@ impl Span {
     ///
     /// # Panics
     ///
-    /// Panics if both positions are `u32::MAX`.
+    /// With the `nightly` feature, panics if both positions are `u32::MAX`.
     #[inline]
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn new_unchecked(lo: BytePos, hi: BytePos) -> Self {
@@ -117,7 +122,7 @@ impl Span {
     #[inline(always)]
     const fn new_(lo: BytePos, hi: BytePos) -> Self {
         let data = (lo.0 as u64) | ((hi.0 as u64) << 32);
-        Self { data: NonMaxU64::new(data).expect("span positions cannot both be u32::MAX") }
+        Self::from_non_max_u64(data)
     }
 
     /// Returns the span as a `Range<usize>`.
@@ -275,8 +280,22 @@ impl Span {
 
     #[inline(always)]
     const fn as_non_max_u64(self) -> u64 {
-        let data = self.data;
-        data.get()
+        #[cfg(feature = "nightly")]
+        {
+            self.data.as_inner()
+        }
+        #[cfg(not(feature = "nightly"))]
+        {
+            self.data
+        }
+    }
+
+    /// Converts a `u64` to a `Span`. With the `nightly` feature, panics if it is `u64::MAX`.
+    #[inline]
+    const fn from_non_max_u64(data: u64) -> Self {
+        #[cfg(feature = "nightly")]
+        let data = U64NotAllOnes::new(data).unwrap();
+        Self { data }
     }
 }
 
@@ -397,7 +416,10 @@ mod tests {
     #[test]
     fn sizes() {
         assert_eq!(std::mem::size_of::<Span>(), 8);
+        #[cfg(feature = "nightly")]
         assert_eq!(std::mem::size_of::<Option<Span>>(), 8);
+        #[cfg(not(feature = "nightly"))]
+        assert_eq!(std::mem::size_of::<Option<Span>>(), 12);
         assert_eq!(std::mem::align_of::<Span>(), 4);
     }
 
@@ -410,16 +432,23 @@ mod tests {
             assert_eq!(Span::new(BytePos(hi), BytePos(lo)), span);
             assert_eq!(Span::new_unchecked(BytePos(lo), BytePos(hi)), span);
         }
+        #[cfg(not(feature = "nightly"))]
+        assert_eq!(
+            Span::new(BytePos(u32::MAX), BytePos(u32::MAX)).to_u32_range(),
+            u32::MAX..u32::MAX
+        );
     }
 
     #[test]
-    #[should_panic(expected = "span positions cannot both be u32::MAX")]
+    #[cfg(feature = "nightly")]
+    #[should_panic]
     fn reject_niche() {
         Span::new(BytePos(u32::MAX), BytePos(u32::MAX));
     }
 
     #[test]
-    #[should_panic(expected = "span positions cannot both be u32::MAX")]
+    #[cfg(feature = "nightly")]
+    #[should_panic]
     fn reject_niche_unchecked() {
         Span::new_unchecked(BytePos(u32::MAX), BytePos(u32::MAX));
     }

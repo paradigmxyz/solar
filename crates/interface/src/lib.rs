@@ -5,6 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(panic_update_hook))]
+#![cfg_attr(feature = "nightly", feature(temporary_niche_types))]
 
 #[macro_use]
 extern crate tracing;
