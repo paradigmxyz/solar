@@ -47,6 +47,18 @@ LL │ pragma solidity 0.08.0;
 warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
    ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
    │
+LL │ pragma solidity ^0.08.0;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity >=0.08.0;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
 LL │ pragma solidity 0.8.07;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -56,5 +68,5 @@ warning[5333]: source file requires different compiler version (current compiler
 LL │ pragma solidity 1.2.3.04;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 5 previous errors; 3 warnings emitted
+error: aborting due to 5 previous errors; 5 warnings emitted
 

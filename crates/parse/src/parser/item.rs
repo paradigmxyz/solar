@@ -1093,21 +1093,25 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
         let major = self.parse_version_part()?;
         let mut minor = None;
         let mut patch = None;
+        let mut third_dot = false;
         if self.eat_dot() {
             minor = Some(self.parse_version_part()?);
             if self.eat_dot() {
                 patch = Some(self.parse_version_part()?);
-                // Solc starts another match component after the third dot.
-                if self.eat_dot() && self.pos_inside > 0 {
-                    let suffix = self.current_str().unwrap();
-                    self.p.token.kind = TokenKind::Literal(
-                        solar_ast::token::TokenLitKind::Integer,
-                        Symbol::intern(suffix),
-                    );
-                    self.p.token.span = self.current_span();
-                    self.pos_inside = 0;
-                }
+                third_dot = self.eat_dot();
             }
+        }
+        // Solc starts another match component in the rest of the token after the third dot, or
+        // after a `0` part followed by more digits, as `8` in `0.08`.
+        if self.pos_inside > 0
+            && (third_dot || self.current_char().is_some_and(|c| c.is_ascii_digit()))
+        {
+            let suffix = self.current_str().unwrap();
+            self.p.token.kind =
+                TokenKind::Literal(solar_ast::token::TokenLitKind::Integer, Symbol::intern(suffix));
+            self.p.token.span = self.current_span();
+            self.pos_inside = 0;
+            self.bumps += 1;
         }
         if self.pos_inside > 0 || self.bumps == 0 {
             return Err(self.err("unexpected trailing characters"));
@@ -1129,7 +1133,12 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
                 self.bump_char();
                 Ok(SemverVersionNumber::Wildcard)
             }
-            Some('0'..='9') => {
+            // Solc reads a leading `0` as a complete version part.
+            Some('0') => {
+                self.bump_char();
+                Ok(SemverVersionNumber::Number(0))
+            }
+            Some('1'..='9') => {
                 let s = self.current_str().unwrap();
                 let len = s.bytes().take_while(u8::is_ascii_digit).count();
                 let result = s[..len].parse();

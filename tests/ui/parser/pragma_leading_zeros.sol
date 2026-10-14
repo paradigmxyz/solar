@@ -9,8 +9,11 @@ pragma solidity 00; //~ ERROR: token incompatible with Solidity parser
 pragma solidity >=0.8.0 /* 0 */ 01 || 00;
 //~^ ERROR: token incompatible with Solidity parser
 
-// Leading zeros after a dot do not start a number token.
+// Leading zeros after a dot do not start a number token. Like solc, a `0` is a complete version
+// part, so `0.08.0` is `=0.0 =8.0`, and `0.8.00` is `=0.8.0 =0`.
 pragma solidity 0.08.0; //~ WARN: source file requires different compiler version
+pragma solidity ^0.08.0; //~ WARN: source file requires different compiler version
+pragma solidity >=0.08.0; //~ WARN: source file requires different compiler version
 pragma solidity 0.8.07; //~ WARN: source file requires different compiler version
 pragma solidity 1.2.3.04; //~ WARN: source file requires different compiler version
 pragma solidity >=0.8.00;
