@@ -60,12 +60,11 @@ fn @bounds(arg0: i256) -> struct0 [selector=0xdc11a050, pure, abi_params=[u256],
     v2 = checked_div u256, arg0, 0xc9f2c9cd04674edea40000000
     v3 = gt v2, 0x1a463b8d8ef089acfcf74dc68649c00000000000
     v4 = checked_div u256, arg0, 3
-    v5 = checked_div u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
-    v6 = gt v4, v5
-    v7 = insert_value struct0, undef struct0, 0, v1
-    v8 = insert_value struct0, v7, 1, v3
-    v9 = insert_value struct0, v8, 2, v6
-    ret v9
+    v5 = gt v4, 0x5555555555555555555555555555555555555555555555555555555555555555
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v3
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
 }
 
 fn @nested(arg0: i256) -> struct1 [selector=0x10b80908, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

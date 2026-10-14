@@ -1,0 +1,14 @@
+error[5462]: failed to evaluate constant: expected an integer
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
+LL │     uint256[T] t;
+   ╰╴            ━ evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: expected an integer
+   ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
+   │
+LL │         abi.decode("", (uint256[S]));
+   ╰╴                                ━ evaluation of constant value failed here
+
+error: aborting due to 2 previous errors
+

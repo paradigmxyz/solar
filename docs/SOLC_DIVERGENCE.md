@@ -439,22 +439,65 @@ deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 
-## Contract-Level Checks
-
-### CONTRACT-001: Conditionals in storage layout base slots
+### TYPECK-020: Array lengths that solc does not evaluate
 
 Status: intentional.
 
-Difference: `solar` accepts conditionals in the base slot of a storage layout
-specifier, such as `layout at true ? 42 : 94`, and in the constants it reads.
-`solc` rejects them with error 1505 because its constant evaluator does not
-support conditionals.
+Difference: `solar` accepts array lengths whose value its constant evaluator
+computes but `solc`'s does not, which `solc` rejects with error 5462:
+conversions such as `uint8(3)`, conditionals, `type(T).max`, member accesses
+such as `L.C`, builtins such as `keccak256`, and constants declared after the
+array type. It also accepts chains of more than 32 constants, which `solc`
+rejects with error 5210.
 
-Rationale: our constant evaluator folds conditionals, so the base slot has a
-well-defined value.
+When `solc` checks constant operands for a division by zero (1211) or a zero
+`addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
+(2643, 3667, 6020), long chains (5210) and `erc7201` arguments that are not
+strings (9796) it finds in them. `solar` does not.
 
-Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
-`test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
+Rationale: the values are well defined, and codegen folds the same
+expressions. Errors in a value that `solc` does not compute get `solc`'s code
+for it, 5462, except for constants declared after the array type, which `solc`
+does not compute either.
+
+Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
+`tests/ui/typeck/array_len_eval_errors.sol` and
+`tests/ui/typeck/division_by_zero_solc_values.sol`.
+
+### TYPECK-021: Fractional intermediate values in constants
+
+Status: parity debt.
+
+Difference: `solc` computes literal arithmetic with rational numbers, so
+`(7 / 2) * 2` is 7 and `(4 ** -1) * 8` is 2. `solar` does not model rationals,
+and constant evaluation refuses a literal division or negative power with a
+fractional result, so it rejects an array length or base slot such as
+`(7 / 2) * 2` with error 3208 or 1763. Literals such as `1.5` are not supported
+either.
+
+Rationale: fractional literals are not supported yet; see
+[#1752](https://github.com/paradigmxyz/solar/pull/1752).
+
+Coverage: `tests/ui/typeck/array_len_eval_errors.sol`.
+
+## Contract-Level Checks
+
+### CONTRACT-001: Base slots that solc does not evaluate
+
+Status: intentional.
+
+Difference: `solar` accepts base slots of storage layout specifiers whose value
+its constant evaluator computes but `solc`'s does not, such as conditionals
+(`layout at true ? 42 : 94`), conversions, member accesses and builtins, and
+the constants they read. `solc` rejects them with error 1505, and chains of
+more than 32 constants with error 5210.
+
+Rationale: the base slot has a well-defined value. Errors in a value that
+`solc` does not compute get `solc`'s code for it, 1505.
+
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol` and
+`tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
+upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
@@ -502,27 +545,6 @@ Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
   and EIP-170 parity for the rest of the corpus.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
-
-### CODEGEN-003: Integer literal expressions lose arbitrary precision during lowering
-
-- ID: CODEGEN-003
-- Status: intentional
-- Difference: `solc` keeps a number-literal expression at arbitrary precision
-  until conversion to a non-literal type. `solar`'s type checker computes the
-  same literal-only expression with `BigInt` and retains an `IntLiteral` type,
-  but function lowering ignores that computed value. It recursively emits
-  `U256` EVM operations for its leaves and operators. An intermediate that
-  exceeds an EVM word can therefore wrap or, when given a checked integer type
-  by lowering, revert with `Panic(0x11)` before a later literal operation
-  reduces it. `(2**255 + 2**255) % 7` is one reproducer: solc returns `2`;
-  solar reverts. The divergence also covers literal-only expressions with
-  oversized intermediates followed by division, comparison, subtraction,
-  shifts, or another operation that makes the final result representable.
-- Rationale: this codegen path intentionally lowers function-body operations
-  as EVM-width operations, even when type checking has evaluated an all-literal
-  tree. We do not materialize the type checker's literal result here.
-- Coverage: `symbolic-audit/literal_addmod_fold.sol`; upstream source
-  `testdata/solidity/test/libsolidity/semanticTests/arithmetics/addmod_mulmod.sol`.
 
 ### CODEGEN-004: Public array getters return a panic instead of an empty revert
 

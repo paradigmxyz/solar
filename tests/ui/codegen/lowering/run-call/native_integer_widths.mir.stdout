@@ -11960,19 +11960,18 @@ fn @signed256(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xdf68d24b, pu
 fn @signedLimits8(arg0: i8) -> struct1 [selector=0x04c1b664, pure, abi_params=[i8], abi_returns=[word<bool>, word<bool>, word<i8>, word<i8>, word<i8>, word<i8>], abi_return_params=[bool, bool, i8, i8, i8, i8]] {
   bb0:
     v0 = slt arg0, i8 128
-    v1 = add i8 128, i8 1
-    v2 = slt arg0, v1
-    v3 = wrapping_div i8, arg0, i8 128
-    v4 = wrapping_div i8, arg0, i8 2
-    v5 = checked_rem i8, arg0, i8 2
-    v6 = sar i8 8, arg0
-    v7 = insert_value struct1, undef struct1, 0, v0
-    v8 = insert_value struct1, v7, 1, v2
-    v9 = insert_value struct1, v8, 2, v3
-    v10 = insert_value struct1, v9, 3, v4
-    v11 = insert_value struct1, v10, 4, v5
-    v12 = insert_value struct1, v11, 5, v6
-    ret v12
+    v1 = slt arg0, i8 129
+    v2 = wrapping_div i8, arg0, i8 128
+    v3 = wrapping_div i8, arg0, i8 2
+    v4 = checked_rem i8, arg0, i8 2
+    v5 = sar i8 8, arg0
+    v6 = insert_value struct1, undef struct1, 0, v0
+    v7 = insert_value struct1, v6, 1, v1
+    v8 = insert_value struct1, v7, 2, v2
+    v9 = insert_value struct1, v8, 3, v3
+    v10 = insert_value struct1, v9, 4, v4
+    v11 = insert_value struct1, v10, 5, v5
+    ret v11
 }
 
 fn @selectNativeCasts(arg0: i1, arg1: i160, arg2: i160) -> struct2 [selector=0x4f3d7b07, pure, abi_params=[bool, u160, u160], abi_returns=[word, word<i160>, word<u8>], abi_return_params=[u256, i160, u8]] {

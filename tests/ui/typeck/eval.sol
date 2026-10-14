@@ -16,8 +16,11 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-    int constant signedTwo = 7 / 3;
-    int constant signedNegTwo = (-7) / 3;
+    int constant signedTwo = 6 / 3;
+    int constant signedNegTwo = (-6) / 3;
+    // Literal division keeps the fraction, which constant evaluation does not model.
+    int constant signedFraction = 7 / 3; //~ ERROR: mismatched types
+    int constant signedNegFraction = (-7) / 3;
 
     int8 constant maxInt8 = 127;
     int8 constant minInt8 = -128;
@@ -39,6 +42,8 @@ contract C {
     function d5(uint[signedTwo] memory) public {}
     function d6(uint[-signedNegTwo] memory) public {}
     function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
+    function d7a(uint[signedFraction] memory) public {} //~ ERROR: failed to evaluate constant: the result is not an integer
+    function d7b(uint[-signedNegFraction] memory) public {} //~ ERROR: failed to evaluate constant: the result is not an integer
     function d8(uint[maxInt8] memory) public {}
     function d9(uint[maxUint8] memory) public {}
     function d10(uint[-(minInt8 + 1)] memory) public {}
@@ -48,16 +53,15 @@ contract C {
     function d14(uint[(maxInt8 + 1) - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d15(uint[maxUint8 * 2 / 2] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d16(uint[2**300] memory) public {} //~ ERROR: array length is too large
-    function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
-    function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
+    function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: cyclic constant definition
+    function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: cyclic constant definition
 
     function g(uint[0] memory) public {} //~ ERROR: array length must be greater than zero
     function h(uint[zero] memory) public {} //~ ERROR: array length must be greater than zero
     function h2(uint[zeroPublic] memory) public {} //~ ERROR: array length must be greater than zero
 
     function i(uint[block.timestamp] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
-    function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: unsupported literal
-    //~^ ERROR: mismatched types
+    function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: expected an integer
     function k(uint[--x] memory) public {} //~ ERROR: failed to evaluate constant: unsupported unary operation
     //~^ ERROR: cannot assign to a constant variable
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed

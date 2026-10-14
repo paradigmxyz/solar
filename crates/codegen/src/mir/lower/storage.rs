@@ -116,7 +116,7 @@ impl<'gcx> StorageLayout<'gcx> {
     /// Computes Solidity's base-to-derived storage order once for a module.
     pub(super) fn for_contract(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
         let base_slot = gcx.hir.contract(contract_id).layout.map_or(U256::ZERO, |layout| {
-            gcx.eval_const(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
+            gcx.const_eval_int(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
         });
         StorageBuilder::new(gcx, base_slot).lower(contract_id)
     }

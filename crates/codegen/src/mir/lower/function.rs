@@ -673,14 +673,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        // Literal arithmetic is exact, so its intermediate values may not fit any integer type.
+        // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
+        // not fit any integer type. Constant names fold in `lower_constant_variable`.
         // value = const_eval(expr)
-        if !matches!(expr.kind, ExprKind::Lit(_))
-            && expr.is_int_literal()
-            && let Ok(value) = self.cx.gcx.try_eval_const(expr)
-            && let Some(word) = value.as_evm_word()
+        let foldable = matches!(
+            expr.kind,
+            ExprKind::Unary(..)
+                | ExprKind::Binary(..)
+                | ExprKind::Ternary(..)
+                | ExprKind::Call(..)
+                | ExprKind::Member(..)
+                | ExprKind::Payable(_)
+                | ExprKind::Index(..)
+                | ExprKind::Tuple(_)
+        ) && ((!self.in_inline_assembly
+            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type()))
+            || expr.is_int_literal());
+        if foldable
+            && let Ok(value) = self.cx.gcx.const_eval(expr)
+            && !matches!(value, ConstValue::Bytes(..))
+            && let Some(value) = self.lower_const_value(value)
         {
-            return Some(self.builder.imm(word));
+            return Some(value);
         }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),

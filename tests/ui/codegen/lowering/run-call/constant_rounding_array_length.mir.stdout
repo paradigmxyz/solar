@@ -11,10 +11,9 @@ fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word,
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v3 = ptrtoint memptr v2 to i256
     memory_zero v3, 64
-    v4 = checked_sub i256, 0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
-    v5 = insert_value struct0, undef struct0, 0, 2
-    v6 = insert_value struct0, v5, 1, 2
-    v7 = insert_value struct0, v6, 2, 2
-    v8 = insert_value struct0, v7, 3, v4
-    ret v8
+    v4 = insert_value struct0, undef struct0, 0, 2
+    v5 = insert_value struct0, v4, 1, 2
+    v6 = insert_value struct0, v5, 2, 2
+    v7 = insert_value struct0, v6, 3, 2
+    ret v7
 }

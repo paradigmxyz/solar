@@ -2,6 +2,15 @@
 
 use super::*;
 use crate::mir::Immediate;
+use solar_sema::hir::Visit;
+use std::ops::ControlFlow;
+
+/// The largest number of expression nodes that a use of a constant inlines, counting the
+/// initializers of the constants it names that do not fold.
+///
+/// NOTE: this bounds compile work for chains of constants, not code cost, so it is not a cost
+/// model query. Real constants stay far below it.
+const MAX_INLINE_CONSTANT_NODES: usize = 1024;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_string_literal_word(&mut self, bytes: &[u8]) -> ValueId {
@@ -303,22 +312,86 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(initializer) = variable.initializer else {
             return self.cx.report_unsupported(span, "constant initializer");
         };
-        let ty = self.cx.gcx.type_of_item(id.into());
-        if let Some(value) = self.lower_fixed_bytes_literal(ty, initializer) {
+        if let Ok(value) = self.cx.gcx.const_eval_var(id)
+            && let Some(value) = self.lower_const_value(value)
+        {
             return Some(value);
         }
-        if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
-            return match value {
-                ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
-                // A value wider than the EVM word is no immediate; lower the initializer instead,
-                // as `lower_expr` does for such values.
-                ConstValue::Integer(value) => match value.as_evm_word() {
-                    Some(word) => Some(self.builder.imm(word)),
-                    None => self.lower_expr(initializer),
-                },
-                ConstValue::String(value) => self.lower_shared_bytes_literal(*value),
-            };
+        // The initializer converts to the declared type, like an assignment.
+        let ty = self.cx.gcx.type_of_item(id.into());
+        if fits_inline(self.cx.gcx, initializer) {
+            return self.lower_typed_expr(initializer, ty);
         }
-        self.lower_expr(initializer)
+        // Constants that name other constants several times expand exponentially in the length of
+        // the chain, so the uses of a large one call a helper that lowers it once. Like the inlined
+        // initializer, the helper follows the arithmetic mode of the use.
+        // fn @constant_value_<id>() { ret initializer }
+        let unchecked = self.unchecked;
+        let prefix = if unchecked { sym::constant_value_unchecked } else { sym::constant_value };
+        let helper = self.lazy_helper(helper_name(prefix, id.index()), |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            lowerer.unchecked = unchecked;
+            let value = lowerer.lower_typed_expr(initializer, ty)?;
+            let value_ty = lowerer.builder.func().value_ty(value)?;
+            lowerer.builder.set_return_type(value_ty);
+            lowerer.builder.ret([value]);
+            Some(())
+        })?;
+        // value = icall @constant_value_<id>()
+        let value_ty = self.cx.module.function(helper).return_type();
+        Some(self.builder.icall(helper, Vec::new(), value_ty))
     }
+
+    /// Lowers a constant value to an immediate, or to shared memory for byte arrays.
+    ///
+    /// Integer literals wider than an EVM word have no immediate.
+    pub(super) fn lower_const_value(&mut self, value: &ConstValue) -> Option<ValueId> {
+        match value {
+            // value = imm bool
+            ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
+            // value = shared_bytes(data)
+            ConstValue::Bytes(data, _) => self.lower_shared_bytes_literal(*data),
+            // value = imm i160 address
+            ConstValue::Address(_) | ConstValue::Contract(..) => Some(self.builder.alloc_value(
+                Value::Immediate(Immediate::for_type(Some(MirType::I160), value.as_word()?)),
+            )),
+            ConstValue::Udvt(_, value) => self.lower_const_value(value),
+            // value = imm word
+            value => Some(self.builder.imm(value.as_word()?)),
+        }
+    }
+}
+
+/// Returns whether `initializer` fits in [`MAX_INLINE_CONSTANT_NODES`].
+fn fits_inline<'gcx>(gcx: Gcx<'gcx>, initializer: &'gcx hir::Expr<'gcx>) -> bool {
+    struct Expansion<'gcx> {
+        gcx: Gcx<'gcx>,
+        budget: usize,
+    }
+
+    impl<'gcx> Visit<'gcx> for Expansion<'gcx> {
+        type BreakValue = ();
+
+        fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+            &self.gcx.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+            if self.budget == 0 {
+                return ControlFlow::Break(());
+            }
+            self.budget -= 1;
+            if let Some(id) = expr.as_variable()
+                && let variable = self.gcx.hir.variable(id)
+                && variable.is_constant()
+                && let Some(initializer) = variable.initializer
+                && self.gcx.const_eval_var(id).is_err()
+            {
+                self.visit_expr(initializer)?;
+            }
+            self.walk_expr(expr)
+        }
+    }
+
+    Expansion { gcx, budget: MAX_INLINE_CONSTANT_NODES }.visit_expr(initializer).is_continue()
 }

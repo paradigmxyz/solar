@@ -117,7 +117,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         let base_slot = match self.location {
             DataLocation::Storage => contract.layout.map_or(U256::ZERO, |layout| {
                 self.gcx
-                    .eval_const(layout)
+                    .const_eval_int(layout)
                     .ok()
                     .and_then(|value| value.as_u256())
                     .unwrap_or_default()

@@ -97,11 +97,10 @@ fn @signedNegative(arg0: i256) -> i256 [selector=0x9338d1e7, pure, abi_params=[i
     v5 = phi [bb1: v4], [bb2: false]
     v6 = eq v5, false
     icall revert_if<empty>, v6
-    v7 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 99
-    v8 = lt arg0, v7
+    v7 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9c
+    v8 = eq v7, false
     v9 = eq v8, false
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
+    icall revert_if<empty>, v9
     ret arg0
 }
 

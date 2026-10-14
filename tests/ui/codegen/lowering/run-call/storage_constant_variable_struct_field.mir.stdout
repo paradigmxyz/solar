@@ -46,14 +46,11 @@ fn @overflowBeforeIndex(arg0: i256) [selector=0xedc0323a, abi_params=[u256], abi
 fn @namedSourceOrder() [selector=0x56245d3c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    v1 = checked_add u256, 0, 5
-    v2 = lt v1, 1
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    v4 = trunc i256 v1 to i8
-    v5 = zext i8 v4 to i256
-    sstore 3, v5 !metadata(storage=slot(3))
-    v6 = add 3, 1
-    sstore v6, v0 !metadata(storage=slot(4))
+    v1 = lt 5, 1
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    sstore 3, 5 !metadata(storage=slot(3))
+    v3 = add 3, 1
+    sstore v3, v0 !metadata(storage=slot(4))
     ret
 }

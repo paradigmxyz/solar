@@ -59,7 +59,7 @@ mod ty;
 pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
-type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+pub(crate) type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 type UsingDirectiveKey = usize;
 
@@ -378,7 +378,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
+    pub(crate) const_eval_cache: crate::eval::ConstEvalCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -414,7 +414,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
-            eval_cache: FxOnceMap::default(),
+            const_eval_cache: Default::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -2188,12 +2188,13 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             .emit();
     }
 
-    // solc reports this as a fatal error, so the error type stops follow-up diagnostics.
+    // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
+    // stays an array when its length fails to evaluate, so solc reports both errors.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
     if var.is_constant()
         && !ty.is_value_type()
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
-        && !ty.references_error()
+        && (!ty.references_error() || matches!(ty.kind, TyKind::Array(..)))
     {
         let guar = gcx
             .dcx()

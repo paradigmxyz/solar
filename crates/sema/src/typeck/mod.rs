@@ -17,6 +17,7 @@ use std::ops::ControlFlow;
 
 mod checker;
 mod constant_cycles;
+mod constant_divisors;
 mod control_flow;
 pub(crate) mod override_checker;
 mod udvt;
@@ -58,6 +59,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     view_pure_checker::check(gcx);
+    constant_divisors::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {

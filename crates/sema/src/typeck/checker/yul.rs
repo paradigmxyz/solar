@@ -168,8 +168,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .hir
                 .variable(id)
                 .initializer
-                .and_then(|init| self.gcx.resolve_path_expr(init)?.as_variable())
-                .filter(|&next| self.gcx.hir.variable(next).is_constant())
+                .and_then(|init| self.gcx.constant_reference(init))
             else {
                 return false;
             };
@@ -186,6 +185,7 @@ impl<'gcx> TypeChecker<'gcx> {
         enum ErrorKind {
             NonVariable,
             Immutable,
+            Circular,
             UnsupportedBase,
             UnsupportedMember(YulMemberSet),
             NonExternalFunction,
@@ -196,6 +196,13 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Err(guar) = ty.error_reported() {
             return self.gcx.mk_ty_err(guar);
         }
+        let circular = if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res
+            && self.gcx.hir.variable(var_id).is_constant()
+        {
+            self.is_constant_recursive(var_id)
+        } else {
+            false
+        };
 
         let inner = || -> Result<(), ErrorKind> {
             let Some(res) = res else { return Err(ErrorKind::NonVariable) };
@@ -206,6 +213,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
             if var.is_immutable() {
                 return Err(ErrorKind::Immutable);
+            }
+
+            if circular {
+                return Err(ErrorKind::Circular);
             }
 
             let Some(member_set) = yul_member_set(var, ty) else {
@@ -242,6 +253,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 error_code!(3773),
                 "assembly access to immutable variables is not supported".into(),
             ),
+            Err(ErrorKind::Circular) => {
+                (expr.span, error_code!(3558), "constant variable is circular".into())
+            }
             Err(ErrorKind::UnsupportedBase) => (
                 member.span,
                 error_code!(3622),

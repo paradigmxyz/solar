@@ -9,7 +9,7 @@ library L {
     }
 }
 
-contract AttachedFunction layout at 2.f() { //~ ERROR: failed to evaluate constant: unsupported expression
+contract AttachedFunction layout at 2.f() { //~ ERROR: base slot of storage layout must be a compile-time constant expression
     using L for *;
 }
 
