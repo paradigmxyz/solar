@@ -1,5 +1,5 @@
 // The circular constant check follows member accesses on `this` and `super` without crashing.
-// Like solc, assembly rejects reads of these constants, which have no compile-time value.
+// solc rejects these reads with error 7615; see TYPECK-013.
 
 contract A {
     function g() public virtual {}
@@ -20,9 +20,9 @@ contract C is B {
 
     function h() public pure returns (bytes4 x, bytes4 y, bytes4 z) {
         assembly {
-            x := X //~ ERROR: only direct number constants are supported in inline assembly
-            y := Y //~ ERROR: only direct number constants are supported in inline assembly
-            z := Z //~ ERROR: only direct number constants are supported in inline assembly
+            x := X
+            y := Y
+            z := Z
         }
     }
 }

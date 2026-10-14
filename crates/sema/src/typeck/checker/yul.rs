@@ -93,17 +93,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         }
 
-        // A constant without a compile-time value runs its initializer at every use, which can
-        // allocate over memory the assembly uses.
-        if var.is_constant()
-            && !self.in_lvalue()
-            && (!ty.is_value_type()
-                || self
-                    .gcx
-                    .const_eval()
-                    .eval_var(var_id)
-                    .is_err_and(|err| err.kind.is_unsupported()))
-        {
+        if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
                 .err("only direct number constants are supported in inline assembly")
@@ -183,7 +173,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 .hir
                 .variable(id)
                 .initializer
-                .and_then(|init| self.gcx.const_eval().constant_reference(init))
+                .and_then(|init| self.gcx.resolve_path_expr(init)?.as_variable())
+                .filter(|&next| self.gcx.hir.variable(next).is_constant())
             else {
                 return false;
             };

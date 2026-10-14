@@ -994,18 +994,26 @@ impl IntScalar {
         })
     }
 
-    /// Returns whether solc's constant evaluator gives the binary operation the same value, or
-    /// reports the same error.
+    /// Returns the error of solc's constant evaluator where it does not give the binary operation
+    /// the same value or error.
     ///
     /// solc gives no value to a shift by more than `u32::MAX` bits, and converts the shift amount
     /// or exponent of a typed operand to its type first.
-    pub(super) fn solc_folds_binop(&self, r: &Self, op: BinOpKind) -> bool {
+    pub(super) fn solc_binop(&self, r: &Self, op: BinOpKind) -> Result<(), EE> {
         let fits_u32 = u32::try_from(&r.data).is_ok();
-        match (op, self.ty, r.ty) {
+        let folds = match (op, self.ty, r.ty) {
             // solc reports the failed operations of two literals.
             (_, None, None) => true,
+            // Type checking rejects signed and negative shift amounts.
+            (BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar, _, _)
+                if r.is_negative() || r.ty.is_some_and(|ty| ty.signed) =>
+            {
+                false
+            }
             // solc rejects a typed left shift that drops bits, though the EVM drops them.
-            (BinOpKind::Shl, _, _) if !self.shl_keeps_bits(r) => false,
+            (BinOpKind::Shl, _, _) if !self.shl_keeps_bits(r) => {
+                return Err(EE::ArithmeticOverflow);
+            }
             // solc converts the right operand of a typed shift or power to the left type.
             (BinOpKind::Pow, Some(ty), _) => ty.contains(&r.data),
             (BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar, Some(ty), _) => {
@@ -1013,7 +1021,8 @@ impl IntScalar {
             }
             (BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar, None, Some(_)) => fits_u32,
             _ => true,
-        }
+        };
+        if folds { Ok(()) } else { Err(EE::UnsupportedBinaryOp) }
     }
 
     /// Returns whether a typed left shift by `r` keeps every bit of this value in its type.

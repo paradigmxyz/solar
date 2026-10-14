@@ -4,5 +4,13 @@ error: enum must have at least one variant
 LL │ enum E {}
    ╰╴     ━
 
-error: aborting due to 1 previous error
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_empty_enum.sol:LL:CC
+   │
+LL │     uint[uint(type(E).max) + 1] a;
+   │          ┬────────────────━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error: aborting due to 2 previous errors
 

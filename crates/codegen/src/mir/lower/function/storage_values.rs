@@ -153,8 +153,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_expr(lhs.id)?.peel_refs();
-        // A constant that runs its initializer can revert, so lower the field values before the
-        // storage access, in the struct constructor's order.
+        // A constant without a value runs its helper, which can revert, so lower the field values
+        // before the storage access, in the struct constructor's order.
         let mut values = Vec::new();
         self.lower_constant_storage_fields(ty, rhs, &mut values)?;
         let access = self.require_storage_access(lhs)?;

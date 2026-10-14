@@ -176,11 +176,11 @@ error[5462]: failed to evaluate constant: only constant variables are allowed
 LL │     function m(uint[stateVarPublic] memory) public {}
    ╰╴                    ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error[5462]: array length must be greater than zero
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function tern(uint[(zero > 0) ? 1 : 0] memory) public {}
-   ╰╴                       ━━━━━━━━━━━━━━━━━━
+   ╰╴                       ━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC

@@ -266,39 +266,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers a use of a constant to its value, which constant evaluation computes once.
     ///
-    /// A constant whose initializer reverts, such as `uint8(255) + 1`, is an error, reported once,
-    /// and an error value at every use. One whose value the evaluator does not compute, such as
-    /// `keccak256(type(C).creationCode)` or `new bytes(65537)`, runs its initializer at every use
-    /// instead, as solc does.
+    /// A constant without a value at compile time, such as `keccak256(type(C).creationCode)` or
+    /// `uint8(255) + 1`, which reverts, calls a helper that runs its initializer, like solc's IR
+    /// codegen does.
     pub(super) fn lower_constant_variable(
         &mut self,
         id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        if let Some(initializer) = self.unfolded_constant_initializer(id) {
-            // value = <initializer>
-            return self.lower_typed_expr(initializer, self.cx.gcx.type_of_item(id.into()));
+        if let Ok(value) = self.cx.gcx.const_eval().eval_var(id)
+            && let Some(value) = self.lower_const_value(value, span)
+        {
+            return Some(value);
         }
-        match self.cx.gcx.const_eval().require_var(id) {
-            Ok(value) => self
-                .lower_const_value(value, span)
-                .or_else(|| self.cx.report_unsupported(span, "constant")),
-            // value = error
-            Err(guar) => Some(self.builder.error_value(guar)),
-        }
+        self.call_constant_helper(id)
     }
 
-    /// Returns the initializer of a constant whose value the evaluator does not compute, which
-    /// every use runs instead.
-    pub(super) fn unfolded_constant_initializer(
-        &self,
-        id: VariableId,
-    ) -> Option<&'gcx hir::Expr<'gcx>> {
+    /// Calls the helper that computes the value of the constant `id` from its initializer.
+    pub(super) fn call_constant_helper(&mut self, id: VariableId) -> Option<ValueId> {
         let gcx = self.cx.gcx;
-        match gcx.const_eval().eval_var(id) {
-            Err(err) if err.kind.is_unsupported() => gcx.hir.variable(id).initializer,
-            _ => None,
-        }
+        // The parser reports a constant without an initializer.
+        let initializer =
+            gcx.hir.variable(id).initializer.expect("constant without an initializer");
+        let ty = gcx.type_of_item(id.into());
+        let mir_ty = types::TypeLowerer::mir_type(ty);
+        // fn @constant_N() -> T { value = <initializer>; ret value }
+        let helper =
+            self.lazy_helper(helper_name(kw::Constant, id.index()), |this, function| {
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                lowerer.builder.replace_source_span(initializer.span);
+                let value = lowerer.lower_typed_expr(initializer, ty)?;
+                lowerer.builder.set_return_type(mir_ty);
+                lowerer.builder.ret([value]);
+                Some(())
+            })?;
+        // value = icall @constant_N
+        Some(self.builder.icall(helper, Vec::new(), mir_ty))
     }
 
     /// Lowers a constant value to an immediate, to shared memory for byte arrays, or to the

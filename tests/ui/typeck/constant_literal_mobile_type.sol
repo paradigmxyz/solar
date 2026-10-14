@@ -33,9 +33,8 @@ contract C {
     // A shift or exponentiation with a literal left operand is performed in a
     // word, so an exponentiation still overflows when the result does not fit one.
     function wordOperations() public pure {
-        // Like the EVM, the shift drops the bits past `uint256`. solc rejects it with error 2643;
-        // see TYPECK-020.
-        uint256[200 << WIDE] memory shl; //~ ERROR: type too large for memory
+        // Like solc, the shift that drops bits past `uint256` is error 2643.
+        uint256[200 << WIDE] memory shl; //~ ERROR: failed to evaluate constant: arithmetic overflow
         uint256[3 ** WIDE] memory pow; //~ ERROR: failed to evaluate constant: arithmetic overflow
         shl;
         pow;

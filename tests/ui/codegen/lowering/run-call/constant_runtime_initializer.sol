@@ -5,8 +5,8 @@
 //@ run-call: Child::codeHash => true
 //@ run-call: Child::widened => 7
 
-// A constant whose value constant evaluation does not compute runs its initializer at every use,
-// as solc does. The values come from solc.
+// A constant whose value constant evaluation does not compute calls a helper that runs its
+// initializer at every use, as solc does. The values come from solc.
 contract D {}
 
 contract Base {

@@ -36,8 +36,8 @@ contract ConstantTernaryLiteral {
 
     // A whole ternary has the value of the branch it takes.
     function wholeCastBranch() external pure returns (uint256) {
-        uint256[true ? 3 : uint256(2)] memory values;
-        return values.length + CAST;
+        uint256 value = true ? 3 : uint256(2);
+        return value + CAST;
     }
 
     function signedOverflow() external pure returns (int256) {

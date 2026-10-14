@@ -32,14 +32,5 @@ LL │ uint256 constant Y = A << N;
    │                      │
    ╰╴                     uint8
 
-error[1505]: failed to evaluate constant: unsupported binary operation
-   ╭▸ ROOT/tests/ui/typeck/array_len_typed_negative_shift.sol:LL:CC
-   │
-LL │ uint256 constant X = A << -1;
-   │                      ─────── evaluation of constant value failed here
-   ‡
-LL │ contract D layout at X {}
-   ╰╴                     ━
-
-error: aborting due to 5 previous errors
+error: aborting due to 4 previous errors
 

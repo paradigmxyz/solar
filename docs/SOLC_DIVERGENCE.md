@@ -525,18 +525,12 @@ deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 
-### TYPECK-020: Array lengths that solc does not evaluate
+### TYPECK-020: Constants declared after an array type
 
 Status: intentional.
 
-Difference: `solar` accepts array lengths whose value its constant evaluator
-computes but `solc`'s does not, which `solc` rejects with error 5462:
-conversions such as `uint8(3)`, conditionals, `type(T).max`, member accesses
-such as `L.C`, builtins such as `keccak256`, and constants declared after the
-array type. It also accepts chains of more than 32 constants, which `solc`
-rejects with error 5210, and computes typed left shifts that drop bits and `~`
-of unsigned values like the EVM, which `solc` rejects with errors 2643 and
-3667.
+Difference: `solar` accepts an array length that reads a constant declared
+after the array type, which `solc` rejects with error 5462.
 
 When `solc` checks constant operands for a division by zero (1211) or a zero
 `addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
@@ -546,17 +540,14 @@ A literal operation without a value in a constant that an array length reads,
 such as `1 / 0`, gets error 2271, as it does wherever the constant is used.
 `solc` reports it as 6020 when it evaluates the array length first.
 
-Rationale: the values are well defined, and codegen folds the same
-expressions. An error in a value that `solc` does not compute gets `solc`'s
-code for an expression it cannot evaluate, 5462.
+Rationale: the order of declarations does not change the value of a constant.
 
 Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
 `tests/ui/typeck/array_len_eval_errors.sol`,
+`tests/ui/typeck/array_len_unsupported.sol`,
 `tests/ui/typeck/division_by_zero_solc_values.sol`,
-`tests/ui/typeck/literal_division_by_zero.sol`,
-`tests/ui/typeck/constant_depth_limit.sol`,
-`tests/ui/typeck/constant_shift_typed_amount.sol` and
-`tests/ui/typeck/constant_literal_mobile_type.sol`.
+`tests/ui/typeck/literal_division_by_zero.sol` and
+`tests/ui/typeck/constant_depth_limit.sol`.
 
 ### TYPECK-021: Repeated Yul multi-assignment targets
 
@@ -579,19 +570,14 @@ Coverage:
 Status: intentional.
 
 Difference: `solar` accepts base slots of storage layout specifiers whose value
-its constant evaluator computes but `solc`'s does not, such as conditionals
-(`layout at true ? 42 : 94`), conversions, member accesses and builtins, and
-the constants they read. `solc` rejects them with error 1505.
-
-`solar` also accepts chains of more than 32 constants, which `solc` rejects with
-error 5210, and computes typed left shifts that drop bits and `~` of unsigned
-values like the EVM, which `solc` rejects with errors 2643 and 3667.
+its constant evaluator computes after type checking but `solc`'s does not, such
+as conditionals (`layout at true ? 42 : 94`), conversions, member accesses and
+builtins, and the constants they read. `solc` rejects them with error 1505.
 
 Rationale: the base slot has a well-defined value. Errors in a value that
 `solc` does not compute get `solc`'s code for it, 1505.
 
-Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`,
-`tests/ui/typeck/constant_evaluator_overflow.sol` and
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol` and
 `tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
 upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
@@ -828,20 +814,18 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - ID: CODEGEN-013
 - Status: intentional
 - Difference: `solc` evaluates the initializer of a constant at every use, in
-  the arithmetic mode of the use, so a use can revert, as with
-  `uint8 constant C = A + 1` where `A` is `255`, or wrap inside `unchecked`.
+  the arithmetic mode of the use, so a use can wrap inside `unchecked`.
   `solar` evaluates a constant once at compile time and uses its value. A
-  constant whose initializer reverts is an error at its declaration, reported
-  once if code uses it, even inside `unchecked`. Both branches of a
-  conditional are evaluated, as is every operand of `&&` and `||`. A constant
-  whose value `solar` does not compute at compile time, such as
-  `keccak256(type(C).creationCode)`, `this.f.selector` or a byte array larger
-  than 64 KiB, runs its initializer at every use, as in `solc`, unless another
-  operand reverts.
+  constant without a value at compile time, because its initializer reverts,
+  as with `uint8 constant C = A + 1` where `A` is `255`, or because `solar`
+  does not compute it, such as `keccak256(type(C).creationCode)` or a byte
+  array larger than 64 KiB, gets a helper function that runs its initializer,
+  and every use calls the helper, as in `solc`'s IR codegen. The helper uses
+  checked arithmetic, so such a constant reverts inside `unchecked` too.
 - Rationale: a constant is one value, and computing it once is cheaper than
-  running its initializer at every use. Constants that revert at every use are
-  mistakes.
-- Coverage: `tests/ui/codegen/lowering/constant_without_value.sol`,
+  running its initializer at every use.
+- Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`,
-  `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol` and
-  `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol`.
+  `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
+  `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
+  `tests/ui/codegen/lowering/constant_values_too_large.sol`.

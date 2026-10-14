@@ -60,13 +60,9 @@ fn @memoryLayout() -> i1 [selector=0x5caf991a, view, abi_params=[], abi_returns=
     v8 = address
     v9 = zext i160 v8 to i256
     v10 = shl 96, v9
-    v11 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
-    v12 = trunc i256 v11 to i32
-    v13 = zext i32 v12 to i256
-    v14 = shl 64, v13
-    v15 = or v10, v14
-    v16 = eq v7, v15
-    ret v16
+    v11 = or v10, 0x32e43a110000000000000000
+    v12 = eq v7, v11
+    ret v12
 }
 
 fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -239,13 +235,9 @@ fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_retur
     v20 = address
     v21 = zext i160 v20 to i256
     v22 = shl 96, v21
-    v23 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
-    v24 = trunc i256 v23 to i32
-    v25 = zext i32 v24 to i256
-    v26 = shl 64, v25
-    v27 = or v22, v26
-    v28 = eq v19, v27
-    ret v28
+    v23 = or v22, 0x32e43a110000000000000000
+    v24 = eq v19, v23
+    ret v24
 }
 
 fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -403,13 +395,9 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v55 = address
     v56 = zext i160 v55 to i256
     v57 = shl 96, v56
-    v58 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
-    v59 = trunc i256 v58 to i32
-    v60 = zext i32 v59 to i256
-    v61 = shl 64, v60
-    v62 = or v57, v61
-    v63 = eq v54, v62
-    ret v63
+    v58 = or v57, 0x32e43a110000000000000000
+    v59 = eq v54, v58
+    ret v59
   bb2:
     v40 = storage_array_data_slot 1
     v41 = div v38, 1

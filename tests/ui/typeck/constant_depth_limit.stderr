@@ -1,3 +1,12 @@
+error[5210]: failed to evaluate constant: constants are nested too deeply
+   ╭▸ ROOT/tests/ui/typeck/constant_depth_limit.sol:LL:CC
+   │
+LL │ uint256 constant C32 = C31 + 1;
+   │ ─────────────────────────────── evaluation of constant value failed here
+   ‡
+LL │     uint256[C32] tooDeep;
+   ╰╴            ━━━
+
 error[5210]: failed to evaluate constant: cyclic constant definition
    ╭▸ ROOT/tests/ui/typeck/constant_depth_limit.sol:LL:CC
    │
@@ -16,5 +25,5 @@ LL │     function f() public {
 LL │         uint[LEN] a;
    ╰╴             ━━━
 
-error: aborting due to 2 previous errors
+error: aborting due to 3 previous errors
 

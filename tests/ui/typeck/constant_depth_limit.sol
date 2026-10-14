@@ -17,7 +17,7 @@ contract ComplexCyclicConstant {
     }
 }
 
-// solc stops at 32 levels of constants defined by other constants; see TYPECK-020.
+// Like solc, array lengths follow at most 32 levels of constants defined by other constants.
 uint256 constant C0 = 1;
 uint256 constant C1 = C0 + 1;
 uint256 constant C2 = C1 + 1;
@@ -54,5 +54,5 @@ uint256 constant C32 = C31 + 1;
 
 contract Depth {
     uint256[C31] deepest;
-    uint256[C32] tooDeep;
+    uint256[C32] tooDeep; //~ ERROR: failed to evaluate constant: constants are nested too deeply
 }

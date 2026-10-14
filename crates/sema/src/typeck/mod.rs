@@ -18,6 +18,7 @@ use std::ops::ControlFlow;
 mod checker;
 mod constant_cycles;
 mod constant_divisors;
+mod constant_values;
 mod control_flow;
 pub(crate) mod override_checker;
 mod udvt;
@@ -56,6 +57,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     if typeck_ok {
         constant_cycles::check(gcx);
     }
+    constant_values::check(gcx);
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.

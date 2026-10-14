@@ -71,7 +71,7 @@ contract C {
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
     function m(uint[stateVarPublic] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
 
-    function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: array length must be greater than zero
+    function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
 
     function zeroDivision() external pure returns (uint) {
         return 1 / 0; //~ ERROR: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`

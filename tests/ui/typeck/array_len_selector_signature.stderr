@@ -2,7 +2,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_selector_signature.sol:LL:CC
    │
 LL │     uint constant N = C.f.selector.length;
-   │                       ──────────── evaluation of constant value failed here
+   │                       ─────────────────── evaluation of constant value failed here
 LL │
 LL │     function f(uint[N] memory) external {}
    ╰╴                    ━

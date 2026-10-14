@@ -1,5 +1,5 @@
-// Inline assembly reads only constants with a compile-time value. Any other constant runs its
-// initializer at every use, which can allocate over memory the assembly uses.
+// Inline assembly reads only constants with a value at compile time. Every use of another constant
+// calls a helper that runs its initializer, which can allocate over memory the assembly uses.
 contract D {}
 
 contract C {

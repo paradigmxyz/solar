@@ -1,5 +1,5 @@
-// A typed shift by a negative or signed amount is a type error, which an array length or base
-// slot that reads it reports as an unsupported operation.
+// A typed shift by a negative or signed amount is a type error, which an array length that reads it
+// reports as an unsupported operation.
 uint8 constant A = 1;
 uint256 constant X = A << -1; //~ ERROR: cannot apply builtin operator `<<` to `uint8` and `int_literal[1]`
 int8 constant N = -1;
@@ -10,4 +10,3 @@ contract C {
     uint256[Y] y; //~ ERROR: failed to evaluate constant: unsupported binary operation
 }
 
-contract D layout at X {} //~ ERROR: failed to evaluate constant: unsupported binary operation
