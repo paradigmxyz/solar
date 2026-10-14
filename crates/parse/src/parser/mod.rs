@@ -453,6 +453,23 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
     }
 
+    /// Expects and consumes the closing delimiter `ket` of a sequence.
+    ///
+    /// When recovering incomplete input, a delimiter missing at EOF is reported once, for the
+    /// innermost sequence, and the partial sequence is kept.
+    #[track_caller]
+    fn expect_seq_close(&mut self, ket: TokenKind) -> PResult<'sess, ()> {
+        if self.recover_incomplete_input && self.token.is_eof() {
+            if self.last_unexpected_token_span != Some(self.token.span)
+                && let Err(err) = self.expect(ket)
+            {
+                err.emit();
+            }
+            return Ok(());
+        }
+        self.expect(ket).map(drop)
+    }
+
     /// Checks if the next token is `tok`, and returns `true` if so.
     ///
     /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
@@ -671,7 +688,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
         let (val, recovered) = self.parse_seq_to_before_tokens::<_, N>(ket, sep, allow_empty, f)?;
         if recovered == Recovered::No {
-            self.expect(ket)?;
+            self.expect_seq_close(ket)?;
         }
         Ok(val)
     }
@@ -728,7 +745,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             slice
         };
         if res? == Recovered::No {
-            self.expect(ket)?;
+            self.expect_seq_close(ket)?;
         }
         Ok(slice)
     }
@@ -753,7 +770,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 break;
             }
             if !required_first && self.token.kind == TokenKind::Eof {
-                recovered = Recovered::Yes;
+                // The caller reports the missing `ket`; list the separator as an alternative.
+                if !first && let Some(sep_kind) = sep.sep {
+                    self.push_expected(ExpectedToken::Token(sep_kind));
+                }
                 break;
             }
 
@@ -803,6 +823,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 && let Err(e) = self.expect(sep_kind)
             {
                 e.emit();
+                // At EOF, this error also lists `ket`, so the caller must not expect it again.
+                if self.token.is_eof() {
+                    recovered = Recovered::Yes;
+                }
             }
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
@@ -1095,7 +1119,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else if if self.in_yul {
             self.is_reserved_yul_ident(ident)
         } else {
-            // Like solc, `[u]fixedMxN` types are keywords outside of Yul.
+            // `[u]fixedMxN` types are keywords outside of Yul.
             ident.is_reserved(false) || ast::ElementaryType::parse_fixed_mxn(ident.name).is_some()
         } {
             let err = self.expected_ident_found_err();

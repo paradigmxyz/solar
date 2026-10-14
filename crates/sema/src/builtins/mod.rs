@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty, TyFnKind},
 };
 use solar_ast::StateMutability as SM;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{index::Idx, map::FxHashMap};
 use solar_interface::{Span, Symbol, config::EvmVersion, diagnostics::DiagId, error_code, kw, sym};
 use std::sync::OnceLock;
 
@@ -20,7 +20,7 @@ pub(crate) fn scopes() -> (Declarations, FxHashMap<Builtin, Declarations>) {
     (global, members_map)
 }
 
-fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
+pub(crate) fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
     let mut declarations = Declarations::new();
     for builtin in builtins {
         let decl = Declaration { res: hir::Res::Builtin(builtin), span: Span::DUMMY };
@@ -35,7 +35,7 @@ macro_rules! declare_builtins {
     (|$slf:ident, $gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
         /// A compiler builtin.
         #[repr(u8)]
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Builtin {
             $(
                 $(#[$variant_attr])*
@@ -531,5 +531,20 @@ impl Builtin {
                 | Self::StringConcat
                 | Self::Erc7201
         )
+    }
+}
+
+impl Idx for Builtin {
+    const MAX: usize = Self::COUNT - 1;
+
+    #[inline]
+    unsafe fn from_usize_unchecked(idx: usize) -> Self {
+        // SAFETY: The caller ensures `idx <= Self::MAX`.
+        unsafe { Self::from_index(idx).unwrap_unchecked() }
+    }
+
+    #[inline]
+    fn index(self) -> usize {
+        self as usize
     }
 }

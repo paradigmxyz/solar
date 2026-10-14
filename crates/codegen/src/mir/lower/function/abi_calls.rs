@@ -260,9 +260,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .type_of_expr(source_expr.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
-            let Some(access) = self.storage_access(source_expr) else {
-                return self.cx.report_unsupported(source_expr.span, "storage access");
-            };
+            let access = self.require_storage_access(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span);
         }
         let value = self.lower_expr(expr)?;
@@ -722,9 +720,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Reverts unless `size` bytes at `start` lie inside calldata.
     ///
-    /// The bound is solc's `slt(sub(calldatasize(), start), size)`: a pointer that wrapped
-    /// through an accepted negative tail offset compares as in range and reads zero-filled
-    /// calldata, exactly like solc's lazy calldata decoding.
+    /// The bound is `slt(sub(calldatasize(), start), size)`: a pointer that wrapped through an
+    /// accepted negative tail offset compares as in range and reads zero-filled calldata.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2550-L2557>
     fn check_calldata_range(&mut self, start: ValueId, size: ValueId) {
         let calldata_size = self.builder.calldatasize();
         let remaining = self.builder.sub(calldata_size, start);

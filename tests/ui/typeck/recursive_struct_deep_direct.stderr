@@ -1,0 +1,10 @@
+error[5651]: struct is too deeply nested
+   ╭▸ ROOT/tests/ui/typeck/recursive_struct_deep_direct.sol:LL:CC
+   │
+LL │ ┏ struct S0 {
+LL │ ┃     S1 x;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 1 previous error
+

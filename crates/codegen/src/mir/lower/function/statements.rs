@@ -19,10 +19,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let access = if let Some(initializer) = initializer {
-                        let Some(access) = self.storage_access(initializer) else {
-                            return self.cx.report_unsupported(initializer.span, "storage access");
-                        };
-                        access
+                        self.require_storage_access(initializer)?
                     } else {
                         // An unassigned storage reference points at slot zero, like in solc.
                         // storage_ref = slot 0
@@ -52,7 +49,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let Some(value) = value.as_u256()
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
-                    let value = self.lower_const_integer(expr_ty, value);
+                    let value = self.builder.imm(value);
                     self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
@@ -88,9 +85,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if let Some(access) = access {
                             if !ty.is_ref_at(DataLocation::Storage) {
                                 // A storage-reference return declared into a
-                                // non-storage local copies the referenced
-                                // value, matching solc; the reference itself
-                                // only binds to a storage variable.
+                                // non-storage local copies the referenced value;
+                                // the reference itself only binds to a storage
+                                // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, value, span)?;
                                 self.values.insert(*id, value);
@@ -130,9 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         let ty = self.cx.gcx.type_of_item((*id).into());
                         if ty.is_ref_at(DataLocation::Storage) {
-                            let Some(access) = self.storage_access(value) else {
-                                return self.cx.report_unsupported(value.span, "storage access");
-                            };
+                            let access = self.require_storage_access(value)?;
                             self.storage_refs.insert(*id, access);
                             continue;
                         }
@@ -227,14 +222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         for (id, value) in return_ids.into_iter().zip(values) {
                             let ty = self.cx.gcx.type_of_item(id.into());
                             if ty.is_ref_at(DataLocation::Storage) {
-                                let access =
-                                    self.storage_refs.get(&id).copied().unwrap_or(StorageAccess {
-                                        slot: value,
-                                        location: StorageLocation::word(U256::ZERO),
-                                        offset: None,
-                                    });
-                                self.storage_refs
-                                    .insert(id, StorageAccess { slot: value, ..access });
+                                self.set_storage_ref_slot(id, value);
                             } else {
                                 let value =
                                     self.materialize_scalar_carrier(id, value, stmt.span)?;
@@ -287,9 +275,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. Like solc, a reason that is not a compile-time
-    /// constant string is still evaluated so its side effects and failures are kept; only the
-    /// payload is dropped.
+    /// Custom error payloads are never stripped. A reason that is not a compile-time constant
+    /// string is still evaluated so its side effects and failures are kept; only the payload is
+    /// dropped.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
@@ -383,10 +371,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Member(receiver, _)
                 if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayPop) =>
             {
-                if self.storage_access(receiver).is_none() {
-                    return self.cx.report_unsupported(receiver.span, "storage access");
-                }
-                Some(())
+                self.require_storage_access(receiver).map(drop)
             }
             // A member function, such as `to.transfer`, or a member of an item only evaluates its
             // receiver. Function-typed fields are still read: calldata reads validate them.

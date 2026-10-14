@@ -214,8 +214,7 @@ fn reference<'gcx>(
             };
             // `push()` returns a reference to the new storage slot, but
             // `push(x)` takes its argument location-less, like a mapping key:
-            // the value is copied into storage, so any data location converts,
-            // matching solc's direct-storage-reference conversion rule.
+            // the value is copied into storage, so any data location converts.
             vec![
                 Member::of_builtin(gcx, Builtin::ArrayLength),
                 Member::with_attached_builtin(

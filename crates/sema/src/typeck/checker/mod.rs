@@ -1,6 +1,5 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -21,7 +20,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -216,39 +215,42 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Checks the base slot expression of a storage layout specifier.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        match self.gcx.try_eval_const_value(slot) {
-            Ok(ConstValue::Integer(value)) => {
-                if let Some(base_slot) = value.as_u256() {
-                    let Some(contract_id) = self.contract else {
-                        unreachable!("storage layout specifier outside a contract")
-                    };
-                    if let Ok(Some(size)) = super::storage_size_upper_bound(
-                        self.gcx,
-                        contract_id,
-                        DataLocation::Storage,
-                    ) && base_slot.checked_add(size).is_none()
-                    {
-                        self.dcx().emit_err(
-                            slot.span,
-                            "contract extends past the end of storage when this base slot value is specified",
-                        );
-                    }
-                } else {
-                    self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
-                }
-            }
-            Ok(ConstValue::Bool(_)) => {
-                self.dcx()
-                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
-            }
-            Ok(ConstValue::String(_)) => {
-                let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
-                self.gcx.emit_const_eval_error(slot, err);
-            }
-            Err(err) => {
-                self.gcx.emit_const_eval_error(slot, err);
-            }
+        let ty = self.check_expr(slot);
+        if ty.references_error() {
+            return;
+        }
+        if !ty.is_integer() {
+            self.dcx()
+                .err("base slot of storage layout must evaluate to an integer")
+                .code(error_code!(1763))
+                .span(slot.span)
+                .span_label(slot.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit();
+            return;
+        }
+        let Ok(value) = self.gcx.eval_const(slot) else { return };
+        let Some(base_slot) = value.as_u256() else {
+            self.dcx()
+                .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
+                .code(error_code!(6753))
+                .span(slot.span)
+                .emit();
+            return;
+        };
+        let contract_id = self.contract.expect("storage layout specifier outside a contract");
+        if let Ok(Some(size)) =
+            super::storage_size_upper_bound(self.gcx, contract_id, DataLocation::Storage)
+            && base_slot.checked_add(size).is_none()
+        {
+            self.dcx()
+                .err("contract extends past the end of storage when this base slot value is specified")
+                .code(error_code!(5015))
+                .span(slot.span)
+                .emit();
         }
     }
 
@@ -328,10 +330,25 @@ impl<'gcx> TypeChecker<'gcx> {
                         guar.get_or_insert(g);
                         continue;
                     }
+                    if expr_ty.is_unit() {
+                        let g = self
+                            .dcx()
+                            .err("array component cannot be empty")
+                            .code(error_code!(5604))
+                            .span(expr.span)
+                            .emit();
+                        guar.get_or_insert(g);
+                        continue;
+                    }
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
-                        let g = self.dcx().emit_err(expr.span, "invalid mobile type");
+                        let g = self
+                            .dcx()
+                            .err("invalid mobile type")
+                            .code(error_code!(9563))
+                            .span(expr.span)
+                            .emit();
                         guar.get_or_insert(g);
                     }
                     if let Some(common_ty) = common {
@@ -357,11 +374,14 @@ impl<'gcx> TypeChecker<'gcx> {
                             "type `{}` is only valid in storage because it contains a (nested) mapping",
                             common.display(self.gcx),
                         );
-                        self.gcx.mk_ty_err(self.dcx().emit_err(expr.span, msg))
+                        self.gcx.mk_ty_err(
+                            self.dcx().err(msg).code(error_code!(1545)).span(expr.span).emit(),
+                        )
                     } else if !common.nameable() {
                         self.gcx.mk_ty_err(
                             self.dcx()
                                 .err("cannot infer nameable array element type")
+                                .code(error_code!(9656))
                                 .span(expr.span)
                                 .help("add an explicit type conversion for the first element")
                                 .emit(),
@@ -375,7 +395,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 } else {
                     self.gcx.mk_ty_err(
-                        self.dcx().emit_err(expr.span, "cannot infer array element type"),
+                        self.dcx()
+                            .err("cannot infer array element type")
+                            .code(error_code!(6378))
+                            .span(expr.span)
+                            .emit(),
                     )
                 }
             }
@@ -552,11 +576,18 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
-                if valid_delete(ty) {
+                // Deleting a storage pointer could mean resetting the pointer or clearing the
+                // storage it points to.
+                let storage_pointer =
+                    ty.is_ref_at(DataLocation::Storage) && self.is_storage_pointer_variable(expr);
+                if valid_delete(ty) && !storage_pointer {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    let mut err = self.dcx().err(msg).code(error_code!(9767)).span(expr.span);
+                    if storage_pointer {
+                        err = err.note("storage pointers cannot be deleted");
+                    }
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
@@ -599,8 +630,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
                     result_ty
-                } else if let TyKind::Type(elem_ty) = ty.kind {
+                } else if let TyKind::Type(mut elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
+                    if let TyKind::Contract(id) = elem_ty.kind
+                        && self.gcx.hir.contract(id).kind.is_library()
+                    {
+                        let msg = "index access for library types is not possible";
+                        let guar =
+                            self.dcx().err(msg).code(error_code!(2876)).span(expr.span).emit();
+                        elem_ty = self.gcx.mk_ty_err(guar);
+                    }
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
@@ -862,7 +901,16 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
+                        if ty.is_unit() {
+                            empty_err(self, expr.span)
+                        } else if exprs.len() > 1
+                            && let Err(guar) =
+                                self.check_literal_fits(expr.span, ty, error_code!(3390))
+                        {
+                            self.gcx.mk_ty_err(guar)
+                        } else {
+                            ty
+                        }
                     } else if self.in_lvalue() {
                         self.gcx.types.unit
                     } else {
@@ -1107,6 +1155,20 @@ impl<'gcx> TypeChecker<'gcx> {
         )
     }
 
+    /// Rejects an integer literal too large for any integer type where solc needs its mobile
+    /// type, reporting it with the given code.
+    fn check_literal_fits(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if is_literal_too_large(ty) {
+            return Err(self.gcx.literal_too_large_err(span).code(code).emit());
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_binop(
         &mut self,
@@ -1129,6 +1191,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.results.user_operators.insert(expr_id, function);
             }
             return ty;
+        }
+        for (e, ty, other) in [(lhs_e, lhs, rhs), (rhs_e, rhs, lhs)] {
+            let other = other.peel_refs();
+            if literal_lacks_mobile_type(ty, other) && other.is_integer() {
+                return self.gcx.mk_ty_err(self.gcx.literal_too_large(e.span));
+            }
         }
 
         let msg = format!(
@@ -1431,10 +1499,12 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(())
     }
 
-    /// Checks a `try` statement, as in solc's `TypeChecker::endVisit(TryStatement)`.
+    /// Checks a `try` statement.
     ///
     /// Must run after the called expression has been checked: every clause is checked against
     /// the callee's type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L967>
     fn check_try(&self, try_: &'gcx hir::StmtTry<'gcx>) {
         let Some(f) = self.check_try_target(try_) else { return };
         self.check_try_returns_clause(try_, f);
@@ -2016,6 +2086,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
+            if let Err(guar) = self.check_literal_fits(expr.span, ty, error_code!(8009)) {
+                result = result.and(Err(guar));
+                continue;
+            }
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
@@ -2034,7 +2108,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 )));
                 continue;
             }
-            result = result.and(self.check_array_copy_size(ty, expr.span));
+            // Packed encoding has no heads.
+            result = result.and(self.check_array_copy_size(ty, expr.span).and_then(|()| {
+                let msg = "type too large to ABI-encode";
+                if is_packed { Ok(()) } else { self.check_abi_heads(ty, expr.span, msg, None) }
+            }));
             if !valid_abi_encodable_arg(ty, self.gcx) {
                 result = result.and(Err(self
                     .dcx()
@@ -2346,6 +2424,17 @@ impl<'gcx> TypeChecker<'gcx> {
                     .span(type_expr.span)
                     .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
                     .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            if let Err(guar) = self.check_location_size(ty, type_expr.span, error_code!(6118)) {
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            let msg = "type too large to ABI-decode";
+            if let Err(guar) =
+                self.check_abi_heads(ty, type_expr.span, msg, Some(error_code!(6118)))
+            {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -2999,46 +3088,191 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    /// Checks a variable's type against the size limit of its location and, when it crosses the
+    /// ABI, each head of its encoding.
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
-        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
-            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
-            && size >= u32::MAX
+        if self.check_location_size(ty, var.ty.span, error_code!(1534)).is_ok()
+            && !self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty())
+            && self.crosses_abi(var, ty)
         {
-            self.dcx()
-                .err(format!("type too large for {loc}"))
-                .code(error_code!(1534))
-                .span(var.ty.span)
-                .emit();
+            self.abi_heads_error(
+                var.ty.span,
+                "type too large for calldata",
+                Some(error_code!(1534)),
+            );
         }
     }
 
-    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
-        match ty.kind {
-            TyKind::Array(elem, len) => {
-                let elem_size = if elem.is_dynamically_sized() {
-                    U256::from(32)
+    /// Checks a memory or calldata type against the 32-bit size limit of its location.
+    fn check_location_size(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        code: DiagId,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
+            && !self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())
+        {
+            return Err(self
+                .dcx()
+                .err(format!("type too large for {loc}"))
+                .code(code)
+                .span(span)
+                .emit());
+        }
+        Ok(())
+    }
+
+    /// Returns whether each static array in `ty` stays below the 32-bit size limit of `loc`.
+    ///
+    /// An array's size counts its nested static arrays, but a struct is never sized as a whole:
+    /// its reference members are checked one by one.
+    ///
+    /// References:
+    /// - arrays: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L1722>
+    /// - structs: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/ast/Types.cpp#L2492>
+    fn ty_fits_location(
+        &self,
+        ty: Ty<'gcx>,
+        loc: DataLocation,
+        visited: &mut GrowableBitSet<hir::StructId>,
+    ) -> bool {
+        match ty.peel_refs().kind {
+            // Only an array element that is an array itself is checked on its own.
+            TyKind::Array(elem, _) | TyKind::DynArray(elem)
+                if elem.peel_refs().is_array() && !self.ty_fits_location(elem, loc, visited) =>
+            {
+                false
+            }
+            TyKind::Array(_, len) => {
+                let size = if loc == DataLocation::Memory {
+                    self.ty_memory_static_size(ty)
                 } else {
-                    self.ty_memory_static_size(elem)?
+                    // solc's `calldataHeadSize`: a dynamically encoded element takes one word.
+                    ty.abi_static_size(self.gcx)
+                        .unwrap_or_else(|| len.saturating_mul(U256::from(32)))
                 };
-                len.checked_mul(elem_size)
+                size < u32::MAX
             }
+            // A failed member fails the whole type, so a struct seen before has passed or is
+            // still being checked; skipping it also cuts direct cycles.
+            // NOTE: an `Infinite` check would do, but some mixed cycles are classified `Recursive`.
             TyKind::Struct(id) => {
-                if self.gcx.struct_recursiveness(id).is_recursive() {
-                    return None;
-                }
-                let mut size = U256::ZERO;
-                for &field_ty in self.gcx.struct_field_types(id) {
-                    let field_size = if field_ty.is_dynamically_sized() {
-                        U256::from(32)
-                    } else {
-                        self.ty_memory_static_size(field_ty)?
-                    };
-                    size = size.checked_add(field_size)?;
-                }
-                Some(size)
+                !visited.insert(id)
+                    || self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .all(|&field| self.ty_fits_location(field, loc, visited))
             }
-            TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
-            _ => Some(U256::from(32)),
+            _ => true,
+        }
+    }
+
+    /// Returns the memory size of `ty` as `ty_fits_location` counts it: nested static array
+    /// lengths times the element's `memoryDataSize`, which is one word per struct member.
+    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> U256 {
+        match ty.peel_refs().kind {
+            TyKind::Array(elem, len) => len.saturating_mul(self.ty_memory_static_size(elem)),
+            TyKind::Struct(id) => U256::from(32 * self.gcx.struct_field_types(id).len()),
+            _ => U256::from(32),
+        }
+    }
+
+    /// Checks that each head of `ty`'s ABI encoding stays below the 32-bit size limit.
+    fn check_abi_heads(
+        &self,
+        ty: Ty<'gcx>,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.ty_abi_heads_fit(ty, &mut GrowableBitSet::new_empty()) {
+            return Ok(());
+        }
+        Err(self.abi_heads_error(span, msg, code))
+    }
+
+    /// Reports a type with an ABI head of 2^32 - 1 bytes or more.
+    fn abi_heads_error(
+        &self,
+        span: Span,
+        msg: &'static str,
+        code: Option<DiagId>,
+    ) -> ErrorGuaranteed {
+        let mut err = self
+            .dcx()
+            .err(msg)
+            .span(span)
+            .note("each head of an ABI encoding must be smaller than 2^32 - 1 bytes");
+        if let Some(code) = code {
+            err = err.code(code);
+        }
+        err.emit()
+    }
+
+    /// Returns whether `var`'s value is ABI-encoded: a calldata variable, a parameter of an event,
+    /// an error or a non-abstract contract's constructor, or a parameter or return of a public or
+    /// external function or function type. Library storage pointers cross the ABI as slots.
+    fn crosses_abi(&self, var: &hir::Variable<'_>, ty: Ty<'gcx>) -> bool {
+        if ty.encodes_as_slot() {
+            return false;
+        }
+        let crosses = ty.is_ref_at(DataLocation::Calldata)
+            || match var.kind {
+                hir::VarKind::Event | hir::VarKind::Error => true,
+                hir::VarKind::FunctionTyParam(vis) | hir::VarKind::FunctionTyReturn(vis) => {
+                    vis >= hir::Visibility::Public
+                }
+                hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn => {
+                    var.parent.and_then(|parent| parent.as_function()).is_some_and(|f| {
+                        let f = self.gcx.hir.function(f);
+                        if f.is_constructor() {
+                            !f.contract.is_some_and(|c| self.gcx.hir.contract(c).is_abstract())
+                        } else {
+                            f.is_part_of_external_interface()
+                        }
+                    })
+                }
+                _ => false,
+            };
+        crosses && ty.interface_type_error(false, self.gcx).is_none()
+    }
+
+    /// Returns whether each head in `ty`'s ABI encoding, including the heads in the tails of its
+    /// dynamic parts, stays below the 32-bit size limit.
+    ///
+    /// This is stricter than solc, which bounds only arrays: a struct's head sums its members, and
+    /// the backend computes head sizes in 64 bits. See TYPECK-016 in `docs/SOLC_DIVERGENCE.md`.
+    fn ty_abi_heads_fit(&self, ty: Ty<'gcx>, visited: &mut GrowableBitSet<hir::StructId>) -> bool {
+        if let Some(size) = ty.abi_static_size(self.gcx) {
+            return size < u32::MAX;
+        }
+        match ty.peel_refs().kind {
+            // The element is dynamically encoded too, so each one takes a word in the head.
+            TyKind::Array(elem, len) => {
+                len.saturating_mul(U256::from(32)) < u32::MAX
+                    && self.ty_abi_heads_fit(elem, visited)
+            }
+            TyKind::DynArray(elem) => self.ty_abi_heads_fit(elem, visited),
+            // A struct seen before has passed or is still being checked.
+            TyKind::Struct(id) => {
+                if !visited.insert(id) {
+                    return true;
+                }
+                let mut head = U256::ZERO;
+                for &field in self.gcx.struct_field_types(id) {
+                    // A dynamically encoded field takes a word in the head.
+                    let size = match field.abi_static_size(self.gcx) {
+                        Some(size) => size,
+                        None if self.ty_abi_heads_fit(field, visited) => U256::from(32),
+                        None => return false,
+                    };
+                    head = head.saturating_add(size);
+                }
+                head < u32::MAX
+            }
+            _ => true,
         }
     }
 
@@ -3647,8 +3881,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 } else {
                     self.value_position = ValuePosition::TryReturns;
                 }
-                // The clauses are checked against the call's type, so only after visiting it,
-                // as in solc's `endVisit(TryStatement)`.
+                // The clauses are checked against the call's type, so only after visiting it.
                 self.walk_stmt(stmt)?;
                 self.check_try(try_);
                 return ControlFlow::Continue(());
@@ -3712,6 +3945,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
+                let ty = self.check_expr(expr);
+                let _ = self.check_literal_fits(expr.span, ty, error_code!(3757));
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
@@ -4003,6 +4239,9 @@ fn binop_common_type<'gcx>(
 
     let ty = ty.peel_refs();
     let other = other.peel_refs();
+    if literal_lacks_mobile_type(ty, other) || literal_lacks_mobile_type(other, ty) {
+        return None;
+    }
     match ty.kind {
         TyKind::Elementary(hir::ElementaryType::Int(_))
         | TyKind::Elementary(hir::ElementaryType::UInt(_))
@@ -4097,6 +4336,17 @@ fn binop_common_type<'gcx>(
 
         TyKind::Ref(..) => unreachable!(),
     }
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type.
+fn is_literal_too_large(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::IntLiteral(_, bits, _) if TypeSize::try_new_literal_bits(bits).is_none())
+}
+
+/// Returns `true` if `ty` is an integer literal too large for any integer type next to a typed
+/// operand `other`. Such a binary operation needs the literal's mobile type.
+fn literal_lacks_mobile_type(ty: Ty<'_>, other: Ty<'_>) -> bool {
+    is_literal_too_large(ty) && !matches!(other.kind, TyKind::IntLiteral(..))
 }
 
 fn valid_shift<'gcx>(

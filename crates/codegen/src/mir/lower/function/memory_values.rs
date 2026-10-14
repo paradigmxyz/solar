@@ -381,7 +381,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
-        let layout = self.types.memory_layout(ty)?;
+        let Some((layout, size)) = self
+            .types
+            .memory_layout(ty)
+            .and_then(|layout| Some((layout, Self::default_object_size(layout)?)))
+        else {
+            return self.oversized_default_object(ty);
+        };
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
@@ -394,7 +400,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // object = alloc(default_layout)
-        let size = self.builder.imm(Self::default_object_size(layout)?);
+        let size = self.builder.imm(size);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if preserve_fmp {
             let Value::Inst(alloc) = *self.builder.func().value(object) else {
@@ -477,5 +483,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             MemoryObjectLayout::Struct { fields } => fields.checked_mul(32),
         }
+    }
+
+    /// Reverts with `Panic(0x41)` when a static array is too large to allocate. Sema bounds memory
+    /// variables, but not the fields of a struct array element.
+    fn oversized_default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
+        if !matches!(ty.peel_refs().kind, TyKind::Array(..)) {
+            return None;
+        }
+        // panic(MemoryAllocationOverflow)
+        // unreachable:
+        //   object = 0
+        self.builder.panic(PanicCode::MemoryAllocationOverflow);
+        let unreachable = self.builder.create_block();
+        self.builder.switch_to_block(unreachable);
+        Some(self.builder.imm(U256::ZERO))
     }
 }

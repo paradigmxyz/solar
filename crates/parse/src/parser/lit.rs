@@ -85,7 +85,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             TokenLitKind::Rational => self.parse_lit_rational(lit.symbol, subdenomination),
             TokenLitKind::Str | TokenLitKind::UnicodeStr | TokenLitKind::HexStr => {
                 self.subdenom_error(&mut subdenomination, lo.to(self.prev_token.span));
-                self.parse_lit_str(lit)
+                self.parse_lit_str(lit, lo)
             }
             TokenLitKind::Err(guar) => Ok(LitKind::Err(guar)),
         };
@@ -154,7 +154,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a string literal.
-    fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind<'ast>> {
+    fn parse_lit_str(&mut self, lit: TokenLit, span: Span) -> PResult<'sess, LitKind<'ast>> {
         let mode = match lit.kind {
             TokenLitKind::Str => StrKind::Str,
             TokenLitKind::UnicodeStr => StrKind::Unicode,
@@ -162,7 +162,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             _ => unreachable!(),
         };
 
-        let span = self.prev_token.span;
         let (mut value, _) =
             unescape::parse_string_literal(lit.symbol.as_str(), mode, span, self.sess);
         let mut extra = vec![];
@@ -185,6 +184,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
         let extra = self.alloc_vec(extra);
         Ok(LitKind::Str(kind, ByteSymbol::intern(&value), extra))
+    }
+
+    /// Reports invalid characters and escapes in a [`StrLit`], as [`parse_lit`](Self::parse_lit)
+    /// does for string literals in expressions. Returns `true` if the literal is valid.
+    pub(super) fn validate_str_lit(&self, lit: &StrLit) -> bool {
+        let (_, has_error) =
+            unescape::parse_string_literal(lit.value.as_str(), StrKind::Str, lit.span, self.sess);
+        !has_error
     }
 }
 
@@ -243,8 +250,9 @@ fn parse_integer<'ast>(
         return Err(LitError::IntegerLeadingZeros);
     }
 
-    // Address literal.
+    // Address literal. A denominated one is a number, which the AST validator rejects.
     if base == Base::Hexadecimal
+        && subdenomination.is_none()
         && s.len() == 42
         && let Ok(address) = s.parse()
     {
