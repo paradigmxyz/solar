@@ -5,6 +5,7 @@
 //! while separate batch snapshots preserve import and project configuration. Validation never
 //! publishes speculative results. All consulted source snapshots are rechecked before edits are
 //! returned, and new compiler errors reject collisions even when neither declaration is used.
+//! Bindings are materialized on demand or before aggregation changes their batch-local IDs.
 
 use super::{RenameCandidate, RenameIndex, RenameTarget};
 use crate::{
@@ -21,48 +22,29 @@ use solar_interface::data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct RenameAnalysis {
     opts: CompileOpts,
     roots: FxHashSet<PathBuf>,
     sources: FxHashMap<Url, Arc<String>>,
-    bindings: FxHashMap<Location, Vec<Location>>,
+    bindings: OnceLock<FxHashMap<Location, Vec<Location>>>,
     errors: Vec<(Url, Diagnostic)>,
 }
 
 impl RenameAnalysis {
-    pub(crate) fn new(
-        opts: CompileOpts,
-        roots: FxHashSet<PathBuf>,
-        index: &RenameIndex,
-        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-        references: impl Iterator<Item = (Location, Vec<Location>)>,
-    ) -> Self {
-        let mut bindings = FxHashMap::<_, Vec<_>>::default();
-        for occurrence in &index.occurrences {
-            let targets = occurrence.targets.iter().map(|target| match *target {
-                RenameTarget::Symbol(id) => {
-                    let declaration = &declarations[id];
-                    Location::new(declaration.location.uri.clone(), declaration.name_range)
-                }
-                RenameTarget::ImportAlias(id) => index.aliases[id].location.clone(),
-                RenameTarget::MappingName(id) => index.mapping_names[id].location.clone(),
-            });
-            bindings.entry(occurrence.location.clone()).or_default().extend(targets);
+    pub(crate) fn new(opts: CompileOpts, roots: FxHashSet<PathBuf>, index: &RenameIndex) -> Self {
+        Self {
+            opts,
+            roots,
+            sources: index.analyzed_contents.clone(),
+            bindings: OnceLock::new(),
+            errors: Vec::new(),
         }
-        // Include references that cannot themselves be renamed, such as ambiguous overloads.
-        for (location, targets) in references {
-            bindings.entry(location).or_default().extend(targets);
-        }
-        for targets in bindings.values_mut() {
-            targets.sort_unstable_by(|a, b| {
-                (&a.uri, proto::range_key(a.range)).cmp(&(&b.uri, proto::range_key(b.range)))
-            });
-            targets.dedup();
-        }
-        Self { opts, roots, sources: index.analyzed_contents.clone(), bindings, errors: Vec::new() }
     }
 
     pub(crate) fn record_diagnostics(&mut self, diagnostics: &DiagnosticMap) {
@@ -86,6 +68,7 @@ impl RenameAnalysis {
         candidate: &mut RenameCandidate,
         new_name: &str,
     ) -> Result<(), ResponseError> {
+        let bindings = self.bindings.get().expect("rename bindings are initialized");
         let edits = RenameEdits::new(&candidate.locations, new_name)?;
         let mut sources = self.sources.clone();
         for (uri, source) in &self.sources {
@@ -111,17 +94,18 @@ impl RenameAnalysis {
         }
         let result = analyze_rename(self.opts.clone(), &self.roots, &sources);
         let after = result.rename_analysis();
-        if self.bindings.len() != after.bindings.len() {
+        let after_bindings = after.bindings.get().expect("rename bindings are initialized");
+        if bindings.len() != after_bindings.len() {
             return Err(binding_conflict());
         }
-        for (location, targets) in &self.bindings {
+        for (location, targets) in bindings {
             let mapped = edits.location(location).ok_or_else(binding_conflict)?;
             let targets = targets
                 .iter()
                 .map(|target| edits.location(target))
                 .collect::<Option<Vec<_>>>()
                 .ok_or_else(binding_conflict)?;
-            if after.bindings.get(&mapped) != Some(&targets) {
+            if after_bindings.get(&mapped) != Some(&targets) {
                 return Err(binding_conflict());
             }
         }
@@ -137,6 +121,44 @@ impl RenameAnalysis {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn initialize_bindings(
+        &self,
+        index: &RenameIndex,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        references: impl Iterator<Item = (Location, Vec<Location>)>,
+    ) {
+        self.bindings.get_or_init(|| {
+            let mut bindings = FxHashMap::<_, Vec<_>>::default();
+            for occurrence in &index.occurrences {
+                let targets = occurrence.targets.iter().map(|target| match *target {
+                    RenameTarget::Symbol(id) => {
+                        let declaration = &declarations[id];
+                        Location::new(declaration.location.uri.clone(), declaration.name_range)
+                    }
+                    RenameTarget::ImportAlias(id) => index.aliases[id].location.clone(),
+                    RenameTarget::MappingName(id) => index.mapping_names[id].location.clone(),
+                });
+                bindings.entry(occurrence.location.clone()).or_default().extend(targets);
+            }
+            // Include references that cannot themselves be renamed, such as ambiguous overloads.
+            for (location, targets) in references {
+                bindings.entry(location).or_default().extend(targets);
+            }
+            for targets in bindings.values_mut() {
+                targets.sort_unstable_by(|a, b| {
+                    (&a.uri, proto::range_key(a.range)).cmp(&(&b.uri, proto::range_key(b.range)))
+                });
+                targets.dedup();
+            }
+            bindings
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn bindings_initialized(&self) -> bool {
+        self.bindings.get().is_some()
     }
 }
 

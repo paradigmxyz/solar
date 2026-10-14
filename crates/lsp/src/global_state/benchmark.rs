@@ -791,7 +791,7 @@ impl BenchmarkCodeActionRequests {
     }
 }
 
-/// A prepared rename request including source validation and workspace-edit construction.
+/// A prepared rename request including binding validation and workspace-edit construction.
 #[doc(hidden)]
 pub struct BenchmarkRenameRequests {
     state: super::GlobalState,
@@ -814,17 +814,18 @@ impl BenchmarkRenameRequests {
         Self { state, params }
     }
 
-    /// Resolve the target, validate sources, and build rename edits without task dispatch.
+    /// Resolve the target, validate bindings and sources, and build edits without task dispatch.
     ///
     /// The fixture supplies a valid replacement name and a published analysis snapshot.
     #[inline(never)]
     pub fn run(&mut self) -> Option<WorkspaceEdit> {
         let position = &self.params.text_document_position;
-        let candidate = self
-            .state
-            .symbol_tables
-            .load()
-            .rename_candidate(&position.text_document.uri, position.position)?;
+        let tables = self.state.symbol_tables.load_full();
+        let mut candidate =
+            tables.rename_candidate(&position.text_document.uri, position.position)?;
+        tables
+            .validate_rename_bindings(&mut candidate, &self.params.new_name)
+            .expect("rename benchmark bindings should remain unchanged");
         Some(
             handlers::validated_rename_workspace_edit(
                 candidate,

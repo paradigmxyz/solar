@@ -367,13 +367,6 @@ impl SymbolTables {
             gcx.sess.opts.clone(),
             document_link_sources.clone(),
             &tables.rename,
-            &tables.declarations,
-            tables.references.iter().map(|reference| {
-                (
-                    reference.location.clone(),
-                    reference.targets.iter().map(|&id| tables.selection_location(id)).collect(),
-                )
-            }),
         )));
         tables
     }
@@ -395,6 +388,9 @@ impl SymbolTables {
     }
 
     fn extend_unindexed(&mut self, mut other: Self) {
+        // Freeze each batch before remapping IDs and combining occurrences from shared files.
+        self.ensure_rename_bindings();
+        other.ensure_rename_bindings();
         self.has_merged_batches = true;
         self.rename_analyses.append(&mut other.rename_analyses);
         if self.global_completions.is_empty() {
@@ -2093,6 +2089,7 @@ impl SymbolTables {
         if candidate.conflicting_contents {
             return Ok(());
         }
+        self.ensure_rename_bindings();
         for analysis in &self.rename_analyses {
             if candidate.locations.iter().any(|location| analysis.contains(&location.uri)) {
                 analysis.validate(candidate, new_name)?;
@@ -2102,7 +2099,30 @@ impl SymbolTables {
     }
 
     pub(crate) fn rename_analysis(&self) -> &RenameAnalysis {
+        self.ensure_rename_bindings();
         &self.rename_analyses[0]
+    }
+
+    fn ensure_rename_bindings(&self) {
+        if self.has_merged_batches {
+            return;
+        }
+        let Some(analysis) = self.rename_analyses.first() else { return };
+        analysis.initialize_bindings(
+            &self.rename,
+            &self.declarations,
+            self.references.iter().map(|reference| {
+                (
+                    reference.location.clone(),
+                    reference.targets.iter().map(|&id| self.selection_location(id)).collect(),
+                )
+            }),
+        );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rename_bindings_initialized(&self) -> bool {
+        self.rename_analyses.iter().all(|analysis| analysis.bindings_initialized())
     }
 }
 

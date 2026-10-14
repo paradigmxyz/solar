@@ -94,12 +94,18 @@ The benchmark groups intentionally keep separate timing boundaries:
   in an unchanged document and multiple cursors, excluding transport and blocking-pool scheduling.
 - `open-document-selection-range-cold` includes the first request's parsing and index construction;
   preparing and destroying the open document stays outside timing.
-- `rename` includes the production handler, source validation, blocking task, and edit construction.
+- `rename` measures repeated requests through synchronous production binding and source validation,
+  including speculative compiler analysis, edit construction, and response destruction. It excludes
+  Tokio task scheduling; fixtures provide valid replacement names and editable source files.
   Its `optimism-predeploys` case renames the `getName` argument at all 31 occurrences in the original
   self-contained Predeploys module extracted from `testdata/Optimism.sol`. The corresponding
   `project-analysis/optimism-predeploys` case measures fresh analysis. These cover one real module;
   the full flattened Optimism corpus contains conflicting dependency versions and is used only for
   source-level workloads, such as folding and selection ranges.
+- `rename-first-request` measures the same requests against a fresh analysis for every sample,
+  including any lazy binding initialization. Initial analysis and destruction of the request state
+  and response stay outside timing; speculative rename analysis remains timed. Cloning an existing
+  analysis would share its per-batch rename caches, so setup reanalyzes the prepared project.
 - `signature-help` measures repeated requests at one cursor through the production handler.
   `signature-help-moving-cursor` cycles through arguments and calls in generated contracts and the
   tracked Unifap router, including snapshot lookup, position conversion, and response destruction.

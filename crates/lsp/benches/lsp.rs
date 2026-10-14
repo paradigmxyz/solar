@@ -363,25 +363,40 @@ fn rename_candidate_queries(c: &mut Criterion) {
 }
 
 fn rename_requests(c: &mut Criterion) {
+    let mut workloads = Vec::new();
     let mut group = c.benchmark_group("lsp/rename");
     for reference_count in [0, 64, 2_048] {
         let project = BenchmarkProject::from_source(root_callers_source(reference_count, "pure "));
         let (uri, position) = project.unique_anchor(BENCHMARK_FILE, "target() internal").unwrap();
-        let mut requests = BenchmarkRenameRequests::new(project, uri.clone(), position);
+        let mut requests = BenchmarkRenameRequests::new(project.clone(), uri.clone(), position);
         let response = requests.run().expect("the target should be renameable");
         let edits = &response.changes.as_ref().unwrap()[&uri];
         assert_eq!(edits.len(), reference_count + 1);
         assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
         bench(&mut group, format!("{reference_count}-references"), || requests.run());
+        workloads.push((format!("{reference_count}-references"), project, uri, position));
     }
 
     let project = unifap_project();
     let (uri, position) = project.unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(\n").unwrap();
-    let mut requests = BenchmarkRenameRequests::new(project, uri, position);
+    let mut requests = BenchmarkRenameRequests::new(project.clone(), uri.clone(), position);
     let edits = requests.run().expect("the router helper should be renameable").changes.unwrap();
     assert_eq!(edits.len(), 1);
     assert_eq!(edits.values().next().unwrap().len(), 4);
     bench(&mut group, "unifap-v2-router", || requests.run());
+    workloads.push(("unifap-v2-router".into(), project, uri, position));
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/rename-first-request");
+    for (name, project, uri, position) in workloads {
+        // Reanalyze for every sample: cloned symbol tables share their per-batch rename caches.
+        bench_batched_ref(
+            &mut group,
+            name,
+            || BenchmarkRenameRequests::new(project.clone(), uri.clone(), position),
+            |requests| requests.run(),
+        );
+    }
     group.finish();
 }
 
@@ -1442,6 +1457,12 @@ fn optimism_requests(c: &mut Criterion) {
     assert_eq!(edits.len(), 31);
     assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
     bench(&mut c.benchmark_group("lsp/rename"), "optimism-predeploys", || requests.run());
+    bench_batched_ref(
+        &mut c.benchmark_group("lsp/rename-first-request"),
+        "optimism-predeploys",
+        || BenchmarkRenameRequests::new(project.clone(), uri.clone(), position),
+        |requests| requests.run(),
+    );
     bench_batched(
         &mut c.benchmark_group("lsp/project-analysis"),
         "optimism-predeploys",
