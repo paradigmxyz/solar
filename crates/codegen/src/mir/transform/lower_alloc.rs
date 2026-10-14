@@ -13,6 +13,8 @@ use crate::mir::{
     memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
+use solar_data_structures::map::FxHashMap;
+use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
@@ -38,11 +40,113 @@ impl MirPass for LowerAlloc {
 }
 
 fn lower_alloc(module: &mut Module) -> bool {
-    let mut changed = false;
+    let mut changed = share_checked_allocations(module);
     for func in module.functions.iter_mut() {
         changed |= lower_function(func);
     }
     changed
+}
+
+/// Share checked bumps before lowering erases the allocation operation.
+///
+/// Every caller still computes its requested size and performs any requested
+/// zeroing after the call. The helper owns only the free-memory-pointer load,
+/// checked bump, panic, and pointer store, so it preserves the allocation
+/// boundary and leaves initialization order unchanged.
+fn share_checked_allocations(module: &mut Module) -> bool {
+    let mut counts = FxHashMap::default();
+    for func in &module.functions {
+        for inst in func.instructions() {
+            let InstKind::Alloc { semantics, .. } = func.inst(inst).kind else { continue };
+            if semantics.failure == AllocationFailure::Panic
+                && !func.inst(inst).metadata.deferred_alloc()
+            {
+                *counts.entry(semantics.alignment).or_insert(0usize) += 1;
+            }
+        }
+    }
+
+    let helpers = counts
+        .into_iter()
+        .filter_map(|(alignment, count)| {
+            (count >= 2).then(|| (alignment, create_checked_alloc(module, alignment)))
+        })
+        .collect::<FxHashMap<_, _>>();
+    if helpers.is_empty() {
+        return false;
+    }
+
+    for func in &mut module.functions {
+        let mut replacements = FxHashMap::default();
+        let blocks = func.blocks.indices();
+        for block in blocks {
+            let instructions = std::mem::take(&mut func.blocks[block].instructions);
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(block);
+            for inst in instructions {
+                let InstKind::Alloc { size, semantics, .. } = builder.func().inst(inst).kind else {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
+                };
+                let Some(&helper) = helpers.get(&semantics.alignment) else {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
+                };
+                if semantics.failure != AllocationFailure::Panic
+                    || builder.func().inst(inst).metadata.deferred_alloc()
+                {
+                    builder.func_mut().blocks[block].instructions.push(inst);
+                    continue;
+                }
+                let result =
+                    builder.func().inst_result_value(inst).expect("allocation has a result");
+                // object = icall checked_alloc size
+                let object = builder.icall(helper, vec![size], MirType::MEMPTR);
+                if semantics.initialization == AllocationInitialization::Zeroed {
+                    builder.memory_zero(object, size);
+                }
+                replacements.insert(result, object);
+            }
+        }
+        func.replace_uses_canonicalized(&replacements);
+    }
+    true
+}
+
+fn create_checked_alloc(
+    module: &mut Module,
+    alignment: AllocationAlignment,
+) -> crate::mir::FunctionId {
+    let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let size = builder.add_param(MirType::I256);
+        builder.set_return_type(MirType::MEMPTR);
+        let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+        // ptr = inttoptr (load memory 64) to memptr
+        let free = builder.load(slot, PtrLocation::Memory);
+        let ptr = builder.cast(free, MirType::MEMPTR);
+        let (size, align_overflow) = aligned_size(&mut builder, size, alignment);
+        let next = builder.add(ptr, size);
+        let bump_overflow = builder.lt(next, ptr);
+        let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
+        let over_limit = builder.gt(next, limit);
+        let mut invalid = builder.or(bump_overflow, over_limit);
+        if let Some(align_overflow) = align_overflow {
+            invalid = builder.or(invalid, align_overflow);
+        }
+        let panic = builder.create_block();
+        let continuation = builder.create_block();
+        builder.branch(invalid, panic, continuation);
+
+        builder.switch_to_block(continuation);
+        builder.store(slot, next);
+        builder.ret([ptr]);
+
+        builder.switch_to_block(panic);
+        builder.panic(PanicCode::MemoryAllocationOverflow);
+    }
+    module.add_function(function)
 }
 
 fn lower_function(func: &mut Function) -> bool {
