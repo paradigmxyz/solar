@@ -22,7 +22,7 @@ use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
-    eval::ConstValue,
+    eval::{ConstValue, EvalErrorKind},
     hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };

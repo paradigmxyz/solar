@@ -294,12 +294,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Lowers a use of a constant to its value, which constant evaluation computes once.
     ///
     /// A constant without a value is an error at its first use, and an error value at every use.
+    /// A value too large to fold, such as `new bytes(65537)`, is built from the initializer at
+    /// every use instead, as solc does.
     pub(super) fn lower_constant_variable(
         &mut self,
         id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        match self.cx.gcx.const_eval().require_var(id) {
+        let gcx = self.cx.gcx;
+        if let Err(err) = gcx.const_eval().eval_var(id)
+            && matches!(err.kind, EvalErrorKind::ValueTooLarge)
+            && let Some(initializer) = gcx.hir.variable(id).initializer
+        {
+            // value = <initializer>
+            return self.lower_expr(initializer);
+        }
+        match gcx.const_eval().require_var(id) {
             Ok(value) => self
                 .lower_const_value(value, span)
                 .or_else(|| self.cx.report_unsupported(span, "constant")),
