@@ -7,13 +7,12 @@
 -     v1 = zext i1 v0 to i256
 +     v2 = ptrtoint memptr arg1 to i256 !metadata(span=10..20, modifier_depth=2)
 +     v3 = add v2, 32 !metadata(span=10..20, modifier_depth=2)
-+     v4 = memory_slice arg1 !metadata(span=10..20, modifier_depth=2)
-+     v5 = slice_len v4 !metadata(span=10..20, modifier_depth=2)
-+     v6 = gas !metadata(span=10..20, modifier_depth=2)
-+     v7 = sub v6, 0x61da !metadata(span=10..20, modifier_depth=2)
-+     v8 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
-+     v9 = call v7, v8, 0, v3, v5, 0, 0 !metadata(span=10..20, modifier_depth=2)
-+     v1 = zext i1 v9 to i256
++     v4 = load arg1 !metadata(span=10..20, modifier_depth=2)
++     v5 = gas !metadata(span=10..20, modifier_depth=2)
++     v6 = sub v5, 0x61da !metadata(span=10..20, modifier_depth=2)
++     v7 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
++     v8 = call v6, v7, 0, v3, v4, 0, 0 !metadata(span=10..20, modifier_depth=2)
++     v1 = zext i1 v8 to i256
       ret v1
   }
   
@@ -24,21 +23,19 @@
 -     ret v1
 +     v2 = ptrtoint memptr arg1 to i256
 +     v3 = add v2, 32
-+     v4 = memory_slice arg1
-+     v5 = slice_len v4
-+     v6 = zext i160 arg0 to i256
-+     v7 = call arg2, v6, 0, v3, v5, 0, 0
-+     v8 = not 31 !metadata(span=30..40, modifier_depth=3)
-+     v9 = and 63, v8 !metadata(span=30..40, modifier_depth=3)
-+     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(span=30..40, modifier_depth=3)
-+     store v10, 0 !metadata(span=30..40, modifier_depth=3)
-+     v11 = make_returndata_slice 0, 0 !metadata(span=30..40, modifier_depth=3)
-+     v12 = ptrtoint memptr v10 to i256 !metadata(span=30..40, modifier_depth=3)
-+     v13 = add v12, 32 !metadata(span=30..40, modifier_depth=3)
-+     v14 = slice_len v11 !metadata(span=30..40, modifier_depth=3)
-+     v15 = make_memory_slice v13, v14 !metadata(span=30..40, modifier_depth=3)
-+     slice_copy v15, 0, v11 !metadata(span=30..40, modifier_depth=3)
-+     ret v10
++     v4 = load arg1
++     v5 = zext i160 arg0 to i256
++     v6 = call arg2, v5, 0, v3, v4, 0, 0
++     v7 = not 31 !metadata(span=30..40, modifier_depth=3)
++     v8 = and 63, v7 !metadata(span=30..40, modifier_depth=3)
++     v9 = alloc memorybytes, exact, uninitialized, infallible, v8 !metadata(span=30..40, modifier_depth=3)
++     store v9, 0 !metadata(span=30..40, modifier_depth=3)
++     v10 = make_returndata_slice 0, 0 !metadata(span=30..40, modifier_depth=3)
++     v11 = ptradd v9, 32 !metadata(span=30..40, modifier_depth=3)
++     v12 = slice_ptr v10 !metadata(span=30..40, modifier_depth=3)
++     v13 = slice_len v10 !metadata(span=30..40, modifier_depth=3)
++     copy returndata v11, v12, v13 !metadata(span=30..40, modifier_depth=3)
++     ret v9
   }
   
   fn @delegate(arg0: i160, arg1: memptr) -> i256 {
@@ -47,11 +44,10 @@
 -     v1 = zext i1 v0 to i256
 +     v2 = ptrtoint memptr arg1 to i256
 +     v3 = add v2, 32
-+     v4 = memory_slice arg1
-+     v5 = slice_len v4
-+     v6 = zext i160 arg0 to i256
-+     v7 = delegatecall 0x186a0, v6, v3, v5, 0, 0
-+     v1 = zext i1 v7 to i256
++     v4 = load arg1
++     v5 = zext i160 arg0 to i256
++     v6 = delegatecall 0x186a0, v5, v3, v4, 0, 0
++     v1 = zext i1 v6 to i256
       ret v1
   }
   
@@ -61,13 +57,12 @@
 -     v1 = zext i1 v0 to i256
 +     v2 = ptrtoint memptr arg1 to i256
 +     v3 = add v2, 32
-+     v4 = memory_slice arg1
-+     v5 = slice_len v4
-+     v6 = gas
-+     v7 = sub v6, 0x8502
-+     v8 = zext i160 arg0 to i256
-+     v9 = call v7, v8, 0, v3, v5, 0, 0
-+     v1 = zext i1 v9 to i256
++     v4 = load arg1
++     v5 = gas
++     v6 = sub v5, 0x8502
++     v7 = zext i160 arg0 to i256
++     v8 = call v6, v7, 0, v3, v4, 0, 0
++     v1 = zext i1 v8 to i256
       ret v1
   }
   

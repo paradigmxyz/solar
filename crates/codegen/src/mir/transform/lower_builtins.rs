@@ -311,9 +311,8 @@ fn lower_address_call(
     gas: Option<ValueId>,
     value: Option<ValueId>,
 ) -> ValueId {
-    // view = memory_slice input
-    // offset = slice_ptr view
-    // size = slice_len view
+    // offset = add (ptrtoint input), 32
+    // size = load input
     // gas = explicit_gas | gas() - pre_tangerine_reserve
     // success = call/staticcall/delegatecall(gas, address, value?, offset, size, 0, 0)
     let offset = builder.memory_data(input);
@@ -365,9 +364,8 @@ fn lower_hash(
     input: ValueId,
     ripemd: bool,
 ) -> ValueId {
-    // view = memory_slice input
-    // input_ptr = slice_ptr view
-    // input_len = slice_len view
+    // input_ptr = add (ptrtoint input), 32
+    // input_len = load input
     // output = bytes(32)
     // precompile_call(sha256 ? 2 : 3, input, output)
     // result = mload(output.data)
@@ -427,8 +425,8 @@ fn lower_ecrecover(
 
 fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
     // output = alloc bytes(64), zeroed
-    // mstore (ptrtoint output), 32
-    // pointer = slice_ptr (memory_slice output)
+    // store output, 32
+    // pointer = add (ptrtoint output), 32
     let size = builder.imm(64);
     let output =
         builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);

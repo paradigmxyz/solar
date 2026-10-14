@@ -196,217 +196,223 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     store v167, v150
     jump bb7
   bb7:
-    v168 = phi [bb2: 0], [bb12: v191]
+    v168 = phi [bb2: 0], [bb12: v192]
     v169 = lt v168, v150
     jumpi v169, bb8, bb9
   bb9:
-    v192 = memory_slice v167
-    v193 = slice_len v192
+    v193 = load v167
     v194 = lt 0, v193
     v195 = eq v194, false
     icall panic_if<0x32>, v195
-    v196 = slice_load_word v192, 0
-    v197 = inttoptr i256 v196 to memptr
-    v198 = eq v196, 0
-    jumpi v198, bb13, bb14
+    v196 = ptradd v167, 32
+    v197 = load v196
+    v198 = inttoptr i256 v197 to memptr
+    v199 = eq v197, 0
+    jumpi v199, bb13, bb14
   bb13:
-    v199 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v200 = ptrtoint memptr v199 to i256
-    memory_zero v200, 160
-    v201 = ptrtoint memptr v199 to i256
-    slice_store_word v192, 0, v201
+    v200 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v201 = ptrtoint memptr v200 to i256
+    memory_zero v201, 160
+    v202 = ptradd v167, 32
+    v203 = ptrtoint memptr v200 to i256
+    store v202, v203
     jump bb14
   bb14:
-    v202 = phi [bb9: v197], [bb13: v199]
-    v203 = make_memory_slice v202, 5
-    v204 = lt 0, 5
-    v205 = eq v204, false
-    icall panic_if<0x32>, v205
-    v206 = slice_load_word v203, 0
-    v207 = trunc i256 v206 to i72
-    v208 = memory_slice v167
-    v209 = slice_len v208
+    v204 = phi [bb9: v198], [bb13: v200]
+    v205 = lt 0, 5
+    v206 = eq v205, false
+    icall panic_if<0x32>, v206
+    v207 = load v204
+    v208 = trunc i256 v207 to i72
+    v209 = load v167
     v210 = lt 0, v209
     v211 = eq v210, false
     icall panic_if<0x32>, v211
-    v212 = slice_load_word v208, 0
-    v213 = inttoptr i256 v212 to memptr
-    v214 = eq v212, 0
-    jumpi v214, bb15, bb16
+    v212 = ptradd v167, 32
+    v213 = load v212
+    v214 = inttoptr i256 v213 to memptr
+    v215 = eq v213, 0
+    jumpi v215, bb15, bb16
   bb15:
-    v215 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v216 = ptrtoint memptr v215 to i256
-    memory_zero v216, 160
-    v217 = ptrtoint memptr v215 to i256
-    slice_store_word v208, 0, v217
+    v216 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v217 = ptrtoint memptr v216 to i256
+    memory_zero v217, 160
+    v218 = ptradd v167, 32
+    v219 = ptrtoint memptr v216 to i256
+    store v218, v219
     jump bb16
   bb16:
-    v218 = phi [bb14: v213], [bb15: v215]
-    v219 = make_memory_slice v218, 5
-    v220 = lt 3, 5
-    v221 = eq v220, false
-    icall panic_if<0x32>, v221
-    v222 = slice_load_word v219, 96
-    v223 = trunc i256 v222 to i72
-    v224 = checked_add u72, v207, v223
-    v225 = memory_slice v167
-    v226 = slice_len v225
-    v227 = lt 1, v226
-    v228 = eq v227, false
-    icall panic_if<0x32>, v228
-    v229 = slice_load_word v225, 32
-    v230 = inttoptr i256 v229 to memptr
-    v231 = eq v229, 0
-    jumpi v231, bb17, bb18
+    v220 = phi [bb14: v214], [bb15: v216]
+    v221 = lt 3, 5
+    v222 = eq v221, false
+    icall panic_if<0x32>, v222
+    v223 = ptradd v220, 96
+    v224 = load v223
+    v225 = trunc i256 v224 to i72
+    v226 = checked_add u72, v208, v225
+    v227 = load v167
+    v228 = lt 1, v227
+    v229 = eq v228, false
+    icall panic_if<0x32>, v229
+    v230 = ptradd v167, 64
+    v231 = load v230
+    v232 = inttoptr i256 v231 to memptr
+    v233 = eq v231, 0
+    jumpi v233, bb17, bb18
   bb17:
-    v232 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v233 = ptrtoint memptr v232 to i256
-    memory_zero v233, 160
-    v234 = ptrtoint memptr v232 to i256
-    slice_store_word v225, 32, v234
+    v234 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v235 = ptrtoint memptr v234 to i256
+    memory_zero v235, 160
+    v236 = ptradd v167, 64
+    v237 = ptrtoint memptr v234 to i256
+    store v236, v237
     jump bb18
   bb18:
-    v235 = phi [bb16: v230], [bb17: v232]
-    v236 = make_memory_slice v235, 5
-    v237 = lt 1, 5
-    v238 = eq v237, false
-    icall panic_if<0x32>, v238
-    v239 = slice_load_word v236, 32
-    v240 = trunc i256 v239 to i72
-    v241 = checked_add u72, v224, v240
-    v242 = memory_slice v167
-    v243 = slice_len v242
-    v244 = lt 1, v243
-    v245 = eq v244, false
-    icall panic_if<0x32>, v245
-    v246 = slice_load_word v242, 32
-    v247 = inttoptr i256 v246 to memptr
-    v248 = eq v246, 0
-    jumpi v248, bb19, bb20
+    v238 = phi [bb16: v232], [bb17: v234]
+    v239 = lt 1, 5
+    v240 = eq v239, false
+    icall panic_if<0x32>, v240
+    v241 = ptradd v238, 32
+    v242 = load v241
+    v243 = trunc i256 v242 to i72
+    v244 = checked_add u72, v226, v243
+    v245 = load v167
+    v246 = lt 1, v245
+    v247 = eq v246, false
+    icall panic_if<0x32>, v247
+    v248 = ptradd v167, 64
+    v249 = load v248
+    v250 = inttoptr i256 v249 to memptr
+    v251 = eq v249, 0
+    jumpi v251, bb19, bb20
   bb19:
-    v249 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v250 = ptrtoint memptr v249 to i256
-    memory_zero v250, 160
-    v251 = ptrtoint memptr v249 to i256
-    slice_store_word v242, 32, v251
+    v252 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v253 = ptrtoint memptr v252 to i256
+    memory_zero v253, 160
+    v254 = ptradd v167, 64
+    v255 = ptrtoint memptr v252 to i256
+    store v254, v255
     jump bb20
   bb20:
-    v252 = phi [bb18: v247], [bb19: v249]
-    v253 = make_memory_slice v252, 5
-    v254 = lt 4, 5
-    v255 = eq v254, false
-    icall panic_if<0x32>, v255
-    v256 = slice_load_word v253, 128
-    v257 = trunc i256 v256 to i72
-    v258 = checked_add u72, v241, v257
-    v259 = memory_slice v167
-    v260 = slice_len v259
-    v261 = lt 2, v260
-    v262 = eq v261, false
-    icall panic_if<0x32>, v262
-    v263 = slice_load_word v259, 64
-    v264 = inttoptr i256 v263 to memptr
-    v265 = eq v263, 0
-    jumpi v265, bb21, bb22
+    v256 = phi [bb18: v250], [bb19: v252]
+    v257 = lt 4, 5
+    v258 = eq v257, false
+    icall panic_if<0x32>, v258
+    v259 = ptradd v256, 128
+    v260 = load v259
+    v261 = trunc i256 v260 to i72
+    v262 = checked_add u72, v244, v261
+    v263 = load v167
+    v264 = lt 2, v263
+    v265 = eq v264, false
+    icall panic_if<0x32>, v265
+    v266 = ptradd v167, 96
+    v267 = load v266
+    v268 = inttoptr i256 v267 to memptr
+    v269 = eq v267, 0
+    jumpi v269, bb21, bb22
   bb21:
-    v266 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v267 = ptrtoint memptr v266 to i256
-    memory_zero v267, 160
-    v268 = ptrtoint memptr v266 to i256
-    slice_store_word v259, 64, v268
+    v270 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v271 = ptrtoint memptr v270 to i256
+    memory_zero v271, 160
+    v272 = ptradd v167, 96
+    v273 = ptrtoint memptr v270 to i256
+    store v272, v273
     jump bb22
   bb22:
-    v269 = phi [bb20: v264], [bb21: v266]
-    v270 = make_memory_slice v269, 5
-    v271 = lt 0, 5
-    v272 = eq v271, false
-    icall panic_if<0x32>, v272
-    v273 = slice_load_word v270, 0
-    v274 = trunc i256 v273 to i72
-    v275 = checked_add u72, v258, v274
-    v276 = memory_slice v167
-    v277 = slice_len v276
-    v278 = lt 3, v277
-    v279 = eq v278, false
-    icall panic_if<0x32>, v279
-    v280 = slice_load_word v276, 96
-    v281 = inttoptr i256 v280 to memptr
-    v282 = eq v280, 0
-    jumpi v282, bb23, bb24
+    v274 = phi [bb20: v268], [bb21: v270]
+    v275 = lt 0, 5
+    v276 = eq v275, false
+    icall panic_if<0x32>, v276
+    v277 = load v274
+    v278 = trunc i256 v277 to i72
+    v279 = checked_add u72, v262, v278
+    v280 = load v167
+    v281 = lt 3, v280
+    v282 = eq v281, false
+    icall panic_if<0x32>, v282
+    v283 = ptradd v167, 128
+    v284 = load v283
+    v285 = inttoptr i256 v284 to memptr
+    v286 = eq v284, 0
+    jumpi v286, bb23, bb24
   bb23:
-    v283 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v284 = ptrtoint memptr v283 to i256
-    memory_zero v284, 160
-    v285 = ptrtoint memptr v283 to i256
-    slice_store_word v276, 96, v285
+    v287 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v288 = ptrtoint memptr v287 to i256
+    memory_zero v288, 160
+    v289 = ptradd v167, 128
+    v290 = ptrtoint memptr v287 to i256
+    store v289, v290
     jump bb24
   bb24:
-    v286 = phi [bb22: v281], [bb23: v283]
-    v287 = make_memory_slice v286, 5
-    v288 = lt 2, 5
-    v289 = eq v288, false
-    icall panic_if<0x32>, v289
-    v290 = slice_load_word v287, 64
-    v291 = trunc i256 v290 to i72
-    v292 = checked_add u72, v275, v291
-    v293 = memory_slice v167
-    v294 = slice_len v293
-    v295 = lt 3, v294
-    v296 = eq v295, false
-    icall panic_if<0x32>, v296
-    v297 = slice_load_word v293, 96
-    v298 = inttoptr i256 v297 to memptr
-    v299 = eq v297, 0
-    jumpi v299, bb25, bb26
+    v291 = phi [bb22: v285], [bb23: v287]
+    v292 = lt 2, 5
+    v293 = eq v292, false
+    icall panic_if<0x32>, v293
+    v294 = ptradd v291, 64
+    v295 = load v294
+    v296 = trunc i256 v295 to i72
+    v297 = checked_add u72, v279, v296
+    v298 = load v167
+    v299 = lt 3, v298
+    v300 = eq v299, false
+    icall panic_if<0x32>, v300
+    v301 = ptradd v167, 128
+    v302 = load v301
+    v303 = inttoptr i256 v302 to memptr
+    v304 = eq v302, 0
+    jumpi v304, bb25, bb26
   bb25:
-    v300 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    v301 = ptrtoint memptr v300 to i256
-    memory_zero v301, 160
-    v302 = ptrtoint memptr v300 to i256
-    slice_store_word v293, 96, v302
+    v305 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v306 = ptrtoint memptr v305 to i256
+    memory_zero v306, 160
+    v307 = ptradd v167, 128
+    v308 = ptrtoint memptr v305 to i256
+    store v307, v308
     jump bb26
   bb26:
-    v303 = phi [bb24: v298], [bb25: v300]
-    v304 = make_memory_slice v303, 5
-    v305 = lt 3, 5
-    v306 = eq v305, false
-    icall panic_if<0x32>, v306
-    v307 = slice_load_word v304, 96
-    v308 = trunc i256 v307 to i72
-    v309 = checked_add u72, v292, v308
-    v310 = zext i72 v309 to i256
-    ret v310
+    v309 = phi [bb24: v303], [bb25: v305]
+    v310 = lt 3, 5
+    v311 = eq v310, false
+    icall panic_if<0x32>, v311
+    v312 = ptradd v309, 96
+    v313 = load v312
+    v314 = trunc i256 v313 to i72
+    v315 = checked_add u72, v297, v314
+    v316 = zext i72 v315 to i256
+    ret v316
   bb8:
     v170 = storage_array_data_slot 0
     v171 = mul v168, 2
     v172 = add v170, v171
     v173 = alloc memoryfixedarray<5, 1>, exact, uninitialized, panic, 160
-    v174 = make_memory_slice v173, 5
     jump bb10
   bb10:
-    v175 = phi [bb8: 0], [bb11: v187]
-    v176 = lt v175, 5
-    jumpi v176, bb11, bb12
+    v174 = phi [bb8: 0], [bb11: v187]
+    v175 = lt v174, 5
+    jumpi v175, bb11, bb12
   bb12:
     v188 = ptrtoint memptr v173 to i256
-    v189 = memory_slice v167
-    v190 = shl 5, v168
-    slice_store_word v189, v190, v188
-    v191 = add v168, 1
+    v189 = shl 5, v168
+    v190 = ptradd v167, 32
+    v191 = ptradd v190, v189
+    store v191, v188
+    v192 = add v168, 1
     jump bb7
   bb11:
-    v177 = div v175, 3
-    v178 = add v172, v177
-    v179 = mod v175, 3
-    v180 = mul v179, 9
-    v181 = sload v178 !metadata(storage=symbolic(v178))
-    v182 = mul v180, 8
-    v183 = shr v182, v181
-    v184 = trunc i256 v183 to i72
-    v185 = zext i72 v184 to i256
-    v186 = shl 5, v175
-    slice_store_word v174, v186, v185
-    v187 = add v175, 1
+    v176 = div v174, 3
+    v177 = add v172, v176
+    v178 = mod v174, 3
+    v179 = mul v178, 9
+    v180 = sload v177 !metadata(storage=symbolic(v177))
+    v181 = mul v179, 8
+    v182 = shr v181, v180
+    v183 = trunc i256 v182 to i72
+    v184 = zext i72 v183 to i256
+    v185 = shl 5, v174
+    v186 = ptradd v173, v185
+    store v186, v184
+    v187 = add v174, 1
     jump bb10
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))

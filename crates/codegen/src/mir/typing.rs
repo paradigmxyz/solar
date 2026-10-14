@@ -64,6 +64,14 @@ pub(super) fn slice_type(func: &Function, value: ValueId) -> MirType {
     }
 }
 
+/// The pointer operand of pointer arithmetic: its own pointer type, or `memptr` to reject a word.
+pub(super) fn pointer(func: &Function, value: ValueId) -> MirType {
+    match func.value_ty(value) {
+        Some(ty @ MirType::Ptr(_)) => ty,
+        _ => MirType::MEMPTR,
+    }
+}
+
 /// An address operand in `location`: a pointer into it, or a raw word.
 pub(super) fn address(func: &Function, value: ValueId, location: PtrLocation) -> MirType {
     match func.value_ty(value) {

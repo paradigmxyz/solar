@@ -2,24 +2,24 @@
 @module NestedCalldataBounds
 fn @nested(arg0: memptr) -> i256 [selector=0x798068af, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = slice_load_word v0, 0
+    v0 = load arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 32
+    v4 = load v3
     v5 = inttoptr i256 v4 to memptr
     v6 = eq v4, 0
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memorybytes, exact, uninitialized, infallible, 32
     store v7, 0
-    v8 = ptrtoint memptr v7 to i256
-    slice_store_word v0, 0, v8
+    v8 = ptradd arg0, 32
+    v9 = ptrtoint memptr v7 to i256
+    store v8, v9
     jump bb2
   bb2:
-    v9 = phi [bb0: v5], [bb1: v7]
-    v10 = memory_slice v9
-    v11 = slice_len v10
+    v10 = phi [bb0: v5], [bb1: v7]
+    v11 = load v10
     ret v11
 }

@@ -5,30 +5,28 @@
 
 fn @six(arg0: memptr) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = checked_add u256, v1, 4
-    v3 = insert_value struct0, undef struct0, 0, v2
-    v4 = insert_value struct0, v3, 1, 1
-    v5 = insert_value struct0, v4, 2, 2
-    v6 = insert_value struct0, v5, 3, 3
-    v7 = insert_value struct0, v6, 4, 4
-    v8 = insert_value struct0, v7, 5, 5
-    ret v8
+    v0 = load arg0
+    v1 = checked_add u256, v0, 4
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 1
+    v4 = insert_value struct0, v3, 2, 2
+    v5 = insert_value struct0, v4, 3, 3
+    v6 = insert_value struct0, v5, 4, 4
+    v7 = insert_value struct0, v6, 5, 5
+    ret v7
 }
 
 fn @sixString(arg0: memptr) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = checked_add u256, v1, 4
-    v3 = insert_value struct0, undef struct0, 0, v2
-    v4 = insert_value struct0, v3, 1, 1
-    v5 = insert_value struct0, v4, 2, 2
-    v6 = insert_value struct0, v5, 3, 3
-    v7 = insert_value struct0, v6, 4, 4
-    v8 = insert_value struct0, v7, 5, 5
-    ret v8
+    v0 = load arg0
+    v1 = checked_add u256, v0, 4
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 1
+    v4 = insert_value struct0, v3, 2, 2
+    v5 = insert_value struct0, v4, 3, 3
+    v6 = insert_value struct0, v5, 4, 4
+    v7 = insert_value struct0, v6, 5, 5
+    ret v7
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCalls ===

@@ -7,69 +7,65 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     store v0, 2
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 0, 1
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    slice_store_word v5, 32, 2
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = gt v11, v10
-    jumpi v12, bb1, bb2
+    v1 = load v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 1
+    v5 = load v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    store v8, 2
+    v9 = load v0
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = gt v10, v9
+    jumpi v11, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v13 = phi [bb1: v10], [bb4: v17]
-    v14 = lt v13, v11
-    jumpi v14, bb4, bb5
+    v12 = phi [bb1: v9], [bb4: v16]
+    v13 = lt v12, v10
+    jumpi v13, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore 0, v10 !metadata(storage=slot(0))
-    v18 = memory_slice v0
+    sstore 0, v9 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v19 = phi [bb2: 0], [bb7: v25]
-    v20 = lt v19, v10
-    jumpi v20, bb7, bb8
+    v17 = phi [bb2: 0], [bb7: v25]
+    v18 = lt v17, v9
+    jumpi v18, bb7, bb8
   bb8:
     v26 = alloc memoryarray<1>, exact, zeroed, panic, 64
     store v26, 1
-    v27 = memory_slice v26
-    v28 = slice_len v27
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    slice_store_word v27, 0, 3
-    v31 = memory_slice v26
-    v32 = slice_len v31
-    v33 = sload 0 !metadata(storage=slot(0))
-    v34 = gt v33, v32
-    jumpi v34, bb9, bb10
+    v27 = load v26
+    v28 = lt 0, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v26, 32
+    store v30, 3
+    v31 = load v26
+    v32 = sload 0 !metadata(storage=slot(0))
+    v33 = gt v32, v31
+    jumpi v33, bb9, bb10
   bb9:
     jump bb11
   bb11:
-    v35 = phi [bb9: v32], [bb12: v39]
-    v36 = lt v35, v33
-    jumpi v36, bb12, bb13
+    v34 = phi [bb9: v31], [bb12: v38]
+    v35 = lt v34, v32
+    jumpi v35, bb12, bb13
   bb13:
     jump bb10
   bb10:
-    sstore 0, v32 !metadata(storage=slot(0))
-    v40 = memory_slice v26
+    sstore 0, v31 !metadata(storage=slot(0))
     jump bb14
   bb14:
-    v41 = phi [bb10: 0], [bb15: v47]
-    v42 = lt v41, v32
-    jumpi v42, bb15, bb16
+    v39 = phi [bb10: 0], [bb15: v47]
+    v40 = lt v39, v31
+    jumpi v40, bb15, bb16
   bb16:
     store 0, 0 !metadata(memory=scratch)
     v48 = keccak256 0, 32 !metadata(memory=scratch)
@@ -86,31 +82,35 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word,
     v58 = insert_value struct0, v57, 1, v50
     ret v58
   bb15:
-    v43 = shl 5, v41
-    v44 = slice_load_word v40, v43
+    v41 = shl 5, v39
+    v42 = ptradd v26, 32
+    v43 = ptradd v42, v41
+    v44 = load v43
     v45 = storage_array_data_slot 0
-    v46 = add v45, v41
+    v46 = add v45, v39
     sstore v46, v44 !metadata(storage=symbolic(v46))
-    v47 = add v41, 1
+    v47 = add v39, 1
     jump bb14
   bb12:
-    v37 = storage_array_data_slot 0
-    v38 = add v37, v35
-    sstore v38, 0 !metadata(storage=symbolic(v38))
-    v39 = add v35, 1
+    v36 = storage_array_data_slot 0
+    v37 = add v36, v34
+    sstore v37, 0 !metadata(storage=symbolic(v37))
+    v38 = add v34, 1
     jump bb11
   bb7:
-    v21 = shl 5, v19
-    v22 = slice_load_word v18, v21
+    v19 = shl 5, v17
+    v20 = ptradd v0, 32
+    v21 = ptradd v20, v19
+    v22 = load v21
     v23 = storage_array_data_slot 0
-    v24 = add v23, v19
+    v24 = add v23, v17
     sstore v24, v22 !metadata(storage=symbolic(v24))
-    v25 = add v19, 1
+    v25 = add v17, 1
     jump bb6
   bb4:
-    v15 = storage_array_data_slot 0
-    v16 = add v15, v13
-    sstore v16, 0 !metadata(storage=symbolic(v16))
-    v17 = add v13, 1
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v12
+    sstore v15, 0 !metadata(storage=symbolic(v15))
+    v16 = add v12, 1
     jump bb3
 }

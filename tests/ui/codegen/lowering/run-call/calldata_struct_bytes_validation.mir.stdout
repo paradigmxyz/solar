@@ -4,60 +4,57 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tu
   bb0:
     v0 = slice_ptr arg0
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v2 = make_memory_slice v1, 2
-    v3 = calldatasize
-    v4 = sub v3, v0
-    v5 = slt v4, 32
-    icall revert_if<calldata_tail_too_short>, v5
-    v6 = load calldata v0
-    v7 = add v0, v6
-    v8 = calldatasize
-    v9 = sub v8, v0
-    v10 = sub v9, 31
-    v11 = slt v6, v10
-    v12 = eq v11, false
-    icall revert_if<invalid_calldata_tail_offset>, v12
-    v13 = load calldata v7
-    v14 = gt v13, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v14
-    v15 = mul v13, 1
-    v16 = add v7, 32
-    v17 = calldatasize
-    v18 = sub v17, v15
-    v19 = sgt v16, v18
-    icall revert_if<calldata_tail_too_short>, v19
-    v20 = add v7, 32
-    v21 = make_calldata_slice v20, v13
-    v22 = slice_len v21
-    v23 = add v22, 63
-    v24 = lt v23, v22
-    icall panic_if<0x41>, v24
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    store v27, v22
-    v28 = ptrtoint memptr v27 to i256
-    v29 = add v28, 32
-    v30 = slice_len v21
-    v31 = make_memory_slice v29, v30
-    slice_copy v31, 0, v21
-    v32 = ptrtoint memptr v27 to i256
-    slice_store_word v2, 0, v32
-    v33 = add v0, 32
-    v34 = calldatasize
-    v35 = sub v34, v33
-    v36 = slt v35, 32
-    icall revert_if<calldata_tail_too_short>, v36
-    v37 = load calldata v33
-    slice_store_word v2, 32, v37
-    v38 = make_memory_slice v1, 2
-    v39 = slice_load_word v38, 0, memptr
-    v40 = memory_slice v39
-    v41 = slice_len v40
-    v42 = make_memory_slice v1, 2
-    v43 = slice_load_word v42, 32
-    v44 = checked_add u256, v41, v43
-    ret v44
+    v2 = calldatasize
+    v3 = sub v2, v0
+    v4 = slt v3, 32
+    icall revert_if<calldata_tail_too_short>, v4
+    v5 = load calldata v0
+    v6 = add v0, v5
+    v7 = calldatasize
+    v8 = sub v7, v0
+    v9 = sub v8, 31
+    v10 = slt v5, v9
+    v11 = eq v10, false
+    icall revert_if<invalid_calldata_tail_offset>, v11
+    v12 = load calldata v6
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = mul v12, 1
+    v15 = add v6, 32
+    v16 = calldatasize
+    v17 = sub v16, v14
+    v18 = sgt v15, v17
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = add v6, 32
+    v20 = make_calldata_slice v19, v12
+    v21 = slice_len v20
+    v22 = add v21, 63
+    v23 = lt v22, v21
+    icall panic_if<0x41>, v23
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
+    store v26, v21
+    v27 = ptradd v26, 32
+    v28 = slice_ptr v20
+    v29 = slice_len v20
+    copy calldata v27, v28, v29
+    v30 = ptrtoint memptr v26 to i256
+    store v1, v30
+    v31 = add v0, 32
+    v32 = calldatasize
+    v33 = sub v32, v31
+    v34 = slt v33, 32
+    icall revert_if<calldata_tail_too_short>, v34
+    v35 = load calldata v31
+    v36 = ptradd v1, 32
+    store v36, v35
+    v37 = load v1, memptr
+    v38 = load v37
+    v39 = ptradd v1, 32
+    v40 = load v39
+    v41 = checked_add u256, v38, v40
+    ret v41
 }
 
 fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -96,17 +93,18 @@ fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_par
     v26 = sgt v21, v25
     icall revert_if<calldata_tail_too_short>, v26
     v27 = abi_encode [calldata_bytes], object, args v20
-    v28 = memory_slice v27
-    v29 = slice_len v28
-    v30 = lt 64, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = slice_load_byte v28, 64
-    v33 = shl 248, v32
-    v34 = shr 248, v33
-    v35 = trunc i256 v34 to i8
-    v36 = zext i8 v35 to i256
-    ret v36
+    v28 = load v27
+    v29 = lt 64, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = ptradd v27, 96
+    v32 = load v31
+    v33 = byte 0, v32
+    v34 = shl 248, v33
+    v35 = shr 248, v34
+    v36 = trunc i256 v35 to i8
+    v37 = zext i8 v36 to i256
+    ret v37
 }
 
 fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -145,17 +143,18 @@ fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, a
     v26 = sgt v21, v25
     icall revert_if<calldata_tail_too_short>, v26
     v27 = abi_encode_packed (bytes v20)
-    v28 = memory_slice v27
-    v29 = slice_len v28
-    v30 = lt 0, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = slice_load_byte v28, 0
-    v33 = shl 248, v32
-    v34 = shr 248, v33
-    v35 = trunc i256 v34 to i8
-    v36 = zext i8 v35 to i256
-    ret v36
+    v28 = load v27
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = ptradd v27, 32
+    v32 = load v31
+    v33 = byte 0, v32
+    v34 = shl 248, v33
+    v35 = shr 248, v34
+    v36 = trunc i256 v35 to i8
+    v37 = zext i8 v36 to i256
+    ret v37
 }
 
 fn @hashField(arg0: calldataslice) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -201,16 +200,15 @@ fn @hashField(arg0: calldataslice) -> i256 [selector=0xdd0f255f, pure, abi_param
     v31 = and v28, v30
     v32 = alloc memorybytes, exact, uninitialized, infallible, v31
     store v32, v27
-    v33 = ptrtoint memptr v32 to i256
-    v34 = add v33, 32
+    v33 = ptradd v32, 32
+    v34 = slice_ptr v20
     v35 = slice_len v20
-    v36 = make_memory_slice v34, v35
-    slice_copy v36, 0, v20
-    v37 = memory_slice v32
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = keccak256 v38, v39
-    ret v40
+    copy calldata v33, v34, v35
+    v36 = ptrtoint memptr v32 to i256
+    v37 = add v36, 32
+    v38 = load v32
+    v39 = keccak256 v37, v38
+    ret v39
 }
 
 fn @indexField(arg0: calldataslice) -> i256 [selector=0xec2824a8, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -246,14 +244,13 @@ fn @indexField(arg0: calldataslice) -> i256 [selector=0xec2824a8, pure, abi_para
     icall panic_if<0x32>, v23
     v24 = slice_ptr v20
     v25 = slice_ptr v20
-    v26 = add v25, 0
-    v27 = load calldata v26
-    v28 = byte 0, v27
-    v29 = shl 248, v28
-    v30 = shr 248, v29
-    v31 = trunc i256 v30 to i8
-    v32 = zext i8 v31 to i256
-    ret v32
+    v26 = load calldata v25
+    v27 = byte 0, v26
+    v28 = shl 248, v27
+    v29 = shr 248, v28
+    v30 = trunc i256 v29 to i8
+    v31 = zext i8 v30 to i256
+    ret v31
 }
 
 fn @fixedField(arg0: calldataslice) -> i256 [selector=0x4d20e66c, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -284,19 +281,18 @@ fn @fixedField(arg0: calldataslice) -> i256 [selector=0x4d20e66c, pure, abi_para
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
-    v22 = add v21, 0
-    v23 = load calldata v22
-    v24 = slice_len v20
-    v25 = lt v24, 1
-    v26 = sub 1, v24
-    v27 = mul 8, v26
-    v28 = shl v27, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v29 = select v25, v28, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v30 = and v23, v29
-    v31 = shr 248, v30
-    v32 = trunc i256 v31 to i8
-    v33 = zext i8 v32 to i256
-    ret v33
+    v22 = load calldata v21
+    v23 = slice_len v20
+    v24 = lt v23, 1
+    v25 = sub 1, v23
+    v26 = mul 8, v25
+    v27 = shl v26, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v28 = select v24, v27, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v29 = and v22, v28
+    v30 = shr 248, v29
+    v31 = trunc i256 v30 to i8
+    v32 = zext i8 v31 to i256
+    ret v32
 }
 
 fn @copyField(arg0: calldataslice) -> i256 [selector=0xda205eee, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -342,14 +338,12 @@ fn @copyField(arg0: calldataslice) -> i256 [selector=0xda205eee, pure, abi_param
     v31 = and v28, v30
     v32 = alloc memorybytes, exact, uninitialized, infallible, v31
     store v32, v27
-    v33 = ptrtoint memptr v32 to i256
-    v34 = add v33, 32
+    v33 = ptradd v32, 32
+    v34 = slice_ptr v20
     v35 = slice_len v20
-    v36 = make_memory_slice v34, v35
-    slice_copy v36, 0, v20
-    v37 = memory_slice v32
-    v38 = slice_len v37
-    ret v38
+    copy calldata v33, v34, v35
+    v36 = load v32
+    ret v36
 }
 
 fn @copyWords(arg0: calldataslice) -> i256 [selector=0x7ce58428, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -382,21 +376,19 @@ fn @copyWords(arg0: calldataslice) -> i256 [selector=0x7ce58428, pure, abi_param
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
     store v21, v0
     v22 = make_calldata_slice v1, v12
-    v23 = ptrtoint memptr v21 to i256
-    v24 = add v23, 32
+    v23 = ptradd v21, 32
+    v24 = slice_ptr v22
     v25 = slice_len v22
-    v26 = make_memory_slice v24, v25
-    slice_copy v26, 0, v22
-    v27 = memory_slice v21
-    v28 = slice_len v27
-    v29 = memory_slice v21
-    v30 = slice_len v29
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = slice_load_word v29, 0
-    v34 = checked_add u256, v28, v33
-    ret v34
+    copy calldata v23, v24, v25
+    v26 = load v21
+    v27 = load v21
+    v28 = lt 0, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v21, 32
+    v31 = load v30
+    v32 = checked_add u256, v26, v31
+    ret v32
 }
 
 fn @emitBytes(arg0: calldataslice) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -409,18 +401,17 @@ fn @emitBytes(arg0: calldataslice) -> i256 [selector=0xc76f0635, abi_params=[byt
     v4 = and v1, v3
     v5 = alloc memorybytes, exact, uninitialized, infallible, v4
     store v5, v0
-    v6 = ptrtoint memptr v5 to i256
-    v7 = add v6, 32
+    v6 = ptradd v5, 32
+    v7 = slice_ptr arg0
     v8 = slice_len arg0
-    v9 = make_memory_slice v7, v8
-    slice_copy v9, 0, arg0
-    v10 = memory_slice v5
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = keccak256 v11, v12
-    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v13
-    v14 = slice_len arg0
-    ret v14
+    copy calldata v6, v7, v8
+    v9 = ptrtoint memptr v5 to i256
+    v10 = add v9, 32
+    v11 = load v5
+    v12 = keccak256 v10, v11
+    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v12
+    v13 = slice_len arg0
+    ret v13
 }
 
 fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[u256]] {
@@ -458,25 +449,25 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v59 = memory_slice v21
-    v60 = slice_len v59
-    v61 = lt 0, v60
-    v62 = eq v61, false
-    icall panic_if<0x32>, v62
-    v63 = slice_load_word v59, 0
+    v59 = load v21
+    v60 = lt 0, v59
+    v61 = eq v60, false
+    icall panic_if<0x32>, v61
+    v62 = ptradd v21, 32
+    v63 = load v62
     v64 = inttoptr i256 v63 to memptr
     v65 = eq v63, 0
     jumpi v65, bb4, bb5
   bb4:
     v66 = alloc memorybytes, exact, uninitialized, infallible, 32
     store v66, 0
-    v67 = ptrtoint memptr v66 to i256
-    slice_store_word v59, 0, v67
+    v67 = ptradd v21, 32
+    v68 = ptrtoint memptr v66 to i256
+    store v67, v68
     jump bb5
   bb5:
-    v68 = phi [bb3: v64], [bb4: v66]
-    v69 = memory_slice v68
-    v70 = slice_len v69
+    v69 = phi [bb3: v64], [bb4: v66]
+    v70 = load v69
     ret v70
   bb2:
     v24 = mul v22, 32
@@ -512,15 +503,15 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     v49 = and v46, v48
     v50 = alloc memorybytes, exact, uninitialized, infallible, v49
     store v50, v45
-    v51 = ptrtoint memptr v50 to i256
-    v52 = add v51, 32
+    v51 = ptradd v50, 32
+    v52 = slice_ptr v44
     v53 = slice_len v44
-    v54 = make_memory_slice v52, v53
-    slice_copy v54, 0, v44
-    v55 = ptrtoint memptr v50 to i256
-    v56 = memory_slice v21
-    v57 = shl 5, v22
-    slice_store_word v56, v57, v55
+    copy calldata v51, v52, v53
+    v54 = ptrtoint memptr v50 to i256
+    v55 = shl 5, v22
+    v56 = ptradd v21, 32
+    v57 = ptradd v56, v55
+    store v57, v54
     v58 = add v22, 1
     jump bb1
 }

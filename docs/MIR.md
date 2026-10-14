@@ -8,30 +8,29 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use integers (`iN`), opaque memory pointers (`memptr`), structs, or
-slices. A `memptr` carries a 256-bit memory address without implying validity,
-heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
-values too, and every access goes through a slice view. A fixed array or struct
-has no length word, so `make_memory_slice v0, 3` views its three words from the
-object itself, and `slice_load_word` and `slice_store_word` reach field or
-element `i` at byte offset `32 * i`, written `shl 5, i` for a runtime index.
-
-A dynamic memory object (`bytes`, `string`, `T[] memory`) is a `memptr` to its
-length word, which assembly can read and rewrite. Code reads it through a
-`slice<memory>` view: `memory_slice v0` loads the length word and yields the
-payload pointer and length, and `slice_len`, `slice_load_word`,
-`slice_store_byte`, `slice_copy`, and the other slice operations work on views,
-calldata, and returndata alike. A view captures the length when it is made, so
-lowering builds one at each use rather than carrying the length in SSA across
-calls or assembly. A fresh object's length is a plain `store` to its pointer:
-like an LLVM load or store from `ptr`, `load` and `store` accept a `memptr`
-address, and `lower-memory-objects` casts it to a word at the opcode boundary.
-
-Every word access is a `load`, `store`, or `store8`, and every bulk copy into
+SSA values use integers (`iN`), opaque pointers, structs, or slices. A pointer
+names the location it points into: `memptr`, `calldataptr`, or `returndataptr`.
+It carries a 256-bit address without implying validity or heap provenance.
+Memory objects are `memptr` values too, accessed with ordinary instructions:
+every word access is a `load`, `store`, or `store8`, and every bulk copy into
 memory is a `copy`. `load` and `copy` name the location they read, so
 `load calldata v0` selects `CALLDATALOAD` and `copy returndata v0, v1, v2`
-selects `RETURNDATACOPY`; a plain `load` or `copy` reads memory. Pointer types
-carry the same location: `memptr`, `calldataptr`, and `returndataptr`.
+selects `RETURNDATACOPY`; a plain `load` or `copy` reads memory. Like an LLVM
+load from `ptr`, a memory access takes a `memptr` or a raw `i256` address, and
+`lower-memory-objects` casts it to a word at the opcode boundary.
+
+`ptradd p, n` addresses `n` bytes into the object `p` points into and keeps
+its type. Like an LLVM `getelementptr inbounds nuw`, it does not wrap: semantic
+lowering emits it only for addresses inside the object, so alias analysis
+places an access at a runtime offset at or after `p`, and assembly's raw
+arithmetic uses `add` on words instead. A fixed array or struct has no length
+word, so field or element `i` is the word at `ptradd v0, 32 * i`, and at
+`ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
+`string`, `T[] memory`) is a `memptr` to its length word, which assembly can
+read and rewrite: `load v0` reads the length, and the payload starts at
+`ptradd v0, 32`. Where a slice value is needed, `make_memory_slice` pairs the
+payload address with the length; `slice_ptr` and `slice_len` project it, and
+calldata and returndata slices work the same way.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.

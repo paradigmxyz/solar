@@ -3,47 +3,44 @@
 fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 1
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb4: v8]
-    v3 = lt v2, 1
-    jumpi v3, bb2, bb3
+    v1 = phi [bb0: 0], [bb4: v7]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
   bb3:
-    v9 = make_memory_slice v0, 1
-    v10 = lt 0, 1
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = slice_load_word v9, 0
-    v13 = inttoptr i256 v12 to memptr
-    v14 = eq v12, 0
-    jumpi v14, bb5, bb6
+    v8 = lt 0, 1
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = load v0
+    v11 = inttoptr i256 v10 to memptr
+    v12 = eq v10, 0
+    jumpi v12, bb5, bb6
   bb5:
-    v15 = icall @default_struct_0
-    v16 = ptrtoint memptr v15 to i256
-    slice_store_word v9, 0, v16
+    v13 = icall @default_struct_0
+    v14 = ptrtoint memptr v13 to i256
+    store v0, v14
     jump bb6
   bb6:
-    v17 = phi [bb3: v13], [bb5: v15]
-    v18 = make_memory_slice v17, 1
-    v19 = slice_load_word v18, 0, memptr
-    v20 = make_memory_slice v19, 0x1000000000000000
-    v21 = lt 2, 0x1000000000000000
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = slice_load_word v20, 64
-    ret v23
+    v15 = phi [bb3: v11], [bb5: v13]
+    v16 = load v15, memptr
+    v17 = lt 2, 0x1000000000000000
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v16, 64
+    v20 = load v19
+    ret v20
   bb2:
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v5 = make_memory_slice v4, 1
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
     invalid
   bb4:
-    slice_store_word v5, 0, 0
-    v6 = shl 5, v2
-    v7 = ptrtoint memptr v4 to i256
-    slice_store_word v1, v6, v7
-    v8 = add v2, 1
+    store v3, 0
+    v4 = shl 5, v1
+    v5 = ptradd v0, v4
+    v6 = ptrtoint memptr v3 to i256
+    store v5, v6
+    v7 = add v1, 1
     jump bb1
 }
 
@@ -57,41 +54,41 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = slice_load_word v9, 0
+    v9 = load v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 32
+    v13 = load v12
     v14 = inttoptr i256 v13 to memptr
     v15 = eq v13, 0
     jumpi v15, bb5, bb6
   bb5:
     v16 = icall @default_struct_0
-    v17 = ptrtoint memptr v16 to i256
-    slice_store_word v9, 0, v17
+    v17 = ptradd v0, 32
+    v18 = ptrtoint memptr v16 to i256
+    store v17, v18
     jump bb6
   bb6:
-    v18 = phi [bb3: v14], [bb5: v16]
-    v19 = make_memory_slice v18, 1
-    v20 = slice_load_word v19, 0, memptr
-    v21 = make_memory_slice v20, 0x1000000000000000
-    v22 = lt 2, 0x1000000000000000
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = slice_load_word v21, 64
+    v19 = phi [bb3: v14], [bb5: v16]
+    v20 = load v19, memptr
+    v21 = lt 2, 0x1000000000000000
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd v20, 64
+    v24 = load v23
     ret v24
   bb2:
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v4 = make_memory_slice v3, 1
     icall panic_if<0x41>, true
     invalid
   bb4:
-    slice_store_word v4, 0, 0
-    v5 = memory_slice v0
-    v6 = shl 5, v1
+    store v3, 0
+    v4 = shl 5, v1
+    v5 = ptradd v0, 32
+    v6 = ptradd v5, v4
     v7 = ptrtoint memptr v3 to i256
-    slice_store_word v5, v6, v7
+    store v6, v7
     v8 = add v1, 1
     jump bb1
 }
@@ -99,10 +96,9 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
 fn @default_struct_0() -> memptr {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = make_memory_slice v0, 1
     icall panic_if<0x41>, true
     invalid
   bb1:
-    slice_store_word v1, 0, 0
+    store v0, 0
     ret v0
 }

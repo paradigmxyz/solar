@@ -5,9 +5,11 @@
 // CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
 // CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg1 to memptr
 // CHECK: - storage_to_memory
-// CHECK: + [[FIELDS:v[0-9]+]] = make_memory_slice [[OBJECT]], 3
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
-// CHECK: + slice_store_word [[FIELDS]], 0, [[VALUE]]
+// CHECK-NEXT: + store [[OBJECT]], [[VALUE]]
+// CHECK: + [[LAST:v[0-9]+]] = ptradd [[OBJECT]], 64
+// CHECK-NEXT: + [[ARRAY:v[0-9]+]] = ptrtoint memptr
+// CHECK-NEXT: + store [[LAST]], [[ARRAY]]
 fn @storage_to_memory(arg0: i256, arg1: i256) {
   bb0:
     v0 = inttoptr i256 arg1 to memptr
@@ -18,9 +20,9 @@ fn @storage_to_memory(arg0: i256, arg1: i256) {
 // CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
 // CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to memptr
 // CHECK: - memory_to_storage
-// CHECK: + [[FIELDS:v[0-9]+]] = make_memory_slice [[OBJECT]], 3
-// CHECK: + [[VALUE:v[0-9]+]] = slice_load_word [[FIELDS]], 0
-// CHECK: + sstore arg1, [[VALUE]]
+// CHECK: + [[VALUE:v[0-9]+]] = load [[OBJECT]]
+// CHECK-NEXT: + sstore arg1, [[VALUE]]
+// CHECK: + {{v[0-9]+}} = ptradd [[OBJECT]], 64
 fn @memory_to_storage(arg0: i256, arg1: i256) {
   bb0:
     v0 = inttoptr i256 arg0 to memptr

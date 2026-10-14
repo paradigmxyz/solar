@@ -232,6 +232,7 @@ struct CommonSubexprEliminator {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum ExprKey {
     Add(OperandKey, OperandKey),
+    PtrAdd(OperandKey, OperandKey),
     Offset(OperandKey, U256),
     Sub(OperandKey, OperandKey),
     Mul(OperandKey, OperandKey),
@@ -260,8 +261,6 @@ enum ExprKey {
     SignExtend(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
-    /// A `memory_slice` view, keyed by the length word it reads.
-    MemorySlice(MemRangeKey),
     RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
@@ -735,16 +734,6 @@ impl CommonSubexprEliminator {
                         );
                     }
                 }
-                // A view keeps the length word it read, so a known word is its length:
-                // slice_len (memory_slice object) => stored or loaded length
-                if let Some((ExprKey::MemorySlice(location), view)) = &candidate
-                    && !gas_observed
-                    && let Some(&length) = cache.get(&ExprKey::MLoad(*location))
-                    && func.value_ty(length) == Some(MirType::I256)
-                {
-                    let view = Self::operand_key(func, *view, ctx.replacements);
-                    cache.insert(ExprKey::SliceLen(view), length);
-                }
                 if let Some((key, result)) = candidate {
                     cache.insert(key, result);
                 }
@@ -918,10 +907,9 @@ impl CommonSubexprEliminator {
     }
 
     /// Whether merging `key` changes nothing the rest of the dominator-scoped pass has already
-    /// summarized: a state-independent expression, or a view, whose replacement reads the
-    /// same object's header.
+    /// summarized: a state-independent expression.
     fn settles_in_walk(key: &ExprKey) -> bool {
-        !Self::is_path_sensitive_expr(key) || matches!(key, ExprKey::MemorySlice(_))
+        !Self::is_path_sensitive_expr(key)
     }
 
     /// Whether a side effect can ever invalidate `key`.
@@ -939,7 +927,6 @@ impl CommonSubexprEliminator {
             kind,
             InstKind::Load(_, PtrLocation::Memory)
                 | InstKind::Fmp
-                | InstKind::MemorySlice(_)
                 | InstKind::Keccak256(_, _)
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)
@@ -1070,6 +1057,7 @@ impl CommonSubexprEliminator {
                     Some(ExprKey::Add(a, b))
                 }
             }
+            InstKind::PtrAdd(ptr, offset) => Some(ExprKey::PtrAdd(operand(*ptr), operand(*offset))),
             InstKind::Mul(a, b) => {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Mul(a, b))
@@ -1173,11 +1161,6 @@ impl CommonSubexprEliminator {
             }
             InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
             InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
-            InstKind::MemorySlice(object) => {
-                let key =
-                    self.alias().memory_object_length_location(func, inst_id, value(*object))?;
-                Some(ExprKey::MemorySlice(key))
-            }
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
@@ -1319,7 +1302,7 @@ impl CommonSubexprEliminator {
 
     fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
         expr_cache.retain_stateful(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::MemorySlice(read) | ExprKey::Keccak256(read) => write
+            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
                 .preserves(*read, |read, write| {
                     AliasAnalysis::memory_alias_locations(read, write).may_alias()
                 }),
@@ -1344,7 +1327,6 @@ impl CommonSubexprEliminator {
         matches!(
             key,
             ExprKey::MLoad(_)
-                | ExprKey::MemorySlice(_)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
@@ -1388,7 +1370,6 @@ impl CommonSubexprEliminator {
         !matches!(
             key,
             ExprKey::MLoad(_)
-                | ExprKey::MemorySlice(_)
                 | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)

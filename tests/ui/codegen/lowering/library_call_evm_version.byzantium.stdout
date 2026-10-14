@@ -25,9 +25,9 @@ fn @arr(arg0: i256) -> memptr [selector=0x71e5ee5f, pure, abi_params=[u256], abi
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v3 = make_memory_slice v2, 2
-    slice_store_word v3, 0, arg0
-    slice_store_word v3, 32, arg0
+    store v2, arg0
+    v3 = ptradd v2, 32
+    store v3, arg0
     ret v2
 }
 
@@ -40,15 +40,15 @@ fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[u256], abi_re
 fn @flagged(arg0: i256) -> memptr [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 0
-    slice_store_word v1, 32, 0
+    store v0, 0
+    v1 = ptradd v0, 32
+    store v1, 0
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v3 = ne arg0, 0
     v4 = zext i1 v3 to i256
-    v5 = make_memory_slice v2, 2
-    slice_store_word v5, 0, v4
-    slice_store_word v5, 32, arg0
+    store v2, v4
+    v5 = ptradd v2, 32
+    store v5, arg0
     ret v2
 }
 
@@ -65,15 +65,14 @@ fn @noret(arg0: i256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns
 
 fn @six(arg0: memptr) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = insert_value struct1, undef struct1, 0, v1
-    v3 = insert_value struct1, v2, 1, 1
-    v4 = insert_value struct1, v3, 2, 2
-    v5 = insert_value struct1, v4, 3, 3
-    v6 = insert_value struct1, v5, 4, 4
-    v7 = insert_value struct1, v6, 5, 5
-    ret v7
+    v0 = load arg0
+    v1 = insert_value struct1, undef struct1, 0, v0
+    v2 = insert_value struct1, v1, 1, 1
+    v3 = insert_value struct1, v2, 2, 2
+    v4 = insert_value struct1, v3, 3, 3
+    v5 = insert_value struct1, v4, 4, 4
+    v6 = insert_value struct1, v5, 5, 5
+    ret v6
 }
 
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
@@ -182,9 +181,9 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
 fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 0
-    slice_store_word v1, 32, 0
+    store v0, 0
+    v1 = ptradd v0, 32
+    store v1, 0
     v2 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2

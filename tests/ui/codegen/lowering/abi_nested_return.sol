@@ -10,12 +10,12 @@ contract AbiNestedReturn {
     // CHECK-LABEL: fn @structArray{{[( ]}}
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: [[PAIR:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: [[FIELDS:v[0-9]+]] = make_memory_slice [[PAIR]], 2
-    // CHECK-NEXT: slice_store_word [[FIELDS]], 0
-    // CHECK-NEXT: slice_store_word [[FIELDS]], 32
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[OUT]]
+    // CHECK: store [[PAIR]], arg0
+    // CHECK-NEXT: [[FIELD1:v[0-9]+]] = ptradd [[PAIR]], 32
+    // CHECK-NEXT: store [[FIELD1]], {{v[0-9]+}}
     // CHECK: [[ELEM:v[0-9]+]] = ptrtoint memptr [[PAIR]] to i256
-    // CHECK: slice_store_word [[VIEW]], 0, [[ELEM]]
+    // CHECK-NEXT: [[SLOT:v[0-9]+]] = ptradd [[OUT]], 32
+    // CHECK-NEXT: store [[SLOT]], [[ELEM]]
     function structArray(uint256 x) public pure returns (Pair[] memory) {
         Pair[] memory out = new Pair[](1);
         out[0] = Pair(x, x + 1);
@@ -26,9 +26,9 @@ contract AbiNestedReturn {
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: [[INNER:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: store [[INNER]], arg0
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[OUT]]
     // CHECK: [[ELEM:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
-    // CHECK: slice_store_word [[VIEW]], 0, [[ELEM]]
+    // CHECK-NEXT: [[SLOT:v[0-9]+]] = ptradd [[OUT]], 32
+    // CHECK-NEXT: store [[SLOT]], [[ELEM]]
     function nestedArray(uint256 n) public pure returns (uint256[][] memory) {
         uint256[][] memory out = new uint256[][](1);
         out[0] = new uint256[](n);

@@ -1721,40 +1721,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
             }
 
-            // Semantic memory-object accessors.
-            sym::memory_slice => {
-                inst!(MemorySlice(object) => MirType::Slice(PtrLocation::Memory))
-            }
-            sym::slice_load_word => {
-                operands!(slice, offset);
-                let ty = if self.parser.eat(TokenKind::Comma) {
-                    let ty = self.parse_type()?;
-                    if ty != MirType::MEMPTR {
-                        return Err(self.parser.error("slice load annotation must be `memptr`"));
-                    }
-                    ty
-                } else {
-                    MirType::I256
-                };
-                (InstKind::SliceLoadWord { slice, offset }, Some(ty))
-            }
-            sym::slice_load_byte => {
-                operands!(slice, index);
-                (InstKind::SliceLoadByte { slice, index }, Some(MirType::I256))
-            }
-            sym::slice_store_byte => {
-                operands!(slice, index, value);
-                (InstKind::SliceStoreByte { slice, index, value }, None)
-            }
-            sym::slice_store_word => {
-                operands!(slice, offset, value);
-                (InstKind::SliceStoreWord { slice, offset, value }, None)
-            }
-            sym::slice_copy => {
-                operands!(destination, offset, source);
-                (InstKind::SliceCopy { destination, offset, source }, None)
-            }
-
             // Semantic ABI encoding.
             sym::abi_encode => {
                 let layout = self.parse_abi_layout()?;
@@ -1855,10 +1821,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
+            sym::ptradd => {
+                let ptr = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                // A call's result type resolves after parsing, and a call returns a `memptr`.
+                let ty = match builder.func().value_ty(ptr) {
+                    Some(ty @ MirType::Ptr(_)) => ty,
+                    _ => MirType::MEMPTR,
+                };
+                (InstKind::PtrAdd(ptr, offset), Some(ty))
+            }
             sym::load => {
                 let location = self.parse_ptr_location();
                 let ptr = self.parse_value(builder)?;
-                schema_typed(InstKind::Load(ptr, location))
+                let ty = if self.parser.eat(TokenKind::Comma) {
+                    let ty = self.parse_type()?;
+                    if ty != MirType::MEMPTR {
+                        return Err(self.parser.error("load annotation must be `memptr`"));
+                    }
+                    ty
+                } else {
+                    MirType::I256
+                };
+                (InstKind::Load(ptr, location), Some(ty))
             }
             sym::copy => {
                 let location = self.parse_ptr_location();

@@ -46,18 +46,18 @@ fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[boo
     store v0, 1
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
     store v1, 1
-    v2 = memory_slice v0
-    v3 = slice_len v2
-    v4 = lt 0, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    slice_store_word v2, 0, 7
-    v6 = memory_slice v1
-    v7 = slice_len v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    slice_store_word v6, 0, 9
+    v2 = load v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 32
+    store v5, 7
+    v6 = load v1
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v1, 32
+    store v9, 9
     jumpi arg0, bb1, bb2
   bb2:
     jump bb3
@@ -67,12 +67,12 @@ fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[boo
   bb3:
     v11 = phi [bb1: v0], [bb2: v1]
     v12 = phi [bb1: v10], [bb2: i16 256]
-    v13 = memory_slice v11
-    v14 = slice_len v13
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = slice_load_word v13, 0
+    v13 = load v11
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v11, 32
+    v17 = load v16
     v18 = insert_value struct2, undef struct2, 0, v17
     v19 = insert_value struct2, v18, 1, v12
     ret v19
@@ -140,16 +140,15 @@ fn @slicePair(arg0: i1, arg1: calldataslice, arg2: calldataslice) -> struct2 [se
     icall panic_if<0x32>, v5
     v6 = slice_ptr v1
     v7 = slice_ptr v1
-    v8 = add v7, 0
-    v9 = load calldata v8
-    v10 = byte 0, v9
-    v11 = shl 248, v10
-    v12 = shr 248, v11
-    v13 = trunc i256 v12 to i8
-    v14 = zext i8 v13 to i256
-    v15 = insert_value struct2, undef struct2, 0, v14
-    v16 = insert_value struct2, v15, 1, v2
-    ret v16
+    v8 = load calldata v7
+    v9 = byte 0, v8
+    v10 = shl 248, v9
+    v11 = shr 248, v10
+    v12 = trunc i256 v11 to i8
+    v13 = zext i8 v12 to i256
+    v14 = insert_value struct2, undef struct2, 0, v13
+    v15 = insert_value struct2, v14, 1, v2
+    ret v15
 }
 
 fn @smallSigned() -> i8 [pure] {
@@ -258,40 +257,43 @@ fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
     store v8, 0x3200000000000000000000000000000000000000000000000000000000000000
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = slice_load_byte v9, 0
-    v14 = shl 248, v13
-    v15 = shr 248, v14
-    v16 = trunc i256 v15 to i8
-    v17 = zext i8 v16 to i256
-    v18 = memory_slice v3
-    v19 = slice_len v18
+    v9 = load v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 32
+    v13 = load v12
+    v14 = byte 0, v13
+    v15 = shl 248, v14
+    v16 = shr 248, v15
+    v17 = trunc i256 v16 to i8
+    v18 = zext i8 v17 to i256
+    v19 = load v3
     v20 = lt 0, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = slice_load_byte v18, 0
-    v23 = shl 248, v22
-    v24 = shr 248, v23
-    v25 = trunc i256 v24 to i8
-    v26 = zext i8 v25 to i256
-    v27 = memory_slice v6
-    v28 = slice_len v27
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = slice_load_byte v27, 0
-    v32 = shl 248, v31
-    v33 = shr 248, v32
-    v34 = trunc i256 v33 to i8
-    v35 = zext i8 v34 to i256
-    v36 = insert_value struct5, undef struct5, 0, v17
-    v37 = insert_value struct5, v36, 1, v26
-    v38 = insert_value struct5, v37, 2, v35
-    ret v38
+    v22 = ptradd v3, 32
+    v23 = load v22
+    v24 = byte 0, v23
+    v25 = shl 248, v24
+    v26 = shr 248, v25
+    v27 = trunc i256 v26 to i8
+    v28 = zext i8 v27 to i256
+    v29 = load v6
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = ptradd v6, 32
+    v33 = load v32
+    v34 = byte 0, v33
+    v35 = shl 248, v34
+    v36 = shr 248, v35
+    v37 = trunc i256 v36 to i8
+    v38 = zext i8 v37 to i256
+    v39 = insert_value struct5, undef struct5, 0, v18
+    v40 = insert_value struct5, v39, 1, v28
+    v41 = insert_value struct5, v40, 2, v38
+    ret v41
 }
 
 fn @swap() -> struct6 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {

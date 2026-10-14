@@ -24,9 +24,8 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
     v7 = add v6, v5
     store v7, 0
     datacopy EmptyRuntime_runtime_code_0, v4, v0
-    v8 = memory_slice v2
-    v9 = slice_len v8
-    ret v9
+    v8 = load v2
+    ret v8
 }
 
 fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

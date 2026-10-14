@@ -13,8 +13,12 @@ contract MsgData {
 
     // CHECK-LABEL: fn @copy{{[( ]}}
     // CHECK: calldatasize
-    // CHECK: [[DST:v[0-9]+]] = make_memory_slice
-    // CHECK-NEXT: slice_copy [[DST]], 0,
+    // CHECK-NEXT: [[SRC:v[0-9]+]] = make_calldata_slice 0,
+    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[SRC]]
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = slice_len [[SRC]]
+    // CHECK-NEXT: copy calldata [[DST]], [[PTR]], [[LEN]]
     function copy() external pure returns (bytes memory) {
         return msg.data;
     }
@@ -51,8 +55,12 @@ contract MsgData {
     // CHECK-LABEL: fn @tail{{[( ]}}
     // CHECK: calldatasize
     // CHECK: make_calldata_slice
-    // CHECK: [[DST:v[0-9]+]] = make_memory_slice
-    // CHECK-NEXT: slice_copy [[DST]], 0,
+    // CHECK: [[SRC:v[0-9]+]] = make_calldata_slice
+    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
+    // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[SRC]]
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = slice_len [[SRC]]
+    // CHECK-NEXT: copy calldata [[DST]], [[PTR]], [[LEN]]
     function tail(uint256 a, uint256 b) external pure returns (bytes memory) {
         return msg.data[a:b];
     }

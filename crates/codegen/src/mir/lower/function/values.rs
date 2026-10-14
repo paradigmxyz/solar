@@ -629,7 +629,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         self.builder.memory_load_field_as(
             base,
-            MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             u64::try_from(index).unwrap_or(u64::MAX),
             MirType::MEMPTR,
         )

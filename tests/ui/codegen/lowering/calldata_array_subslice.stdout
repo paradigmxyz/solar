@@ -40,10 +40,9 @@ fn @word(arg0: calldataslice) -> memptr [selector=0x37948b05, pure, abi_params=[
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
     store v30, v9
     v31 = make_calldata_slice v10, v21
-    v32 = ptrtoint memptr v30 to i256
-    v33 = add v32, 32
+    v32 = ptradd v30, 32
+    v33 = slice_ptr v31
     v34 = slice_len v31
-    v35 = make_memory_slice v33, v34
-    slice_copy v35, 0, v31
+    copy calldata v32, v33, v34
     ret v30
 }

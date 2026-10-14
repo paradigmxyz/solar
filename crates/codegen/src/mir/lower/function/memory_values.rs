@@ -45,9 +45,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.set_memory_len(object, length);
         }
 
-        // view = make_memory_slice object, len | memory_slice object
-        // for element, i { view[i] = coerce(element) }
-        let view = self.builder.memory_object_view(object, layout);
+        // for element, i { object[i] = coerce(element) }
         for (index, element) in elements.iter().enumerate() {
             let source_ty = self.cx.gcx.type_of_expr(element.id)?;
             let value = if source_ty.is_ref_at(DataLocation::Storage) {
@@ -61,7 +59,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.materialize_memory_argument(element_ty, value, element.span)?
             };
             let value = self.encode_memory_scalar(element_ty, value);
-            self.builder.memory_store_field(view, layout, index as u64, value);
+            self.builder.memory_store_field(object, index as u64, value);
         }
         Some(object)
     }
@@ -139,8 +137,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
-        let (object, layout) =
-            self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
+        let object = self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
         let arguments = self.lower_call_arguments(
             args,
             CallArgumentParams {
@@ -161,9 +158,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(this.encode_memory_scalar(field_ty, value))
             },
         )?;
-        let view = self.builder.memory_object_view(object, layout);
         for (index, value) in arguments.into_iter().enumerate() {
-            self.builder.memory_store_field(view, layout, index as u64, value);
+            self.builder.memory_store_field(object, index as u64, value);
         }
         Some(object)
     }
@@ -187,13 +183,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             AllocationSemantics::SOLIDITY_ZEROED
         };
-        let (object, layout) = self.builder.alloc_word_struct(fields, initialization);
-        let view = self.builder.memory_object_view(object, layout);
+        let object = self.builder.alloc_word_struct(fields, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
             let value = self.lower_expr(value)?;
             let value = self.encode_memory_scalar(field_types[index], value);
-            self.builder.memory_store_field(view, layout, index as u64, value);
+            self.builder.memory_store_field(object, index as u64, value);
         }
         Some(object)
     }
@@ -424,9 +419,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let zero = self.builder.imm(U256::ZERO);
 
-                // view = make_memory_slice object, fields
-                // for reference_field { view[field] = default(reference_field) }
-                let view = self.builder.memory_object_view(object, layout);
+                // for reference_field { object[field] = default(reference_field) }
                 for (index, &field) in fields.iter().enumerate() {
                     let field_ty = self.cx.gcx.type_of_item(field.into());
                     if bulk_zero && field_ty.peel_refs().is_value_type() {
@@ -434,7 +427,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     let value =
                         self.default_object_with_mode(field_ty, preserve_fmp).unwrap_or(zero);
-                    self.builder.memory_store_field(view, layout, index as u64, value);
+                    self.builder.memory_store_field(object, index as u64, value);
                 }
             }
             TyKind::Array(element, len) => {
@@ -446,10 +439,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.types.memory_layout(element).is_some() {
                     // for i in 0..len { object[i] = default(element) }
                     let len = self.builder.imm(len);
-                    let view = self.builder.memory_object_view(object, layout);
                     self.counted_loop(len, |this, index| {
                         if let Some(value) = this.default_object_with_mode(element, preserve_fmp) {
-                            this.builder.memory_store_element(view, layout, index, value);
+                            this.builder.memory_store_element(object, layout, index, value);
                         }
                     });
                 }

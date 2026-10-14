@@ -23,16 +23,16 @@ fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_retu
     v8 = trunc i256 v3 to i8
     v9 = zext i8 v8 to i256
     v10 = shl 248, v9
-    v11 = memory_slice v6
-    v12 = slice_len v11
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = byte 0, v10
-    slice_store_byte v11, 0, v15
-    v16 = memory_slice v6
-    v17 = slice_ptr v16
-    v18 = slice_len v16
+    v11 = load v6
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = byte 0, v10
+    v15 = ptradd v6, 32
+    store8 v15, v14
+    v16 = ptrtoint memptr v6 to i256
+    v17 = add v16, 32
+    v18 = load v6
     v19 = keccak256 v17, v18
     jump bb6
   bb6:

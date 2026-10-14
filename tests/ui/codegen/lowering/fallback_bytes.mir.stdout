@@ -11,15 +11,14 @@ fn @invoke(arg0: memptr) -> struct0 [selector=0xa6514259, abi_params=[bytes], ab
     v3 = icall returndata_bytes<>
     v4 = eq v2, false
     icall revert_if<empty>, v4
-    v5 = memory_slice v3
-    v6 = slice_len v5
-    v7 = memory_slice v3
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = keccak256 v8, v9
-    v11 = insert_value struct0, undef struct0, 0, v6
-    v12 = insert_value struct0, v11, 1, v10
-    ret v12
+    v5 = load v3
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 32
+    v8 = load v3
+    v9 = keccak256 v7, v8
+    v10 = insert_value struct0, undef struct0, 0, v5
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @fallback(arg0: calldataslice) -> memptr [fallback] {
@@ -40,10 +39,9 @@ fn @fallback(arg0: calldataslice) -> memptr [fallback] {
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     store v11, v6
-    v12 = ptrtoint memptr v11 to i256
-    v13 = add v12, 32
+    v12 = ptradd v11, 32
+    v13 = slice_ptr arg0
     v14 = slice_len arg0
-    v15 = make_memory_slice v13, v14
-    slice_copy v15, 0, arg0
+    copy calldata v12, v13, v14
     ret v11
 }

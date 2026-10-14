@@ -9,9 +9,8 @@ fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256],
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
     store v4, arg0
-    v5 = memory_slice v4
-    v6 = slice_len v5
-    ret v6
+    v5 = load v4
+    ret v5
 }
 
 fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -37,9 +36,8 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
     store v16, arg0
-    v17 = memory_slice v16
-    v18 = slice_len v17
-    ret v18
+    v17 = load v16
+    ret v17
 }
 
 fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -47,18 +45,18 @@ fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_r
     icall panic_if<0x41>, true
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     store v0, 0x800000000000000000000000000000000000000000000000000000000000000
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 1, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 32, 42
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_word v5, 32
+    v1 = load v0
+    v2 = lt 1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 64
+    store v4, 42
+    v5 = load v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    v9 = load v8
     ret v9
 }
 
@@ -68,63 +66,64 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     store v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v6 = mul arg0, 1
-    v7 = eq 1, 0
-    v8 = div v6, 1
-    v9 = eq v8, arg0
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = add v6, 1
-    v14 = lt v13, v6
-    icall panic_if<0x41>, v14
-    v15 = mul v13, 32
-    v16 = eq 32, 0
-    v17 = div v15, 32
-    v18 = eq v17, v13
-    v19 = or v16, v18
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    icall panic_if<0x41>, v21
-    v22 = alloc memoryarray<1>, exact, zeroed, panic, v15
-    store v22, arg0
-    v23 = memory_slice v0
-    v24 = slice_len v23
+    v7 = mul arg0, 1
+    v8 = eq 1, 0
+    v9 = div v7, 1
+    v10 = eq v9, arg0
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v7, 1
+    v15 = lt v14, v7
+    icall panic_if<0x41>, v15
+    v16 = mul v14, 32
+    v17 = eq 32, 0
+    v18 = div v16, 32
+    v19 = eq v18, v14
+    v20 = or v17, v19
+    v21 = zext i1 v20 to i256
+    v22 = eq v21, 0
+    icall panic_if<0x41>, v22
+    v23 = alloc memoryarray<1>, exact, zeroed, panic, v16
+    store v23, arg0
+    v24 = load v0
     v25 = lt 0, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = ptrtoint memptr v22 to i256
-    slice_store_word v23, 0, v27
-    v28 = memory_slice v0
-    v29 = slice_len v28
+    v27 = ptrtoint memptr v23 to i256
+    v28 = ptradd v0, 32
+    store v28, v27
+    v29 = load v0
     v30 = lt 0, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    v32 = slice_load_word v28, 0
-    v33 = inttoptr i256 v32 to memptr
-    v34 = eq v32, 0
-    jumpi v34, bb4, bb5
+    v32 = ptradd v0, 32
+    v33 = load v32
+    v34 = inttoptr i256 v33 to memptr
+    v35 = eq v33, 0
+    jumpi v35, bb4, bb5
   bb4:
-    v35 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    store v35, 0
-    v36 = ptrtoint memptr v35 to i256
-    slice_store_word v28, 0, v36
+    v36 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    store v36, 0
+    v37 = ptradd v0, 32
+    v38 = ptrtoint memptr v36 to i256
+    store v37, v38
     jump bb5
   bb5:
-    v37 = phi [bb3: v33], [bb4: v35]
-    v38 = memory_slice v37
-    v39 = slice_len v38
-    ret v39
+    v39 = phi [bb3: v34], [bb4: v36]
+    v40 = load v39
+    ret v40
   bb2:
-    v3 = memory_slice v0
-    v4 = shl 5, v1
-    slice_store_word v3, v4, 96
-    v5 = add v1, 1
+    v3 = shl 5, v1
+    v4 = ptradd v0, 32
+    v5 = ptradd v4, v3
+    store v5, 96
+    v6 = add v1, 1
     jump bb1
 }
 
@@ -153,22 +152,22 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     store v16, arg0
     jump bb1
   bb1:
-    v17 = phi [bb0: 0], [bb2: v24]
+    v17 = phi [bb0: 0], [bb2: v25]
     v18 = lt v17, arg0
     jumpi v18, bb2, bb3
   bb3:
-    v25 = memory_slice v16
-    v26 = slice_len v25
+    v26 = load v16
     ret v26
   bb2:
     v19 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v20 = make_memory_slice v19, 2
-    slice_store_word v20, 0, 0
-    slice_store_word v20, 32, 96
-    v21 = memory_slice v16
-    v22 = shl 5, v17
-    v23 = ptrtoint memptr v19 to i256
-    slice_store_word v21, v22, v23
-    v24 = add v17, 1
+    store v19, 0
+    v20 = ptradd v19, 32
+    store v20, 96
+    v21 = shl 5, v17
+    v22 = ptradd v16, 32
+    v23 = ptradd v22, v21
+    v24 = ptrtoint memptr v19 to i256
+    store v23, v24
+    v25 = add v17, 1
     jump bb1
 }

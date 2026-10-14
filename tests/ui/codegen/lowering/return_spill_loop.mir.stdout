@@ -12,62 +12,65 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     v3 = trunc i256 arg0 to i8
     v4 = zext i8 v3 to i256
     v5 = shl 248, v4
-    v6 = memory_slice v2
-    v7 = slice_len v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = byte 0, v5
-    slice_store_byte v6, 0, v10
-    v11 = memory_slice v2
-    v12 = slice_len v11
-    v13 = lt 1, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
-    slice_store_byte v11, 1, v15
-    v16 = memory_slice v2
-    v17 = slice_len v16
-    v18 = lt 2, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
-    slice_store_byte v16, 2, v20
+    v6 = load v2
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = byte 0, v5
+    v10 = ptradd v2, 32
+    store8 v10, v9
+    v11 = load v2
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
+    v15 = ptradd v2, 33
+    store8 v15, v14
+    v16 = load v2
+    v17 = lt 2, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    v20 = ptradd v2, 34
+    store8 v20, v19
     v21 = icall @copy, v2, 34
-    v22 = memory_slice v21
-    v23 = slice_len v22
-    v24 = lt 0, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = slice_load_byte v22, 0
-    v27 = shl 248, v26
-    v28 = shr 248, v27
-    v29 = trunc i256 v28 to i8
-    v30 = zext i8 v29 to i256
-    v31 = memory_slice v21
-    v32 = slice_len v31
+    v22 = load v21
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v21, 32
+    v26 = load v25
+    v27 = byte 0, v26
+    v28 = shl 248, v27
+    v29 = shr 248, v28
+    v30 = trunc i256 v29 to i8
+    v31 = zext i8 v30 to i256
+    v32 = load v21
     v33 = lt 1, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
-    v35 = slice_load_byte v31, 1
-    v36 = shl 248, v35
-    v37 = shr 248, v36
-    v38 = trunc i256 v37 to i8
-    v39 = zext i8 v38 to i256
-    v40 = memory_slice v21
-    v41 = slice_len v40
-    v42 = lt 2, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = slice_load_byte v40, 2
-    v45 = shl 248, v44
-    v46 = shr 248, v45
-    v47 = trunc i256 v46 to i8
-    v48 = zext i8 v47 to i256
-    v49 = insert_value struct0, undef struct0, 0, v30
-    v50 = insert_value struct0, v49, 1, v39
-    v51 = insert_value struct0, v50, 2, v48
-    ret v51
+    v35 = ptradd v21, 33
+    v36 = load v35
+    v37 = byte 0, v36
+    v38 = shl 248, v37
+    v39 = shr 248, v38
+    v40 = trunc i256 v39 to i8
+    v41 = zext i8 v40 to i256
+    v42 = load v21
+    v43 = lt 2, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = ptradd v21, 34
+    v46 = load v45
+    v47 = byte 0, v46
+    v48 = shl 248, v47
+    v49 = shr 248, v48
+    v50 = trunc i256 v49 to i8
+    v51 = zext i8 v50 to i256
+    v52 = insert_value struct0, undef struct0, 0, v31
+    v53 = insert_value struct0, v52, 1, v41
+    v54 = insert_value struct0, v53, 2, v51
+    ret v54
 }
 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -79,17 +82,18 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     store v2, 0x2222330000000000000000000000000000000000000000000000000000000000
     v3 = icall @copy, v0, 34
     v4 = icall @copy, v3, 221
-    v5 = memory_slice v4
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_byte v5, 1
-    v10 = shl 248, v9
-    v11 = shr 248, v10
-    v12 = trunc i256 v11 to i8
-    v13 = zext i8 v12 to i256
-    ret v13
+    v5 = load v4
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v4, 33
+    v9 = load v8
+    v10 = byte 0, v9
+    v11 = shl 248, v10
+    v12 = shr 248, v11
+    v13 = trunc i256 v12 to i8
+    v14 = zext i8 v13 to i256
+    ret v14
 }
 
 fn @run(arg0: memptr, arg1: i256) -> memptr [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

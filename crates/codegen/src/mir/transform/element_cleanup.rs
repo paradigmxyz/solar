@@ -31,15 +31,15 @@
 //!
 //! Only word-element arrays, contiguous low-bit masks, and `zext iN (trunc i256 x to iN) to
 //! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
-//! Runs early in the optimized phase, while element accesses are still
-//! semantic and the call graph is explicit; removed masks lose their debug
+//! Runs early in the optimized phase, while `ptradd` keeps element addresses
+//! explicit and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
     AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
     Function, FunctionId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, Module,
-    Terminator, Value, ValueId,
+    PtrLocation, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -188,17 +188,36 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
     )
 }
 
-/// The array a word element load or store accesses.
+/// The array a word element load or store accesses: a `memptr` object at a word-aligned
+/// offset. The word at a dynamic object's pointer is its length, not an element, so a constant
+/// offset of zero counts only in a fixed-layout allocation.
 fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
-    match func.inst(inst).kind {
-        InstKind::SliceLoadWord { slice, offset }
-        | InstKind::SliceStoreWord { slice, offset, .. }
-            if func.is_word_offset(offset) =>
-        {
-            func.view_object(slice)
+    let (InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _)) =
+        func.inst(inst).kind
+    else {
+        return None;
+    };
+    let (object, offset) = match func.element_address(address) {
+        Some((object, offset, _)) => (object, offset),
+        None => {
+            let (object, offset) = func.object_address(address)?;
+            if offset == 0 && !is_fixed_allocation(func, object) {
+                return None;
+            }
+            (object, offset)
         }
-        _ => None,
-    }
+    };
+    (offset.is_multiple_of(EvmMemoryLayout::WORD_SIZE)
+        && func.value_ty(object) == Some(MirType::MEMPTR))
+    .then_some(object)
+}
+
+/// Whether `object` is an allocation of a fixed array or struct, which has no length word.
+fn is_fixed_allocation(func: &Function, object: ValueId) -> bool {
+    matches!(func.value(object), Value::Inst(inst) if matches!(
+        func.inst(*inst).kind,
+        InstKind::Alloc { kind: AllocationKind::Object(layout), .. } if layout.fixed_words().is_some()
+    ))
 }
 
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
@@ -225,7 +244,18 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            InstKind::SliceStoreWord { value, .. }
+            // A direct dynamic allocation's header is separate from existing array elements.
+            InstKind::Store(..)
+                if func.memory_length_store(inst).is_some_and(|(object, _)| {
+                    matches!(func.value(object), Value::Inst(alloc)
+                        if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind, .. }
+                            if !matches!(kind, AllocationKind::Object(layout)
+                                if layout.fixed_words().is_some())))
+                }) =>
+            {
+                0
+            }
+            InstKind::Store(_, value)
                 if word_element_object(func, inst).is_some_and(|object| {
                     objects.is_none_or(|objects| {
                         objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)
@@ -233,15 +263,6 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
                 }) =>
             {
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
-            }
-            // A direct allocation's header is separate from existing array elements.
-            InstKind::Store(..)
-                if func.memory_length_store(inst).is_some_and(|(object, _)| {
-                    matches!(func.value(object), Value::Inst(alloc)
-                        if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }))
-                }) =>
-            {
-                0
             }
             // Only compiler-owned words and zeroing are harmless without an alias proof.
             InstKind::Alloc { .. }

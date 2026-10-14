@@ -42,7 +42,7 @@ impl MirPass for LowerAggregates {
 
 #[derive(Clone, Copy)]
 enum MemoryObjectAccess {
-    Field { object: ValueId, layout: MemoryObjectLayout, field: u64 },
+    Field { object: ValueId, field: u64 },
     Element { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
 }
 
@@ -52,8 +52,8 @@ fn store_memory_object_word(
     value: ValueId,
 ) {
     match destination {
-        MemoryObjectAccess::Field { object, layout, field } => {
-            builder.memory_store_field(object, layout, field, value)
+        MemoryObjectAccess::Field { object, field } => {
+            builder.memory_store_field(object, field, value)
         }
         MemoryObjectAccess::Element { object, layout, index } => {
             builder.memory_store_element(object, layout, index, value)
@@ -66,9 +66,7 @@ fn load_memory_object_word(
     source: MemoryObjectAccess,
 ) -> ValueId {
     match source {
-        MemoryObjectAccess::Field { object, layout, field } => {
-            builder.memory_load_field(object, layout, field)
-        }
+        MemoryObjectAccess::Field { object, field } => builder.memory_load_field(object, field),
         MemoryObjectAccess::Element { object, layout, index } => {
             builder.memory_load_element(object, layout, index)
         }
@@ -155,8 +153,6 @@ fn visit_storage_fields(
     mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, ValueId, MemoryObjectAccess),
 ) {
     let memory_layout = memory_object_layout(layout);
-    // view = make_memory_slice memory, words
-    let memory = builder.memory_object_view(memory, memory_layout);
     match layout {
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;
@@ -166,11 +162,7 @@ fn visit_storage_fields(
                     builder,
                     field,
                     slot,
-                    MemoryObjectAccess::Field {
-                        object: memory,
-                        layout: memory_layout,
-                        field: index as u64,
-                    },
+                    MemoryObjectAccess::Field { object: memory, field: index as u64 },
                 );
                 storage_offset += field.storage_slots();
             }

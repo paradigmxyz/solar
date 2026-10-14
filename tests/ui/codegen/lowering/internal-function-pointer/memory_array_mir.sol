@@ -25,13 +25,21 @@ contract FunctionPointerMemoryArray {
     }
 
     // CHECK-LABEL: fn @callArray(
-    // CHECK: slice_store_word {{v[0-9]+}}, 0, [[A:[0-9]+]]
-    // CHECK: slice_store_word {{v[0-9]+}}, 32, [[B:[0-9]+]]
-    // CHECK: slice_store_word {{v[0-9]+}}, 64, [[C:[0-9]+]]
-    // CHECK: slice_store_word {{v[0-9]+}}, 96, [[D:[0-9]+]]
-    // CHECK: slice_store_word {{v[0-9]+}}, 128, [[E:[0-9]+]]
+    // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[P0:v[0-9]+]] = ptradd [[ARR]], 32
+    // CHECK-NEXT: store [[P0]], [[A:[0-9]+]]
+    // CHECK: [[P1:v[0-9]+]] = ptradd [[ARR]], 64
+    // CHECK-NEXT: store [[P1]], [[B:[0-9]+]]
+    // CHECK: [[P2:v[0-9]+]] = ptradd [[ARR]], 96
+    // CHECK-NEXT: store [[P2]], [[C:[0-9]+]]
+    // CHECK: [[P3:v[0-9]+]] = ptradd [[ARR]], 128
+    // CHECK-NEXT: store [[P3]], [[D:[0-9]+]]
+    // CHECK: [[P4:v[0-9]+]] = ptradd [[ARR]], 160
+    // CHECK-NEXT: store [[P4]], [[E:[0-9]+]]
     // CHECK: [[OFF1:v[0-9]+]] = shl 5, arg1
-    // CHECK: [[ARRAY_FN:v[0-9]+]] = slice_load_word {{v[0-9]+}}, [[OFF1]]
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd [[ARR]], 32
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[DATA]], [[OFF1]]
+    // CHECK-NEXT: [[ARRAY_FN:v[0-9]+]] = load [[ELEM]]
     // CHECK: icall @internal_dispatcher{{.*}}, [[ARRAY_FN]], arg0
     // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, [[A]]

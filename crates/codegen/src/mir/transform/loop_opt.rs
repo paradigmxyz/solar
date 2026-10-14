@@ -51,8 +51,8 @@ use crate::mir::{
     InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
     ValueId,
     analysis::{
-        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
-        LocationSize, Loop, LoopAnalyzer, ScalarEvolution,
+        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location, LocationSize,
+        Loop, LoopAnalyzer, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -486,23 +486,9 @@ impl LoopOptimizer {
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
-            // A `memory_slice` view lowers to one word load of the object's
-            // length header. Slice stores address the payload that follows the
-            // header, so alias analysis can prove the loop leaves the length
-            // alone while the object identity is still explicit.
-            // An object layout does not prove that the header is allocated.
-            // As with raw loads, require execution on every path through the loop.
-            InstKind::MemorySlice(..) => {
-                return !self.function_observes_msize(func)
-                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_write_read_locations(func, ctx, inst_id);
-            }
-            // These semantic memory reads lower to `load` after LICM. Keep them in
-            // place until their physical address and width are explicit so a store
-            // in the loop cannot be missed by the dependence check above.
-            InstKind::SliceLoadByte { .. }
-            | InstKind::SliceLoadWord { .. }
-            | InstKind::FrameLoad { .. } => return false,
+            // A frame slot's address is implicit until frame lowering. Keep the load in place so a
+            // store in the loop cannot be missed by the dependence check above.
+            InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
@@ -682,7 +668,7 @@ impl LoopOptimizer {
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
             | InstKind::Clz(_) => 5,
-            InstKind::Load(_, _) | InstKind::MemorySlice(_) => 3,
+            InstKind::Load(_, _) => 3,
             _ => 0,
         }
     }
@@ -796,40 +782,6 @@ impl LoopOptimizer {
         false
     }
 
-    /// Returns true if any loop instruction or terminator may write a location
-    /// that `load_inst` reads, or if that read is not a bounded location.
-    fn loop_may_write_read_locations(
-        &self,
-        func: &Function,
-        ctx: LoopOptContext<'_>,
-        load_inst: InstId,
-    ) -> bool {
-        let aa = self.alias();
-        let mut locations = ArrayVec::<Location, 4>::new();
-        for &access in aa.instruction_mod_ref(func, load_inst).reads() {
-            match access {
-                Access::Location(location) if !locations.is_full() => locations.push(location),
-                Access::Location(_) | Access::Any(_) => return true,
-            }
-        }
-        for block_id in &ctx.loop_data.blocks {
-            let block = &func.blocks[block_id];
-            for &inst_id in &block.instructions {
-                let effects = aa.instruction_mod_ref(func, inst_id);
-                if locations.iter().any(|&location| effects.may_write(aa, location)) {
-                    return true;
-                }
-            }
-            if let Some(terminator) = &block.terminator {
-                let effects = aa.terminator_mod_ref(func, terminator);
-                if locations.iter().any(|&location| effects.may_write(aa, location)) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
     fn loop_may_mutate_storage_slot(
         &self,
         func: &Function,
@@ -921,8 +873,8 @@ impl LoopOptimizer {
         let Some(load_width) = load_width else { return true };
         let aa = self.alias();
         if let (Some(load), Some(write)) = (
-            aa.bare_memory_location(func, load_addr, LocationSize::Const(load_width)),
-            aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width)),
+            aa.bare_access_extent(func, load_addr, LocationSize::Const(load_width)),
+            aa.bare_access_extent(func, write_addr, LocationSize::Const(write_width)),
         ) {
             match aa.memory_alias(load, write) {
                 AliasResult::NoAlias => return false,

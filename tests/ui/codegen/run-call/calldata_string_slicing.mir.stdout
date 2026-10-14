@@ -54,11 +54,10 @@ fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xd
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
     store v20, v15
-    v21 = ptrtoint memptr v20 to i256
-    v22 = add v21, 32
+    v21 = ptradd v20, 32
+    v22 = slice_ptr v8
     v23 = slice_len v8
-    v24 = make_memory_slice v22, v23
-    slice_copy v24, 0, v8
+    copy calldata v21, v22, v23
     ret v20
 }
 
@@ -100,10 +99,9 @@ fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) 
     v28 = and v25, v27
     v29 = alloc memorybytes, exact, uninitialized, infallible, v28
     store v29, v24
-    v30 = ptrtoint memptr v29 to i256
-    v31 = add v30, 32
+    v30 = ptradd v29, 32
+    v31 = slice_ptr v17
     v32 = slice_len v17
-    v33 = make_memory_slice v31, v32
-    slice_copy v33, 0, v17
+    copy calldata v30, v31, v32
     ret v29
 }

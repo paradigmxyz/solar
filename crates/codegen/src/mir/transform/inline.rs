@@ -1128,12 +1128,6 @@ fn is_small_literal_return(func: &Function) -> bool {
         }
         let (address, value) = match func.inst(inst).kind {
             InstKind::Store(address, value) => (func.object_address(address), value),
-            InstKind::SliceStoreWord { slice, offset, value } => (
-                func.object_address(slice).and_then(|(base, data)| {
-                    Some((base, data.checked_add(func.value_u64(offset)?)?))
-                }),
-                value,
-            ),
             _ => return false,
         };
         match address {
@@ -1418,14 +1412,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
 }
 
 fn live_word_count(func: &Function, live: &DenseBitSet<ValueId>) -> usize {
-    live.iter()
-        .filter(|&value| match func.value(value) {
-            Value::Arg(_) => true,
-            // A `memory_slice` view lowers to its length word, so its length takes no other word.
-            Value::Inst(inst) => !func.is_view_length(&func.inst(*inst).kind),
-            _ => false,
-        })
-        .count()
+    live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
 }
 
 /// A call followed by bounded physical word operations, with no allocation or frame locals.
@@ -1612,21 +1599,10 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
 }
 
-/// The opcodes that add a slice word's byte offset to its data address: none for the first word
-/// of a view that starts at its object. The offset is priced as its own instruction.
-fn slice_word_address(func: &Function, slice: ValueId, offset: ValueId) -> &'static [u8] {
-    if func.value_u64(offset) == Some(0) && func.memory_slice_object(slice).is_none() {
-        &[]
-    } else {
-        &[op::ADD]
-    }
-}
-
 /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
 /// emit priced by the target, with the number of MIR instructions the expansion produces.
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
-/// left out throughout, as they are for those. A `memory_slice` view costs only the length load,
-/// charged where the length is read; its data address is recomputed from the object at each use.
+/// left out throughout, as they are for those.
 fn estimate_inst_cost(
     gcx: Gcx<'_>,
     module: &Module,
@@ -1636,11 +1612,6 @@ fn estimate_inst_cost(
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
-    match kind {
-        InstKind::MemorySlice(_) => return (Cost::ZERO, 0),
-        _ if func.is_view_length(kind) => return (seq(&[op::MLOAD]), 1),
-        _ => {}
-    }
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
         let op = kind.op();
         if select::opcode_lowering(&op).is_some() {
@@ -1657,15 +1628,7 @@ fn estimate_inst_cost(
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
-        InstKind::SliceLoadWord { slice, offset } => {
-            seq(slice_word_address(func, *slice, *offset)).plus(seq(&[op::MLOAD]))
-        }
-        InstKind::SliceStoreWord { slice, offset, .. } => {
-            seq(slice_word_address(func, *slice, *offset)).plus(seq(&[op::MSTORE]))
-        }
-        InstKind::SliceLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
-        InstKind::SliceStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
-        InstKind::SliceCopy { .. } => seq(&[op::MCOPY]),
+        InstKind::PtrAdd(..) => seq(&[op::ADD]),
         InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
         InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
         // Bump the free-memory pointer past the allocation.
@@ -2154,7 +2117,7 @@ fn inline_call_impl(
     // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
-    // the callee's pointer parameters. Materialize the zero-cost view at the cloned entry.
+    // the callee's pointer parameters. Materialize the zero-cost cast at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
@@ -2209,7 +2172,7 @@ fn inline_call_impl(
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
-    // cloned_entry: object argument views; cloned callee body
+    // cloned_entry: object argument casts; cloned callee body
     cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
 
     // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
@@ -2257,8 +2220,8 @@ fn inline_literal_call(
     let mut instructions = Vec::new();
     // object = icall @literal
     //   => object = alloc memorybytes, size
-    //      mstore (ptrtoint object), length
-    //      slice_store_word (memory_slice object), 0, word
+    //      store object, length
+    //      store (ptradd object, 32), word
     for &inst in &callee.blocks[BlockId::ENTRY].instructions {
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;

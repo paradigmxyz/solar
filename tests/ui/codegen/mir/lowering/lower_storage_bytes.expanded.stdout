@@ -50,14 +50,14 @@
 +     jumpi v3, bb6, bb5 !metadata(span=20..30, modifier_depth=2)
 +   bb5:
 +     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 !metadata(span=20..30, modifier_depth=2)
-+     v18 = memory_slice v16 !metadata(span=20..30, modifier_depth=2)
-+     slice_store_word v18, 0, v17 !metadata(span=20..30, modifier_depth=2)
++     v18 = ptradd v16, 32 !metadata(span=20..30, modifier_depth=2)
++     store v18, v17 !metadata(span=20..30, modifier_depth=2)
 +     jump bb7 !metadata(span=20..30, modifier_depth=2)
 +   bb6:
 +     v19 = storage_array_data_slot arg0 !metadata(span=20..30, modifier_depth=2)
 +     jump bb8 !metadata(span=20..30, modifier_depth=2)
 +   bb8:
-+     v20 = phi [bb6: 0], [bb9: v26] !metadata(span=20..30, modifier_depth=2)
++     v20 = phi [bb6: 0], [bb9: v27] !metadata(span=20..30, modifier_depth=2)
 +     v21 = lt v20, v11 !metadata(span=20..30, modifier_depth=2)
 +     jumpi v21, bb9, bb10 !metadata(span=20..30, modifier_depth=2)
 +   bb10:
@@ -68,9 +68,10 @@
 +     v22 = add v19, v20 !metadata(span=20..30, modifier_depth=2)
 +     v23 = sload v22 !metadata(storage=symbolic(v22), span=20..30, modifier_depth=2)
 +     v24 = mul v20, 32 !metadata(span=20..30, modifier_depth=2)
-+     v25 = memory_slice v16 !metadata(span=20..30, modifier_depth=2)
-+     slice_store_word v25, v24, v23 !metadata(span=20..30, modifier_depth=2)
-+     v26 = add v20, 1 !metadata(span=20..30, modifier_depth=2)
++     v25 = ptradd v16, 32 !metadata(span=20..30, modifier_depth=2)
++     v26 = ptradd v25, v24 !metadata(span=20..30, modifier_depth=2)
++     store v26, v23 !metadata(span=20..30, modifier_depth=2)
++     v27 = add v20, 1 !metadata(span=20..30, modifier_depth=2)
 +     jump bb8 !metadata(span=20..30, modifier_depth=2)
 +   bb3:
 +     store 32, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
@@ -113,14 +114,14 @@
 +     jumpi v4, bb9, bb8
 +   bb8:
 +     v18 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-+     v19 = memory_slice v17
-+     slice_store_word v19, 0, v18
++     v19 = ptradd v17, 32
++     store v19, v18
 +     jump bb10
 +   bb9:
 +     v20 = storage_array_data_slot arg1
 +     jump bb11
 +   bb11:
-+     v21 = phi [bb9: 0], [bb12: v27]
++     v21 = phi [bb9: 0], [bb12: v28]
 +     v22 = lt v21, v12
 +     jumpi v22, bb12, bb13
 +   bb13:
@@ -135,9 +136,10 @@
 +     v23 = add v20, v21
 +     v24 = sload v23 !metadata(storage=symbolic(v23))
 +     v25 = mul v21, 32
-+     v26 = memory_slice v17
-+     slice_store_word v26, v25, v24
-+     v27 = add v21, 1
++     v26 = ptradd v17, 32
++     v27 = ptradd v26, v25
++     store v27, v24
++     v28 = add v21, 1
 +     jump bb11
 +   bb6:
 +     store 32, 65 !metadata(memory=scratch)
@@ -195,71 +197,79 @@
 +     v9 = eq v3, v8 !metadata(span=40..50, modifier_depth=4)
 +     jumpi v9, bb4, bb5 !metadata(span=40..50, modifier_depth=4)
 +   bb5:
-+     v10 = memory_slice arg2 !metadata(span=40..50, modifier_depth=4)
-+     v11 = slice_len v10 !metadata(span=40..50, modifier_depth=4)
-+     v12 = add v7, 31 !metadata(span=40..50, modifier_depth=4)
-+     v13 = div v12, 32 !metadata(span=40..50, modifier_depth=4)
-+     v14 = add v11, 31 !metadata(span=40..50, modifier_depth=4)
-+     v15 = lt v14, v11 !metadata(span=40..50, modifier_depth=4)
-+     jumpi v15, bb6, bb7 !metadata(span=40..50, modifier_depth=4)
++     v10 = ptrtoint memptr arg2 to i256 !metadata(span=40..50, modifier_depth=4)
++     v11 = add v10, 32 !metadata(span=40..50, modifier_depth=4)
++     v12 = load arg2 !metadata(span=40..50, modifier_depth=4)
++     v13 = make_memory_slice v11, v12 !metadata(span=40..50, modifier_depth=4)
++     v14 = slice_len v13 !metadata(span=40..50, modifier_depth=4)
++     v15 = add v7, 31 !metadata(span=40..50, modifier_depth=4)
++     v16 = div v15, 32 !metadata(span=40..50, modifier_depth=4)
++     v17 = add v14, 31 !metadata(span=40..50, modifier_depth=4)
++     v18 = lt v17, v14 !metadata(span=40..50, modifier_depth=4)
++     jumpi v18, bb6, bb7 !metadata(span=40..50, modifier_depth=4)
 +   bb7:
-+     v16 = div v14, 32 !metadata(span=40..50, modifier_depth=4)
-+     v17 = lt v11, 32 !metadata(span=40..50, modifier_depth=4)
-+     v18 = select v17, 0, v16 !metadata(span=40..50, modifier_depth=4)
-+     v19 = gt v7, v11 !metadata(span=40..50, modifier_depth=4)
-+     v20 = and v3, v19 !metadata(span=40..50, modifier_depth=4)
-+     v21 = zext i1 v20 to i256 !metadata(span=40..50, modifier_depth=4)
-+     jumpi v20, bb8, bb9 !metadata(span=40..50, modifier_depth=4)
++     v19 = div v17, 32 !metadata(span=40..50, modifier_depth=4)
++     v20 = lt v14, 32 !metadata(span=40..50, modifier_depth=4)
++     v21 = select v20, 0, v19 !metadata(span=40..50, modifier_depth=4)
++     v22 = gt v7, v14 !metadata(span=40..50, modifier_depth=4)
++     v23 = and v3, v22 !metadata(span=40..50, modifier_depth=4)
++     v24 = zext i1 v23 to i256 !metadata(span=40..50, modifier_depth=4)
++     jumpi v23, bb8, bb9 !metadata(span=40..50, modifier_depth=4)
 +   bb8:
-+     icall @clear_storage_words, arg1, v18, v13 !metadata(span=40..50, modifier_depth=4)
++     icall @clear_storage_words, arg1, v21, v16 !metadata(span=40..50, modifier_depth=4)
 +     jump bb9 !metadata(span=40..50, modifier_depth=4)
 +   bb9:
-+     jumpi v17, bb10, bb11 !metadata(span=40..50, modifier_depth=4)
++     jumpi v20, bb10, bb11 !metadata(span=40..50, modifier_depth=4)
 +   bb11:
-+     v31 = shl 1, v11 !metadata(span=40..50, modifier_depth=4)
-+     v32 = or v31, 1 !metadata(span=40..50, modifier_depth=4)
-+     sstore arg1, v32 !metadata(storage=symbolic(arg1), span=40..50, modifier_depth=4)
-+     v33 = storage_array_data_slot arg1 !metadata(span=40..50, modifier_depth=4)
-+     v34 = div v11, 32 !metadata(span=40..50, modifier_depth=4)
++     v35 = shl 1, v14 !metadata(span=40..50, modifier_depth=4)
++     v36 = or v35, 1 !metadata(span=40..50, modifier_depth=4)
++     sstore arg1, v36 !metadata(storage=symbolic(arg1), span=40..50, modifier_depth=4)
++     v37 = storage_array_data_slot arg1 !metadata(span=40..50, modifier_depth=4)
++     v38 = div v14, 32 !metadata(span=40..50, modifier_depth=4)
 +     jump bb13 !metadata(span=40..50, modifier_depth=4)
 +   bb13:
-+     v35 = phi [bb11: 0], [bb14: v40] !metadata(span=40..50, modifier_depth=4)
-+     v36 = lt v35, v34 !metadata(span=40..50, modifier_depth=4)
-+     jumpi v36, bb14, bb15 !metadata(span=40..50, modifier_depth=4)
++     v39 = phi [bb11: 0], [bb14: v46] !metadata(span=40..50, modifier_depth=4)
++     v40 = lt v39, v38 !metadata(span=40..50, modifier_depth=4)
++     jumpi v40, bb14, bb15 !metadata(span=40..50, modifier_depth=4)
 +   bb15:
-+     v41 = and v11, 31 !metadata(span=40..50, modifier_depth=4)
-+     v42 = eq v41, 0 !metadata(span=40..50, modifier_depth=4)
-+     jumpi v42, bb12, bb16 !metadata(span=40..50, modifier_depth=4)
++     v47 = and v14, 31 !metadata(span=40..50, modifier_depth=4)
++     v48 = eq v47, 0 !metadata(span=40..50, modifier_depth=4)
++     jumpi v48, bb12, bb16 !metadata(span=40..50, modifier_depth=4)
 +   bb16:
-+     v43 = mul v34, 32 !metadata(span=40..50, modifier_depth=4)
-+     v44 = slice_load_word v10, v43 !metadata(span=40..50, modifier_depth=4)
-+     v45 = sub 32, v41 !metadata(span=40..50, modifier_depth=4)
-+     v46 = mul v45, 8 !metadata(span=40..50, modifier_depth=4)
-+     v47 = shl v46, 1 !metadata(span=40..50, modifier_depth=4)
-+     v48 = sub v47, 1 !metadata(span=40..50, modifier_depth=4)
-+     v49 = not v48 !metadata(span=40..50, modifier_depth=4)
-+     v50 = and v44, v49 !metadata(span=40..50, modifier_depth=4)
-+     v51 = add v33, v34 !metadata(span=40..50, modifier_depth=4)
-+     sstore v51, v50 !metadata(storage=symbolic(v51), span=40..50, modifier_depth=4)
++     v49 = mul v38, 32 !metadata(span=40..50, modifier_depth=4)
++     v50 = slice_ptr v13 !metadata(span=40..50, modifier_depth=4)
++     v51 = add v50, v49 !metadata(span=40..50, modifier_depth=4)
++     v52 = load v51 !metadata(span=40..50, modifier_depth=4)
++     v53 = sub 32, v47 !metadata(span=40..50, modifier_depth=4)
++     v54 = mul v53, 8 !metadata(span=40..50, modifier_depth=4)
++     v55 = shl v54, 1 !metadata(span=40..50, modifier_depth=4)
++     v56 = sub v55, 1 !metadata(span=40..50, modifier_depth=4)
++     v57 = not v56 !metadata(span=40..50, modifier_depth=4)
++     v58 = and v52, v57 !metadata(span=40..50, modifier_depth=4)
++     v59 = add v37, v38 !metadata(span=40..50, modifier_depth=4)
++     sstore v59, v58 !metadata(storage=symbolic(v59), span=40..50, modifier_depth=4)
 +     jump bb12 !metadata(span=40..50, modifier_depth=4)
 +   bb14:
-+     v37 = mul v35, 32 !metadata(span=40..50, modifier_depth=4)
-+     v38 = slice_load_word v10, v37 !metadata(span=40..50, modifier_depth=4)
-+     v39 = add v33, v35 !metadata(span=40..50, modifier_depth=4)
-+     sstore v39, v38 !metadata(storage=symbolic(v39), span=40..50, modifier_depth=4)
-+     v40 = add v35, 1 !metadata(span=40..50, modifier_depth=4)
++     v41 = mul v39, 32 !metadata(span=40..50, modifier_depth=4)
++     v42 = slice_ptr v13 !metadata(span=40..50, modifier_depth=4)
++     v43 = add v42, v41 !metadata(span=40..50, modifier_depth=4)
++     v44 = load v43 !metadata(span=40..50, modifier_depth=4)
++     v45 = add v37, v39 !metadata(span=40..50, modifier_depth=4)
++     sstore v45, v44 !metadata(storage=symbolic(v45), span=40..50, modifier_depth=4)
++     v46 = add v39, 1 !metadata(span=40..50, modifier_depth=4)
 +     jump bb13 !metadata(span=40..50, modifier_depth=4)
 +   bb10:
-+     v22 = slice_load_word v10, 0 !metadata(span=40..50, modifier_depth=4)
-+     v23 = sub 32, v11 !metadata(span=40..50, modifier_depth=4)
-+     v24 = mul v23, 8 !metadata(span=40..50, modifier_depth=4)
-+     v25 = shl v24, 1 !metadata(span=40..50, modifier_depth=4)
-+     v26 = sub v25, 1 !metadata(span=40..50, modifier_depth=4)
-+     v27 = not v26 !metadata(span=40..50, modifier_depth=4)
-+     v28 = and v22, v27 !metadata(span=40..50, modifier_depth=4)
-+     v29 = mul v11, 2 !metadata(span=40..50, modifier_depth=4)
-+     v30 = or v28, v29 !metadata(span=40..50, modifier_depth=4)
-+     sstore arg1, v30 !metadata(storage=symbolic(arg1), span=40..50, modifier_depth=4)
++     v25 = slice_ptr v13 !metadata(span=40..50, modifier_depth=4)
++     v26 = load v25 !metadata(span=40..50, modifier_depth=4)
++     v27 = sub 32, v14 !metadata(span=40..50, modifier_depth=4)
++     v28 = mul v27, 8 !metadata(span=40..50, modifier_depth=4)
++     v29 = shl v28, 1 !metadata(span=40..50, modifier_depth=4)
++     v30 = sub v29, 1 !metadata(span=40..50, modifier_depth=4)
++     v31 = not v30 !metadata(span=40..50, modifier_depth=4)
++     v32 = and v26, v31 !metadata(span=40..50, modifier_depth=4)
++     v33 = mul v14, 2 !metadata(span=40..50, modifier_depth=4)
++     v34 = or v32, v33 !metadata(span=40..50, modifier_depth=4)
++     sstore arg1, v34 !metadata(storage=symbolic(arg1), span=40..50, modifier_depth=4)
 +     jump bb12 !metadata(span=40..50, modifier_depth=4)
 +   bb12:
       jump bb3

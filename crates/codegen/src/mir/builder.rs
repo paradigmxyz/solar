@@ -829,11 +829,9 @@ impl<'a> FunctionBuilder<'a> {
         &mut self,
         fields: u64,
         semantics: AllocationSemantics,
-    ) -> (ValueId, MemoryObjectLayout) {
+    ) -> ValueId {
         let size = self.imm(fields.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        let layout = MemoryObjectLayout::structure(fields);
-        let object = self.alloc_object(size, layout, semantics);
-        (object, layout)
+        self.alloc_object(size, MemoryObjectLayout::structure(fields), semantics)
     }
 
     /// Allocates a dynamic array whose elements each occupy one memory word.
@@ -852,14 +850,16 @@ impl<'a> FunctionBuilder<'a> {
         (object, layout)
     }
 
-    /// Reads a dynamic memory object's header into a view of its payload.
+    /// Builds a memory slice of a dynamic memory object's payload, reading its length word.
     pub(crate) fn memory_slice(&mut self, object: ValueId) -> ValueId {
-        // view = memory_slice object
-        self.emit_inst(InstKind::MemorySlice(object), Some(MirType::Slice(PtrLocation::Memory)))
+        // slice = make_memory_slice (memory_data object), load object
+        let data = self.memory_data(object);
+        let len = self.load(object, PtrLocation::Memory);
+        self.make_slice(data, len, PtrLocation::Memory)
     }
 
-    /// Returns a slice view of a dynamic value: slices as they are, memory objects through
-    /// their header.
+    /// Returns a slice of a dynamic value: slices as they are, memory objects through their
+    /// header.
     pub(crate) fn memory_view(&mut self, value: ValueId) -> ValueId {
         if matches!(self.func.value_ty(value), Some(MirType::Slice(_))) {
             value
@@ -870,8 +870,11 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Reads the length of a dynamic memory object or slice.
     pub(crate) fn memory_len(&mut self, value: ValueId) -> ValueId {
-        let view = self.memory_view(value);
-        self.slice_len(view)
+        if matches!(self.func.value_ty(value), Some(MirType::Slice(_))) {
+            return self.slice_len(value);
+        }
+        // len = load object
+        self.load(value, PtrLocation::Memory)
     }
 
     /// Writes the length word of a fresh dynamic memory object.
@@ -900,78 +903,44 @@ impl<'a> FunctionBuilder<'a> {
     /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
     /// first copied to free memory.
     pub(crate) fn keccak256_bytes(&mut self, value: ValueId) -> ValueId {
-        let view = self.memory_view(value);
-        let source = self.slice_ptr(view);
-        let len = self.slice_len(view);
-        let data = match self.func.value_slice_location(view) {
+        let (data, len) = match self.func.value_slice_location(value) {
             Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
                 // data = fmp
-                // copy data, source, len
+                // copy location data, slice_ptr value, slice_len value
+                let source = self.slice_ptr(value);
+                let len = self.slice_len(value);
                 let data = self.fmp();
                 self.copy_heap(data, source, len, location);
-                data
+                (data, len)
             }
-            _ => source,
+            _ => (self.memory_data(value), self.memory_len(value)),
         };
         // hash = keccak256 data, len
         self.keccak256(data, len)
     }
 
-    /// Returns a word-slice view of a memory object or slice. A fixed array or struct starts at
-    /// its object; a dynamic object's payload follows its length word.
-    pub(crate) fn memory_object_view(
-        &mut self,
-        object: ValueId,
-        layout: MemoryObjectLayout,
-    ) -> ValueId {
-        if matches!(self.func.value_ty(object), Some(MirType::Slice(_))) {
-            return object;
-        }
-        let Some(words) = layout.fixed_words() else { return self.memory_slice(object) };
-        // view = make_memory_slice object, words
-        let len = self.imm(words);
-        let location = PtrLocation::Memory;
-        self.emit_inst(
-            InstKind::MakeSlice { ptr: object, len, location },
-            Some(MirType::Slice(location)),
-        )
-    }
-
     /// Loads a direct struct field.
-    pub(crate) fn memory_load_field(
-        &mut self,
-        object: ValueId,
-        layout: MemoryObjectLayout,
-        field: u64,
-    ) -> ValueId {
-        self.memory_load_field_as(object, layout, field, MirType::I256)
+    pub(crate) fn memory_load_field(&mut self, object: ValueId, field: u64) -> ValueId {
+        self.memory_load_field_as(object, field, MirType::I256)
     }
 
     /// Loads a struct field as a `memptr` when `ty` is one, and as a word otherwise.
     pub(crate) fn memory_load_field_as(
         &mut self,
         object: ValueId,
-        layout: MemoryObjectLayout,
         field: u64,
         ty: MirType,
     ) -> ValueId {
-        let slice = self.memory_object_view(object, layout);
         let offset = self.imm(field.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        self.slice_load_word_as(slice, offset, ty)
+        let (address, location) = self.object_address(object, 0, offset);
+        self.load_as(address, location, ty)
     }
 
     /// Stores a direct struct field.
-    pub(crate) fn memory_store_field(
-        &mut self,
-        object: ValueId,
-        layout: MemoryObjectLayout,
-        field: u64,
-        value: ValueId,
-    ) {
-        let slice = self.memory_object_view(object, layout);
+    pub(crate) fn memory_store_field(&mut self, object: ValueId, field: u64, value: ValueId) {
         let offset = self.imm(field.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        // slice_store_word slice, offset, value
-        self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
+        let (address, _) = self.object_address(object, 0, offset);
+        self.store(address, value);
     }
 
     /// Loads an array element.
@@ -992,22 +961,19 @@ impl<'a> FunctionBuilder<'a> {
         index: ValueId,
         ty: MirType,
     ) -> ValueId {
-        let slice = self.memory_object_view(object, layout);
         let offset = self.word_offset(index);
-        self.slice_load_word_as(slice, offset, ty)
-    }
-
-    /// Loads the word at a byte offset as a `memptr` when `ty` is one, and as a word otherwise.
-    fn slice_load_word_as(&mut self, slice: ValueId, offset: ValueId, ty: MirType) -> ValueId {
-        let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
-        // result = slice_load_word slice, offset
-        self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(result))
+        let (address, location) = self.object_address(object, Self::header_size(layout), offset);
+        self.load_as(address, location, ty)
     }
 
     /// Loads one byte from a bytes object or slice.
     pub(crate) fn memory_load_byte(&mut self, value: ValueId, index: ValueId) -> ValueId {
-        let slice = self.memory_view(value);
-        self.emit_inst(InstKind::SliceLoadByte { slice, index }, Some(MirType::I256))
+        // byte = byte 0, (load location (data + index))
+        let (address, location) =
+            self.object_address(value, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index);
+        let word = self.load(address, location);
+        let zero = self.imm(0);
+        self.byte(zero, word)
     }
 
     /// Stores an array element.
@@ -1018,10 +984,9 @@ impl<'a> FunctionBuilder<'a> {
         index: ValueId,
         value: ValueId,
     ) {
-        let slice = self.memory_object_view(object, layout);
         let offset = self.word_offset(index);
-        // slice_store_word slice, offset, value
-        self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
+        let (address, _) = self.object_address(object, Self::header_size(layout), offset);
+        self.store(address, value);
     }
 
     /// Returns the byte offset of word `index`, folded like [`Self::cast`] for an immediate.
@@ -1034,28 +999,82 @@ impl<'a> FunctionBuilder<'a> {
         self.shl(shift, index)
     }
 
+    /// Returns the header bytes before a memory object's words: none for a fixed array or
+    /// struct, the length word for a dynamic object.
+    fn header_size(layout: MemoryObjectLayout) -> u64 {
+        if layout.fixed_words().is_some() { 0 } else { EvmMemoryLayout::DYNAMIC_HEADER_SIZE }
+    }
+
+    /// Returns the address `offset` bytes past `header` in a memory object, or `offset` bytes into
+    /// a slice's data, with the location it reads. An object address stays a `memptr`, folding a
+    /// constant offset into the header like [`Self::cast`] folds an immediate.
+    fn object_address(
+        &mut self,
+        value: ValueId,
+        header: u64,
+        offset: ValueId,
+    ) -> (ValueId, PtrLocation) {
+        if let Some(location) = self.func.value_slice_location(value) {
+            // address = add (slice_ptr value), offset
+            let data = self.slice_ptr(value);
+            let address =
+                if self.func.value_u64(offset) == Some(0) { data } else { self.add(data, offset) };
+            return (address, location);
+        }
+        let (base, offset) = match self.func.value_u64(offset) {
+            Some(offset) => (value, header.saturating_add(offset)),
+            None if header == 0 => return (self.ptradd(value, offset), PtrLocation::Memory),
+            None => {
+                // address = ptradd (ptradd object, header), offset
+                let header = self.imm(header);
+                let data = self.ptradd(value, header);
+                return (self.ptradd(data, offset), PtrLocation::Memory);
+            }
+        };
+        if offset == 0 {
+            return (base, PtrLocation::Memory);
+        }
+        // address = ptradd object, header + offset
+        let offset = self.imm(offset);
+        (self.ptradd(base, offset), PtrLocation::Memory)
+    }
+
+    /// Loads a word as a `memptr` when `ty` is one, and as a word otherwise.
+    fn load_as(&mut self, address: ValueId, location: PtrLocation, ty: MirType) -> ValueId {
+        let result = if ty == MirType::MEMPTR { ty } else { MirType::I256 };
+        // result = load location address
+        self.emit_inst(InstKind::Load(address, location), Some(result))
+    }
+
+    /// Offsets a pointer by `offset` bytes; a raw word offsets as a `memptr`.
+    pub(crate) fn ptradd(&mut self, ptr: ValueId, offset: ValueId) -> ValueId {
+        // ptr = inttoptr ptr to memptr, unless already a pointer
+        // result = ptradd ptr, offset
+        let ty = match self.func.value_ty(ptr) {
+            Some(ty @ MirType::Ptr(_)) => ty,
+            _ => MirType::MEMPTR,
+        };
+        self.emit_inst(InstKind::PtrAdd(ptr, offset), Some(ty))
+    }
+
     /// Stores one byte in a bytes object.
     pub(crate) fn memory_store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
-        let slice = self.memory_view(object);
-        self.emit_void_inst(InstKind::SliceStoreByte { slice, index, value });
+        let (address, _) = self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index);
+        self.store8(address, value);
     }
 
     /// Stores one word at a byte offset in a bytes object.
     pub(crate) fn memory_store_word(&mut self, object: ValueId, offset: ValueId, value: ValueId) {
-        let slice = self.memory_view(object);
-        self.emit_void_inst(InstKind::SliceStoreWord { slice, offset, value });
+        let (address, _) =
+            self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, offset);
+        self.store(address, value);
     }
 
-    /// Loads one word at a byte offset from a memory or calldata slice. Calldata cannot change,
-    /// so a calldata slice reads its word directly.
+    /// Loads one word at a byte offset from a memory or calldata slice.
     pub(crate) fn slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
-        if self.func.value_slice_location(slice) == Some(PtrLocation::Calldata) {
-            // word = calldataload (add (slice_ptr slice), offset)
-            let data = self.slice_ptr(slice);
-            let address = self.add(data, offset);
-            return self.load(address, PtrLocation::Calldata);
-        }
-        self.emit_inst(InstKind::SliceLoadWord { slice, offset }, Some(MirType::I256))
+        let (address, location) =
+            self.object_address(slice, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, offset);
+        self.load(address, location)
     }
 
     /// Copies a slice into a dynamic memory object's payload.
@@ -1066,13 +1085,9 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Copies a slice into a fixed-size memory object, which has no length word.
     pub(crate) fn memory_copy_to_object(&mut self, object: ValueId, source: ValueId) {
-        // destination = make_memory_slice (ptrtoint object), slice_len source
-        // slice_copy destination, 0, source
-        let ptr = self.cast(object, MirType::I256);
-        let len = self.slice_len(source);
-        let destination = self.make_slice(ptr, len, PtrLocation::Memory);
         let offset = self.imm(0);
-        self.emit_void_inst(InstKind::SliceCopy { destination, offset, source });
+        let (destination, _) = self.object_address(object, 0, offset);
+        self.copy_slice(destination, source);
     }
 
     /// Copies a slice into a byte offset in a dynamic memory object's payload.
@@ -1082,17 +1097,18 @@ impl<'a> FunctionBuilder<'a> {
         offset: ValueId,
         source: ValueId,
     ) {
-        // The copy writes only the payload, so its destination needs no length read.
-        // destination = make_memory_slice (memory_data object), slice_len source
-        // slice_copy destination, offset, source
-        let destination = if matches!(self.func.value_ty(object), Some(MirType::Slice(_))) {
-            object
-        } else {
-            let data = self.memory_data(object);
-            let len = self.slice_len(source);
-            self.make_slice(data, len, PtrLocation::Memory)
-        };
-        self.emit_void_inst(InstKind::SliceCopy { destination, offset, source });
+        let (destination, _) =
+            self.object_address(object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, offset);
+        self.copy_slice(destination, source);
+    }
+
+    /// Copies a slice's bytes to `destination` in memory.
+    fn copy_slice(&mut self, destination: ValueId, source: ValueId) {
+        // copy location destination, slice_ptr source, slice_len source
+        let location = self.func.value_slice_location(source).unwrap_or(PtrLocation::Memory);
+        let source_ptr = self.slice_ptr(source);
+        let len = self.slice_len(source);
+        self.copy(destination, source_ptr, len, location);
     }
 
     fn alloc_kind(

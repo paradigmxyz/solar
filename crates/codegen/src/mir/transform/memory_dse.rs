@@ -4,10 +4,7 @@
 //! later full-word `store` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
 //! same-block `load` instructions from the latest exact-address `store` when
-//! no intervening operation can mutate memory. A `memory_slice` view made after
-//! such a store keeps the stored length, so every `slice_len` of the view, in
-//! any block, becomes that length; this covers views LICM hoists into a loop
-//! preheader after CSE has run. Across a unique predecessor
+//! no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
 //! observations act as barriers to memory elimination. Allocation-based keys require
@@ -377,9 +374,6 @@ struct BlockScratch {
     stored_words: SlotMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    /// The stored length each `memory_slice` view read where it was made. A view keeps that
-    /// length, so the fact holds in every block the view reaches.
-    view_lengths: FxHashMap<ValueId, ValueId>,
 }
 
 impl BlockScratch {
@@ -390,15 +384,11 @@ impl BlockScratch {
             stored_words: SlotMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
-            view_lengths: FxHashMap::default(),
         }
     }
 
-    /// Applies this block's replacements, also to the view lengths recorded so far.
+    /// Applies this block's replacements.
     fn replace_uses(&mut self, func: &mut Function) {
-        for length in self.view_lengths.values_mut() {
-            *length = mir_utils::resolve_replacement(*length, &self.replacements);
-        }
         func.replace_uses_canonicalized(&self.replacements);
     }
 }
@@ -411,7 +401,6 @@ impl MemoryStoreEliminator {
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
-        scratch.view_lengths.clear();
 
         // Both store elimination and store-to-load forwarding need at least
         // one memory write to act on; functions without any skip the whole
@@ -432,18 +421,11 @@ impl MemoryStoreEliminator {
         self.remove_unused_internal_frame_stores(func);
 
         let block_ids = func.blocks.indices();
-        // Views are worth tracking only while a `slice_len` still reads one.
-        let (mut has_precise_reads, mut reads_view_lengths) = (false, false);
-        for inst_id in func.instructions() {
-            let kind = &func.inst(inst_id).kind;
-            has_precise_reads |= Self::constant_range_read(kind).is_some();
-            reads_view_lengths |= func.is_view_length(kind);
-            if has_precise_reads && reads_view_lengths {
-                break;
-            }
-        }
+        let has_precise_reads = func
+            .instructions()
+            .any(|inst| Self::constant_range_read(&func.inst(inst).kind).is_some());
         for block_id in block_ids {
-            self.process_block(func, block_id, has_precise_reads, reads_view_lengths, scratch);
+            self.process_block(func, block_id, has_precise_reads, scratch);
             self.alias().clear_cached_addresses();
         }
         self.remove_cross_block_equal_const_stores(func);
@@ -665,8 +647,7 @@ impl MemoryStoreEliminator {
             }
             total += eliminated;
         }
-        // Forwarded lengths enable no store elimination, so they need no further round.
-        total + self.forward_view_lengths(func, &mut scratch)
+        total
     }
 
     fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
@@ -792,7 +773,6 @@ impl MemoryStoreEliminator {
         func: &mut Function,
         block_id: BlockId,
         precise_reads: bool,
-        reads_view_lengths: bool,
         scratch: &mut BlockScratch,
     ) {
         let mut mstores = 0;
@@ -815,7 +795,6 @@ impl MemoryStoreEliminator {
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. } => memory_writes += 1,
                 InstKind::Load(_, PtrLocation::Memory) => has_load = true,
-                InstKind::MemorySlice(_) if reads_view_lengths => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
                     .alias()
@@ -861,13 +840,6 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::Load(addr, PtrLocation::Memory) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
-                        Self::remove_overlapping_set(&mut scratch.overwritten, key);
-                    } else {
-                        scratch.overwritten.clear();
-                    }
-                }
-                InstKind::MemorySlice(object) => {
-                    if let Some(key) = self.memory_object_length_key(func, inst_id, *object) {
                         Self::remove_overlapping_set(&mut scratch.overwritten, key);
                     } else {
                         scratch.overwritten.clear();
@@ -1299,14 +1271,6 @@ impl MemoryStoreEliminator {
         for &inst_id in &func.blocks[block_id].instructions {
             let inst = func.inst(inst_id);
             match &inst.kind {
-                InstKind::MemorySlice(object) => {
-                    if let Some(key) = self.memory_object_length_key(func, inst_id, *object)
-                        && let Some(&length) = scratch.stored_values.get(key)
-                        && let Some(view) = func.inst_result_value(inst_id)
-                    {
-                        scratch.view_lengths.insert(view, length);
-                    }
-                }
                 InstKind::Store(addr, value) => {
                     if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         if !self.remove_overlapping_write_range(
@@ -1333,7 +1297,10 @@ impl MemoryStoreEliminator {
                     let Some(&stored_value) = scratch.stored_values.get(key) else {
                         continue;
                     };
-                    if let Some(loaded_value) = func.inst_result_value(inst_id) {
+                    // A pointer load of a stored word keeps its own type.
+                    if let Some(loaded_value) = func.inst_result_value(inst_id)
+                        && func.value_ty(loaded_value) == func.value_ty(stored_value)
+                    {
                         scratch.replacements.insert(loaded_value, stored_value);
                         scratch.dead.insert(inst_id);
                     }
@@ -1395,47 +1362,9 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
 
-    /// Replaces each `slice_len` of a view whose stored length is known, returning how many.
-    fn forward_view_lengths(&self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
-        if scratch.view_lengths.is_empty() {
-            return 0;
-        }
-        scratch.replacements.clear();
-        scratch.dead.clear();
-        for inst_id in func.instructions() {
-            // slice_len (memory_slice object) => the stored length
-            if let InstKind::SliceLen(view) = func.inst(inst_id).kind
-                && let Some(&length) = scratch.view_lengths.get(&view)
-                && let Some(result) = func.inst_result_value(inst_id)
-            {
-                scratch.replacements.insert(result, length);
-                scratch.dead.insert(inst_id);
-            }
-        }
-        let forwarded = scratch.dead.count();
-        if forwarded != 0 {
-            func.replace_uses_canonicalized(&scratch.replacements);
-            for block in func.blocks.iter_mut() {
-                block.instructions.retain(|&id| !scratch.dead.contains(id));
-            }
-        }
-        forwarded
-    }
-
     fn mem_addr_key(&self, func: &Function, value: ValueId, size: u64) -> Option<MemAddrKey> {
         self.alias()
             .bare_memory_location(func, value, LocationSize::Const(size))
-            .map(|location| MemAddrKey(location.address))
-    }
-
-    fn memory_object_length_key(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        object: ValueId,
-    ) -> Option<MemAddrKey> {
-        self.alias()
-            .memory_object_length_location(func, inst_id, object)
             .map(|location| MemAddrKey(location.address))
     }
 

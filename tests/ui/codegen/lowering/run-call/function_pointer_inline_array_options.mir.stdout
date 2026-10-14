@@ -21,41 +21,40 @@ fn @g() -> i256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]
 fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    v2 = address
-    v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
-    v5 = or v4, 0x26121ff0
-    v6 = shl 64, v5
-    slice_store_word v1, 0, v6
-    v7 = address
-    v8 = zext i160 v7 to i256
-    v9 = shl 32, v8
-    v10 = or v9, 0xe2179b8e
-    v11 = shl 64, v10
-    slice_store_word v1, 32, v11
-    v12 = make_memory_slice v0, 2
-    v13 = lt 0, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = slice_load_word v12, 0
-    v16 = shr 64, v15
-    v17 = and v16, 0xffffffff
-    v18 = shl 224, v17
-    v19 = shr 32, v16
-    v20 = gas
-    v21 = abi_encode [], selector v18
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = call v20, v19, 1, v22, v23, 0, 32
-    jumpi v24, bb2, bb1
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0x26121ff0
+    v5 = shl 64, v4
+    store v0, v5
+    v6 = address
+    v7 = zext i160 v6 to i256
+    v8 = shl 32, v7
+    v9 = or v8, 0xe2179b8e
+    v10 = shl 64, v9
+    v11 = ptradd v0, 32
+    store v11, v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = load v0
+    v15 = shr 64, v14
+    v16 = and v15, 0xffffffff
+    v17 = shl 224, v16
+    v18 = shr 32, v15
+    v19 = gas
+    v20 = abi_encode [], selector v17
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = call v19, v18, 1, v21, v22, 0, 32
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    icall revert_if<tuple_data_too_short>, v26
-    v27 = add 0, 0
-    v28 = load v27
-    ret v28
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = load v26
+    ret v27
 }

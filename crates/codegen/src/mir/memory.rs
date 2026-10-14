@@ -4,13 +4,6 @@
 //! embedding these addresses. Inline assembly can still access the conventional
 //! words directly, so alias analysis and backend lowering share this policy.
 
-/// Policy interface between semantic memory-object MIR and a physical target
-/// memory representation.
-pub(crate) trait MemoryLayoutPolicy {
-    /// Size of the length header in front of a dynamic object's payload.
-    const DYNAMIC_HEADER_SIZE: u64;
-}
-
 /// The selected physical EVM memory layout.
 pub(crate) struct EvmMemoryLayout;
 
@@ -47,8 +40,4 @@ impl EvmMemoryLayout {
             None => None,
         }
     }
-}
-
-impl MemoryLayoutPolicy for EvmMemoryLayout {
-    const DYNAMIC_HEADER_SIZE: u64 = Self::DYNAMIC_HEADER_SIZE;
 }

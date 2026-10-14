@@ -15,9 +15,10 @@ fn @encode(arg0: i256) -> memoryslice {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     v3 = ptrtoint memptr v0 to i256
     store v3, 33
-    v4 = memory_slice v0
-    slice_store_word v4, 0, 0x6161616161616161616161616161616161616161616161616161616161616161
-    slice_store_word v4, 32, 0x6200000000000000000000000000000000000000000000000000000000000000
+    v9001 = ptradd v0, 32
+    store v9001, 0x6161616161616161616161616161616161616161616161616161616161616161
+    v9002 = ptradd v0, 64
+    store v9002, 0x6200000000000000000000000000000000000000000000000000000000000000
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     v5 = ptrtoint memptr v1 to i256
     store v5, 0

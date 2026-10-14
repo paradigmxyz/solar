@@ -20,9 +20,10 @@ fn @canonicalAddresses() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = memory_slice v0
     v112 = shl 5, v2
-    slice_store_word v7, v112, v4
+    v9001 = ptradd v0, 32
+    v9002 = ptradd v9001, v112
+    store v9002, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -57,9 +58,10 @@ fn @canonicalAddressArrays() -> memptr {
     v8 = ptrtoint memptr v4 to i256
     v9 = inttoptr i256 v8 to memptr
     v6 = ptrtoint memptr v9 to i256
-    v11 = memory_slice v0
     v113 = shl 5, v2
-    slice_store_word v11, v113, v6
+    v9001 = ptradd v0, 32
+    v9002 = ptradd v9001, v113
+    store v9002, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -91,12 +93,13 @@ fn @dirtyAddressArrays() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    v8 = memory_slice v4
-    slice_store_word v8, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9001 = ptradd v4, 32
+    store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = ptrtoint memptr v4 to i256
-    v9 = memory_slice v0
     v114 = shl 5, v2
-    slice_store_word v9, v114, v6
+    v9002 = ptradd v0, 32
+    v9003 = ptradd v9002, v114
+    store v9003, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -138,11 +141,12 @@ fn @dirtyAddressAliases() -> memptr {
     v4 = icall @canonicalAddresses
     v6 = ptrtoint memptr v4 to i256
     v7 = inttoptr i256 v6 to memptr
-    v9 = memory_slice v7
-    slice_store_word v9, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v10 = memory_slice v0
+    v9001 = ptradd v7, 32
+    store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v115 = shl 5, v2
-    slice_store_word v10, v115, v6
+    v9002 = ptradd v0, 32
+    v9003 = ptradd v9002, v115
+    store v9003, v6
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -163,15 +167,17 @@ fn @dirtyAddressReloads() -> memptr {
   bb2:
     v4 = icall @canonicalAddresses
     v6 = ptrtoint memptr v4 to i256
-    v10 = memory_slice v0
     v116 = shl 5, v2
-    slice_store_word v10, v116, v6
-    v11 = memory_slice v0
+    v9001 = ptradd v0, 32
+    v9002 = ptradd v9001, v116
+    store v9002, v6
     v117 = shl 5, v2
-    v7 = slice_load_word v11, v117
+    v9003 = ptradd v0, 32
+    v9004 = ptradd v9003, v117
+    v7 = load v9004
     v8 = inttoptr i256 v7 to memptr
-    v12 = memory_slice v8
-    slice_store_word v12, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9005 = ptradd v8, 32
+    store v9005, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -192,9 +198,10 @@ fn @escapingAddressArrays() -> memptr {
   bb2:
     v4 = icall @canonicalAddresses
     v6 = ptrtoint memptr v4 to i256
-    v8 = memory_slice v0
     v118 = shl 5, v2
-    slice_store_word v8, v118, v6
+    v9001 = ptradd v0, 32
+    v9002 = ptradd v9001, v118
+    store v9002, v6
     icall @dirtyNestedArray, v0
     v5 = add v2, 1
     jump bb1
@@ -204,11 +211,11 @@ fn @escapingAddressArrays() -> memptr {
 
 fn @dirtyNestedArray(arg0: memptr) {
   bb0:
-    v2 = memory_slice arg0
-    v0 = slice_load_word v2, 0
+    v9001 = ptradd arg0, 32
+    v0 = load v9001
     v1 = inttoptr i256 v0 to memptr
-    v3 = memory_slice v1
-    slice_store_word v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9002 = ptradd v1, 32
+    store v9002, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret
 }
 
@@ -235,8 +242,7 @@ fn @givesZeroedThenDirtyTuple() -> memptr [selector=0x0dead00c, abi_returns=[tup
     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 32
-    v2 = make_memory_slice v0, 1
-    slice_store_word v2, 0, 256
+    store v0, 256
     ret v0
 }
 
@@ -265,8 +271,7 @@ fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_
     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     jumpi arg0, bb1, bb2
   bb1:
-    v1 = make_memory_slice v0, 1
-    slice_store_word v1, 0, 1
+    store v0, 1
     jump bb2
   bb2:
     ret v0
@@ -276,13 +281,11 @@ fn @aliasedAddressContainer(arg0: memptr, arg1: memptr) -> memptr {
   bb0:
     v0 = icall @canonicalAddresses
     v1 = ptrtoint memptr v0 to i256
-    v5 = make_memory_slice arg0, 1
-    slice_store_word v5, 0, v1
-    v6 = make_memory_slice arg1, 1
-    v2 = slice_load_word v6, 0
+    store arg0, v1
+    v2 = load arg1
     v3 = inttoptr i256 v2 to memptr
-    v4 = memory_slice v3
-    slice_store_word v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9001 = ptradd v3, 32
+    store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
@@ -305,8 +308,7 @@ fn @conditionalFixedArray(arg0: i1) -> memptr {
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
     jumpi arg0, bb1, bb2
   bb1:
-    v1 = make_memory_slice v0, 1
-    slice_store_word v1, 0, 1
+    store v0, 1
     jump bb2
   bb2:
     ret v0
@@ -331,9 +333,10 @@ fn @bypassedArrayLoop(arg0: i1) -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = memory_slice v0
     v119 = shl 5, v2
-    slice_store_word v7, v119, v4
+    v9001 = ptradd v0, 32
+    v9002 = ptradd v9001, v119
+    store v9002, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -353,9 +356,10 @@ fn @lateArrayLength() -> memptr {
     v6 = ptrtoint memptr v0 to i256
     store v6, v1
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = memory_slice v0
     v120 = shl 5, v2
-    slice_store_word v7, v120, v4
+    v9001 = ptradd v0, 32
+    v9002 = ptradd v9001, v120
+    store v9002, v4
     v5 = add v2, 1
     jump bb1
   bb3:
@@ -378,10 +382,9 @@ fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_return
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
     v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
-    v2 = make_memory_slice v1, 1
-    slice_store_word v2, 0, 1
-    v3 = make_memory_slice v0, 1
-    slice_store_word v3, 32, 256
+    store v1, 1
+    v9001 = ptradd v0, 32
+    store v9001, 256
     ret v1
 }
 
@@ -400,8 +403,8 @@ fn @givesStorageAddresses() -> memptr [selector=0x0dead018, abi_returns=[memory_
 fn @dirtyStorageAddresses(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u160, arg0
-    v3 = memory_slice v0
-    v2 = slice_ptr v3
+    v9001 = ptradd v0, 32
+    v2 = ptrtoint memptr v9001 to i256
     store v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
@@ -416,7 +419,6 @@ fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u12
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v1 = zext i128 arg0 to i256
-    v2 = make_memory_slice v0, 1
-    slice_store_word v2, 0, v1
+    store v0, v1
     ret v0
 }

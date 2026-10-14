@@ -46,8 +46,8 @@
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
 -     v1 = ptrtoint memptr v0 to i256
 -     store v1, 1
--     v2 = memory_slice v0
--     slice_store_word v2, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v2 = ptradd v0, 32
+-     store v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
 +     store 128, 32
 +     store 160, 1
@@ -73,8 +73,8 @@
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
 -     v1 = ptrtoint memptr v0 to i256
 -     store v1, 33
--     v2 = memory_slice v0
--     v3 = slice_ptr v2
+-     v2 = ptradd v0, 32
+-     v3 = ptrtoint memptr v2 to i256
 -     store v3, 5
 -     v4 = add v3, 32
 -     store v4, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -92,8 +92,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 96
       v1 = ptrtoint memptr v0 to i256
       store v1, 33
-      v2 = memory_slice v0
-      v3 = slice_ptr v2
+      v2 = ptradd v0, 32
+      v3 = ptrtoint memptr v2 to i256
       store v3, 5
       v4 = add v3, 16
       store v4, 7
@@ -177,8 +177,8 @@
 +     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
 +     v1 = ptrtoint memptr v0 to i256
 +     store v1, 1
-+     v2 = memory_slice v0
-+     slice_store_word v2, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v2 = ptradd v0, 32
++     store v2, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     ret v0
 + }
 + 

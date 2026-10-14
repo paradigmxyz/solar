@@ -19,18 +19,21 @@ fn @invoke(arg0: i256, arg1: memptr) {
     jumpi v9, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = memory_slice v10
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = slice_load_word v11, 0
-    v15 = shr 224, v14
+    v11 = ptrtoint memptr v10 to i256
+    v12 = add v11, 32
+    v13 = load v10
+    v14 = make_memory_slice v12, v13
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = slice_ptr v14
+    v18 = load v17
+    v19 = shr 224, v18
     jumpi true, bb4, bb5
   bb5:
-    revert v12, v13
+    revert v15, v16
   bb4:
-    v16 = memory_slice v10
-    v17 = slice_len v16
-    sstore 0, v17 !metadata(storage=slot(0))
+    v20 = load v10
+    sstore 0, v20 !metadata(storage=slot(0))
     jump bb3
   bb1:
     jump bb3
@@ -40,9 +43,8 @@ fn @invoke(arg0: i256, arg1: memptr) {
 
 fn @succeed(arg0: memptr) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = make_memory_slice arg0, 1
-    v1 = slice_load_word v0, 0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v0 = load arg0
+    sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
@@ -54,16 +56,15 @@ fn @fail(arg0: memptr) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi
 
 fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = make_memory_slice arg0, 1
-    v1 = slice_load_word v0, 0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    store v2, 2
-    v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    store v4, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v5 = insert_value struct0, undef struct0, 0, v1
-    v6 = insert_value struct0, v5, 1, v2
-    ret v6
+    v0 = load arg0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    store v1, 2
+    v2 = ptrtoint memptr v1 to i256
+    v3 = add v2, 32
+    store v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v1
+    ret v5
 }
 
 fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
@@ -112,11 +113,10 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     v2 = shl 32, v1
     v3 = or v2, 0x93edcd0d
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v5 = make_memory_slice v4, 1
-    slice_store_word v5, 0, 7
+    store v4, 7
     icall @invoke, v3, v4
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
 }
 
 fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -126,11 +126,10 @@ fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word]
     v2 = shl 32, v1
     v3 = or v2, 0xe8be0a6f
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v5 = make_memory_slice v4, 1
-    slice_store_word v5, 0, 7
+    store v4, 7
     icall @invoke, v3, v4
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
 }
 
 fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
@@ -140,12 +139,11 @@ fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word,
     v2 = shl 32, v1
     v3 = or v2, 0x76ea4d37
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v5 = make_memory_slice v4, 1
-    slice_store_word v5, 0, 7
-    v6 = icall @invokePair, v3, v4
-    v7 = extract_value struct0, v6, 0
-    v8 = extract_value struct0, v6, 1
-    v9 = insert_value struct0, undef struct0, 0, v7
-    v10 = insert_value struct0, v9, 1, v8
-    ret v10
+    store v4, 7
+    v5 = icall @invokePair, v3, v4
+    v6 = extract_value struct0, v5, 0
+    v7 = extract_value struct0, v5, 1
+    v8 = insert_value struct0, undef struct0, 0, v6
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }

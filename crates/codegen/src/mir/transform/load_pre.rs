@@ -1176,9 +1176,13 @@ impl LoadRedundancyEliminator {
                 LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::Load(addr, PtrLocation::Memory) => self
-                .mem_addr(func, inst_id, addr, LocationSize::Const(32))
-                .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
+            // Stored words are integers, so a pointer load keeps its own type.
+            InstKind::Load(addr, PtrLocation::Memory)
+                if func.inst(inst_id).result_ty == Some(MirType::I256) =>
+            {
+                self.mem_addr(func, inst_id, addr, LocationSize::Const(32))
+                    .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult))
+            }
             InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
             InstKind::Store(addr, value) => self
                 .mem_addr(func, inst_id, addr, LocationSize::Const(32))

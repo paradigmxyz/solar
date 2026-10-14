@@ -85,16 +85,16 @@ fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_retu
 
 fn @erc7201Reference(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = add v0, 32
+    v2 = load arg0
     v3 = keccak256 v1, v2
     v4 = checked_sub u256, v3, 1
     v5 = shl 0, v4
     v6 = abi_encode_packed (bytes32 v5)
-    v7 = memory_slice v6
-    v8 = slice_ptr v7
-    v9 = slice_len v7
+    v7 = ptrtoint memptr v6 to i256
+    v8 = add v7, 32
+    v9 = load v6
     v10 = keccak256 v8, v9
     v11 = not 255
     v12 = and v10, v11

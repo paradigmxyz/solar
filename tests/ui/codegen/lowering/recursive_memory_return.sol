@@ -20,8 +20,7 @@ contract C {
     // CHECK-LABEL: fn @build(
     // CHECK: icall @build,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: [[FIELDS:v[0-9]+]] = make_memory_slice [[RESULT]], 2
-    // CHECK-NEXT: slice_store_word [[FIELDS]], 0
+    // CHECK: store [[RESULT]], {{v[0-9]+}}
     // CHECK: ret
     function build(uint256 n) public pure returns (P memory) {
         if (n == 0) return P({x: 0, y: 0});
@@ -43,10 +42,13 @@ contract C {
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
     // CHECK: checked_mul
-    // CHECK-NEXT: [[VIEW:v[0-9]+]] = memory_slice arg0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = load arg0
+    // CHECK-NEXT: lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg1
-    // CHECK-NEXT: slice_store_word [[VIEW]], [[OFF1]]
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd arg0, 32
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[DATA]], [[OFF1]]
+    // CHECK-NEXT: store [[ELEM]],
     // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]

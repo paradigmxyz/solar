@@ -86,10 +86,9 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v12 = abi_decode [u256, bytes], v11
     v13 = extract_value struct0, v12, 0
     v14 = extract_value struct0, v12, 1
-    v15 = memory_slice v14
-    v16 = slice_len v15
-    v17 = checked_add u256, v13, v16
-    ret v17
+    v15 = load v14
+    v16 = checked_add u256, v13, v15
+    ret v16
   bb3:
     ret 0
 }

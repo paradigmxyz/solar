@@ -41,30 +41,33 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     jump bb6
   bb6:
     v5 = phi [bb4: v0], [bb5: v1]
-    v6 = memory_slice v5
-    v7 = slice_len v6
-    v8 = lt arg1, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = shl 5, arg1
-    v11 = slice_load_word v6, v10
-    v12 = checked_add u256, v11, 7
-    v13 = shl 5, arg1
-    slice_store_word v6, v13, v12
-    v14 = memory_slice v0
-    v15 = slice_len v14
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = slice_load_word v14, 0
-    v19 = memory_slice v1
-    v20 = slice_len v19
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = slice_load_word v19, 0
-    v24 = insert_value struct1, undef struct1, 0, v18
-    v25 = insert_value struct1, v24, 1, v23
-    v26 = insert_value struct1, v25, 2, v2
-    ret v26
+    v6 = load v5
+    v7 = lt arg1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = shl 5, arg1
+    v10 = ptradd v5, 32
+    v11 = ptradd v10, v9
+    v12 = load v11
+    v13 = checked_add u256, v12, 7
+    v14 = shl 5, arg1
+    v15 = ptradd v5, 32
+    v16 = ptradd v15, v14
+    store v16, v13
+    v17 = load v0
+    v18 = lt 0, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v0, 32
+    v21 = load v20
+    v22 = load v1
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v1, 32
+    v26 = load v25
+    v27 = insert_value struct1, undef struct1, 0, v21
+    v28 = insert_value struct1, v27, 1, v26
+    v29 = insert_value struct1, v28, 2, v2
+    ret v29
 }

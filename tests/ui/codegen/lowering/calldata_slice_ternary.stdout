@@ -40,13 +40,12 @@ fn @adopt(arg0: i1, arg1: calldataslice) -> memptr [selector=0x7b54f632, pure, a
     v13 = and v10, v12
     v14 = alloc memorybytes, exact, uninitialized, infallible, v13
     store v14, v9
-    v15 = ptrtoint memptr v14 to i256
-    v16 = add v15, 32
+    v15 = ptradd v14, 32
+    v16 = slice_ptr arg1
     v17 = slice_len arg1
-    v18 = make_memory_slice v16, v17
-    slice_copy v18, 0, arg1
+    copy calldata v15, v16, v17
     jump bb3
   bb3:
-    v19 = phi [bb1: v14], [bb2: v0]
-    ret v19
+    v18 = phi [bb1: v14], [bb2: v0]
+    ret v18
 }

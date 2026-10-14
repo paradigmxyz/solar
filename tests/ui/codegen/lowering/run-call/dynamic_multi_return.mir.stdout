@@ -51,12 +51,12 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     store v0, 3
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 0, 7
+    v1 = load v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 7
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v5, 1
     v6 = ptrtoint memptr v5 to i256
@@ -118,11 +118,10 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v22 = insert_value struct1, v21, 1, v20
     v23 = extract_value struct1, v22, 0
     v24 = extract_value struct1, v22, 1
-    v25 = memory_slice v23
-    v26 = slice_len v25
-    v27 = insert_value struct0, undef struct0, 0, v26
-    v28 = insert_value struct0, v27, 1, v24
-    ret v28
+    v25 = load v23
+    v26 = insert_value struct0, undef struct0, 0, v25
+    v27 = insert_value struct0, v26, 1, v24
+    ret v27
 }
 
 fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -162,11 +161,10 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v22 = insert_value struct2, v21, 1, v20
     v23 = extract_value struct2, v22, 0
     v24 = extract_value struct2, v22, 1
-    v25 = memory_slice v24
-    v26 = slice_len v25
-    v27 = insert_value struct0, undef struct0, 0, v23
-    v28 = insert_value struct0, v27, 1, v26
-    ret v28
+    v25 = load v24
+    v26 = insert_value struct0, undef struct0, 0, v23
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
 }
 
 fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -206,13 +204,11 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v22 = insert_value struct3, v21, 1, v20
     v23 = extract_value struct3, v22, 0
     v24 = extract_value struct3, v22, 1
-    v25 = memory_slice v23
-    v26 = slice_len v25
-    v27 = memory_slice v24
-    v28 = slice_len v27
-    v29 = insert_value struct0, undef struct0, 0, v26
-    v30 = insert_value struct0, v29, 1, v28
-    ret v30
+    v25 = load v23
+    v26 = load v24
+    v27 = insert_value struct0, undef struct0, 0, v25
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
 fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -255,20 +251,18 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v25 = extract_value struct5, v24, 0
     v26 = extract_value struct5, v24, 1
     v27 = extract_value struct5, v24, 2
-    v28 = memory_slice v25
-    v29 = slice_len v28
-    v30 = memory_slice v25
-    v31 = slice_len v30
-    v32 = lt 0, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = slice_load_word v30, 0
-    v35 = checked_sub u256, v26, 7
-    v36 = checked_add u256, v34, v35
-    v37 = memory_slice v27
-    v38 = slice_len v37
-    v39 = insert_value struct4, undef struct4, 0, v29
-    v40 = insert_value struct4, v39, 1, v36
-    v41 = insert_value struct4, v40, 2, v38
-    ret v41
+    v28 = load v25
+    v29 = load v25
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = ptradd v25, 32
+    v33 = load v32
+    v34 = checked_sub u256, v26, 7
+    v35 = checked_add u256, v33, v34
+    v36 = load v27
+    v37 = insert_value struct4, undef struct4, 0, v28
+    v38 = insert_value struct4, v37, 1, v35
+    v39 = insert_value struct4, v38, 2, v36
+    ret v39
 }

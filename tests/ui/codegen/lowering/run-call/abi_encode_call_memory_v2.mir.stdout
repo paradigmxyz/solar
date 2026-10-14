@@ -40,18 +40,18 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     store v0, 2
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 0, 42
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    slice_store_word v5, 32, 99
+    v1 = load v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 42
+    v5 = load v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    store v8, 99
     jump bb1
   bb1:
     v9 = phi [bb0: 0], [bb3: v41]
@@ -95,12 +95,12 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v35 = abi_decode [bytes], v34
     v36 = alloc memoryarray<1>, exact, zeroed, panic, 128
     store v36, 3
-    v37 = memory_slice v36
-    v38 = slice_len v37
-    v39 = lt 2, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    slice_store_word v37, 64, 123
+    v37 = load v36
+    v38 = lt 2, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v36, 96
+    store v40, 123
     jump bb6
   bb6:
     jump bb3
@@ -118,154 +118,173 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v3 = zext i160 v2 to i256
     v4 = shl 32, v3
     v5 = or v4, 0xa7a0d537
-    v6 = make_memory_slice v0, 2
-    v7 = lt 0, 2
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = shl 64, v5
-    slice_store_word v6, 0, v9
-    v10 = abi_encode []
-    v11 = datasize AbiEncodeCallMemoryTarget_creation_code_0
-    v12 = datasize AbiEncodeCallMemoryTarget_creation_code_0, 31, aligned
-    v13 = alloc raw, exact, uninitialized, infallible, v12
-    v14 = ptrtoint memptr v13 to i256
-    datacopy AbiEncodeCallMemoryTarget_creation_code_0, v14, v11
-    v15 = slice_ptr v10
-    v16 = ptrtoint memptr v13 to i256
-    v17 = add v16, v11
-    copy v17, v15, 0 !metadata(memory=heap)
-    v18 = ptrtoint memptr v13 to i256
-    v19 = create 0, v18, v11
-    v20 = ne v19, i160 0
-    jumpi v20, bb2, bb1
+    v6 = lt 0, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v5
+    store v0, v8
+    v9 = abi_encode []
+    v10 = datasize AbiEncodeCallMemoryTarget_creation_code_0
+    v11 = datasize AbiEncodeCallMemoryTarget_creation_code_0, 31, aligned
+    v12 = alloc raw, exact, uninitialized, infallible, v11
+    v13 = ptrtoint memptr v12 to i256
+    datacopy AbiEncodeCallMemoryTarget_creation_code_0, v13, v10
+    v14 = slice_ptr v9
+    v15 = ptrtoint memptr v12 to i256
+    v16 = add v15, v10
+    copy v16, v14, 0 !metadata(memory=heap)
+    v17 = ptrtoint memptr v12 to i256
+    v18 = create 0, v17, v10
+    v19 = ne v18, i160 0
+    jumpi v19, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v21 = zext i160 v19 to i256
-    v22 = shl 32, v21
-    v23 = or v22, 0xa7a0d537
-    v24 = make_memory_slice v0, 2
-    v25 = lt 1, 2
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = shl 64, v23
-    slice_store_word v24, 32, v27
-    v28 = make_memory_slice v0, 2
-    v29 = lt 1, 2
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = slice_load_word v28, 32
-    v32 = shr 64, v31
-    v33 = make_memory_slice v0, 2
-    v34 = lt 0, 2
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = slice_load_word v33, 0
-    v37 = shr 64, v36
-    v38 = and v37, 0xffffffff
-    v39 = shl 224, v38
-    v40 = abi_encode [], object, selector v39
-    v41 = make_memory_slice v0, 2
-    v42 = lt 1, 2
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = slice_load_word v41, 32
-    v45 = shr 64, v44
-    v46 = and v45, 0xffffffff
-    v47 = shl 224, v46
-    v48 = abi_encode [], object, selector v47
-    v49 = and v32, 0xffffffff
-    v50 = shl 224, v49
-    v51 = abi_encode [], object, selector v50
-    v52 = memory_slice v40
-    v53 = slice_len v52
-    v54 = eq v53, 4
-    jumpi v54, bb3, bb4
+    v20 = zext i160 v18 to i256
+    v21 = shl 32, v20
+    v22 = or v21, 0xa7a0d537
+    v23 = lt 1, 2
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = shl 64, v22
+    v26 = ptradd v0, 32
+    store v26, v25
+    v27 = lt 1, 2
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v0, 32
+    v30 = load v29
+    v31 = shr 64, v30
+    v32 = lt 0, 2
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = load v0
+    v35 = shr 64, v34
+    v36 = and v35, 0xffffffff
+    v37 = shl 224, v36
+    v38 = abi_encode [], object, selector v37
+    v39 = lt 1, 2
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = ptradd v0, 32
+    v42 = load v41
+    v43 = shr 64, v42
+    v44 = and v43, 0xffffffff
+    v45 = shl 224, v44
+    v46 = abi_encode [], object, selector v45
+    v47 = and v31, 0xffffffff
+    v48 = shl 224, v47
+    v49 = abi_encode [], object, selector v48
+    v50 = load v38
+    v51 = eq v50, 4
+    jumpi v51, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v55 = memory_slice v48
-    v56 = slice_len v55
-    v57 = eq v56, 4
+    v52 = load v46
+    v53 = eq v52, 4
     jump bb5
   bb5:
-    v58 = phi [bb3: v57], [bb4: false]
-    jumpi v58, bb6, bb7
+    v54 = phi [bb3: v53], [bb4: false]
+    jumpi v54, bb6, bb7
   bb7:
     jump bb8
   bb6:
-    v59 = memory_slice v51
-    v60 = slice_len v59
-    v61 = eq v60, 4
+    v55 = load v49
+    v56 = eq v55, 4
     jump bb8
   bb8:
-    v62 = phi [bb6: v61], [bb7: false]
-    v63 = eq v62, false
-    icall panic_if<0x1>, v63
-    v64 = memory_slice v40
-    v65 = slice_load_word v64, 0
-    v66 = slice_len v64
-    v67 = lt v66, 4
-    v68 = sub 4, v66
-    v69 = mul 8, v68
-    v70 = shl v69, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v71 = select v67, v70, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v72 = and v65, v71
-    v73 = memory_slice v48
-    v74 = slice_load_word v73, 0
-    v75 = slice_len v73
-    v76 = lt v75, 4
-    v77 = sub 4, v75
-    v78 = mul 8, v77
-    v79 = shl v78, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v80 = select v76, v79, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v81 = and v74, v80
-    v82 = eq v72, v81
-    v83 = eq v82, false
-    icall panic_if<0x1>, v83
-    v84 = memory_slice v40
-    v85 = slice_load_word v84, 0
-    v86 = slice_len v84
-    v87 = lt v86, 4
-    v88 = sub 4, v86
-    v89 = mul 8, v88
-    v90 = shl v89, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v91 = select v87, v90, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v92 = and v85, v91
-    v93 = memory_slice v51
-    v94 = slice_load_word v93, 0
-    v95 = slice_len v93
-    v96 = lt v95, 4
-    v97 = sub 4, v95
-    v98 = mul 8, v97
-    v99 = shl v98, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v100 = select v96, v99, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v101 = and v94, v100
-    v102 = eq v92, v101
-    v103 = eq v102, false
-    icall panic_if<0x1>, v103
-    v104 = memory_slice v40
-    v105 = slice_load_word v104, 0
-    v106 = slice_len v104
+    v57 = phi [bb6: v56], [bb7: false]
+    v58 = eq v57, false
+    icall panic_if<0x1>, v58
+    v59 = ptrtoint memptr v38 to i256
+    v60 = add v59, 32
+    v61 = load v38
+    v62 = make_memory_slice v60, v61
+    v63 = slice_ptr v62
+    v64 = load v63
+    v65 = slice_len v62
+    v66 = lt v65, 4
+    v67 = sub 4, v65
+    v68 = mul 8, v67
+    v69 = shl v68, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v70 = select v66, v69, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v71 = and v64, v70
+    v72 = ptrtoint memptr v46 to i256
+    v73 = add v72, 32
+    v74 = load v46
+    v75 = make_memory_slice v73, v74
+    v76 = slice_ptr v75
+    v77 = load v76
+    v78 = slice_len v75
+    v79 = lt v78, 4
+    v80 = sub 4, v78
+    v81 = mul 8, v80
+    v82 = shl v81, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v83 = select v79, v82, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v84 = and v77, v83
+    v85 = eq v71, v84
+    v86 = eq v85, false
+    icall panic_if<0x1>, v86
+    v87 = ptrtoint memptr v38 to i256
+    v88 = add v87, 32
+    v89 = load v38
+    v90 = make_memory_slice v88, v89
+    v91 = slice_ptr v90
+    v92 = load v91
+    v93 = slice_len v90
+    v94 = lt v93, 4
+    v95 = sub 4, v93
+    v96 = mul 8, v95
+    v97 = shl v96, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v98 = select v94, v97, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v99 = and v92, v98
+    v100 = ptrtoint memptr v49 to i256
+    v101 = add v100, 32
+    v102 = load v49
+    v103 = make_memory_slice v101, v102
+    v104 = slice_ptr v103
+    v105 = load v104
+    v106 = slice_len v103
     v107 = lt v106, 4
     v108 = sub 4, v106
     v109 = mul 8, v108
     v110 = shl v109, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v111 = select v107, v110, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v112 = and v105, v111
-    v113 = and v32, 0xffffffff
-    v114 = shl 224, v113
-    v115 = eq v112, v114
-    v116 = eq v115, false
-    icall panic_if<0x1>, v116
-    v117 = memory_slice v40
-    v118 = slice_load_word v117, 0
-    v119 = slice_len v117
-    v120 = lt v119, 4
-    v121 = sub 4, v119
-    v122 = mul 8, v121
-    v123 = shl v122, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v124 = select v120, v123, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v125 = and v118, v124
-    ret v125
+    v113 = eq v99, v112
+    v114 = eq v113, false
+    icall panic_if<0x1>, v114
+    v115 = ptrtoint memptr v38 to i256
+    v116 = add v115, 32
+    v117 = load v38
+    v118 = make_memory_slice v116, v117
+    v119 = slice_ptr v118
+    v120 = load v119
+    v121 = slice_len v118
+    v122 = lt v121, 4
+    v123 = sub 4, v121
+    v124 = mul 8, v123
+    v125 = shl v124, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v126 = select v122, v125, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v127 = and v120, v126
+    v128 = and v31, 0xffffffff
+    v129 = shl 224, v128
+    v130 = eq v127, v129
+    v131 = eq v130, false
+    icall panic_if<0x1>, v131
+    v132 = ptrtoint memptr v38 to i256
+    v133 = add v132, 32
+    v134 = load v38
+    v135 = make_memory_slice v133, v134
+    v136 = slice_ptr v135
+    v137 = load v136
+    v138 = slice_len v135
+    v139 = lt v138, 4
+    v140 = sub 4, v138
+    v141 = mul 8, v140
+    v142 = shl v141, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v143 = select v139, v142, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v144 = and v137, v143
+    ret v144
 }

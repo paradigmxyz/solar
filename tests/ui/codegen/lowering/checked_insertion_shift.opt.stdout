@@ -3,58 +3,57 @@
 @phase lowered
 fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
   bb0:
-    v54 = calldatasize
-    v55 = lt v54, 36
-    jumpi v55, bb8, bb9
+    v60 = calldatasize
+    v61 = lt v60, 36
+    jumpi v61, bb8, bb9
   bb9:
-    v56 = icall @decode_calldata_type
-    v90 = ptrtoint memptr v56 to i256
-    v3 = load v90
-    v76 = add v90, 32
+    v62 = icall @decode_calldata_type
+    v91 = ptrtoint memptr v62 to i256
+    v50 = load v91
+    v89 = add v91, 32
     jump bb1
   bb1:
-    v0 = phi [bb9: 1], [bb5: v50]
-    v5 = lt v0, v3
-    jumpi v5, bb3, bb2
+    v0 = phi [bb9: 1], [bb5: v56]
+    v4 = lt v0, v50
+    jumpi v4, bb3, bb2
   bb2:
-    v64 = ne v90, 0
-    v65 = zext i1 v64 to i256
-    v66 = mul v3, v65
-    v68 = add v90, 32
-    v69 = shl 5, v66
-    v71 = add v90, 64
-    copy v71, v68, v69
-    store v90, 32
-    store v68, v66
-    v72 = add v69, 64
-    returndata v90, v72
+    v69 = ne v91, 0
+    v70 = zext i1 v69 to i256
+    v71 = mul v50, v70
+    v74 = shl 5, v71
+    v76 = add v91, 64
+    copy v76, v89, v74
+    store v91, 32
+    store v89, v71
+    v77 = add v74, 64
+    returndata v91, v77
   bb3:
-    v10 = shl 5, v0
-    v77 = add v76, v10
-    v11 = load v77
+    v8 = shl 5, v0
+    v81 = add v89, v8
+    v11 = load v81
     v92 = shl 5, v0
-    v93 = add v76, v92
+    v93 = add v89, v92
     jump bb4
   bb4:
-    v15 = phi [bb3: v0], [bb7: v46]
+    v15 = phi [bb3: v0], [bb7: v52]
     v94 = phi [bb3: v93], [bb7: v95]
     v17 = ne v15, 0
     jumpi v17, bb6, bb5
   bb6:
-    v46 = sub v15, 1
-    v83 = sub v94, 32
-    v24 = load v83
-    v25 = gt v24, v11
-    jumpi v25, bb7, bb5
+    v52 = sub v15, 1
+    v85 = sub v94, 32
+    v25 = load v85
+    v26 = gt v25, v11
+    jumpi v26, bb7, bb5
   bb5:
-    v44 = shl 5, v15
-    v80 = add v76, v44
-    store v80, v11
-    v50 = add v0, 1
+    v46 = shl 5, v15
+    v83 = add v89, v46
+    store v83, v11
+    v56 = add v0, 1
     jump bb1
   bb7:
-    v33 = load v83
-    store v94, v33
+    v35 = load v85
+    store v94, v35
     v95 = sub v94, 32
     jump bb4
   bb8:
@@ -63,47 +62,47 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
 
 fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
   bb0:
-    v15 = calldatasize
-    v16 = lt v15, 68
-    jumpi v16, bb6, bb7
+    v17 = calldatasize
+    v18 = lt v17, 68
+    jumpi v18, bb6, bb7
   bb7:
-    v17 = icall @decode_calldata_type
+    v19 = icall @decode_calldata_type
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
   bb1:
-    v13 = sub arg1, 1
-    v36 = ptrtoint memptr v17 to i256
-    v2 = load v36
-    v4 = lt v13, v2
-    jumpi v4, bb4, bb3
+    v15 = sub arg1, 1
+    v41 = ptrtoint memptr v19 to i256
+    v2 = load v41
+    v3 = lt v15, v2
+    jumpi v3, bb4, bb3
   bb4:
-    v6 = shl 5, v13
-    v39 = add v36, 32
-    v40 = add v39, v6
-    v7 = load v40
+    v5 = shl 5, v15
+    v38 = add v41, 32
+    v39 = add v38, v5
+    v8 = load v39
     v10 = lt arg1, v2
     jumpi v10, bb5, bb3
   bb3:
     tail_call @revert_stub
   bb5:
     v12 = shl 5, arg1
-    v43 = add v39, v12
-    store v43, v7
+    v40 = add v38, v12
+    store v40, v8
     jump bb2
   bb2:
-    v37 = ptrtoint memptr v17 to i256
-    v25 = ne v37, 0
-    v26 = zext i1 v25 to i256
-    v21 = load v37
-    v27 = mul v21, v26
-    v29 = add v37, 32
-    v30 = shl 5, v27
-    v32 = add v37, 64
-    copy v32, v29, v30
-    store v37, 32
-    store v29, v27
-    v33 = add v30, 64
-    returndata v37, v33
+    v42 = ptrtoint memptr v19 to i256
+    v26 = ne v42, 0
+    v27 = zext i1 v26 to i256
+    v23 = load v42
+    v28 = mul v23, v27
+    v30 = add v42, 32
+    v31 = shl 5, v28
+    v33 = add v42, 64
+    copy v33, v30, v31
+    store v42, 32
+    store v30, v28
+    v34 = add v31, 64
+    returndata v42, v34
   bb6:
     revert 0, 0
 }
@@ -150,8 +149,8 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     v22 = gt v8, v21
     jumpi v22, bb1, bb5
   bb5:
-    v25 = add v30, 32
-    copy calldata v25, v3, v10
+    v28 = add v30, 32
+    copy calldata v28, v3, v10
     ret v19
   bb3:
     store 32, 65 !metadata(memory=scratch)

@@ -384,36 +384,34 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     sstore 0, v306 !metadata(storage=slot(0))
     v320 = alloc memoryarray<1>, exact, zeroed, panic, 64
     store v320, 1
-    v321 = memory_slice v320
-    v322 = slice_len v321
-    v323 = lt 0, v322
-    v324 = eq v323, false
-    icall panic_if<0x32>, v324
-    slice_store_word v321, 0, 23
-    v325 = memory_slice v320
-    v326 = slice_len v325
-    v327 = sload 0 !metadata(storage=slot(0))
-    v328 = gt v327, v326
-    jumpi v328, bb1, bb2
+    v321 = load v320
+    v322 = lt 0, v321
+    v323 = eq v322, false
+    icall panic_if<0x32>, v323
+    v324 = ptradd v320, 32
+    store v324, 23
+    v325 = load v320
+    v326 = sload 0 !metadata(storage=slot(0))
+    v327 = gt v326, v325
+    jumpi v327, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v329 = phi [bb1: v326], [bb4: v344]
-    v330 = lt v329, v327
-    jumpi v330, bb4, bb5
+    v328 = phi [bb1: v325], [bb4: v343]
+    v329 = lt v328, v326
+    jumpi v329, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore 0, v326 !metadata(storage=slot(0))
-    v345 = memory_slice v320
+    sstore 0, v325 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v346 = phi [bb2: 0], [bb7: v363]
-    v347 = lt v346, v326
-    jumpi v347, bb7, bb8
+    v344 = phi [bb2: 0], [bb7: v363]
+    v345 = lt v344, v325
+    jumpi v345, bb7, bb8
   bb8:
-    v364 = div v326, 6
-    v365 = mod v326, 6
+    v364 = div v325, 6
+    v365 = mod v325, 6
     v366 = eq v365, 0
     jumpi v366, bb10, bb9
   bb9:
@@ -750,12 +748,14 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     icall panic_if<0x1>, v653
     ret true
   bb7:
-    v348 = shl 5, v346
-    v349 = slice_load_word v345, v348
+    v346 = shl 5, v344
+    v347 = ptradd v320, 32
+    v348 = ptradd v347, v346
+    v349 = load v348
     v350 = storage_array_data_slot 0
-    v351 = div v346, 6
+    v351 = div v344, 6
     v352 = add v350, v351
-    v353 = mod v346, 6
+    v353 = mod v344, 6
     v354 = mul v353, 5
     v355 = mul v354, 8
     v356 = shl v355, 0xffffffffff
@@ -766,23 +766,23 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v361 = shl v355, v360
     v362 = or v359, v361
     sstore v352, v362 !metadata(storage=symbolic(v352))
-    v363 = add v346, 1
+    v363 = add v344, 1
     jump bb6
   bb4:
-    v331 = storage_array_data_slot 0
-    v332 = div v329, 6
-    v333 = add v331, v332
-    v334 = mod v329, 6
-    v335 = mul v334, 5
-    v336 = mul v335, 8
-    v337 = shl v336, 0xffffffffff
-    v338 = sload v333 !metadata(storage=symbolic(v333))
-    v339 = not v337
-    v340 = and v338, v339
-    v341 = and 0, 0xffffffffff
-    v342 = shl v336, v341
-    v343 = or v340, v342
-    sstore v333, v343 !metadata(storage=symbolic(v333))
-    v344 = add v329, 1
+    v330 = storage_array_data_slot 0
+    v331 = div v328, 6
+    v332 = add v330, v331
+    v333 = mod v328, 6
+    v334 = mul v333, 5
+    v335 = mul v334, 8
+    v336 = shl v335, 0xffffffffff
+    v337 = sload v332 !metadata(storage=symbolic(v332))
+    v338 = not v336
+    v339 = and v337, v338
+    v340 = and 0, 0xffffffffff
+    v341 = shl v335, v340
+    v342 = or v339, v341
+    sstore v332, v342 !metadata(storage=symbolic(v332))
+    v343 = add v328, 1
     jump bb3
 }

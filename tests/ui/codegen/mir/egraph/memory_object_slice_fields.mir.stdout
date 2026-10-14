@@ -35,7 +35,6 @@ fn @choose(arg0: calldataslice, arg1: i1) -> i256 [selector=0x1fae9324, pure, ab
 
 fn @memoryFirst(arg0: memptr) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = make_memory_slice arg0, 2
-    v1 = slice_load_word v0, 0
-    ret v1
+    v0 = load arg0
+    ret v0
 }

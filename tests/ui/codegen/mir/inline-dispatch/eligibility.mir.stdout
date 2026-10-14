@@ -64,11 +64,10 @@ fn @a(arg0: calldataslice) -> memptr [selector=0x1e3badd9, pure, abi_params=[arr
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
     store v21, v0
     v22 = make_calldata_slice v1, v12
-    v23 = ptrtoint memptr v21 to i256
-    v24 = add v23, 32
+    v23 = ptradd v21, 32
+    v24 = slice_ptr v22
     v25 = slice_len v22
-    v26 = make_memory_slice v24, v25
-    slice_copy v26, 0, v22
+    copy calldata v23, v24, v25
     ret v21
 }
 

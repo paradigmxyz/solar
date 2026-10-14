@@ -58,13 +58,13 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xd4b83992
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = shl 64, v4
-    slice_store_word v5, 0, v9
+    v5 = load v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    v9 = ptradd v0, 32
+    store v9, v8
     v10 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
   bb2:

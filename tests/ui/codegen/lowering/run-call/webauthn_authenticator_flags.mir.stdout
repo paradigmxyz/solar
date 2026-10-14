@@ -26,14 +26,14 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
 fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = make_memory_slice v0, 6
-    v2 = slice_load_word v1, 0, memptr
-    v3 = memory_slice v2
-    v4 = slice_len v3
-    v5 = lt 32, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = slice_load_byte v3, 32
+    v1 = load v0, memptr
+    v2 = load v1
+    v3 = lt 32, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v1, 64
+    v6 = load v5
+    v7 = byte 0, v6
     v8 = shl 248, v7
     v9 = and v8, 0x100000000000000000000000000000000000000000000000000000000000000
     v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -51,20 +51,19 @@ fn @auth() -> memptr [pure] {
     v3 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 192
-    v5 = make_memory_slice v3, 6
-    slice_store_word v5, 0, 96
-    slice_store_word v5, 32, 96
-    v6 = make_memory_slice v3, 6
-    v7 = ptrtoint memptr v0 to i256
-    slice_store_word v6, 0, v7
-    v8 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    v9 = make_memory_slice v3, 6
-    v10 = ptrtoint memptr v8 to i256
-    slice_store_word v9, 32, v10
-    v11 = make_memory_slice v3, 6
-    slice_store_word v11, 64, 27
-    v12 = make_memory_slice v3, 6
-    slice_store_word v12, 96, 2
+    store v3, 96
+    v5 = ptradd v3, 32
+    store v5, 96
+    v6 = ptrtoint memptr v0 to i256
+    store v3, v6
+    v7 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v8 = ptrtoint memptr v7 to i256
+    v9 = ptradd v3, 32
+    store v9, v8
+    v10 = ptradd v3, 64
+    store v10, 27
+    v11 = ptradd v3, 96
+    store v11, 2
     ret v3
 }
 

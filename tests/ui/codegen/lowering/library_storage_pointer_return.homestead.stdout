@@ -36,9 +36,9 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v3 = make_memory_slice v2, 2
-    slice_store_word v3, 0, 1
-    slice_store_word v3, 32, 2
+    store v2, 1
+    v3 = ptradd v2, 32
+    store v3, 2
     v4 = insert_value struct0, undef struct0, 0, arg0
     v5 = insert_value struct0, v4, 1, v2
     ret v5
@@ -259,11 +259,11 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v19 = extract_value struct1, v18, 0
     v20 = extract_value struct1, v18, 1
     v21 = sload v19 !metadata(storage=symbolic(v19))
-    v22 = make_memory_slice v20, 2
-    v23 = lt 1, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = slice_load_word v22, 32
+    v22 = lt 1, 2
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = ptradd v20, 32
+    v25 = load v24
     v26 = insert_value struct0, undef struct0, 0, v21
     v27 = insert_value struct0, v26, 1, v25
     ret v27

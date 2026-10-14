@@ -135,38 +135,38 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     store v23, v2
     jump bb1
   bb1:
-    v24 = phi [bb0: 0], [bb2: v36]
+    v24 = phi [bb0: 0], [bb2: v37]
     v25 = lt v24, v2
     jumpi v25, bb2, bb3
   bb3:
-    v37 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v23
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = zext i160 v0 to i256
-    v41 = call v1, v40, 0, v38, v39, v38, 96
-    jumpi v41, bb5, bb4
+    v38 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v23
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = zext i160 v0 to i256
+    v42 = call v1, v41, 0, v39, v40, v39, 96
+    jumpi v42, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v42 = returndatasize
-    v43 = lt v42, 96
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add v38, 0
-    v45 = load v44
-    v46 = add v38, 32
-    v47 = load v46
-    v48 = add v38, 64
-    v49 = load v48
-    v50 = insert_value struct0, undef struct0, 0, v45
-    v51 = insert_value struct0, v50, 1, v47
-    v52 = insert_value struct0, v51, 2, v49
-    v53 = extract_value struct0, v52, 0
-    v54 = extract_value struct0, v52, 1
-    v55 = extract_value struct0, v52, 2
-    v56 = insert_value struct0, undef struct0, 0, v53
-    v57 = insert_value struct0, v56, 1, v54
-    v58 = insert_value struct0, v57, 2, v55
-    ret v58
+    v43 = returndatasize
+    v44 = lt v43, 96
+    icall revert_if<tuple_data_too_short>, v44
+    v45 = add v39, 0
+    v46 = load v45
+    v47 = add v39, 32
+    v48 = load v47
+    v49 = add v39, 64
+    v50 = load v49
+    v51 = insert_value struct0, undef struct0, 0, v46
+    v52 = insert_value struct0, v51, 1, v48
+    v53 = insert_value struct0, v52, 2, v50
+    v54 = extract_value struct0, v53, 0
+    v55 = extract_value struct0, v53, 1
+    v56 = extract_value struct0, v53, 2
+    v57 = insert_value struct0, undef struct0, 0, v54
+    v58 = insert_value struct0, v57, 1, v55
+    v59 = insert_value struct0, v58, 2, v56
+    ret v59
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
@@ -177,10 +177,11 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     icall revert_if<empty>, v31
     v32 = shr 64, v28
     v33 = shl 64, v32
-    v34 = memory_slice v23
-    v35 = shl 5, v24
-    slice_store_word v34, v35, v33
-    v36 = add v24, 1
+    v34 = shl 5, v24
+    v35 = ptradd v23, 32
+    v36 = ptradd v35, v34
+    store v36, v33
+    v37 = add v24, 1
     jump bb1
 }
 
@@ -207,35 +208,35 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xec1632e
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = shl 64, v4
-    slice_store_word v5, 0, v9
+    v5 = load v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    v9 = ptradd v0, 32
+    store v9, v8
     v10 = address
     v11 = zext i160 v10 to i256
     v12 = shl 32, v11
     v13 = or v12, 0xe255e5f9
-    v14 = memory_slice v0
-    v15 = slice_len v14
-    v16 = lt 1, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = shl 64, v13
-    slice_store_word v14, 32, v18
+    v14 = load v0
+    v15 = lt 1, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = shl 64, v13
+    v18 = ptradd v0, 64
+    store v18, v17
     v19 = address
     v20 = zext i160 v19 to i256
     v21 = shl 32, v20
     v22 = or v21, 0xec202537
-    v23 = memory_slice v0
-    v24 = slice_len v23
-    v25 = lt 2, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = shl 64, v22
-    slice_store_word v23, 64, v27
+    v23 = load v0
+    v24 = lt 2, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl 64, v22
+    v27 = ptradd v0, 96
+    store v27, v26
     jumpi arg0, bb1, bb2
   bb2:
     v49 = address

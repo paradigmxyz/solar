@@ -106,12 +106,11 @@ fn @observe_memory() -> i256 {
 }
 
 // CHECK-LABEL: fn @abi_dependency
-// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = slice_load_word {{v[0-9]+}}, 0
+// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = load arg0
 // CHECK: {{^[ +].*}}validate_abi [[FIELD]]
 fn @abi_dependency(arg0: memptr) {
   bb0:
-    v1 = make_memory_slice arg0, 1
-    v0 = slice_load_word v1, 0
+    v0 = load arg0
     validate_abi v0
     ret
 }

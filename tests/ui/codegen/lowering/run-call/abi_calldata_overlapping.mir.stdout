@@ -35,54 +35,56 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v63 = memory_slice v21
-    v64 = slice_len v63
-    v65 = lt 0, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = slice_load_word v63, 0
+    v63 = load v21
+    v64 = lt 0, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = ptradd v21, 32
+    v67 = load v66
     v68 = inttoptr i256 v67 to memptr
     v69 = eq v67, 0
     jumpi v69, bb4, bb5
   bb4:
     v70 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     store v70, 0
-    v71 = ptrtoint memptr v70 to i256
-    slice_store_word v63, 0, v71
+    v71 = ptradd v21, 32
+    v72 = ptrtoint memptr v70 to i256
+    store v71, v72
     jump bb5
   bb5:
-    v72 = phi [bb3: v68], [bb4: v70]
-    v73 = memory_slice v72
-    v74 = slice_len v73
+    v73 = phi [bb3: v68], [bb4: v70]
+    v74 = load v73
     v75 = lt 0, v74
     v76 = eq v75, false
     icall panic_if<0x32>, v76
-    v77 = slice_load_word v73, 0
-    v78 = memory_slice v21
-    v79 = slice_len v78
+    v77 = ptradd v73, 32
+    v78 = load v77
+    v79 = load v21
     v80 = lt 1, v79
     v81 = eq v80, false
     icall panic_if<0x32>, v81
-    v82 = slice_load_word v78, 32
-    v83 = inttoptr i256 v82 to memptr
-    v84 = eq v82, 0
-    jumpi v84, bb6, bb7
+    v82 = ptradd v21, 64
+    v83 = load v82
+    v84 = inttoptr i256 v83 to memptr
+    v85 = eq v83, 0
+    jumpi v85, bb6, bb7
   bb6:
-    v85 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    store v85, 0
-    v86 = ptrtoint memptr v85 to i256
-    slice_store_word v78, 32, v86
+    v86 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    store v86, 0
+    v87 = ptradd v21, 64
+    v88 = ptrtoint memptr v86 to i256
+    store v87, v88
     jump bb7
   bb7:
-    v87 = phi [bb5: v83], [bb6: v85]
-    v88 = memory_slice v87
-    v89 = slice_len v88
-    v90 = lt 1, v89
-    v91 = eq v90, false
-    icall panic_if<0x32>, v91
-    v92 = slice_load_word v88, 32
-    v93 = checked_add u256, v77, v92
-    ret v93
+    v89 = phi [bb5: v84], [bb6: v86]
+    v90 = load v89
+    v91 = lt 1, v90
+    v92 = eq v91, false
+    icall panic_if<0x32>, v92
+    v93 = ptradd v89, 64
+    v94 = load v93
+    v95 = checked_add u256, v78, v94
+    ret v95
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -122,15 +124,15 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     v53 = alloc memoryarray<1>, exact, uninitialized, infallible, v51
     store v53, v36
     v54 = make_calldata_slice v43, v44
-    v55 = ptrtoint memptr v53 to i256
-    v56 = add v55, 32
+    v55 = ptradd v53, 32
+    v56 = slice_ptr v54
     v57 = slice_len v54
-    v58 = make_memory_slice v56, v57
-    slice_copy v58, 0, v54
-    v59 = ptrtoint memptr v53 to i256
-    v60 = memory_slice v21
-    v61 = shl 5, v22
-    slice_store_word v60, v61, v59
+    copy calldata v55, v56, v57
+    v58 = ptrtoint memptr v53 to i256
+    v59 = shl 5, v22
+    v60 = ptradd v21, 32
+    v61 = ptradd v60, v59
+    store v61, v58
     v62 = add v22, 1
     jump bb1
 }
@@ -171,9 +173,8 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     jumpi v23, bb2, bb3
   bb3:
     v63 = abi_encode [memory_array<memory_array<word>>], object, args v21
-    v64 = memory_slice v63
-    v65 = slice_len v64
-    ret v65
+    v64 = load v63
+    ret v64
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -213,15 +214,15 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     v53 = alloc memoryarray<1>, exact, uninitialized, infallible, v51
     store v53, v36
     v54 = make_calldata_slice v43, v44
-    v55 = ptrtoint memptr v53 to i256
-    v56 = add v55, 32
+    v55 = ptradd v53, 32
+    v56 = slice_ptr v54
     v57 = slice_len v54
-    v58 = make_memory_slice v56, v57
-    slice_copy v58, 0, v54
-    v59 = ptrtoint memptr v53 to i256
-    v60 = memory_slice v21
-    v61 = shl 5, v22
-    slice_store_word v60, v61, v59
+    copy calldata v55, v56, v57
+    v58 = ptrtoint memptr v53 to i256
+    v59 = shl 5, v22
+    v60 = ptradd v21, 32
+    v61 = ptradd v60, v59
+    store v61, v58
     v62 = add v22, 1
     jump bb1
 }

@@ -10,58 +10,58 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = icall @getArray
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v2 = make_memory_slice v1, 3
-    slice_store_word v2, 0, 11
-    slice_store_word v2, 32, 12
-    slice_store_word v2, 64, 13
-    v3 = lt 0, 1
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = mul 0, 10
-    v6 = add v0, v5
-    v7 = make_memory_slice v1, 3
+    store v1, 11
+    v2 = ptradd v1, 32
+    store v2, 12
+    v3 = ptradd v1, 64
+    store v3, 13
+    v4 = lt 0, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = mul 0, 10
+    v7 = add v0, v6
     jump bb1
   bb1:
-    v8 = phi [bb0: 0], [bb6: v14]
+    v8 = phi [bb0: 0], [bb6: v15]
     v9 = lt v8, 10
     jumpi v9, bb2, bb3
   bb3:
     jump bb7
   bb7:
-    v15 = phi [bb3: 0], [bb9: v32]
-    v16 = phi [bb3: 0], [bb9: v31]
-    v17 = phi [bb3: v0], [bb9: v17]
-    v18 = lt 0, 1
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = mul 0, 10
-    v21 = add v17, v20
-    v22 = lt v15, 10
-    jumpi v22, bb10, bb11
+    v16 = phi [bb3: 0], [bb9: v33]
+    v17 = phi [bb3: 0], [bb9: v32]
+    v18 = phi [bb3: v0], [bb9: v18]
+    v19 = lt 0, 1
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = mul 0, 10
+    v22 = add v18, v21
+    v23 = lt v16, 10
+    jumpi v23, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v16
+    ret v17
   bb10:
-    v23 = lt 0, 1
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = mul 0, 10
-    v26 = add v17, v25
-    v27 = lt v15, 10
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = add v26, v15
-    v30 = sload v29 !metadata(storage=symbolic(v29))
-    v31 = checked_add u256, v16, v30
+    v24 = lt 0, 1
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = mul 0, 10
+    v27 = add v18, v26
+    v28 = lt v16, 10
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = add v27, v16
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    v32 = checked_add u256, v17, v31
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v32 = checked_add u256, v15, 1
+    v33 = checked_add u256, v16, 1
     jump bb7
   bb2:
-    v10 = add v6, v8
+    v10 = add v7, v8
     v11 = lt v8, 3
     jumpi v11, bb4, bb5
   bb5:
@@ -69,10 +69,11 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb6
   bb4:
     v12 = shl 5, v8
-    v13 = slice_load_word v7, v12
-    sstore v10, v13 !metadata(storage=symbolic(v10))
+    v13 = ptradd v1, v12
+    v14 = load v13
+    sstore v10, v14 !metadata(storage=symbolic(v10))
     jump bb6
   bb6:
-    v14 = add v8, 1
+    v15 = add v8, 1
     jump bb1
 }

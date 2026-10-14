@@ -24,7 +24,7 @@
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb5: v20]
++     v13 = phi [bb3: 0], [bb5: v21]
 +     v14 = lt v13, v1
 +     jumpi v14, bb5, bb6
 +   bb6:
@@ -33,10 +33,11 @@
 +     v15 = div v13, 1
 +     v16 = add v12, v15
 +     v17 = sload v16 !metadata(storage=symbolic(v16))
-+     v18 = memory_slice v11
-+     v19 = shl 5, v13
-+     slice_store_word v18, v19, v17
-+     v20 = add v13, 1
++     v18 = shl 5, v13
++     v19 = ptradd v11, 32
++     v20 = ptradd v19, v18
++     store v20, v17
++     v21 = add v13, 1
 +     jump bb4
 +   bb1:
 +     store 32, 65 !metadata(memory=scratch)
@@ -67,7 +68,7 @@
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb5: v25]
++     v13 = phi [bb3: 0], [bb5: v26]
 +     v14 = lt v13, v1
 +     jumpi v14, bb5, bb6
 +   bb6:
@@ -81,10 +82,11 @@
 +     v20 = shr v19, v17
 +     v21 = and v20, 0xffffff
 +     v22 = signextend 2, v21
-+     v23 = memory_slice v11
-+     v24 = shl 5, v13
-+     slice_store_word v23, v24, v22
-+     v25 = add v13, 1
++     v23 = shl 5, v13
++     v24 = ptradd v11, 32
++     v25 = ptradd v24, v23
++     store v25, v22
++     v26 = add v13, 1
 +     jump bb4
 +   bb1:
 +     store 32, 65 !metadata(memory=scratch)
@@ -115,7 +117,7 @@
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb5: v25]
++     v13 = phi [bb3: 0], [bb5: v26]
 +     v14 = lt v13, v1
 +     jumpi v14, bb5, bb6
 +   bb6:
@@ -129,10 +131,11 @@
 +     v20 = shr v19, v17
 +     v21 = and v20, 0xffffffffffffffffff
 +     v22 = shl 184, v21
-+     v23 = memory_slice v11
-+     v24 = shl 5, v13
-+     slice_store_word v23, v24, v22
-+     v25 = add v13, 1
++     v23 = shl 5, v13
++     v24 = ptradd v11, 32
++     v25 = ptradd v24, v23
++     store v25, v22
++     v26 = add v13, 1
 +     jump bb4
 +   bb1:
 +     store 32, 65 !metadata(memory=scratch)
@@ -163,7 +166,7 @@
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v13 = phi [bb3: 0], [bb8: v26]
++     v13 = phi [bb3: 0], [bb8: v27]
 +     v14 = lt v13, v1
 +     jumpi v14, bb5, bb6
 +   bb6:
@@ -180,10 +183,11 @@
 +     v23 = eq v22, false
 +     jumpi v23, bb7, bb8
 +   bb8:
-+     v24 = memory_slice v11
-+     v25 = shl 5, v13
-+     slice_store_word v24, v25, v21
-+     v26 = add v13, 1
++     v24 = shl 5, v13
++     v25 = ptradd v11, 32
++     v26 = ptradd v25, v24
++     store v26, v21
++     v27 = add v13, 1
 +     jump bb4
 +   bb7:
 +     store 32, 33 !metadata(memory=scratch)
@@ -221,7 +225,7 @@
 +     v13 = storage_array_data_slot arg1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb7:
-+     v14 = phi [bb6: 0], [bb8: v21] !metadata(span=50..60, modifier_depth=5)
++     v14 = phi [bb6: 0], [bb8: v22] !metadata(span=50..60, modifier_depth=5)
 +     v15 = lt v14, v2 !metadata(span=50..60, modifier_depth=5)
 +     jumpi v15, bb8, bb9 !metadata(span=50..60, modifier_depth=5)
 +   bb9:
@@ -233,11 +237,12 @@
 +   bb8:
 +     v16 = add v13, v14 !metadata(span=50..60, modifier_depth=5)
 +     v17 = icall @load_storage_bytes, v16 !metadata(span=50..60, modifier_depth=5)
-+     v18 = memory_slice v12 !metadata(span=50..60, modifier_depth=5)
-+     v19 = shl 5, v14 !metadata(span=50..60, modifier_depth=5)
-+     v20 = ptrtoint memptr v17 to i256 !metadata(span=50..60, modifier_depth=5)
-+     slice_store_word v18, v19, v20 !metadata(span=50..60, modifier_depth=5)
-+     v21 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
++     v18 = shl 5, v14 !metadata(span=50..60, modifier_depth=5)
++     v19 = ptradd v12, 32 !metadata(span=50..60, modifier_depth=5)
++     v20 = ptradd v19, v18 !metadata(span=50..60, modifier_depth=5)
++     v21 = ptrtoint memptr v17 to i256 !metadata(span=50..60, modifier_depth=5)
++     store v20, v21 !metadata(span=50..60, modifier_depth=5)
++     v22 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb4:
 +     store 32, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
@@ -271,14 +276,14 @@
 +     jumpi v3, bb6, bb5
 +   bb5:
 +     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-+     v18 = memory_slice v16
-+     slice_store_word v18, 0, v17
++     v18 = ptradd v16, 32
++     store v18, v17
 +     jump bb7
 +   bb6:
 +     v19 = storage_array_data_slot arg0
 +     jump bb8
 +   bb8:
-+     v20 = phi [bb6: 0], [bb9: v26]
++     v20 = phi [bb6: 0], [bb9: v27]
 +     v21 = lt v20, v11
 +     jumpi v21, bb9, bb10
 +   bb10:
@@ -289,9 +294,10 @@
 +     v22 = add v19, v20
 +     v23 = sload v22 !metadata(storage=symbolic(v22))
 +     v24 = mul v20, 32
-+     v25 = memory_slice v16
-+     slice_store_word v25, v24, v23
-+     v26 = add v20, 1
++     v25 = ptradd v16, 32
++     v26 = ptradd v25, v24
++     store v26, v23
++     v27 = add v20, 1
 +     jump bb8
 +   bb3:
 +     store 32, 65 !metadata(memory=scratch)

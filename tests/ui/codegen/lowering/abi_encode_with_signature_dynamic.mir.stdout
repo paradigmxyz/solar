@@ -24,9 +24,9 @@ fn @encodeLiteral(arg0: i256) -> memptr [selector=0xb7e00125, pure, abi_params=[
 
 fn @encodeRuntime(arg0: memptr, arg1: i256) -> memptr [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = add v0, 32
+    v2 = load arg0
     v3 = keccak256 v1, v2
     v4 = shr 224, v3
     v5 = shl 224, v4

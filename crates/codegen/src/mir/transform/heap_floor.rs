@@ -483,20 +483,6 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
     bytes << (first - slot)
 }
 
-/// The index or offset that a memory-object operation adds to the object's address, with wrapping
-/// arithmetic, to reach the element, byte, or word it reads or writes.
-fn object_access_index(kind: &InstKind) -> Option<ValueId> {
-    match *kind {
-        InstKind::SliceLoadByte { index, .. } | InstKind::SliceStoreByte { index, .. } => {
-            Some(index)
-        }
-        InstKind::SliceStoreWord { offset, .. }
-        | InstKind::SliceLoadWord { offset, .. }
-        | InstKind::SliceCopy { offset, .. } => Some(offset),
-        _ => None,
-    }
-}
-
 /// Whether lowering a semantic operation may read the free memory pointer. Pure computations,
 /// checks that revert with scratch data, and accesses to frames, storage slots, and memory that
 /// already exists never do; allocations, encodings, and the other builtins may.
@@ -507,12 +493,6 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
             InstKind::FrameLoad { .. }
                 | InstKind::FrameStore { .. }
                 | InstKind::MemoryZero(..)
-                | InstKind::MemorySlice(..)
-                | InstKind::SliceLoadByte { .. }
-                | InstKind::SliceStoreByte { .. }
-                | InstKind::SliceStoreWord { .. }
-                | InstKind::SliceCopy { .. }
-                | InstKind::SliceLoadWord { .. }
                 | InstKind::MappingSlot(..)
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
@@ -662,7 +642,7 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::Zext(_)
         | InstKind::IntToPtr(_)
         | InstKind::PtrToInt(..)
-        | InstKind::MemorySlice(..)
+        | InstKind::PtrAdd(..)
         | InstKind::SlicePtr(..)
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
         InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
@@ -679,12 +659,12 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
     let offset = |value: ValueId| heap.contains(value) || func.value_u64(value).is_some();
     match kind {
         InstKind::Add(a, b) => heap.contains(*a) && offset(*b) || heap.contains(*b) && offset(*a),
+        InstKind::PtrAdd(base, delta) => heap.contains(*base) && offset(*delta),
         InstKind::Select(_, a, b) => heap.contains(*a) && heap.contains(*b),
         InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
         InstKind::Zext(operand) | InstKind::IntToPtr(operand) => heap.contains(*operand),
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
-        InstKind::MemorySlice(object)
-        | InstKind::SlicePtr(object)
+        InstKind::SlicePtr(object)
         | InstKind::MakeSlice { ptr: object, location: PtrLocation::Memory, .. } => {
             heap.contains(*object)
         }
@@ -727,6 +707,7 @@ fn is_derivation(kind: &InstKind) -> bool {
             | InstKind::Sext(..)
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(..)
+            | InstKind::PtrAdd(..)
     )
 }
 
@@ -1357,9 +1338,10 @@ impl<'a> PointerUses<'a> {
     }
 
     /// Returns whether an operation that reads or writes memory objects may read a byte of the slot
-    /// that still holds the stored word, through an object or a memory slice it takes, or at an
-    /// index it computes. Its extent is unknown, so any object `may_read_slot` cannot place above
-    /// the slot may; a store into an object counts too, as the bytes it writes are unknown.
+    /// that still holds the stored word, through an object or a memory slice it takes. Its extent
+    /// is unknown, so any object `may_read_slot` cannot place above the slot may; a store into an
+    /// object counts too, as the bytes it writes are unknown. An address at an index the program
+    /// computes is not a heap address, so its raw access may read the slot.
     fn may_read_object_at_slot(
         &mut self,
         func_id: FunctionId,
@@ -1370,10 +1352,6 @@ impl<'a> PointerUses<'a> {
             return false;
         }
         let func = &self.module.functions[func_id];
-        // A computed index wraps the address around to any word, whatever the object.
-        if object_access_index(kind).is_some_and(|index| func.value_u64(index).is_none()) {
-            return written != WHOLE_SLOT;
-        }
         let mut objects = SmallVec::<[ValueId; 2]>::new();
         kind.visit_operands(|operand| {
             if is_memory_reference(func.value_ty(operand)) {

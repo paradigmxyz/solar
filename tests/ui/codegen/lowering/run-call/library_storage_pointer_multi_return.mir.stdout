@@ -69,20 +69,20 @@ fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi
 fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[u256, tuple<u256, array<_, u256>>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 0
-    slice_store_word v1, 32, 96
+    store v0, 0
+    v1 = ptradd v0, 32
+    store v1, 96
     v2 = icall @structPair, 2
     v3 = extract_value struct1, v2, 0
     v4 = extract_value struct1, v2, 1
     v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v6 = make_memory_slice v5, 2
-    v7 = sload v4 !metadata(storage=symbolic(v4))
-    slice_store_word v6, 0, v7
-    v8 = add v4, 1
-    v9 = icall @load_storage_word_array, v8
-    v10 = ptrtoint memptr v9 to i256
-    slice_store_word v6, 32, v10
+    v6 = sload v4 !metadata(storage=symbolic(v4))
+    store v5, v6
+    v7 = add v4, 1
+    v8 = icall @load_storage_word_array, v7
+    v9 = ptrtoint memptr v8 to i256
+    v10 = ptradd v5, 32
+    store v10, v9
     v11 = insert_value struct0, undef struct0, 0, v3
     v12 = insert_value struct0, v11, 1, v5
     ret v12

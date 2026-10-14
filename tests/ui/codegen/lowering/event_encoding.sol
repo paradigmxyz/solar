@@ -29,8 +29,10 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitIndexedBytes
-    // CHECK: memory_slice arg0
-    // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr arg0 to i256
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = load arg0
+    // CHECK-NEXT: [[HASH:v[0-9]+]] = keccak256 [[DATA]], [[LEN]]
     // CHECK: log 0, 0, {{[^,]+}}, [[HASH]]
     function emitIndexedBytes(bytes memory value) external {
         emit IndexedBytes(value);

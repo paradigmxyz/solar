@@ -753,12 +753,7 @@ impl Instruction {
             | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
-            InstKind::MemorySlice(..)
-            | InstKind::SliceLoadByte { .. }
-            | InstKind::SliceStoreByte { .. }
-            | InstKind::SliceStoreWord { .. }
-            | InstKind::SliceLoadWord { .. }
-            | InstKind::SliceCopy { .. } => Some("memory-object"),
+            InstKind::PtrAdd(..) => Some("pointer arithmetic"),
             InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
@@ -946,6 +941,8 @@ impl InstKind {
     pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
         if let Self::CheckedBinary { arithmetic, .. } = self {
             Some(arithmetic.ty().mir_type())
+        } else if let Self::PtrAdd(ptr, _) = *self {
+            func.value_ty(ptr)
         } else if self.op_def().result == super::ResultKind::Integer {
             self.op().first_operand().map(|value| super::typing::integer_type(func, value))
         } else {
@@ -1000,7 +997,7 @@ impl InstKind {
             Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
-            Self::MemorySlice(_) => result == Some(MirType::Slice(PtrLocation::Memory)),
+            Self::PtrAdd(ptr, _) => result.is_some_and(MirType::is_pointer) && ty(ptr) == result,
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
             Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
             Self::Phi(_) => {
@@ -1129,16 +1126,7 @@ impl InstKind {
     /// Returns whether this instruction still carries a semantic memory-object operation.
     #[must_use]
     pub(crate) const fn is_memory_object_op(&self) -> bool {
-        matches!(
-            self,
-            Self::Alloc { kind: AllocationKind::Object(_), .. }
-                | Self::MemorySlice(..)
-                | Self::SliceLoadByte { .. }
-                | Self::SliceStoreByte { .. }
-                | Self::SliceStoreWord { .. }
-                | Self::SliceLoadWord { .. }
-                | Self::SliceCopy { .. }
-        )
+        matches!(self, Self::Alloc { kind: AllocationKind::Object(_), .. } | Self::PtrAdd(..))
     }
 
     /// Returns a conservative effect classification for this instruction.

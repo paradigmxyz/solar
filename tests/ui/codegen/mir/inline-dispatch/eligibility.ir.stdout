@@ -125,42 +125,42 @@ fn @entry() [entry] {
 @phase lowered
 fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb0:
-    v27 = calldatasize
-    v29 = load calldata 4
-    v30 = add v29, 4
-    v31 = add v30, 32
-    v32 = gt v29, 0xffffffffffffffff
-    v33 = gt v31, v27
-    v34 = or v32, v33
-    v36 = load calldata v30
-    v38 = sub v27, v31
-    v39 = shr 5, v38
-    v40 = gt v36, v39
-    v66 = or v34, v40
-    v2 = shl 5, v36
+    v26 = calldatasize
+    v28 = load calldata 4
+    v29 = add v28, 4
+    v30 = add v29, 32
+    v31 = gt v28, 0xffffffffffffffff
+    v32 = gt v30, v26
+    v33 = or v31, v32
+    v35 = load calldata v29
+    v37 = sub v26, v30
+    v38 = shr 5, v37
+    v39 = gt v35, v38
+    v64 = or v33, v39
+    v2 = shl 5, v35
     v9 = calldatasize
-    v10 = sub v9, v31
+    v10 = sub v9, v30
     v11 = slt v10, v2
-    v67 = or v66, v11
-    jumpi v67, bb1, bb2
+    v65 = or v64, v11
+    jumpi v65, bb1, bb2
   bb2:
     v19 = add v2, 32
-    v64 = load 64 !metadata(memory=scratch)
-    v65 = add v64, v19
-    store 64, v65 !metadata(memory=scratch)
-    store v64, v36
-    v24 = add v64, 32
-    copy calldata v24, v31, v2
-    v49 = ne v64, 0
-    v50 = zext i1 v49 to i256
-    v51 = mul v36, v50
-    v54 = shl 5, v51
-    v56 = add v64, 64
-    copy v56, v24, v54
-    store v64, 32
-    store v24, v51
-    v57 = add v54, 64
-    returndata v64, v57
+    v62 = load 64 !metadata(memory=scratch)
+    v63 = add v62, v19
+    store 64, v63 !metadata(memory=scratch)
+    store v62, v35
+    v59 = add v62, 32
+    copy calldata v59, v30, v2
+    v47 = ne v62, 0
+    v48 = zext i1 v47 to i256
+    v49 = mul v35, v48
+    v52 = shl 5, v49
+    v54 = add v62, 64
+    copy v54, v59, v52
+    store v62, 32
+    store v59, v49
+    v55 = add v52, 64
+    returndata v62, v55
   bb1:
     revert 0, 0
 }

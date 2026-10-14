@@ -25,9 +25,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 0x500000000000000000000000000000000000000000000000000000000000000
-    slice_store_word v1, 32, 0x1234000000000000000000000000000000000000000000000000000000000000
+    store v0, 0x500000000000000000000000000000000000000000000000000000000000000
+    v1 = ptradd v0, 32
+    store v1, 0x1234000000000000000000000000000000000000000000000000000000000000
     v2 = sload 1 !metadata(storage=slot(1))
     validate_storage_bytes v2
     v3 = and v2, 1
@@ -112,83 +112,82 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v63 = shl 240, v62
     v64 = icall @internalIdentity, 0x500000000000000000000000000000000000000000000000000000000000000
     v65 = icall @identity, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v66 = make_memory_slice v0, 2
-    v67 = slice_load_word v66, 0
-    v68 = and v67, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v69 = make_memory_slice v0, 2
-    v70 = slice_load_word v69, 32
-    v71 = and v70, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v72 = address
-    v73 = gas
-    v74 = and 0x500000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v75 = abi_encode [word<bytes1>], selector 0xa8775ceb00000000000000000000000000000000000000000000000000000000, args v74
-    v76 = slice_ptr v75
-    v77 = slice_len v75
-    v78 = zext i160 v72 to i256
-    v79 = staticcall v73, v78, v76, v77, 0, 32
-    jumpi v79, bb7, bb6
+    v66 = load v0
+    v67 = and v66, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v68 = ptradd v0, 32
+    v69 = load v68
+    v70 = and v69, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v71 = address
+    v72 = gas
+    v73 = and 0x500000000000000000000000000000000000000000000000000000000000000, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v74 = abi_encode [word<bytes1>], selector 0xa8775ceb00000000000000000000000000000000000000000000000000000000, args v73
+    v75 = slice_ptr v74
+    v76 = slice_len v74
+    v77 = zext i160 v71 to i256
+    v78 = staticcall v72, v77, v75, v76, 0, 32
+    jumpi v78, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v80 = returndatasize
-    v81 = lt v80, 32
-    icall revert_if<tuple_data_too_short>, v81
-    v82 = add 0, 0
-    v83 = load v82
-    v84 = shl 8, v83
-    v85 = eq v84, 0
-    v86 = eq v85, false
-    icall revert_if<empty>, v86
-    v87 = sload 1 !metadata(storage=slot(1))
-    validate_storage_bytes v87
-    v88 = and v87, 1
-    v89 = eq v88, 1
-    v90 = sub 0, v88
-    v91 = or 127, v90
-    v92 = shr 1, v87
-    v93 = and v92, v91
-    v94 = lt 0, v93
-    v95 = eq v94, false
-    icall panic_if<0x32>, v95
-    jumpi v89, bb8, bb9
+    v79 = returndatasize
+    v80 = lt v79, 32
+    icall revert_if<tuple_data_too_short>, v80
+    v81 = add 0, 0
+    v82 = load v81
+    v83 = shl 8, v82
+    v84 = eq v83, 0
+    v85 = eq v84, false
+    icall revert_if<empty>, v85
+    v86 = sload 1 !metadata(storage=slot(1))
+    validate_storage_bytes v86
+    v87 = and v86, 1
+    v88 = eq v87, 1
+    v89 = sub 0, v87
+    v90 = or 127, v89
+    v91 = shr 1, v86
+    v92 = and v91, v90
+    v93 = lt 0, v92
+    v94 = eq v93, false
+    icall panic_if<0x32>, v94
+    jumpi v88, bb8, bb9
   bb9:
     jump bb10
   bb8:
-    v96 = storage_array_data_slot 1
-    v97 = shr 5, 0
-    v98 = add v96, v97
+    v95 = storage_array_data_slot 1
+    v96 = shr 5, 0
+    v97 = add v95, v96
     jump bb10
   bb10:
-    v99 = phi [bb8: v98], [bb9: 1]
-    v100 = and 0, 31
-    v101 = sub 31, v100
-    v102 = sload v99 !metadata(storage=symbolic(v99))
-    v103 = mul v101, 8
-    v104 = shr v103, v102
-    v105 = shl 248, v104
-    v106 = sload 2 !metadata(storage=slot(2))
-    v107 = lt 0, v106
-    v108 = eq v107, false
-    icall panic_if<0x32>, v108
-    v109 = storage_array_data_slot 2
-    v110 = div 0, 32
-    v111 = add v109, v110
-    v112 = mod 0, 32
-    v113 = mul v112, 1
-    v114 = sload v111 !metadata(storage=symbolic(v111))
-    v115 = mul v113, 8
-    v116 = shr v115, v114
-    v117 = shl 248, v116
-    v118 = insert_value struct0, undef struct0, 0, v61
-    v119 = insert_value struct0, v118, 1, v63
-    v120 = insert_value struct0, v119, 2, v64
-    v121 = insert_value struct0, v120, 3, v65
-    v122 = insert_value struct0, v121, 4, v68
-    v123 = insert_value struct0, v122, 5, v71
-    v124 = insert_value struct0, v123, 6, v83
-    v125 = insert_value struct0, v124, 7, v105
-    v126 = insert_value struct0, v125, 8, v117
-    ret v126
+    v98 = phi [bb8: v97], [bb9: 1]
+    v99 = and 0, 31
+    v100 = sub 31, v99
+    v101 = sload v98 !metadata(storage=symbolic(v98))
+    v102 = mul v100, 8
+    v103 = shr v102, v101
+    v104 = shl 248, v103
+    v105 = sload 2 !metadata(storage=slot(2))
+    v106 = lt 0, v105
+    v107 = eq v106, false
+    icall panic_if<0x32>, v107
+    v108 = storage_array_data_slot 2
+    v109 = div 0, 32
+    v110 = add v108, v109
+    v111 = mod 0, 32
+    v112 = mul v111, 1
+    v113 = sload v110 !metadata(storage=symbolic(v110))
+    v114 = mul v112, 8
+    v115 = shr v114, v113
+    v116 = shl 248, v115
+    v117 = insert_value struct0, undef struct0, 0, v61
+    v118 = insert_value struct0, v117, 1, v63
+    v119 = insert_value struct0, v118, 2, v64
+    v120 = insert_value struct0, v119, 3, v65
+    v121 = insert_value struct0, v120, 4, v67
+    v122 = insert_value struct0, v121, 5, v70
+    v123 = insert_value struct0, v122, 6, v82
+    v124 = insert_value struct0, v123, 7, v104
+    v125 = insert_value struct0, v124, 8, v116
+    ret v125
 }
 
 fn @throughModifier() -> i256 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

@@ -16,27 +16,26 @@
 -     v2 = slice_ptr v1
 -     v3 = slice_len v1
 -     returndata v2, v3
-+     v4 = memory_slice v0
-+     v5 = slice_len v4
-+     v6 = ptrtoint memptr v0 to i256
-+     v7 = eq v6, 0
-+     v8 = eq v7, false
-+     v9 = zext i1 v8 to i256
-+     v10 = mul v5, v9
-+     v11 = ptrtoint memptr v0 to i256
-+     v12 = add v11, 32
-+     v13 = shl 5, v10
-+     v14 = ptrtoint memptr v0 to i256
-+     v15 = add v14, 64
-+     copy v15, v12, v13
++     v4 = load v0
++     v5 = ptrtoint memptr v0 to i256
++     v6 = eq v5, 0
++     v7 = eq v6, false
++     v8 = zext i1 v7 to i256
++     v9 = mul v4, v8
++     v10 = ptrtoint memptr v0 to i256
++     v11 = add v10, 32
++     v12 = shl 5, v9
++     v13 = ptrtoint memptr v0 to i256
++     v14 = add v13, 64
++     copy v14, v11, v12
 +     store v0, 32
-+     store v12, v10
-+     v16 = add v13, 64
-+     v17 = ptrtoint memptr v0 to i256
-+     v18 = make_memory_slice v17, v16
-+     v2 = slice_ptr v18
-+     v3 = slice_len v18
-+     returndata v17, v16
++     store v11, v9
++     v15 = add v12, 64
++     v16 = ptrtoint memptr v0 to i256
++     v17 = make_memory_slice v16, v15
++     v2 = slice_ptr v17
++     v3 = slice_len v17
++     returndata v16, v15
   }
   
   fn @borrowed(arg0: memptr) {
@@ -51,32 +50,31 @@
 +     v6 = ptrtoint memptr v3 to i256
 +     v7 = sub v5, v6
 +     store v3, v7
-+     v8 = memory_slice arg0
-+     v9 = slice_len v8
-+     v10 = ptrtoint memptr arg0 to i256
-+     v11 = eq v10, 0
-+     v12 = eq v11, false
-+     v13 = zext i1 v12 to i256
-+     v14 = mul v9, v13
-+     store v5, v14
-+     v15 = mul v14, 32
-+     v16 = add v5, 32
-+     v17 = ptrtoint memptr arg0 to i256
-+     v18 = add v17, 32
-+     v19 = add v16, v15
-+     copy v16, v18, v15 !metadata(memory=heap, disjoint)
-+     v20 = ptrtoint memptr v3 to i256
-+     v21 = sub v19, v20
-+     v22 = add v21, 0
-+     v23 = add v22, 31
-+     v24 = not 31
-+     v25 = and v23, v24
-+     v26 = alloc raw, exact, uninitialized, infallible, v25 !metadata(preserves_fmp)
-+     v27 = ptrtoint memptr v26 to i256
-+     v28 = make_memory_slice v27, v22
-+     v1 = slice_ptr v28
-+     v2 = slice_len v28
-+     returndata v27, v22
++     v8 = load arg0
++     v9 = ptrtoint memptr arg0 to i256
++     v10 = eq v9, 0
++     v11 = eq v10, false
++     v12 = zext i1 v11 to i256
++     v13 = mul v8, v12
++     store v5, v13
++     v14 = mul v13, 32
++     v15 = add v5, 32
++     v16 = ptrtoint memptr arg0 to i256
++     v17 = add v16, 32
++     v18 = add v15, v14
++     copy v15, v17, v14 !metadata(memory=heap, disjoint)
++     v19 = ptrtoint memptr v3 to i256
++     v20 = sub v18, v19
++     v21 = add v20, 0
++     v22 = add v21, 31
++     v23 = not 31
++     v24 = and v22, v23
++     v25 = alloc raw, exact, uninitialized, infallible, v24 !metadata(preserves_fmp)
++     v26 = ptrtoint memptr v25 to i256
++     v27 = make_memory_slice v26, v21
++     v1 = slice_ptr v27
++     v2 = slice_len v27
++     returndata v26, v21
   }
   
   fn @fresh_bytes(arg0: i256) -> memptr {
@@ -100,30 +98,29 @@
 -     v2 = slice_ptr v1
 -     v3 = slice_len v1
 -     returndata v2, v3
-+     v4 = memory_slice v0
-+     v5 = slice_len v4
-+     v6 = ptrtoint memptr v0 to i256
-+     v7 = eq v6, 0
-+     v8 = eq v7, false
-+     v9 = zext i1 v8 to i256
-+     v10 = mul v5, v9
-+     v11 = ptrtoint memptr v0 to i256
-+     v12 = add v11, 32
-+     v13 = add v10, 31
-+     v14 = not 31
-+     v15 = and v13, v14
-+     v16 = add v12, v15
-+     store v16, 0
-+     v17 = ptrtoint memptr v0 to i256
-+     v18 = add v17, 64
-+     copy v18, v12, v10
++     v4 = load v0
++     v5 = ptrtoint memptr v0 to i256
++     v6 = eq v5, 0
++     v7 = eq v6, false
++     v8 = zext i1 v7 to i256
++     v9 = mul v4, v8
++     v10 = ptrtoint memptr v0 to i256
++     v11 = add v10, 32
++     v12 = add v9, 31
++     v13 = not 31
++     v14 = and v12, v13
++     v15 = add v11, v14
++     store v15, 0
++     v16 = ptrtoint memptr v0 to i256
++     v17 = add v16, 64
++     copy v17, v11, v9
 +     store v0, 32
-+     store v12, v10
-+     v19 = add v15, 64
-+     v20 = ptrtoint memptr v0 to i256
-+     v21 = make_memory_slice v20, v19
-+     v2 = slice_ptr v21
-+     v3 = slice_len v21
-+     returndata v20, v19
++     store v11, v9
++     v18 = add v14, 64
++     v19 = ptrtoint memptr v0 to i256
++     v20 = make_memory_slice v19, v18
++     v2 = slice_ptr v20
++     v3 = slice_len v20
++     returndata v19, v18
   }
   

@@ -20,8 +20,8 @@ fn @copy_returndata() -> i256 {
     v5 = alloc memorybytes, exact, uninitialized, infallible, v4
     v6 = ptrtoint memptr v5 to i256
     store v6, v3
-    v7 = memory_slice v5
-    v8 = slice_ptr v7
+    v9001 = ptradd v5, 32
+    v8 = ptrtoint memptr v9001 to i256
     copy returndata v8, v2, v3
     ret v6
 }

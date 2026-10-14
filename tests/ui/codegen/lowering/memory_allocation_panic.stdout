@@ -9,9 +9,8 @@ fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256],
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
     store v4, arg0
-    v5 = memory_slice v4
-    v6 = slice_len v5
-    ret v6
+    v5 = load v4
+    ret v5
 }
 
 fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -37,7 +36,6 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
     store v16, arg0
-    v17 = memory_slice v16
-    v18 = slice_len v17
-    ret v18
+    v17 = load v16
+    ret v17
 }

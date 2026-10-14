@@ -10,20 +10,20 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
   bb4:
-    v21 = load 64 !metadata(memory=scratch)
-    v22 = add v21, 64
-    store 64, v22 !metadata(memory=scratch)
-    store v21, 0
-    v20 = add v21, 32
-    store v20, 0
+    v22 = load 64 !metadata(memory=scratch)
+    v23 = add v22, 64
+    store 64, v23 !metadata(memory=scratch)
+    store v22, 0
+    v19 = add v22, 32
+    store v19, 0
     v2 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     v5 = add arg0, 1
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb2:
-    v16 = ptrtoint memptr v2 to i256
-    store v16, arg0
-    v17 = add v16, 32
+    v20 = ptrtoint memptr v2 to i256
+    store v20, arg0
+    v17 = add v20, 32
     store v17, v5
     store 128, arg0
     v12 = load v17
@@ -39,43 +39,43 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
 
 fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
   bb0:
-    v10 = calldatasize
-    v11 = lt v10, 36
-    jumpi v11, bb4, bb5
+    v11 = calldatasize
+    v12 = lt v11, 36
+    jumpi v12, bb4, bb5
   bb5:
-    v30 = load 64 !metadata(memory=scratch)
-    v31 = add v30, 192
-    store 64, v31 !metadata(memory=scratch)
-    v32 = calldatasize
-    copy calldata v30, v32, 96
-    v29 = add v30, 96
-    store v29, arg0
-    v6 = add arg0, 1
-    v7 = eq v6, 0
-    jumpi v7, bb1, bb2
+    v32 = load 64 !metadata(memory=scratch)
+    v33 = add v32, 192
+    store 64, v33 !metadata(memory=scratch)
+    v34 = calldatasize
+    copy calldata v32, v34, 96
+    v31 = add v32, 96
+    store v31, arg0
+    v7 = add arg0, 1
+    v8 = eq v7, 0
+    jumpi v8, bb1, bb2
   bb2:
-    v23 = add v30, 128
-    store v23, v6
-    v8 = add arg0, 2
-    v9 = lt v8, arg0
-    jumpi v9, bb1, bb3
+    v24 = add v32, 128
+    store v24, v7
+    v9 = add arg0, 2
+    v10 = lt v9, arg0
+    jumpi v10, bb1, bb3
   bb3:
-    v25 = add v30, 160
-    store v25, v8
+    v26 = add v32, 160
+    store v26, v9
     jump bb6
   bb6:
-    v13 = phi [bb3: 0], [bb7: v19]
+    v13 = phi [bb3: 0], [bb7: v20]
     v14 = lt v13, 3
     jumpi v14, bb7, bb8
   bb8:
     returndata 128, 96
   bb7:
     v15 = shl 5, v13
-    v27 = add v29, v15
-    v16 = load v27
-    v18 = add v15, 128
-    store v18, v16
-    v19 = add v13, 1
+    v28 = add v31, v15
+    v17 = load v28
+    v19 = add v15, 128
+    store v19, v17
+    v20 = add v13, 1
     jump bb6
   bb1:
     store 32, 17 !metadata(memory=scratch)
@@ -91,27 +91,27 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
   bb5:
-    v27 = load 64 !metadata(memory=scratch)
-    v28 = add v27, 64
-    store 64, v28 !metadata(memory=scratch)
-    store v27, 0
-    v26 = add v27, 32
-    store v26, 0
+    v29 = load 64 !metadata(memory=scratch)
+    v30 = add v29, 64
+    store 64, v30 !metadata(memory=scratch)
+    store v29, 0
+    v25 = add v29, 32
+    store v25, 0
     v2 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     v8 = add arg0, 1
     v9 = eq v8, 0
     jumpi v9, bb1, bb2
   bb2:
-    v22 = ptrtoint memptr v2 to i256
-    store v22, arg0
-    v23 = add v22, 32
+    v26 = ptrtoint memptr v2 to i256
+    store v26, arg0
+    v23 = add v26, 32
     store v23, v8
     v10 = add arg0, 2
     v11 = lt v10, arg0
     jumpi v11, bb1, bb3
   bb3:
-    v15 = load v22
-    store 128, v15
+    v14 = load v26
+    store 128, v14
     v17 = load v23
     store 160, v17
     store 192, v10
@@ -132,9 +132,9 @@ fn @narrow() [selector=0xe3b21a7a, abi_wrapper, pure] {
 
 fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
   bb0:
-    v28 = calldatasize
-    v29 = lt v28, 36
-    jumpi v29, bb3, bb7
+    v27 = calldatasize
+    v28 = lt v27, 36
+    jumpi v28, bb3, bb7
   bb7:
     v0: i256 = address
     v1 = gas
@@ -142,32 +142,32 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v43 = add v42, 128
     store 64, v43 !metadata(memory=scratch)
     store v42, 0x62dc843600000000000000000000000000000000000000000000000000000000
-    v34 = add v42, 4
-    store v34, arg0
+    v33 = add v42, 4
+    store v33, arg0
     v41 = add v42, 64
     v5 = inttoptr i256 v41 to memptr
     v8 = staticcall v1, v0, v42, 36, v41, 64
     jumpi v8, bb2, bb1
   bb1:
+    v25 = returndatasize
+    copy returndata 0, 0, v25 !metadata(memory=abi_return)
     v26 = returndatasize
-    copy returndata 0, 0, v26 !metadata(memory=abi_return)
-    v27 = returndatasize
-    revert 0, v27
+    revert 0, v26
   bb2:
     v9 = returndatasize
     v10 = lt v9, 64
     jumpi v10, bb3, bb4
   bb4:
-    v25 = icall @decode_static, v5
-    v37 = ptrtoint memptr v25 to i256
-    v15 = load v37
-    v38 = add v37, 32
-    v17 = load v38
-    v19 = add v15, v17
-    v20 = lt v19, v15
-    jumpi v20, bb5, bb6
+    v24 = icall @decode_static, v5
+    v38 = ptrtoint memptr v24 to i256
+    v14 = load v38
+    v37 = add v38, 32
+    v16 = load v37
+    v18 = add v14, v16
+    v19 = lt v18, v14
+    jumpi v19, bb5, bb6
   bb6:
-    store 128, v19
+    store 128, v18
     returndata 128, 32
   bb5:
     store 32, 17 !metadata(memory=scratch)
@@ -179,66 +179,66 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
 
 fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
   bb0:
-    v48 = calldatasize
-    v49 = lt v48, 36
-    jumpi v49, bb3, bb11
+    v47 = calldatasize
+    v48 = lt v47, 36
+    jumpi v48, bb3, bb11
   bb11:
     v0: i256 = address
     v1 = gas
-    v66 = load 64 !metadata(memory=scratch)
-    v67 = add v66, 160
-    store 64, v67 !metadata(memory=scratch)
-    store v66, 0x9510f21200000000000000000000000000000000000000000000000000000000
-    v54 = add v66, 4
-    store v54, arg0
-    v63 = add v66, 64
-    v8 = staticcall v1, v0, v66, 36, v63, 96
+    v68 = load 64 !metadata(memory=scratch)
+    v69 = add v68, 160
+    store 64, v69 !metadata(memory=scratch)
+    store v68, 0x9510f21200000000000000000000000000000000000000000000000000000000
+    v53 = add v68, 4
+    store v53, arg0
+    v65 = add v68, 64
+    v8 = staticcall v1, v0, v68, 36, v65, 96
     jumpi v8, bb2, bb1
   bb1:
+    v45 = returndatasize
+    copy returndata 0, 0, v45 !metadata(memory=abi_return)
     v46 = returndatasize
-    copy returndata 0, 0, v46 !metadata(memory=abi_return)
-    v47 = returndatasize
-    revert 0, v47
+    revert 0, v46
   bb2:
     v9 = returndatasize
     v10 = lt v9, 96
     jumpi v10, bb3, bb4
   bb4:
-    v64 = load 64 !metadata(memory=scratch)
-    v65 = add v64, 96
-    store 64, v65 !metadata(memory=scratch)
-    v72 = add v63, 96
+    v66 = load 64 !metadata(memory=scratch)
+    v67 = add v66, 96
+    store 64, v67 !metadata(memory=scratch)
+    v74 = add v65, 96
     jump bb8
   bb8:
-    v68 = phi [bb4: v63], [bb9: v69]
-    v70 = phi [bb4: v64], [bb9: v71]
-    v40 = lt v68, v72
-    jumpi v40, bb9, bb10
+    v70 = phi [bb4: v65], [bb9: v71]
+    v72 = phi [bb4: v66], [bb9: v73]
+    v38 = lt v70, v74
+    jumpi v38, bb9, bb10
   bb10:
-    v17 = load v64
-    v60 = add v64, 32
-    v21 = load v60
-    v28 = add v17, v21
-    v29 = lt v28, v17
-    jumpi v29, bb5, bb6
+    v16 = load v66
+    v61 = add v66, 32
+    v20 = load v61
+    v27 = add v16, v20
+    v28 = lt v27, v16
+    jumpi v28, bb5, bb6
   bb6:
-    v58 = add v64, 64
-    v26 = load v58
-    v30 = add v28, v26
-    v31 = lt v30, v28
-    jumpi v31, bb5, bb7
+    v57 = add v66, 64
+    v25 = load v57
+    v29 = add v27, v25
+    v30 = lt v29, v27
+    jumpi v30, bb5, bb7
   bb7:
-    store 128, v30
+    store 128, v29
     returndata 128, 32
   bb5:
     store 32, 17 !metadata(memory=scratch)
     store 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:
-    v43 = load v68
-    store v70, v43
-    v69 = add v68, 32
+    v41 = load v70
+    store v72, v41
     v71 = add v70, 32
+    v73 = add v72, 32
     jump bb8
   bb3:
     revert 0, 0
@@ -246,9 +246,9 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
 
 fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
   bb0:
-    v26 = calldatasize
-    v27 = lt v26, 36
-    jumpi v27, bb3, bb7
+    v25 = calldatasize
+    v26 = lt v25, 36
+    jumpi v26, bb3, bb7
   bb7:
     v0: i256 = address
     v1 = gas
@@ -256,8 +256,8 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v43 = add v42, 128
     store 64, v43 !metadata(memory=scratch)
     store v42, 0x62dc843600000000000000000000000000000000000000000000000000000000
-    v34 = add v42, 4
-    store v34, arg0
+    v33 = add v42, 4
+    store v33, arg0
     v41 = add v42, 64
     v5 = inttoptr i256 v41 to memptr
     v8 = staticcall v1, v0, v42, 36, v41, 64
@@ -270,16 +270,16 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v10 = lt v9, 64
     jumpi v10, bb3, bb4
   bb4:
-    v25 = icall @decode_static, v5
-    v37 = ptrtoint memptr v25 to i256
-    v15 = load v37
-    v38 = add v37, 32
-    v17 = load v38
-    v19 = add v15, v17
-    v20 = lt v19, v15
-    jumpi v20, bb5, bb6
+    v24 = icall @decode_static, v5
+    v38 = ptrtoint memptr v24 to i256
+    v14 = load v38
+    v37 = add v38, 32
+    v16 = load v37
+    v18 = add v14, v16
+    v19 = lt v18, v14
+    jumpi v19, bb5, bb6
   bb6:
-    store 128, v19
+    store 128, v18
     returndata 128, 32
   bb5:
     store 32, 17 !metadata(memory=scratch)
@@ -291,49 +291,49 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
 
 fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb0:
-    v46 = calldatasize
-    v47 = lt v46, 36
-    jumpi v47, bb3, bb7
+    v45 = calldatasize
+    v46 = lt v45, 36
+    jumpi v46, bb3, bb7
   bb7:
     v0: i256 = address
     v1 = gas
-    v62 = load 64 !metadata(memory=scratch)
-    v63 = add v62, 160
-    store 64, v63 !metadata(memory=scratch)
-    store v62, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
-    v52 = add v62, 4
-    store v52, arg0
-    v61 = add v62, 64
-    v8 = staticcall v1, v0, v62, 36, v61, 96
+    v61 = load 64 !metadata(memory=scratch)
+    v62 = add v61, 160
+    store 64, v62 !metadata(memory=scratch)
+    store v61, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
+    v51 = add v61, 4
+    store v51, arg0
+    v60 = add v61, 64
+    v8 = staticcall v1, v0, v61, 36, v60, 96
     jumpi v8, bb2, bb1
   bb1:
+    v43 = returndatasize
+    copy returndata 0, 0, v43 !metadata(memory=abi_return)
     v44 = returndatasize
-    copy returndata 0, 0, v44 !metadata(memory=abi_return)
-    v45 = returndatasize
-    revert 0, v45
+    revert 0, v44
   bb2:
     v9 = returndatasize
     v10 = lt v9, 96
     jumpi v10, bb3, bb4
   bb4:
-    v35 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v55 = ptrtoint memptr v35 to i256
-    v37 = load v61
+    v34 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v35 = load v60
+    v57 = ptrtoint memptr v34 to i256
+    store v57, v35
+    v36 = add v61, 96
+    v37 = load v36
+    v55 = add v57, 32
     store v55, v37
-    v38 = add v62, 96
-    v39 = load v38
-    v56 = add v55, 32
-    store v56, v39
-    v40 = add v62, 128
-    v41 = load v40
-    v26 = add v37, v39
-    v27 = lt v26, v37
-    v28 = add v26, v41
-    v29 = lt v28, v26
-    v64 = or v27, v29
-    jumpi v64, bb5, bb6
+    v39 = add v61, 128
+    v40 = load v39
+    v25 = add v35, v37
+    v26 = lt v25, v35
+    v27 = add v25, v40
+    v28 = lt v27, v25
+    v63 = or v26, v28
+    jumpi v63, bb5, bb6
   bb6:
-    store 128, v28
+    store 128, v27
     returndata 128, 32
   bb5:
     store 32, 17 !metadata(memory=scratch)
@@ -356,25 +356,25 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v8 = staticcall v1, v0, v40, 4, v39, 64
     jumpi v8, bb2, bb1
   bb1:
+    v25 = returndatasize
+    copy returndata 0, 0, v25 !metadata(memory=abi_return)
     v26 = returndatasize
-    copy returndata 0, 0, v26 !metadata(memory=abi_return)
-    v27 = returndatasize
-    revert 0, v27
+    revert 0, v26
   bb2:
     v9 = returndatasize
     v10 = lt v9, 64
     jumpi v10, bb3, bb4
   bb4:
-    v25 = icall @decode_static, v5
-    v35 = ptrtoint memptr v25 to i256
-    v15 = load v35
-    v36 = add v35, 32
-    v17 = load v36
-    v19 = add v15, v17
-    v20 = lt v19, v15
-    jumpi v20, bb5, bb6
+    v24 = icall @decode_static, v5
+    v37 = ptrtoint memptr v24 to i256
+    v14 = load v37
+    v35 = add v37, 32
+    v16 = load v35
+    v18 = add v14, v16
+    v19 = lt v18, v14
+    jumpi v19, bb5, bb6
   bb6:
-    store 128, v19
+    store 128, v18
     returndata 128, 32
   bb5:
     store 32, 17 !metadata(memory=scratch)
@@ -386,17 +386,17 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
 
 fn @decode_static(arg0: memptr) -> memptr [may_return_memory] {
   bb0:
-    v12 = load 64 !metadata(memory=scratch)
-    v3 = inttoptr i256 v12 to memptr !metadata(memory=scratch)
-    v13 = add v12, 64
-    store 64, v13 !metadata(memory=scratch)
+    v13 = load 64 !metadata(memory=scratch)
+    v3 = inttoptr i256 v13 to memptr !metadata(memory=scratch)
+    v14 = add v13, 64
+    store 64, v14 !metadata(memory=scratch)
     v11 = ptrtoint memptr arg0 to i256
-    v5 = load v11
-    store v12, v5
-    v7 = add v11, 32
-    v8 = load v7
-    v10 = add v12, 32
-    store v10, v8
+    v4 = load v11
+    store v13, v4
+    v6 = add v11, 32
+    v7 = load v6
+    v10 = add v13, 32
+    store v10, v7
     ret v3
 }
 

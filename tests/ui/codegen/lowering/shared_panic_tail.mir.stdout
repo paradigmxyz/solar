@@ -15,15 +15,16 @@ fn @div(arg0: i256, arg1: i256) -> i256 [selector=0xa391c15b, pure, abi_params=[
 fn @at(arg0: i256) -> i256 [selector=0xe0886f90, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = make_memory_slice v0, 3
-    slice_store_word v1, 0, 1
-    slice_store_word v1, 32, 2
-    slice_store_word v1, 64, 3
-    v2 = make_memory_slice v0, 3
+    store v0, 1
+    v1 = ptradd v0, 32
+    store v1, 2
+    v2 = ptradd v0, 64
+    store v2, 3
     v3 = lt arg0, 3
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = shl 5, arg0
-    v6 = slice_load_word v2, v5
-    ret v6
+    v6 = ptradd v0, v5
+    v7 = load v6
+    ret v7
 }

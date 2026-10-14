@@ -118,30 +118,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
-        // One view serves the bounds check and the access.
-        let target = self.builder.memory_object_view(object, layout);
         match layout {
             MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
                 // bounds_check(index, object.length)
                 // value = load_element(object, index)
                 let Some((element, length)) =
-                    self.array_element_and_length(receiver_ty, target, layout)
+                    self.array_element_and_length(receiver_ty, object, layout)
                 else {
                     return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_load_element(target, layout, index);
+                let value = self.builder.memory_load_element(object, layout, index);
                 if self.types.memory_layout(element).is_some() {
-                    return self.materialize_array_element(target, layout, index, element, value);
+                    return self.materialize_array_element(object, layout, index, element, value);
                 }
                 Some(self.normalize_memory_scalar(element, value))
             }
             MemoryObjectLayout::Bytes => {
                 // bounds_check(index, object.length)
                 // value = load_byte(object, index)
-                let length = self.builder.memory_len(target);
+                let length = self.builder.memory_len(object);
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_load_byte(target, index);
+                let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {

@@ -92,38 +92,36 @@ fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word
 
 fn @readWord(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = eq v1, 32
-    v3 = eq v2, false
-    icall revert_if<empty>, v3
-    v4 = ptrtoint memptr arg0 to i256
-    v5 = add v4, 32
-    v6 = load v5
-    ret v6
+    v0 = load arg0
+    v1 = eq v0, 32
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = ptrtoint memptr arg0 to i256
+    v4 = add v3, 32
+    v5 = load v4
+    ret v5
 }
 
 fn @toShort(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = lt v1, 32
-    v3 = eq v2, false
-    icall revert_if<empty>, v3
-    v4 = not 0
-    v5 = ptrtoint memptr arg0 to i256
-    v6 = load v5
-    v7 = sub 32, v6
-    v8 = mul v7, 8
-    v9 = shl v8, v4
-    v10 = ptrtoint memptr arg0 to i256
-    v11 = load v10
-    v12 = ptrtoint memptr arg0 to i256
-    v13 = add v12, 32
-    v14 = load v13
-    v15 = and v14, v9
-    v16 = or v15, v11
-    ret v16
+    v0 = load arg0
+    v1 = lt v0, 32
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = not 0
+    v4 = ptrtoint memptr arg0 to i256
+    v5 = load v4
+    v6 = sub 32, v5
+    v7 = mul v6, 8
+    v8 = shl v7, v3
+    v9 = ptrtoint memptr arg0 to i256
+    v10 = load v9
+    v11 = ptrtoint memptr arg0 to i256
+    v12 = add v11, 32
+    v13 = load v12
+    v14 = and v13, v8
+    v15 = or v14, v10
+    ret v15
 }
 
 fn @choose(arg0: memptr, arg1: i1) -> i256 {

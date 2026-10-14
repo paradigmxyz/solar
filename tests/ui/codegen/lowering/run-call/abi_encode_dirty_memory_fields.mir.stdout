@@ -5,37 +5,35 @@ fn @dirty() -> memptr [pure] {
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 192
-    v2 = make_memory_slice v0, 6
-    v3 = make_memory_slice v0, 6
-    slice_store_word v3, 0, 1
-    v4 = make_memory_slice v0, 6
-    slice_store_word v4, 32, 1
-    v5 = lt i8 1, i8 2
-    v6 = eq v5, false
-    icall panic_if<0x21>, v6
-    v7 = make_memory_slice v0, 6
-    slice_store_word v7, 64, 1
-    v8 = make_memory_slice v0, 6
-    slice_store_word v8, 96, 1
-    v9 = make_memory_slice v0, 6
-    v10 = sext i8 255 to i256
-    slice_store_word v9, 128, v10
-    v11 = make_memory_slice v0, 6
-    slice_store_word v11, 160, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v12 = ptrtoint memptr v0 to i256
-    store v12, 511
+    store v0, 1
+    v2 = ptradd v0, 32
+    store v2, 1
+    v3 = lt i8 1, i8 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    v5 = ptradd v0, 64
+    store v5, 1
+    v6 = ptradd v0, 96
+    store v6, 1
+    v7 = sext i8 255 to i256
+    v8 = ptradd v0, 128
+    store v8, v7
+    v9 = ptradd v0, 160
+    store v9, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v10 = ptrtoint memptr v0 to i256
+    store v10, 511
+    v11 = ptrtoint memptr v0 to i256
+    v12 = add v11, 32
+    store v12, 258
     v13 = ptrtoint memptr v0 to i256
-    v14 = add v13, 32
-    store v14, 258
+    v14 = add v13, 96
+    store v14, 0x1000000000000000000000000000000000000000000000000000000000000002
     v15 = ptrtoint memptr v0 to i256
-    v16 = add v15, 96
-    store v16, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v16 = add v15, 128
+    store v16, 254
     v17 = ptrtoint memptr v0 to i256
-    v18 = add v17, 128
-    store v18, 254
-    v19 = ptrtoint memptr v0 to i256
-    v20 = add v19, 160
-    store v20, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v18 = add v17, 160
+    store v18, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -53,18 +51,18 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     store v0, 2
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 0, 3
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    slice_store_word v5, 32, 4
+    v1 = load v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 3
+    v5 = load v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    store v8, 4
     v9 = ptrtoint memptr v0 to i256
     v10 = add v9, 32
     store v10, 0xff03

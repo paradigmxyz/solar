@@ -107,19 +107,18 @@
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
     bb2:
-      v3 = ne arg1, 0
-      jumpi v3, bb3, bb4
+      v2 = ne arg1, 0
+      jumpi v2, bb3, bb4
     bb4:
       stop
     bb3:
-      v4 = make_memory_slice arg2, 2
-      v5 = slice_load_word v4, 32
-      store 0, v5
+      v3 = ptradd arg2, 32
+      v4 = load v3
+      store 0, v4
       revert 0, 32
     bb1:
-      v1 = make_memory_slice arg2, 2
-      v2 = slice_load_word v1, 0
-      store 0, v2
+      v1 = load arg2
+      store 0, v1
       revert 0, 32
   }
   

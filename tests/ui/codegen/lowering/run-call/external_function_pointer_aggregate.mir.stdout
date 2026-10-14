@@ -17,18 +17,18 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
 
 fn @combine(arg0: memptr, arg1: memptr) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = slice_load_word v0, 0
-    v5 = memory_slice arg0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_word v5, 32
+    v0 = load arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 32
+    v4 = load v3
+    v5 = load arg0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd arg0, 64
+    v9 = load v8
     v10 = checked_add u256, v4, v9
     v11 = insert_value struct0, undef struct0, 0, v10
     v12 = insert_value struct0, v11, 1, arg1
@@ -109,18 +109,18 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v4 = or v3, 0x3488ea15
     v5 = alloc memoryarray<1>, exact, zeroed, panic, 96
     store v5, 2
-    v6 = memory_slice v5
-    v7 = slice_len v6
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    slice_store_word v6, 0, 4
-    v10 = memory_slice v5
-    v11 = slice_len v10
-    v12 = lt 1, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    slice_store_word v10, 32, 3
+    v6 = load v5
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v5, 32
+    store v9, 4
+    v10 = load v5
+    v11 = lt 1, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v5, 64
+    store v13, 3
     v14 = and v4, 0xffffffff
     v15 = shl 224, v14
     v16 = shr 32, v4
@@ -239,36 +239,33 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
 fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 1
-    slice_store_word v1, 0, 0
-    v2 = address
-    v3 = zext i160 v2 to i256
-    v4 = shl 32, v3
-    v5 = or v4, 0x7cf5dab0
-    v6 = make_memory_slice v0, 1
-    v7 = shl 64, v5
-    slice_store_word v6, 0, v7
-    v8 = make_memory_slice v0, 1
-    v9 = slice_load_word v8, 0
-    v10 = shr 64, v9
-    v11 = and v10, 0xffffffff
-    v12 = shl 224, v11
-    v13 = shr 32, v10
-    v14 = gas
-    v15 = abi_encode [word], selector v12, args 8
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = call v14, v13, 0, v16, v17, 0, 32
-    jumpi v18, bb2, bb1
+    store v0, 0
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0x7cf5dab0
+    v5 = shl 64, v4
+    store v0, v5
+    v6 = load v0
+    v7 = shr 64, v6
+    v8 = and v7, 0xffffffff
+    v9 = shl 224, v8
+    v10 = shr 32, v7
+    v11 = gas
+    v12 = abi_encode [word], selector v9, args 8
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = call v11, v10, 0, v13, v14, 0, 32
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = load v21
-    ret v22
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = load v18
+    ret v19
 }
 
 fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -279,30 +276,30 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0x7cf5dab0
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = shl 64, v4
-    slice_store_word v5, 0, v9
+    v5 = load v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    v9 = ptradd v0, 32
+    store v9, v8
     v10 = address
     v11 = zext i160 v10 to i256
     v12 = shl 32, v11
     v13 = or v12, 0x7cf5dab0
-    v14 = memory_slice v0
-    v15 = slice_len v14
-    v16 = lt 1, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = shl 64, v13
-    slice_store_word v14, 32, v18
-    v19 = memory_slice v0
-    v20 = slice_len v19
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = slice_load_word v19, 0
+    v14 = load v0
+    v15 = lt 1, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = shl 64, v13
+    v18 = ptradd v0, 64
+    store v18, v17
+    v19 = load v0
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v0, 32
+    v23 = load v22
     v24 = shr 64, v23
     v25 = and v24, 0xffffffff
     v26 = shl 224, v25
@@ -321,12 +318,12 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     icall revert_if<tuple_data_too_short>, v34
     v35 = add 0, 0
     v36 = load v35
-    v37 = memory_slice v0
-    v38 = slice_len v37
-    v39 = lt 1, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = slice_load_word v37, 32
+    v37 = load v0
+    v38 = lt 1, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v0, 64
+    v41 = load v40
     v42 = shr 64, v41
     v43 = and v42, 0xffffffff
     v44 = shl 224, v43
@@ -367,17 +364,16 @@ fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_pa
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     store v11, v6
-    v12 = ptrtoint memptr v11 to i256
-    v13 = add v12, 32
+    v12 = ptradd v11, 32
+    v13 = slice_ptr arg0
     v14 = slice_len arg0
-    v15 = make_memory_slice v13, v14
-    slice_copy v15, 0, arg0
-    v16 = memory_slice v11
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = keccak256 v17, v18
-    v20 = eq v19, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    ret v20
+    copy calldata v12, v13, v14
+    v15 = ptrtoint memptr v11 to i256
+    v16 = add v15, 32
+    v17 = load v11
+    v18 = keccak256 v16, v17
+    v19 = eq v18, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
+    ret v19
 }
 
 fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

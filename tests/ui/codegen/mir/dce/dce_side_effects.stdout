@@ -87,9 +87,8 @@
   
   fn @abi_dependency(arg0: memptr) {
     bb0:
-      v0 = make_memory_slice arg0, 1
-      v1 = slice_load_word v0, 0
-      validate_abi v1
+      v0 = load arg0
+      validate_abi v0
       ret
   }
   

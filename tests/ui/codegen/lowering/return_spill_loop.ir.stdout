@@ -88,19 +88,17 @@ bb7:
   push 4
   calldataload
   and
-  swap 2
   push 32
+  dup 4
   add
-  swap 2
-  dup 3
   mstore8
   push 34
-  push 1
+  push 33
   dup 4
   add
   mstore8
   swap 1
-  push 2
+  push 34
   add
   push 51
   swap 1

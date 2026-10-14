@@ -932,11 +932,9 @@ fn encode_static_impl(
     match ty {
         AbiType::Tuple(fields) => {
             let (child_source, non_null) = source.descend_memory(builder, value);
-            let layout = MemoryObjectLayout::structure(fields.len() as u64);
-            let view = builder.memory_object_view(value, layout);
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let mut field_value = builder.memory_load_field(view, layout, index as u64);
+                let mut field_value = builder.memory_load_field(value, index as u64);
                 if let Some(non_null) = non_null {
                     field_value = builder.mul(field_value, non_null);
                 }
@@ -1016,9 +1014,8 @@ fn encode_static_array(
     let length = builder.imm(len);
     let stride = builder.imm(element.head_size());
     let layout = MemoryObjectLayout::word_fixed_array(len);
-    let view = builder.memory_object_view(value, layout);
     builder.counted_loop(length, |builder, index| {
-        let element_value = builder.memory_load_element(view, layout, index);
+        let element_value = builder.memory_load_element(value, layout, index);
         let offset = builder.mul(index, stride);
         let element_head = builder.add(head_addr, offset);
         encode_static_impl(
@@ -1243,11 +1240,9 @@ fn encode_dynamic_body(
         }
         AbiType::Tuple(fields) => {
             let (child_source, non_null) = source.descend_memory(builder, value);
-            let layout = MemoryObjectLayout::structure(fields.len() as u64);
-            let view = builder.memory_object_view(value, layout);
             let mut values = Vec::with_capacity(fields.len());
             for index in 0..fields.len() {
-                let mut field_value = builder.memory_load_field(view, layout, index as u64);
+                let mut field_value = builder.memory_load_field(value, index as u64);
                 if let Some(non_null) = non_null {
                     field_value = builder.mul(field_value, non_null);
                 }
@@ -1264,7 +1259,7 @@ fn effective_slice_location(func: &Function, value: ValueId, declared: PtrLocati
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
         Some(MirType::I256 | MirType::MEMPTR) => PtrLocation::Memory,
-        _ if func.fixed_view_load(value) => PtrLocation::Memory,
+        _ if func.memory_object_load(value) => PtrLocation::Memory,
         _ => declared,
     }
 }
@@ -1681,11 +1676,6 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
             false
         }
         InstKind::Store(address, _) => !literal_word_in_bounds(func, *address, Some(0)),
-        InstKind::SliceStoreWord { slice, offset, .. } => {
-            !literal_word_in_bounds(func, *slice, func.value_u64(*offset))
-        }
-        // Reading a fresh object's own length word observes nothing else.
-        InstKind::MemorySlice(object) => !literal_word_in_bounds(func, *object, Some(0)),
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1757,11 +1747,6 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
                     continue;
                 }
                 (offset.checked_sub(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)?, word)
-            }
-            InstKind::SliceStoreWord { slice, offset, value } => {
-                let (base, data) = func.object_address(slice)?;
-                (base == object && data == EvmMemoryLayout::DYNAMIC_HEADER_SIZE).then_some(())?;
-                (func.value_u64(offset)?, value)
             }
             _ => return None,
         };

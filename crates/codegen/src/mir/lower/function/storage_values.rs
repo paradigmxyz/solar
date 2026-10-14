@@ -1023,10 +1023,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // object = alloc_struct(fields)
                 // for field { object[field] = load_storage(field_slot) }
                 let fields = self.cx.gcx.hir.strukt(struct_id).fields.len() as u64;
-                let (object, layout) = self
+                let object = self
                     .builder
                     .alloc_word_struct(fields, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-                let view = self.builder.memory_object_view(object, layout);
                 for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
                     let field_ty = self.cx.gcx.type_of_item(field.into());
                     let location = self.cx.storage.field_location(struct_id, index)?;
@@ -1037,7 +1036,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         span,
                     )?;
                     let value = self.encode_memory_scalar(field_ty, value);
-                    self.builder.memory_store_field(view, layout, index as u64, value);
+                    self.builder.memory_store_field(object, index as u64, value);
                 }
                 Some(object)
             }
@@ -1055,13 +1054,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     AllocationSemantics::SOLIDITY_UNINITIALIZED,
                 );
                 let len = self.builder.imm(len);
-                let view = self.builder.memory_object_view(object, layout);
                 self.counted_loop(len, |this, index| {
                     let access =
                         this.storage_array_element_access(slot, index, element, false, span)?;
                     let value = this.load_storage_value(element, access, span)?;
                     let value = this.encode_memory_scalar(element, value);
-                    this.builder.memory_store_element(view, layout, index, value);
+                    this.builder.memory_store_element(object, layout, index, value);
                     Some(())
                 })?;
                 Some(object)
@@ -1301,7 +1299,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let layout = self.types.memory_layout(source_ty)?;
                 let len = self.builder.imm(len);
                 let source_len = self.builder.imm(source_len);
-                let view = self.builder.memory_object_view(object, layout);
                 self.counted_loop(len, |this, index| {
                     let access =
                         this.storage_array_element_access(slot, index, element, false, span)?;
@@ -1312,7 +1309,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     this.builder.branch(has_source, source, default);
 
                     this.builder.switch_to_block(source);
-                    let value = this.builder.memory_load_element(view, layout, index);
+                    let value = this.builder.memory_load_element(object, layout, index);
                     let value = this.decode_memory_scalar(source_element, value);
                     this.store_storage_value_with_source(
                         element,
@@ -1476,11 +1473,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // for i in 0..length { store_storage(element_slot(i), object[i]) }
         self.builder.sstore(slot, length);
 
-        let view = self.builder.memory_object_view(object, source_layout);
         self.counted_loop(length, |this, index| {
-            let value = this.builder.memory_load_element(view, source_layout, index);
+            let value = this.builder.memory_load_element(object, source_layout, index);
             let value = if this.types.memory_layout(source_element).is_some() {
-                this.materialize_array_element(view, source_layout, index, source_element, value)?
+                this.materialize_array_element(object, source_layout, index, source_element, value)?
             } else {
                 this.decode_memory_scalar(source_element, value)
             };
@@ -1548,13 +1544,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         let source_ty = self.cx.gcx.mk_ty(TyKind::Struct(source_struct_id));
-        let layout = self.types.memory_layout(source_ty)?;
-        let view = self.builder.memory_object_view(object, layout);
+        self.types.memory_layout(source_ty)?;
         for (index, &field) in self.cx.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let field_ty = self.cx.gcx.type_of_item(field.into());
             let location = self.cx.storage.field_location(struct_id, index)?;
             let field_slot = self.add_storage_offset(slot, location.slot);
-            let value = self.builder.memory_load_field(view, layout, index as u64);
+            let value = self.builder.memory_load_field(object, index as u64);
             let source_field = self.cx.gcx.hir.strukt(source_struct_id).fields[index];
             let source_field_ty = self.cx.gcx.type_of_item(source_field.into());
             let value = self.decode_memory_scalar(source_field_ty, value);

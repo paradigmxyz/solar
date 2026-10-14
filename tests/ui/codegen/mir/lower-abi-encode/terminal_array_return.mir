@@ -15,8 +15,7 @@ fn @fresh_array() -> memptr {
 
 // CHECK-LABEL: {{^[ +].*}}fn @terminal{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
-// CHECK: + [[LENGTH_VIEW:v[0-9]+]] = memory_slice [[OBJECT:v[0-9]+]]
-// CHECK: + [[LENGTH:v[0-9]+]] = slice_len [[LENGTH_VIEW]]
+// CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
 // CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
@@ -68,8 +67,7 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
 // clears the padding before moving the payload over its old length word.
 // CHECK-LABEL: {{^[ +].*}}fn @terminal_bytes{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
-// CHECK: + [[LENGTH_VIEW:v[0-9]+]] = memory_slice [[OBJECT:v[0-9]+]]
-// CHECK: + [[LENGTH:v[0-9]+]] = slice_len [[LENGTH_VIEW]]
+// CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
 // CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32

@@ -320,16 +320,15 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v27 = icall returndata_bytes<>
     v28 = eq v26, false
     icall require<short_string>, v28, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
-    v29 = memory_slice v27
-    v30 = slice_len v29
-    v31 = eq v30, 228
-    icall require<short_string>, v31, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v32 = ptrtoint memptr v27 to i256
-    v33 = add v32, 32
-    v34 = load v33
-    v35 = shl 0, 0x1234
-    v36 = eq v34, v35
-    icall require<short_string>, v36, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    v29 = load v27
+    v30 = eq v29, 228
+    icall require<short_string>, v30, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v31 = ptrtoint memptr v27 to i256
+    v32 = add v31, 32
+    v33 = load v32
+    v34 = shl 0, 0x1234
+    v35 = eq v33, v34
+    icall require<short_string>, v35, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 

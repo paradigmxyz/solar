@@ -68,11 +68,10 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     store v11, v6
-    v12 = ptrtoint memptr v11 to i256
-    v13 = add v12, 32
+    v12 = ptradd v11, 32
+    v13 = slice_ptr arg0
     v14 = slice_len arg0
-    v15 = make_memory_slice v13, v14
-    slice_copy v15, 0, arg0
+    copy calldata v12, v13, v14
     icall require<error_string>, false, v11
     invalid
 }

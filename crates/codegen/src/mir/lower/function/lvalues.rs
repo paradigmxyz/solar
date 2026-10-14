@@ -42,11 +42,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let object = self.lower_expr(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
-                let layout = self.types.memory_layout(receiver_ty)?;
-                // One view serves both the load and the store of a compound assignment.
-                let object = self.builder.memory_object_view(object, layout);
+                self.types.memory_layout(receiver_ty)?;
                 let ty = self.cx.gcx.type_of_item(id.into());
-                Some(LValuePlace::MemoryField { object, layout, field: field as u64, ty })
+                Some(LValuePlace::MemoryField { object, field: field as u64, ty })
             }
             ExprKind::Index(receiver, index) => {
                 let Some(index) = index else {
@@ -56,8 +54,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
-                // One view serves the bounds check, the load, and the store.
-                let object = self.builder.memory_object_view(object, layout);
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. }
                     | MemoryObjectLayout::FixedArray { .. } => {
@@ -88,20 +84,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match *place {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
-            LValuePlace::MemoryField { object, layout, field, ty } => {
-                // view = make_memory_slice object, fields
-                // value = slice_load_word view, field * 32
+            LValuePlace::MemoryField { object, field, ty } => {
+                // value = load (ptradd object, field * 32)
                 let value = self.builder.memory_load_field_as(
                     object,
-                    layout,
                     field,
                     types::TypeLowerer::mir_type(ty),
                 );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                // view = make_memory_slice object, len | memory_slice object
-                // value = slice_load_word view, shl 5, index
+                // value = load (ptradd object, header + shl 5, index)
                 let value = self.builder.memory_load_element_as(
                     object,
                     layout,
@@ -139,9 +132,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 None => self.store_storage_value(ty, access, value, span),
             },
-            LValuePlace::MemoryField { object, layout, field, ty } => {
+            LValuePlace::MemoryField { object, field, ty } => {
                 let value = self.encode_memory_scalar(ty, value);
-                self.builder.memory_store_field(object, layout, field, value);
+                self.builder.memory_store_field(object, field, value);
                 Some(())
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {

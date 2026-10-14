@@ -303,9 +303,9 @@ self.dcx()
 ### IR construction and rewrites
 
 - Generated MIR scalars are `i1`, `i160`, `i256`, or `memptr`; structs and
-  slices keep their types. `memptr` is opaque, like LLVM's `ptr`: accessing
-  operations carry the layout. Keep source widths, signedness, and ABI encodings
-  in operation or layout metadata.
+  slices keep their types. `memptr` is opaque, like LLVM's `ptr`: reach object
+  words with `ptradd` and `load`/`store`, never with integer arithmetic. Keep
+  source widths, signedness, and ABI encodings in operation or layout metadata.
 - `iN` names bit width. MIR syntax accepts any positive 32-bit width, but source
   lowering emits only `i1`, `i160`, and `i256`; other widths need EVM IR
   lowering support first.

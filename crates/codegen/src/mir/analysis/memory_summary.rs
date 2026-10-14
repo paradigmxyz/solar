@@ -711,15 +711,8 @@ fn local_summary(
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value)
                 | InstKind::SetFmp(value)
-                | InstKind::SliceStoreByte { value, .. }
-                | InstKind::SliceStoreWord { value, .. }
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
-                }
-                // An element load reads a word of its array and captures nothing.
-                InstKind::SliceLoadWord { slice, offset } if !func.is_word_offset(*offset) => {
-                    capture_sources(&mut summary, func, sources, *slice);
-                    capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
             }
@@ -1089,9 +1082,6 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::SLoad(_)
             | InstKind::TLoad(_)
             | InstKind::Keccak256(_, _)
-            | InstKind::SliceLoadByte { .. }
-            | InstKind::MemorySlice(_)
-            | InstKind::SliceLoadWord { .. }
             | InstKind::SliceLen(_)
     )
 }

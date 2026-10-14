@@ -19,22 +19,22 @@ fn @reduce(arg0: memptr, arg1: i256, arg2: i256) -> i256 {
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: arg2], [bb3: v14]
     v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = memory_slice v2
-    v6 = slice_len v5
-    v7 = lt v1, v6
-    jumpi v7, bb4, bb5
+    v5 = load v2
+    v6 = lt v1, v5
+    jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret v3
   bb4:
-    v8 = memory_slice v2
-    v9 = slice_len v8
-    v10 = lt v1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = shl 5, v1
-    v13 = slice_load_word v8, v12
+    v7 = load v2
+    v8 = lt v1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl 5, v1
+    v11 = ptradd v2, 32
+    v12 = ptradd v11, v10
+    v13 = load v12
     v14 = icall @internal_dispatcher_p_u256_u256_r_u256, v4, v13, v3
     jump bb6
   bb6:

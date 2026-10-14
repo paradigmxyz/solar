@@ -9,9 +9,8 @@ fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[wor
     store v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
     v3 = add v1, 64
     store v3, 0x102030405060708000000000000000000000000000000000000000000000000
-    v4 = memory_slice v0
-    v5 = slice_len v4
-    ret v5
+    v4 = load v0
+    ret v4
 }
 
 fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

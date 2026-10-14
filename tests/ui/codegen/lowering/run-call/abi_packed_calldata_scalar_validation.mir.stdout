@@ -31,12 +31,12 @@ fn @encode(arg0: calldataslice) -> memptr [selector=0x1597ee44, pure, abi_params
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v32]
+    v22 = phi [bb0: 0], [bb2: v33]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v33 = abi_encode_packed (array<word<u8>> memoryarray<1> v21)
-    ret v33
+    v34 = abi_encode_packed (array<word<u8>> memoryarray<1> v21)
+    ret v34
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -45,9 +45,10 @@ fn @encode(arg0: calldataslice) -> memptr [selector=0x1597ee44, pure, abi_params
     v28 = eq v27, 0
     v29 = eq v28, false
     icall revert_if<empty>, v29
-    v30 = memory_slice v21
-    v31 = shl 5, v22
-    slice_store_word v30, v31, v26
-    v32 = add v22, 1
+    v30 = shl 5, v22
+    v31 = ptradd v21, 32
+    v32 = ptradd v31, v30
+    store v32, v26
+    v33 = add v22, 1
     jump bb1
 }

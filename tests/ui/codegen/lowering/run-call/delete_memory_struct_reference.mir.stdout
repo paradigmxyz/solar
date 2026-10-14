@@ -6,42 +6,35 @@
 fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 1
-    slice_store_word v1, 0, 96
-    v2 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    store v2, 1
-    v3 = make_memory_slice v0, 1
-    v4 = ptrtoint memptr v2 to i256
-    slice_store_word v3, 0, v4
-    v5 = make_memory_slice v0, 1
-    v6 = slice_load_word v5, 0, memptr
-    v7 = memory_slice v6
-    v8 = slice_len v7
-    v9 = lt 0, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    slice_store_word v7, 0, 7
-    v11 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v12 = make_memory_slice v11, 1
-    v13 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    store v13, 0
-    v14 = ptrtoint memptr v13 to i256
-    slice_store_word v12, 0, v14
-    v15 = make_memory_slice v11, 1
-    v16 = slice_load_word v15, 0, memptr
-    v17 = memory_slice v16
-    v18 = slice_len v17
-    v19 = make_memory_slice v0, 1
-    v20 = slice_load_word v19, 0, memptr
-    v21 = memory_slice v20
-    v22 = slice_len v21
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = slice_load_word v21, 0
-    v26 = insert_value struct0, undef struct0, 0, v18
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    store v0, 96
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    store v1, 1
+    v2 = ptrtoint memptr v1 to i256
+    store v0, v2
+    v3 = load v0, memptr
+    v4 = load v3
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v3, 32
+    store v7, 7
+    v8 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v9 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    store v9, 0
+    v10 = ptrtoint memptr v9 to i256
+    store v8, v10
+    v11 = load v8, memptr
+    v12 = load v11
+    v13 = load v0, memptr
+    v14 = load v13
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v13, 32
+    v18 = load v17
+    v19 = insert_value struct0, undef struct0, 0, v12
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
 }
 
 fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -49,25 +42,22 @@ fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_retur
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = make_memory_slice v0, 2
-    v3 = lt 0, 2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v2, 0, 7
-    v5 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v6 = ptrtoint memptr v5 to i256
-    memory_zero v6, 64
-    v7 = make_memory_slice v5, 2
-    v8 = lt 0, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = slice_load_word v7, 0
-    v11 = make_memory_slice v0, 2
-    v12 = lt 0, 2
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = slice_load_word v11, 0
-    v15 = insert_value struct0, undef struct0, 0, v10
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    store v0, 7
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v5 = ptrtoint memptr v4 to i256
+    memory_zero v5, 64
+    v6 = lt 0, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = load v4
+    v9 = lt 0, 2
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = load v0
+    v12 = insert_value struct0, undef struct0, 0, v8
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
 }

@@ -142,15 +142,9 @@ impl CopyElisionCx {
 
     fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
         let block = *self.indexed_stores.get(&inst)?;
-        let InstKind::SliceStoreWord { slice, offset, .. } = func.inst(inst).kind else {
-            return None;
-        };
-        let index = func.word_index(offset)?;
+        let InstKind::Store(address, _) = func.inst(inst).kind else { return None };
         // A dynamic object's elements follow its length word; a fixed one's start at it.
-        let (target, data_offset) = match func.memory_slice_object(slice) {
-            Some(object) => (object, EvmMemoryLayout::DYNAMIC_HEADER_SIZE),
-            None => (func.fixed_view_object(slice)?, 0),
-        };
+        let (target, data_offset, index) = func.element_address(address)?;
         if target == object
             && let [pred] = func.blocks[block].predecessors.as_slice()
             && let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -201,8 +195,8 @@ impl CopyElisionCx {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if let InstKind::SliceStoreWord { offset, .. } = inst.kind
-                    && func.word_index(offset).is_some()
+                if let InstKind::Store(address, _) = inst.kind
+                    && func.element_address(address).is_some()
                 {
                     self.indexed_stores.insert(inst_id, block_id);
                 }
@@ -235,12 +229,13 @@ impl CopyElisionCx {
                 }
                 let kind = &func.inst(inst_id).kind;
                 let propagates = match kind {
-                    InstKind::Add(first, second) | InstKind::Sub(first, second) => {
+                    InstKind::Add(first, second)
+                    | InstKind::Sub(first, second)
+                    | InstKind::PtrAdd(first, second) => {
                         derived.contains(first) || derived.contains(second)
                     }
                     InstKind::PtrToInt(value, 256)
                     | InstKind::IntToPtr(value)
-                    | InstKind::MemorySlice(value)
                     | InstKind::SlicePtr(value)
                     | InstKind::MakeSlice { ptr: value, .. } => derived.contains(value),
                     _ => false,
@@ -285,23 +280,6 @@ impl CopyElisionCx {
                             writes.push(inst_id);
                         }
                     }
-                    InstKind::SliceStoreByte { slice: object, index, value }
-                    | InstKind::SliceStoreWord { slice: object, offset: index, value } => {
-                        if derived.contains(index) || derived.contains(value) {
-                            return None;
-                        }
-                        if derived.contains(object) {
-                            writes.push(inst_id);
-                        }
-                    }
-                    InstKind::SliceCopy { destination, offset, source } => {
-                        if derived.contains(offset) || derived.contains(source) {
-                            return None;
-                        }
-                        if derived.contains(destination) {
-                            writes.push(inst_id);
-                        }
-                    }
                     InstKind::Copy(dest, _, _, PtrLocation::Calldata | PtrLocation::Returndata)
                     | InstKind::DataCopy(_, dest, _)
                     | InstKind::CodeCopy(dest, _, _) => {
@@ -336,9 +314,9 @@ impl CopyElisionCx {
                     // Address-derivation instructions are the closure itself.
                     InstKind::Add(..)
                     | InstKind::Sub(..)
+                    | InstKind::PtrAdd(..)
                     | InstKind::PtrToInt(_, 256)
                     | InstKind::IntToPtr(_)
-                    | InstKind::MemorySlice(_)
                     | InstKind::SlicePtr(_)
                     | InstKind::MakeSlice { .. }
                     | InstKind::Alloc { .. } => {}

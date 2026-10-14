@@ -365,12 +365,6 @@ impl CfgSimplifier {
             match &inst.kind {
                 InstKind::Phi(_)
                 | InstKind::Alloc { .. }
-                | InstKind::MemorySlice(..)
-                | InstKind::SliceLoadByte { .. }
-                | InstKind::SliceStoreByte { .. }
-                | InstKind::SliceStoreWord { .. }
-                | InstKind::SliceLoadWord { .. }
-                | InstKind::SliceCopy { .. }
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. }
                 | InstKind::StorageToMemory { .. }

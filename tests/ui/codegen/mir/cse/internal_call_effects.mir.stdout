@@ -69,92 +69,85 @@ fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], 
 fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 10
-    slice_store_word v1, 32, 20
+    store v0, 10
+    v1 = ptradd v0, 32
+    store v1, 20
     v2 = ptrtoint memptr v0 to i256
-    v3 = make_memory_slice v0, 2
-    v4 = lt 0, 2
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = slice_load_word v3, 0
-    v7 = checked_add u256, v2, 32
-    icall @writeMemory, v7
-    v8 = make_memory_slice v0, 2
-    v9 = lt 0, 2
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = slice_load_word v8, 0
-    v12 = checked_add u256, v6, v11
-    ret v12
+    v3 = lt 0, 2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = load v0
+    v6 = checked_add u256, v2, 32
+    icall @writeMemory, v6
+    v7 = lt 0, 2
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = load v0
+    v10 = checked_add u256, v5, v9
+    ret v10
 }
 
 fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 10
-    slice_store_word v1, 32, 20
+    store v0, 10
+    v1 = ptradd v0, 32
+    store v1, 20
     v2 = ptrtoint memptr v0 to i256
-    v3 = make_memory_slice v0, 2
-    v4 = lt 0, 2
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = slice_load_word v3, 0
+    v3 = lt 0, 2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = load v0
     icall @writeMemory, v2
-    v7 = make_memory_slice v0, 2
-    v8 = lt 0, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = slice_load_word v7, 0
-    v11 = checked_add u256, v6, v10
-    ret v11
+    v6 = lt 0, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = load v0
+    v9 = checked_add u256, v5, v8
+    ret v9
 }
 
 fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 10
-    slice_store_word v1, 32, 20
+    store v0, 10
+    v1 = ptradd v0, 32
+    store v1, 20
     v2 = ptrtoint memptr v0 to i256
-    v3 = make_memory_slice v0, 2
-    v4 = lt 0, 2
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = slice_load_word v3, 0
-    v7 = checked_add u256, v2, 1
-    icall @writeMemory, v7
-    v8 = make_memory_slice v0, 2
-    v9 = lt 0, 2
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = slice_load_word v8, 0
-    v12 = checked_add u256, v6, v11
-    ret v12
+    v3 = lt 0, 2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = load v0
+    v6 = checked_add u256, v2, 1
+    icall @writeMemory, v6
+    v7 = lt 0, 2
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = load v0
+    v10 = checked_add u256, v5, v9
+    ret v10
 }
 
 fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = make_memory_slice v0, 3
-    slice_store_word v1, 0, 10
-    slice_store_word v1, 32, 20
-    slice_store_word v1, 64, 30
-    v2 = ptrtoint memptr v0 to i256
-    v3 = make_memory_slice v0, 3
+    store v0, 10
+    v1 = ptradd v0, 32
+    store v1, 20
+    v2 = ptradd v0, 64
+    store v2, 30
+    v3 = ptrtoint memptr v0 to i256
     v4 = lt 0, 3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = slice_load_word v3, 0
-    icall @writeMemoryRecursive, v2, 2
-    v7 = make_memory_slice v0, 3
-    v8 = lt 0, 3
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = slice_load_word v7, 0
-    v11 = checked_add u256, v6, v10
-    ret v11
+    v6 = load v0
+    icall @writeMemoryRecursive, v3, 2
+    v7 = lt 0, 3
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = load v0
+    v10 = checked_add u256, v6, v9
+    ret v10
 }
 
 fn @writeMemory(arg0: i256) [pure] {

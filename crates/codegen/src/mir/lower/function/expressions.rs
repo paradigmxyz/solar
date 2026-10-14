@@ -143,12 +143,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // value = normalize(mload_field(object, field))
-        let layout = self.types.memory_layout(receiver_ty)?;
+        self.types.memory_layout(receiver_ty)?;
         let field_ty =
             self.cx.gcx.type_of_item(id.into()).with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.builder.memory_load_field_as(
             object,
-            layout,
             field as u64,
             types::TypeLowerer::mir_type(field_ty),
         );

@@ -28,10 +28,12 @@ contract ArrayBoundsPanic {
     uint256[3] sfix;
 
     // CHECK-LABEL: fn @memFix{{[( ]}}
+    // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: {{v[0-9]+}} = lt arg0, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
-    // CHECK-NEXT: slice_load_word {{v[0-9]+}}, [[OFF1]]
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], [[OFF1]]
+    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
         x[1] = 20;
@@ -39,9 +41,13 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
+    // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt 2, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK: slice_load_word {{v[0-9]+}}, 64
+    // CHECK: lt 2, 3
+    // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], 64
+    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -49,9 +55,11 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
+    // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt 5, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
-    // CHECK: slice_load_word {{v[0-9]+}}, 160
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[X]], 160
+    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];
@@ -59,8 +67,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memDyn{{[( ]}}
     // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[ARR]]
-    // CHECK: [[LEN:v[0-9]+]] = slice_len [[VIEW]]
+    // CHECK: [[LEN:v[0-9]+]] = load [[ARR]]
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {

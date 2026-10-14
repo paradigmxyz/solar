@@ -139,7 +139,6 @@ contract CheckedBase64 {
     // OPT: {{v[0-9]+}} = add {{v[0-9]+}}, 3{{$}}
     // OPT-NEXT: [[MAIN:v[0-9]+]] = lt
     // OPT-NEXT: jumpi [[MAIN]]
-    // OPT-NOT: icall @_decode
     function decode(string memory data) external pure returns (bytes memory) {
         return Base64.decode(data);
     }

@@ -1122,9 +1122,6 @@ impl<'a> Validator<'a> {
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
-                    InstKind::SliceCopy { source, .. } => {
-                        matches!(func.value_ty(*source), Some(MirType::Slice(_)))
-                    }
                     InstKind::Load(_, location) => *location != PtrLocation::Returndata,
                     _ => true,
                 };

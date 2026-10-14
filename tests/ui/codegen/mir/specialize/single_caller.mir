@@ -9,8 +9,8 @@
 // CHECK: + {{v[0-9]+}} = icall @fill, arg0
 // CHECK-LABEL: {{^[ +].*}}fn @fill(arg0: i256)
 // CHECK-NOT: jumpi
-// CHECK: {{^[ +].*}}slice_store_byte {{v[0-9]+}}, 0, 45
-// CHECK-NOT: slice_store_byte {{v[0-9]+}}, 0, 95
+// CHECK: {{^[ +].*}}store8 {{v[0-9]+}}, 45
+// CHECK-NOT: store8 {{v[0-9]+}}, 95
 fn @caller(arg0: i256) -> memptr [selector=0x00000001] {
   bb0:
     v0 = icall @fill, arg0, 0
@@ -22,13 +22,14 @@ fn @fill(arg0: i256, arg1: i256) -> memptr {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     v2 = ptrtoint memptr v0 to i256
     store v2, arg0
-    v3 = memory_slice v0
     v1 = ne arg1, 0
     jumpi v1, bb1, bb2
   bb1:
-    slice_store_byte v3, 0, 95
+    v3 = ptradd v0, 32
+    store8 v3, 95
     ret v0
   bb2:
-    slice_store_byte v3, 0, 45
+    v4 = ptradd v0, 32
+    store8 v4, 45
     ret v0
 }

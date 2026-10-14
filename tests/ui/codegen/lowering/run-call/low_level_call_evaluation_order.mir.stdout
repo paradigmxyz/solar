@@ -164,13 +164,13 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
     v7 = icall returndata_bytes<>
     v8 = eq v6, false
     icall revert_if<empty>, v8
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
-    slice_store_byte v9, 0, v13
+    v9 = load v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
+    v13 = ptradd v0, 32
+    store8 v13, v12
     v14 = abi_decode [bytes], v7
     v15 = insert_value struct0, undef struct0, 0, v14
     v16 = insert_value struct0, v15, 1, v0

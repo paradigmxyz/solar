@@ -60,8 +60,7 @@ fn @dynamic(arg0: calldataslice) -> memoryslice {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
-// CHECK: + [[VIEW:v[0-9]+]] = memory_slice arg0
-// CHECK-NEXT: + {{v[0-9]+}} = slice_len [[VIEW]]
+// CHECK: + {{v[0-9]+}} = load arg0
 // CHECK: + {{v[0-9]+}} = zext i1
 // CHECK: + [[HEAD:v[0-9]+]] = ptrtoint memptr arg0 to i256
 // CHECK-NEXT: + {{v[0-9]+}} = add [[HEAD]], 32

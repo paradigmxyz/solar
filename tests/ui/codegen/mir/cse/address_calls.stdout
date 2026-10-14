@@ -32,12 +32,10 @@
       v2 = icall returndata_bytes<>
       v3 = address_call v0, arg1
       v4 = icall returndata_bytes<>
-      v5 = memory_slice v2
-      v6 = slice_len v5
-      v7 = memory_slice v4
-      v8 = slice_len v7
-      v9 = add v6, v8
-      ret v9
+      v5 = load v2
+      v6 = load v4
+      v7 = add v5, v6
+      ret v7
   }
   
 - // === ROOT/tests/ui/codegen/mir/cse/address_calls.mir (before dce) ===
@@ -74,11 +72,9 @@
       v2 = icall returndata_bytes<>
       v3 = address_call v0, arg1
       v4 = icall returndata_bytes<>
-      v5 = memory_slice v2
-      v6 = slice_len v5
-      v7 = memory_slice v4
-      v8 = slice_len v7
-      v9 = add v6, v8
-      ret v9
+      v5 = load v2
+      v6 = load v4
+      v7 = add v5, v6
+      ret v7
   }
   

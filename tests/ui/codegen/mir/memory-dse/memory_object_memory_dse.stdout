@@ -5,9 +5,8 @@
     bb0:
       v0 = ptrtoint memptr arg0 to i256
       store v0, 39
-      v1 = memory_slice arg0
--     v2 = slice_len v1
--     ret v2
+-     v1 = load arg0
+-     ret v1
 +     ret 39
   }
   
@@ -16,17 +15,16 @@
       v0 = ptrtoint memptr arg0 to i256
       store v0, 39
       store arg1, 7
-      v1 = memory_slice arg0
-      v2 = slice_len v1
-      ret v2
+      v1 = load arg0
+      ret v1
   }
   
   fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
     bb0:
       v0 = ptrtoint memptr arg1 to i256
       store v0, 32
-      v1 = memory_slice arg1
-      slice_store_word v1, 0, 7
+      v1 = ptradd arg1, 32
+      store v1, 7
       store_storage_bytes arg0, arg1
       ret
   }
@@ -39,8 +37,8 @@
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
       v2 = ptrtoint memptr v1 to i256
       store v2, 39
-      v3 = memory_slice v1
-      v4 = slice_ptr v3
+      v3 = ptradd v1, 32
+      v4 = ptrtoint memptr v3 to i256
       store v4, 7
 -     v5 = load v2
       v6 = ne arg1, 0
@@ -59,7 +57,6 @@
     bb0:
       v0 = ptrtoint memptr arg0 to i256
       store v0, 39
--     v1 = memory_slice arg0
       ret 39
   }
   
@@ -68,17 +65,16 @@
       v0 = ptrtoint memptr arg0 to i256
       store v0, 39
       store arg1, 7
-      v1 = memory_slice arg0
-      v2 = slice_len v1
-      ret v2
+      v1 = load arg0
+      ret v1
   }
   
   fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
     bb0:
       v0 = ptrtoint memptr arg1 to i256
       store v0, 32
-      v1 = memory_slice arg1
-      slice_store_word v1, 0, 7
+      v1 = ptradd arg1, 32
+      store v1, 7
       store_storage_bytes arg0, arg1
       ret
   }
@@ -91,8 +87,8 @@
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
       v2 = ptrtoint memptr v1 to i256
       store v2, 39
-      v3 = memory_slice v1
-      v4 = slice_ptr v3
+      v3 = ptradd v1, 32
+      v4 = ptrtoint memptr v3 to i256
       store v4, 7
       v6 = ne arg1, 0
       jumpi v6, bb3, bb2

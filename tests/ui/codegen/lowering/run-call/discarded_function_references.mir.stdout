@@ -40,12 +40,12 @@ fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[],
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     store v0, 1
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 1, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = slice_load_word v1, 32
+    v1 = load v0
+    v2 = lt 1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 64
+    v5 = load v4
     ret
 }
 
@@ -107,12 +107,12 @@ fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     store v0, 1
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 1, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = slice_load_word v1, 32
+    v1 = load v0
+    v2 = lt 1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 64
+    v5 = load v4
     ret
 }
 

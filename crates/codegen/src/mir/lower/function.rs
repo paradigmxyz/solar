@@ -317,7 +317,7 @@ struct StorageAccess {
 enum LValuePlace<'gcx> {
     Variable { id: VariableId, span: Span },
     Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
+    MemoryField { object: ValueId, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
 }

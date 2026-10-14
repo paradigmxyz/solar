@@ -2,16 +2,14 @@
 @module Bounds
 fn @bytesMemory(arg0: memptr) -> i256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    ret v1
+    v0 = load arg0
+    ret v0
 }
 
 fn @wordsMemory(arg0: memptr) -> i256 [selector=0xb59b137f, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    ret v1
+    v0 = load arg0
+    ret v0
 }
 
 fn @bytesCalldata(arg0: calldataslice) -> i256 [selector=0x616c46ff, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -28,69 +26,65 @@ fn @wordsCalldata(arg0: calldataslice) -> i256 [selector=0x6918e29e, pure, abi_p
 
 fn @dynamicStruct(arg0: memptr) -> i256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = make_memory_slice arg0, 1
-    v1 = slice_load_word v0, 0, memptr
-    v2 = memory_slice v1
-    v3 = slice_len v2
-    ret v3
+    v0 = load arg0, memptr
+    v1 = load v0
+    ret v1
 }
 
 fn @wideDynamic(arg0: memptr) -> i256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = make_memory_slice arg0, 2
-    v1 = slice_load_word v0, 32, memptr
-    v2 = memory_slice v1
-    v3 = slice_len v2
-    ret v3
+    v0 = ptradd arg0, 32
+    v1 = load v0, memptr
+    v2 = load v1
+    ret v2
 }
 
 fn @staticStructs(arg0: memptr) -> i256 [selector=0xb2bb789c, pure, abi_params=[array<_, tuple<u256, address>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = memory_slice arg0
-    v3 = slice_len v2
-    v4 = lt 0, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = slice_load_word v2, 0
-    v7 = inttoptr i256 v6 to memptr
-    v8 = eq v6, 0
-    jumpi v8, bb1, bb2
+    v0 = load arg0
+    v1 = load arg0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd arg0, 32
+    v5 = load v4
+    v6 = inttoptr i256 v5 to memptr
+    v7 = eq v5, 0
+    jumpi v7, bb1, bb2
   bb1:
-    v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v10 = make_memory_slice v9, 2
-    slice_store_word v10, 0, 0
-    slice_store_word v10, 32, 0
-    v11 = ptrtoint memptr v9 to i256
-    slice_store_word v2, 0, v11
+    v8 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    store v8, 0
+    v9 = ptradd v8, 32
+    store v9, 0
+    v10 = ptradd arg0, 32
+    v11 = ptrtoint memptr v8 to i256
+    store v10, v11
     jump bb2
   bb2:
-    v12 = phi [bb0: v7], [bb1: v9]
-    v13 = make_memory_slice v12, 2
-    v14 = slice_load_word v13, 0
-    v15 = checked_add u256, v1, v14
-    v16 = memory_slice arg0
-    v17 = slice_len v16
-    v18 = lt 1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = slice_load_word v16, 32
-    v21 = inttoptr i256 v20 to memptr
-    v22 = eq v20, 0
-    jumpi v22, bb3, bb4
+    v12 = phi [bb0: v6], [bb1: v8]
+    v13 = load v12
+    v14 = checked_add u256, v0, v13
+    v15 = load arg0
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd arg0, 64
+    v19 = load v18
+    v20 = inttoptr i256 v19 to memptr
+    v21 = eq v19, 0
+    jumpi v21, bb3, bb4
   bb3:
-    v23 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v24 = make_memory_slice v23, 2
-    slice_store_word v24, 0, 0
-    slice_store_word v24, 32, 0
-    v25 = ptrtoint memptr v23 to i256
-    slice_store_word v16, 32, v25
+    v22 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    store v22, 0
+    v23 = ptradd v22, 32
+    store v23, 0
+    v24 = ptradd arg0, 64
+    v25 = ptrtoint memptr v22 to i256
+    store v24, v25
     jump bb4
   bb4:
-    v26 = phi [bb2: v21], [bb3: v23]
-    v27 = make_memory_slice v26, 2
-    v28 = slice_load_word v27, 0
-    v29 = checked_add u256, v15, v28
-    ret v29
+    v26 = phi [bb2: v20], [bb3: v22]
+    v27 = load v26
+    v28 = checked_add u256, v14, v27
+    ret v28
 }

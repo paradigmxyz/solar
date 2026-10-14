@@ -4,24 +4,24 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     store v0, 3
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 0, 1
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    slice_store_word v5, 32, 2
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 2, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    slice_store_word v9, 64, 3
+    v1 = load v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 1
+    v5 = load v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    store v8, 2
+    v9 = load v0
+    v10 = lt 2, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 96
+    store v12, 3
     v13 = abi_encode [memory_array<word>], scratch, args v0
     v14 = slice_ptr v13
     v15 = slice_len v13
@@ -40,62 +40,63 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v16]
+    v4 = phi [bb0: 0], [bb3: v17]
     v5 = phi [bb0: 0], [bb3: v5]
     v6 = lt v4, 33
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v17 = abi_encode [memory_bytes], object, args v3
-    v18 = ptrtoint memptr v17 to i256
-    v19 = add v18, 128
-    v20 = load v19
-    v21 = memory_slice v17
-    v22 = slice_len v21
+    v18 = abi_encode [memory_bytes], object, args v3
+    v19 = ptrtoint memptr v18 to i256
+    v20 = add v19, 128
+    v21 = load v20
+    v22 = load v18
     v23 = eq v22, 128
     jumpi v23, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v24 = memory_slice v17
-    v25 = slice_len v24
-    v26 = lt 64, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = slice_load_byte v24, 64
-    v29 = shl 248, v28
-    v30 = eq v29, 0x100000000000000000000000000000000000000000000000000000000000000
+    v24 = load v18
+    v25 = lt 64, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v18, 96
+    v28 = load v27
+    v29 = byte 0, v28
+    v30 = shl 248, v29
+    v31 = eq v30, 0x100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb9:
-    v31 = phi [bb7: v30], [bb8: false]
-    jumpi v31, bb10, bb11
+    v32 = phi [bb7: v31], [bb8: false]
+    jumpi v32, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v32 = shl 248, 33
-    v33 = eq v20, v32
+    v33 = shl 248, 33
+    v34 = eq v21, v33
     jump bb12
   bb12:
-    v34 = phi [bb10: v33], [bb11: false]
-    ret v34
+    v35 = phi [bb10: v34], [bb11: false]
+    ret v35
   bb4:
     v7 = checked_add u256, v4, 1
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256
     v10 = shl 248, v9
-    v11 = memory_slice v3
-    v12 = slice_len v11
-    v13 = lt v4, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = byte 0, v10
-    slice_store_byte v11, v4, v15
+    v11 = load v3
+    v12 = lt v4, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = byte 0, v10
+    v15 = ptradd v3, 32
+    v16 = ptradd v15, v4
+    store8 v16, v14
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v4, 1
+    v17 = checked_add u256, v4, 1
     jump bb1
 }
 
@@ -114,22 +115,21 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
     v6 = add v5, 32
     store v6, 0x2223000000000000000000000000000000000000000000000000000000000000
     v7 = abi_encode_packed (bytes v0, bytes v4)
-    v8 = memory_slice v7
-    v9 = slice_len v8
-    v10 = eq v9, 35
-    jumpi v10, bb1, bb2
+    v8 = load v7
+    v9 = eq v8, 35
+    jumpi v9, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = memory_slice v7
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = keccak256 v12, v13
-    v15 = eq v14, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
+    v10 = ptrtoint memptr v7 to i256
+    v11 = add v10, 32
+    v12 = load v7
+    v13 = keccak256 v11, v12
+    v14 = eq v13, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
     jump bb3
   bb3:
-    v16 = phi [bb1: v15], [bb2: false]
-    ret v16
+    v15 = phi [bb1: v14], [bb2: false]
+    ret v15
 }
 
 fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -182,24 +182,24 @@ fn @fresh() -> memptr [selector=0xb466b76f, pure, abi_params=[], abi_returns=[me
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     store v0, 3
-    v1 = memory_slice v0
-    v2 = slice_len v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v1, 0, 1
-    v5 = memory_slice v0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    slice_store_word v5, 32, 2
-    v9 = memory_slice v0
-    v10 = slice_len v9
-    v11 = lt 2, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    slice_store_word v9, 64, 3
+    v1 = load v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 1
+    v5 = load v0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 64
+    store v8, 2
+    v9 = load v0
+    v10 = lt 2, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 96
+    store v12, 3
     ret v0
 }
 

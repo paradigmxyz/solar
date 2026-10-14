@@ -28,11 +28,10 @@ fn @decode(arg0: calldataslice) -> i256 [selector=0xe5c5e9a3, pure, abi_params=[
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
     store v20, v15
-    v21 = ptrtoint memptr v20 to i256
-    v22 = add v21, 32
+    v21 = ptradd v20, 32
+    v22 = slice_ptr v8
     v23 = slice_len v8
-    v24 = make_memory_slice v22, v23
-    slice_copy v24, 0, v8
-    v25 = abi_decode [u256], v20
-    ret v25
+    copy calldata v21, v22, v23
+    v24 = abi_decode [u256], v20
+    ret v24
 }

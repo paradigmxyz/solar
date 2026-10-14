@@ -16,12 +16,11 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     v5 = add 2, 1
     sstore v5, 22 !metadata(storage=slot(3))
     v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
-    v7 = make_memory_slice v6, 2
     jump bb1
   bb1:
-    v8 = phi [bb0: 0], [bb2: v13]
-    v9 = lt v8, 2
-    jumpi v9, bb2, bb3
+    v7 = phi [bb0: 0], [bb2: v13]
+    v8 = lt v7, 2
+    jumpi v8, bb2, bb3
   bb3:
     v14 = sload 0 !metadata(storage=slot(0))
     v15 = gt v14, 0xffffffffffffffff
@@ -30,12 +29,11 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     v17 = storage_array_data_slot 0
     v18 = mul v14, 3
     v19 = add v17, v18
-    v20 = make_memory_slice v6, 2
     jump bb4
   bb4:
-    v21 = phi [bb3: 0], [bb9: v27]
-    v22 = lt v21, 3
-    jumpi v22, bb5, bb6
+    v20 = phi [bb3: 0], [bb9: v27]
+    v21 = lt v20, 3
+    jumpi v21, bb5, bb6
   bb6:
     sstore 0, v16 !metadata(storage=slot(0))
     v28 = sload 0 !metadata(storage=slot(0))
@@ -81,26 +79,28 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     v62 = insert_value struct0, v61, 3, v58
     ret v62
   bb5:
-    v23 = add v19, v21
-    v24 = lt v21, 2
-    jumpi v24, bb7, bb8
+    v22 = add v19, v20
+    v23 = lt v20, 2
+    jumpi v23, bb7, bb8
   bb8:
-    sstore v23, 0 !metadata(storage=symbolic(v23))
+    sstore v22, 0 !metadata(storage=symbolic(v22))
     jump bb9
   bb7:
-    v25 = shl 5, v21
-    v26 = slice_load_word v20, v25
-    sstore v23, v26 !metadata(storage=symbolic(v23))
+    v24 = shl 5, v20
+    v25 = ptradd v6, v24
+    v26 = load v25
+    sstore v22, v26 !metadata(storage=symbolic(v22))
     jump bb9
   bb9:
-    v27 = add v21, 1
+    v27 = add v20, 1
     jump bb4
   bb2:
-    v10 = add 2, v8
-    v11 = sload v10 !metadata(storage=offset(v8, 2))
-    v12 = shl 5, v8
-    slice_store_word v7, v12, v11
-    v13 = add v8, 1
+    v9 = add 2, v7
+    v10 = sload v9 !metadata(storage=offset(v7, 2))
+    v11 = shl 5, v7
+    v12 = ptradd v6, v11
+    store v12, v10
+    v13 = add v7, 1
     jump bb1
 }
 
@@ -139,12 +139,11 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v27 = or v24, v26
     sstore v17, v27 !metadata(storage=offset(v16, 4))
     v28 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
-    v29 = make_memory_slice v28, 2
     jump bb1
   bb1:
-    v30 = phi [bb0: 0], [bb2: v42]
-    v31 = lt v30, 2
-    jumpi v31, bb2, bb3
+    v29 = phi [bb0: 0], [bb2: v42]
+    v30 = lt v29, 2
+    jumpi v30, bb2, bb3
   bb3:
     v43 = sload 1 !metadata(storage=slot(1))
     v44 = gt v43, 0xffffffffffffffff
@@ -153,12 +152,11 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v46 = storage_array_data_slot 1
     v47 = mul v43, 3
     v48 = add v46, v47
-    v49 = make_memory_slice v28, 2
     jump bb4
   bb4:
-    v50 = phi [bb3: 0], [bb9: v56]
-    v51 = lt v50, 3
-    jumpi v51, bb5, bb6
+    v49 = phi [bb3: 0], [bb9: v56]
+    v50 = lt v49, 3
+    jumpi v50, bb5, bb6
   bb6:
     sstore 1, v45 !metadata(storage=slot(1))
     v57 = sload 1 !metadata(storage=slot(1))
@@ -204,33 +202,35 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v91 = insert_value struct0, v90, 3, v87
     ret v91
   bb5:
-    v52 = add v48, v50
-    v53 = lt v50, 2
-    jumpi v53, bb7, bb8
+    v51 = add v48, v49
+    v52 = lt v49, 2
+    jumpi v52, bb7, bb8
   bb8:
-    sstore v52, 0 !metadata(storage=symbolic(v52))
+    sstore v51, 0 !metadata(storage=symbolic(v51))
     jump bb9
   bb7:
-    v54 = shl 5, v50
-    v55 = slice_load_word v49, v54
-    sstore v52, v55 !metadata(storage=symbolic(v52))
+    v53 = shl 5, v49
+    v54 = ptradd v28, v53
+    v55 = load v54
+    sstore v51, v55 !metadata(storage=symbolic(v51))
     jump bb9
   bb9:
-    v56 = add v50, 1
+    v56 = add v49, 1
     jump bb4
   bb2:
-    v32 = div v30, 32
-    v33 = add 4, v32
-    v34 = mod v30, 32
-    v35 = mul v34, 1
-    v36 = sload v33 !metadata(storage=offset(v32, 4))
-    v37 = mul v35, 8
-    v38 = shr v37, v36
-    v39 = trunc i256 v38 to i8
-    v40 = zext i8 v39 to i256
-    v41 = shl 5, v30
-    slice_store_word v29, v41, v40
-    v42 = add v30, 1
+    v31 = div v29, 32
+    v32 = add 4, v31
+    v33 = mod v29, 32
+    v34 = mul v33, 1
+    v35 = sload v32 !metadata(storage=offset(v31, 4))
+    v36 = mul v34, 8
+    v37 = shr v36, v35
+    v38 = trunc i256 v37 to i8
+    v39 = zext i8 v38 to i256
+    v40 = shl 5, v29
+    v41 = ptradd v28, v40
+    store v41, v39
+    v42 = add v29, 1
     jump bb1
 }
 

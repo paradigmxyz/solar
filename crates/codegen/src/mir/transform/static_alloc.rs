@@ -331,20 +331,13 @@ fn candidate_uses_are_safe(
                     };
                     base_offset.checked_add(offset)
                 }
-                // A view's data may start at the end of an object that holds no elements.
-                InstKind::MemorySlice(object) if object == value => {
-                    let Some(data) = derived
-                        .get(&value)
-                        .and_then(|&base| base.checked_add(EvmMemoryLayout::DYNAMIC_HEADER_SIZE))
+                InstKind::PtrAdd(base, offset) => {
+                    let (Some(base_offset), Some(offset)) =
+                        (derived.get(&base).copied(), func.value_u64(offset))
                     else {
                         return false;
                     };
-                    if data > cand.size {
-                        return false;
-                    }
-                    derived.insert(result, data);
-                    pending.push(result);
-                    continue;
+                    base_offset.checked_add(offset)
                 }
                 InstKind::SlicePtr(slice) => {
                     let Some(&data) = derived.get(&slice) else { continue };
@@ -352,7 +345,6 @@ fn candidate_uses_are_safe(
                     pending.push(result);
                     continue;
                 }
-                // A view of a fixed array or struct starts at its address.
                 InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } if ptr == value => {
                     derived.get(&value).copied()
                 }
@@ -369,9 +361,6 @@ fn candidate_uses_are_safe(
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    let in_range_at = |off: u64, offset: u64, len: u64| {
-        off.checked_add(offset).is_some_and(|address| in_range(address, len))
-    };
     for (&operand, &off) in &derived {
         for &inst_id in &uses.instructions[operand] {
             if inst_id == cand.alloc {
@@ -382,6 +371,9 @@ fn candidate_uses_are_safe(
                 InstKind::Load(addr, PtrLocation::Memory) => operand == addr && in_range(off, 32),
                 InstKind::Store(addr, value) => {
                     operand == addr && !derived.contains_key(&value) && in_range(off, 32)
+                }
+                InstKind::Store8(addr, value) => {
+                    operand == addr && !derived.contains_key(&value) && in_range(off, 1)
                 }
                 InstKind::Keccak256(addr, size)
                 | InstKind::Log { offset: addr, size, .. }
@@ -398,37 +390,14 @@ fn candidate_uses_are_safe(
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
                 InstKind::Add(_, _)
+                | InstKind::PtrAdd(_, _)
                 | InstKind::PtrToInt(_, 256)
                 | InstKind::IntToPtr(_)
                 | InstKind::SlicePtr(_)
                 | InstKind::MakeSlice { .. } => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
-                // The view reads the length word in front of its data.
-                InstKind::MemorySlice(object) => {
-                    operand == object
-                        && func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
-                        && in_range(off, 32)
-                }
                 InstKind::SliceLen(_) => true,
-                InstKind::SliceLoadWord { slice, offset } => {
-                    operand == slice
-                        && func.value_u64(offset).is_some_and(|offset| in_range_at(off, offset, 32))
-                }
-                InstKind::SliceLoadByte { slice, index } => {
-                    operand == slice
-                        && func.value_u64(index).is_some_and(|index| in_range_at(off, index, 1))
-                }
-                InstKind::SliceStoreByte { slice, index, value } => {
-                    operand == slice
-                        && !derived.contains_key(&value)
-                        && func.value_u64(index).is_some_and(|index| in_range_at(off, index, 1))
-                }
-                InstKind::SliceStoreWord { slice, offset, value } => {
-                    operand == slice
-                        && !derived.contains_key(&value)
-                        && func.value_u64(offset).is_some_and(|offset| in_range_at(off, offset, 32))
-                }
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }

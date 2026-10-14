@@ -3,6 +3,40 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
+    v29 = load 64 !metadata(memory=scratch)
+    v30 = add v29, 192
+    v31 = lt v30, v29
+    v32 = gt v30, 0xffffffffffffffff
+    v33 = or v31, v32
+    jumpi v33, bb2, bb1
+  bb1:
+    store 64, v30 !metadata(memory=scratch)
+    v35 = calldatasize
+    copy calldata v29, v35, 192
+    store v29, 160
+    v5 = add v29, 32
+    store v5, 1
+    v23 = add v29, 64
+    store v23, 28
+    v25 = add v29, 96
+    store v25, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
+    v27 = add v29, 128
+    store v27, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v11 = add v29, 160
+    v12 = gas
+    v13 = staticcall v12, 1, v5, 128, v11, 32
+    v16 = load v11
+    v36 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    store 128, v36
+    returndata 128, 32
+  bb2:
+    store 32, 65 !metadata(memory=scratch)
+    store 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
+  bb0:
     v28 = load 64 !metadata(memory=scratch)
     v29 = add v28, 192
     v30 = lt v29, v28
@@ -14,54 +48,20 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v34 = calldatasize
     copy calldata v28, v34, 192
     store v28, 160
-    v5 = add v28, 32
-    store v5, 1
-    v22 = add v28, 64
-    store v22, 28
-    v24 = add v28, 96
-    store v24, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v26 = add v28, 128
-    store v26, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v11 = add v28, 160
-    v12 = gas
-    v13 = staticcall v12, 1, v5, 128, v11, 32
-    v15 = load v11
-    v35 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    store 128, v35
-    returndata 128, 32
-  bb2:
-    store 32, 65 !metadata(memory=scratch)
-    store 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
-  bb0:
-    v27 = load 64 !metadata(memory=scratch)
-    v28 = add v27, 192
-    v29 = lt v28, v27
-    v30 = gt v28, 0xffffffffffffffff
-    v31 = or v29, v30
-    jumpi v31, bb2, bb1
-  bb1:
-    store 64, v28 !metadata(memory=scratch)
-    v33 = calldatasize
-    copy calldata v27, v33, 192
-    store v27, 160
-    v4 = add v27, 32
+    v4 = add v28, 32
     store v4, 0
-    v21 = add v27, 64
-    store v21, 0
-    v23 = add v27, 96
-    store v23, 0
-    v25 = add v27, 128
-    store v25, 0
-    v10 = add v27, 160
+    v22 = add v28, 64
+    store v22, 0
+    v24 = add v28, 96
+    store v24, 0
+    v26 = add v28, 128
+    store v26, 0
+    v10 = add v28, 160
     v11 = gas
     v12 = staticcall v11, 1, v4, 128, v10, 32
-    v14 = load v10
-    v34 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
-    store 128, v34
+    v15 = load v10
+    v35 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    store 128, v35
     returndata 128, 32
   bb2:
     store 32, 65 !metadata(memory=scratch)
@@ -86,10 +86,10 @@ fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
     v23 = calldatasize
     copy calldata v17, v23, 64
     store v17, 32
-    v8 = add v17, 32
-    v9 = gas
-    v10 = staticcall v9, 2, v3, v4, v8, 32
-    v12 = load v8
+    v7 = add v17, 32
+    v8 = gas
+    v9 = staticcall v8, 2, v3, v4, v7, 32
+    v12 = load v7
     store 128, v12
     returndata 128, 32
   bb2:
@@ -115,10 +115,10 @@ fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
     v24 = calldatasize
     copy calldata v18, v24, 64
     store v18, 32
-    v8 = add v18, 32
-    v9 = gas
-    v10 = staticcall v9, 3, v3, v4, v8, 32
-    v12 = load v8
+    v7 = add v18, 32
+    v8 = gas
+    v9 = staticcall v8, 3, v3, v4, v7, 32
+    v12 = load v7
     v13 = shl 96, v12
     store 128, v13
     returndata 128, 32
@@ -145,10 +145,10 @@ fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
     v23 = calldatasize
     copy calldata v17, v23, 64
     store v17, 32
-    v8 = add v17, 32
-    v9 = gas
-    v10 = staticcall v9, 2, v3, v4, v8, 32
-    v12 = load v8
+    v7 = add v17, 32
+    v8 = gas
+    v9 = staticcall v8, 2, v3, v4, v7, 32
+    v12 = load v7
     store 128, v12
     returndata 128, 32
   bb2:
@@ -174,10 +174,10 @@ fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
     v24 = calldatasize
     copy calldata v18, v24, 64
     store v18, 32
-    v8 = add v18, 32
-    v9 = gas
-    v10 = staticcall v9, 3, v3, v4, v8, 32
-    v12 = load v8
+    v7 = add v18, 32
+    v8 = gas
+    v9 = staticcall v8, 3, v3, v4, v7, 32
+    v12 = load v7
     v13 = shl 96, v12
     store 128, v13
     returndata 128, 32
@@ -204,10 +204,10 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     v26 = calldatasize
     copy calldata v18, v26, 64
     store v18, 32
-    v9 = add v18, 32
-    v10 = gas
-    v11 = staticcall v10, 2, 0, 0, v9, 32
-    v13 = load v9
+    v8 = add v18, 32
+    v9 = gas
+    v10 = staticcall v9, 2, 0, 0, v8, 32
+    v13 = load v8
     store 128, v13
     returndata 128, 32
   bb2:
@@ -233,10 +233,10 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
     v27 = calldatasize
     copy calldata v19, v27, 64
     store v19, 32
-    v9 = add v19, 32
-    v10 = gas
-    v11 = staticcall v10, 3, 0, 0, v9, 32
-    v13 = load v9
+    v8 = add v19, 32
+    v9 = gas
+    v10 = staticcall v9, 3, 0, 0, v8, 32
+    v13 = load v8
     v14 = shl 96, v13
     store 128, v14
     returndata 128, 32

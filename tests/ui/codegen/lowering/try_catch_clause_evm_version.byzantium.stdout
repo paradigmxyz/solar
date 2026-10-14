@@ -39,48 +39,52 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     jumpi v5, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = memory_slice v10
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = slice_load_word v11, 0
-    v15 = shr 224, v14
-    v16 = eq v15, 0x8c379a0
-    jumpi v16, bb4, bb5
+    v11 = ptrtoint memptr v10 to i256
+    v12 = add v11, 32
+    v13 = load v10
+    v14 = make_memory_slice v12, v13
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = slice_ptr v14
+    v18 = load v17
+    v19 = shr 224, v18
+    v20 = eq v19, 0x8c379a0
+    jumpi v20, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v17 = icall @try_decode_error_message, v12, v13
+    v21 = icall @try_decode_error_message, v15, v16
     jump bb6
   bb6:
-    v18 = phi [bb4: v17], [bb5: false]
-    jumpi v18, bb7, bb8
+    v22 = phi [bb4: v21], [bb5: false]
+    jumpi v22, bb7, bb8
   bb8:
-    v26 = eq v15, 0x4e487b71
-    v27 = lt v13, 36
-    v28 = eq v27, false
-    v29 = and v26, v28
-    v30 = zext i1 v29 to i256
-    jumpi v29, bb9, bb10
+    v29 = eq v19, 0x4e487b71
+    v30 = lt v16, 36
+    v31 = eq v30, false
+    v32 = and v29, v31
+    v33 = zext i1 v32 to i256
+    jumpi v32, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    revert v12, v13
+    revert v15, v16
   bb11:
     jump bb3
   bb9:
-    v31 = ptrtoint memptr v10 to i256
-    v32 = add v31, 36
-    v33 = make_memory_slice v32, 32
-    v34 = slice_load_word v33, 0
+    v34 = ptrtoint memptr v10 to i256
+    v35 = add v34, 36
+    v36 = make_memory_slice v35, 32
+    v37 = slice_ptr v36
+    v38 = load v37
     jump bb3
   bb7:
-    v19 = memory_slice v10
-    v20 = slice_len v19
-    v21 = ptrtoint memptr v10 to i256
-    v22 = add v21, 36
-    v23 = sub v20, 4
-    v24 = make_memory_slice v22, v23
-    v25 = abi_decode [bytes], v24
+    v23 = load v10
+    v24 = ptrtoint memptr v10 to i256
+    v25 = add v24, 36
+    v26 = sub v23, 4
+    v27 = make_memory_slice v25, v26
+    v28 = abi_decode [bytes], v27
     jump bb3
   bb1:
     v6 = returndatasize
@@ -90,8 +94,8 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v9 = load v8
     jump bb3
   bb3:
-    v35 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v35
+    v39 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v39
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

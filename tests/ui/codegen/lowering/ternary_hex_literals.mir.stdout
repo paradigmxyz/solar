@@ -98,7 +98,7 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     store v0, arg1
-    v1 = memory_slice v0
-    slice_store_word v1, 0, arg0
+    v1 = ptradd v0, 32
+    store v1, arg0
     ret v0
 }

@@ -137,6 +137,7 @@ impl InstKind {
             | Self::Sext(..)
             | Self::PtrToInt(..)
             | Self::IntToPtr(..)
+            | Self::PtrAdd(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)
@@ -169,12 +170,6 @@ impl InstKind {
             | Self::MSize
             | Self::Fmp
             | Self::SetFmp(..)
-            | Self::MemorySlice(..)
-            | Self::SliceLoadByte { .. }
-            | Self::SliceStoreByte { .. }
-            | Self::SliceStoreWord { .. }
-            | Self::SliceLoadWord { .. }
-            | Self::SliceCopy { .. }
             | Self::StorageToMemory { .. }
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }

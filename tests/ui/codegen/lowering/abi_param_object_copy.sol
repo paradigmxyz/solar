@@ -6,11 +6,12 @@ contract AbiParamObjectCopy {
     bytes public storedBytes;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: [[WORDS:v[0-9]+]] = memory_slice arg0
-    // CHECK: slice_len [[WORDS]]
-    // CHECK: [[WORDS_VIEW:v[0-9]+]] = memory_slice arg0
+    // CHECK: [[LEN:v[0-9]+]] = load arg0
+    // CHECK: sstore 0, [[LEN]]
     // CHECK: icall @store_storage_bytes, 1, arg1
-    // CHECK: slice_load_word [[WORDS_VIEW]]
+    // CHECK: [[DATA:v[0-9]+]] = ptradd arg0, 32
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd [[DATA]], {{v[0-9]+}}
+    // CHECK-NEXT: {{v[0-9]+}} = load [[ELEM]]
     constructor(uint256[] memory words, bytes memory data) {
         storedWords = words;
         storedBytes = data;

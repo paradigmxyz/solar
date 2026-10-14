@@ -193,7 +193,6 @@ fn slice_values_are_pairs(module: &Module) -> bool {
                 let Value::Inst(id) = *func.value(value) else { return true };
                 match &func.inst(id).kind {
                     InstKind::MakeSlice { location: actual, .. } => *actual == location,
-                    InstKind::MemorySlice(_) => location == crate::mir::PtrLocation::Memory,
                     InstKind::FrameLoad { kind, .. } => kind.result_type() == ty,
                     InstKind::AbiEncode { mode, .. } => mode.result_type() == ty,
                     InstKind::ExtractValue { ty: aggregate, index, .. } => {

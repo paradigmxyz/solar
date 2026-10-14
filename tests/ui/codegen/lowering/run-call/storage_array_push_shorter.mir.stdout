@@ -6,13 +6,13 @@
 fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 5
-    slice_store_word v1, 32, 6
+    store v0, 5
+    v1 = ptradd v0, 32
+    store v1, 6
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v3 = make_memory_slice v2, 2
-    slice_store_word v3, 0, 9
-    slice_store_word v3, 32, 9
+    store v2, 9
+    v3 = ptradd v2, 32
+    store v3, 9
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = gt v4, 0xffffffffffffffff
     icall panic_if<0x41>, v5
@@ -20,12 +20,11 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     v7 = storage_array_data_slot 0
     v8 = mul v4, 3
     v9 = add v7, v8
-    v10 = make_memory_slice v0, 2
     jump bb1
   bb1:
-    v11 = phi [bb0: 0], [bb6: v17]
-    v12 = lt v11, 3
-    jumpi v12, bb2, bb3
+    v10 = phi [bb0: 0], [bb6: v17]
+    v11 = lt v10, 3
+    jumpi v11, bb2, bb3
   bb3:
     sstore 0, v6 !metadata(storage=slot(0))
     v18 = sload 0 !metadata(storage=slot(0))
@@ -69,28 +68,29 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     v50 = insert_value struct0, v49, 2, v47
     ret v50
   bb2:
-    v13 = add v9, v11
-    v14 = lt v11, 2
-    jumpi v14, bb4, bb5
+    v12 = add v9, v10
+    v13 = lt v10, 2
+    jumpi v13, bb4, bb5
   bb5:
-    sstore v13, 0 !metadata(storage=symbolic(v13))
+    sstore v12, 0 !metadata(storage=symbolic(v12))
     jump bb6
   bb4:
-    v15 = shl 5, v11
-    v16 = slice_load_word v10, v15
-    sstore v13, v16 !metadata(storage=symbolic(v13))
+    v14 = shl 5, v10
+    v15 = ptradd v0, v14
+    v16 = load v15
+    sstore v12, v16 !metadata(storage=symbolic(v12))
     jump bb6
   bb6:
-    v17 = add v11, 1
+    v17 = add v10, 1
     jump bb1
 }
 
 fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 1
-    slice_store_word v1, 32, 2
+    store v0, 1
+    v1 = ptradd v0, 32
+    store v1, 2
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, 0xffffffffffffffff
     icall panic_if<0x41>, v3
@@ -98,12 +98,11 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     v5 = storage_array_data_slot 0
     v6 = mul v2, 3
     v7 = add v5, v6
-    v8 = make_memory_slice v0, 2
     jump bb1
   bb1:
-    v9 = phi [bb0: 0], [bb6: v15]
-    v10 = lt v9, 3
-    jumpi v10, bb2, bb3
+    v8 = phi [bb0: 0], [bb6: v15]
+    v9 = lt v8, 3
+    jumpi v9, bb2, bb3
   bb3:
     sstore 0, v4 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
@@ -147,28 +146,29 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     v48 = insert_value struct0, v47, 2, v45
     ret v48
   bb2:
-    v11 = add v7, v9
-    v12 = lt v9, 2
-    jumpi v12, bb4, bb5
+    v10 = add v7, v8
+    v11 = lt v8, 2
+    jumpi v11, bb4, bb5
   bb5:
-    sstore v11, 0 !metadata(storage=symbolic(v11))
+    sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v13 = shl 5, v9
-    v14 = slice_load_word v8, v13
-    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v12 = shl 5, v8
+    v13 = ptradd v0, v12
+    v14 = load v13
+    sstore v10, v14 !metadata(storage=symbolic(v10))
     jump bb6
   bb6:
-    v15 = add v9, 1
+    v15 = add v8, 1
     jump bb1
 }
 
 fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 7
-    slice_store_word v1, 32, 8
+    store v0, 7
+    v1 = ptradd v0, 32
+    store v1, 8
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, 0xffffffffffffffff
     icall panic_if<0x41>, v3
@@ -176,12 +176,11 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     v5 = storage_array_data_slot 0
     v6 = mul v2, 3
     v7 = add v5, v6
-    v8 = make_memory_slice v0, 2
     jump bb1
   bb1:
-    v9 = phi [bb0: 0], [bb6: v15]
-    v10 = lt v9, 3
-    jumpi v10, bb2, bb3
+    v8 = phi [bb0: 0], [bb6: v15]
+    v9 = lt v8, 3
+    jumpi v9, bb2, bb3
   bb3:
     sstore 0, v4 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
@@ -225,18 +224,19 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     v48 = insert_value struct0, v47, 2, v45
     ret v48
   bb2:
-    v11 = add v7, v9
-    v12 = lt v9, 2
-    jumpi v12, bb4, bb5
+    v10 = add v7, v8
+    v11 = lt v8, 2
+    jumpi v11, bb4, bb5
   bb5:
-    sstore v11, 0 !metadata(storage=symbolic(v11))
+    sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
   bb4:
-    v13 = shl 5, v9
-    v14 = slice_load_word v8, v13
-    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v12 = shl 5, v8
+    v13 = ptradd v0, v12
+    v14 = load v13
+    sstore v10, v14 !metadata(storage=symbolic(v10))
     jump bb6
   bb6:
-    v15 = add v9, 1
+    v15 = add v8, 1
     jump bb1
 }

@@ -6,40 +6,41 @@
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
 -     v1 = ptrtoint memptr v0 to i256
 -     store v1, 33
--     v2 = memory_slice v0
--     slice_store_word v2, 0, 0x6161616161616161616161616161616161616161616161616161616161616161
--     slice_store_word v2, 32, 0x6200000000000000000000000000000000000000000000000000000000000000
--     v3 = alloc memorybytes, exact, uninitialized, infallible, 32
--     v4 = ptrtoint memptr v3 to i256
--     store v4, 0
--     v5 = abi_encode [memory_bytes, word, memory_bytes], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v3
--     ret v5
-+     v6 = alloc raw, exact, uninitialized, infallible, 256
-+     store v6, 0x1234567800000000000000000000000000000000000000000000000000000000
-+     v7 = ptrtoint memptr v6 to i256
-+     v8 = add v7, 4
-+     v9 = add v8, 96
-+     v10 = sub v9, v8
-+     store v8, v10
-+     store v9, 33
-+     v11 = add v9, 32
-+     v12 = add v11, 0
-+     store v12, 0x6161616161616161616161616161616161616161616161616161616161616161
-+     v13 = add v11, 32
-+     store v13, 0x6200000000000000000000000000000000000000000000000000000000000000
-+     v14 = add v11, 64
-+     v15 = add v8, 32
-+     store v15, arg0
-+     v16 = add v8, 64
-+     v17 = sub v14, v8
-+     store v16, v17
-+     store v14, 0
-+     v18 = add v14, 32
-+     v19 = add v18, 0
-+     v20 = sub v19, v8
-+     v21 = ptrtoint memptr v6 to i256
-+     v22 = make_memory_slice v21, 228
-+     ret v22
+-     v2 = ptradd v0, 32
+-     store v2, 0x6161616161616161616161616161616161616161616161616161616161616161
+-     v3 = ptradd v0, 64
+-     store v3, 0x6200000000000000000000000000000000000000000000000000000000000000
+-     v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+-     v5 = ptrtoint memptr v4 to i256
+-     store v5, 0
+-     v6 = abi_encode [memory_bytes, word, memory_bytes], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v4
+-     ret v6
++     v7 = alloc raw, exact, uninitialized, infallible, 256
++     store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v8 = ptrtoint memptr v7 to i256
++     v9 = add v8, 4
++     v10 = add v9, 96
++     v11 = sub v10, v9
++     store v9, v11
++     store v10, 33
++     v12 = add v10, 32
++     v13 = add v12, 0
++     store v13, 0x6161616161616161616161616161616161616161616161616161616161616161
++     v14 = add v12, 32
++     store v14, 0x6200000000000000000000000000000000000000000000000000000000000000
++     v15 = add v12, 64
++     v16 = add v9, 32
++     store v16, arg0
++     v17 = add v9, 64
++     v18 = sub v15, v9
++     store v17, v18
++     store v15, 0
++     v19 = add v15, 32
++     v20 = add v19, 0
++     v21 = sub v20, v9
++     v22 = ptrtoint memptr v7 to i256
++     v23 = make_memory_slice v22, 228
++     ret v23
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before egraph) ===
@@ -47,36 +48,36 @@
   @module LiteralReservation
   fn @encode(arg0: i256) -> memoryslice {
     bb0:
-      v6 = alloc raw, exact, uninitialized, infallible, 256
-      store v6, 0x1234567800000000000000000000000000000000000000000000000000000000
-      v7 = ptrtoint memptr v6 to i256
-      v8 = add v7, 4
-      v9 = add v8, 96
--     v10 = sub v9, v8
--     store v8, v10
-+     store v8, 96
-      store v9, 33
-      v11 = add v9, 32
--     v12 = add v11, 0
--     store v12, 0x6161616161616161616161616161616161616161616161616161616161616161
-+     store v11, 0x6161616161616161616161616161616161616161616161616161616161616161
-      v13 = add v11, 32
-      store v13, 0x6200000000000000000000000000000000000000000000000000000000000000
-      v14 = add v11, 64
-      v15 = add v8, 32
-      store v15, arg0
-      v16 = add v8, 64
--     v17 = sub v14, v8
--     store v16, v17
-+     store v16, 192
-      store v14, 0
-      v18 = add v14, 32
--     v19 = add v18, 0
--     v20 = sub v19, v8
--     v21 = ptrtoint memptr v6 to i256
--     v22 = make_memory_slice v21, 228
-+     v22 = make_memory_slice v7, 228
-      ret v22
+      v7 = alloc raw, exact, uninitialized, infallible, 256
+      store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
+      v8 = ptrtoint memptr v7 to i256
+      v9 = add v8, 4
+      v10 = add v9, 96
+-     v11 = sub v10, v9
+-     store v9, v11
++     store v9, 96
+      store v10, 33
+      v12 = add v10, 32
+-     v13 = add v12, 0
+-     store v13, 0x6161616161616161616161616161616161616161616161616161616161616161
++     store v12, 0x6161616161616161616161616161616161616161616161616161616161616161
+      v14 = add v12, 32
+      store v14, 0x6200000000000000000000000000000000000000000000000000000000000000
+      v15 = add v12, 64
+      v16 = add v9, 32
+      store v16, arg0
+      v17 = add v9, 64
+-     v18 = sub v15, v9
+-     store v17, v18
++     store v17, 192
+      store v15, 0
+      v19 = add v15, 32
+-     v20 = add v19, 0
+-     v21 = sub v20, v9
+-     v22 = ptrtoint memptr v7 to i256
+-     v23 = make_memory_slice v22, 228
++     v23 = make_memory_slice v8, 228
+      ret v23
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before dce) ===
@@ -84,25 +85,25 @@
   @module LiteralReservation
   fn @encode(arg0: i256) -> memoryslice {
     bb0:
-      v6 = alloc raw, exact, uninitialized, infallible, 256
-      store v6, 0x1234567800000000000000000000000000000000000000000000000000000000
-      v7 = ptrtoint memptr v6 to i256
-      v8 = add v7, 4
-      v9 = add v8, 96
-      store v8, 96
-      store v9, 33
-      v11 = add v9, 32
-      store v11, 0x6161616161616161616161616161616161616161616161616161616161616161
-      v13 = add v11, 32
-      store v13, 0x6200000000000000000000000000000000000000000000000000000000000000
-      v14 = add v11, 64
-      v15 = add v8, 32
-      store v15, arg0
-      v16 = add v8, 64
-      store v16, 192
-      store v14, 0
--     v18 = add v14, 32
-      v22 = make_memory_slice v7, 228
-      ret v22
+      v7 = alloc raw, exact, uninitialized, infallible, 256
+      store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
+      v8 = ptrtoint memptr v7 to i256
+      v9 = add v8, 4
+      v10 = add v9, 96
+      store v9, 96
+      store v10, 33
+      v12 = add v10, 32
+      store v12, 0x6161616161616161616161616161616161616161616161616161616161616161
+      v14 = add v12, 32
+      store v14, 0x6200000000000000000000000000000000000000000000000000000000000000
+      v15 = add v12, 64
+      v16 = add v9, 32
+      store v16, arg0
+      v17 = add v9, 64
+      store v17, 192
+      store v15, 0
+-     v19 = add v15, 32
+      v23 = make_memory_slice v8, 228
+      ret v23
   }
   

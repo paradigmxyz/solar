@@ -5,17 +5,17 @@ fn @memFix(arg0: i256) -> i256 [selector=0x0f1886fa, pure, abi_params=[u256], ab
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
-    v2 = make_memory_slice v0, 3
-    v3 = lt 1, 3
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v2, 32, 20
-    v5 = make_memory_slice v0, 3
-    v6 = lt arg0, 3
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = shl 5, arg0
-    v9 = slice_load_word v5, v8
+    v2 = lt 1, 3
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    store v4, 20
+    v5 = lt arg0, 3
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = shl 5, arg0
+    v8 = ptradd v0, v7
+    v9 = load v8
     ret v9
 }
 
@@ -24,16 +24,16 @@ fn @memFixConst() -> i256 [selector=0x50d13ed0, pure, abi_params=[], abi_returns
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
-    v2 = make_memory_slice v0, 3
-    v3 = lt 2, 3
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v2, 64, 30
-    v5 = make_memory_slice v0, 3
-    v6 = lt 2, 3
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = slice_load_word v5, 64
+    v2 = lt 2, 3
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 64
+    store v4, 30
+    v5 = lt 2, 3
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd v0, 64
+    v8 = load v7
     ret v8
 }
 
@@ -42,11 +42,11 @@ fn @memFixConstOob() -> i256 [selector=0xba496133, pure, abi_params=[], abi_retu
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
-    v2 = make_memory_slice v0, 3
-    v3 = lt 5, 3
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = slice_load_word v2, 160
+    v2 = lt 5, 3
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 160
+    v5 = load v4
     ret v5
 }
 
@@ -73,14 +73,15 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
     store v16, arg0
-    v17 = memory_slice v16
-    v18 = slice_len v17
-    v19 = lt arg1, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = shl 5, arg1
-    v22 = slice_load_word v17, v21
-    ret v22
+    v17 = load v16
+    v18 = lt arg1, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = shl 5, arg1
+    v21 = ptradd v16, 32
+    v22 = ptradd v21, v20
+    v23 = load v22
+    ret v23
 }
 
 fn @stDyn(arg0: i256) -> i256 [selector=0x392580ee, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

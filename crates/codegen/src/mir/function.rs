@@ -191,44 +191,15 @@ impl Function {
         }
     }
 
-    /// Returns the object a `memory_slice` view reads, if `id` is one.
+    /// Whether `value` is a word loaded from a memory object, which may hold a memory reference.
     #[must_use]
-    pub(crate) fn memory_slice_object(&self, id: ValueId) -> Option<ValueId> {
-        let Value::Inst(inst) = self.value(id) else { return None };
-        match self.inst(*inst).kind {
-            InstKind::MemorySlice(object) => Some(object),
-            _ => None,
-        }
-    }
-
-    /// Returns the fixed array or struct a `make_memory_slice` of its `memptr` views, if `id`
-    /// is one.
-    #[must_use]
-    pub(crate) fn fixed_view_object(&self, id: ValueId) -> Option<ValueId> {
-        let Value::Inst(inst) = self.value(id) else { return None };
-        match self.inst(*inst).kind {
-            InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. }
-                if self.value_ty(ptr) == Some(MirType::MEMPTR) =>
-            {
-                Some(ptr)
-            }
-            _ => None,
-        }
-    }
-
-    /// Returns the object a memory view reads, through either kind of view.
-    #[must_use]
-    pub(crate) fn view_object(&self, id: ValueId) -> Option<ValueId> {
-        self.memory_slice_object(id).or_else(|| self.fixed_view_object(id))
-    }
-
-    /// Whether `value` is an element loaded from a fixed array or struct.
-    #[must_use]
-    pub(crate) fn fixed_view_load(&self, value: ValueId) -> bool {
+    pub(crate) fn memory_object_load(&self, value: ValueId) -> bool {
         matches!(self.value(value), Value::Inst(inst) if matches!(
             self.inst(*inst).kind,
-            InstKind::SliceLoadWord { slice, offset }
-                if self.fixed_view_object(slice).is_some() && self.is_word_offset(offset)
+            InstKind::Load(address, PtrLocation::Memory)
+                if self.object_address(address).is_some_and(|(object, _)| {
+                    self.value_ty(object) == Some(MirType::MEMPTR)
+                })
         ))
     }
 
@@ -249,39 +220,6 @@ impl Function {
         }
     }
 
-    /// Returns the word a constant, word-aligned byte offset addresses.
-    #[must_use]
-    pub(crate) fn word_slot(&self, offset: ValueId) -> Option<u64> {
-        let offset = self.value_u64(offset)?;
-        let word = super::memory::EvmMemoryLayout::WORD_SIZE;
-        offset.is_multiple_of(word).then_some(offset / word)
-    }
-
-    /// Whether a byte offset is a whole number of words: a constant multiple of the word size,
-    /// a left shift by at least five, or a product with such a constant.
-    #[must_use]
-    pub(crate) fn is_word_offset(&self, offset: ValueId) -> bool {
-        let word = super::memory::EvmMemoryLayout::WORD_SIZE;
-        let aligned = |value| self.value_u64(value).is_some_and(|value| value.is_multiple_of(word));
-        if aligned(offset) {
-            return true;
-        }
-        let Value::Inst(inst) = self.value(offset) else { return false };
-        match self.inst(*inst).kind {
-            InstKind::Shl(shift, _) => {
-                self.value_u64(shift).is_some_and(|shift| shift >= u64::from(word.trailing_zeros()))
-            }
-            InstKind::Mul(lhs, rhs) => aligned(lhs) || aligned(rhs),
-            _ => false,
-        }
-    }
-
-    /// Whether `kind` reads the length of a `memory_slice` view.
-    #[must_use]
-    pub(crate) fn is_view_length(&self, kind: &InstKind) -> bool {
-        matches!(*kind, InstKind::SliceLen(view) if self.memory_slice_object(view).is_some())
-    }
-
     /// Returns the object and length of a store to an object's length word:
     /// `mstore object, len`, also through a pointer cast.
     #[must_use]
@@ -296,8 +234,7 @@ impl Function {
     }
 
     /// Resolves an address to the object it points into and its byte offset from the object
-    /// start, through pointer casts, constant additions, and `memory_slice` views, whose data
-    /// starts after the length word.
+    /// start, through pointer casts, constant additions, and memory slices of the object.
     #[must_use]
     pub(crate) fn object_address(&self, mut value: ValueId) -> Option<(ValueId, u64)> {
         let mut offset = 0_u64;
@@ -308,12 +245,9 @@ impl Function {
                 | InstKind::IntToPtr(base)
                 | InstKind::SlicePtr(base)
                 | InstKind::MakeSlice { ptr: base, location: PtrLocation::Memory, .. } => base,
-                InstKind::MemorySlice(object) => {
-                    offset =
-                        offset.checked_add(super::memory::EvmMemoryLayout::DYNAMIC_HEADER_SIZE)?;
-                    object
-                }
-                InstKind::Add(base, delta) if let Some(delta) = self.value_u64(delta) => {
+                InstKind::Add(base, delta) | InstKind::PtrAdd(base, delta)
+                    if let Some(delta) = self.value_u64(delta) =>
+                {
                     offset = offset.checked_add(delta)?;
                     base
                 }
@@ -323,7 +257,18 @@ impl Function {
         Some((value, offset))
     }
 
-    /// Returns whether an instruction only derives an address or view from another one, as
+    /// Resolves the address of a runtime-indexed word, `ptradd base, shl 5, index`, to the object
+    /// it points into, the byte offset of word zero from the object start, and the index.
+    #[must_use]
+    pub(crate) fn element_address(&self, address: ValueId) -> Option<(ValueId, u64, ValueId)> {
+        let Value::Inst(inst) = self.value(address) else { return None };
+        let InstKind::PtrAdd(base, offset) = self.inst(*inst).kind else { return None };
+        let index = self.word_index(offset)?;
+        let (object, offset) = self.object_address(base)?;
+        Some((object, offset, index))
+    }
+
+    /// Returns whether an instruction only derives an address from another one, as
     /// [`Self::object_address`] follows.
     #[must_use]
     pub(crate) fn is_object_derivation(&self, inst: InstId) -> bool {
@@ -331,9 +276,8 @@ impl Function {
             InstKind::PtrToInt(_, 256)
             | InstKind::IntToPtr(_)
             | InstKind::SlicePtr(_)
-            | InstKind::MemorySlice(_)
             | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
-            InstKind::Add(_, delta) => self.value_u64(delta).is_some(),
+            InstKind::Add(_, delta) | InstKind::PtrAdd(_, delta) => self.value_u64(delta).is_some(),
             _ => false,
         }
     }

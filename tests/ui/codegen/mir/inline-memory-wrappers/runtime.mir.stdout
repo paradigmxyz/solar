@@ -32,47 +32,48 @@ fn @wrap(arg0: memptr) -> memptr [pure] {
 
 fn @copy(arg0: memptr) -> memptr [pure] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc memorybytes, exact, zeroed, panic, v5
-    store v6, v1
+    v0 = load arg0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    icall panic_if<0x41>, v2
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    store v5, v0
     jump bb1
   bb1:
-    v7 = phi [bb0: v6], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v24]
-    v9 = phi [bb0: arg0], [bb3: v9]
-    v10 = memory_slice v9
-    v11 = slice_len v10
-    v12 = lt v8, v11
-    jumpi v12, bb4, bb5
+    v6 = phi [bb0: v5], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v25]
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = load v8
+    v10 = lt v7, v9
+    jumpi v10, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v7
+    ret v6
   bb4:
-    v13 = memory_slice v9
-    v14 = slice_len v13
-    v15 = lt v8, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = slice_load_byte v13, v8
+    v11 = load v8
+    v12 = lt v7, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v8, 32
+    v15 = ptradd v14, v7
+    v16 = load v15
+    v17 = byte 0, v16
     v18 = shl 248, v17
-    v19 = memory_slice v7
-    v20 = slice_len v19
-    v21 = lt v8, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = byte 0, v18
-    slice_store_byte v19, v8, v23
+    v19 = load v6
+    v20 = lt v7, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = byte 0, v18
+    v23 = ptradd v6, 32
+    v24 = ptradd v23, v7
+    store8 v24, v22
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v24 = checked_add u256, v8, 1
+    v25 = checked_add u256, v7, 1
     jump bb1
 }

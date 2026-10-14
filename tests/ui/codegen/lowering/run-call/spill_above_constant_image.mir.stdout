@@ -102,24 +102,23 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v34 = add v33, 32
     v35 = zext i160 v25 to i256
     extcodecopy v35, v34, 0, v27 !metadata(memory=heap)
-    v36 = memory_slice v32
-    v37 = slice_len v36
-    v38 = eq v37, 173
-    icall require<short_string>, v38, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v39 = ptrtoint memptr v32 to i256
-    v40 = add v39, 109
-    v41 = load v40
-    v42 = ptrtoint memptr v32 to i256
-    v43 = add v42, 141
-    v44 = load v43
-    v45 = ptrtoint memptr v32 to i256
-    v46 = add v45, 173
-    v47 = load v46
-    v48 = eq v41, 0x7a69
-    icall require<short_string>, v48, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v49 = eq v44, 0x4444444444444444444444444444444444444444
-    icall require<short_string>, v49, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v50 = eq v47, 0x5555
-    icall require<short_string>, v50, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v36 = load v32
+    v37 = eq v36, 173
+    icall require<short_string>, v37, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v38 = ptrtoint memptr v32 to i256
+    v39 = add v38, 109
+    v40 = load v39
+    v41 = ptrtoint memptr v32 to i256
+    v42 = add v41, 141
+    v43 = load v42
+    v44 = ptrtoint memptr v32 to i256
+    v45 = add v44, 173
+    v46 = load v45
+    v47 = eq v40, 0x7a69
+    icall require<short_string>, v47, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v48 = eq v43, 0x4444444444444444444444444444444444444444
+    icall require<short_string>, v48, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v49 = eq v46, 0x5555
+    icall require<short_string>, v49, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

@@ -4,20 +4,18 @@
   fn @constructor() [constructor] {
     bb0:
 -     v0 = icall @literal
--     v1 = memory_slice v0
-+     v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+-     v1 = load v0
++     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
++     v5 = ptrtoint memptr v4 to i256
++     store v5, 1
++     v6 = ptradd v4, 32
 +     v7 = ptrtoint memptr v6 to i256
-+     store v7, 1
-+     v8 = memory_slice v6
-+     v9 = slice_ptr v8
-+     store v9, 0x3100000000000000000000000000000000000000000000000000000000000000
-+     v1 = memory_slice v6
-      v2 = slice_len v1
-      sstore 0, v2
-      v3 = icall @indirect
-      v4 = memory_slice v3
-      v5 = slice_len v4
-      sstore 3, v5
++     store v7, 0x3100000000000000000000000000000000000000000000000000000000000000
++     v1 = load v4
+      sstore 0, v1
+      v2 = icall @indirect
+      v3 = load v2
+      sstore 3, v3
       stop
   }
   
@@ -28,8 +26,8 @@
 +     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
 +     v2 = ptrtoint memptr v1 to i256
 +     store v2, 1
-+     v3 = memory_slice v1
-+     v4 = slice_ptr v3
++     v3 = ptradd v1, 32
++     v4 = ptrtoint memptr v3 to i256
 +     store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
 +     ret v1
   }
@@ -39,8 +37,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      v3 = slice_ptr v2
+      v2 = ptradd v0, 32
+      v3 = ptrtoint memptr v2 to i256
       store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
@@ -49,8 +47,8 @@
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
-      v2 = memory_slice v0
-      slice_store_byte v2, 0, 65
+      v2 = ptradd v0, 32
+      store8 v2, 65
       ret v1
   }
   
@@ -59,8 +57,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -80,8 +78,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -96,8 +94,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
@@ -126,8 +124,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -142,8 +140,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -152,19 +150,17 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v5 = ptrtoint memptr v4 to i256
+      store v5, 1
+      v6 = ptradd v4, 32
       v7 = ptrtoint memptr v6 to i256
-      store v7, 1
-      v8 = memory_slice v6
-      v9 = slice_ptr v8
-      store v9, 0x3100000000000000000000000000000000000000000000000000000000000000
-      v1 = memory_slice v6
-      v2 = slice_len v1
-      sstore 0, v2
-      v3 = icall @indirect
-      v4 = memory_slice v3
-      v5 = slice_len v4
-      sstore 3, v5
+      store v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = load v4
+      sstore 0, v1
+      v2 = icall @indirect
+      v3 = load v2
+      sstore 3, v3
       stop
   }
   
@@ -173,8 +169,8 @@
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v2 = ptrtoint memptr v1 to i256
       store v2, 1
-      v3 = memory_slice v1
-      v4 = slice_ptr v3
+      v3 = ptradd v1, 32
+      v4 = ptrtoint memptr v3 to i256
       store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v1
   }
@@ -184,8 +180,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      v3 = slice_ptr v2
+      v2 = ptradd v0, 32
+      v3 = ptrtoint memptr v2 to i256
       store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
@@ -194,8 +190,8 @@
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
-      v2 = memory_slice v0
-      slice_store_byte v2, 0, 65
+      v2 = ptradd v0, 32
+      store8 v2, 65
       ret v1
   }
   
@@ -204,8 +200,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -225,8 +221,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -241,8 +237,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
@@ -271,8 +267,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -287,8 +283,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -297,19 +293,17 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v5 = ptrtoint memptr v4 to i256
+      store v5, 1
+      v6 = ptradd v4, 32
       v7 = ptrtoint memptr v6 to i256
-      store v7, 1
-      v8 = memory_slice v6
-      v9 = slice_ptr v8
-      store v9, 0x3100000000000000000000000000000000000000000000000000000000000000
-      v1 = memory_slice v6
-      v2 = slice_len v1
-      sstore 0, v2
-      v3 = icall @indirect
-      v4 = memory_slice v3
-      v5 = slice_len v4
-      sstore 3, v5
+      store v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = load v4
+      sstore 0, v1
+      v2 = icall @indirect
+      v3 = load v2
+      sstore 3, v3
       stop
   }
   
@@ -318,8 +312,8 @@
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v2 = ptrtoint memptr v1 to i256
       store v2, 1
-      v3 = memory_slice v1
-      v4 = slice_ptr v3
+      v3 = ptradd v1, 32
+      v4 = ptrtoint memptr v3 to i256
       store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v1
   }
@@ -329,8 +323,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      v3 = slice_ptr v2
+      v2 = ptradd v0, 32
+      v3 = ptrtoint memptr v2 to i256
       store v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
@@ -339,8 +333,8 @@
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
-      v2 = memory_slice v0
-      slice_store_byte v2, 0, 65
+      v2 = ptradd v0, 32
+      store8 v2, 65
       ret v1
   }
   
@@ -349,8 +343,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3200000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -370,8 +364,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3300000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -386,8 +380,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3400000000000000000000000000000000000000000000000000000000000000
       sstore 1, 1
       ret v0
   }
@@ -416,8 +410,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3500000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -432,8 +426,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
-      v2 = memory_slice v0
-      slice_store_word v2, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+      v2 = ptradd v0, 32
+      store v2, 0x3600000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   

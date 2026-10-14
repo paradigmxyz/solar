@@ -12,14 +12,15 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, arg0
-      v2 = memory_slice v0
--     v3 = ne arg1, 0
--     jumpi v3, bb1, bb2
+-     v2 = ne arg1, 0
+-     jumpi v2, bb1, bb2
 -   bb2:
-      slice_store_byte v2, 0, 45
+      v4 = ptradd v0, 32
+      store8 v4, 45
 -     ret v0
 -   bb1:
--     slice_store_byte v2, 0, 95
+-     v3 = ptradd v0, 32
+-     store8 v3, 95
       ret v0
   }
   
@@ -39,8 +40,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = ptrtoint memptr v0 to i256
       store v1, arg0
-      v2 = memory_slice v0
-      slice_store_byte v2, 0, 45
+      v4 = ptradd v0, 32
+      store8 v4, 45
       ret v0
   }
   

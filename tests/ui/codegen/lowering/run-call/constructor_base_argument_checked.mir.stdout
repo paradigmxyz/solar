@@ -198,12 +198,12 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
 fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = icall @table
-    v1 = make_memory_slice v0, 2
-    v2 = lt arg0, 2
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = shl 5, arg0
-    v5 = slice_load_word v1, v4
+    v1 = lt arg0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = shl 5, arg0
+    v4 = ptradd v0, v3
+    v5 = load v4
     sstore 0, v5 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -217,16 +217,15 @@ fn @table() -> memptr [pure] {
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = make_memory_slice v0, 2
-    v3 = lt 0, 2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    slice_store_word v2, 0, 5
-    v5 = make_memory_slice v0, 2
-    v6 = lt 1, 2
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    slice_store_word v5, 32, 6
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    store v0, 5
+    v4 = lt 1, 2
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = ptradd v0, 32
+    store v6, 6
     ret v0
 }
 

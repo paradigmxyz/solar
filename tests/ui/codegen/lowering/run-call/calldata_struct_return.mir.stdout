@@ -69,30 +69,27 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v23 = insert_value struct3, v22, 1, v21
     v24 = extract_value struct3, v23, 0
     v25 = extract_value struct3, v23, 1
-    v26 = make_memory_slice v25, 6
-    v27 = slice_load_word v26, 0
-    v28 = make_memory_slice v25, 6
-    v29 = slice_load_word v28, 32
-    v30 = make_memory_slice v25, 6
-    v31 = slice_load_word v30, 64
-    v32 = make_memory_slice v25, 6
-    v33 = slice_load_word v32, 96
-    v34 = make_memory_slice v25, 6
-    v35 = slice_load_word v34, 128, memptr
-    v36 = memory_slice v35
-    v37 = slice_len v36
-    v38 = make_memory_slice v25, 6
-    v39 = slice_load_word v38, 160, memptr
-    v40 = memory_slice v39
-    v41 = slice_len v40
-    v42 = insert_value struct2, undef struct2, 0, v24
-    v43 = insert_value struct2, v42, 1, v27
-    v44 = insert_value struct2, v43, 2, v29
-    v45 = insert_value struct2, v44, 3, v31
-    v46 = insert_value struct2, v45, 4, v33
-    v47 = insert_value struct2, v46, 5, v37
-    v48 = insert_value struct2, v47, 6, v41
-    ret v48
+    v26 = load v25
+    v27 = ptradd v25, 32
+    v28 = load v27
+    v29 = ptradd v25, 64
+    v30 = load v29
+    v31 = ptradd v25, 96
+    v32 = load v31
+    v33 = ptradd v25, 128
+    v34 = load v33, memptr
+    v35 = load v34
+    v36 = ptradd v25, 160
+    v37 = load v36, memptr
+    v38 = load v37
+    v39 = insert_value struct2, undef struct2, 0, v24
+    v40 = insert_value struct2, v39, 1, v26
+    v41 = insert_value struct2, v40, 2, v28
+    v42 = insert_value struct2, v41, 3, v30
+    v43 = insert_value struct2, v42, 4, v32
+    v44 = insert_value struct2, v43, 5, v35
+    v45 = insert_value struct2, v44, 6, v38
+    ret v45
 }
 
 fn @decode.3(arg0: calldataslice) -> struct1 [pure] {

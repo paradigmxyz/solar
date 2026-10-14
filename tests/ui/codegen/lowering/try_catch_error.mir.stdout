@@ -62,34 +62,36 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = memory_slice v11
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = slice_load_word v12, 0
-    v16 = shr 224, v15
-    v17 = eq v16, 0x8c379a0
-    jumpi v17, bb4, bb5
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    v14 = load v11
+    v15 = make_memory_slice v13, v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = slice_ptr v15
+    v19 = load v18
+    v20 = shr 224, v19
+    v21 = eq v20, 0x8c379a0
+    jumpi v21, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v18 = icall @try_decode_error_message, v13, v14
+    v22 = icall @try_decode_error_message, v16, v17
     jump bb6
   bb6:
-    v19 = phi [bb4: v18], [bb5: false]
-    jumpi v19, bb7, bb8
+    v23 = phi [bb4: v22], [bb5: false]
+    jumpi v23, bb7, bb8
   bb8:
-    revert v13, v14
+    revert v16, v17
   bb7:
-    v20 = memory_slice v11
-    v21 = slice_len v20
-    v22 = ptrtoint memptr v11 to i256
-    v23 = add v22, 36
-    v24 = sub v21, 4
-    v25 = make_memory_slice v23, v24
-    v26 = abi_decode [bytes], v25
-    v27 = memory_slice v26
-    v28 = slice_len v27
-    ret v28
+    v24 = load v11
+    v25 = ptrtoint memptr v11 to i256
+    v26 = add v25, 36
+    v27 = sub v24, 4
+    v28 = make_memory_slice v26, v27
+    v29 = abi_decode [bytes], v28
+    v30 = load v29
+    ret v30
   bb1:
     jump bb3
   bb3:
@@ -113,34 +115,36 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = memory_slice v11
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = slice_load_word v12, 0
-    v16 = shr 224, v15
-    v17 = eq v16, 0x8c379a0
-    jumpi v17, bb4, bb5
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    v14 = load v11
+    v15 = make_memory_slice v13, v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = slice_ptr v15
+    v19 = load v18
+    v20 = shr 224, v19
+    v21 = eq v20, 0x8c379a0
+    jumpi v21, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v18 = icall @try_decode_error_message, v13, v14
+    v22 = icall @try_decode_error_message, v16, v17
     jump bb6
   bb6:
-    v19 = phi [bb4: v18], [bb5: false]
-    jumpi v19, bb7, bb8
+    v23 = phi [bb4: v22], [bb5: false]
+    jumpi v23, bb7, bb8
   bb8:
-    revert v13, v14
+    revert v16, v17
   bb7:
-    v20 = memory_slice v11
-    v21 = slice_len v20
-    v22 = ptrtoint memptr v11 to i256
-    v23 = add v22, 36
-    v24 = sub v21, 4
-    v25 = make_memory_slice v23, v24
-    v26 = abi_decode [bytes], v25
-    v27 = memory_slice v26
-    v28 = slice_len v27
-    ret v28
+    v24 = load v11
+    v25 = ptrtoint memptr v11 to i256
+    v26 = add v25, 36
+    v27 = sub v24, 4
+    v28 = make_memory_slice v26, v27
+    v29 = abi_decode [bytes], v28
+    v30 = load v29
+    ret v30
   bb1:
     jump bb3
   bb3:

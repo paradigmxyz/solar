@@ -1195,6 +1195,7 @@ symbols! {
         phase,
         phi,
         preserves_fmp,
+        ptradd,
         ptrtoint,
         push,
         push_data,

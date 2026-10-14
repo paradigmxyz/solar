@@ -37,22 +37,21 @@ fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[wor
     v2 = add v1, 32
     store v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v3 = icall @consume, v0
-    v4 = memory_slice v3
-    v5 = slice_len v4
-    ret v5
+    v4 = load v3
+    ret v4
 }
 
 fn @makePair(arg0: i256) -> memptr [pure] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = make_memory_slice v0, 2
-    slice_store_word v1, 0, 0
-    slice_store_word v1, 32, 0
+    store v0, 0
+    v1 = ptradd v0, 32
+    store v1, 0
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v3 = checked_add u256, arg0, 1
-    v4 = make_memory_slice v2, 2
-    slice_store_word v4, 0, arg0
-    slice_store_word v4, 32, v3
+    store v2, arg0
+    v4 = ptradd v2, 32
+    store v4, v3
     ret v2
 }
 
@@ -60,11 +59,11 @@ fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = checked_add u256, 2, 1
-    v2 = make_memory_slice v0, 2
-    slice_store_word v2, 0, 2
-    slice_store_word v2, 32, v1
-    v3 = make_memory_slice v0, 2
-    v4 = slice_load_word v3, 32
+    store v0, 2
+    v2 = ptradd v0, 32
+    store v2, v1
+    v3 = ptradd v0, 32
+    v4 = load v3
     ret v4
 }
 

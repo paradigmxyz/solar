@@ -83,9 +83,8 @@ fn @encodeConstant() -> i256 [selector=0xbffc53ff, pure, abi_params=[], abi_retu
     v2 = add v1, 32
     store v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
     v3 = abi_encode [memory_bytes, word], object, selector 0xb60e72cc00000000000000000000000000000000000000000000000000000000, args v0, 1
-    v4 = memory_slice v3
-    v5 = slice_len v4
-    ret v5
+    v4 = load v3
+    ret v4
 }
 
 fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -96,24 +95,21 @@ fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_
     v2 = add v1, 32
     store v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
     v3 = abi_encode [memory_bytes], object, selector 0xd45754f800000000000000000000000000000000000000000000000000000000, args v0
-    v4 = memory_slice v3
-    v5 = slice_len v4
-    ret v5
+    v4 = load v3
+    ret v4
 }
 
 fn @lenPlus(arg0: memptr, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = checked_add u256, v1, arg1
-    ret v2
+    v0 = load arg0
+    v1 = checked_add u256, v0, arg1
+    ret v1
 }
 
 fn @lenBytes(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    ret v1
+    v0 = load arg0
+    ret v0
 }
 
 fn @firstWord(arg0: memptr) -> i256 [pure] {

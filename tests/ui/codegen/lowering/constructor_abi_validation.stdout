@@ -26,11 +26,11 @@ fn @constructor(arg0: i1, arg1: memptr) [constructor, abi_params=[bool, array<2,
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    v6 = make_memory_slice arg1, 2
-    v7 = lt 1, 2
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_word v6, 32
+    v6 = lt 1, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd arg1, 32
+    v9 = load v8
     v10 = eq v9, 0
     v11 = eq v10, false
     v12 = shl 8, 255

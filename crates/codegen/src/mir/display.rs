@@ -504,17 +504,9 @@ fn display_inst_kind<'a>(
                 display_val(*size, func)
             )
         }
-        InstKind::SliceLoadWord { slice, offset } => {
-            write!(
-                f,
-                "slice_load_word {}, {}",
-                display_val(*slice, func),
-                display_val(*offset, func)
-            )?;
-            if result_ty == Some(MirType::MEMPTR) {
-                write!(f, ", memptr")?;
-            }
-            Ok(())
+        InstKind::Load(..) if result_ty == Some(MirType::MEMPTR) => {
+            display_inst_operands(f, kind, func)?;
+            write!(f, ", memptr")
         }
         InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
             f,

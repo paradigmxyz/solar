@@ -204,6 +204,8 @@ struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
     replacements: FxHashMap<ValueId, ValueId>,
+    /// Pointer loads that read their reaching word back through a cast.
+    casts: Vec<(InstId, ValueId)>,
     dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
     /// Blocks where this slot is live-in. Used to place phis only where the slot
@@ -723,6 +725,7 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
     let mut dead = GrowableBitSet::with_capacity(func.num_insts());
     for builder in builders {
         builder.apply_phis(func);
+        builder.apply_casts(func);
         replacements.extend(builder.replacements);
         for inst in builder.dead.iter() {
             dead.insert(inst);
@@ -741,6 +744,7 @@ impl<'a> SlotSsaBuilder<'a> {
             info,
             cfg,
             replacements: FxHashMap::default(),
+            casts: Vec::new(),
             dead: GrowableBitSet::with_capacity(instruction_count),
             phis: FxHashMap::default(),
             live_in: DenseBitSet::new_empty(info.use_blocks.domain_size()),
@@ -920,6 +924,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn apply(self, func: &mut Function) {
         self.apply_phis(func);
+        self.apply_casts(func);
         // result = load slot => result = reaching_value
         func.replace_uses_canonicalized(&self.replacements);
 
@@ -1000,7 +1005,7 @@ impl<'a> SlotSsaBuilder<'a> {
     /// value operand and keeps the scalar zero supplied by SROA.
     fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
         match func.inst(inst).kind {
-            InstKind::Store(_, value) | InstKind::SliceStoreWord { value, .. } => value,
+            InstKind::Store(_, value) => value,
             InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
             _ => unreachable!("promoted definition must be a word store or zero fill"),
         }
@@ -1012,10 +1017,22 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn replace_load(&mut self, func: &Function, inst_id: InstId, value: ValueId) {
         if let Some(load_value) = func.inst_result_value(inst_id) {
-            self.replacements
-                .insert(load_value, mir_utils::resolve_replacement(value, &self.replacements));
-            self.dead.insert(inst_id);
+            let value = mir_utils::resolve_replacement(value, &self.replacements);
+            if func.value_ty(load_value) == func.value_ty(value) {
+                self.replacements.insert(load_value, value);
+                self.dead.insert(inst_id);
+            } else {
+                self.casts.push((inst_id, value));
+            }
             self.loads_promoted += 1;
+        }
+    }
+
+    /// Rewrites each pointer load into a cast of the word it reads.
+    fn apply_casts(&self, func: &mut Function) {
+        // result = load slot, memptr => result = inttoptr reaching_value to memptr
+        for &(inst, value) in &self.casts {
+            func.inst_mut(inst).replace_kind(InstKind::IntToPtr(value));
         }
     }
 

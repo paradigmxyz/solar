@@ -17,10 +17,11 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @compareElement{{[( ]}}
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice arg0
     // CHECK: icall panic_if<0x32>
-    // CHECK-NEXT: slice_load_byte [[VIEW]], 0
-    // CHECK: shl 248,
+    // CHECK-NEXT: [[ELEM:v[0-9]+]] = ptradd arg0, 32
+    // CHECK-NEXT: [[WORD:v[0-9]+]] = load [[ELEM]]
+    // CHECK-NEXT: [[BYTE:v[0-9]+]] = byte 0, [[WORD]]
+    // CHECK-NEXT: shl 248, [[BYTE]]
     // CHECK: eq
     function compareElement(bytes memory data) external pure returns (bool) {
         return data[0] == bytes1(uint8(1));

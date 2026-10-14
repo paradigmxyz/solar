@@ -8,35 +8,33 @@ fn @forward_length(arg0: memptr) -> i256 {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     store v0, 39
-    v2 = memory_slice arg0
-    v1 = slice_len v2
+    v1 = load arg0
     ret v1
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_length_after_clobber{{[( ]}}
 // CHECK: {{^[ +].*}}store arg1, 7
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = memory_slice
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = slice_len
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = load arg0
 fn @keep_length_after_clobber(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     store v0, 39
     store arg1, 7
-    v3 = memory_slice arg0
-    v2 = slice_len v3
+    v2 = load arg0
     ret v2
 }
 
 // CHECK-LABEL: fn @store_bytes_reads_memory
 // CHECK: {{^[ +].*}}store {{v[0-9]+}}, 32
-// CHECK: {{^[ +].*}}slice_store_word {{v[0-9]+}}, 0, 7
+// CHECK: {{^[ +].*}}[[DATA:v[0-9]+]] = ptradd arg1, 32
+// CHECK-NEXT: {{^[ +].*}}store [[DATA]], 7
 // CHECK: {{^[ +].*}}store_storage_bytes arg0, arg1
 fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
   bb0:
     v0 = ptrtoint memptr arg1 to i256
     store v0, 32
-    v1 = memory_slice arg1
-    slice_store_word v1, 0, 7
+    v1 = ptradd arg1, 32
+    store v1, 7
     store_storage_bytes arg0, arg1
     ret
 }
@@ -51,8 +49,8 @@ fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     v6 = ptrtoint memptr v0 to i256
     store v6, 39
-    v7 = memory_slice v0
-    v1 = slice_ptr v7
+    v7 = ptradd v0, 32
+    v1 = ptrtoint memptr v7 to i256
     store v1, 7
     v2 = load v6
     v4 = ne arg1, 0

@@ -13,9 +13,9 @@ fn @emitArray(arg0: memptr) [selector=0x86cb3475, abi_params=[array<2, u256>], a
 fn @emitDynamicArray(arg0: memptr) [selector=0xf38510d4, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
-    v1 = memory_slice v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v1 = ptrtoint memptr v0 to i256
+    v2 = add v1, 32
+    v3 = load v0
     v4 = keccak256 v2, v3
     log 0, 0, 0x8786d2e40590df58388ef33167c85cc850817db2389c82328af07e1b626441cf, v4
     ret

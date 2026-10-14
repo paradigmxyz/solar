@@ -75,40 +75,39 @@ fn @f(arg0: calldataslice) -> memptr [selector=0xc26b6b9a, pure, abi_params=[arr
     v53 = alloc memoryarray<1>, exact, uninitialized, infallible, v51
     store v53, v36
     v54 = make_calldata_slice v43, v44
-    v55 = ptrtoint memptr v53 to i256
-    v56 = add v55, 32
+    v55 = ptradd v53, 32
+    v56 = slice_ptr v54
     v57 = slice_len v54
-    v58 = make_memory_slice v56, v57
-    slice_copy v58, 0, v54
-    v59 = ptrtoint memptr v53 to i256
-    v60 = memory_slice v21
-    v61 = shl 5, v22
-    slice_store_word v60, v61, v59
+    copy calldata v55, v56, v57
+    v58 = ptrtoint memptr v53 to i256
+    v59 = shl 5, v22
+    v60 = ptradd v21, 32
+    v61 = ptradd v60, v59
+    store v61, v58
     v62 = add v22, 1
     jump bb1
 }
 
 fn @lengthMemory(arg0: memptr) -> i256 [selector=0xdefa62e9, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    ret v1
+    v0 = load arg0
+    ret v0
 }
 
 fn @sumMemory(arg0: memptr) -> i256 [selector=0x13201b5d, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = memory_slice arg0
-    v1 = slice_len v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = slice_load_word v0, 0
-    v5 = memory_slice arg0
-    v6 = slice_len v5
-    v7 = lt 1, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = slice_load_word v5, 32
+    v0 = load arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 32
+    v4 = load v3
+    v5 = load arg0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd arg0, 64
+    v9 = load v8
     v10 = checked_add u256, v4, v9
     ret v10
 }

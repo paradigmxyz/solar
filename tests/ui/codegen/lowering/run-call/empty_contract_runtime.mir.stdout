@@ -20,31 +20,29 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v7 = add v6, v5
     store v7, 0
     datacopy A_creation_code_0, v4, v0
-    v8 = memory_slice v2
-    v9 = slice_len v8
-    v10 = gt v9, 0
-    jumpi v10, bb1, bb2
+    v8 = load v2
+    v9 = gt v8, 0
+    jumpi v9, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = datasize A_runtime_code_1
-    v12 = datasize A_runtime_code_1, 63, aligned
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
-    store v13, v11
-    v14 = ptrtoint memptr v13 to i256
-    v15 = add v14, 32
-    v16 = datasize A_runtime_code_1, 31, aligned
-    v17 = ptrtoint memptr v13 to i256
-    v18 = add v17, v16
-    store v18, 0
-    datacopy A_runtime_code_1, v15, v11
-    v19 = memory_slice v13
-    v20 = slice_len v19
-    v21 = gt v20, 0
+    v10 = datasize A_runtime_code_1
+    v11 = datasize A_runtime_code_1, 63, aligned
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(preserves_fmp)
+    store v12, v10
+    v13 = ptrtoint memptr v12 to i256
+    v14 = add v13, 32
+    v15 = datasize A_runtime_code_1, 31, aligned
+    v16 = ptrtoint memptr v12 to i256
+    v17 = add v16, v15
+    store v17, 0
+    datacopy A_runtime_code_1, v14, v10
+    v18 = load v12
+    v19 = gt v18, 0
     jump bb3
   bb3:
-    v22 = phi [bb1: v21], [bb2: false]
-    ret v22
+    v20 = phi [bb1: v19], [bb2: false]
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
@@ -82,52 +80,49 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v7 = add v6, v5
     store v7, 0
     datacopy InternalContract_runtime_code_0, v4, v0
-    v8 = memory_slice v2
-    v9 = slice_len v8
-    v10 = gt v9, 0
-    jumpi v10, bb1, bb2
+    v8 = load v2
+    v9 = gt v8, 0
+    jumpi v9, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = datasize ConstructorOnly_runtime_code_1
-    v12 = datasize ConstructorOnly_runtime_code_1, 63, aligned
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
-    store v13, v11
-    v14 = ptrtoint memptr v13 to i256
-    v15 = add v14, 32
-    v16 = datasize ConstructorOnly_runtime_code_1, 31, aligned
-    v17 = ptrtoint memptr v13 to i256
-    v18 = add v17, v16
-    store v18, 0
-    datacopy ConstructorOnly_runtime_code_1, v15, v11
-    v19 = memory_slice v13
-    v20 = slice_len v19
-    v21 = gt v20, 0
+    v10 = datasize ConstructorOnly_runtime_code_1
+    v11 = datasize ConstructorOnly_runtime_code_1, 63, aligned
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(preserves_fmp)
+    store v12, v10
+    v13 = ptrtoint memptr v12 to i256
+    v14 = add v13, 32
+    v15 = datasize ConstructorOnly_runtime_code_1, 31, aligned
+    v16 = ptrtoint memptr v12 to i256
+    v17 = add v16, v15
+    store v17, 0
+    datacopy ConstructorOnly_runtime_code_1, v14, v10
+    v18 = load v12
+    v19 = gt v18, 0
     jump bb3
   bb3:
-    v22 = phi [bb1: v21], [bb2: false]
-    jumpi v22, bb4, bb5
+    v20 = phi [bb1: v19], [bb2: false]
+    jumpi v20, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v23 = datasize InternalLibrary_runtime_code_2
-    v24 = datasize InternalLibrary_runtime_code_2, 63, aligned
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24 !metadata(preserves_fmp)
-    store v25, v23
-    v26 = ptrtoint memptr v25 to i256
-    v27 = add v26, 32
-    v28 = datasize InternalLibrary_runtime_code_2, 31, aligned
-    v29 = ptrtoint memptr v25 to i256
-    v30 = add v29, v28
-    store v30, 0
-    datacopy InternalLibrary_runtime_code_2, v27, v23
-    v31 = memory_slice v25
-    v32 = slice_len v31
-    v33 = gt v32, 0
+    v21 = datasize InternalLibrary_runtime_code_2
+    v22 = datasize InternalLibrary_runtime_code_2, 63, aligned
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
+    store v23, v21
+    v24 = ptrtoint memptr v23 to i256
+    v25 = add v24, 32
+    v26 = datasize InternalLibrary_runtime_code_2, 31, aligned
+    v27 = ptrtoint memptr v23 to i256
+    v28 = add v27, v26
+    store v28, 0
+    datacopy InternalLibrary_runtime_code_2, v25, v21
+    v29 = load v23
+    v30 = gt v29, 0
     jump bb6
   bb6:
-    v34 = phi [bb4: v33], [bb5: false]
-    ret v34
+    v31 = phi [bb4: v30], [bb5: false]
+    ret v31
 }
 
 fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

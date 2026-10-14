@@ -11,11 +11,14 @@ contract BytesMemoryElements {
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = and 159, [[MASK]]
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: store [[BUF]], 96
-    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
-    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[BUF]]
-    // CHECK: slice_ptr [[VIEW]]
-    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[P5:v[0-9]+]] = ptradd [[BUF]], 37
+    // CHECK-NEXT: store8 [[P5]], {{v[0-9]+}}
+    // CHECK: [[P95:v[0-9]+]] = ptradd [[BUF]], 127
+    // CHECK-NEXT: store8 [[P95]], {{v[0-9]+}}
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = load [[BUF]]
+    // CHECK-NEXT: keccak256 [[DATA]], [[LEN]]
     function alloc() external pure returns (bytes32) {
         bytes memory buf = new bytes(96);
         buf[5] = 0xAA;
@@ -26,10 +29,12 @@ contract BytesMemoryElements {
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
     // CHECK: store [[BUF]], 10
-    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
-    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[BUF]]
-    // CHECK: slice_ptr [[VIEW]]
-    // CHECK: keccak256 {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[P5:v[0-9]+]] = ptradd [[BUF]], 37
+    // CHECK-NEXT: store8 [[P5]], {{v[0-9]+}}
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = load [[BUF]]
+    // CHECK-NEXT: keccak256 [[DATA]], [[LEN]]
     function literal() external pure returns (bytes32) {
         bytes memory buf = hex"00010203040506070809";
         buf[5] = 0xAA;
@@ -49,13 +54,16 @@ contract BytesMemoryElements {
     }
 
     // CHECK-LABEL: fn @readWrite{{[( ]}}
-    // CHECK: [[STORE_VIEW:v[0-9]+]] = memory_slice arg0
     // CHECK: icall panic_if<0x32>
     // CHECK: [[BYTE:v[0-9]+]] = byte 0, arg2
-    // CHECK: slice_store_byte [[STORE_VIEW]], arg1, [[BYTE]]
-    // CHECK: [[LOAD_VIEW:v[0-9]+]] = memory_slice arg0
+    // CHECK-NEXT: [[STORE_DATA:v[0-9]+]] = ptradd arg0, 32
+    // CHECK-NEXT: [[STORE_PTR:v[0-9]+]] = ptradd [[STORE_DATA]], arg1
+    // CHECK-NEXT: store8 [[STORE_PTR]], [[BYTE]]
     // CHECK: icall panic_if<0x32>
-    // CHECK: slice_load_byte [[LOAD_VIEW]], arg1
+    // CHECK-NEXT: [[LOAD_DATA:v[0-9]+]] = ptradd arg0, 32
+    // CHECK-NEXT: [[LOAD_PTR:v[0-9]+]] = ptradd [[LOAD_DATA]], arg1
+    // CHECK-NEXT: [[WORD:v[0-9]+]] = load [[LOAD_PTR]]
+    // CHECK-NEXT: {{v[0-9]+}} = byte 0, [[WORD]]
     function readWrite(bytes memory b, uint i, bytes1 v) external pure returns (bytes1) {
         b[i] = v;
         return b[i];
