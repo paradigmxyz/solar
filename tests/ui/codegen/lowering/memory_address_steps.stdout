@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/lowering/memory_address_steps.sol:Test ===
+@module Test
+@phase lowered
+fn @digest() [selector=0x34f91b55, abi_wrapper, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 164
+    jumpi v5, bb1, bb2
+  bb2:
+    mstore arg0, arg1
+    v0 = add arg0, 32
+    mstore v0, arg2
+    v1 = add v0, 32
+    mstore v1, arg3
+    v2 = add v1, 32
+    mstore v2, arg4
+    v3 = keccak256 arg0, 128
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x34f91b55 => bb2]
+  bb2:
+    tail_call @digest
+  bb3:
+    revert 0, 0
+}
