@@ -2987,7 +2987,7 @@ fn analyze_cancellable_with_source_map(
             }
         }
 
-        let mut symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
+        let symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
         if cancellation.is_cancelled() {
             return None;
         }

@@ -23,13 +23,34 @@ use solar_interface::data_structures::{
 };
 use std::{path::PathBuf, sync::Arc};
 
+/// Binding snapshot material saved from analysis for later lazy construction.
+#[derive(Clone, Debug)]
+struct BindingsMaterial {
+    occurrences: Vec<OccurrenceMaterial>,
+    references: Vec<(Location, Vec<Location>)>,
+}
+
+#[derive(Clone, Debug)]
+struct OccurrenceMaterial {
+    location: Location,
+    targets: Vec<TargetMaterial>,
+}
+
+#[derive(Clone, Debug)]
+enum TargetMaterial {
+    Symbol { uri: Url, range: Range },
+    ImportAlias(Location),
+    MappingName(Location),
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct RenameAnalysis {
     opts: CompileOpts,
     roots: FxHashSet<PathBuf>,
     sources: FxHashMap<Url, Arc<String>>,
-    bindings: FxHashMap<Location, Vec<Location>>,
-    errors: Vec<(Url, Diagnostic)>,
+    bindings_material: BindingsMaterial,
+    bindings: std::sync::OnceLock<FxHashMap<Location, Vec<Location>>>,
+    errors: std::sync::OnceLock<Arc<[(Url, Diagnostic)]>>,
 }
 
 impl RenameAnalysis {
@@ -40,33 +61,46 @@ impl RenameAnalysis {
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
         references: impl Iterator<Item = (Location, Vec<Location>)>,
     ) -> Self {
-        let mut bindings = FxHashMap::<_, Vec<_>>::default();
-        for occurrence in &index.occurrences {
-            let targets = occurrence.targets.iter().map(|target| match *target {
-                RenameTarget::Symbol(id) => {
-                    let declaration = &declarations[id];
-                    Location::new(declaration.location.uri.clone(), declaration.name_range)
-                }
-                RenameTarget::ImportAlias(id) => index.aliases[id].location.clone(),
-                RenameTarget::MappingName(id) => index.mapping_names[id].location.clone(),
-            });
-            bindings.entry(occurrence.location.clone()).or_default().extend(targets);
+        // Save material for lazy construction on first validate call.
+        let occurrences = index
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                let targets = occurrence
+                    .targets
+                    .iter()
+                    .map(|target| match *target {
+                        RenameTarget::Symbol(id) => {
+                            let declaration = &declarations[id];
+                            TargetMaterial::Symbol {
+                                uri: declaration.location.uri.clone(),
+                                range: declaration.name_range,
+                            }
+                        }
+                        RenameTarget::ImportAlias(id) => {
+                            TargetMaterial::ImportAlias(index.aliases[id].location.clone())
+                        }
+                        RenameTarget::MappingName(id) => {
+                            TargetMaterial::MappingName(index.mapping_names[id].location.clone())
+                        }
+                    })
+                    .collect();
+                OccurrenceMaterial { location: occurrence.location.clone(), targets }
+            })
+            .collect();
+        let references = references.collect();
+        Self {
+            opts,
+            roots,
+            sources: index.analyzed_contents.clone(),
+            bindings_material: BindingsMaterial { occurrences, references },
+            bindings: std::sync::OnceLock::new(),
+            errors: std::sync::OnceLock::new(),
         }
-        // Include references that cannot themselves be renamed, such as ambiguous overloads.
-        for (location, targets) in references {
-            bindings.entry(location).or_default().extend(targets);
-        }
-        for targets in bindings.values_mut() {
-            targets.sort_unstable_by(|a, b| {
-                (&a.uri, proto::range_key(a.range)).cmp(&(&b.uri, proto::range_key(b.range)))
-            });
-            targets.dedup();
-        }
-        Self { opts, roots, sources: index.analyzed_contents.clone(), bindings, errors: Vec::new() }
     }
 
-    pub(crate) fn record_diagnostics(&mut self, diagnostics: &DiagnosticMap) {
-        self.errors = diagnostics
+    pub(crate) fn record_diagnostics(&self, diagnostics: &DiagnosticMap) {
+        let errors: Arc<[(Url, Diagnostic)]> = diagnostics
             .iter()
             .flat_map(|(uri, diagnostics)| {
                 diagnostics
@@ -75,10 +109,39 @@ impl RenameAnalysis {
                     .map(|diagnostic| (uri.clone(), diagnostic.clone()))
             })
             .collect();
+        let _ = self.errors.set(errors);
     }
 
     pub(crate) fn contains(&self, uri: &Url) -> bool {
         self.sources.contains_key(uri)
+    }
+
+    fn bindings(&self) -> &FxHashMap<Location, Vec<Location>> {
+        self.bindings.get_or_init(|| {
+            let mut bindings = FxHashMap::<_, Vec<_>>::default();
+            for occurrence in &self.bindings_material.occurrences {
+                let targets = occurrence.targets.iter().map(|target| match target {
+                    TargetMaterial::Symbol { uri, range } => Location::new(uri.clone(), *range),
+                    TargetMaterial::ImportAlias(location) => location.clone(),
+                    TargetMaterial::MappingName(location) => location.clone(),
+                });
+                bindings.entry(occurrence.location.clone()).or_default().extend(targets);
+            }
+            for (location, targets) in &self.bindings_material.references {
+                bindings.entry(location.clone()).or_default().extend(targets.iter().cloned());
+            }
+            for targets in bindings.values_mut() {
+                targets.sort_unstable_by(|a, b| {
+                    (&a.uri, proto::range_key(a.range)).cmp(&(&b.uri, proto::range_key(b.range)))
+                });
+                targets.dedup();
+            }
+            bindings
+        })
+    }
+
+    fn errors(&self) -> &[(Url, Diagnostic)] {
+        self.errors.get().map(|arc| arc.as_ref()).unwrap_or(&[])
     }
 
     pub(crate) fn validate(
@@ -86,6 +149,7 @@ impl RenameAnalysis {
         candidate: &mut RenameCandidate,
         new_name: &str,
     ) -> Result<(), ResponseError> {
+        let bindings = self.bindings();
         let edits = RenameEdits::new(&candidate.locations, new_name)?;
         let mut sources = self.sources.clone();
         for (uri, source) in &self.sources {
@@ -111,22 +175,24 @@ impl RenameAnalysis {
         }
         let result = analyze_rename(self.opts.clone(), &self.roots, &sources);
         let after = result.rename_analysis();
-        if self.bindings.len() != after.bindings.len() {
+        let after_bindings = after.bindings();
+        if bindings.len() != after_bindings.len() {
             return Err(binding_conflict());
         }
-        for (location, targets) in &self.bindings {
+        for (location, targets) in bindings {
             let mapped = edits.location(location).ok_or_else(binding_conflict)?;
             let targets = targets
                 .iter()
                 .map(|target| edits.location(target))
                 .collect::<Option<Vec<_>>>()
                 .ok_or_else(binding_conflict)?;
-            if after.bindings.get(&mapped) != Some(&targets) {
+            if after_bindings.get(&mapped) != Some(&targets) {
                 return Err(binding_conflict());
             }
         }
-        for (uri, error) in &after.errors {
-            if !self.errors.iter().any(|(old_uri, old)| {
+        let errors = self.errors();
+        for (uri, error) in after.errors() {
+            if !errors.iter().any(|(old_uri, old)| {
                 old_uri == uri
                     && edits.range(uri, old.range) == Some(error.range)
                     && old.code == error.code

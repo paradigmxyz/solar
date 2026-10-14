@@ -2077,11 +2077,11 @@ impl SymbolTables {
     }
 
     pub(crate) fn record_rename_diagnostics(
-        &mut self,
+        &self,
         diagnostics: &crate::diagnostics::DiagnosticMap,
     ) {
-        for analysis in &mut self.rename_analyses {
-            Arc::make_mut(analysis).record_diagnostics(diagnostics);
+        for analysis in &self.rename_analyses {
+            analysis.record_diagnostics(diagnostics);
         }
     }
 
