@@ -1,0 +1,60 @@
+error[6281]: token incompatible with Solidity parser as part of pragma directive
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity 0.8.17 00.6.2;
+   │                        ━━━━
+   │
+   ╰ note: leading zeros are not allowed in numbers
+
+error[6281]: token incompatible with Solidity parser as part of pragma directive
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity >=00.8.0;
+   │                   ━━━━
+   │
+   ╰ note: leading zeros are not allowed in numbers
+
+error[6281]: token incompatible with Solidity parser as part of pragma directive
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity 00;
+   │                 ━━
+   │
+   ╰ note: leading zeros are not allowed in numbers
+
+error[6281]: token incompatible with Solidity parser as part of pragma directive
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity >=0.8.0 /* 0 */ 01 || 00;
+   │                                 ━━
+   │
+   ╰ note: leading zeros are not allowed in numbers
+
+error[6281]: token incompatible with Solidity parser as part of pragma directive
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity >=0.8.0 /* 0 */ 01 || 00;
+   │                                       ━━
+   │
+   ╰ note: leading zeros are not allowed in numbers
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity 0.08.0;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity 0.8.07;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
+   ╭▸ ROOT/tests/ui/parser/pragma_leading_zeros.sol:LL:CC
+   │
+LL │ pragma solidity 1.2.3.04;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors; 3 warnings emitted
+

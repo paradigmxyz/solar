@@ -451,9 +451,37 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         {
             // `pragma <ident> <req>;`
             let ident = self.parse_ident_any()?;
-            let req = self.parse_semver_req().unwrap_or_else(|err| {
-                // Report one error per pragma and skip the rest of it.
-                err.emit();
+            // Solc lexes a number token that starts with `0` and another digit, such as `00.6`
+            // in `00.6.2`, as an illegal octal number and rejects it before checking the version.
+            // NOTE: only the start of a token counts, so `0.08` and `.07` are allowed.
+            let mut illegal = None;
+            let rest = self.tokens.as_slice().iter().filter(|t| !t.is_comment_or_doc());
+            for token in std::iter::once(&self.token)
+                .chain(rest)
+                .take_while(|t| !matches!(t.kind, TokenKind::Semi | TokenKind::Eof))
+            {
+                if let TokenKind::Literal(TokenLitKind::Integer | TokenLitKind::Rational, sym) =
+                    token.kind
+                    && let [b'0', b'0'..=b'9', ..] = sym.as_str().as_bytes()
+                {
+                    let msg = "token incompatible with Solidity parser as part of pragma directive";
+                    let guar = self
+                        .dcx()
+                        .err(msg)
+                        .code(error_code!(6281))
+                        .span(token.span)
+                        .note("leading zeros are not allowed in numbers")
+                        .emit();
+                    illegal = Some(guar);
+                }
+            }
+            let req = match illegal {
+                Some(guar) => Err(guar),
+                None => self.parse_semver_req().map_err(|err| err.emit()),
+            };
+            let req = req.unwrap_or_else(|_| {
+                // Report one version error per pragma, skip the rest of it, and do not check the
+                // compiler version.
                 while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
                     self.bump();
                 }
