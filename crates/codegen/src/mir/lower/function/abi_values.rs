@@ -140,34 +140,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let args = self.builtin_args::<2>(Builtin::AbiEncodeCall, &args)?;
         let function = &args[0];
         let tuple = &args[1];
-        let (selector, parameter_types) =
-            if let Some(function_id) = self.cx.gcx.resolved_function(function) {
-                let selector = self.cx.gcx.function_selector(function_id).0;
-                let parameter_types = self
-                    .cx
-                    .gcx
-                    .hir
-                    .function(function_id)
-                    .parameters
-                    .iter()
-                    .map(|&parameter| self.cx.gcx.type_of_item(parameter.into()))
-                    .collect::<Vec<_>>();
-                (self.builder.imm(U256::from_be_slice(&selector) << 224), parameter_types)
-            } else {
-                let Some(TyKind::Fn(function_ty)) =
-                    self.cx.gcx.type_of_expr(function.id).map(|ty| ty.kind)
-                else {
-                    return self.cx.report_unsupported(function.span, "abi.encodeCall function");
-                };
-                if !function_ty.is_external() {
-                    return self.cx.report_unsupported(function.span, "abi.encodeCall function");
-                }
-                let function_value = self.lower_expr(function)?;
-                let mask = self.builder.imm(u32::MAX);
-                let selector = self.builder.and(function_value, mask);
-                let shift = self.builder.imm(224);
-                (self.builder.shl(shift, selector), function_ty.parameters.to_vec())
-            };
+        let Some(TyKind::Fn(function_ty)) = self.cx.gcx.type_of_expr(function.id).map(|ty| ty.kind)
+        else {
+            return self.cx.report_unsupported(function.span, "abi.encodeCall function");
+        };
+        let selector = if let Some(function_id) = self.cx.gcx.resolved_function(function) {
+            self.lower_discarded_expr(function)?;
+            let selector = self.cx.gcx.function_selector(function_id).0;
+            self.builder.imm(U256::from_be_slice(&selector) << 224)
+        } else {
+            if !function_ty.is_external() {
+                return self.cx.report_unsupported(function.span, "abi.encodeCall function");
+            }
+            let function_value = self.lower_expr(function)?;
+            let mask = self.builder.imm(u32::MAX);
+            let selector = self.builder.and(function_value, mask);
+            let shift = self.builder.imm(224);
+            self.builder.shl(shift, selector)
+        };
+        let parameter_types = function_ty.parameters;
         let exprs = match tuple.peel_parens().kind {
             ExprKind::Tuple(elements) => elements.iter().flatten().copied().collect::<Vec<_>>(),
             _ => vec![tuple],
@@ -197,9 +188,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let external_only = external_argument
             && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
         match ty.peel_refs().kind {
-            // Aggregates are cleaned and validated word by word while encoding, like solc's
-            // per-type encoders; copying them into a canonical object first would duplicate
-            // the whole tree at every call site.
+            // Aggregates are cleaned and validated word by word while encoding; copying them
+            // into a canonical object first would duplicate the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
             _ => {
                 let value = if external_only && !dirty {

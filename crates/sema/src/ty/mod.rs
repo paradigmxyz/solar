@@ -1950,7 +1950,7 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     let chains = gcx.struct_chains(())[id];
     // A direct cycle makes the struct infinitely sized even when an indirect cycle also exists.
-    // Report at `id`, like solc, so that each struct reports at most once.
+    // Report at `id` so that each struct reports at most once.
     let (code, msg) = match chains.direct_depth {
         None => (error_code!(2046), "recursive struct definition"),
         Some(depth) if depth >= 256 => (error_code!(5651), "struct is too deeply nested"),
@@ -1986,7 +1986,7 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
         for &field_id in gcx.hir.strukt(id).fields {
             let ty = &gcx.hir.variable(field_id).ty;
             visit_stored_structs(ty, false, &mut |other, dynamic| {
-                // Direct references skip only fixed-size arrays, like solc.
+                // Direct references skip only fixed-size arrays.
                 if !dynamic {
                     direct_refs.push(other);
                 }
@@ -2223,7 +2223,9 @@ fn is_value_ns(id: hir::ItemId) -> bool {
 /// mapping sits between the value and the struct.
 ///
 /// Function types do not store their parameter types, so a struct reached only through one is not
-/// recursive, as in solc's `DeclarationTypeChecker`.
+/// recursive.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L176>
 fn visit_stored_structs(
     ty: &hir::Type<'_>,
     dynamic: bool,

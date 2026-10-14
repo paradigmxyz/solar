@@ -1,0 +1,10 @@
+error: recursion limit reached
+   ╭▸ ROOT/tests/ui/parser/recursion_limit_mapping.sol:LL:CC
+   │
+LL │     mapping(uint => uint)
+   │            ┬━━━━
+   │            │
+   ╰╴           while parsing type
+
+error: aborting due to 1 previous error
+

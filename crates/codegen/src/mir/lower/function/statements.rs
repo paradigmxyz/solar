@@ -88,9 +88,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if let Some(access) = access {
                             if !ty.is_ref_at(DataLocation::Storage) {
                                 // A storage-reference return declared into a
-                                // non-storage local copies the referenced
-                                // value, matching solc; the reference itself
-                                // only binds to a storage variable.
+                                // non-storage local copies the referenced value;
+                                // the reference itself only binds to a storage
+                                // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, value, span)?;
                                 self.values.insert(*id, value);
@@ -287,9 +287,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. Like solc, a reason that is not a compile-time
-    /// constant string is still evaluated so its side effects and failures are kept; only the
-    /// payload is dropped.
+    /// Custom error payloads are never stripped. A reason that is not a compile-time constant
+    /// string is still evaluated so its side effects and failures are kept; only the payload is
+    /// dropped.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
