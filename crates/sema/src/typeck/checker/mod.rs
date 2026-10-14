@@ -671,7 +671,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        let index_ty =
+                            self.check_expr_outside_lvalue_context(index, Some(index_ty));
+                        self.check_fixed_bytes_index(expr.span, ty, index, index_ty);
                     } else {
                         self.dcx().emit_err(expr.span, "index expression cannot be omitted");
                     }
@@ -1341,6 +1343,27 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
+    }
+
+    /// Checks that a literal index into a `bytesN` value is in bounds.
+    ///
+    /// Like solc, this only considers number literals, not constants.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L3660-L3676>
+    fn check_fixed_bytes_index(
+        &self,
+        span: Span,
+        ty: Ty<'gcx>,
+        index: &hir::Expr<'_>,
+        index_ty: Ty<'gcx>,
+    ) {
+        if let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind
+            && index_ty.is_number_literal()
+            && let Ok(value) = self.gcx.const_eval().eval_int(index)
+            && value.as_u256().is_some_and(|value| value >= U256::from(size.bytes()))
+        {
+            self.dcx().err("out of bounds array access").code(error_code!(1859)).span(span).emit();
+        }
     }
 
     #[must_use]
