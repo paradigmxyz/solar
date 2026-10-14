@@ -626,7 +626,7 @@ impl Token {
     /// types.
     #[inline]
     pub fn is_used_keyword(&self) -> bool {
-        self.is_ident_where(|id| id.is_used_keyword() || is_fixed_mxn(id))
+        self.is_ident_where(|id| id.is_used_keyword() || ElementaryType::is_fixed_mxn(id.name))
     }
 
     /// Returns `true` if the token is a keyword reserved for possible future use.
@@ -650,7 +650,7 @@ impl Token {
     /// Returns `true` if the token is an elementary type name, including `[u]fixedMxN` types.
     #[inline]
     pub fn is_elementary_type(&self) -> bool {
-        self.is_ident_where(|id| id.is_elementary_type() || is_fixed_mxn(id))
+        self.is_ident_where(|id| id.is_elementary_type() || ElementaryType::is_fixed_mxn(id.name))
     }
 
     /// Returns `true` if the token is the identifier `true` or `false`.
@@ -802,8 +802,4 @@ impl TokenDescription {
             Self::YulEvmBuiltin => "Yul EVM builtin keyword",
         }
     }
-}
-
-fn is_fixed_mxn(id: Ident) -> bool {
-    ElementaryType::parse_fixed_mxn(id.name).is_some()
 }

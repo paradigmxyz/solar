@@ -422,24 +422,23 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, abi_params=[u256
     sstore v35, arg1 !metadata(storage=offset(v34, 2))
     v36 = address
     v37 = gas
-    v38 = shl 0, 1
-    v39 = abi_encode [word, word, word], selector 0x106d04d00000000000000000000000000000000000000000000000000000000, args 1, 0, v38
-    v40 = slice_ptr v39
-    v41 = slice_len v39
-    v42 = zext i160 v36 to i256
-    v43 = extcodesize v42
-    v44 = eq v43, 0
-    icall revert_if<target_contract_has_no_code>, v44
-    v45 = zext i160 v36 to i256
-    v46 = call v37, v45, 0, v40, v41, 0, 0
-    jumpi v46, bb2, bb1
+    v38 = abi_encode [word, word, word], selector 0x106d04d00000000000000000000000000000000000000000000000000000000, args 1, 0, 1
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = zext i160 v36 to i256
+    v42 = extcodesize v41
+    v43 = eq v42, 0
+    icall revert_if<target_contract_has_no_code>, v43
+    v44 = zext i160 v36 to i256
+    v45 = call v37, v44, 0, v39, v40, 0, 0
+    jumpi v45, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v47 = mapping_slot 1, 2
-    v48 = mapping_slot 0, v47
-    v49 = sload v48 !metadata(storage=symbolic(v48))
-    ret v49
+    v46 = mapping_slot 1, 2
+    v47 = mapping_slot 0, v46
+    v48 = sload v47 !metadata(storage=symbolic(v47))
+    ret v48
 }
 
 fn @load_storage_bytes(arg0: i256) -> memptr {

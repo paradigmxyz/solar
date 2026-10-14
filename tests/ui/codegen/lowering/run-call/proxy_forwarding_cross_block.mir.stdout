@@ -235,14 +235,12 @@ fn @internalMissing() -> i256 [selector=0xf368f3a6, abi_params=[], abi_returns=[
     jump bb5
   bb3:
     v19 = keccak256_bytes v17
-    v20 = abi_encode [], object, selector 0xa4e7d70600000000000000000000000000000000000000000000000000000000
-    v21 = keccak256_bytes v20
-    v22 = eq v19, v21
+    v20 = eq v19, 0x9cdc740cd2902c09506283b70756904e9419f9a8b9954a6f7b8affe84c5fca97
     jump bb5
   bb5:
-    v23 = phi [bb3: v22], [bb4: false]
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
+    v21 = phi [bb3: v20], [bb4: false]
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
     ret 1
 }
 
@@ -303,10 +301,9 @@ fn @internalRevert() -> i256 [selector=0xd2bb6e8d, abi_params=[], abi_returns=[w
     v33 = ptrtoint memptr v27 to i256
     v34 = add v33, 32
     v35 = mload v34
-    v36 = shl 0, 0x1234
-    v37 = eq v35, v36
-    v38 = eq v37, false
-    icall revert_if<empty>, v38
+    v36 = eq v35, 0x1234
+    v37 = eq v36, false
+    icall revert_if<empty>, v37
     ret 1
 }
 
@@ -512,9 +509,8 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v31 = ptrtoint memptr v27 to i256
     v32 = add v31, 32
     v33 = mload v32
-    v34 = shl 0, 0x1234
-    v35 = eq v33, v34
-    icall require<short_string>, v35, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    v34 = eq v33, 0x1234
+    icall require<short_string>, v34, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 

@@ -115,9 +115,7 @@ pub(super) struct StorageLayout<'gcx> {
 impl<'gcx> StorageLayout<'gcx> {
     /// Computes Solidity's base-to-derived storage order once for a module.
     pub(super) fn for_contract(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
-        let base_slot = gcx.hir.contract(contract_id).layout.map_or(U256::ZERO, |layout| {
-            gcx.eval_const(layout).ok().and_then(|value| value.as_u256()).unwrap_or_default()
-        });
+        let base_slot = gcx.const_eval().eval_base_slot(contract_id);
         StorageBuilder::new(gcx, base_slot).lower(contract_id)
     }
 
@@ -420,10 +418,6 @@ impl<'gcx> StorageBuilder<'gcx> {
             }
             TyKind::Elementary(ElementaryType::Int(size)) => (size, StorageEncoding::Signed),
             TyKind::Elementary(ElementaryType::UInt(size)) => (size, StorageEncoding::Unsigned),
-            TyKind::Elementary(ElementaryType::Fixed(size, _)) => (size, StorageEncoding::Signed),
-            TyKind::Elementary(ElementaryType::UFixed(size, _)) => {
-                (size, StorageEncoding::Unsigned)
-            }
             TyKind::Enum(id) => {
                 let variants = self.gcx.hir.enumm(id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);

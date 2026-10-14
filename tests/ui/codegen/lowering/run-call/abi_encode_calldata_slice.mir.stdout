@@ -30,10 +30,10 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memp
     v8 = make_calldata_slice v7, v6
     v9 = slice_ptr v8
     v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
+    v11 = calldatasize
+    v12 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = sub v11, v10
     v14 = sgt v9, v13
     icall revert_if<calldata_tail_too_short>, v14
     v15 = abi_encode_packed (bytes v8)
@@ -54,10 +54,10 @@ fn @encBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0x
     v8 = make_calldata_slice v7, v6
     v9 = slice_ptr v8
     v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
+    v11 = calldatasize
+    v12 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = sub v11, v10
     v14 = sgt v9, v13
     icall revert_if<calldata_tail_too_short>, v14
     v15 = abi_encode [calldata_bytes], object, args v8
@@ -78,10 +78,10 @@ fn @encBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [se
     v8 = make_calldata_slice v7, v6
     v9 = slice_ptr v8
     v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
+    v11 = calldatasize
+    v12 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = sub v11, v10
     v14 = sgt v9, v13
     icall revert_if<calldata_tail_too_short>, v14
     v15 = abi_encode [calldata_bytes], object, args v8

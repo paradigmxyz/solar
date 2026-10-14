@@ -1,0 +1,8 @@
+error: enum must have at least one variant
+   ╭▸ ROOT/tests/ui/typeck/array_len_empty_enum.sol:LL:CC
+   │
+LL │ enum E {}
+   ╰╴     ━
+
+error: aborting due to 1 previous error
+

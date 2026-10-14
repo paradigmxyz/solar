@@ -36,4 +36,6 @@ contract UnaryFine {
 
 uint constant n = 100;
 
-contract ConstantDividedByItsNegation layout at n / ~n {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+// solc rejects `~n` of an unsigned constant with error 3667, where the EVM flips its bits; see
+// CONTRACT-001.
+contract ConstantDividedByItsNegation layout at n / ~n {}

@@ -31,20 +31,19 @@ fn @funded() -> struct1 [selector=0xf3a504f2, payable, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
-    v2 = shl 200, 1
-    v3 = or v1, v2
-    v4 = icall @shared, v3
-    v5 = extract_value struct0, v4, 0
-    v6 = extract_value struct0, v4, 1
-    v7 = address
-    v8 = zext i160 v7 to i256
-    v9 = eq v6, v8
-    v10 = eq v9, false
-    icall panic_if<0x1>, v10
-    v11 = icall @masked, v3
-    v12 = icall @wide, v3
-    v13 = insert_value struct1, undef struct1, 0, v11
-    v14 = insert_value struct1, v13, 1, v12
-    v15 = insert_value struct1, v14, 2, v5
-    ret v15
+    v2 = or v1, 0x100000000000000000000000000000000000000000000000000
+    v3 = icall @shared, v2
+    v4 = extract_value struct0, v3, 0
+    v5 = extract_value struct0, v3, 1
+    v6 = address
+    v7 = zext i160 v6 to i256
+    v8 = eq v5, v7
+    v9 = eq v8, false
+    icall panic_if<0x1>, v9
+    v10 = icall @masked, v2
+    v11 = icall @wide, v2
+    v12 = insert_value struct1, undef struct1, 0, v10
+    v13 = insert_value struct1, v12, 1, v11
+    v14 = insert_value struct1, v13, 2, v4
+    ret v14
 }

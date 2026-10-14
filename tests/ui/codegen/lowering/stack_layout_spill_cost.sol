@@ -37,7 +37,12 @@ contract SpillCost {
 
     function checkDynArray() external returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         arr.push(11);
-        uint256 data = uint256(keccak256(abi.encode(uint256(4))));
+        // A constant slot would fold the hash, so read the slot at runtime.
+        uint256 slot;
+        assembly {
+            slot := arr.slot
+        }
+        uint256 data = uint256(keccak256(abi.encode(slot)));
         require(raw(4) == 3, "len");
         require(raw(data) == 7 | (uint256(9) << 128), "data0");
         require(raw(data + 1) == 11, "data1");

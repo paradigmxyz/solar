@@ -39,10 +39,9 @@ fn @chunksAndHash() -> struct0 [pure] {
     icall panic_if<0x32>, v18
     v19 = ptrtoint memptr v13 to i256
     memory_object_store_element memoryarray<1>, v0, 15, v19
-    v20 = shl 0, 7
-    v21 = insert_value struct0, undef struct0, 0, v0
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    v20 = insert_value struct0, undef struct0, 0, v0
+    v21 = insert_value struct0, v20, 1, 7
+    ret v21
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, 96
     v3 = add v1, 1

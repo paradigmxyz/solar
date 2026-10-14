@@ -11,10 +11,10 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
   bb0:
     v0 = slice_ptr arg1
     v1 = slice_len arg1
-    v2 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v2
-    v3 = calldatasize
-    v4 = sub v3, v1
+    v2 = calldatasize
+    v3 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v3
+    v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
     v6 = slice_len arg1
@@ -29,10 +29,10 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
     icall @store_storage_bytes, 1, v11
     v12 = slice_ptr arg0
     v13 = slice_len arg0
-    v14 = gt v13, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v14
-    v15 = calldatasize
-    v16 = sub v15, v13
+    v14 = calldatasize
+    v15 = gt v13, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v15
+    v16 = sub v14, v13
     v17 = sgt v12, v16
     icall revert_if<calldata_tail_too_short>, v17
     v18 = slice_len arg0

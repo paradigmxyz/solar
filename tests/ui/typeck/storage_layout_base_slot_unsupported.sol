@@ -9,13 +9,14 @@ library L {
     }
 }
 
-contract AttachedFunction layout at 2.f() { //~ ERROR: failed to evaluate constant: unsupported expression
+contract AttachedFunction layout at 2.f() { //~ ERROR: base slot of storage layout must be a compile-time constant expression
     using L for *;
 }
 
 contract StringLiteral layout at "MyLayoutBase" {} //~ ERROR: base slot of storage layout must evaluate to an integer
 contract HexStringLiteral layout at hex"616263" {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract FractionalNumber layout at 4.2 {} //~ ERROR: rational literals are not supported
-contract LeadingFractionalNumber layout at .1 {} //~ ERROR: rational literals are not supported
-contract NegativeExponent layout at 42e-10 {} //~ ERROR: rational literals are not supported
-contract UnderscoredNegativeExponent layout at 1_7e-10 {} //~ ERROR: rational literals are not supported
+contract FractionalDivision layout at 3/2 {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract FractionalNumber layout at 4.2 {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract LeadingFractionalNumber layout at .1 {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract NegativeExponent layout at 42e-10 {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract UnderscoredNegativeExponent layout at 1_7e-10 {} //~ ERROR: base slot of storage layout must evaluate to an integer

@@ -219,7 +219,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
-        let receiver = self.peel_bytes_conversion(receiver);
         let Some(access) = self.storage_access(receiver) else {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
