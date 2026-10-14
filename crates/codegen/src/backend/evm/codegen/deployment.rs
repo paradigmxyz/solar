@@ -7,7 +7,7 @@ use super::{
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
-    link::{CodeKind, LibraryTable, code_keyword},
+    link::{CodeKind, LibraryTable},
     mir::{MirPhase, analysis::cold_functions},
 };
 use alloy_primitives::Bytes;
@@ -112,7 +112,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let runtime_bytecode = Bytes::from(runtime_bytecode);
         let runtime_len = runtime_bytecode.len();
         let runtime_name =
-            Symbol::intern(&format!("{}_{}", module.name.name, code_keyword(CodeKind::Runtime)));
+            Symbol::intern(&format!("{}_{}", module.name.name, CodeKind::Runtime.keyword()));
         let runtime_data = ir::Data {
             library_relocations: runtime_library_relocations.clone(),
             ..ir::Data::new(runtime_bytecode.clone(), Some(runtime_name))

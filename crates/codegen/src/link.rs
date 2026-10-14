@@ -2,7 +2,7 @@
 
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt::FmtIteratorExt, index::IndexVec, map::FxHashMap, newtype_index};
-use solar_interface::{Symbol, sym};
+use solar_interface::Symbol;
 use solar_sema::{Gcx, hir::ContractId};
 use std::fmt;
 
@@ -240,14 +240,6 @@ impl RelocatableBytecode {
     }
 }
 
-/// Returns the textual IR keyword of the bytecode of a contract.
-pub(crate) fn code_keyword(kind: CodeKind) -> Symbol {
-    match kind {
-        CodeKind::Creation => sym::creation_code,
-        CodeKind::Runtime => sym::runtime_code,
-    }
-}
-
 /// Bytecode of another contract that a module embeds as program data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct ContractCode {
@@ -270,7 +262,7 @@ impl ContractCode {
 
 impl fmt::Display for ContractCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", code_keyword(self.kind), self.contract)
+        write!(f, "{} {}", self.kind.keyword(), self.contract)
     }
 }
 

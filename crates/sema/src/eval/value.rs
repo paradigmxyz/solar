@@ -10,7 +10,7 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, TypeSize};
-use solar_interface::ByteSymbol;
+use solar_interface::{ByteSymbol, Symbol, sym};
 use std::cmp::Ordering;
 
 // Literal arithmetic is exact like solc's rational numbers, which limit the
@@ -55,6 +55,16 @@ pub enum CodeKind {
     Creation,
     /// Deployed runtime bytecode.
     Runtime,
+}
+
+impl CodeKind {
+    /// Returns the textual IR keyword.
+    pub fn keyword(self) -> Symbol {
+        match self {
+            Self::Creation => sym::creation_code,
+            Self::Runtime => sym::runtime_code,
+        }
+    }
 }
 
 /// The type of a [`ConstValue::Bytes`] value.

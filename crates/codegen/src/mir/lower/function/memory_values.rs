@@ -1,7 +1,7 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::{CodeKind, ContractCode, QualifiedName, code_keyword};
+use crate::link::{CodeKind, ContractCode, QualifiedName};
 use solar_interface::diagnostics::ErrorGuaranteed;
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
@@ -309,12 +309,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.cx.bytecode_dependencies.contains(contract_id) {
             return Err(gcx
                 .dcx()
-                .err(format!("codegen is missing {} for `{name}`", code_keyword(kind)))
+                .err(format!("codegen is missing {} for `{name}`", kind.keyword()))
                 .span(span)
                 .note("the contract is not a bytecode dependency of the contract being compiled")
                 .emit());
         }
-        let data_name = Symbol::intern(&format!("{name}_{}", code_keyword(kind)));
+        let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
         let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
         Ok(self.cx.module.intern_contract_code(code, data_name))
     }
