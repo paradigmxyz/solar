@@ -74,37 +74,31 @@ fn @redirected(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0x3
 fn @empty() -> calldataslice [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = make_calldata_slice 0, v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = make_calldata_slice v4, 0
-    ret v6
+    v1 = slice_len v0
+    v2 = make_calldata_slice 0, v1
+    v3 = slice_ptr v2
+    v4 = make_calldata_slice v3, 0
+    ret v4
 }
 
 fn @construct(arg0: i256, arg1: i256) -> calldataslice [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = make_calldata_slice arg0, v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = make_calldata_slice v4, arg1
-    ret v6
+    v1 = slice_len v0
+    v2 = make_calldata_slice arg0, v1
+    v3 = slice_ptr v2
+    v4 = make_calldata_slice v3, arg1
+    ret v4
 }
 
 fn @redirect(arg0: calldataslice, arg1: calldataslice) -> calldataslice [pure] {
   bb0:
     v0 = slice_ptr arg1
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = make_calldata_slice v0, v2
-    v4 = slice_len arg1
-    v5 = slice_ptr v3
-    v6 = slice_len v3
-    v7 = make_calldata_slice v5, v4
-    v8 = make_calldata_slice 0, 0
-    ret v7
+    v1 = slice_len arg0
+    v2 = make_calldata_slice v0, v1
+    v3 = slice_len arg1
+    v4 = slice_ptr v2
+    v5 = make_calldata_slice v4, v3
+    v6 = make_calldata_slice 0, 0
+    ret v5
 }

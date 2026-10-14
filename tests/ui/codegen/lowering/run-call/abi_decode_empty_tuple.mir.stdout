@@ -74,26 +74,25 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     v9 = add v2, 0
     v10 = make_calldata_slice v9, v8
     v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = make_calldata_slice v11, arg0
-    v14 = slice_len v13
-    v15 = add v14, 63
-    v16 = lt v15, v14
-    icall panic_if<0x41>, v16
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    v20 = slice_ptr v13
-    v21 = slice_len v13
-    v22 = calldatasize
-    v23 = gt v21, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v23
-    v24 = sub v22, v21
-    v25 = sgt v20, v24
-    icall revert_if<calldata_tail_too_short>, v25
-    memory_object_copy_from_slice memorybytes, v19, v13
-    abi_decode [], v19
+    v12 = make_calldata_slice v11, arg0
+    v13 = slice_len v12
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    v19 = slice_ptr v12
+    v20 = slice_len v12
+    v21 = calldatasize
+    v22 = gt v20, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = sub v21, v20
+    v24 = sgt v19, v23
+    icall revert_if<calldata_tail_too_short>, v24
+    memory_object_copy_from_slice memorybytes, v18, v12
+    abi_decode [], v18
     ret 3
 }
 

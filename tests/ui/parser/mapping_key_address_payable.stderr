@@ -1,0 +1,26 @@
+error: `address payable` is not allowed as a mapping key type
+   ╭▸ ROOT/tests/ui/parser/mapping_key_address_payable.sol:LL:CC
+   │
+LL │     mapping(address payable => uint) m0;
+   │             ━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `address` instead
+
+error: `address payable` is not allowed as a mapping key type
+   ╭▸ ROOT/tests/ui/parser/mapping_key_address_payable.sol:LL:CC
+   │
+LL │     mapping(address payable owner => uint balance) m1;
+   │             ━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `address` instead
+
+error: `address payable` is not allowed as a mapping key type
+   ╭▸ ROOT/tests/ui/parser/mapping_key_address_payable.sol:LL:CC
+   │
+LL │     mapping(uint => mapping(address payable => uint)) m2;
+   │                             ━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `address` instead
+
+error: aborting due to 3 previous errors
+

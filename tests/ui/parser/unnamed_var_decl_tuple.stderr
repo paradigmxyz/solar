@@ -1,0 +1,8 @@
+error: expected identifier, found `)`
+   ╭▸ ROOT/tests/ui/parser/unnamed_var_decl_tuple.sol:LL:CC
+   │
+LL │         (uint a, uint) = (1, 2);
+   ╰╴                     ━
+
+error: aborting due to 1 previous error
+
