@@ -1,8 +1,32 @@
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/typeck/yul_number_literal_too_large.sol:LL:CC
+   │
+LL │             case 0.5 {}
+   ╰╴                 ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/typeck/yul_number_literal_too_large.sol:LL:CC
+   │
+LL │             if 0.5 {}
+   ╰╴               ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/typeck/yul_number_literal_too_large.sol:LL:CC
+   │
+LL │             let x := 0.5
+   ╰╴                     ━━━
+
 error[6708]: number literal too large (> 256 bits)
    ╭▸ ROOT/tests/ui/typeck/yul_number_literal_too_large.sol:LL:CC
    │
 LL │             s := 0x10000000000000000000000000000000000000000000000000000000000000000
    ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 1 previous error
+error[6708]: number literal too large (> 256 bits)
+   ╭▸ ROOT/tests/ui/typeck/yul_number_literal_too_large.sol:LL:CC
+   │
+LL │ …     case 0x10000000000000000000000000000000000000000000000000000000000000000 {}
+   ╰╴           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
 

@@ -6,6 +6,8 @@ use solar_interface::{Symbol, sym};
 use solar_sema::{Gcx, hir::ContractId};
 use std::fmt;
 
+pub(crate) use solar_sema::eval::CodeKind;
+
 newtype_index! {
     /// An index into a module's library table.
     pub struct LibraryId;
@@ -238,31 +240,11 @@ impl RelocatableBytecode {
     }
 }
 
-/// Which bytecode of a contract another contract embeds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum CodeKind {
-    /// Deployment bytecode, including the initcode prefix.
-    Creation,
-    /// Deployed runtime bytecode.
-    Runtime,
-}
-
-impl From<solar_sema::eval::CodeKind> for CodeKind {
-    fn from(kind: solar_sema::eval::CodeKind) -> Self {
-        match kind {
-            solar_sema::eval::CodeKind::Creation => Self::Creation,
-            solar_sema::eval::CodeKind::Runtime => Self::Runtime,
-        }
-    }
-}
-
-impl CodeKind {
-    /// Returns the textual IR keyword.
-    pub(crate) fn keyword(self) -> Symbol {
-        match self {
-            Self::Creation => sym::creation_code,
-            Self::Runtime => sym::runtime_code,
-        }
+/// Returns the textual IR keyword of the bytecode of a contract.
+pub(crate) fn code_keyword(kind: CodeKind) -> Symbol {
+    match kind {
+        CodeKind::Creation => sym::creation_code,
+        CodeKind::Runtime => sym::runtime_code,
     }
 }
 
@@ -288,7 +270,7 @@ impl ContractCode {
 
 impl fmt::Display for ContractCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.kind.keyword(), self.contract)
+        write!(f, "{} {}", code_keyword(self.kind), self.contract)
     }
 }
 

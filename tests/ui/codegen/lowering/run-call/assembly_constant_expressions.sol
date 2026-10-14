@@ -14,7 +14,7 @@ contract AssemblyConstantExpressions {
     bytes32 constant parenthesized = ("abc");
     address constant account = address(0x1234);
     bool constant comparison = 1 < 2;
-    bytes4 constant selector = AssemblyConstantExpressions.values.selector;
+    bytes4 constant selector = this.values.selector;
 
     function values()
         external

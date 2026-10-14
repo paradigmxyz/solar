@@ -8,14 +8,16 @@
 //!
 //! [`Gcx::const_eval`] returns the [`ConstEval`] evaluator, whose
 //! [`eval_expr`](ConstEval::eval_expr) evaluates an expression and
-//! [`eval_var`](ConstEval::eval_var) the value of a constant variable in its declared type. Both
-//! are memoized queries: every expression and constant is evaluated at most once, so constants that
-//! share other constants as a DAG take linear time, and repeated queries from type checking and
-//! codegen are free. Results only depend on the HIR and name resolution, never on type checking
-//! results, so a value is the same whenever it is first requested.
+//! [`eval_var`](ConstEval::eval_var) the value of a constant variable, converted to its declared
+//! type when it fits. Both are memoized queries: every expression and constant is evaluated at most
+//! once, so constants that share other constants as a DAG take linear time, and repeated queries
+//! from type checking and codegen are free. Values only depend on the HIR and name resolution,
+//! never on type checking results, so a value is the same whenever it is first requested.
 //!
 //! Codegen uses the value of a constant at every use, through [`ConstEval::require_var`], which
-//! reports a constant without a value once. Unlike in solc, a use never runs the initializer.
+//! reports once a constant whose initializer reverts (see CODEGEN-013 in
+//! `docs/SOLC_DIVERGENCE.md`). A constant the evaluator does not compute
+//! ([`EvalErrorKind::is_unsupported`]) runs its initializer at every use instead.
 //!
 //! A constant's value is computed after the values of the constants it names: the query first
 //! walks the reference graph of the constants it has not evaluated yet with an explicit stack,
@@ -28,7 +30,8 @@
 //!
 //! A [`ConstValue`] carries its type: integers with their integer type, number literals, which
 //! are exact rationals like solc's, booleans, `bytesN`, addresses and contracts, string literals,
-//! `bytes` and `string` values, enum variants and user-defined value types. Operations follow the
+//! `bytes` and `string` values, enum variants, user-defined value types, structs and arrays in
+//! memory, and the bytecode of contracts, which only codegen knows. Operations follow the
 //! language: typed arithmetic is checked against its type, literal arithmetic is exact with 4096
 //! bits in the numerator and denominator, so `7 / 2 * 2` is 7, and conversions follow Solidity's
 //! implicit and explicit conversion rules. Fractions only exist as literals: they convert to no
@@ -48,9 +51,10 @@
 //! An operation that reverts at runtime, such as an overflow, a division by zero or an
 //! out-of-range conversion, does not fold. Neither does anything that reads state or the
 //! environment, calls a function, builds array literals, or uses the bytes of contract code, nor
-//! a selector whose signature depends on a constant, nor a value larger than 64 KiB. Like in solc's
-//! evaluator, every operand must evaluate, even the branch a conditional does not take and the
-//! second operand of `&&` and `||`.
+//! a selector whose signature depends on a constant, nor a value larger than 64 KiB. Every operand
+//! must evaluate, even the branch a conditional does not take and the second operand of `&&` and
+//! `||`: the branches decide the type of a conditional, and a constant with an operand that
+//! reverts is a mistake.
 //!
 //! # solc's evaluator
 //!
@@ -61,10 +65,13 @@
 //! most 32 deep. Likewise, every error records whether solc reports it or gives the expression no
 //! value instead, which decides the code of the error that [`ConstEval::emit_error`] reports.
 
-use crate::{hir, ty::Gcx};
+use crate::{
+    hir,
+    ty::{FxOnceMap, Gcx},
+};
 use EvalErrorKind as EE;
-use alloy_primitives::{B256, U256, keccak256};
-use solar_data_structures::{index::IndexVec, map::FxHashMap, newtype_index};
+use alloy_primitives::U256;
+use solar_data_structures::{graph::sccs, index::IndexVec, map::FxHashMap, newtype_index};
 use solar_interface::{
     Span,
     diagnostics::{DiagId, ErrorGuaranteed},
@@ -77,17 +84,6 @@ mod expr;
 mod value;
 
 pub use value::{BytesKind, CodeKind, ConstValue, FixedBytes, IntScalar};
-
-/// Computes the ERC-7201 storage namespace base slot.
-///
-/// Reference: <https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions>
-pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
-    let inner = keccak256(namespace_id);
-    let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
-    let mut outer = keccak256(inner.to_be_bytes::<32>());
-    outer.0[31] = 0;
-    outer
-}
 
 /// Where a constant value is required, which selects solc's codes for evaluation errors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,23 +140,28 @@ pub(crate) type EvalResult = Result<Folded, EvalError>;
 pub(crate) struct ConstEvalCache {
     /// Expression results. They own big-integer buffers, so keep them in the cache itself to drop
     /// them with the compilation instead of leaking them from the dropless HIR arena.
-    exprs: crate::ty::FxOnceMap<hir::ExprId, Box<EvalResult>>,
-    /// The values of constant variables in their declared types.
-    vars: crate::ty::FxOnceMap<hir::VariableId, Box<EvalResult>>,
+    exprs: FxOnceMap<hir::ExprId, Box<EvalResult>>,
+    /// The values of constant variables, converted to their declared types when they fit.
+    vars: FxOnceMap<hir::VariableId, Box<EvalResult>>,
     /// The errors of literal operations that have no value, see
     /// [`ConstEval::emit_literal_op_error`].
-    literal_op_errors: crate::ty::FxOnceMap<hir::ExprId, ErrorGuaranteed>,
+    literal_op_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
     /// The errors of constants whose values are required, see [`ConstEval::require_var`].
-    var_errors: crate::ty::FxOnceMap<hir::VariableId, ErrorGuaranteed>,
+    var_errors: FxOnceMap<hir::VariableId, ErrorGuaranteed>,
 }
 
 thread_local! {
     /// The constants whose initializers this thread is evaluating.
     ///
     /// Evaluation can reach a constant again through a type instead of a reference, such as the
-    /// array length in the parameters of a function whose selector a constant reads. Such a
-    /// constant depends on itself, which the reference graph does not show.
+    /// array length in `new uint[C][](1)`, whose zero value it builds. Such a constant depends on
+    /// itself, which the reference graph does not show.
     static IN_PROGRESS: RefCell<Vec<hir::VariableId>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Returns whether this thread is evaluating the initializer of the constant `id`.
+fn in_progress(id: hir::VariableId) -> bool {
+    IN_PROGRESS.with_borrow(|stack| stack.contains(&id))
 }
 
 impl<'gcx> Gcx<'gcx> {
@@ -188,11 +189,12 @@ impl<'gcx> ConstEval<'gcx> {
     pub fn eval_int(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, EvalError> {
         match self.eval_expr(expr)? {
             ConstValue::Int(value) => Ok(value),
-            _ => Err(EvalErrorKind::NotAnInteger.spanned(expr.span)),
+            _ => Err(EE::NotAnInteger.spanned(expr.span)),
         }
     }
 
-    /// Returns the value of the given constant variable in its declared type.
+    /// Returns the value of the given constant variable, converted to its declared type when it
+    /// fits.
     pub fn eval_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, EvalError> {
         self.var_result(id).as_ref().map(|folded| &folded.value).map_err(|err| *err)
     }
@@ -200,12 +202,14 @@ impl<'gcx> ConstEval<'gcx> {
     /// Returns the value of the given constant variable where it is required, such as at its uses
     /// in codegen, reporting its evaluation error once.
     ///
-    /// Every constant has a value at compile time, unlike in solc, which evaluates the initializer
-    /// at every use and can revert there.
+    /// An error in a constant that this one reads is reported at that constant. Unlike solc, which
+    /// evaluates the initializer at every use and can revert there, a constant whose initializer
+    /// reverts is an error.
     pub fn require_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, ErrorGuaranteed> {
         self.eval_var(id).map_err(|err| {
-            self.gcx.const_eval_cache.var_errors.insert_cloned(id, |_| {
-                let var = self.gcx.hir.variable(id);
+            let root = err.constant.unwrap_or(id);
+            self.gcx.const_eval_cache.var_errors.insert_cloned(root, |_| {
+                let var = self.gcx.hir.variable(root);
                 let span = var.initializer.map_or(var.span, |init| init.span);
                 self.emit_error_at(span, err, None)
             })
@@ -234,7 +238,7 @@ impl<'gcx> ConstEval<'gcx> {
                 return Err(self.gcx.dcx().err(msg).code(code).span(size.span).emit());
             }
             Ok(_) => {
-                let err = EvalErrorKind::NotAnInteger.spanned(size.span);
+                let err = EE::NotAnInteger.spanned(size.span);
                 return Err(self.emit_error(size, err, cx));
             }
             Err(err) => return Err(self.emit_error(size, *err, cx)),
@@ -280,9 +284,9 @@ impl<'gcx> ConstEval<'gcx> {
         if let Some(result) = cache.get(&id) {
             return result;
         }
-        if IN_PROGRESS.with_borrow(|stack| stack.contains(&id)) {
+        if in_progress(id) {
             let span = self.gcx.hir.variable(id).span;
-            return self.gcx.cached_arena().alloc(Err(EvalErrorKind::Cycle.spanned(span)));
+            return self.gcx.cached_arena().alloc(Err(EE::Cycle.spanned(span)));
         }
         let references = self.constant_references(id);
         if references.iter().all(|&(dep, _)| dep != id && self.is_evaluated(dep)) {
@@ -309,22 +313,21 @@ impl<'gcx> ConstEval<'gcx> {
         // The constants each one names, and whether it names them by identifier.
         let mut edges = IndexVec::<Node, Vec<(Node, bool)>>::new();
         let mut index = FxHashMap::default();
-        let mut queue = vec![root];
+        let mut stack = vec![root];
         index.insert(root, nodes.push(root));
         edges.push(Vec::new());
         let mut root_references = Some(root_references);
-        while let Some(id) = queue.pop() {
+        while let Some(id) = stack.pop() {
             let node = index[&id];
-            let references = match root_references.take() {
-                Some(references) => references,
-                None => self.constant_references(id),
-            };
+            let references = root_references.take().unwrap_or_else(|| self.constant_references(id));
             for (dep, ident) in references {
-                if self.is_evaluated(dep) {
+                // A constant being evaluated is reached again through a type, which `var_result`
+                // reports as a cycle.
+                if self.is_evaluated(dep) || in_progress(dep) {
                     continue;
                 }
                 let dep = *index.entry(dep).or_insert_with(|| {
-                    queue.push(dep);
+                    stack.push(dep);
                     edges.push(Vec::new());
                     nodes.push(dep)
                 });
@@ -333,9 +336,7 @@ impl<'gcx> ConstEval<'gcx> {
         }
 
         // Components come in reverse topological order, so dependencies come first.
-        for scc in solar_data_structures::graph::sccs(nodes.len(), |node: Node| {
-            edges[node].iter().map(|&(dep, _)| dep)
-        }) {
+        for scc in sccs(nodes.len(), |node: Node| edges[node].iter().map(|&(dep, _)| dep)) {
             if let [node] = scc[..]
                 && !edges[node].iter().any(|&(dep, _)| dep == node)
             {
@@ -350,8 +351,7 @@ impl<'gcx> ConstEval<'gcx> {
                 });
                 for &node in &scc {
                     let id = nodes[node];
-                    let err =
-                        EvalErrorKind::Cycle.spanned(self.gcx.hir.variable(id).span).solc(solc);
+                    let err = EE::Cycle.spanned(self.gcx.hir.variable(id).span).solc(solc);
                     cache.insert(id, |_| Box::new(Err(err)));
                 }
             }
@@ -363,9 +363,11 @@ impl<'gcx> ConstEval<'gcx> {
     /// Another thread may have evaluated part of a cycle, so the cycle's constants are walked again
     /// to find the whole cycle.
     fn is_evaluated(self, id: hir::VariableId) -> bool {
-        self.gcx.const_eval_cache.vars.get(&id).is_some_and(|result| {
-            !matches!(result, Err(EvalError { kind: EvalErrorKind::Cycle, .. }))
-        })
+        self.gcx
+            .const_eval_cache
+            .vars
+            .get(&id)
+            .is_some_and(|result| !matches!(result, Err(EvalError { kind: EE::Cycle, .. })))
     }
 
     /// Returns the constants that the initializer of the constant `id` names, and whether it names
@@ -377,7 +379,7 @@ impl<'gcx> ConstEval<'gcx> {
                 if let Some(dep) = self.constant_reference(expr) {
                     references.push((dep, matches!(expr.kind, hir::ExprKind::Ident(_))));
                 }
-                std::ops::ControlFlow::<()>::Continue(())
+                ControlFlow::<()>::Continue(())
             });
         }
         references
@@ -394,7 +396,7 @@ impl<'gcx> ConstEval<'gcx> {
     /// Evaluates the initializer of the constant `id` and converts it to the declared type.
     fn eval_constant(self, id: hir::VariableId) -> EvalResult {
         IN_PROGRESS.with_borrow_mut(|stack| stack.push(id));
-        let result = expr::eval_constant(self.gcx, id);
+        let result = expr::eval_constant(self.gcx, id).map_err(|err| err.in_constant(id));
         IN_PROGRESS.with_borrow_mut(|stack| stack.pop());
         result
     }
@@ -491,11 +493,11 @@ pub enum EvalErrorKind {
     UnaryOverflow,
     /// A literal operand of a typed operation has no integer type.
     LiteralTooLarge,
+    /// Negating a value of an unsigned type.
     NegateUnsigned,
-    /// A division or modulo by zero, of literals or of typed values.
-    DivisionByZero {
-        literal: bool,
-    },
+    /// A division or modulo by zero, of literals or of typed values, or a zero `addmod` or
+    /// `mulmod` modulus.
+    DivisionByZero { literal: bool },
     /// A literal shift amount that solc gives no value.
     ShiftTooLarge,
     /// A negative literal shift amount.
@@ -512,10 +514,15 @@ pub enum EvalErrorKind {
     NotAnInteger,
     /// A value too large to fold.
     ValueTooLarge,
+    /// A unary operator the operand does not support.
     UnsupportedUnaryOp,
+    /// A binary operator the operands do not support.
     UnsupportedBinaryOp,
+    /// An expression the evaluator does not compute.
     UnsupportedExpr,
+    /// A read of a variable that is not a constant.
     NonConstantVar,
+    /// An error that was already reported, such as a type error in the expression.
     AlreadyEmitted(ErrorGuaranteed),
 }
 
@@ -544,6 +551,32 @@ impl EvalErrorKind {
             Self::UnsupportedExpr => "unsupported expression",
             Self::NonConstantVar => "only constant variables are allowed",
             Self::AlreadyEmitted(_) => "an error was already reported",
+        }
+    }
+
+    /// Returns `true` if the evaluator does not compute a value that runtime code can compute,
+    /// such as `keccak256(type(C).creationCode)` or a byte array too large to fold.
+    pub fn is_unsupported(&self) -> bool {
+        match self {
+            Self::ValueTooLarge
+            | Self::UnsupportedUnaryOp
+            | Self::UnsupportedBinaryOp
+            | Self::UnsupportedExpr => true,
+            Self::Cycle
+            | Self::ArithmeticOverflow
+            | Self::UnaryOverflow
+            | Self::LiteralTooLarge
+            | Self::NegateUnsigned
+            | Self::DivisionByZero { .. }
+            | Self::ShiftTooLarge
+            | Self::NegativeShift
+            | Self::ExponentTooLarge
+            | Self::Fractional
+            | Self::LiteralPrecision
+            | Self::OutOfRange
+            | Self::NotAnInteger
+            | Self::NonConstantVar
+            | Self::AlreadyEmitted(_) => false,
         }
     }
 
@@ -597,25 +630,3 @@ impl fmt::Display for EvalError {
 }
 
 impl std::error::Error for EvalError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy_primitives::b256;
-
-    #[test]
-    fn erc7201_slot_matches_eip_example() {
-        assert_eq!(
-            erc7201_slot(b"example.main"),
-            b256!("183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500")
-        );
-    }
-
-    #[test]
-    fn erc7201_slot_subtracts_from_full_inner_hash() {
-        assert_eq!(
-            erc7201_slot(b"85"),
-            b256!("06d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00")
-        );
-    }
-}

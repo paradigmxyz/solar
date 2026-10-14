@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_number_literals.sol:AssemblyNumberLiterals ===
+@module AssemblyNumberLiterals
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add 0x3e8, 16
+    v1 = add v0, 20
+    ret v1
+}

@@ -1,0 +1,45 @@
+error[5462]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/array_len_typed_negative_shift.sol:LL:CC
+   │
+LL │ uint256 constant X = A << -1;
+   │                      ─────── evaluation of constant value failed here
+   ‡
+LL │     uint256[X] x;
+   ╰╴            ━
+
+error[5462]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/array_len_typed_negative_shift.sol:LL:CC
+   │
+LL │ uint256 constant Y = A << N;
+   │                      ────── evaluation of constant value failed here
+   ‡
+LL │     uint256[Y] y;
+   ╰╴            ━
+
+error[2271]: cannot apply builtin operator `<<` to `uint8` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/array_len_typed_negative_shift.sol:LL:CC
+   │
+LL │ uint256 constant X = A << -1;
+   │                      ┬ ━━ ── int_literal[1]
+   │                      │
+   ╰╴                     uint8
+
+error[2271]: cannot apply builtin operator `<<` to `uint8` and `int8`
+   ╭▸ ROOT/tests/ui/typeck/array_len_typed_negative_shift.sol:LL:CC
+   │
+LL │ uint256 constant Y = A << N;
+   │                      ┬ ━━ ─ int8
+   │                      │
+   ╰╴                     uint8
+
+error[1505]: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/array_len_typed_negative_shift.sol:LL:CC
+   │
+LL │ uint256 constant X = A << -1;
+   │                      ─────── evaluation of constant value failed here
+   ‡
+LL │ contract D layout at X {}
+   ╰╴                     ━
+
+error: aborting due to 5 previous errors
+

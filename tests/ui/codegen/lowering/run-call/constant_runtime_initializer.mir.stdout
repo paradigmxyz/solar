@@ -1,0 +1,91 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol:D ===
+@module D
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol:Base ===
+@module Base
+fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol:Child ===
+@module Child
+@types
+  struct0: {i256, i256}
+
+@data
+  D_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol:D"
+
+fn @f.0() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+fn @selectors() -> struct0 [selector=0x6e25b978, pure, abi_params=[], abi_returns=[word<bytes4>, word<bytes4>], abi_return_params=[bytes4, bytes4]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v1 = insert_value struct0, v0, 1, 0x26121ff000000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @precompile() -> i160 [selector=0x13a4e8c0, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = icall ecrecover<>, 0, 27, 0, 0
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+fn @decoded() -> i8 [selector=0x1fd9249c, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = abi_encode [word<u8>], object, args 7
+    v1 = abi_decode [u8], v0
+    ret v1
+}
+
+fn @codeHash() -> i1 [selector=0x18edaaf2, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize D_creation_code_0
+    v1 = datasize D_creation_code_0, 63, aligned
+    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, v0
+    v3 = memory_object_data memorybytes, v2
+    v4 = datasize D_creation_code_0, 31, aligned
+    v5 = ptrtoint memptr v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    v7 = ptrtoint memptr v3 to i256
+    datacopy D_creation_code_0, v7, v0
+    v8 = keccak256_bytes v2
+    v9 = datasize D_creation_code_0
+    v10 = datasize D_creation_code_0, 63, aligned
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v11, v9
+    v12 = memory_object_data memorybytes, v11
+    v13 = datasize D_creation_code_0, 31, aligned
+    v14 = ptrtoint memptr v11 to i256
+    v15 = add v14, v13
+    mstore v15, 0
+    v16 = ptrtoint memptr v12 to i256
+    datacopy D_creation_code_0, v16, v9
+    v17 = keccak256_bytes v11
+    v18 = eq v8, v17
+    ret v18
+}
+
+fn @widened() -> i256 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode [word<u8>], object, args 7
+    v1 = abi_decode [u8], v0
+    v2 = zext i8 v1 to i256
+    ret v2
+}
+
+fn @f.6() [pure] {
+  bb0:
+    ret
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}

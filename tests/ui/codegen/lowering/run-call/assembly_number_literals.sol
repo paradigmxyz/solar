@@ -1,3 +1,4 @@
+//@ codegen-matrix: standard
 //@ run-call: f => 1036
 
 // Assembly accepts integer literals with underscores or exponents; see PARSE-005 in

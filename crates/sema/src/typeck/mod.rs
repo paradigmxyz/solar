@@ -58,8 +58,9 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     }
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
-    view_pure_checker::check(gcx);
+    // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
     constant_divisors::check(gcx);
+    view_pure_checker::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
@@ -574,7 +575,7 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
     }
 
-    // Iterate over the items in declaration order to report them in the same order solc does.
+    // Iterate over the functions in declaration order to report them in the same order solc does.
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
 

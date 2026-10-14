@@ -75,9 +75,9 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// Whether we're checking the length of a fixed-size array type whose constant evaluation
-    /// fails, which already reports the failed operation.
-    in_array_len: bool,
+    /// Whether we're checking the length of a fixed-size array type whose evaluation fails at a
+    /// literal operation, which the evaluation reports.
+    in_failed_array_len: bool,
     /// The value components the enclosing statement discards, by expression.
     ///
     /// Only populated before Byzantium, where a dynamically encoded external return value is
@@ -162,7 +162,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
-            in_array_len: false,
+            in_failed_array_len: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
             circular_constants: FxHashMap::default(),
@@ -303,10 +303,14 @@ impl<'gcx> TypeChecker<'gcx> {
     /// reports values that are not integers.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let fails = self.gcx.const_eval().eval_int(size).is_err();
-        let prev = std::mem::replace(&mut self.in_array_len, fails);
+        let fails = self
+            .gcx
+            .const_eval()
+            .eval_int(size)
+            .is_err_and(|err| err.kind.is_undefined_literal_op());
+        let prev = std::mem::replace(&mut self.in_failed_array_len, fails);
         let ty = self.check_expr(size);
-        self.in_array_len = prev;
+        self.in_failed_array_len = prev;
         ty
     }
 
@@ -479,7 +483,9 @@ impl<'gcx> TypeChecker<'gcx> {
                             }
                         }
                         // The evaluation of the array length reports the failed operation.
-                        Err(err) if self.in_array_len && err.kind.is_undefined_literal_op() => {
+                        Err(err)
+                            if self.in_failed_array_len && err.kind.is_undefined_literal_op() =>
+                        {
                             return lhs;
                         }
                         // Like solc, reject literal operations that have no value, such as `1 / 0`.
@@ -1200,7 +1206,7 @@ impl<'gcx> TypeChecker<'gcx> {
         code: DiagId,
     ) -> Result<(), ErrorGuaranteed> {
         let msg = if is_literal_too_large(ty) {
-            "literal is too large for any integer type"
+            EvalErrorKind::LiteralTooLarge.msg()
         } else if ty.kind == TyKind::RationalLiteral
             && self.gcx.const_eval().eval_expr(expr).is_ok_and(|v| v.is_fraction_too_large())
         {
@@ -2140,6 +2146,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 result = result.and(Err(self
                     .dcx()
                     .err("cannot perform packed encoding for a literal")
+                    .code(error_code!(7279))
                     .span(expr.span)
                     .help("convert it to an explicit type first")
                     .emit()));
@@ -3912,6 +3919,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Switch(switch) => {
                 let _ = self.check_expr(switch.selector);
                 for case in switch.cases {
+                    if let Some(constant) = case.constant {
+                        let _ = self.check_yul_lit(constant);
+                    }
                     for stmt in case.body.iter() {
                         self.visit_stmt(stmt)?;
                     }
@@ -4020,27 +4030,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             _ => {}
         }
         self.walk_stmt(stmt)
-    }
-}
-
-impl<'gcx> Gcx<'gcx> {
-    /// Builds the error for a builtin binary operator that does not apply to its operands.
-    pub(crate) fn binop_err(
-        self,
-        op: hir::BinOp,
-        (lhs_span, lhs): (Span, Ty<'gcx>),
-        (rhs_span, rhs): (Span, Ty<'gcx>),
-        assign: bool,
-    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        let (lhs, rhs) = (lhs.display(self).to_string(), rhs.display(self).to_string());
-        let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
-        let code = if assign { error_code!(7366) } else { error_code!(2271) };
-        self.dcx()
-            .err(msg)
-            .code(code)
-            .span(op.span)
-            .span_label(lhs_span, lhs)
-            .span_label(rhs_span, rhs)
     }
 }
 

@@ -1,7 +1,7 @@
 //@ compile-flags: --emit=bin
 // A constant is its value, which constant evaluation computes once. solc evaluates the initializer
-// at every use instead, which can revert there; we report a constant without a value at its first
-// use, once. See CODEGEN-013 in docs/SOLC_DIVERGENCE.md.
+// at every use instead, which can revert there; we report a constant whose initializer reverts at
+// its declaration, once, if code uses it. See CODEGEN-013 in docs/SOLC_DIVERGENCE.md.
 
 contract D {}
 
@@ -13,8 +13,13 @@ contract C {
     uint256 constant DIVIDED = MAX / ZERO; //~ ERROR: failed to evaluate constant: attempted to divide by zero
     // Both branches of a conditional evaluate.
     int8 constant BRANCH = true ? int8(1) : int8(-128) - 1; //~ ERROR: failed to evaluate constant: arithmetic overflow
-    // Only codegen knows the bytecode, so its hash has no value.
-    bytes32 constant CODE_HASH = keccak256(type(D).creationCode); //~ ERROR: failed to evaluate constant: unsupported expression
+    // Both operands of `&&` evaluate.
+    bool constant AND = false && OVERFLOW > 0;
+    // A revert in one operand wins over a value the evaluator does not compute in the other.
+    uint256 constant HASH = uint256(keccak256(type(D).creationCode));
+    uint8 constant MAX8 = 255;
+    uint256 constant HASH_FIRST = HASH + (MAX8 + 1); //~ ERROR: failed to evaluate constant: arithmetic overflow
+    uint256 constant HASH_LAST = (MAX8 + 1) + HASH; //~ ERROR: failed to evaluate constant: arithmetic overflow
     // Unused constants are not reported.
     uint256 constant UNUSED = MAX + 2;
 
@@ -24,16 +29,13 @@ contract C {
         return (C.OVERFLOW, DIVIDED, POW);
     }
 
-    function g() external pure returns (int8, bytes32) {
-        unchecked {
-            return (BRANCH, CODE_HASH);
-        }
+    function h() external pure returns (uint256, uint256) {
+        return (HASH_FIRST, HASH_LAST);
     }
 
-    // The bytecode of a contract is a value.
-    bytes constant CODE = type(D).runtimeCode;
-
-    function h() external pure returns (bytes memory) {
-        return CODE;
+    function g() external pure returns (int8, bool) {
+        unchecked {
+            return (BRANCH, AND);
+        }
     }
 }

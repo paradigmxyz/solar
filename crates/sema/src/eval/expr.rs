@@ -33,8 +33,7 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
     let Some(init) = var.initializer else {
         return Err(already_emitted(gcx).spanned(var.span));
     };
-    let Folded { value, solc } =
-        gcx.const_eval().expr_result(init).clone().map_err(|err| err.in_constant(id))?;
+    let Folded { value, solc } = gcx.const_eval().expr_result(init).clone()?;
     let Some(ty) = ValueTy::from_hir(&var.ty) else {
         return Err(EE::UnsupportedExpr.spanned(init.span));
     };
@@ -46,10 +45,7 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
         // An initializer that does not fit its declared type is already a type error at the
         // declaration, so keep the literal instead of reporting a second error at each use.
         (ConstValue::Int(value), ValueTy::Int(_)) if value.is_literal() => {
-            match ConstValue::Int(value.clone()).implicit_to(gcx, ty) {
-                Ok(value) => value,
-                Err(_) => ConstValue::Int(value),
-            }
+            ConstValue::Int(value.clone()).implicit_to(gcx, ty).unwrap_or(ConstValue::Int(value))
         }
         (value @ ConstValue::Rational(_), ValueTy::Int(_)) => value,
         (value, ty) => value.implicit_to(gcx, ty).map_err(|kind| kind.spanned(init.span))?,
@@ -87,9 +83,8 @@ fn eval_inner(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
             Ok(Folded::solc(value, solc))
         }
         hir::ExprKind::Binary(lhs, op, rhs) => {
-            // Like solc's evaluator, evaluate both operands, even of `&&` and `||`.
-            let l = ev(lhs)?;
-            let r = ev(rhs)?;
+            // Evaluate both operands, even of `&&` and `||`; see the module docs.
+            let (l, r) = both(ev(lhs), ev(rhs))?;
             if let (hir::BinOpKind::And, Some(false)) | (hir::BinOpKind::Or, Some(true)) =
                 (op.kind, l.value.as_bool())
             {
@@ -113,23 +108,24 @@ fn eval_inner(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
             Ok(Folded::solc(value, solc))
         }
         hir::ExprKind::Ternary(cond, then, els) => {
-            let Some(cond) = ev(cond)?.value.as_bool() else {
+            let (cond, (then, els)) = both(ev(cond), both(ev(then), ev(els)))?;
+            let Some(cond) = cond.value.as_bool() else {
                 return Err(EE::UnsupportedExpr.into());
             };
             // Both branches decide the result type.
-            let (then, els) = ev(then)?.value.unify(gcx, ev(els)?.value)?;
+            let (then, els) = then.value.unify(gcx, els.value)?;
             Ok(Folded::new(if cond { then } else { els }))
         }
-        hir::ExprKind::Call(callee, ref args) if let hir::ExprKind::New(ty) = &callee.kind => {
-            eval_new(gcx, ty, args)
+        hir::ExprKind::Call(callee, args) if let hir::ExprKind::New(ty) = &callee.kind => {
+            eval_new(gcx, ty, &args)
         }
-        hir::ExprKind::Call(callee, ref args) => eval_call(gcx, callee, args),
+        hir::ExprKind::Call(callee, args) => eval_call(gcx, callee, &args),
         hir::ExprKind::Payable(inner) => {
             Ok(Folded::new(ev(inner)?.value.explicit_to(gcx, ValueTy::Address)?))
         }
         hir::ExprKind::Index(base, Some(index)) => {
-            let base = ev(base)?.value;
-            let index = ev(index)?.value.as_u256().ok_or(EE::OutOfRange)?;
+            let (base, index) = both(ev(base), ev(index))?;
+            let (base, index) = (base.value, index.value.as_u256().ok_or(EE::OutOfRange)?);
             let bytes = match &base {
                 ConstValue::FixedBytes(value) => value.as_slice(),
                 ConstValue::Bytes(data, BytesKind::Bytes) => data.as_byte_str(),
@@ -176,6 +172,7 @@ fn eval_res(gcx: Gcx<'_>, res: hir::Res) -> EvalResult {
 
 /// Evaluates a member access that does not name a declaration.
 fn eval_member(gcx: Gcx<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult {
+    let res = gcx.resolve_path_expr(base);
     let value = match (&base.kind, member) {
         (hir::ExprKind::TypeCall(ty), sym::min | sym::max) => {
             let max = member == sym::max;
@@ -223,20 +220,21 @@ fn eval_member(gcx: Gcx<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult
                 return Err(EE::UnsupportedExpr.into());
             }
         }
-        (_, sym::selector) => match gcx.resolve_path_expr(base) {
-            Some(hir::Res::Item(id)) if has_selector(gcx, id) => match id {
-                hir::ItemId::Event(id) => builtins::fixed_bytes(&gcx.event_selector(id).0),
-                _ => builtins::fixed_bytes(&gcx.function_selector(id).0),
-            },
-            _ => return Err(EE::UnsupportedExpr.into()),
-        },
-        _ if let Some(hir::Res::Item(hir::ItemId::Enum(id))) = gcx.resolve_path_expr(base) => {
+        // Enum variants come first, as one can be named `selector`.
+        _ if let Some(hir::Res::Item(hir::ItemId::Enum(id))) = res => {
             let variants = gcx.hir.enumm(id).variants;
             let index = variants.iter().position(|&variant| {
                 gcx.hir.variable(variant).name.is_some_and(|name| name.name == member)
             });
             ConstValue::Enum(id, index.ok_or(EE::UnsupportedExpr)? as u32)
         }
+        (_, sym::selector) => match res {
+            Some(hir::Res::Item(id)) if has_selector(gcx, id) => match id {
+                hir::ItemId::Event(id) => builtins::fixed_bytes(&gcx.event_selector(id).0),
+                _ => builtins::fixed_bytes(&gcx.function_selector(id).0),
+            },
+            _ => return Err(EE::UnsupportedExpr.into()),
+        },
         (_, sym::length) => match gcx.const_eval().expr_result(base).clone()?.value {
             ConstValue::FixedBytes(value) => {
                 ConstValue::Int(IntScalar::typed(value.size().into(), IntTy::UINT8))
@@ -251,7 +249,8 @@ fn eval_member(gcx: Gcx<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult
     Ok(Folded::new(value))
 }
 
-/// Evaluates a call with unnamed arguments: a type conversion or a pure builtin.
+/// Evaluates a call: a type conversion, a pure builtin, `abi.encodeCall`, `wrap` or `unwrap` of a
+/// user-defined value type, or a struct constructor, the only call with named arguments.
 fn eval_call(gcx: Gcx<'_>, callee: &hir::Expr<'_>, call_args: &hir::CallArgs<'_>) -> EvalResult {
     enum Callee {
         Convert(ValueTy),
@@ -304,10 +303,7 @@ fn eval_call(gcx: Gcx<'_>, callee: &hir::Expr<'_>, call_args: &hir::CallArgs<'_>
         },
     };
 
-    let mut args = args?
-        .iter()
-        .map(|arg| gcx.const_eval().expr_result(arg).clone())
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut args = operands(args?.iter().map(|arg| gcx.const_eval().expr_result(arg).clone()))?;
     let single = |args: &mut Vec<Folded>| match args[..] {
         [_] => Ok(args.pop().unwrap().value),
         _ => Err(EE::UnsupportedExpr),
@@ -329,8 +325,8 @@ fn eval_call(gcx: Gcx<'_>, callee: &hir::Expr<'_>, call_args: &hir::CallArgs<'_>
                 [arg] if builtin == Builtin::Erc7201 => arg.solc,
                 _ => None,
             };
-            let args = args.into_iter().map(|arg| arg.value).collect();
-            Folded::solc(builtins::call(gcx, builtin, args)?, solc)
+            let args = args.into_iter().map(|arg| arg.value).collect::<Vec<_>>();
+            Folded::solc(builtins::call(gcx, builtin, &args)?, solc)
         }
     })
 }
@@ -382,7 +378,8 @@ fn zero_value(gcx: Gcx<'_>, ty: &hir::Type<'_>, budget: &mut usize) -> Result<Co
             ConstValue::Array { elements: Box::new([]), dynamic: true }
         }
         hir::TypeKind::Array(hir::TypeArray { element, size: Some(size) }) => {
-            let len = gcx.const_eval().eval_int(size).ok().and_then(|len| len.as_u256());
+            // Propagate the length's error, such as a cycle.
+            let len = gcx.const_eval().eval_int(size).map_err(|err| err.kind)?.as_u256();
             let len = len.and_then(|len| usize::try_from(len).ok()).ok_or(EE::UnsupportedExpr)?;
             ConstValue::Array { elements: zero_values(gcx, element, len, budget)?, dynamic: false }
         }
@@ -415,18 +412,28 @@ fn eval_struct(gcx: Gcx<'_>, id: hir::StructId, args: &hir::CallArgs<'_>) -> Eva
         return Err(EE::UnsupportedExpr.into());
     }
     let names = gcx.callable_param_names(CallableParamSource::Struct(id));
-    let mut values = Vec::with_capacity(fields.len());
-    for (index, &field) in fields.iter().enumerate() {
+    let args = operands::<_, Vec<_>>((0..fields.len()).map(|index| {
         let arg = args.argument_for_parameter(index, Some(&names)).ok_or(EE::UnsupportedExpr)?;
-        let value = gcx.const_eval().expr_result(arg).clone()?.value;
-        values.push(match ValueTy::from_hir(&gcx.hir.variable(field).ty) {
-            Some(ty) => value.implicit_to(gcx, ty)?,
-            // Type checking checks the types of aggregates.
-            None if matches!(value, ConstValue::Struct(..) | ConstValue::Array { .. }) => value,
-            None => return Err(EE::UnsupportedExpr.into()),
-        });
+        gcx.const_eval().expr_result(arg).clone()
+    }))?;
+    let values = std::iter::zip(fields, args)
+        .map(|(&field, arg)| implicit_to_declared(gcx, arg.value, &gcx.hir.variable(field).ty))
+        .collect::<Result<_, _>>()?;
+    Ok(Folded::new(ConstValue::Struct(id, values)))
+}
+
+/// Converts a value implicitly to a declared type, like an assignment. Structs and arrays keep
+/// their values, as type checking checks their types.
+fn implicit_to_declared(
+    gcx: Gcx<'_>,
+    value: ConstValue,
+    ty: &hir::Type<'_>,
+) -> Result<ConstValue, EE> {
+    match ValueTy::from_hir(ty) {
+        Some(ty) => value.implicit_to(gcx, ty),
+        None if matches!(value, ConstValue::Struct(..) | ConstValue::Array { .. }) => Ok(value),
+        None => Err(EE::UnsupportedExpr),
     }
-    Ok(Folded::new(ConstValue::Struct(id, values.into())))
 }
 
 /// Evaluates `abi.encodeCall(f, (args))`: the selector of `f` followed by the ABI encoding of the
@@ -450,12 +457,14 @@ fn eval_encode_call(gcx: Gcx<'_>, args: &[hir::Expr<'_>]) -> EvalResult {
     if params.len() != call_args.len() {
         return Err(EE::UnsupportedExpr.into());
     }
+    let args = operands::<_, Vec<_>>(
+        call_args.iter().map(|arg| gcx.const_eval().expr_result(arg).clone()),
+    )?;
     let mut values = vec![builtins::fixed_bytes(&gcx.function_selector(id).0)];
-    for (&param, arg) in std::iter::zip(params, call_args) {
-        let ty = ValueTy::from_hir(&gcx.hir.variable(param).ty).ok_or(EE::UnsupportedExpr)?;
-        values.push(gcx.const_eval().expr_result(arg).clone()?.value.implicit_to(gcx, ty)?);
+    for (&param, arg) in std::iter::zip(params, args) {
+        values.push(implicit_to_declared(gcx, arg.value, &gcx.hir.variable(param).ty)?);
     }
-    Ok(Folded::new(builtins::call(gcx, Builtin::AbiEncodeWithSelector, values)?))
+    Ok(Folded::new(builtins::call(gcx, Builtin::AbiEncodeWithSelector, &values)?))
 }
 
 /// Returns whether the given item has a selector that folds: a public or external function, an
@@ -527,6 +536,39 @@ fn signature_needs_constants(gcx: Gcx<'_>, id: hir::ItemId) -> bool {
         .iter()
         .chain(returns)
         .any(|&var| needs_constants(gcx, &gcx.hir.variable(var).ty, &mut seen))
+}
+
+/// Returns the values of two operands that both must evaluate, see [`operands`].
+fn both<T, U>(l: Result<T, EvalError>, r: Result<U, EvalError>) -> Result<(T, U), EvalError> {
+    match (l, r) {
+        (Ok(l), Ok(r)) => Ok((l, r)),
+        (Err(l), Err(r)) if l.kind.is_unsupported() && !r.kind.is_unsupported() => Err(r),
+        (Err(err), _) | (_, Err(err)) => Err(err),
+    }
+}
+
+/// Returns the values of operands that all must evaluate. Of several errors, it returns the first
+/// that is not [`EE::is_unsupported`], so whether a constant reverts does not depend on the order
+/// of its operands.
+fn operands<T, C: FromIterator<T>>(
+    results: impl IntoIterator<Item = Result<T, EvalError>>,
+) -> Result<C, EvalError> {
+    let mut error = None::<EvalError>;
+    let values = results
+        .into_iter()
+        .filter_map(|result| {
+            result
+                .inspect_err(|&err| {
+                    if error
+                        .is_none_or(|prev| prev.kind.is_unsupported() && !err.kind.is_unsupported())
+                    {
+                        error = Some(err);
+                    }
+                })
+                .ok()
+        })
+        .collect();
+    error.map_or(Ok(values), Err)
 }
 
 /// Returns the error for an expression that an earlier error already rejects.

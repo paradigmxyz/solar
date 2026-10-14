@@ -5,8 +5,9 @@
 //! [`ConstEval::eval_solc`](crate::eval::ConstEval::eval_solc): `x / 0` is not reported unless `x`
 //! is constant too, and neither are operands that only our evaluator folds.
 //!
-//! As in solc, this runs last and only when no other error was reported. Array lengths are not
-//! checked: their evaluation already reports a division by zero.
+//! As in solc, this runs after type checking, before the view and pure checks, and only when no
+//! other error was reported. Array lengths are not checked: their evaluation already reports a
+//! division by zero.
 //!
 //! Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/StaticAnalyzer.cpp#L314-L360>
 

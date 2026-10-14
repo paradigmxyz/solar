@@ -3,6 +3,7 @@ use crate::{
     ast_lowering::SymbolResolver,
     ast_passes::number_literal_underscore_errors,
     builtins::{Builtin, members},
+    eval::EvalErrorKind,
     hir::{self, Hir, SourceId},
     typeck::override_checker::OverrideProxy,
 };
@@ -527,6 +528,11 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
+    /// Creates an integer literal type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits` does not fit in a `u16`, which literal arithmetic never needs.
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Ty<'gcx> {
         self.mk_ty_int_literal_with_fixed_bytes(negative, bits, None)
     }
@@ -1585,7 +1591,26 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Builds the error for a literal at `span` that is too large for any integer type.
     pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        self.dcx().err("literal is too large for any integer type").span(span)
+        self.dcx().err(EvalErrorKind::LiteralTooLarge.msg()).span(span)
+    }
+
+    /// Builds the error for a builtin binary operator that does not apply to its operands.
+    pub(crate) fn binop_err(
+        self,
+        op: hir::BinOp,
+        (lhs_span, lhs): (Span, Ty<'gcx>),
+        (rhs_span, rhs): (Span, Ty<'gcx>),
+        assign: bool,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
+        let (lhs, rhs) = (lhs.display(self).to_string(), rhs.display(self).to_string());
+        let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
+        let code = if assign { error_code!(7366) } else { error_code!(2271) };
+        self.dcx()
+            .err(msg)
+            .code(code)
+            .span(op.span)
+            .span_label(lhs_span, lhs)
+            .span_label(rhs_span, rhs)
     }
 }
 
@@ -2218,10 +2243,16 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
     // stays an array when its length fails to evaluate, so solc reports both errors.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
+    let mut element = &var.ty;
+    while let hir::TypeKind::Array(array) = &element.kind {
+        element = &array.element;
+    }
     if var.is_constant()
         && !ty.is_value_type()
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
-        && (!ty.references_error() || matches!(ty.kind, TyKind::Array(..)))
+        && (!ty.references_error()
+            || matches!(var.ty.kind, hir::TypeKind::Array(_))
+                && !gcx.type_of_hir_ty(element).references_error())
     {
         let guar = gcx
             .dcx()

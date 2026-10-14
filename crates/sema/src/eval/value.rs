@@ -48,12 +48,12 @@ pub enum ConstValue {
     Array { elements: Box<[Self]>, dynamic: bool },
 }
 
-/// The bytecode of a [`ConstValue::Code`] value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Which bytecode of a contract a value holds: `type(C).creationCode` or `type(C).runtimeCode`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CodeKind {
-    /// `type(C).creationCode`.
+    /// Deployment bytecode, including the initcode prefix.
     Creation,
-    /// `type(C).runtimeCode`.
+    /// Deployed runtime bytecode.
     Runtime,
 }
 
@@ -253,12 +253,12 @@ impl ConstValue {
             }
             (Self::Int(value), ValueTy::Enum(id)) => {
                 let index = value.as_u256().and_then(|index| u32::try_from(index).ok());
-                match index {
-                    Some(index) if (index as usize) < gcx.hir.enumm(id).variants.len() => {
-                        Self::Enum(id, index)
-                    }
-                    _ => return Err(EE::OutOfRange),
-                }
+                let Some(index) =
+                    index.filter(|&index| (index as usize) < gcx.hir.enumm(id).variants.len())
+                else {
+                    return Err(EE::OutOfRange);
+                };
+                Self::Enum(id, index)
             }
             (Self::FixedBytes(value), ValueTy::FixedBytes(size)) => {
                 Self::FixedBytes(value.resize(size))
@@ -341,7 +341,7 @@ impl ConstValue {
         Ok(match (self, rhs) {
             (Self::Int(lhs), Self::Int(rhs)) => match op {
                 _ if op.is_cmp() => {
-                    // Comparisons need a common type, like arithmetic.
+                    // A literal compared with a typed value needs a mobile type, like arithmetic.
                     IntScalar::binop_ty(&lhs, &rhs, op)?;
                     Self::Bool(compare(lhs.data.cmp(&rhs.data), op))
                 }
@@ -372,9 +372,10 @@ impl ConstValue {
                 };
                 Self::FixedBytes(FixedBytes::from_word(lhs.size, word))
             }
-            (Self::Address(lhs), Self::Address(rhs)) if op.is_cmp() => {
-                Self::Bool(compare(lhs.cmp(&rhs), op))
-            }
+            (
+                Self::Address(lhs) | Self::Contract(_, lhs),
+                Self::Address(rhs) | Self::Contract(_, rhs),
+            ) if op.is_cmp() => Self::Bool(compare(lhs.cmp(&rhs), op)),
             (Self::Enum(lhs_id, lhs), Self::Enum(rhs_id, rhs))
                 if lhs_id == rhs_id && op.is_cmp() =>
             {
@@ -447,8 +448,8 @@ fn literal_int_binop(l: BigInt, r: BigInt, op: BinOpKind) -> Result<BigInt, EE> 
     })
 }
 
-/// Returns whether an integer's most significant bit is past index `MAX_INTERMEDIATE_BITS`, like
-/// solc allows.
+/// Returns whether an integer's most significant bit is past index `MAX_INTERMEDIATE_BITS`, the
+/// highest that solc allows.
 fn exceeds_precision(value: &BigInt) -> bool {
     value.magnitude().bits() > MAX_INTERMEDIATE_BITS + 1
 }
@@ -611,7 +612,7 @@ impl FixedBytes {
         let size = match (&lhs, &rhs) {
             (ConstValue::FixedBytes(lhs), ConstValue::FixedBytes(rhs)) => lhs.size.max(rhs.size),
             (ConstValue::FixedBytes(value), _) | (_, ConstValue::FixedBytes(value)) => value.size,
-            _ => unreachable!(),
+            _ => unreachable!("not a `bytesN` operation: {lhs:?} and {rhs:?}"),
         };
         let convert = |value| match value {
             ConstValue::FixedBytes(value) if value.size <= size => Ok(value.resize(size)),
@@ -805,11 +806,11 @@ impl IntScalar {
         if let Some(value) = self.as_u256() {
             return Some(value);
         }
-        Some(U256::ZERO.wrapping_sub(Self::magnitude_u256(&self.data)?))
+        Some(Self::magnitude_u256(&self.data)?.wrapping_neg())
     }
 
-    /// Returns the bytes of the value in its type, `bytes` wide and in two's complement, for
-    /// packed ABI encoding.
+    /// Returns the bytes of the value in two's complement, as wide as its type, for packed ABI
+    /// encoding.
     pub(super) fn to_be_bytes(&self) -> Option<Vec<u8>> {
         let bytes = usize::from(self.ty?.size.bytes());
         let word = self.as_evm_word()?.to_be_bytes::<32>();
@@ -993,7 +994,7 @@ impl IntScalar {
         match (op, self.ty, r.ty) {
             // solc reports the failed operations of two literals.
             (_, None, None) => true,
-            // solc rejects a left shift that drops bits, which the EVM drops.
+            // solc rejects a typed left shift that drops bits, though the EVM drops them.
             (BinOpKind::Shl, _, _) if !self.shl_keeps_bits(r) => false,
             // solc converts the right operand of a typed shift or power to the left type.
             (BinOpKind::Pow, Some(ty), _) => ty.contains(&r.data),
@@ -1024,7 +1025,8 @@ impl IntScalar {
         if op == BinOpKind::Shl
             && let Some(ty) = ty
         {
-            let amount = r.as_u256().ok_or(EE::NegativeShift)?;
+            // Type checking rejects signed and negative shift amounts.
+            let amount = r.as_u256().ok_or(EE::UnsupportedBinaryOp)?;
             let amount = u16::try_from(amount).unwrap_or(u16::MAX).min(ty.bits());
             return Self { data: self.data << amount, ty: Some(ty) }.explicit_to(ty);
         }
@@ -1079,10 +1081,7 @@ impl IntScalar {
         if r.data.is_zero() {
             return Self::checked(BigInt::one());
         }
-        if self.data.is_zero() {
-            return Ok(self);
-        }
-        if self.data.is_one() {
+        if self.data.is_zero() || self.data.is_one() {
             return Ok(self);
         }
         if self.data == BigInt::from(-1) {

@@ -31,7 +31,7 @@ contract C {
     }
 
     // A shift or exponentiation with a literal left operand is performed in a
-    // word, so it still overflows when the result does not fit one.
+    // word, so an exponentiation still overflows when the result does not fit one.
     function wordOperations() public pure {
         // Like the EVM, the shift drops the bits past `uint256`. solc rejects it with error 2643;
         // see TYPECK-020.

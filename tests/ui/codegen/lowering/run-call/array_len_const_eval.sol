@@ -1,5 +1,6 @@
 //@ codegen-matrix: standard
 //@ run-call: lengths => 3, 255, 1, 4, 4, 7, 41, 4
+//@ run-call: later => 5
 //@[mir] filecheck:
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 
@@ -72,5 +73,13 @@ contract ArrayLenConstEval {
         uint[C40] memory g;
         uint[uint32(bytes4(0x00000004))] memory h;
         return (a.length, b.length, c.length, d.length, e.length, f.length, g.length, h.length);
+    }
+
+    // A constant declared after the array type.
+    uint[LATER] laterArray;
+    uint constant LATER = 5;
+
+    function later() external view returns (uint) {
+        return laterArray.length;
     }
 }

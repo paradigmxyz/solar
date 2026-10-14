@@ -230,7 +230,8 @@ impl BinOpKind {
 
     /// Returns `true` if the operator is a logical operator.
     pub const fn is_logical(self) -> bool {
-        matches!(self, Self::And | Self::Or)
+        use BinOpKind::*;
+        matches!(self, And | Or)
     }
 }
 
