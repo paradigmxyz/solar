@@ -156,7 +156,7 @@ fn bool_exits(
             (
                 ReturnShape::Lowered { address, size },
                 ReturnShape::Lowered { address: other, size: other_size },
-            ) => same_word(func, address, other) && same_word(func, size, other_size),
+            ) => func.same_word(address, other) && func.same_word(size, other_size),
             _ => false,
         };
         return (same_shape
@@ -339,16 +339,11 @@ fn constant_return(func: &Function, block: BlockId) -> Option<(ReturnShape, Valu
         },
         ([store], Terminator::ReturnData { offset, size }) => {
             let InstKind::MStore(address, value) = func.inst(*store).kind else { return None };
-            (same_word(func, address, *offset) && func.value_u64(*size) == Some(32))
+            (func.same_word(address, *offset) && func.value_u64(*size) == Some(32))
                 .then_some((ReturnShape::Lowered { address, size: *size }, value))
         }
         _ => None,
     }
-}
-
-/// Whether two operands denote the same word: the same value, or equal immediates.
-fn same_word(func: &Function, a: ValueId, b: ValueId) -> bool {
-    a == b || matches!((func.value_u256(a), func.value_u256(b)), (Some(x), Some(y)) if x == y)
 }
 
 #[derive(Clone, Copy)]

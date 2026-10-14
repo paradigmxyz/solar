@@ -5,15 +5,13 @@
 // The second loop's counter starts where the first one stops. The first loop's
 // pointer takes over its exit test and rebuilds the counter on the way into the
 // second loop, whose pointer then starts from the rebuilt counter rather than
-// from the dead phi.
+// from the dead phi. Both pointers walk the same array, so the second one
+// continues from where the first one stopped.
 // CHECK-LABEL: {{^[ +].*}}fn @continued_counter{{[( ]}}
 // CHECK: + [[FIRST:v[0-9]+]] = phi [bb0: [[BASE:v[0-9]+]]], [bb2: {{v[0-9]+}}]
 // CHECK: bb3:
-// CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[FIRST]], [[BASE]]
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
-// CHECK-NEXT: + [[OFFSET:v[0-9]+]] = shl 5, [[INDEX]]
-// CHECK-NEXT: + [[START:v[0-9]+]] = add [[BASE]], [[OFFSET]]
-// CHECK: + {{v[0-9]+}} = phi [bb3: [[START]]], [bb5: {{v[0-9]+}}]
+// CHECK-NOT: shl
+// CHECK: + {{v[0-9]+}} = phi [bb3: [[FIRST]]], [bb5: {{v[0-9]+}}]
 fn @continued_counter() -> i256 {
   bb0:
     v0 = mload 64
@@ -42,4 +40,63 @@ fn @continued_counter() -> i256 {
     jump bb4
   bb6:
     ret 0
+}
+
+// The loop's pointer is 32 bytes past its base, so the element the counter
+// stopped at, read without that offset after the loop, sits 32 bytes before it.
+// CHECK-LABEL: {{^[ +].*}}fn @offset_read{{[( ]}}
+// CHECK: + [[PTR:v[0-9]+]] = phi [bb0: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
+// CHECK: bb3:
+// CHECK: + [[ADDRESS:v[0-9]+]] = sub [[PTR]], 32
+// CHECK-NEXT: mload [[ADDRESS]]
+fn @offset_read() -> i256 {
+  bb0:
+    v0 = mload 64
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v5 = add v0, v3
+    v6 = add v5, 32
+    mstore v6, 8
+    v4 = add v1, 1
+    jump bb1
+  bb3:
+    v7 = shl 5, v1
+    v8 = add v0, v7
+    v9 = mload v8
+    ret v9
+}
+
+// The counter starts at one, so another array's element at the counter is
+// `ptr - start` plus one element past that array's base.
+// CHECK-LABEL: {{^[ +].*}}fn @distance_read{{[( ]}}
+// CHECK: bb3:
+// CHECK: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NOT: shl
+// CHECK: + [[DISTANCE:v[0-9]+]] = add [[DELTA]], 32
+// CHECK: add {{v[0-9]+}}, [[DISTANCE]]
+fn @distance_read() -> i256 {
+  bb0:
+    v0 = mload 64
+    v10 = mload 96
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb2: v4]
+    v2 = lt v1, 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v5 = add v0, v3
+    mstore v5, 8
+    v4 = add v1, 1
+    jump bb1
+  bb3:
+    v7 = shl 5, v1
+    v8 = add v10, v7
+    v9 = mload v8
+    ret v9
 }

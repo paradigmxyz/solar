@@ -70,6 +70,14 @@
 //! the loop; a value the loop derives from it keeps the counter, and so does a
 //! counter narrower than a word, which the rebuild would replace with a word.
 //!
+//! A read that scales the rebuilt counter back into the pointer's own family,
+//! `base + counter * scale`, such as the element a search stopped at or the start
+//! of a later loop that continues the walk, takes the pointer plus a constant
+//! instead. Any other scaled read of a counter with a constant start takes
+//! `ptr - start + init * scale`. Neither leaves a `shl` of the rebuild's `shr`
+//! behind, which no later pass can fold: only this pass knows that `ptr - start`
+//! is a multiple of the scale.
+//!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
@@ -165,6 +173,18 @@ struct IndVarSimplifier {
     /// Exit edges, from a loop block to a join outside it, whose phis read a counter that
     /// could otherwise die, by the loop header.
     exit_splits: Vec<(BlockId, BlockId, BlockId)>,
+    /// Counters rebuilt after their loop whose pointer a later read can continue.
+    rebuilt: FxHashMap<ValueId, RebuiltCounter>,
+}
+
+/// A counter rebuilt from a pointer in the family `base + counter * scale + constant`: the
+/// address `base + counter * scale` is `pointer + offset`, with `offset = -constant`.
+#[derive(Clone, Copy, Debug)]
+struct RebuiltCounter {
+    pointer: ValueId,
+    base: ValueId,
+    scale: i128,
+    offset: i128,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -247,12 +267,18 @@ impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
     fn new(alias: Rc<AliasAnalysis>) -> Self {
-        Self { stats: IndVarSimplifyStats::default(), alias, exit_splits: Vec::new() }
+        Self {
+            stats: IndVarSimplifyStats::default(),
+            alias,
+            exit_splits: Vec::new(),
+            rebuilt: FxHashMap::default(),
+        }
     }
 
     /// Runs induction-variable simplification once over `func`.
     fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
+        self.rebuilt.clear();
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze_with_cfg(func, Rc::clone(&cfg));
@@ -584,7 +610,7 @@ impl IndVarSimplifier {
             && let Some(reads) = &exit_reads
             && let Some((pointer, key, _)) = &test_pointer
         {
-            self.rebuild_exit_reads(func, preheader, &iv, *pointer, key.scale, reads);
+            self.rebuild_exit_reads(func, preheader, &iv, *pointer, key, reads);
         }
         if test_rewritten {
             self.remove_dead_counter(func, loop_data, iv.value, Some(iv.update_inst));
@@ -779,13 +805,17 @@ impl IndVarSimplifier {
     /// test: `init + (ptr - start) / scale`, with `start` the pointer's value on entry. The
     /// pointer moves `scale` bytes for every step of the counter, and the counter travels
     /// below `2^64` steps, so the difference never wraps past the word.
+    ///
+    /// A read that scales the counter back into the pointer's own family, such as the
+    /// element a search stopped at, takes the pointer instead of the round trip through the
+    /// counter; any other scaled read takes `ptr - start + init * scale`.
     fn rebuild_exit_reads(
-        &self,
+        &mut self,
         func: &mut Function,
         preheader: BlockId,
         iv: &InductionVariable,
         pointer: ValueId,
-        scale: i128,
+        key: &AddressKey,
         reads: &ExitReads,
     ) {
         // The rebuild counts up from the start, as the equality exit's counter does; a counter
@@ -794,51 +824,62 @@ impl IndVarSimplifier {
             return;
         }
         let Some(start) = preheader_value(func, pointer, preheader) else { return };
-        let Ok(magnitude) = u128::try_from(scale) else { return };
-        // counter = init + (ptr - start) >> log2(scale)   or   / scale
-        let rebuild = |this: &Self, func: &mut Function, block: BlockId| -> ValueId {
-            let delta = this.append_inst_value(
-                func,
-                block,
-                InstKind::Sub(pointer, start),
-                Some(MirType::I256),
-            );
-            let steps = if magnitude == 1 {
-                delta
-            } else if magnitude.is_power_of_two() {
-                let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
-                    magnitude.trailing_zeros(),
-                ))));
-                this.append_inst_value(
-                    func,
-                    block,
-                    InstKind::Shr(shift, delta),
-                    Some(MirType::I256),
-                )
-            } else {
-                let divisor =
-                    func.alloc_value(Value::Immediate(Immediate::I256(U256::from(magnitude))));
-                this.append_inst_value(
-                    func,
-                    block,
-                    InstKind::Div(delta, divisor),
-                    Some(MirType::I256),
-                )
-            };
-            if func.value_u256(iv.init).is_some_and(|init| init.is_zero()) {
-                steps
-            } else {
-                this.append_inst_value(
-                    func,
-                    block,
-                    InstKind::Add(iv.init, steps),
-                    Some(MirType::I256),
-                )
-            }
+        let Ok(magnitude) = u128::try_from(key.scale) else { return };
+        let factor = if magnitude.is_power_of_two() {
+            u128::from(magnitude.trailing_zeros())
+        } else {
+            magnitude
         };
+        let init_offset =
+            self.value_i128(func, iv.init).and_then(|init| init.checked_mul(key.scale));
+        let zero_init = func.value_u256(iv.init).is_some_and(|init| init.is_zero());
+        let continued = key.base.filter(|_| key.invariants.is_empty()).and_then(|base| {
+            Some(RebuiltCounter {
+                pointer,
+                base,
+                scale: key.scale,
+                offset: key.constant.checked_neg()?,
+            })
+        });
+        // counter = init + (ptr - start) >> log2(scale)   or   / scale
+        let rebuild =
+            |this: &mut Self, func: &mut Function, block: BlockId| -> (ValueId, ValueId) {
+                let delta = this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Sub(pointer, start),
+                    Some(MirType::I256),
+                );
+                let steps = if magnitude == 1 {
+                    delta
+                } else {
+                    let factor =
+                        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(factor))));
+                    let kind = if magnitude.is_power_of_two() {
+                        InstKind::Shr(factor, delta)
+                    } else {
+                        InstKind::Div(delta, factor)
+                    };
+                    this.append_inst_value(func, block, kind, Some(MirType::I256))
+                };
+                let counter = if zero_init {
+                    steps
+                } else {
+                    this.append_inst_value(
+                        func,
+                        block,
+                        InstKind::Add(iv.init, steps),
+                        Some(MirType::I256),
+                    )
+                };
+                if let Some(continued) = continued {
+                    this.rebuilt.insert(counter, continued);
+                }
+                (counter, delta)
+            };
         for &(phi, from) in &reads.phis {
             // from: ...; counter = rebuild; jump  ->  phi [from: counter]
-            let counter = rebuild(self, func, from);
+            let (counter, _) = rebuild(self, func, from);
             if let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind {
                 for (block, value) in incoming.iter_mut() {
                     if *block == from && *value == iv.value {
@@ -847,6 +888,7 @@ impl IndVarSimplifier {
                 }
             }
         }
+        let mut folded = FxHashMap::default();
         for &block in &reads.blocks {
             // block: phis; counter = rebuild; ...reads of counter
             let phis = func.blocks[block]
@@ -855,18 +897,47 @@ impl IndVarSimplifier {
                 .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                 .count();
             let body = func.blocks[block].instructions.split_off(phis);
-            let counter = rebuild(self, func, block);
-            let rebuilt = func.blocks[block].instructions.split_off(phis);
-            func.blocks[block]
-                .instructions
-                .extend(rebuilt.iter().copied().chain(body.iter().copied()));
+            let (counter, delta) = rebuild(self, func, block);
+            let mut distance = None;
             for &inst_id in &body {
                 func.inst_mut(inst_id).kind.visit_operands_mut(|operand| {
                     if *operand == iv.value {
                         *operand = counter;
                     }
                 });
+                // address = add base, counter * scale  =>  ptr + offset
+                if let InstKind::Add(a, b) = func.inst(inst_id).kind
+                    && let Some(address) = func.inst_result_value(inst_id)
+                    && let Some((pointer, offset)) =
+                        [(a, b), (b, a)].into_iter().find_map(|(base, scaled)| {
+                            let counter = self.scaled_counter(func, scaled, key.scale)?;
+                            self.continued_pointer(func, base, key.scale, counter)
+                        })
+                {
+                    if offset == 0 {
+                        folded.insert(address, pointer);
+                    } else if let Some(kind) = self.offset_kind(func, pointer, offset) {
+                        func.inst_mut(inst_id).kind = kind;
+                    }
+                }
+                // Any other scaled read of the counter is the pointer's distance.
+                // scaled = shl log2(scale), counter  =>  delta + init * scale
+                if key.scale != 1
+                    && let Some(init_offset) = init_offset
+                    && let Some(scaled) = func.inst_result_value(inst_id)
+                    && self.scaled_counter(func, scaled, key.scale) == Some(counter)
+                {
+                    distance = distance
+                        .or_else(|| self.add_signed_offset(func, block, delta, init_offset));
+                    if let Some(distance) = distance {
+                        folded.insert(scaled, distance);
+                    }
+                }
             }
+            let rebuild_insts = func.blocks[block].instructions.split_off(phis);
+            func.blocks[block]
+                .instructions
+                .extend(rebuild_insts.into_iter().chain(body.iter().copied()));
             if let Some(term) = func.blocks[block].terminator.as_mut() {
                 term.visit_operands_mut(|operand| {
                     if *operand == iv.value {
@@ -874,6 +945,47 @@ impl IndVarSimplifier {
                     }
                 });
             }
+        }
+        func.replace_uses(&folded);
+    }
+
+    /// The pointer a counter was rebuilt from and the offset from it to `base + counter *
+    /// scale`. With `counter = init + (ptr - start) / scale` and `start = base + init * scale +
+    /// constant`, that address is `ptr - constant`. Each loop may hoist its own copy of the
+    /// base, such as an array's data offset.
+    fn continued_pointer(
+        &self,
+        func: &Function,
+        base: ValueId,
+        scale: i128,
+        counter: ValueId,
+    ) -> Option<(ValueId, i128)> {
+        let rebuilt = self.rebuilt.get(&counter)?;
+        if rebuilt.scale != scale || !same_base(func, base, rebuilt.base) {
+            return None;
+        }
+        Some((rebuilt.pointer, rebuilt.offset))
+    }
+
+    /// The counter `value` multiplies by `scale`: `shl log2(scale), counter`,
+    /// `mul counter, scale`, or the counter itself for a unit scale.
+    fn scaled_counter(&self, func: &Function, value: ValueId, scale: i128) -> Option<ValueId> {
+        if scale == 1 {
+            return Some(value);
+        }
+        let Value::Inst(inst_id) = *func.value(value) else { return None };
+        let factor = |value| self.value_i128(func, value);
+        match func.inst(inst_id).kind {
+            InstKind::Shl(shift, counter)
+                if factor(shift)
+                    .and_then(|shift| 1i128.checked_shl(u32::try_from(shift).ok()?))
+                    == Some(scale) =>
+            {
+                Some(counter)
+            }
+            InstKind::Mul(a, b) if factor(b) == Some(scale) => Some(a),
+            InstKind::Mul(a, b) if factor(a) == Some(scale) => Some(b),
+            _ => None,
         }
     }
 
@@ -922,6 +1034,18 @@ impl IndVarSimplifier {
         key: &AddressKey,
         index: ValueId,
     ) -> Option<ValueId> {
+        // A counter rebuilt after an earlier loop continues that loop's pointer when the
+        // addresses share a family:
+        // base + counter * scale + constant  =>  ptr + offset + constant
+        // NOTE: this sees only counters rebuilt by loops simplified earlier in this run, so it
+        // relies on loops running in header order, where lowering numbers a loop's header
+        // before the headers of the loops that follow it.
+        if let Some(base) = key.base
+            && key.invariants.is_empty()
+            && let Some((pointer, offset)) = self.continued_pointer(func, base, key.scale, index)
+        {
+            return self.add_signed_offset(func, block, pointer, offset.checked_add(key.constant)?);
+        }
         let mut value = key.base;
         for term in &key.invariants {
             let scaled = self.scale_value(func, block, term.value, term.scale)?;
@@ -1246,13 +1370,18 @@ impl IndVarSimplifier {
         if offset == 0 {
             return Some(value);
         }
+        let kind = self.offset_kind(func, value, offset)?;
+        Some(self.append_inst_value(func, block, kind, Some(MirType::I256)))
+    }
+
+    /// `value + offset`, as an add or a subtraction by the magnitude.
+    fn offset_kind(&self, func: &mut Function, value: ValueId, offset: i128) -> Option<InstKind> {
         let magnitude = self.offset_value(func, offset.checked_abs()?)?;
-        let kind = if offset > 0 {
+        Some(if offset > 0 {
             InstKind::Add(value, magnitude)
         } else {
             InstKind::Sub(value, magnitude)
-        };
-        Some(self.append_inst_value(func, block, kind, Some(MirType::I256)))
+        })
     }
 
     /// Appends `value * scale` to `block`: a shift for a power of two, a
@@ -1384,6 +1513,24 @@ impl IndVarSimplifier {
         }
         replaced
     }
+}
+
+/// Whether two bases denote the same word: the same value, equal immediates, or the same
+/// addition of such operands, as two loops' hoisted copies of an array's data offset are.
+fn same_base(func: &Function, a: ValueId, b: ValueId) -> bool {
+    let add = |value| {
+        if let Value::Inst(inst_id) = *func.value(value)
+            && let InstKind::Add(x, y) = func.inst(inst_id).kind
+        {
+            Some((x, y))
+        } else {
+            None
+        }
+    };
+    func.same_word(a, b)
+        || add(a)
+            .zip(add(b))
+            .is_some_and(|((a0, a1), (b0, b1))| func.same_word(a0, b0) && func.same_word(a1, b1))
 }
 
 /// How deep [`bounded_on_entry`] follows a branch condition's operands and a bound's

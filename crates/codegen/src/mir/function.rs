@@ -249,6 +249,12 @@ impl Function {
         self.value_u256(super::utils::resolve_replacement(id, replacements))
     }
 
+    /// Whether two operands denote the same word: the same value, or equal immediates.
+    #[must_use]
+    pub(crate) fn same_word(&self, a: ValueId, b: ValueId) -> bool {
+        a == b || self.value_u256(a).is_some_and(|value| self.value_u256(b) == Some(value))
+    }
+
     /// Returns the instruction for the given ID.
     #[must_use]
     pub(crate) fn inst(&self, id: InstId) -> &Instruction {
