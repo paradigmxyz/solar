@@ -1,0 +1,8 @@
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
+   │
+LL │             r := HASH
+   ╰╴                 ━━━━
+
+error: aborting due to 1 previous error
+

@@ -456,7 +456,7 @@ Difference: `solar` accepts inline assembly that `solc` rejects:
 
 - reads of value-type constants whose value is not a number literal, such as
   `uint(7)`, `true ? 5 : 6`, `three + 1`, `~uint(0)` or `keccak256("abc")`
-  (`solc` error 7615);
+  (`solc` error 7615), if `solar` computes the value at compile time;
 - Yul declarations that shadow a Solidity declaration outside the block, such
   as a parameter, contract, function or `msg` (`solc` error 3859);
 - the Yul names `this`, `super` and `_` (`solc` error 4113);
@@ -471,8 +471,9 @@ resolves the inner declaration first, and constant folding gives assembly the
 same value Solidity sees. The parser also serves formatters and linters, which
 should accept the names.
 
-Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`
-and `tests/ui/codegen/lowering/run-call/assembly_names.sol`.
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`,
+`tests/ui/codegen/lowering/run-call/assembly_names.sol` and
+`tests/ui/typeck/assembly_unfolded_constant.sol`.
 
 ### TYPECK-016: ABI heads are bounded as a whole
 
