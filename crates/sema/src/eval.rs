@@ -86,16 +86,6 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    /// Evaluates the given expression like solc's constant evaluator, without caching the result
-    /// or emitting diagnostics.
-    ///
-    /// solc's evaluator gives no value to a ternary, to a shift by more than `u32::MAX` bits, or
-    /// to a typed shift or power whose right operand does not fit the left operand's type. Checks
-    /// that solc runs on constant operands use this to report the same errors.
-    pub(crate) fn try_eval_solc_const(self, expr: &hir::Expr<'_>) -> EvalResult {
-        ConstantEvaluator { like_solc: true, ..ConstantEvaluator::new(self) }.try_eval_value(expr)
-    }
-
     pub(crate) fn eval_const_value_result(self, expr: &hir::Expr<'_>) -> &'gcx EvalResult {
         // Constant values can own big-integer buffers. Keep them in the cache itself so they
         // are dropped with the compilation instead of leaking from the dropless HIR arena.
@@ -137,6 +127,24 @@ pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
     ConstantEvaluator::new(gcx).try_eval_value(expr)
 }
 
+/// Evaluates expressions like solc's constant evaluator, without emitting diagnostics.
+///
+/// solc's evaluator gives no value to a ternary, to a shift by more than `u32::MAX` bits, or to a
+/// typed shift or power whose right operand does not fit the left operand's type. Checks that solc
+/// runs on constant operands use this to report the same errors. Each constant and operand is
+/// evaluated once per evaluator.
+pub(crate) struct SolcConstEvaluator<'gcx>(ConstantEvaluator<'gcx>);
+
+impl<'gcx> SolcConstEvaluator<'gcx> {
+    pub(crate) fn new(gcx: Gcx<'gcx>) -> Self {
+        Self(ConstantEvaluator { like_solc: true, ..ConstantEvaluator::new(gcx) })
+    }
+
+    pub(crate) fn eval(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
+        self.0.eval_operand(expr)
+    }
+}
+
 /// Evaluates Solidity constant expressions.
 ///
 /// This supports the source-level constants needed by semantic analysis and
@@ -148,15 +156,24 @@ struct ConstantEvaluator<'gcx> {
     /// The values of the constants evaluated so far, as constants can use each other many times.
     constants: FxHashMap<hir::VariableId, EvalResult>,
     /// Whether to give a value only to the expressions solc's constant evaluator gives one, see
-    /// [`Gcx::try_eval_solc_const`].
+    /// [`SolcConstEvaluator`].
     like_solc: bool,
+    /// The values of the operands evaluated so far when [`like_solc`](Self::like_solc) is set,
+    /// which [`Gcx`]'s cache does not hold.
+    solc_operands: FxHashMap<hir::ExprId, EvalResult>,
 }
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, depth: 0, constants: FxHashMap::default(), like_solc: false }
+        Self {
+            gcx,
+            depth: 0,
+            constants: FxHashMap::default(),
+            like_solc: false,
+            solc_operands: FxHashMap::default(),
+        }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -270,11 +287,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     /// Type checking evaluates literal arithmetic at every operation, from the operands up, so
     /// evaluating the operands again would take quadratic time in long literal chains.
     fn eval_operand(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
+        let peeled = expr.peel_parens();
         // The cache holds values evaluated the usual way.
         if self.like_solc {
-            return self.try_eval_value(expr);
+            if let Some(result) = self.solc_operands.get(&peeled.id) {
+                return result.clone();
+            }
+            let result = self.try_eval_value(expr);
+            self.solc_operands.insert(peeled.id, result.clone());
+            return result;
         }
-        let peeled = expr.peel_parens();
         match peeled.kind {
             // The cache holds the value of a whole ternary, without the type an operand needs.
             hir::ExprKind::Ternary(cond, t, f) => self.eval_ternary_operand(expr.span, cond, t, f),

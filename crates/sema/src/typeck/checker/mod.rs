@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, EvalError, EvalErrorKind},
+    eval::{ConstValue, EvalError, EvalErrorKind, SolcConstEvaluator},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -82,6 +82,8 @@ struct TypeChecker<'gcx> {
     discarded: FxHashMap<hir::ExprId, Discarded>,
     /// Where the value of the expression being checked is used.
     value_position: ValuePosition,
+    /// Evaluates the operands of checks that solc runs on constants.
+    solc_eval: SolcConstEvaluator<'gcx>,
 }
 
 /// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
@@ -159,6 +161,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_yul: false,
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
+            solc_eval: SolcConstEvaluator::new(gcx),
         }
     }
 
@@ -437,14 +440,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if !ty.references_error()
                     && self.is_solc_const_zero(rhs_e)
-                    && self.gcx.try_eval_const_value(lhs_e).is_ok()
-                    && self.gcx.try_eval_solc_const(lhs_e).is_ok()
+                    && self.solc_eval.eval(lhs_e).is_ok()
                 {
-                    // Constant evaluation reports a division by zero in an array length.
-                    let guar = self.gcx.emit_once(expr.id, || {
+                    // Constant evaluation reports a division by zero in an array length. The
+                    // expression keeps its type, as the operator applies to the types.
+                    let _ = self.gcx.emit_once(expr.id, || {
                         self.dcx().err(msg).code(error_code!(1211)).span(expr.span).emit()
                     });
-                    return self.gcx.mk_ty_err(guar);
                 }
                 ty
             }
@@ -2012,10 +2014,8 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     /// Returns whether solc's constant evaluator gives the expression the value zero.
-    fn is_solc_const_zero(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        // Evaluating like solc only gives fewer expressions a value, so try the cached value first.
-        self.gcx.try_eval_const_value(expr).is_ok_and(ConstValue::is_zero)
-            && self.gcx.try_eval_solc_const(expr).is_ok_and(|value| value.is_zero())
+    fn is_solc_const_zero(&mut self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.solc_eval.eval(expr).is_ok_and(|value| value.is_zero())
     }
 
     fn check_require_args(

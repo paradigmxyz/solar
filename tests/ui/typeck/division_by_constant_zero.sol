@@ -14,4 +14,10 @@ contract C {
             x / Z
         );
     }
+
+    // The division keeps its type, so the assignment reports nothing more.
+    function g(uint r) public pure returns (uint) {
+        r += 1 / Z; //~ ERROR: division by zero
+        return r;
+    }
 }

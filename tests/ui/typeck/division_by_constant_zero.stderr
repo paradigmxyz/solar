@@ -16,5 +16,11 @@ error[1211]: division by zero
 LL │             ONE / (ONE - 1),
    ╰╴            ━━━━━━━━━━━━━━━
 
-error: aborting due to 3 previous errors
+error[1211]: division by zero
+   ╭▸ ROOT/tests/ui/typeck/division_by_constant_zero.sol:LL:CC
+   │
+LL │         r += 1 / Z;
+   ╰╴             ━━━━━
+
+error: aborting due to 4 previous errors
 
