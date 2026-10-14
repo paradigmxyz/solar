@@ -472,6 +472,8 @@ pub enum EvalErrorKind {
     OutOfRange,
     /// The value is not an integer.
     NotAnInteger,
+    /// A `bytes` or `string` value too large to fold.
+    BytesTooLarge,
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
     UnsupportedExpr,
@@ -498,6 +500,7 @@ impl EvalErrorKind {
             Self::Fractional => "the result is not an integer",
             Self::OutOfRange => "value out of range",
             Self::NotAnInteger => "expected an integer",
+            Self::BytesTooLarge => "byte value is too large",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",

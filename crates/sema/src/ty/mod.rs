@@ -976,6 +976,23 @@ impl<'gcx> Gcx<'gcx> {
         self.item_selector(id.into())
     }
 
+    /// Returns whether the given function, error or event has an ABI signature.
+    ///
+    /// Recursive structs have no ABI type, except in library functions, whose signatures name
+    /// structs instead. Type checking reports them.
+    pub fn has_abi_signature(self, id: impl Into<hir::ItemId>) -> bool {
+        let id = id.into();
+        self.signature_names_structs(id)
+            || !self.item_parameter_types(id).iter().any(|ty| ty.is_recursive(self))
+    }
+
+    /// Returns whether the signature of the given item uses canonical type names, which only
+    /// library functions do; events and errors use ABI types.
+    fn signature_names_structs(self, id: hir::ItemId) -> bool {
+        matches!(id, hir::ItemId::Function(_))
+            && self.hir.item(id).contract().is_some_and(|c| self.hir.contract(c).kind.is_library())
+    }
+
     /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
         let kind = match ty.kind {
@@ -1877,9 +1894,7 @@ pub(crate) fn natspec_contract_in_source(
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let tys = gcx.item_parameter_types(id);
-    // Only library functions use canonical type names; events and errors use ABI types.
-    let in_library = matches!(id, hir::ItemId::Function(_))
-        && gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
+    let in_library = gcx.signature_names_structs(id);
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), in_library))
 }
 

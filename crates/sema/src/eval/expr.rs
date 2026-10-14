@@ -209,15 +209,10 @@ fn eval_member(gcx: Gcx<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult
             }
         }
         (_, sym::selector) => match gcx.resolve_path_expr(base) {
-            Some(hir::Res::Item(id)) if signature_needs_constants(gcx, id) => {
-                return Err(EE::UnsupportedExpr.into());
-            }
-            Some(hir::Res::Item(id @ (hir::ItemId::Function(_) | hir::ItemId::Error(_)))) => {
-                builtins::fixed_bytes(&gcx.function_selector(id).0)
-            }
-            Some(hir::Res::Item(hir::ItemId::Event(id))) if !gcx.hir.event(id).anonymous => {
-                builtins::fixed_bytes(&gcx.event_selector(id).0)
-            }
+            Some(hir::Res::Item(id)) if has_selector(gcx, id) => match id {
+                hir::ItemId::Event(id) => builtins::fixed_bytes(&gcx.event_selector(id).0),
+                _ => builtins::fixed_bytes(&gcx.function_selector(id).0),
+            },
             _ => return Err(EE::UnsupportedExpr.into()),
         },
         _ if let Some(hir::Res::Item(hir::ItemId::Enum(id))) = gcx.resolve_path_expr(base) => {
@@ -312,6 +307,20 @@ fn eval_call(gcx: Gcx<'_>, callee: &hir::Expr<'_>, args: &[hir::Expr<'_>]) -> Ev
             Folded::solc(builtins::call(gcx, builtin, args)?, solc)
         }
     })
+}
+
+/// Returns whether the given item has a selector that folds: a public or external function, an
+/// error or a non-anonymous event, whose signature needs no constants.
+///
+/// Type checking reports `.selector` of other items, and signatures with recursive types.
+fn has_selector(gcx: Gcx<'_>, id: hir::ItemId) -> bool {
+    let kind_has_selector = match id {
+        hir::ItemId::Function(id) => gcx.hir.function(id).is_part_of_external_interface(),
+        hir::ItemId::Error(_) => true,
+        hir::ItemId::Event(id) => !gcx.hir.event(id).anonymous,
+        _ => false,
+    };
+    kind_has_selector && !signature_needs_constants(gcx, id) && gcx.has_abi_signature(id)
 }
 
 /// Returns whether the types of the given function, error or event depend on the value of a

@@ -35,32 +35,32 @@ pub(super) fn call(
         (Builtin::Erc7201, [ConstValue::Bytes(data, BytesKind::Literal | BytesKind::String)]) => {
             uint256_value(erc7201_slot(data.as_byte_str()).into())
         }
-        (Builtin::AbiEncode, args) => byte_array(abi_encode(args)?),
-        (Builtin::AbiEncodePacked, args) => byte_array(abi_encode_packed(args)?),
+        (Builtin::AbiEncode, args) => byte_array(abi_encode(args)?)?,
+        (Builtin::AbiEncodePacked, args) => byte_array(abi_encode_packed(args)?)?,
         (Builtin::AbiEncodeWithSelector, [selector, args @ ..]) => {
             let ConstValue::FixedBytes(selector) =
                 selector.clone().implicit_to(gcx, ValueTy::FixedBytes(4))?
             else {
                 unreachable!()
             };
-            byte_array([selector.as_slice(), &abi_encode(args)?].concat())
+            byte_array([selector.as_slice(), &abi_encode(args)?].concat())?
         }
         (
             Builtin::AbiEncodeWithSignature,
             [ConstValue::Bytes(signature, BytesKind::Literal | BytesKind::String), args @ ..],
-        ) => byte_array([&keccak256(signature.as_byte_str())[..4], &abi_encode(args)?].concat()),
+        ) => byte_array([&keccak256(signature.as_byte_str())[..4], &abi_encode(args)?].concat())?,
         (Builtin::BytesConcat, args) => {
             let mut data = Vec::new();
             for arg in args {
                 match arg {
-                    ConstValue::FixedBytes(value) => data.extend_from_slice(value.as_slice()),
+                    ConstValue::FixedBytes(value) => append(&mut data, value.as_slice())?,
                     ConstValue::Bytes(bytes, BytesKind::Literal | BytesKind::Bytes) => {
-                        data.extend_from_slice(bytes.as_byte_str());
+                        append(&mut data, bytes.as_byte_str())?;
                     }
                     _ => return Err(EE::UnsupportedExpr),
                 }
             }
-            byte_array(data)
+            byte_array(data)?
         }
         (Builtin::StringConcat, args) => {
             let mut data = Vec::new();
@@ -68,9 +68,9 @@ pub(super) fn call(
                 let ConstValue::Bytes(bytes, BytesKind::Literal | BytesKind::String) = arg else {
                     return Err(EE::UnsupportedExpr);
                 };
-                data.extend_from_slice(bytes.as_byte_str());
+                append(&mut data, bytes.as_byte_str())?;
             }
-            ConstValue::Bytes(ByteSymbol::intern(&data), BytesKind::String)
+            bytes_value(data, BytesKind::String)?
         }
         _ => return Err(EE::UnsupportedExpr),
     })
@@ -81,9 +81,31 @@ pub(super) fn fixed_bytes(bytes: &[u8]) -> ConstValue {
     ConstValue::FixedBytes(FixedBytes::new(bytes.len() as u8, bytes))
 }
 
+/// The size of the largest `bytes` or `string` value that folds. Larger values are computed at
+/// runtime, so that doubling concatenations cannot exhaust memory at compile time.
+const MAX_BYTES: usize = 1 << 16;
+
 /// Returns a `bytes` value.
-fn byte_array(data: Vec<u8>) -> ConstValue {
-    ConstValue::Bytes(ByteSymbol::intern(&data), BytesKind::Bytes)
+fn byte_array(data: Vec<u8>) -> Result<ConstValue, EE> {
+    bytes_value(data, BytesKind::Bytes)
+}
+
+/// Appends `bytes` to the data of a `bytes` or `string` value, if the result is small enough to
+/// fold.
+fn append(data: &mut Vec<u8>, bytes: &[u8]) -> Result<(), EE> {
+    if data.len() + bytes.len() > MAX_BYTES {
+        return Err(EE::BytesTooLarge);
+    }
+    data.extend_from_slice(bytes);
+    Ok(())
+}
+
+/// Returns a `bytes` or `string` value, if it is small enough to fold.
+fn bytes_value(data: Vec<u8>, kind: BytesKind) -> Result<ConstValue, EE> {
+    if data.len() > MAX_BYTES {
+        return Err(EE::BytesTooLarge);
+    }
+    Ok(ConstValue::Bytes(ByteSymbol::intern(&data), kind))
 }
 
 fn uint256_value(value: U256) -> ConstValue {
@@ -114,6 +136,9 @@ fn abi_encode(values: &[ConstValue]) -> Result<Vec<u8>, EE> {
             tail.extend_from_slice(&U256::from(data.len()).to_be_bytes::<32>());
             tail.extend_from_slice(data);
             tail.resize(tail.len().next_multiple_of(32), 0);
+            if 32 * values.len() + tail.len() > MAX_BYTES {
+                return Err(EE::BytesTooLarge);
+            }
         } else {
             head.extend_from_slice(&abi_word(value)?.to_be_bytes::<32>());
         }
@@ -132,6 +157,9 @@ fn abi_encode_packed(values: &[ConstValue]) -> Result<Vec<u8>, EE> {
     let mut data = Vec::new();
     for value in values {
         packed(value, &mut data)?;
+        if data.len() > MAX_BYTES {
+            return Err(EE::BytesTooLarge);
+        }
     }
     Ok(data)
 }
