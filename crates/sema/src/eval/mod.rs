@@ -282,7 +282,7 @@ impl<'gcx> ConstEval<'gcx> {
         }
         if IN_PROGRESS.with_borrow(|stack| stack.contains(&id)) {
             let span = self.gcx.hir.variable(id).span;
-            return self.gcx.alloc(Err(EvalErrorKind::Cycle.spanned(span)));
+            return self.gcx.cached_arena().alloc(Err(EvalErrorKind::Cycle.spanned(span)));
         }
         let references = self.constant_references(id);
         if references.iter().all(|&(dep, _)| dep != id && self.is_evaluated(dep)) {

@@ -490,7 +490,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the arena for cached values that own heap memory.
-    fn cached_arena(self) -> &'gcx DropArena {
+    pub(crate) fn cached_arena(self) -> &'gcx DropArena {
         self.cached_arenas.get_or_default()
     }
 
