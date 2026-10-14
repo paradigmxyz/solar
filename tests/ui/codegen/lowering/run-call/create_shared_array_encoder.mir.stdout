@@ -66,7 +66,7 @@ fn @constructor(arg0: memptr, arg1: memptr, arg2: i256) [constructor, abi_params
 
 fn @one(arg0: i160) -> memptr [pure] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     v1 = load v0
     v2 = lt 0, v1
@@ -79,7 +79,7 @@ fn @one(arg0: i160) -> memptr [pure] {
 
 fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     v1 = load v0
     v2 = lt 0, v1
@@ -91,7 +91,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     store v0+64, 0x5678
-    v7 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v7 = alloc zeroed checked 96
     store v7, 2
     v8 = load v7
     v9 = lt 0, v8
@@ -114,7 +114,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     icall panic_if<0x41>, v20
     v21 = not 31
     v22 = and v19, v21
-    v23 = alloc raw, exact, uninitialized, infallible, v22
+    v23 = alloc v22
     v24 = ptrtoint memptr v23 to i256
     datacopy Child_creation_code_0, v24, v16
     v25 = slice_ptr v14
@@ -203,7 +203,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
 
 fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     v1 = load v0
     v2 = lt 0, v1
@@ -227,7 +227,7 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     icall panic_if<0x41>, v14
     v15 = not 31
     v16 = and v13, v15
-    v17 = alloc raw, exact, uninitialized, infallible, v16
+    v17 = alloc v16
     v18 = ptrtoint memptr v17 to i256
     datacopy Child_creation_code_0, v18, v10
     v19 = slice_ptr v8

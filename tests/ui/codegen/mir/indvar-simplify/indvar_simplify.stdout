@@ -573,7 +573,7 @@
   
   fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 128
+      v0 = alloc 128
       v1 = ptrtoint memptr v0 to i256
       jump bb1
     bb1:
@@ -595,7 +595,7 @@
   
   fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 128
+      v0 = alloc 128
       v1 = ptrtoint memptr v0 to i256
 +     v11 = gt arg0, 0x20000000000000000
 +     v12 = select v11, 0x20000000000000000, arg0

@@ -9,7 +9,7 @@
 -     v3 = slice_len v1
 -     v4 = add v3, 32
 +     v4 = add v0, 32
-      v5 = alloc memorybytes, exact, uninitialized, infallible, v4
+      v5 = alloc v4
       v6 = ptrtoint memptr v5 to i256
 -     store v6, v3
 +     store v6, v0

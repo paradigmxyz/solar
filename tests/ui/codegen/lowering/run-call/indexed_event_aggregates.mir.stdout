@@ -5,7 +5,7 @@
 
 fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -13,7 +13,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v6 = alloc zeroed checked 96
     store v6, 2
     v7 = load v0
     v8 = lt 0, v7
@@ -30,7 +30,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v16 = eq v14, 0
     jumpi v16, bb4, bb5
   bb4:
-    v17 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v17 = alloc 32
     store v17, 0
     v18 = ptrtoint memptr v17 to i256
     store v0+32, v18
@@ -51,7 +51,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v28 = eq v26, 0
     jumpi v28, bb6, bb7
   bb6:
-    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v29 = alloc 32
     store v29, 0
     v30 = ptrtoint memptr v29 to i256
     store v0+32, v30
@@ -63,7 +63,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     store v31+64, 2
-    v35 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    v35 = alloc zeroed checked 32
     store v35, 0
     v36 = load v0
     v37 = lt 1, v36
@@ -71,7 +71,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     icall panic_if<0x32>, v38
     v39 = ptrtoint memptr v35 to i256
     store v0+64, v39
-    v40 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v40 = alloc 64 !metadata(preserves_fmp)
     store v40, 5
     v41 = ptrtoint memptr v40 to i256
     v42 = add v41, 32
@@ -95,7 +95,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v77 = add 32, v70
     v78 = lt v77, 32
     icall panic_if<0x41>, v78
-    v79 = alloc memorybytes, exact, uninitialized, infallible, v77
+    v79 = alloc v77
     store v79, v70
     v80 = load v0
     jump bb14
@@ -115,7 +115,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v115 = keccak256 v113, v114
     log 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v111, v115
     v116 = load v0
-    v117 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v117 = alloc 64 !metadata(preserves_fmp)
     store v117, 5
     v118 = ptrtoint memptr v117 to i256
     v119 = add v118, 32
@@ -200,7 +200,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
 
 fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -208,7 +208,7 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 1
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
@@ -219,7 +219,7 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
     icall panic_if<0x32>, v11
     v12 = ptrtoint memptr v6 to i256
     store v0+32, v12
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v13 = alloc 64 !metadata(preserves_fmp)
     store v13, 5
     v14 = ptrtoint memptr v13 to i256
     v15 = add v14, 32
@@ -247,7 +247,7 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
     v47 = add 32, v40
     v48 = lt v47, 32
     icall panic_if<0x41>, v48
-    v49 = alloc memorybytes, exact, uninitialized, infallible, v47
+    v49 = alloc v47
     store v49, v40
     v50 = load v0
     jump bb7
@@ -262,7 +262,7 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
     v80 = load v49
     v81 = keccak256 v79, v80
     log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v19, v81
-    v82 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v82 = alloc 64 !metadata(preserves_fmp)
     store v82, 5
     v83 = ptrtoint memptr v82 to i256
     v84 = add v83, 32

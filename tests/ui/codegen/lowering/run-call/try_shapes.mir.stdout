@@ -27,7 +27,7 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize Callee_creation_code_0
     v2 = datasize Callee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -278,7 +278,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v134 = abi_encode []
     v135 = datasize Callee_creation_code_0
     v136 = datasize Callee_creation_code_0, 31, aligned
-    v137 = alloc raw, exact, uninitialized, infallible, v136
+    v137 = alloc v136
     v138 = ptrtoint memptr v137 to i256
     datacopy Callee_creation_code_0, v138, v135
     v139 = slice_ptr v134

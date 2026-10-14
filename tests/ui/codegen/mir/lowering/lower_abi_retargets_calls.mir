@@ -27,7 +27,7 @@ fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 // CHECK: + returndata 128, 96
 fn @literal() -> memptr [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v1 = ptrtoint memptr v0 to i256
     store v1, 1
     v9001 = ptradd v0, 32
@@ -51,7 +51,7 @@ fn @literalCaller() -> memptr [selector=0x0a0a0a04, abi_params=[], abi_returns=[
 // CHECK: + returndata 128, 128
 fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     v4 = ptrtoint memptr v0 to i256
     store v4, 33
     v9001 = ptradd v0, 32
@@ -66,7 +66,7 @@ fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[me
 // CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
 fn @overlappingLiteral() -> memptr [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     v3 = ptrtoint memptr v0 to i256
     store v3, 33
     v9001 = ptradd v0, 32

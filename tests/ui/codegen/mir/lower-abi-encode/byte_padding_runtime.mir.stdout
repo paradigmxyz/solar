@@ -11,7 +11,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     icall panic_if<0x41>, v4
     v5 = not 31
     v6 = and v3, v5
-    v7 = alloc memorybytes, exact, zeroed, panic, v6
+    v7 = alloc zeroed checked v6
     store v7, arg0
     jump bb1
   bb1:

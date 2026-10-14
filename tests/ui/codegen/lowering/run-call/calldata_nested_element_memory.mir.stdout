@@ -55,7 +55,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v42 = add 32, v35
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
-    v44 = alloc memoryarray<1>, exact, uninitialized, infallible, v42
+    v44 = alloc v42
     store v44, v23
     jump bb1
   bb1:
@@ -72,7 +72,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v96 = eq v94, 0
     jumpi v96, bb7, bb8
   bb7:
-    v97 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v97 = alloc 32
     store v97, 0
     v98 = ptrtoint memptr v97 to i256
     store v44+32, v98
@@ -94,7 +94,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v110 = eq v108, 0
     jumpi v110, bb9, bb10
   bb9:
-    v111 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v111 = alloc 32
     store v111, 0
     v112 = ptrtoint memptr v111 to i256
     store v44+32, v112
@@ -117,7 +117,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v125 = eq v123, 0
     jumpi v125, bb11, bb12
   bb11:
-    v126 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v126 = alloc 32
     store v126, 0
     v127 = ptrtoint memptr v126 to i256
     store v44+64, v127
@@ -168,7 +168,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v73 = add 32, v66
     v74 = lt v73, 32
     icall panic_if<0x41>, v74
-    v75 = alloc memoryarray<1>, exact, uninitialized, infallible, v73
+    v75 = alloc v73
     store v75, v59
     jump bb4
   bb4:
@@ -223,7 +223,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v18 = sub v17, v16
     v19 = slt v18, 64
     icall revert_if<calldata_tail_too_short>, v19
-    v20 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v20 = alloc 64
     jump bb1
   bb1:
     v21 = phi [bb0: 0], [bb6: v66]
@@ -238,7 +238,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v71 = eq v69, 0
     jumpi v71, bb7, bb8
   bb7:
-    v72 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v72 = alloc 32
     store v72, 0
     v73 = ptrtoint memptr v72 to i256
     store v20, v73
@@ -259,7 +259,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v84 = eq v82, 0
     jumpi v84, bb9, bb10
   bb9:
-    v85 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v85 = alloc 32
     store v85, 0
     v86 = ptrtoint memptr v85 to i256
     store v20, v86
@@ -281,7 +281,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v98 = eq v96, 0
     jumpi v98, bb11, bb12
   bb11:
-    v99 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v99 = alloc 32
     store v99, 0
     v100 = ptrtoint memptr v99 to i256
     store v20+32, v100
@@ -332,7 +332,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v49 = add 32, v42
     v50 = lt v49, 32
     icall panic_if<0x41>, v50
-    v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
+    v51 = alloc v49
     store v51, v35
     jump bb4
   bb4:
@@ -416,7 +416,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v42 = add 32, v35
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
-    v44 = alloc memoryarray<1>, exact, uninitialized, infallible, v42
+    v44 = alloc v42
     store v44, v23
     jump bb1
   bb1:
@@ -433,7 +433,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v77 = eq v75, 0
     jumpi v77, bb7, bb8
   bb7:
-    v78 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v78 = alloc 64
     v79 = ptrtoint memptr v78 to i256
     memory_zero v79, 64
     v80 = ptrtoint memptr v78 to i256
@@ -455,7 +455,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v91 = eq v89, 0
     jumpi v91, bb9, bb10
   bb9:
-    v92 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v92 = alloc 64
     v93 = ptrtoint memptr v92 to i256
     memory_zero v93, 64
     v94 = ptrtoint memptr v92 to i256
@@ -478,7 +478,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v106 = eq v104, 0
     jumpi v106, bb11, bb12
   bb11:
-    v107 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v107 = alloc 64
     v108 = ptrtoint memptr v107 to i256
     memory_zero v108, 64
     v109 = ptrtoint memptr v107 to i256
@@ -501,7 +501,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v121 = eq v119, 0
     jumpi v121, bb13, bb14
   bb13:
-    v122 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v122 = alloc 64
     v123 = ptrtoint memptr v122 to i256
     memory_zero v123, 64
     v124 = ptrtoint memptr v122 to i256
@@ -527,7 +527,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v53 = eq v52, 0
     icall panic_if<0x41>, v53
     v54 = add v24, v47
-    v55 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v55 = alloc 64
     jump bb4
   bb4:
     v56 = phi [bb2: 0], [bb5: v64]

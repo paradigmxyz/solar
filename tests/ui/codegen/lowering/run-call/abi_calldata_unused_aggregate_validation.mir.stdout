@@ -22,7 +22,7 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     v1 = gas
     v2 = not 31
     v3 = and 127, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc zeroed checked v3
     store v4, 64
     v5 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
@@ -42,7 +42,7 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     v15 = gas
     v16 = not 31
     v17 = and 63, v16
-    v18 = alloc memorybytes, exact, zeroed, panic, v17
+    v18 = alloc zeroed checked v17
     store v18, 0
     v19 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v18
     v20 = slice_ptr v19

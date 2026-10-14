@@ -3,10 +3,10 @@
 @module LowerMemoryObjects
 @phase semantic
 
-// Object allocations become raw, and each `ptradd` becomes an integer `add`
-// that the stores then take as their address.
+// Each `ptradd` becomes an integer `add` that the stores then take as their
+// address.
 // CHECK-LABEL: {{^[ +].*}}fn @objects{{[( ]}}
-// CHECK: + [[OBJECT_PTR:v[0-9]+]] = alloc raw
+// CHECK: [[OBJECT_PTR:v[0-9]+]] = alloc zeroed checked 96
 // CHECK: [[OBJECT:v[0-9]+]] = ptrtoint memptr [[OBJECT_PTR]] to i256
 // CHECK: store [[OBJECT]], 3
 // CHECK: + [[LOAD:v[0-9]+]] = ptrtoint memptr [[OBJECT_PTR]] to i256
@@ -25,7 +25,7 @@
 // CHECK-NEXT: + store [[FIXED]], [[LEN]]
 fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
   bb0:
-    v4 = alloc memorybytes, exact, zeroed, panic, 96
+    v4 = alloc zeroed checked 96
     v14 = ptrtoint memptr v4 to i256
     store v14, 3
     v5 = load v4
@@ -108,17 +108,17 @@ fn @unreachable_cast_cycle() -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @merged_allocations{{[( ]}}
-// CHECK: + [[BASE_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: + [[BASE_PTR:v[0-9]+]] = alloc 64 !metadata(preserves_fmp)
 // CHECK: [[BASE:v[0-9]+]] = ptrtoint memptr [[BASE_PTR]] to i256
 // CHECK: store [[BASE]], 0
 // CHECK: + [[OFFSET_BASE:v[0-9]+]] = ptrtoint memptr [[BASE_PTR]] to i256
 // CHECK: + [[NEXT:v[0-9]+]] = add [[OFFSET_BASE]], 32{{$}}
 fn @merged_allocations() -> memptr {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v2 = ptrtoint memptr v0 to i256
     store v2, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = alloc 32 !metadata(preserves_fmp)
     v3 = ptrtoint memptr v1 to i256
     store v3, 0
     ret v1

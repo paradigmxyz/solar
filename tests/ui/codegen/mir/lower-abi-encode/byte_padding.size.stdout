@@ -33,7 +33,7 @@
 +     v18 = add v17, 31
 +     v19 = not 31
 +     v20 = and v18, v19
-+     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
++     v21 = alloc v20 !metadata(preserves_fmp)
 +     v22 = ptrtoint memptr v21 to i256
 +     v23 = make_memory_slice v22, v17
 +     ret v23

@@ -39,7 +39,7 @@ fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[a
     icall panic_if<0x41>, v14
     v15 = not 31
     v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    v17 = alloc v16
     store v17, v12
     v18 = ptradd v17, 32
     v19 = slice_ptr arg1

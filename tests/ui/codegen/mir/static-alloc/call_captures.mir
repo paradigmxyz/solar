@@ -7,10 +7,10 @@
 // CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
 // CHECK:   fn @returning_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+// CHECK-NEXT:       v0 = alloc 32
 fn @returning_caller() -> i256 [selector=0x01020304] {
   bb0:
-    v6 = alloc raw, exact, uninitialized, infallible, 32
+    v6 = alloc 32
     v0 = ptrtoint memptr v6 to i256
     store v0, 7
     v1 = icall @returns, v0
@@ -20,10 +20,10 @@ fn @returning_caller() -> i256 [selector=0x01020304] {
 // Bitwise identities of the pointer capture it too.
 // CHECK:   fn @masking_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+// CHECK-NEXT:       v0 = alloc 32
 fn @masking_caller() -> i256 [selector=0x01020305] {
   bb0:
-    v7 = alloc raw, exact, uninitialized, infallible, 32
+    v7 = alloc 32
     v0 = ptrtoint memptr v7 to i256
     store v0, 7
     v1 = icall @masks, v0
@@ -34,10 +34,10 @@ fn @masking_caller() -> i256 [selector=0x01020305] {
 // object gets a static placement.
 // CHECK:   fn @dereferencing_caller{{.*}}
 // CHECK-NEXT:     bb0:
-// CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
+// CHECK-NEXT: -     v0 = alloc 32
 fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
-    v8 = alloc raw, exact, uninitialized, infallible, 32
+    v8 = alloc 32
     v0 = ptrtoint memptr v8 to i256
     store v0, 7
     v1 = icall @dereferences, v0

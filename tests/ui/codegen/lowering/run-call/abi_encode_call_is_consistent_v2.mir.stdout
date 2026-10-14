@@ -173,7 +173,7 @@ fn @returnedEncoded() -> memptr [selector=0xb62b7ad3, abi_params=[], abi_returns
 
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, arg1
     store v0+32, arg0
     ret v0

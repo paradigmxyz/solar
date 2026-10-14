@@ -207,7 +207,7 @@ fn @f(arg0: i256, arg1: memptr) -> struct0 [selector=0x1b2902dd, abi_params=[u25
     icall panic_if<0x41>, v6
     v7 = not 31
     v8 = and v5, v7
-    v9 = alloc raw, exact, uninitialized, infallible, v8
+    v9 = alloc v8
     v10 = ptrtoint memptr v9 to i256
     datacopy Main_creation_code_0, v10, v2
     v11 = slice_ptr v0

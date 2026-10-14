@@ -3,7 +3,7 @@
   @module CopyElision
   fn @unread(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, zeroed, panic, 64
+      v0 = alloc zeroed checked 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       copy calldata v2, 4, 32
@@ -12,7 +12,7 @@
   
   fn @read(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       copy calldata v2, 4, 32
@@ -22,7 +22,7 @@
   
   fn @absolute_alias() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       store v2, 7
@@ -32,7 +32,7 @@
   
   fn @mstore8_escape() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       store v2, 9
@@ -42,7 +42,7 @@
   
   fn @zero_sized_write() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 0
+      v0 = alloc 0
       v1 = ptrtoint memptr v0 to i256
       store v1, 7
       v2 = fmp
@@ -53,9 +53,9 @@
   
   fn @write_past_allocation() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = alloc 32
       v3 = ptrtoint memptr v2 to i256
       v4 = add v1, 32
       store v4, 7
@@ -65,7 +65,7 @@
   
   fn @guarded_loop() -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb2: v5]
@@ -83,7 +83,7 @@
   
   fn @guarded_overrun(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = lt arg0, 3
       jumpi v1, bb1, bb2
     bb1:
@@ -97,7 +97,7 @@
   
   fn @unguarded_join(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = lt arg0, 2
       jumpi v1, bb1, bb2
     bb2:
@@ -116,7 +116,7 @@
   @module CopyElision
   fn @unread(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, zeroed, panic, 64
+      v0 = alloc zeroed checked 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       copy calldata v2, 4, 32
@@ -125,7 +125,7 @@
   
   fn @read(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       copy calldata v2, 4, 32
@@ -135,7 +135,7 @@
   
   fn @absolute_alias() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       store v2, 7
@@ -145,7 +145,7 @@
   
   fn @mstore8_escape() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptradd v0, 32
       v2 = ptrtoint memptr v1 to i256
       store v2, 9
@@ -155,7 +155,7 @@
   
   fn @zero_sized_write() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 0
+      v0 = alloc 0
       v1 = ptrtoint memptr v0 to i256
       store v1, 7
       v2 = fmp
@@ -166,9 +166,9 @@
   
   fn @write_past_allocation() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = alloc 32
       v3 = ptrtoint memptr v2 to i256
       v4 = add v1, 32
       store v4, 7
@@ -178,7 +178,7 @@
   
   fn @guarded_loop() -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb2: v5]
@@ -196,7 +196,7 @@
   
   fn @guarded_overrun(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = lt arg0, 3
       jumpi v1, bb1, bb2
     bb1:
@@ -210,7 +210,7 @@
   
   fn @unguarded_join(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = lt arg0, 2
       jumpi v1, bb1, bb2
     bb2:

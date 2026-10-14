@@ -61,7 +61,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v5 = datasize Target_creation_code_0
     v6 = datasize Target_creation_code_0, 32
     v7 = datasize Target_creation_code_0, 63, aligned
-    v8 = alloc raw, exact, uninitialized, infallible, v7
+    v8 = alloc v7
     v9 = ptrtoint memptr v8 to i256
     datacopy Target_creation_code_0, v9, v5
     v10 = slice_ptr v4
@@ -95,7 +95,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
 
 fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 32
     v2 = address
@@ -111,7 +111,7 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     v10 = datasize ArrayTarget_creation_code_1
     v11 = datasize ArrayTarget_creation_code_1, 32
     v12 = datasize ArrayTarget_creation_code_1, 63, aligned
-    v13 = alloc raw, exact, uninitialized, infallible, v12
+    v13 = alloc v12
     v14 = ptrtoint memptr v13 to i256
     datacopy ArrayTarget_creation_code_1, v14, v10
     v15 = slice_ptr v9

@@ -28,16 +28,16 @@ fn @constructor() [constructor] {
 
 fn @build(arg0: i256, arg1: i256) -> memptr [pure] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v1 = alloc 96 !metadata(preserves_fmp)
     store v1, 0
     store v1+32, 0
     store v1+64, 0
     v2 = ptrtoint memptr v1 to i256
     store v0+32, v2
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v4 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v3 = alloc 64
+    v4 = alloc checked 96
     v5 = sload arg1 !metadata(storage=symbolic(arg1))
     store v4, v5
     v6 = add arg1, 1
@@ -60,8 +60,8 @@ fn @build(arg0: i256, arg1: i256) -> memptr [pure] {
 fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
   bb0:
     v0 = mapping_slot arg0, 0
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v2 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v1 = alloc 64
+    v2 = alloc checked 96
     v3 = sload v0 !metadata(storage=symbolic(v0))
     store v2, v3
     v4 = add v0, 1

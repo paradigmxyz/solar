@@ -2,7 +2,7 @@
 @module C
 fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6b9, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -24,7 +24,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v15 = eq v13, 0
     jumpi v15, bb4, bb5
   bb4:
-    v16 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v16 = alloc 32
     store v16, 0
     v17 = ptrtoint memptr v16 to i256
     store v0+32, v17

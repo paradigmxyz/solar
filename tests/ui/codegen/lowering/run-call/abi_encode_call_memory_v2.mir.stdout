@@ -28,7 +28,7 @@ fn @next() -> memptr [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[mem
   bb0:
     v0 = not 31
     v1 = and 543, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 480
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
@@ -38,7 +38,7 @@ fn @next() -> memptr [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[mem
 
 fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     v1 = load v0
     v2 = lt 0, v1
@@ -91,7 +91,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb8:
     v32 = icall returndata_bytes<>
     v33 = abi_decode [bytes], v32
-    v34 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v34 = alloc zeroed checked 128
     store v34, 3
     v35 = load v34
     v36 = lt 2, v35
@@ -108,7 +108,7 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
 
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = address
@@ -123,7 +123,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v9 = abi_encode []
     v10 = datasize AbiEncodeCallMemoryTarget_creation_code_0
     v11 = datasize AbiEncodeCallMemoryTarget_creation_code_0, 31, aligned
-    v12 = alloc raw, exact, uninitialized, infallible, v11
+    v12 = alloc v11
     v13 = ptrtoint memptr v12 to i256
     datacopy AbiEncodeCallMemoryTarget_creation_code_0, v13, v10
     v14 = slice_ptr v9

@@ -37,13 +37,13 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 3
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     store v4, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     v5 = ptrtoint memptr v2 to i256
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 4
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32

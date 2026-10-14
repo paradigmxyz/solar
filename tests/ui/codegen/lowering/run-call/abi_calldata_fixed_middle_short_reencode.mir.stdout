@@ -34,7 +34,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v21 = add 32, v14
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
-    v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
+    v23 = alloc v21
     store v23, v2
     jump bb1
   bb1:
@@ -76,7 +76,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v39 = sub v38, v32
     v40 = slt v39, 64
     icall revert_if<calldata_tail_too_short>, v40
-    v41 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v41 = alloc 64
     jump bb4
   bb4:
     v42 = phi [bb2: 0], [bb5: v80]
@@ -124,7 +124,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v70 = add 32, v63
     v71 = lt v70, 32
     icall panic_if<0x41>, v71
-    v72 = alloc memoryarray<1>, exact, uninitialized, infallible, v70
+    v72 = alloc v70
     store v72, v56
     v73 = make_calldata_slice v60, v63
     v74 = ptradd v72, 32

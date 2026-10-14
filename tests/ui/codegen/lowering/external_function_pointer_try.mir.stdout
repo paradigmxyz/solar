@@ -57,7 +57,7 @@ fn @fail(arg0: memptr) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi
 fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = load arg0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 2
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
@@ -84,7 +84,7 @@ fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
     icall revert_if<empty>, true
     invalid
   bb4:
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v14 = alloc 64 !metadata(preserves_fmp)
     store v14, 6
     v15 = ptrtoint memptr v14 to i256
     v16 = add v15, 32
@@ -112,7 +112,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x93edcd0d
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v4 = alloc 32
     store v4, 7
     icall @invoke, v3, v4
     v5 = sload 0 !metadata(storage=slot(0))
@@ -125,7 +125,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word]
     v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xe8be0a6f
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v4 = alloc 32
     store v4, 7
     icall @invoke, v3, v4
     v5 = sload 0 !metadata(storage=slot(0))
@@ -138,7 +138,7 @@ fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word,
     v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x76ea4d37
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v4 = alloc 32
     store v4, 7
     v5 = icall @invokePair, v3, v4
     v6 = extract_value struct0, v5, 0

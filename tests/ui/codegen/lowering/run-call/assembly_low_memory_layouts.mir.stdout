@@ -183,7 +183,7 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
   bb3:
     v2 = not 31
     v3 = and 0x43f, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc zeroed checked v3
     store v4, 0x400
     v5 = ptrtoint memptr v4 to i256
     v6 = load v5
@@ -312,7 +312,7 @@ fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a
     store 64, v0 !metadata(memory=scratch)
     v3 = not 31
     v4 = and 68, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    v5 = alloc zeroed checked v4
     store v5, 5
     v6 = load v5
     v7 = insert_value struct0, undef struct0, 0, v2
@@ -640,7 +640,7 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
   bb0:
     v0 = not 31
     v1 = and 64, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 1
     v3 = not 0
     v4 = ptrtoint memptr v2 to i256
@@ -667,7 +667,7 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     v1 = not 0
     v2 = ptrtoint memptr v0 to i256
@@ -709,7 +709,7 @@ fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[u256
 
 fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     v1 = icall @_scratchWord
     v2 = load v0
@@ -769,7 +769,7 @@ fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc zeroed checked v3
     store v4, arg2
     v5 = load v4
     ret v5

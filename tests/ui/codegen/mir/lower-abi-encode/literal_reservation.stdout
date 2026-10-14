@@ -3,19 +3,19 @@
   @module LiteralReservation
   fn @encode(arg0: i256) -> memoryslice {
     bb0:
--     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+-     v0 = alloc 96
 -     v1 = ptrtoint memptr v0 to i256
 -     store v1, 33
 -     v2 = ptradd v0, 32
 -     store v2, 0x6161616161616161616161616161616161616161616161616161616161616161
 -     v3 = ptradd v0, 64
 -     store v3, 0x6200000000000000000000000000000000000000000000000000000000000000
--     v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+-     v4 = alloc 32
 -     v5 = ptrtoint memptr v4 to i256
 -     store v5, 0
 -     v6 = abi_encode [memory_bytes, word, memory_bytes], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v4
 -     ret v6
-+     v7 = alloc raw, exact, uninitialized, infallible, 256
++     v7 = alloc 256
 +     store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
 +     v8 = ptrtoint memptr v7 to i256
 +     v9 = add v8, 4
@@ -48,7 +48,7 @@
   @module LiteralReservation
   fn @encode(arg0: i256) -> memoryslice {
     bb0:
-      v7 = alloc raw, exact, uninitialized, infallible, 256
+      v7 = alloc 256
       store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
       v8 = ptrtoint memptr v7 to i256
       v9 = add v8, 4
@@ -85,7 +85,7 @@
   @module LiteralReservation
   fn @encode(arg0: i256) -> memoryslice {
     bb0:
-      v7 = alloc raw, exact, uninitialized, infallible, 256
+      v7 = alloc 256
       store v7, 0x1234567800000000000000000000000000000000000000000000000000000000
       v8 = ptrtoint memptr v7 to i256
       v9 = add v8, 4

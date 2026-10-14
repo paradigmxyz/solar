@@ -30,7 +30,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -78,7 +78,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v93 = zext i1 v92 to i256
     v94 = eq v93, 0
     icall panic_if<0x41>, v94
-    v95 = alloc memoryarray<1>, exact, uninitialized, panic, v88
+    v95 = alloc checked v88
     store v95, v78
     jump bb23
   bb23:
@@ -92,7 +92,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v98 = storage_array_data_slot 0
     v99 = mul v96, 2
     v100 = add v98, v99
-    v101 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v101 = alloc checked 64
     jump bb26
   bb26:
     v102 = phi [bb24: 0], [bb27: v108]
@@ -121,7 +121,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v59 = eq v57, 0
     jumpi v59, bb15, bb16
   bb15:
-    v60 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v60 = alloc 64
     v61 = ptrtoint memptr v60 to i256
     memory_zero v61, 64
     v62 = shl 5, v53
@@ -185,7 +185,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = add v1, v24
-    v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v32 = alloc 64
     v33 = make_calldata_slice v31, 64
     v34 = slice_ptr v33
     v35 = slice_len v33
@@ -225,7 +225,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -340,7 +340,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v59 = eq v57, 0
     jumpi v59, bb15, bb16
   bb15:
-    v60 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v60 = alloc 64
     v61 = ptrtoint memptr v60 to i256
     memory_zero v61, 64
     v62 = shl 5, v53
@@ -404,7 +404,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = add v1, v24
-    v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v32 = alloc 64
     v33 = make_calldata_slice v31, 64
     v34 = slice_ptr v33
     v35 = slice_len v33
@@ -424,7 +424,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     v2 = sub v1, v0
     v3 = slt v2, 128
     icall revert_if<calldata_tail_too_short>, v3
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v4 = alloc 64
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb2: v16]
@@ -437,7 +437,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     v18 = lt v17, 2
     jumpi v18, bb5, bb6
   bb6:
-    v45 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v45 = alloc checked 64
     jump bb22
   bb22:
     v46 = phi [bb6: 0], [bb27: v61]
@@ -449,7 +449,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
   bb23:
     v48 = mul v46, 2
     v49 = add 1, v48
-    v50 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v50 = alloc checked 64
     jump bb25
   bb25:
     v51 = phi [bb23: 0], [bb26: v57]
@@ -476,7 +476,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     v21 = lt v17, 2
     jumpi v21, bb7, bb8
   bb8:
-    v34 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v34 = alloc 64
     v35 = ptrtoint memptr v34 to i256
     memory_zero v35, 64
     jump bb16
@@ -536,7 +536,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
   bb2:
     v7 = mul v5, 64
     v8 = add v0, v7
-    v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v9 = alloc 64
     v10 = make_calldata_slice v8, 64
     v11 = slice_ptr v10
     v12 = slice_len v10

@@ -28,7 +28,7 @@ contract ArrayBoundsPanic {
     uint256[3] sfix;
 
     // CHECK-LABEL: fn @memFix{{[( ]}}
-    // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
+    // CHECK: [[X:v[0-9]+]] = alloc 96
     // CHECK: {{v[0-9]+}} = lt arg0, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK-NEXT: [[OFF1:v[0-9]+]] = shl 5, arg0
@@ -41,7 +41,7 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
-    // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
+    // CHECK: [[X:v[0-9]+]] = alloc 96
     // CHECK: lt 2, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK: lt 2, 3
@@ -54,7 +54,7 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
-    // CHECK: [[X:v[0-9]+]] = alloc memoryfixedarray<3, 1>
+    // CHECK: [[X:v[0-9]+]] = alloc 96
     // CHECK: lt 5, 3
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     // CHECK-NEXT: {{v[0-9]+}} = load [[X]]+160
@@ -64,7 +64,7 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memDyn{{[( ]}}
-    // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[ARR:v[0-9]+]] = alloc
     // CHECK: [[LEN:v[0-9]+]] = load [[ARR]]
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}

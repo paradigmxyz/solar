@@ -607,7 +607,7 @@ fn @revert_above_pointer(arg0: i256) [selector=0x12345689] {
 // CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
 // CHECK-NEXT: + store 64, [[CLAMPED]]
-// CHECK-NEXT: alloc memorybytes
+// CHECK-NEXT: alloc
 fn @hash_low_object() -> i256 [selector=0x1234568a] {
   bb0:
     v0 = load calldata 4
@@ -615,7 +615,7 @@ fn @hash_low_object() -> i256 [selector=0x1234568a] {
     store 32, 32
     v5 = load 32
     v1 = keccak256 64, v5
-    v2 = alloc memorybytes, exact, zeroed, panic, 64
+    v2 = alloc zeroed checked 64
     ret v1
 }
 
@@ -625,17 +625,17 @@ fn @hash_low_object() -> i256 [selector=0x1234568a] {
 // CHECK: copy {{v[0-9]+}}, 64, {{v[0-9]+}}
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = load 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
-// CHECK: alloc memorybytes
+// CHECK: alloc
 fn @copy_low_object() -> memptr [selector=0x1234568b] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     v1 = load calldata 4
     store 64, v1
     store 32, 32
     v3 = ptradd v0, 32
     v4 = load 32
     copy v3, 64, v4
-    v2 = alloc memorybytes, exact, zeroed, panic, 64
+    v2 = alloc zeroed checked 64
     ret v0
 }
 
@@ -645,13 +645,13 @@ fn @copy_low_object() -> memptr [selector=0x1234568b] {
 // CHECK: keccak256 64, 32
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = load 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
-// CHECK: alloc memorybytes
+// CHECK: alloc
 fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
   bb0:
     v0 = load calldata 4
     store 64, v0
     v3 = keccak256 64, 32
-    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    v4 = alloc zeroed checked 64
     ret v3
 }
 
@@ -665,10 +665,10 @@ fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
 // CHECK-NEXT: byte 0, [[LOADED]]
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = load 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
-// CHECK: alloc memorybytes
+// CHECK: alloc
 fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     v1 = load calldata 4
     v2 = load calldata 36
     store 64, v2
@@ -676,7 +676,7 @@ fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
     v9002 = ptradd v9001, v1
     v9003 = load v9002
     v3 = byte 0, v9003
-    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    v4 = alloc zeroed checked 64
     ret v3
 }
 
@@ -689,10 +689,10 @@ fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
 // CHECK-NEXT: load [[ELEM]]
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = load 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
-// CHECK: alloc memorybytes
+// CHECK: alloc
 fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     v1 = load calldata 4
     v2 = load calldata 36
     store 64, v2
@@ -700,7 +700,7 @@ fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v105
     v3 = load v9002
-    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    v4 = alloc zeroed checked 64
     ret v3
 }
 
@@ -715,13 +715,13 @@ fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
 // CHECK-NEXT: + store 64, [[CLAMPED]]
 fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
   bb0:
-    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     v1 = load calldata 36
     store 64, v1
     v9001 = ptradd v0, 39
     v9002 = load v9001
     v2 = byte 0, v9002
-    v3 = alloc memorybytes, exact, zeroed, panic, 64
+    v3 = alloc zeroed checked 64
     ret v2
 }
 
@@ -744,7 +744,7 @@ fn @hash_packed_scratch() -> i256 [selector=0x12345690] {
 
 fn @store_scratch_element() -> i256 [selector=0x12345691] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     v1 = load 64
     v2 = load calldata 4
     store 64, v2

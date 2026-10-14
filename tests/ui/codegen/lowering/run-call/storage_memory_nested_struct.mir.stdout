@@ -240,7 +240,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v187 = zext i1 v186 to i256
     v188 = eq v187, 0
     icall panic_if<0x41>, v188
-    v189 = alloc memoryarray<1>, exact, uninitialized, panic, v182
+    v189 = alloc checked v182
     store v189, v172
     jump bb1
   bb1:
@@ -257,7 +257,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v224 = eq v222, 0
     jumpi v224, bb7, bb8
   bb7:
-    v225 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v225 = alloc 96
     jump bb9
   bb9:
     v226 = phi [bb7: 0], [bb10: v234]
@@ -294,7 +294,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v252 = eq v250, 0
     jumpi v252, bb14, bb15
   bb14:
-    v253 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v253 = alloc 96
     jump bb16
   bb16:
     v254 = phi [bb14: 0], [bb17: v262]
@@ -332,7 +332,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v281 = eq v279, 0
     jumpi v281, bb21, bb22
   bb21:
-    v282 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v282 = alloc 96
     jump bb23
   bb23:
     v283 = phi [bb21: 0], [bb24: v291]
@@ -375,7 +375,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v314 = eq v312, 0
     jumpi v314, bb28, bb29
   bb28:
-    v315 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v315 = alloc 96
     jump bb30
   bb30:
     v316 = phi [bb28: 0], [bb31: v324]
@@ -414,7 +414,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v344 = eq v342, 0
     jumpi v344, bb35, bb36
   bb35:
-    v345 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v345 = alloc 96
     jump bb37
   bb37:
     v346 = phi [bb35: 0], [bb38: v354]
@@ -453,7 +453,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v374 = eq v372, 0
     jumpi v374, bb42, bb43
   bb42:
-    v375 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v375 = alloc 96
     jump bb44
   bb44:
     v376 = phi [bb42: 0], [bb45: v384]
@@ -488,10 +488,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v400 = checked_add u256, v368, v399
     ret v400
   bb45:
-    v378 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v378 = alloc 96
     store v378, 0
     store v378+32, 0
-    v379 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v379 = alloc 32
     store v379, 0
     v380 = ptrtoint memptr v379 to i256
     store v378+64, v380
@@ -502,10 +502,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v384 = add v376, 1
     jump bb44
   bb38:
-    v348 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v348 = alloc 96
     store v348, 0
     store v348+32, 0
-    v349 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v349 = alloc 32
     store v349, 0
     v350 = ptrtoint memptr v349 to i256
     store v348+64, v350
@@ -516,10 +516,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v354 = add v346, 1
     jump bb37
   bb31:
-    v318 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v318 = alloc 96
     store v318, 0
     store v318+32, 0
-    v319 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v319 = alloc 32
     store v319, 0
     v320 = ptrtoint memptr v319 to i256
     store v318+64, v320
@@ -530,10 +530,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v324 = add v316, 1
     jump bb30
   bb24:
-    v285 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v285 = alloc 96
     store v285, 0
     store v285+32, 0
-    v286 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v286 = alloc 32
     store v286, 0
     v287 = ptrtoint memptr v286 to i256
     store v285+64, v287
@@ -544,10 +544,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v291 = add v283, 1
     jump bb23
   bb17:
-    v256 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v256 = alloc 96
     store v256, 0
     store v256+32, 0
-    v257 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v257 = alloc 32
     store v257, 0
     v258 = ptrtoint memptr v257 to i256
     store v256+64, v258
@@ -558,10 +558,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v262 = add v254, 1
     jump bb16
   bb10:
-    v228 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v228 = alloc 96
     store v228, 0
     store v228+32, 0
-    v229 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v229 = alloc 32
     store v229, 0
     v230 = ptrtoint memptr v229 to i256
     store v228+64, v230
@@ -575,7 +575,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v192 = storage_array_data_slot 0
     v193 = mul v190, 6
     v194 = add v192, v193
-    v195 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v195 = alloc checked 96
     jump bb4
   bb4:
     v196 = phi [bb2: 0], [bb5: v214]
@@ -591,7 +591,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb5:
     v198 = mul v196, 2
     v199 = add v194, v198
-    v200 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v200 = alloc checked 96
     v201 = sload v199 !metadata(storage=symbolic(v199))
     v202 = trunc i256 v201 to i8
     v203 = zext i8 v202 to i256
@@ -621,10 +621,10 @@ fn @load_storage_word_array(arg0: i256) -> memptr {
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     store v0, 0
     store v0+32, 0
-    v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0+64, v2

@@ -3,7 +3,7 @@
   @module TerminalArrayReturn
   fn @fresh_array() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
+      v0 = alloc 96
       v1 = ptrtoint memptr v0 to i256
       store v1, 2
       ret v0
@@ -69,7 +69,7 @@
 +     v22 = add v21, 31
 +     v23 = not 31
 +     v24 = and v22, v23
-+     v25 = alloc raw, exact, uninitialized, infallible, v24 !metadata(preserves_fmp)
++     v25 = alloc v24 !metadata(preserves_fmp)
 +     v26 = ptrtoint memptr v25 to i256
 +     v27 = make_memory_slice v26, v21
 +     v1 = slice_ptr v27
@@ -79,7 +79,7 @@
   
   fn @fresh_bytes(arg0: i256) -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+      v0 = alloc 96
       v1 = ptrtoint memptr v0 to i256
       store v1, arg0
       ret v0

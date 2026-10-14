@@ -2,7 +2,7 @@
 @module NestedStructMemoryAlias
 fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -10,7 +10,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v6 = alloc zeroed checked 64
     store v6, 1
     jump bb4
   bb4:
@@ -24,7 +24,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     icall panic_if<0x32>, v19
     v20 = ptrtoint memptr v6 to i256
     store v0+32, v20
-    v21 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v21 = alloc zeroed checked 96
     store v21, 2
     v22 = load v0
     v23 = lt 0, v22
@@ -35,7 +35,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v27 = eq v25, 0
     jumpi v27, bb7, bb8
   bb7:
-    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v28 = alloc 32
     store v28, 0
     v29 = ptrtoint memptr v28 to i256
     store v0+32, v29
@@ -68,7 +68,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v46 = eq v44, 0
     jumpi v46, bb11, bb12
   bb11:
-    v47 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v47 = alloc 32
     store v47, 0
     v48 = ptrtoint memptr v47 to i256
     store v0+32, v48
@@ -105,7 +105,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v68 = eq v66, 0
     jumpi v68, bb15, bb16
   bb15:
-    v69 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v69 = alloc 32
     store v69, 0
     v70 = ptrtoint memptr v69 to i256
     store v0+32, v70
@@ -142,7 +142,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v90 = eq v88, 0
     jumpi v90, bb19, bb20
   bb19:
-    v91 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v91 = alloc 32
     store v91, 0
     v92 = ptrtoint memptr v91 to i256
     store v0+32, v92
@@ -178,7 +178,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v111 = eq v109, 0
     jumpi v111, bb23, bb24
   bb23:
-    v112 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v112 = alloc 32
     store v112, 0
     v113 = ptrtoint memptr v112 to i256
     store v0+32, v113
@@ -214,7 +214,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v132 = eq v130, 0
     jumpi v132, bb27, bb28
   bb27:
-    v133 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v133 = alloc 32
     store v133, 0
     v134 = ptrtoint memptr v133 to i256
     store v0+32, v134
@@ -251,7 +251,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v154 = eq v152, 0
     jumpi v154, bb31, bb32
   bb31:
-    v155 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v155 = alloc 32
     store v155, 0
     v156 = ptrtoint memptr v155 to i256
     store v0+32, v156
@@ -287,7 +287,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v175 = eq v173, 0
     jumpi v175, bb35, bb36
   bb35:
-    v176 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v176 = alloc 32
     store v176, 0
     v177 = ptrtoint memptr v176 to i256
     store v0+32, v177
@@ -325,7 +325,7 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v199 = eq v197, 0
     jumpi v199, bb39, bb40
   bb39:
-    v200 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v200 = alloc 32
     store v200, 0
     v201 = ptrtoint memptr v200 to i256
     store v0+32, v201
@@ -358,9 +358,9 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v219 = zext i8 v218 to i256
     ret v219
   bb5:
-    v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v9 = alloc 64 !metadata(preserves_fmp)
     store v9, 96
-    v10 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v10 = alloc 64 !metadata(preserves_fmp)
     v11 = ptrtoint memptr v10 to i256
     memory_zero v11, 64
     v12 = ptrtoint memptr v10 to i256
@@ -381,12 +381,12 @@ fn @check() -> i256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v0 = alloc 64
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0, v2
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc 64
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 64
     v5 = ptrtoint memptr v3 to i256

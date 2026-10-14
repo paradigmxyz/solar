@@ -14,7 +14,7 @@ contract MsgData {
     // CHECK-LABEL: fn @copy{{[( ]}}
     // CHECK: calldatasize
     // CHECK-NEXT: [[SRC:v[0-9]+]] = make_calldata_slice 0,
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[BYTES:v[0-9]+]] = alloc
     // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[SRC]]
     // CHECK-NEXT: [[LEN:v[0-9]+]] = slice_len [[SRC]]
@@ -56,7 +56,7 @@ contract MsgData {
     // CHECK: calldatasize
     // CHECK: make_calldata_slice
     // CHECK: [[SRC:v[0-9]+]] = make_calldata_slice
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[BYTES:v[0-9]+]] = alloc
     // CHECK: [[DST:v[0-9]+]] = ptradd [[BYTES]], 32
     // CHECK-NEXT: [[PTR:v[0-9]+]] = slice_ptr [[SRC]]
     // CHECK-NEXT: [[LEN:v[0-9]+]] = slice_len [[SRC]]

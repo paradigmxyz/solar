@@ -34,7 +34,7 @@
       v0 = ne arg0, 0
       jumpi v0, bb3, bb1
     bb1:
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = alloc 64
       v2 = ptrtoint memptr v1 to i256
       store v2, 39
       v3 = ptradd v1, 32
@@ -84,7 +84,7 @@
       v0 = ne arg0, 0
       jumpi v0, bb3, bb1
     bb1:
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = alloc 64
       v2 = ptrtoint memptr v1 to i256
       store v2, 39
       v3 = ptradd v1, 32

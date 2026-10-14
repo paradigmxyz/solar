@@ -30,7 +30,7 @@ fn @internalPureTarget() -> i256 [pure] {
 
 fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
@@ -43,7 +43,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v7 = lt v6, 1
     jumpi v7, bb2, bb3
   bb3:
-    v34 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v34 = alloc 32
     store v34, 5
     jump bb7
   bb7:
@@ -171,7 +171,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
 
 fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
@@ -184,7 +184,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v7 = lt v6, 1
     jumpi v7, bb2, bb3
   bb3:
-    v34 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v34 = alloc 32
     store v34, 6
     jump bb7
   bb7:
@@ -312,7 +312,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
 
 fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
@@ -325,7 +325,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v7 = lt v6, 1
     jumpi v7, bb2, bb3
   bb3:
-    v34 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v34 = alloc 32
     store v34, 6
     jump bb7
   bb7:

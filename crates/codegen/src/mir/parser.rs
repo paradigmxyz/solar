@@ -35,12 +35,12 @@
 
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
-    AbiType, AddressCallKind, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, BlockId, DataId, DataRef, DataSize, Disambiguator,
-    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate,
-    ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MangledSymbol,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
+    AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
+    BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
+    Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
+    MemoryRegion, Module, StorageAlias, StorageField, StorageLayout, StorageLayoutRef, StructId,
+    StructType, Terminator, Value, ValueId,
 };
 use crate::mir::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use alloy_primitives::U256;
@@ -1692,45 +1692,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let parsed = match mnemonic {
             // Free-memory pointer and allocation.
             sym::alloc => {
-                let name = self.parser.parse_ident()?;
-                let kind = match name {
-                    sym::raw => AllocationKind::Raw,
-                    _ => AllocationKind::Object(self.parse_memory_object_layout(name)?),
+                let initialization = if self.parser.eat_keyword(sym::zeroed) {
+                    AllocationInitialization::Zeroed
+                } else {
+                    AllocationInitialization::Uninitialized
                 };
-                self.parser.expect(TokenKind::Comma)?;
-                let alignment = match self.parser.parse_ident()? {
-                    sym::exact => AllocationAlignment::Exact,
-                    sym::word => AllocationAlignment::Word,
-                    other => {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown allocation alignment `{other}`")));
-                    }
+                let failure = if self.parser.eat_keyword(sym::checked) {
+                    AllocationFailure::Checked
+                } else {
+                    AllocationFailure::Infallible
                 };
-                self.parser.expect(TokenKind::Comma)?;
-                let initialization = match self.parser.parse_ident()? {
-                    sym::uninitialized => AllocationInitialization::Uninitialized,
-                    sym::zeroed => AllocationInitialization::Zeroed,
-                    other => {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown allocation initialization `{other}`")));
-                    }
-                };
-                self.parser.expect(TokenKind::Comma)?;
-                let failure = match self.parser.parse_ident()? {
-                    sym::infallible => AllocationFailure::Infallible,
-                    sym::panic => AllocationFailure::Panic,
-                    other => {
-                        return Err(self
-                            .parser
-                            .error(format!("unknown allocation failure `{other}`")));
-                    }
-                };
-                self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(builder)?;
-                let semantics = AllocationSemantics { alignment, initialization, failure };
-                (InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
+                let semantics = AllocationSemantics { initialization, failure };
+                (InstKind::Alloc { size, semantics }, Some(MirType::MEMPTR))
             }
 
             // Semantic ABI encoding.

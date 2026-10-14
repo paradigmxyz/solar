@@ -4,7 +4,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
   bb0:
     v0 = not 31
     v1 = and 98, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 35
     v3 = load v2
     v4 = lt 34, v3
@@ -12,7 +12,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
     store8 v2+66, v6
-    v7 = alloc memoryarray<1>, exact, zeroed, panic, 160
+    v7 = alloc zeroed checked 160
     store v7, 4
     jump bb1
   bb1:
@@ -29,7 +29,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v21 = eq v19, 0
     jumpi v21, bb4, bb5
   bb4:
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v22 = alloc 64
     v23 = ptrtoint memptr v22 to i256
     memory_zero v23, 64
     v24 = ptrtoint memptr v22 to i256
@@ -41,7 +41,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     store v25+32, 8
-    v28 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v28 = alloc zeroed checked 128
     store v28, 3
     jump bb6
   bb6:
@@ -71,7 +71,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     store v48+32, 4
     v51 = not 31
     v52 = and 69, v51
-    v53 = alloc memorybytes, exact, zeroed, panic, v52
+    v53 = alloc zeroed checked v52
     store v53, 6
     v54 = load v28
     v55 = lt 2, v54
@@ -130,7 +130,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v91 = eq v89, 0
     jumpi v91, bb15, bb16
   bb15:
-    v92 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v92 = alloc 64
     v93 = ptrtoint memptr v92 to i256
     memory_zero v93, 64
     v94 = ptrtoint memptr v92 to i256
@@ -194,8 +194,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v134 = checked_add u256, v114, v133
     ret v134
   bb7:
-    v31 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v31 = alloc 64 !metadata(preserves_fmp)
+    v32 = alloc 64 !metadata(preserves_fmp)
     v33 = ptrtoint memptr v32 to i256
     memory_zero v33, 64
     v34 = ptrtoint memptr v32 to i256
@@ -208,7 +208,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v38 = add v29, 1
     jump bb6
   bb2:
-    v10 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v10 = alloc 64 !metadata(preserves_fmp)
     v11 = ptrtoint memptr v10 to i256
     memory_zero v11, 64
     v12 = shl 5, v8
@@ -221,13 +221,13 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
+    v1 = alloc 64
     v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 64
     v3 = ptrtoint memptr v1 to i256
     store v0, v3
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v4 = alloc 32
     store v4, 0
     v5 = ptrtoint memptr v4 to i256
     store v0+32, v5

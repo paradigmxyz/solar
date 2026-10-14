@@ -2,7 +2,7 @@
 @module MemoryNestedArrays
 fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v56 = eq v54, 0
     jumpi v56, bb21, bb22
   bb21:
-    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v57 = alloc 32
     store v57, 0
     v58 = ptrtoint memptr v57 to i256
     store v8+64, v58
@@ -46,7 +46,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v65 = eq v63, 0
     jumpi v65, bb23, bb24
   bb23:
-    v66 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v66 = alloc 32
     store v66, 0
     v67 = ptrtoint memptr v66 to i256
     store v59+64, v67
@@ -67,7 +67,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v77 = eq v75, 0
     jumpi v77, bb25, bb26
   bb25:
-    v78 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v78 = alloc 32
     store v78, 0
     v79 = ptrtoint memptr v78 to i256
     store v8+64, v79
@@ -83,7 +83,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v86 = eq v84, 0
     jumpi v86, bb27, bb28
   bb27:
-    v87 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v87 = alloc 32
     store v87, 0
     v88 = ptrtoint memptr v87 to i256
     store v80+64, v88
@@ -97,7 +97,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v93 = load v89+64
     ret v93
   bb7:
-    v11 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v11 = alloc zeroed checked 128
     store v11, 3
     jump bb10
   bb10:
@@ -132,7 +132,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v50 = checked_add u256, v23, 1
     jump bb4
   bb16:
-    v29 = alloc memoryarray<1>, exact, zeroed, panic, 160
+    v29 = alloc zeroed checked 160
     store v29, 4
     v30 = load v25
     v31 = lt v23, v30
@@ -145,7 +145,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
     v37 = eq v35, 0
     jumpi v37, bb19, bb20
   bb19:
-    v38 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v38 = alloc 32
     store v38, 0
     v39 = shl 5, v23
     v40 = ptradd v25, v39
@@ -184,7 +184,7 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[u256]
 
 fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -212,7 +212,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v56 = eq v54, 0
     jumpi v56, bb21, bb22
   bb21:
-    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v57 = alloc 32
     store v57, 0
     v58 = ptrtoint memptr v57 to i256
     store v7+64, v58
@@ -228,7 +228,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v65 = eq v63, 0
     jumpi v65, bb23, bb24
   bb23:
-    v66 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v66 = alloc 32
     store v66, 0
     v67 = ptrtoint memptr v66 to i256
     store v59+64, v67
@@ -242,7 +242,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     store v68+64, v6
     ret v6
   bb7:
-    v11 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v11 = alloc zeroed checked 128
     store v11, 3
     jump bb10
   bb10:
@@ -277,7 +277,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v50 = checked_add u256, v26, 1
     jump bb4
   bb16:
-    v29 = alloc memoryarray<1>, exact, zeroed, panic, 160
+    v29 = alloc zeroed checked 160
     store v29, 4
     v30 = load v24
     v31 = lt v26, v30
@@ -290,7 +290,7 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[u256], 
     v37 = eq v35, 0
     jumpi v37, bb19, bb20
   bb19:
-    v38 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v38 = alloc 32
     store v38, 0
     v39 = shl 5, v26
     v40 = ptradd v24, v39

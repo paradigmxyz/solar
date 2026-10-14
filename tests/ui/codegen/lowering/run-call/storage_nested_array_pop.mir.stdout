@@ -343,7 +343,7 @@ fn @load_storage_packed_array_2_0(arg0: i256) -> memptr {
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memoryfixedarray<16, 1>, exact, uninitialized, infallible, 512
+    v0 = alloc 512
     store v0, 1
     store v0+32, 2
     store v0+64, 3

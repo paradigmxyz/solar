@@ -42,7 +42,7 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     v33 = or v29, v32
     sstore v22, v33 !metadata(storage=symbolic(v22))
     sstore 0, v19 !metadata(storage=slot(0))
-    v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v34 = alloc 64
     v35 = address
     v36 = zext i160 v35 to i256
     v37 = icall @load_storage_packed_array_4_2, 0
@@ -90,8 +90,8 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v10 = shl 64, v9
     v11 = or v8, v10
     sstore 4, v11 !metadata(storage=slot(4))
-    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v12 = alloc 64
+    v13 = alloc checked 64
     v14 = sload 4 !metadata(storage=slot(4))
     v15 = trunc i256 v14 to i64
     v16 = zext i64 v15 to i256
@@ -151,8 +151,8 @@ fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     icall panic_if<0x32>, v7
     v8 = add 1, 2
     sstore v8, 33 !metadata(storage=slot(3))
-    v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v10 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v9 = alloc 64
+    v10 = alloc checked 96
     jump bb1
   bb1:
     v11 = phi [bb0: 0], [bb2: v17]

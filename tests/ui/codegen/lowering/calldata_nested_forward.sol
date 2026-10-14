@@ -24,9 +24,9 @@ contract NestedCalldataForward {
     }
 
     // CHECK-LABEL: fn @forwardStructs{{[( ]}}
-    // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[ARR:v[0-9]+]] = alloc
     // CHECK: store [[ARR]], {{v[0-9]+}}
-    // CHECK-DAG: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK-DAG: [[BYTES:v[0-9]+]] = alloc
     // CHECK-DAG: store [[BYTES]], {{v[0-9]+}}
     // CHECK-DAG: abi_encode [memory_array<tuple<word, memory_bytes>>]
     // CHECK: [[OFF1:v[0-9]+]] = shl 5, {{v[0-9]+}}

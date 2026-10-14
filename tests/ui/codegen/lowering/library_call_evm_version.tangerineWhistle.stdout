@@ -21,10 +21,10 @@ fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], a
 
 fn @arr(arg0: i256) -> memptr [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v2 = alloc 64
     store v2, arg0
     store v2+32, arg0
     ret v2
@@ -38,10 +38,10 @@ fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[u256], abi_re
 
 fn @flagged(arg0: i256) -> memptr [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
     store v0+32, 0
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = alloc 64
     v2 = ne arg0, 0
     v3 = zext i1 v2 to i256
     store v1, v3
@@ -126,10 +126,10 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
 
 fn @aggregate(arg0: i256) -> memptr [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = alloc raw, exact, uninitialized, infallible, 64
+    v2 = alloc 64
     v3 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
     v4 = slice_ptr v3
     v5 = slice_len v3
@@ -177,10 +177,10 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
 
 fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
     store v0+32, 0
-    v1 = alloc raw, exact, uninitialized, infallible, 64
+    v1 = alloc 64
     v2 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2

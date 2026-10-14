@@ -15,7 +15,7 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     icall panic_if<0x32>, v4
     v5 = add 2, 1
     sstore v5, 22 !metadata(storage=slot(3))
-    v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v6 = alloc checked 64
     jump bb1
   bb1:
     v7 = phi [bb0: 0], [bb2: v13]
@@ -138,7 +138,7 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v26 = shl v20, v25
     v27 = or v24, v26
     sstore v17, v27 !metadata(storage=offset(v16, 4))
-    v28 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v28 = alloc checked 64
     jump bb1
   bb1:
     v29 = phi [bb0: 0], [bb2: v42]

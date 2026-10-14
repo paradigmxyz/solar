@@ -78,7 +78,7 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
 
 fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     store v0, 1
     store v0+32, 2
     store v0+64, 1

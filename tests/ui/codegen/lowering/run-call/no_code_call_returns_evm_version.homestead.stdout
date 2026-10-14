@@ -7,7 +7,7 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 
 fn @pair() -> memptr [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
@@ -106,7 +106,7 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], a
 
 fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v1 = fmp
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 64
@@ -179,7 +179,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v0 = abi_encode []
     v1 = datasize NoCodeCallee_creation_code_0
     v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -222,7 +222,7 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v0 = abi_encode []
     v1 = datasize NoCodeCallee_creation_code_0
     v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -236,7 +236,7 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
   bb1:
     revert_returndata
   bb2:
-    v11 = alloc raw, exact, uninitialized, infallible, 64
+    v11 = alloc 64
     v12 = fmp
     v13 = ptrtoint memptr v12 to i256
     v14 = add v13, 64

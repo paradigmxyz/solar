@@ -54,7 +54,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v0 = abi_encode []
     v1 = datasize Registry_creation_code_0
     v2 = datasize Registry_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Registry_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -95,7 +95,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall panic_if<0x41>, v28
     v29 = not 31
     v30 = and v27, v29
-    v31 = alloc memorybytes, exact, zeroed, panic, v30
+    v31 = alloc zeroed checked v30
     store v31, v26
     v32 = ptrtoint memptr v31 to i256
     v33 = add v32, 32

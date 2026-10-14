@@ -9,7 +9,7 @@ fn @getArray() -> i256 [pure] {
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @getArray
-    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v1 = alloc 96
     store v1, 11
     store v1+32, 12
     store v1+64, 13

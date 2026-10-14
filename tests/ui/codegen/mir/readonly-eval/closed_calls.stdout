@@ -78,7 +78,7 @@
   
   fn @known_memory() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       store v1, 19
 -     icall @guard, 42

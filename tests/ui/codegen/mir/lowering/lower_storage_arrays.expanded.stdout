@@ -19,7 +19,7 @@
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
-+     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     v11 = alloc checked v4
 +     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
@@ -62,7 +62,7 @@
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
-+     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     v11 = alloc checked v4
 +     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
@@ -110,7 +110,7 @@
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
-+     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     v11 = alloc checked v4
 +     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
@@ -158,7 +158,7 @@
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
-+     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     v11 = alloc checked v4
 +     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
@@ -216,7 +216,7 @@
 +     v11 = eq v10, 0 !metadata(span=50..60, modifier_depth=5)
 +     jumpi v11, bb4, bb6 !metadata(span=50..60, modifier_depth=5)
 +   bb6:
-+     v12 = alloc memoryarray<1>, exact, uninitialized, panic, v5 !metadata(span=50..60, modifier_depth=5)
++     v12 = alloc checked v5 !metadata(span=50..60, modifier_depth=5)
 +     store v12, v2 !metadata(span=50..60, modifier_depth=5)
 +     v13 = storage_array_data_slot arg1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
@@ -266,7 +266,7 @@
 +   bb4:
 +     v14 = not 31
 +     v15 = and v12, v14
-+     v16 = alloc memorybytes, exact, uninitialized, panic, v15
++     v16 = alloc checked v15
 +     store v16, v7
 +     jumpi v3, bb6, bb5
 +   bb5:

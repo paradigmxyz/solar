@@ -2,7 +2,7 @@
 @module StorageNestedElementCopy
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @constructor() [constructor] {
     v34 = lt v33, v13
     jumpi v34, bb16, bb17
   bb17:
-    v162 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v162 = alloc zeroed checked 96
     store v162, 2
     jump bb49
   bb49:
@@ -58,7 +58,7 @@ fn @constructor() [constructor] {
     v190 = lt v189, v168
     jumpi v190, bb61, bb62
   bb62:
-    v282 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v282 = alloc zeroed checked 96
     store v282, 2
     jump bb85
   bb85:
@@ -216,7 +216,7 @@ fn @constructor() [constructor] {
     v474 = or v471, v473
     sstore v464, v474 !metadata(storage=symbolic(v464))
     sstore v458, v461 !metadata(storage=offset(v457, 1))
-    v475 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v475 = alloc zeroed checked 96
     store v475, 2
     jump bb108
   bb108:
@@ -493,7 +493,7 @@ fn @constructor() [constructor] {
     v505 = eq v503, 0
     jumpi v505, bb119, bb120
   bb119:
-    v506 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v506 = alloc 32
     store v506, 0
     v507 = shl 5, v499
     v508 = ptradd v475, v507
@@ -606,7 +606,7 @@ fn @constructor() [constructor] {
     v314 = eq v312, 0
     jumpi v314, bb96, bb97
   bb96:
-    v315 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v315 = alloc 32
     store v315, 0
     v316 = shl 5, v308
     v317 = ptradd v282, v316
@@ -719,7 +719,7 @@ fn @constructor() [constructor] {
     v195 = eq v193, 0
     jumpi v195, bb63, bb64
   bb63:
-    v196 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v196 = alloc 32
     store v196, 0
     v197 = shl 5, v189
     v198 = ptradd v162, v197
@@ -760,7 +760,7 @@ fn @constructor() [constructor] {
     v224 = eq v222, 0
     jumpi v224, bb73, bb74
   bb73:
-    v225 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v225 = alloc 32
     store v225, 0
     v226 = shl 5, v218
     v227 = ptradd v200, v226
@@ -900,7 +900,7 @@ fn @constructor() [constructor] {
     v39 = eq v37, 0
     jumpi v39, bb18, bb19
   bb18:
-    v40 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v40 = alloc 64
     jump bb20
   bb20:
     v41 = phi [bb18: 0], [bb21: v47]
@@ -930,7 +930,7 @@ fn @constructor() [constructor] {
     v58 = lt v55, 2
     jumpi v58, bb26, bb27
   bb27:
-    v111 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v111 = alloc 32
     store v111, 0
     v112 = load v111
     v113 = sload v57 !metadata(storage=symbolic(v57))
@@ -1087,7 +1087,7 @@ fn @constructor() [constructor] {
     v80 = add v65, 1
     jump bb31
   bb21:
-    v43 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v43 = alloc 32
     store v43, 0
     v44 = shl 5, v41
     v45 = ptradd v40, v44
@@ -1121,7 +1121,7 @@ fn @constructor() [constructor] {
     v31 = add v21, 1
     jump bb12
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     jump bb4
   bb4:
     v4 = phi [bb2: 0], [bb5: v8]
@@ -1170,7 +1170,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v20 = zext i1 v19 to i256
     v21 = eq v20, 0
     icall panic_if<0x41>, v21
-    v22 = alloc memoryarray<1>, exact, uninitialized, panic, v15
+    v22 = alloc checked v15
     store v22, v5
     jump bb1
   bb1:
@@ -1288,7 +1288,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v54 = eq v52, 0
     jumpi v54, bb12, bb13
   bb12:
-    v55 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v55 = alloc 32
     store v55, 0
     v56 = shl 5, v48
     v57 = ptradd v22, v56
@@ -1425,7 +1425,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
-    v20 = alloc memoryarray<1>, exact, uninitialized, panic, v13
+    v20 = alloc checked v13
     store v20, v3
     jump bb1
   bb1:
@@ -1543,7 +1543,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v52 = eq v50, 0
     jumpi v52, bb12, bb13
   bb12:
-    v53 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v53 = alloc 32
     store v53, 0
     v54 = shl 5, v46
     v55 = ptradd v20, v54
@@ -1663,7 +1663,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v3 = storage_array_data_slot 3
     v4 = mul 0, 2
     v5 = add v3, v4
-    v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v6 = alloc checked 64
     jump bb1
   bb1:
     v7 = phi [bb0: 0], [bb2: v14]
@@ -1755,7 +1755,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v19 = lt v16, 2
     jumpi v19, bb7, bb8
   bb8:
-    v72 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v72 = alloc 32
     store v72, 0
     v73 = load v72
     v74 = sload v18 !metadata(storage=offset(v16, 5))

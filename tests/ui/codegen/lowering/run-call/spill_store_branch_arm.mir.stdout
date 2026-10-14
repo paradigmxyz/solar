@@ -123,7 +123,7 @@ fn @constructor() [constructor] {
     v14 = abi_encode []
     v15 = datasize Mgr_creation_code_0
     v16 = datasize Mgr_creation_code_0, 31, aligned
-    v17 = alloc raw, exact, uninitialized, infallible, v16
+    v17 = alloc v16
     v18 = ptrtoint memptr v17 to i256
     datacopy Mgr_creation_code_0, v18, v15
     v19 = slice_ptr v14
@@ -405,18 +405,18 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
 
 fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    v0 = alloc 160
     v1 = sext i24 60 to i256
     store v0, 1
     store v0+32, 2
     store v0+64, 0xbb8
     store v0+96, v1
     store v0+128, 3
-    v2 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v2 = alloc 96
     store v2, 1
     store v2+32, 101
     store v2+64, 99
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 4
     v4 = ptrtoint memptr v3 to i256
     v5 = add v4, 32

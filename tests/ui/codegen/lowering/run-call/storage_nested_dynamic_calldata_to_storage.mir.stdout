@@ -55,7 +55,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v42 = add 32, v35
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
-    v44 = alloc memoryarray<1>, exact, uninitialized, infallible, v42
+    v44 = alloc v42
     store v44, v23
     jump bb1
   bb1:
@@ -182,7 +182,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v112 = eq v110, 0
     jumpi v112, bb15, bb16
   bb15:
-    v113 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v113 = alloc 32
     store v113, 0
     v114 = shl 5, v106
     v115 = ptradd v44, v114
@@ -316,7 +316,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v73 = add 32, v66
     v74 = lt v73, 32
     icall panic_if<0x41>, v74
-    v75 = alloc memoryarray<1>, exact, uninitialized, infallible, v73
+    v75 = alloc v73
     store v75, v59
     jump bb4
   bb4:
@@ -347,7 +347,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
 
 fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<_, u8>>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -400,7 +400,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v139 = add 32, v132
     v140 = lt v139, 32
     icall panic_if<0x41>, v140
-    v141 = alloc memoryarray<1>, exact, uninitialized, infallible, v139
+    v141 = alloc v139
     store v141, v120
     jump bb37
   bb37:
@@ -579,7 +579,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v214 = eq v212, 0
     jumpi v214, bb51, bb52
   bb51:
-    v215 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v215 = alloc 32
     store v215, 0
     v216 = shl 5, v208
     v217 = ptradd v141, v216
@@ -713,7 +713,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v170 = add 32, v163
     v171 = lt v170, 32
     icall panic_if<0x41>, v171
-    v172 = alloc memoryarray<1>, exact, uninitialized, infallible, v170
+    v172 = alloc v170
     store v172, v156
     jump bb40
   bb40:
@@ -748,7 +748,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v33 = eq v31, 0
     jumpi v33, bb15, bb16
   bb15:
-    v34 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v34 = alloc 32
     store v34, 0
     v35 = shl 5, v27
     v36 = ptradd v0, v35
@@ -789,7 +789,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v62 = eq v60, 0
     jumpi v62, bb25, bb26
   bb25:
-    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v63 = alloc 32
     store v63, 0
     v64 = shl 5, v56
     v65 = ptradd v38, v64

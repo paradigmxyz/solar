@@ -8,7 +8,7 @@
 +     v0 = inttoptr i256 v4 to memptr !metadata(memory=scratch)
       v1 = ptrtoint memptr v0 to i256
 -     set_fmp v0 !metadata(preserves_fmp)
--     v2 = alloc raw, word, uninitialized, infallible, 64
+-     v2 = alloc 64
 +     store 64, v4 !metadata(memory=scratch)
 +     v5 = load 64 !metadata(memory=scratch)
 +     v2 = inttoptr i256 v5 to memptr !metadata(memory=scratch)
@@ -21,7 +21,7 @@
   
   fn @deferred() {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+      v0 = alloc 32 !metadata(deferred_alloc)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       stop
@@ -106,7 +106,7 @@
   
   fn @deferred() {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+      v0 = alloc 32 !metadata(deferred_alloc)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       stop

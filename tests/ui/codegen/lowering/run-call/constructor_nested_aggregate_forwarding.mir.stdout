@@ -78,9 +78,9 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, tuple<u256, byt
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0+32, v2
@@ -233,9 +233,9 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0+32, v2
@@ -255,7 +255,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memptr) {
 
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -279,7 +279,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb5:
     v16 = phi [bb3: v12], [bb4: v14]
     store v16, 7
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v17 = alloc 64 !metadata(preserves_fmp)
     store v17, 2
     v18 = ptrtoint memptr v17 to i256
     v19 = add v18, 32
@@ -317,7 +317,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb9:
     v38 = phi [bb7: v34], [bb8: v36]
     store v38, 11
-    v39 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v39 = alloc 64 !metadata(preserves_fmp)
     store v39, 3
     v40 = ptrtoint memptr v39 to i256
     v41 = add v40, 32
@@ -350,7 +350,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     icall panic_if<0x41>, v58
     v59 = not 31
     v60 = and v57, v59
-    v61 = alloc raw, exact, uninitialized, infallible, v60
+    v61 = alloc v60
     v62 = ptrtoint memptr v61 to i256
     datacopy ConstructorAggregateMain_creation_code_0, v62, v54
     v63 = slice_ptr v52
@@ -381,7 +381,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v78 = load v77
     ret v78
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 0
     store v3+32, 96
     v4 = shl 5, v1
@@ -394,9 +394,9 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0+32, v2

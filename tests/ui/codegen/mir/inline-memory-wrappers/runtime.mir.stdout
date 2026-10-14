@@ -38,7 +38,7 @@ fn @copy(arg0: memptr) -> memptr [pure] {
     icall panic_if<0x41>, v2
     v3 = not 31
     v4 = and v1, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    v5 = alloc zeroed checked v4
     store v5, v0
     jump bb1
   bb1:

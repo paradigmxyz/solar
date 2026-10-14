@@ -25,7 +25,7 @@ fn @encodeImpl(arg0: memptr) -> memptr [pure] {
     icall panic_if<0x41>, v3
     v4 = not 31
     v5 = and v2, v4
-    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    v6 = alloc zeroed checked v5
     store v6, v1
     jump bb1
   bb1:
@@ -187,7 +187,7 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256],
     icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc zeroed checked v3
     store v4, arg0
     jump bb1
   bb1:

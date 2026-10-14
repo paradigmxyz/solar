@@ -33,7 +33,7 @@
       v14 = zext i1 v13 to i256
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
-      v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+      v16 = alloc zeroed checked v9
       store v16, arg0
       v17 = load v16
       v18 = lt 1, v17
@@ -161,7 +161,7 @@
       v14 = zext i1 v13 to i256
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
-      v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+      v16 = alloc zeroed checked v9
       store v16, arg0
       v17 = load v16
       v18 = lt 1, v17
@@ -206,7 +206,7 @@
       v14 = zext i1 v13 to i256
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
-      v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+      v16 = alloc zeroed checked v9
       store v16, arg0
       v17 = load v16
       v18 = lt 1, v17
@@ -251,7 +251,7 @@
       v14 = zext i1 v13 to i256
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
-      v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+      v16 = alloc zeroed checked v9
       store v16, arg0
       v17 = load v16
       v18 = lt 1, v17

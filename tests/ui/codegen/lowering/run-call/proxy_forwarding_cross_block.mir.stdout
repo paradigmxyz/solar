@@ -129,7 +129,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v0 = abi_encode []
     v1 = datasize ForwardingImplementation_creation_code_0
     v2 = datasize ForwardingImplementation_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ForwardingImplementation_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -148,7 +148,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v13 = datasize FixedRangeProxy_creation_code_1
     v14 = datasize FixedRangeProxy_creation_code_1, 32
     v15 = datasize FixedRangeProxy_creation_code_1, 63, aligned
-    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy FixedRangeProxy_creation_code_1, v17, v13
     v18 = slice_ptr v12
@@ -165,7 +165,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v24 = gas
     v25 = not 31
     v26 = and 223, v25
-    v27 = alloc memorybytes, exact, zeroed, panic, v26
+    v27 = alloc zeroed checked v26
     store v27, 160
     v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v27
     v29 = slice_ptr v28
@@ -205,7 +205,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v0 = abi_encode []
     v1 = datasize ForwardingImplementation_creation_code_0
     v2 = datasize ForwardingImplementation_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ForwardingImplementation_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -224,7 +224,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v13 = datasize CrossBlockProxy_creation_code_2
     v14 = datasize CrossBlockProxy_creation_code_2, 32
     v15 = datasize CrossBlockProxy_creation_code_2, 63, aligned
-    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy CrossBlockProxy_creation_code_2, v17, v13
     v18 = slice_ptr v12
@@ -241,7 +241,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v24 = gas
     v25 = not 31
     v26 = and 223, v25
-    v27 = alloc memorybytes, exact, zeroed, panic, v26
+    v27 = alloc zeroed checked v26
     store v27, 160
     v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v27
     v29 = slice_ptr v28
@@ -281,7 +281,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v0 = abi_encode []
     v1 = datasize RevertingProducer_creation_code_3
     v2 = datasize RevertingProducer_creation_code_3, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy RevertingProducer_creation_code_3, v4, v1
     v5 = slice_ptr v0
@@ -300,7 +300,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v13 = datasize DynamicReturnWrapper_creation_code_4
     v14 = datasize DynamicReturnWrapper_creation_code_4, 32
     v15 = datasize DynamicReturnWrapper_creation_code_4, 63, aligned
-    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy DynamicReturnWrapper_creation_code_4, v17, v13
     v18 = slice_ptr v12

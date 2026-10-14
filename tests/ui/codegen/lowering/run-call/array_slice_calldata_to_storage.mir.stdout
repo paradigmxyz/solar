@@ -45,7 +45,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v35 = add 32, v28
     v36 = lt v35, 32
     icall panic_if<0x41>, v36
-    v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
+    v37 = alloc v35
     store v37, v16
     v38 = make_calldata_slice v17, v28
     v39 = ptradd v37, 32

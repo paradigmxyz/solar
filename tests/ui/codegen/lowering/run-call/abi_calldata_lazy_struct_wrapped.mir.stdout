@@ -83,7 +83,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     icall panic_if<0x41>, v62
     v63 = not 31
     v64 = and v61, v63
-    v65 = alloc memorybytes, exact, uninitialized, infallible, v64
+    v65 = alloc v64
     store v65, v60
     v66 = ptradd v65, 32
     v67 = slice_ptr v53

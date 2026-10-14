@@ -103,15 +103,11 @@ impl PackedEncoder<'_, '_> {
         });
         let output = if word_aligned {
             // size = checked_add(total, 32)
-            // output = alloc_object size, bytes
+            // output = alloc size
             // mstore (ptrtoint output), total
             let header = self.builder.imm(32);
             let size = self.builder.checked_add(total, header);
-            let output = self.builder.alloc_object(
-                size,
-                MemoryObjectLayout::Bytes,
-                AllocationSemantics::INTERNAL,
-            );
+            let output = self.builder.alloc(size, AllocationSemantics::INTERNAL);
             self.builder.set_memory_len(output, total);
             output
         } else {

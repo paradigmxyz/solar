@@ -75,7 +75,7 @@ fn load_memory_object_word(
 
 fn memory_object_layout(layout: &StorageLayout) -> MemoryObjectLayout {
     match layout {
-        StorageLayout::Struct(fields) => MemoryObjectLayout::structure(fields.len() as u64),
+        StorageLayout::Struct(fields) => MemoryObjectLayout::Struct { fields: fields.len() as u64 },
         StorageLayout::Array { len, .. } => MemoryObjectLayout::word_fixed_array(*len),
     }
 }
@@ -197,11 +197,7 @@ fn lower_storage_field_to_memory(
         }
         StorageField::Aggregate(layout) => {
             let size = builder.imm(layout.memory_words() * 32);
-            let nested = builder.alloc_object(
-                size,
-                memory_object_layout(layout),
-                crate::mir::AllocationSemantics::INTERNAL,
-            );
+            let nested = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
             lower_storage_to_memory(builder, layout, slot, nested);
             store_memory_object_word(builder, dest, nested);
         }

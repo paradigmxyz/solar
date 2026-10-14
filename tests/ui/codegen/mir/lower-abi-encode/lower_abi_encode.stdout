@@ -5,7 +5,7 @@
     bb0:
 -     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
 -     ret v0
-+     v1 = alloc raw, exact, uninitialized, infallible, 64
++     v1 = alloc 64
 +     store v1, 0x1234567800000000000000000000000000000000000000000000000000000000
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = add v2, 4
@@ -19,7 +19,7 @@
     bb0:
 -     v0 = abi_encode [word, word], object, args arg0, arg1
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
++     v1 = alloc 96 !metadata(preserves_fmp)
 +     store v1, 64
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = add v2, 32
@@ -33,7 +33,7 @@
     bb0:
 -     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
++     v1 = alloc 96 !metadata(preserves_fmp)
 +     store v1, 36
 +     v2 = ptrtoint memptr v1 to i256
 +     v3 = add v2, 32
@@ -82,7 +82,7 @@
 +     v17 = add v16, 31
 +     v18 = not 31
 +     v19 = and v17, v18
-+     v20 = alloc raw, exact, uninitialized, infallible, v19 !metadata(preserves_fmp)
++     v20 = alloc v19 !metadata(preserves_fmp)
 +     v21 = ptrtoint memptr v20 to i256
 +     v22 = make_memory_slice v21, v16
 +     ret v22
@@ -125,7 +125,7 @@
 +     v39 = add v38, 31
 +     v40 = not 31
 +     v41 = and v39, v40
-+     v42 = alloc raw, exact, uninitialized, infallible, v41 !metadata(preserves_fmp)
++     v42 = alloc v41 !metadata(preserves_fmp)
 +     v43 = ptrtoint memptr v42 to i256
 +     v44 = make_memory_slice v43, v38
 +     ret v44
@@ -178,7 +178,7 @@
 +     v25 = add v24, 31
 +     v26 = not 31
 +     v27 = and v25, v26
-+     v28 = alloc raw, exact, uninitialized, infallible, v27 !metadata(preserves_fmp)
++     v28 = alloc v27 !metadata(preserves_fmp)
 +     v29 = ptrtoint memptr v28 to i256
 +     v30 = make_memory_slice v29, v24
 +     ret v30
@@ -224,7 +224,7 @@
 +     v19 = add v18, 31
 +     v20 = not 31
 +     v21 = and v19, v20
-+     v22 = alloc raw, exact, uninitialized, infallible, v21 !metadata(preserves_fmp)
++     v22 = alloc v21 !metadata(preserves_fmp)
 +     v23 = ptrtoint memptr v22 to i256
 +     v24 = make_memory_slice v23, v18
 +     ret v24
@@ -254,7 +254,7 @@
 +     v15 = add v14, 31
 +     v16 = not 31
 +     v17 = and v15, v16
-+     v18 = alloc raw, exact, uninitialized, infallible, v17 !metadata(preserves_fmp)
++     v18 = alloc v17 !metadata(preserves_fmp)
 +     v19 = ptrtoint memptr v18 to i256
 +     v20 = make_memory_slice v19, v14
 +     ret v20

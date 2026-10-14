@@ -7,7 +7,7 @@ fn @copy(arg0: i256) -> struct0 [selector=0x8370392c, pure, abi_params=[u256], a
   bb0:
     v0 = not 31
     v1 = and 95, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 32
     v3 = ptrtoint memptr v2 to i256
     v4 = sub v3, arg0

@@ -130,7 +130,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v0 = abi_encode []
     v1 = datasize Decompressor_creation_code_0
     v2 = datasize Decompressor_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Decompressor_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -145,7 +145,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb2:
     v11 = gas
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v12 = alloc 64 !metadata(preserves_fmp)
     store v12, 4
     v13 = ptrtoint memptr v12 to i256
     v14 = add v13, 32

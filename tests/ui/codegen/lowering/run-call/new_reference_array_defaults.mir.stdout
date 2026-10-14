@@ -2,7 +2,7 @@
 @module NewReferenceArrayDefaults
 fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -19,7 +19,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
-    v14 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v14 = alloc 32
     store v14, 0
     v15 = ptrtoint memptr v14 to i256
     store v0+32, v15
@@ -36,7 +36,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v22 = eq v20, 0
     jumpi v22, bb6, bb7
   bb6:
-    v23 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v23 = alloc 32
     store v23, 0
     v24 = ptrtoint memptr v23 to i256
     store v0+64, v24
@@ -53,7 +53,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v31 = eq v29, 0
     jumpi v31, bb8, bb9
   bb8:
-    v32 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v32 = alloc 32
     store v32, 0
     v33 = ptrtoint memptr v32 to i256
     store v0+32, v33
@@ -71,7 +71,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v42 = eq v40, 0
     jumpi v42, bb10, bb11
   bb10:
-    v43 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v43 = alloc 32
     store v43, 0
     v44 = ptrtoint memptr v43 to i256
     store v0+64, v44
@@ -82,7 +82,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v47 = checked_add u256, v36, v46
     ret v47
   bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v3 = alloc 32 !metadata(preserves_fmp)
     store v3, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
@@ -94,7 +94,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
 
 fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:

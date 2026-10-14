@@ -63,7 +63,7 @@ fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, pure, abi_params=[u256], 
 
 fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    v0 = alloc 128
     store v0, 4
     store v0+32, 3
     store v0+64, 2

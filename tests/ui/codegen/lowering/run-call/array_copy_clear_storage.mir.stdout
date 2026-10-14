@@ -34,7 +34,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v19 = add v18, v15
     sstore v19, 42 !metadata(storage=symbolic(v19))
     sstore 0, v17 !metadata(storage=slot(0))
-    v20 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v20 = alloc zeroed checked 64
     store v20, 1
     v21 = load v20
     v22 = lt 0, v21

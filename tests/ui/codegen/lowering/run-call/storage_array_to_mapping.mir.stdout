@@ -2,7 +2,7 @@
 @module StorageArrayToMapping
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @constructor() [constructor] {
     v22 = lt v21, v6
     jumpi v22, bb10, bb11
   bb11:
-    v84 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v84 = alloc zeroed checked 96
     store v84, 2
     v85 = sload 1 !metadata(storage=slot(1))
     v86 = lt 0, v85
@@ -121,7 +121,7 @@ fn @constructor() [constructor] {
     v178 = shl v172, v177
     v179 = or v176, v178
     sstore v169, v179 !metadata(storage=symbolic(v169))
-    v180 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v180 = alloc zeroed checked 128
     store v180, 3
     v181 = sload 1 !metadata(storage=slot(1))
     v182 = lt 1, v181
@@ -357,7 +357,7 @@ fn @constructor() [constructor] {
     v27 = eq v25, 0
     jumpi v27, bb12, bb13
   bb12:
-    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v28 = alloc 32
     store v28, 0
     v29 = shl 5, v21
     v30 = ptradd v0, v29
@@ -487,7 +487,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v16 = zext i1 v15 to i256
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
-    v18 = alloc memoryarray<1>, exact, uninitialized, panic, v11
+    v18 = alloc checked v11
     store v18, v1
     jump bb1
   bb1:
@@ -537,7 +537,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v123 = zext i1 v122 to i256
     v124 = eq v123, 0
     icall panic_if<0x41>, v124
-    v125 = alloc memoryarray<1>, exact, uninitialized, panic, v118
+    v125 = alloc checked v118
     store v125, v108
     jump bb24
   bb24:
@@ -564,7 +564,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v50 = eq v48, 0
     jumpi v50, bb12, bb13
   bb12:
-    v51 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v51 = alloc 32
     store v51, 0
     v52 = shl 5, v44
     v53 = ptradd v18, v52
@@ -698,7 +698,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v16 = zext i1 v15 to i256
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
-    v18 = alloc memoryarray<1>, exact, uninitialized, panic, v11
+    v18 = alloc checked v11
     store v18, v1
     jump bb1
   bb1:
@@ -748,7 +748,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v123 = zext i1 v122 to i256
     v124 = eq v123, 0
     icall panic_if<0x41>, v124
-    v125 = alloc memoryarray<1>, exact, uninitialized, panic, v118
+    v125 = alloc checked v118
     store v125, v108
     jump bb24
   bb24:
@@ -775,7 +775,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v50 = eq v48, 0
     jumpi v50, bb12, bb13
   bb12:
-    v51 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v51 = alloc 32
     store v51, 0
     v52 = shl 5, v44
     v53 = ptradd v18, v52
@@ -908,7 +908,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
-    v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
+    v17 = alloc checked v10
     store v17, v0
     jump bb1
   bb1:
@@ -958,7 +958,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v122 = zext i1 v121 to i256
     v123 = eq v122, 0
     icall panic_if<0x41>, v123
-    v124 = alloc memoryarray<1>, exact, uninitialized, panic, v117
+    v124 = alloc checked v117
     store v124, v107
     jump bb24
   bb24:
@@ -985,7 +985,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v49 = eq v47, 0
     jumpi v49, bb12, bb13
   bb12:
-    v50 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v50 = alloc 32
     store v50, 0
     v51 = shl 5, v43
     v52 = ptradd v17, v51
@@ -1123,7 +1123,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -1173,7 +1173,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v163 = zext i1 v162 to i256
     v164 = eq v163, 0
     icall panic_if<0x41>, v164
-    v165 = alloc memoryarray<1>, exact, uninitialized, panic, v158
+    v165 = alloc checked v158
     store v165, v148
     jump bb27
   bb27:
@@ -1200,7 +1200,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v90 = eq v88, 0
     jumpi v90, bb15, bb16
   bb15:
-    v91 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v91 = alloc 32
     store v91, 0
     v92 = shl 5, v84
     v93 = ptradd v21, v92
@@ -1334,7 +1334,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v50 = add 32, v43
     v51 = lt v50, 32
     icall panic_if<0x41>, v51
-    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, v50
+    v52 = alloc v50
     store v52, v36
     jump bb4
   bb4:

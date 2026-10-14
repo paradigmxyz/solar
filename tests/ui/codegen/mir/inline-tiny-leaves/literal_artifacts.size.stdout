@@ -5,7 +5,7 @@
     bb0:
 -     v0 = icall @literal
 -     v1 = load v0
-+     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
++     v4 = alloc 64 !metadata(preserves_fmp)
 +     v5 = ptrtoint memptr v4 to i256
 +     store v5, 1
 +     v6 = ptradd v4, 32
@@ -23,7 +23,7 @@
     bb0:
 -     v0 = icall @literal
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
++     v1 = alloc 64 !metadata(preserves_fmp)
 +     v2 = ptrtoint memptr v1 to i256
 +     store v2, 1
 +     v3 = ptradd v1, 32
@@ -34,7 +34,7 @@
   
   fn @literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -54,7 +54,7 @@
   
   fn @shared_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -75,7 +75,7 @@
   
   fn @tail_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -91,7 +91,7 @@
   
   fn @effect_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -121,7 +121,7 @@
   
   fn @unknown_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -137,7 +137,7 @@
   
   fn @preserved_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -150,7 +150,7 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v4 = alloc 64 !metadata(preserves_fmp)
       v5 = ptrtoint memptr v4 to i256
       store v5, 1
       v6 = ptradd v4, 32
@@ -166,7 +166,7 @@
   
   fn @entry() -> memptr [selector=0x01020304] {
     bb0:
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v1 = alloc 64 !metadata(preserves_fmp)
       v2 = ptrtoint memptr v1 to i256
       store v2, 1
       v3 = ptradd v1, 32
@@ -177,7 +177,7 @@
   
   fn @literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -197,7 +197,7 @@
   
   fn @shared_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -218,7 +218,7 @@
   
   fn @tail_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -234,7 +234,7 @@
   
   fn @effect_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -264,7 +264,7 @@
   
   fn @unknown_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -280,7 +280,7 @@
   
   fn @preserved_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -293,7 +293,7 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v4 = alloc 64 !metadata(preserves_fmp)
       v5 = ptrtoint memptr v4 to i256
       store v5, 1
       v6 = ptradd v4, 32
@@ -309,7 +309,7 @@
   
   fn @entry() -> memptr [selector=0x01020304] {
     bb0:
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v1 = alloc 64 !metadata(preserves_fmp)
       v2 = ptrtoint memptr v1 to i256
       store v2, 1
       v3 = ptradd v1, 32
@@ -320,7 +320,7 @@
   
   fn @literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -340,7 +340,7 @@
   
   fn @shared_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -361,7 +361,7 @@
   
   fn @tail_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -377,7 +377,7 @@
   
   fn @effect_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -407,7 +407,7 @@
   
   fn @unknown_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32
@@ -423,7 +423,7 @@
   
   fn @preserved_literal() -> memptr {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 1
       v2 = ptradd v0, 32

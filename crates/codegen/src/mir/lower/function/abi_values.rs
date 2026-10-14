@@ -595,11 +595,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm(32);
         let length = self.builder.checked_mul(words, word);
         let size = self.builder.checked_add(word, length);
-        let output = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
+        let output = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         self.builder.set_memory_len(output, length);
         let zero = self.builder.imm(0);
         self.copy_inplace_dynamic_value(ty, value, output, zero, nullable_memory)?;

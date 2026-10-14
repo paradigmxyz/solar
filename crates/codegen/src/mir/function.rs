@@ -257,6 +257,14 @@ impl Function {
         Some((value, offset))
     }
 
+    /// Returns the constant byte size of the allocation that defines `value`.
+    #[must_use]
+    pub(crate) fn alloc_size(&self, value: ValueId) -> Option<u64> {
+        let Value::Inst(inst) = self.value(value) else { return None };
+        let InstKind::Alloc { size, .. } = self.inst(*inst).kind else { return None };
+        self.value_u64(size)
+    }
+
     /// Resolves the address `address + offset` of a memory access to the object it points into and
     /// its byte offset from the object start, as [`Self::object_address`] does.
     #[must_use]

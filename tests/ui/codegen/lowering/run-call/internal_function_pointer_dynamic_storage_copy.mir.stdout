@@ -2,7 +2,7 @@
 @module InternalFunctionPointerDynamicStorageCopy
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
+    v0 = alloc zeroed checked 352
     store v0, 10
     v1 = load v0
     v2 = sload 0 !metadata(storage=slot(0))

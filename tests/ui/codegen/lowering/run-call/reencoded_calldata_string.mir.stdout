@@ -54,7 +54,7 @@ fn @test() -> memptr [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_by
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 3
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32

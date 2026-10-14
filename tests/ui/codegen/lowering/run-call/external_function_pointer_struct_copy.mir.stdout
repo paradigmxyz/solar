@@ -2,7 +2,7 @@
 @module ExternalFunctionPointerStructCopyTarget
 fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 96
     v1 = slice_len arg0
     v2 = slice_ptr arg0
@@ -29,7 +29,7 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
     v20 = add 32, v13
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
-    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v20
+    v22 = alloc v20
     store v22, v1
     jump bb1
   bb1:
@@ -39,7 +39,7 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
   bb3:
     v36 = ptrtoint memptr v22 to i256
     store v0, v36
-    v37 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v37 = alloc 32 !metadata(preserves_fmp)
     store v37, 96
     ret v0
   bb2:
@@ -69,7 +69,7 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
     v2 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -95,7 +95,7 @@ fn @constructor() [constructor] {
 
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     v1 = address
     v2 = zext i160 v1 to i256

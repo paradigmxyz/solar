@@ -2,7 +2,7 @@
 @module DefaultStructHelper
 fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -94,7 +94,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v58 = checked_add u256, v47, v57
     ret v58
   bb2:
-    v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    v3 = alloc 128 !metadata(preserves_fmp)
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 128
     v5 = shl 5, v1
@@ -107,7 +107,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
 
 fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -169,8 +169,8 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     v42 = checked_add u256, v30, v41
     ret v42
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
+    v4 = alloc 64 !metadata(preserves_fmp)
     store v4, 0
     store v4+32, 0
     v5 = ptrtoint memptr v4 to i256
@@ -186,7 +186,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
 
 fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -203,7 +203,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
-    v14 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v14 = alloc 64
     store v14, 0
     store v14+32, 0
     v15 = ptrtoint memptr v14 to i256
@@ -221,7 +221,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v22 = eq v20, 0
     jumpi v22, bb6, bb7
   bb6:
-    v23 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v23 = alloc 64
     store v23, 0
     store v23+32, 0
     v24 = ptrtoint memptr v23 to i256
@@ -239,7 +239,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v32 = eq v30, 0
     jumpi v32, bb8, bb9
   bb8:
-    v33 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v33 = alloc 64
     store v33, 0
     store v33+32, 0
     v34 = ptrtoint memptr v33 to i256
@@ -251,7 +251,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v37 = checked_add u256, v26, v36
     ret v37
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 0
     store v3+32, 0
     v4 = shl 5, v1
@@ -264,7 +264,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
 
 fn @default_struct_1() -> memptr {
   bb0:
-    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v0 = alloc 128
     store v0, 0
     store v0+32, 0
     store v0+64, 0
@@ -274,8 +274,8 @@ fn @default_struct_1() -> memptr {
 
 fn @default_struct_2() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
+    v1 = alloc 64
     store v1, 0
     store v1+32, 0
     v2 = ptrtoint memptr v1 to i256

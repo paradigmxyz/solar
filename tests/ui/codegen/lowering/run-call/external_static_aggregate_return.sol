@@ -34,7 +34,7 @@ contract ExternalStaticAggregateReturn {
     }
 
     // CHECK-LABEL: fn @structReturn{{[( ]}}
-    // CHECK: alloc raw, exact, uninitialized, infallible, 64
+    // CHECK: alloc 64
     // CHECK-NOT: slice_copy
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 64
     // CHECK: abi_decode [tuple<u256, u256>], [[DATA]]
@@ -51,7 +51,7 @@ contract ExternalStaticAggregateReturn {
     }
 
     // CHECK-LABEL: fn @arrayReturn{{[( ]}}
-    // CHECK: alloc raw, exact, uninitialized, infallible, 96
+    // CHECK: alloc 96
     // CHECK-NOT: slice_copy
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 96
     // CHECK: abi_decode [array<3, u256>], [[DATA]]
@@ -61,7 +61,7 @@ contract ExternalStaticAggregateReturn {
     }
 
     // CHECK-LABEL: fn @tryStructReturn{{[( ]}}
-    // CHECK: alloc raw, exact, uninitialized, infallible, 64
+    // CHECK: alloc 64
     // CHECK-NOT: returndata_bytes
     // CHECK: [[DATA:v[0-9]+]] = make_memory_slice {{v[0-9]+}}, 64
     // CHECK: abi_decode [tuple<u256, u256>], [[DATA]]

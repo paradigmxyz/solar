@@ -339,7 +339,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v154 = shl v148, v153
     v155 = or v152, v154
     sstore v145, v155 !metadata(storage=symbolic(v145))
-    v156 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
+    v156 = alloc checked 64
     jump bb1
   bb1:
     v157 = phi [bb0: 0], [bb6: v178]
@@ -378,7 +378,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v184 = lt v180, 2
     jumpi v184, bb10, bb11
   bb11:
-    v216 = alloc memoryfixedarray<6, 1>, exact, uninitialized, infallible, 192
+    v216 = alloc 192
     v217 = ptrtoint memptr v216 to i256
     memory_zero v217, 192
     jump bb19
@@ -475,7 +475,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jump bb13
   bb2:
     v159 = add 12, v157
-    v160 = alloc memoryfixedarray<5, 1>, exact, uninitialized, panic, 160
+    v160 = alloc checked 160
     jump bb4
   bb4:
     v161 = phi [bb2: 0], [bb5: v174]
@@ -512,7 +512,7 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     icall panic_if<0x32>, v1
     v2 = add 2, 8
     sstore v2, 4 !metadata(storage=slot(10))
-    v3 = alloc memoryfixedarray<9, 1>, exact, uninitialized, panic, 288
+    v3 = alloc checked 288
     jump bb1
   bb1:
     v4 = phi [bb0: 0], [bb2: v10]

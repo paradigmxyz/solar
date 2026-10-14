@@ -5,7 +5,7 @@
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     v1 = load v0
     v2 = lt 0, v1
@@ -70,7 +70,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v50 = shl v44, v49
     v51 = or v48, v50
     sstore v41, v51 !metadata(storage=symbolic(v40))
-    v52 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v52 = alloc checked 96
     jump bb1
   bb1:
     v53 = phi [bb0: 0], [bb2: v66]
@@ -110,7 +110,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
 
 fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     v1 = load v0
     v2 = lt 0, v1
@@ -136,7 +136,7 @@ fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[wo
 
 fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -153,7 +153,7 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v14 = eq v12, 0
     jumpi v14, bb4, bb5
   bb4:
-    v15 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v15 = alloc 64
     v16 = ptrtoint memptr v15 to i256
     memory_zero v16, 64
     v17 = ptrtoint memptr v15 to i256
@@ -174,7 +174,7 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v26 = eq v24, 0
     jumpi v26, bb6, bb7
   bb6:
-    v27 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v27 = alloc 64
     v28 = ptrtoint memptr v27 to i256
     memory_zero v28, 64
     v29 = ptrtoint memptr v27 to i256
@@ -192,7 +192,7 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v36 = keccak256 v34, v35
     ret v36
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 64
     v5 = shl 5, v1
@@ -205,9 +205,9 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
 
 fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 64
     v3 = ptrtoint memptr v1 to i256

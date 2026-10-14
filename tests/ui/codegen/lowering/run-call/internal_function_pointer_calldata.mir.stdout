@@ -38,7 +38,7 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
   bb0:
     v0 = not 31
     v1 = and 97, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 34
     v3 = load v2
     v4 = lt 2, v3

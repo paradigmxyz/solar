@@ -11,7 +11,7 @@ fn @nested(arg0: memptr) -> i256 [selector=0x798068af, pure, abi_params=[array<_
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v6 = alloc 32
     store v6, 0
     v7 = ptrtoint memptr v6 to i256
     store arg0+32, v7

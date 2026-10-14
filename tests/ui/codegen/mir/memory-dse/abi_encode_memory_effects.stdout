@@ -19,9 +19,9 @@
   
   fn @require_reads_children(arg0: i1) {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = alloc 32
       v3 = ptrtoint memptr v2 to i256
       store v1, 7
       store v3, v1
@@ -32,9 +32,9 @@
   
   fn @packed_reads_children() -> memptr {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = alloc 32
       v3 = ptrtoint memptr v2 to i256
       store v1, 7
       store v3, v1

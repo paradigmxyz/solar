@@ -16,7 +16,7 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     store v21, 0
     v18 = add v21, 32
     store v18, 0
-    v1 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v1 = alloc 64 !metadata(deferred_alloc)
     v3 = add arg0, 1
     v4 = eq v3, 0
     jumpi v4, bb1, bb2
@@ -97,7 +97,7 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     store v28, 0
     v24 = add v28, 32
     store v24, 0
-    v1 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v1 = alloc 64 !metadata(deferred_alloc)
     v6 = add arg0, 1
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
@@ -316,7 +316,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v10 = lt v9, 96
     jumpi v10, bb3, bb4
   bb4:
-    v33 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v33 = alloc 64 !metadata(deferred_alloc)
     v34 = load v58
     v55 = ptrtoint memptr v33 to i256
     store v55, v34

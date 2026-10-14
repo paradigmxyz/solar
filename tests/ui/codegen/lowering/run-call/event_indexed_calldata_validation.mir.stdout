@@ -27,7 +27,7 @@ fn @emitValues(arg0: calldataslice) -> i256 [selector=0x797a5ca9, abi_params=[ar
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:

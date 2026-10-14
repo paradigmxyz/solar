@@ -2,7 +2,7 @@
 @module AbiEncodeEmptyString
 fn @encode() -> memptr [selector=0xbd14598f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     store v0, 0
     v1 = ptrtoint memptr v0 to i256
     v2 = abi_encode [memory_bytes], object, args v0

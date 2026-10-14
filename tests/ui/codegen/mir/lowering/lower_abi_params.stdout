@@ -37,7 +37,7 @@
 +     v13 = gt 64, v12
 +     jumpi v13, bb4, bb6
 +   bb6:
-+     v14 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
++     v14 = alloc 96
 +     v15 = load calldata v9
 +     v16 = add v9, v15
 +     v17 = add v16, 32
@@ -62,7 +62,7 @@
 +     v32 = lt v31, v24
 +     jumpi v32, bb8, bb10
 +   bb10:
-+     v33 = alloc memoryarray<1>, exact, uninitialized, panic, v31
++     v33 = alloc checked v31
 +     store v33, v22
 +     v34 = sub v6, v23
 +     v35 = shr 5, v34
@@ -282,7 +282,7 @@
 + fn @decode_calldata_type(arg0: i256) -> memptr {
 +   bb0:
 +     v0 = calldatasize
-+     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
++     v1 = alloc 96
 +     v2 = make_calldata_slice arg0, 96
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2

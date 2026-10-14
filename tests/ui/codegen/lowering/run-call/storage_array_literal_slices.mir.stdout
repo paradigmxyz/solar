@@ -5,7 +5,7 @@
 
 fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array<_, u256>], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v1 = slice_ptr arg0
     v2 = slice_len arg0
     v3 = gt 1, v2
@@ -41,7 +41,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v29 = add 32, v22
     v30 = lt v29, 32
     icall panic_if<0x41>, v30
-    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v29
+    v31 = alloc v29
     store v31, v10
     v32 = make_calldata_slice v11, v22
     v33 = ptradd v31, 32
@@ -85,7 +85,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v65 = add 32, v58
     v66 = lt v65, 32
     icall panic_if<0x41>, v66
-    v67 = alloc memoryarray<1>, exact, uninitialized, infallible, v65
+    v67 = alloc v65
     store v67, v46
     v68 = make_calldata_slice v47, v58
     v69 = ptradd v67, 32
@@ -142,7 +142,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v76 = lt v73, 2
     jumpi v76, bb4, bb5
   bb5:
-    v97 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v97 = alloc 32
     store v97, 0
     v98 = load v97
     v99 = sload v75 !metadata(storage=symbolic(v73))

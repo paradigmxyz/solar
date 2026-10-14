@@ -2,7 +2,7 @@
 @module ArrayIdentityConversion
 fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -19,7 +19,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
-    v14 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v14 = alloc 64
     store v14, 0
     store v14+32, 0
     v15 = ptrtoint memptr v14 to i256
@@ -38,7 +38,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     v23 = eq v21, 0
     jumpi v23, bb6, bb7
   bb6:
-    v24 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v24 = alloc 64
     store v24, 0
     store v24+32, 0
     v25 = ptrtoint memptr v24 to i256
@@ -52,7 +52,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     v30 = checked_add u256, v17, v29
     ret v30
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 0
     store v3+32, 0
     v4 = shl 5, v1
@@ -65,7 +65,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
 
 fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -82,7 +82,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
-    v14 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v14 = alloc 64
     store v14, 0
     store v14+32, 0
     v15 = ptrtoint memptr v14 to i256
@@ -100,7 +100,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     v22 = eq v20, 0
     jumpi v22, bb6, bb7
   bb6:
-    v23 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v23 = alloc 64
     store v23, 0
     store v23+32, 0
     v24 = ptrtoint memptr v23 to i256
@@ -113,7 +113,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     v28 = zext i32 v27 to i256
     ret v28
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 0
     store v3+32, 0
     v4 = shl 5, v1
@@ -126,7 +126,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
 
 fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
@@ -141,7 +141,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
-    v13 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v13 = alloc 64
     store v13, 0
     store v13+32, 0
     v14 = ptrtoint memptr v13 to i256
@@ -158,7 +158,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     v20 = eq v18, 0
     jumpi v20, bb6, bb7
   bb6:
-    v21 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v21 = alloc 64
     store v21, 0
     store v21+32, 0
     v22 = ptrtoint memptr v21 to i256
@@ -171,7 +171,7 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
     v26 = zext i32 v25 to i256
     ret v26
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 0
     store v3+32, 0
     v4 = shl 5, v1

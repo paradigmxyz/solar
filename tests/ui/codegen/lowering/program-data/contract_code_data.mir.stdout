@@ -10,7 +10,7 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 
 fn @payload() -> memptr [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
+    v0 = alloc 160 !metadata(preserves_fmp)
     store v0, 128
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
@@ -28,7 +28,7 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
   bb0:
     v0 = datasize CodeTarget_creation_code_0
     v1 = datasize CodeTarget_creation_code_0, 63, aligned
-    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
@@ -66,7 +66,7 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v0 = abi_encode []
     v1 = datasize CodeTarget_creation_code_0
     v2 = datasize CodeTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CodeTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -82,7 +82,7 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
   bb2:
     v11 = datasize CodeTarget_runtime_code_1
     v12 = datasize CodeTarget_runtime_code_1, 63, aligned
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
+    v13 = alloc v12 !metadata(preserves_fmp)
     store v13, v11
     v14 = ptrtoint memptr v13 to i256
     v15 = add v14, 32

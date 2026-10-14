@@ -52,7 +52,7 @@ fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_
 
 fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     v1 = address
     v2 = zext i160 v1 to i256

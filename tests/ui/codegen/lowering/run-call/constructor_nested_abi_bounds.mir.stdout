@@ -29,7 +29,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v6 = alloc 32
     store v6, 0
     v7 = ptrtoint memptr v6 to i256
     store arg0+32, v7
@@ -50,7 +50,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v18 = eq v16, 0
     jumpi v18, bb3, bb4
   bb3:
-    v19 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v19 = alloc 32
     store v19, 0
     v20 = ptrtoint memptr v19 to i256
     store arg0+64, v20
@@ -71,7 +71,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v31 = eq v29, 0
     jumpi v31, bb5, bb6
   bb5:
-    v32 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v32 = alloc 32
     store v32, 0
     v33 = ptrtoint memptr v32 to i256
     store arg0+32, v33
@@ -89,7 +89,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v42 = eq v40, 0
     jumpi v42, bb7, bb8
   bb7:
-    v43 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v43 = alloc 32
     store v43, 0
     v44 = ptrtoint memptr v43 to i256
     store arg0+64, v44
@@ -109,7 +109,7 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -117,7 +117,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v6 = alloc 96 !metadata(preserves_fmp)
     store v6, 62
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
@@ -130,7 +130,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall panic_if<0x32>, v12
     v13 = ptrtoint memptr v6 to i256
     store v0+32, v13
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v14 = alloc 64 !metadata(preserves_fmp)
     store v14, 5
     v15 = ptrtoint memptr v14 to i256
     v16 = add v15, 32
@@ -152,7 +152,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall panic_if<0x41>, v27
     v28 = not 31
     v29 = and v26, v28
-    v30 = alloc raw, exact, uninitialized, infallible, v29
+    v30 = alloc v29
     v31 = ptrtoint memptr v30 to i256
     datacopy NestedConstructor_creation_code_0, v31, v23
     v32 = slice_ptr v21
@@ -190,7 +190,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v53 = eq v51, 0
     jumpi v53, bb8, bb9
   bb8:
-    v54 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v54 = alloc 32
     store v54, 0
     v55 = ptrtoint memptr v54 to i256
     store v0+32, v55
@@ -230,7 +230,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v77 = eq v75, 0
     jumpi v77, bb15, bb16
   bb15:
-    v78 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v78 = alloc 32
     store v78, 0
     v79 = ptrtoint memptr v78 to i256
     store v0+64, v79
@@ -269,7 +269,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v102 = eq v100, 0
     jumpi v102, bb19, bb20
   bb19:
-    v103 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v103 = alloc 32
     store v103, 0
     v104 = ptrtoint memptr v103 to i256
     store v0+32, v104
@@ -287,7 +287,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v113 = eq v111, 0
     jumpi v113, bb21, bb22
   bb21:
-    v114 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v114 = alloc 32
     store v114, 0
     v115 = ptrtoint memptr v114 to i256
     store v0+64, v115

@@ -4,8 +4,7 @@
 - fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
 + fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) [may_return_memory] {
     bb0:
--     v0 = alloc memorybytes, exact, zeroed, panic, 96
-+     v0 = alloc raw, exact, zeroed, panic, 96
+      v0 = alloc zeroed checked 96
       v1 = ptrtoint memptr v0 to i256
       store v1, 3
 -     v2 = load v0
@@ -104,11 +103,11 @@
 - fn @merged_allocations() -> memptr {
 + fn @merged_allocations() -> memptr [may_return_memory] {
     bb0:
--     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-+     v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+-     v0 = alloc 32
++     v0 = alloc 64 !metadata(preserves_fmp)
       v1 = ptrtoint memptr v0 to i256
       store v1, 0
--     v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+-     v2 = alloc 32 !metadata(preserves_fmp)
 +     v4 = ptrtoint memptr v0 to i256
 +     v5 = add v4, 32
 +     v2 = inttoptr i256 v5 to memptr

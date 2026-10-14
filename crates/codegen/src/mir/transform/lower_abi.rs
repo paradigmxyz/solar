@@ -48,9 +48,9 @@
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, CalldataTail,
-    Callee, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId,
-    InstKind, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, PtrLocation,
+    AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, CalldataTail, Callee,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
+    MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, PtrLocation,
     RevertReason, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, LocationSize, MemoryBase},
     memory::EvmMemoryLayout,
@@ -1612,13 +1612,11 @@ impl LowerAbiCx {
     }
 
     fn calldata_canonicalization_source(func: &Function, object: ValueId) -> Option<ValueId> {
-        let Value::Inst(alloc) = func.value(object) else { return None };
-        let InstKind::Alloc { kind: crate::mir::AllocationKind::Object(layout), .. } =
-            &func.inst(*alloc).kind
-        else {
-            return None;
-        };
-        if !matches!(layout, MemoryObjectLayout::DynamicArray { .. }) {
+        // Canonicalizing copies of calldata arrays have a runtime size.
+        if !matches!(func.value(object), Value::Inst(alloc)
+            if matches!(func.inst(*alloc).kind, InstKind::Alloc { size, .. }
+                if func.value_u64(size).is_none()))
+        {
             return None;
         }
 
@@ -1954,11 +1952,8 @@ impl LowerAbiCx {
                 } else {
                     let total = Self::checked_add(builder, bytes, word, current);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder.alloc_object(
-                        total,
-                        layout,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
+                    let ptr = builder
+                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
                     builder.set_memory_len(ptr, len);
                     (ptr, layout)
                 };
@@ -2005,11 +2000,8 @@ impl LowerAbiCx {
                 } else {
                     let total = Self::checked_add(builder, bytes, word, current);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder.alloc_object(
-                        total,
-                        layout,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
+                    let ptr = builder
+                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
                     builder.set_memory_len(ptr, len);
                     (ptr, layout)
                 };
@@ -2043,14 +2035,10 @@ impl LowerAbiCx {
                 let len = Self::load_input_word(builder, base, constructor);
                 let word = builder.imm(32);
                 let data = builder.add(base, word);
-                let layout = crate::mir::MemoryObjectLayout::Bytes;
                 if !constructor {
                     let total = Self::checked_padded_size(builder, len, current);
-                    let ptr = builder.alloc_object(
-                        total,
-                        layout,
-                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                    );
+                    let ptr = builder
+                        .alloc(total, crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED);
                     builder.set_memory_len(ptr, len);
                     Self::guard_bytes_data(builder, data, len, input_end, current, true);
                     let source = builder.make_slice(data, len, location);
@@ -2072,11 +2060,7 @@ impl LowerAbiCx {
                     object
                 } else {
                     let total = Self::checked_padded_size(builder, len, current);
-                    let ptr = builder.alloc_object(
-                        total,
-                        layout,
-                        crate::mir::AllocationSemantics::INTERNAL,
-                    );
+                    let ptr = builder.alloc(total, crate::mir::AllocationSemantics::INTERNAL);
                     builder.set_memory_len(ptr, len);
                     ptr
                 };
@@ -3898,10 +3882,7 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
             continue;
         }
         let Value::Inst(alloc) = func.value(object) else { return false };
-        if !matches!(
-            func.inst(*alloc).kind,
-            InstKind::Alloc { kind: AllocationKind::Object(_), .. }
-        ) {
+        if !matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }) {
             return false;
         }
         for inst in func.instructions() {
@@ -4110,9 +4091,9 @@ fn is_canonical_return_object(
     calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
     let Value::Inst(alloc) = func.value(object) else { return false };
-    let InstKind::Alloc { kind: AllocationKind::Object(_), .. } = &func.inst(*alloc).kind else {
+    if !matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }) {
         return false;
-    };
+    }
 
     let Some(initializers) = allocation_initializers(func, *alloc) else { return false };
     let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32)) else {
@@ -4187,9 +4168,7 @@ fn is_canonical_return_array(
         return true;
     }
     let Value::Inst(alloc) = func.value(object) else { return false };
-    let expected_layout = MemoryObjectLayout::word_fixed_array(len);
-    if !matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(layout), .. } if layout == expected_layout)
-    {
+    if func.alloc_size(object).and_then(EvmMemoryLayout::word_slot) != Some(len) {
         return false;
     }
     if !pointer_only_returned(func, object) {
@@ -4414,7 +4393,7 @@ fn canonicalize_return_value_inner(
             let words = LowerAbiCx::checked_add(builder, length, one, &mut current);
             let word = builder.imm(EvmMemoryLayout::WORD_SIZE);
             let size = LowerAbiCx::checked_mul(builder, words, word, &mut current);
-            let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+            let output = builder.alloc(size, AllocationSemantics::INTERNAL);
             builder.set_memory_len(output, length);
 
             builder.counted_loop(length, |builder, index| {
@@ -4569,10 +4548,8 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     if !matches!(func.value(*object), Value::Inst(inst) if inst == alloc) {
         return None;
     }
-    let InstKind::Alloc { size, kind, semantics } = func.inst(*alloc).kind else { return None };
-    if kind != AllocationKind::Object(MemoryObjectLayout::Bytes)
-        || semantics != AllocationSemantics::INTERNAL
-    {
+    let InstKind::Alloc { size, semantics } = func.inst(*alloc).kind else { return None };
+    if semantics != AllocationSemantics::INTERNAL {
         return None;
     }
     // Payload words by offset, after the length store.

@@ -15,7 +15,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v0 = abi_encode []
     v1 = datasize Implementation_creation_code_0
     v2 = datasize Implementation_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Implementation_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -29,7 +29,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb1:
     revert_returndata
   bb2:
-    v11 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v11 = alloc 64 !metadata(preserves_fmp)
     store v11, 15
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
@@ -190,7 +190,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 32
     v3 = ptrtoint memptr v2 to i256
     v4 = sub v3, 32
@@ -218,7 +218,7 @@ fn @build(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 32
     v3 = ptrtoint memptr v2 to i256
     v4 = sub v3, 160
@@ -243,7 +243,7 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
   bb3:
     v4 = not 31
     v5 = and 95, v4
-    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    v6 = alloc zeroed checked v5
     store v6, 32
     v7 = ptrtoint memptr v6 to i256
     v8 = sub v7, 288

@@ -2,7 +2,7 @@
 @module ArrayStructMemoryStorage
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     jump bb1
   bb1:
@@ -10,13 +10,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
   bb3:
-    v11 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v12 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v11 = alloc 96
+    v12 = alloc 96
     store v12, 1
     store v12+32, 2
     store v12+64, 3
     v13 = ptrtoint memptr v12 to i256
-    v14 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v14 = alloc zeroed checked 128
     store v14, 3
     v15 = ptrtoint memptr v14 to i256
     store v11, 0
@@ -351,9 +351,9 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v71 = add v68, 1
     jump bb15
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v3 = alloc 96 !metadata(preserves_fmp)
     store v3, 0
-    v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v4 = alloc 96 !metadata(preserves_fmp)
     v5 = ptrtoint memptr v4 to i256
     memory_zero v5, 96
     v6 = ptrtoint memptr v4 to i256
@@ -369,14 +369,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     store v0, 0
-    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v1 = alloc 96
     v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 96
     v3 = ptrtoint memptr v1 to i256
     store v0+32, v3
-    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v4 = alloc 32
     store v4, 0
     v5 = ptrtoint memptr v4 to i256
     store v0+64, v5

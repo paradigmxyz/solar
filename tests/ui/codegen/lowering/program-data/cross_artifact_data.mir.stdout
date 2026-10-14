@@ -6,7 +6,7 @@
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 256 !metadata(preserves_fmp)
+    v0 = alloc 256 !metadata(preserves_fmp)
     store v0, 224
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
@@ -20,7 +20,7 @@ fn @constructor() [constructor] {
 
 fn @runtimeData() -> memptr [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
+    v0 = alloc 192 !metadata(preserves_fmp)
     store v0, 160
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32

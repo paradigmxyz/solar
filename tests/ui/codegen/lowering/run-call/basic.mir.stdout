@@ -90,16 +90,16 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_
 
 fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 96
     store v1+32, 96
     v2 = ptrtoint memptr v0 to i256
     store v1, v2
     v3 = not 31
     v4 = and 64, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    v5 = alloc zeroed checked v4
     store v5, 1
     v6 = ptrtoint memptr v5 to i256
     store v1+32, v6
@@ -147,7 +147,7 @@ fn @fill(arg0: i256) -> memptr [selector=0x3fda5389, pure, abi_params=[u256], ab
     v1 = eq v0, false
     v2 = eq v1, false
     icall revert_if<empty>, v2
-    v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    v3 = alloc 128 !metadata(preserves_fmp)
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 128
     jump bb1

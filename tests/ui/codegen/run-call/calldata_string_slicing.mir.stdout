@@ -52,7 +52,7 @@ fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xd
     icall panic_if<0x41>, v17
     v18 = not 31
     v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    v20 = alloc v19
     store v20, v15
     v21 = ptradd v20, 32
     v22 = slice_ptr v8
@@ -97,7 +97,7 @@ fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) 
     icall panic_if<0x41>, v26
     v27 = not 31
     v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    v29 = alloc v28
     store v29, v24
     v30 = ptradd v29, 32
     v31 = slice_ptr v17

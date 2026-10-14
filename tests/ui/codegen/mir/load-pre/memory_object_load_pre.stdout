@@ -20,7 +20,7 @@
   
   fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 7
       v2 = ptradd v0, 32
@@ -29,7 +29,7 @@
       v4 = load v0
       jumpi arg0, bb1, bb2
     bb1:
-      v5 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v5 = alloc 32
       v6 = ptrtoint memptr v5 to i256
       store v6, 0
       jump bb2
@@ -40,7 +40,7 @@
   
   fn @unknown_data_write_can_reset_fmp(arg0: i1, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       v1 = ptrtoint memptr v0 to i256
       store v1, 7
       v2 = inttoptr i256 arg1 to memptr
@@ -51,7 +51,7 @@
       v6 = load v0
       jumpi arg0, bb1, bb2
     bb1:
-      v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v7 = alloc 32
       v8 = ptrtoint memptr v7 to i256
       store v8, 0
       jump bb2
@@ -62,7 +62,7 @@
   
   fn @keep_local_length() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = load v0
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
@@ -75,7 +75,7 @@
   
   fn @reuse_live_length() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = load v0
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
@@ -90,7 +90,7 @@
   
   fn @forward_latest_store() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       store v1, 7
       v2 = load v0

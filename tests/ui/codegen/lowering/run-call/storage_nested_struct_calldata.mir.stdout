@@ -27,7 +27,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -143,7 +143,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v166 = eq v164, 0
     jumpi v166, bb27, bb28
   bb27:
-    v167 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v167 = alloc 32
     store v167, 0
     v168 = shl 5, v160
     v169 = ptradd v21, v168
@@ -417,7 +417,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v50 = add 32, v43
     v51 = lt v50, 32
     icall panic_if<0x41>, v51
-    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, v50
+    v52 = alloc v50
     store v52, v36
     jump bb4
   bb4:
@@ -446,7 +446,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v65 = slt v60, v64
     v66 = eq v65, false
     icall revert_if<invalid_calldata_tail_offset>, v66
-    v67 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v67 = alloc 64
     v68 = calldatasize
     v69 = sub v68, v61
     v70 = slt v69, 32
@@ -479,7 +479,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v92 = add 32, v85
     v93 = lt v92, 32
     icall panic_if<0x41>, v93
-    v94 = alloc memoryarray<1>, exact, uninitialized, infallible, v92
+    v94 = alloc v92
     store v94, v78
     jump bb7
   bb7:
@@ -494,7 +494,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v109 = sub v108, v107
     v110 = slt v109, 64
     icall revert_if<calldata_tail_too_short>, v110
-    v111 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v111 = alloc 64
     jump bb10
   bb10:
     v112 = phi [bb9: 0], [bb11: v120]
@@ -545,7 +545,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v2 = sub v1, v0
     v3 = slt v2, 32
     icall revert_if<calldata_tail_too_short>, v3
-    v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v4 = alloc 32
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb6: v115]
@@ -637,7 +637,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v119 = lt v116, 1
     jumpi v119, bb16, bb17
   bb17:
-    v242 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v242 = alloc 32
     store v242, 0
     v243 = load v242
     v244 = sload v118 !metadata(storage=offset(v116, 1))
@@ -1057,7 +1057,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v33 = add 32, v26
     v34 = lt v33, 32
     icall panic_if<0x41>, v34
-    v35 = alloc memoryarray<1>, exact, uninitialized, infallible, v33
+    v35 = alloc v33
     store v35, v19
     jump bb4
   bb4:
@@ -1086,7 +1086,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v48 = slt v43, v47
     v49 = eq v48, false
     icall revert_if<invalid_calldata_tail_offset>, v49
-    v50 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v50 = alloc 64
     v51 = calldatasize
     v52 = sub v51, v44
     v53 = slt v52, 32
@@ -1119,7 +1119,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v75 = add 32, v68
     v76 = lt v75, 32
     icall panic_if<0x41>, v76
-    v77 = alloc memoryarray<1>, exact, uninitialized, infallible, v75
+    v77 = alloc v75
     store v77, v61
     jump bb7
   bb7:
@@ -1134,7 +1134,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v92 = sub v91, v90
     v93 = slt v92, 64
     icall revert_if<calldata_tail_too_short>, v93
-    v94 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v94 = alloc 64
     jump bb10
   bb10:
     v95 = phi [bb9: 0], [bb11: v103]
@@ -1205,7 +1205,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -1318,7 +1318,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v152 = eq v150, 0
     jumpi v152, bb27, bb28
   bb27:
-    v153 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v153 = alloc 32
     jump bb29
   bb29:
     v154 = phi [bb27: 0], [bb30: v165]
@@ -1349,12 +1349,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v177 = lt v173, 1
     jumpi v177, bb35, bb36
   bb36:
-    v261 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v262 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v261 = alloc 64
+    v262 = alloc 32
     store v262, 0
     v263 = ptrtoint memptr v262 to i256
     store v261, v263
-    v264 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v264 = alloc 64
     v265 = ptrtoint memptr v264 to i256
     memory_zero v265, 64
     v266 = ptrtoint memptr v264 to i256
@@ -1605,12 +1605,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v200 = add v185, 1
     jump bb40
   bb30:
-    v156 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v157 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v156 = alloc 64
+    v157 = alloc 32
     store v157, 0
     v158 = ptrtoint memptr v157 to i256
     store v156, v158
-    v159 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v159 = alloc 64
     v160 = ptrtoint memptr v159 to i256
     memory_zero v160, 64
     v161 = ptrtoint memptr v159 to i256
@@ -1678,7 +1678,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v37 = sub v36, v30
     v38 = slt v37, 32
     icall revert_if<calldata_tail_too_short>, v38
-    v39 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v39 = alloc 32
     jump bb4
   bb4:
     v40 = phi [bb2: 0], [bb12: v115]
@@ -1706,7 +1706,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v52 = slt v47, v51
     v53 = eq v52, false
     icall revert_if<invalid_calldata_tail_offset>, v53
-    v54 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v54 = alloc 64
     v55 = calldatasize
     v56 = sub v55, v48
     v57 = slt v56, 32
@@ -1739,7 +1739,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v79 = add 32, v72
     v80 = lt v79, 32
     icall panic_if<0x41>, v80
-    v81 = alloc memoryarray<1>, exact, uninitialized, infallible, v79
+    v81 = alloc v79
     store v81, v65
     jump bb7
   bb7:
@@ -1754,7 +1754,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v96 = sub v95, v94
     v97 = slt v96, 64
     icall revert_if<calldata_tail_too_short>, v97
-    v98 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v98 = alloc 64
     jump bb10
   bb10:
     v99 = phi [bb9: 0], [bb11: v107]
@@ -1800,12 +1800,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v0 = alloc 64
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0, v2
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc 64
     v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 64
     v5 = ptrtoint memptr v3 to i256

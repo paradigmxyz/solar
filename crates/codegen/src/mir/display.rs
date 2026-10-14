@@ -495,28 +495,15 @@ fn display_inst_kind<'a>(
             let name = module.and_then(|module| module.data[size.data].name);
             write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
-        InstKind::Alloc { size, kind, semantics } => {
-            let kind = match kind {
-                crate::mir::AllocationKind::Raw => "raw".to_string(),
-                crate::mir::AllocationKind::Object(layout) => layout.to_string(),
-            };
-            let alignment = match semantics.alignment {
-                crate::mir::AllocationAlignment::Exact => "exact",
-                crate::mir::AllocationAlignment::Word => "word",
-            };
-            let initialization = match semantics.initialization {
-                crate::mir::AllocationInitialization::Uninitialized => "uninitialized",
-                crate::mir::AllocationInitialization::Zeroed => "zeroed",
-            };
-            let failure = match semantics.failure {
-                crate::mir::AllocationFailure::Infallible => "infallible",
-                crate::mir::AllocationFailure::Panic => "panic",
-            };
-            write!(
-                f,
-                "alloc {kind}, {alignment}, {initialization}, {failure}, {}",
-                display_val(*size, func)
-            )
+        InstKind::Alloc { size, semantics } => {
+            write!(f, "alloc ")?;
+            if semantics.initialization == crate::mir::AllocationInitialization::Zeroed {
+                write!(f, "zeroed ")?;
+            }
+            if semantics.failure == crate::mir::AllocationFailure::Checked {
+                write!(f, "checked ")?;
+            }
+            write!(f, "{}", display_val(*size, func))
         }
         InstKind::Load(..) if result_ty == Some(MirType::MEMPTR) => {
             display_inst_operands(f, kind, func)?;

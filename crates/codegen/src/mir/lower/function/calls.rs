@@ -201,8 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             // result = alloc(size, zeroed)
             // result.length = length
-            let object =
-                self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
+            let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
             self.builder.set_memory_len(object, len);
             if let TyKind::DynArray(element) = ty.peel_refs().kind
                 && self.types.memory_layout(element).is_some()
@@ -356,7 +355,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let rounded_len = self.builder.checked_add(total_len, padding);
             (total_len, self.builder.mask_padded_size(rounded_len))
         };
-        let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        let data = self.builder.alloc(allocation_size, AllocationSemantics::INTERNAL);
 
         // datacopy initcode(C), data, len
         self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
@@ -1450,9 +1449,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         layout: &AbiParamLayout,
     ) -> Option<(ValueId, ValueId)> {
         // size = head_size(layout)
-        // data = raw(size)
+        // data = alloc size
         let size = self.builder.imm(layout.checked_head_size()?);
-        let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
+        let data = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         Some((data, size))
     }
 

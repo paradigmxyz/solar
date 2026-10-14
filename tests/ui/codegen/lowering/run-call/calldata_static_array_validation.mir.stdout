@@ -93,7 +93,7 @@ fn @copyToMemory(arg0: calldataslice) -> i8 [selector=0x13aac4cb, pure, abi_para
     v2 = sub v1, v0
     v3 = slt v2, 64
     icall revert_if<calldata_tail_too_short>, v3
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v4 = alloc 64
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb2: v13]

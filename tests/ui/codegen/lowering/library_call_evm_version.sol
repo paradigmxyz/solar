@@ -93,7 +93,7 @@ contract C {
     // HOMESTEAD: {{(^|[^a-z_])}}load
     // TANGERINE-LABEL: fn @two
     // TANGERINE: [[IN:v[0-9]+]] = slice_ptr
-    // TANGERINE-NOT: alloc raw
+    // TANGERINE-NOT: alloc
     // TANGERINE: delegatecall {{.*}}, [[IN]], 64
     // BYZANTIUM-LABEL: fn @two
     // BYZANTIUM-NOT: extcodesize
@@ -105,7 +105,7 @@ contract C {
     // A statically encoded aggregate is copied out of the overlaid output area into a buffer taken
     // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc 64{{$}}
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: copy [[BUF]], [[IN]], 64
@@ -138,7 +138,7 @@ contract C {
     // A static struct is decoded out of the output area with its member types, so its `bool` member
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc 64{{$}}
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: copy [[BUF]], [[IN]], 64

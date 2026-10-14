@@ -2,7 +2,7 @@
 @module C
 fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb4: v7]
@@ -30,7 +30,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     v19 = load v16+64
     ret v19
   bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v3 = alloc 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
     invalid
   bb4:
@@ -45,7 +45,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
 
 fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -75,7 +75,7 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     v20 = load v17+64
     ret v20
   bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v3 = alloc 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
     invalid
   bb4:
@@ -90,7 +90,7 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     icall panic_if<0x41>, true
     invalid
   bb1:

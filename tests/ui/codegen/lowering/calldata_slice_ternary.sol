@@ -21,7 +21,7 @@ contract CalldataSliceTernary {
     // A memory-typed ternary adopts a calldata arm by materializing it, so
     // the merge stays a single memory pointer.
     // CHECK-LABEL: fn @adopt{{[( ]}}
-    // CHECK: [[COPY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, {{v[0-9]+}}
+    // CHECK: [[COPY:v[0-9]+]] = alloc {{v[0-9]+}}
     // CHECK-NEXT: store [[COPY]], {{v[0-9]+}}
     // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd [[COPY]], 32
     // CHECK-NEXT: [[SRC:v[0-9]+]] = slice_ptr arg1

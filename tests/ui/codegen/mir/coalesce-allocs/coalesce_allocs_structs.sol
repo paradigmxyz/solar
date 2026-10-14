@@ -20,7 +20,7 @@ contract CoalesceAllocsFixture {
     // The deferred outer allocation must not coalesce with its dynamic child
     // allocations.
     // CHECK-LABEL: fn @combine
-    // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 96
+    // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc 96
     // CHECK: [[FIRST:v[0-9]+]] = load 64
     // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
     // CHECK: [[OUTER:v[0-9]+]] = ptrtoint memptr [[OUTER_PTR]] to i256

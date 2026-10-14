@@ -41,7 +41,7 @@ fn @delegate(arg0: calldataslice) -> struct0 [selector=0x0ccfac9e, pure, abi_par
     icall panic_if<0x41>, v5
     v6 = not 31
     v7 = and v4, v6
-    v8 = alloc memorybytes, exact, uninitialized, infallible, v7
+    v8 = alloc v7
     store v8, v3
     v9 = slice_ptr v2
     v10 = slice_len v2
@@ -72,7 +72,7 @@ fn @single(arg0: calldataslice) -> struct2 [selector=0xd61d3fe8, pure, abi_param
     icall panic_if<0x41>, v6
     v7 = not 31
     v8 = and v5, v7
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    v9 = alloc v8
     store v9, v4
     v10 = slice_ptr v3
     v11 = slice_len v3
@@ -104,7 +104,7 @@ fn @nested(arg0: calldataslice) -> struct2 [selector=0xb26b18a9, pure, abi_param
     icall panic_if<0x41>, v6
     v7 = not 31
     v8 = and v5, v7
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    v9 = alloc v8
     store v9, v4
     v10 = slice_ptr v3
     v11 = slice_len v3
@@ -225,7 +225,7 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     icall panic_if<0x41>, v17
     v18 = not 31
     v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    v20 = alloc v19
     store v20, v15
     v21 = ptradd v20, 32
     v22 = slice_ptr v8
@@ -255,7 +255,7 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     icall panic_if<0x41>, v41
     v42 = not 31
     v43 = and v40, v42
-    v44 = alloc memorybytes, exact, uninitialized, infallible, v43
+    v44 = alloc v43
     store v44, v39
     v45 = ptradd v44, 32
     v46 = slice_ptr v32

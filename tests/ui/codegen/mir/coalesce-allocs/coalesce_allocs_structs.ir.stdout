@@ -7,7 +7,7 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v17 = lt v16, 36
     jumpi v17, bb3, bb4
   bb4:
-    v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
+    v0 = alloc 96 !metadata(deferred_alloc)
     v39 = load 64 !metadata(memory=scratch)
     v40 = add v39, 128
     store 64, v40 !metadata(memory=scratch)

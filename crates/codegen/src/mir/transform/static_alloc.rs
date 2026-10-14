@@ -241,7 +241,7 @@ fn eligible_static_allocations(
     let mut candidates = Vec::new();
     for block in func.blocks.indices() {
         for &alloc in &func.blocks[block].instructions {
-            let InstKind::Alloc { size, semantics, .. } = func.inst(alloc).kind else {
+            let InstKind::Alloc { size, semantics } = func.inst(alloc).kind else {
                 continue;
             };
             if semantics != crate::mir::AllocationSemantics::INTERNAL

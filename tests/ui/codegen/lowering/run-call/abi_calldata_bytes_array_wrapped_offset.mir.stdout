@@ -43,7 +43,7 @@ fn @first(arg0: calldataslice) -> memptr [selector=0xcf452bd8, pure, abi_params=
     icall panic_if<0x41>, v30
     v31 = not 31
     v32 = and v29, v31
-    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
+    v33 = alloc v32
     store v33, v28
     v34 = ptradd v33, 32
     v35 = slice_ptr v21

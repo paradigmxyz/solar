@@ -31,7 +31,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v84 = add v89, 32
     store v84, v4
-    v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v5 = alloc 64 !metadata(deferred_alloc)
     v88 = ptrtoint memptr v5 to i256
     store v88, arg0
     v86 = add v88, 32
@@ -149,7 +149,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v92 = add v98, 32
     store v92, v4
-    v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v5 = alloc 64 !metadata(deferred_alloc)
     v97 = ptrtoint memptr v5 to i256
     store v97, arg0
     v94 = add v97, 32
@@ -324,7 +324,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v88 = add v93, 32
     store v88, v4
-    v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v5 = alloc 64 !metadata(deferred_alloc)
     v92 = ptrtoint memptr v5 to i256
     store v92, arg0
     v90 = add v92, 32

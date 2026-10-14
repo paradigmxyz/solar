@@ -10,12 +10,12 @@
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160
 // CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
-// CHECK: + [[OUTER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
+// CHECK: + [[OUTER:v[0-9]+]] = alloc 64
 // CHECK: + [[OUTER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[OUTER_INDEX]], 2
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg4
 // CHECK: + {{v[0-9]+}} = mul [[OUTER_INDEX]], 64
-// CHECK: + [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
+// CHECK: + [[INNER:v[0-9]+]] = alloc 64
 // CHECK: + [[INNER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[INNER_INDEX]], 2
 // CHECK: + [[OFF1:v[0-9]+]] = shl 5, [[OUTER_INDEX]]

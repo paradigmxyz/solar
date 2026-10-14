@@ -17,7 +17,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
 
 fn @agg() -> memptr [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
@@ -52,7 +52,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -103,7 +103,7 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -157,7 +157,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -171,7 +171,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v11 = alloc raw, exact, uninitialized, infallible, 64
+    v11 = alloc 64
     v12 = fmp
     v13 = ptrtoint memptr v12 to i256
     v14 = add v13, 64
@@ -220,7 +220,7 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -265,7 +265,7 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -316,7 +316,7 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -371,7 +371,7 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v0 = abi_encode []
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0

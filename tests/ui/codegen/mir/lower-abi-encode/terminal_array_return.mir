@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
 fn @fresh_array() -> memptr {
   bb0:
-    v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     v1 = ptrtoint memptr v0 to i256
     store v1, 2
     ret v0
@@ -39,7 +39,7 @@ fn @terminal() {
 // A caller-visible array cannot be destructively encoded.
 // CHECK-LABEL: {{^[ +].*}}fn @borrowed{{[( ]}}
 // CHECK: + copy
-// CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc raw
+// CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc
 // CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
 fn @borrowed(arg0: memptr) {
   bb0:
@@ -51,7 +51,7 @@ fn @borrowed(arg0: memptr) {
 
 fn @fresh_bytes(arg0: i256) -> memptr {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     v1 = ptrtoint memptr v0 to i256
     store v1, arg0
     ret v0

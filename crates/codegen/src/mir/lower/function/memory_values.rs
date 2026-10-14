@@ -38,7 +38,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // object = alloc(array)
         let size = self.builder.imm(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         if dynamic {
             // object.len = element_count
             let length = self.builder.imm(u64::try_from(elements.len()).ok()?);
@@ -233,11 +233,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let length = builder.add_param(MirType::I256);
             builder.set_return_type(MirType::MEMPTR);
             let size = builder.imm(64);
-            let object = builder.alloc_object(
-                size,
-                MemoryObjectLayout::Bytes,
-                AllocationSemantics::INTERNAL,
-            );
+            let object = builder.alloc(size, AllocationSemantics::INTERNAL);
             let Value::Inst(alloc) = *builder.func().value(object) else {
                 unreachable!("allocation result must reference its instruction")
             };
@@ -354,7 +350,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> ValueId {
         // object = bytes(size) !preserves_fmp
         // store object, len
-        let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        let object = builder.alloc(size, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")
         };
@@ -414,7 +410,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // object = alloc(default_layout)
         let size = self.builder.imm(size);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         if preserve_fmp {
             let Value::Inst(alloc) = *self.builder.func().value(object) else {
                 unreachable!("allocation result must reference its instruction")

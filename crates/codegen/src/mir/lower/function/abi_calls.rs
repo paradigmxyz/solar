@@ -465,8 +465,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word = self.builder.imm(32);
         let byte_length = self.builder.checked_mul(length, word);
         let size = self.builder.checked_add(word, byte_length);
-        let layout = MemoryObjectLayout::WORD_ARRAY;
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         self.builder.set_memory_len(object, length);
         let source = self.builder.make_slice(data, byte_length, PtrLocation::Calldata);
         self.builder.memory_copy_from_slice(object, source);
@@ -489,7 +488,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let payload_size = self.builder.checked_mul(length, word);
         let size = self.builder.checked_add(word, payload_size);
         let layout = MemoryObjectLayout::WORD_ARRAY;
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         self.builder.set_memory_len(object, length);
 
         self.counted_loop(length, |this, index| {
@@ -870,9 +869,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             validate_bounds
         };
         // object = struct(fields.length)
-        let layout = MemoryObjectLayout::Struct { fields: fields.len() as u64 };
         let size = self.builder.imm(fields.len().checked_mul(32)? as u64);
-        let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
+        let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         let mut offset = 0u64;
         // for field in fields {
         //     object[field] = decode_at(field, base + field.offset, base)

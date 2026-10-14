@@ -60,7 +60,7 @@ fn @encodeSelector(arg0: i256) -> i256 [selector=0xe234433f, pure, abi_params=[b
 fn @encodeLocalSelector() -> i256 [selector=0x0e6d4a3f, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = shl 224, 0x12345678
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 3
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32

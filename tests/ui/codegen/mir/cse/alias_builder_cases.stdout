@@ -43,7 +43,7 @@
   
   fn @same_select(arg0: i1) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       v2 = load v1
       v3 = select arg0, v1, v1
@@ -55,9 +55,9 @@
   
   fn @joined_select(arg0: i1) -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = alloc 32
       v3 = ptrtoint memptr v2 to i256
       store v1, 1
 -     v4 = load v1
@@ -73,9 +73,9 @@
     bb0:
       jump bb1
     bb1:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
-      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = alloc 32
       v3 = ptrtoint memptr v2 to i256
       store v1, 7
 -     v4 = load v1

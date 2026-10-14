@@ -25,7 +25,7 @@ contract FunctionPointerMemoryArray {
     }
 
     // CHECK-LABEL: fn @callArray(
-    // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[ARR:v[0-9]+]] = alloc
     // CHECK: store [[ARR]]+32, [[A:[0-9]+]]
     // CHECK: store [[ARR]]+64, [[B:[0-9]+]]
     // CHECK: store [[ARR]]+96, [[C:[0-9]+]]

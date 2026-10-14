@@ -17,7 +17,7 @@
 +   bb2:
 +     v9 = not 31
 +     v10 = and v7, v9
-+     v11 = alloc memorybytes, exact, uninitialized, infallible, v10 !metadata(preserves_fmp)
++     v11 = alloc v10 !metadata(preserves_fmp)
 +     store v11, v6
 +     v12 = zext i16 arg0 to i256
 +     v13 = shl 216, v12
@@ -79,7 +79,7 @@
 +     v20 = lt v19, v18
 +     jumpi v20, bb1, bb4
 +   bb4:
-+     v21 = alloc memorybytes, exact, uninitialized, infallible, v19 !metadata(preserves_fmp)
++     v21 = alloc v19 !metadata(preserves_fmp)
 +     store v21, v18
 +     v22 = mul v1, 32
 +     v23 = eq 32, 0
@@ -155,7 +155,7 @@
     bb0:
 -     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
++     v1 = alloc 160 !metadata(preserves_fmp)
 +     store v1, 128
 +     jump bb1
 +   bb1:
@@ -228,7 +228,7 @@
 +     v12 = lt v11, v10
 +     jumpi v12, bb4, bb6
 +   bb6:
-+     v13 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(preserves_fmp)
++     v13 = alloc v11 !metadata(preserves_fmp)
 +     store v13, v10
 +     v14 = mul v2, 32
 +     v15 = eq 32, 0
@@ -291,7 +291,7 @@
 +   bb3:
 +     v12 = not 31
 +     v13 = and v10, v12
-+     v14 = alloc memorybytes, exact, uninitialized, infallible, v13 !metadata(preserves_fmp)
++     v14 = alloc v13 !metadata(preserves_fmp)
 +     store v14, v9
 +     store v14+32, 0xab00000000000000000000000000000000000000000000000000000000000000
 +     v15 = mul v1, 32

@@ -8,9 +8,9 @@
 // CHECK: {{^[ +].*}}ret [[RESULT]]
 fn @cancelled_word(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = ptrtoint memptr v0 to i256
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc 32
     v3 = ptrtoint memptr v2 to i256
     store v3, 7
     v4 = add v1, 32
@@ -26,9 +26,9 @@ fn @cancelled_word(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}ret [[RESULT]]
 fn @crossing_word(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = ptrtoint memptr v0 to i256
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc 32
     v3 = ptrtoint memptr v2 to i256
     store v3, 7
     v4 = add v1, 31
@@ -44,9 +44,9 @@ fn @crossing_word(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}ret [[RESULT]]
 fn @cancelled_byte(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = ptrtoint memptr v0 to i256
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc 32
     v3 = ptrtoint memptr v2 to i256
     store v3, 7
     v4 = add v1, 32
@@ -62,9 +62,9 @@ fn @cancelled_byte(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}ret [[RESULT]]
 fn @crossing_copy(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = ptrtoint memptr v0 to i256
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc 32
     v3 = ptrtoint memptr v2 to i256
     store v3, 7
     v4 = add v1, 0

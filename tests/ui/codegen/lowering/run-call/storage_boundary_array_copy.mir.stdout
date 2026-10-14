@@ -15,7 +15,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = icall @getX
     v1 = icall @getY
-    v2 = alloc memoryfixedarray<10, 1>, exact, uninitialized, infallible, 320
+    v2 = alloc 320
     store v2, 1
     store v2+32, 2
     store v2+64, 3
@@ -47,7 +47,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v20
     v21 = mul 0, 10
     v22 = add v1, v21
-    v23 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
+    v23 = alloc checked 320
     jump bb7
   bb7:
     v24 = phi [bb3: 0], [bb8: v30]

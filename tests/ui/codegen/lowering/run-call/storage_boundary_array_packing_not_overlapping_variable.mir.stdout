@@ -19,7 +19,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v0 = icall @getCanary
     sstore v0, 99 !metadata(storage=symbolic(v0))
     v1 = icall @getArray
-    v2 = alloc memoryfixedarray<10, 1>, exact, uninitialized, infallible, 320
+    v2 = alloc 320
     store v2, 1
     store v2+32, 2
     store v2+64, 3
@@ -41,7 +41,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v8 = lt v7, 10
     jumpi v8, bb2, bb3
   bb3:
-    v34 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v34 = alloc 160
     store v34, 11
     store v34+32, 12
     store v34+64, 13

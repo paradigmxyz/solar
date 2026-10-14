@@ -12,7 +12,7 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 127, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    v5 = alloc zeroed checked v4
     store v5, 64
     v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
@@ -39,7 +39,7 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, 
     icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 127, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    v5 = alloc zeroed checked v4
     store v5, 64
     v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
@@ -110,7 +110,7 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
     icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 95, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    v5 = alloc zeroed checked v4
     store v5, 32
     v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
@@ -162,7 +162,7 @@ fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params
   bb0:
     v0 = not 31
     v1 = and 95, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 32
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32

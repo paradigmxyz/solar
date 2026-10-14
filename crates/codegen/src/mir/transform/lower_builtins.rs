@@ -13,7 +13,7 @@
 
 use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, Module, PanicCode, PtrLocation, ValueId,
+    MemoryObjectKind, Module, PanicCode, PtrLocation, ValueId,
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -401,8 +401,7 @@ fn lower_ecrecover(
     // precompile_call(1, input.data, 128, output.data, 32)
     // result = load(output, 0)
     let size = builder.imm(192);
-    let input =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
+    let input = builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
     let length = builder.imm(160);
     builder.set_memory_len(input, length);
     let pointer = builder.memory_data(input);
@@ -424,8 +423,7 @@ fn alloc_output(builder: &mut FunctionBuilder<'_>) -> ValueId {
     // store output, 32
     // pointer = add (ptrtoint output), 32
     let size = builder.imm(64);
-    let output =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
+    let output = builder.alloc(size, AllocationSemantics::SOLIDITY_ZEROED);
     let length = builder.imm(32);
     builder.set_memory_len(output, length);
     builder.memory_data(output)

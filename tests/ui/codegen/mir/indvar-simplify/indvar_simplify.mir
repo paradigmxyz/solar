@@ -631,7 +631,7 @@ fn @keep_narrow_counter_read_after_loop(arg0: i256) -> i256 {
 // CHECK-NOT: {{^[-+]}}
 fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v30 = alloc raw, exact, uninitialized, infallible, 128
+    v30 = alloc 128
     v0 = ptrtoint memptr v30 to i256
     jump bb1
   bb1:
@@ -663,7 +663,7 @@ fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NEXT: + ret [[INDEX]]
 fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v30 = alloc raw, exact, uninitialized, infallible, 128
+    v30 = alloc 128
     v0 = ptrtoint memptr v30 to i256
     jump bb1
   bb1:

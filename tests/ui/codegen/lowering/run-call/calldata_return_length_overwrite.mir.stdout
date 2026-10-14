@@ -16,7 +16,7 @@ fn @zeroed(arg0: calldataslice) -> memptr [selector=0x84322464, pure, abi_params
     icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
     v13 = slice_ptr arg0
@@ -43,7 +43,7 @@ fn @shortened(arg0: calldataslice) -> memptr [selector=0x6ee28a05, pure, abi_par
     icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
     v13 = slice_ptr arg0
@@ -70,7 +70,7 @@ fn @kept(arg0: calldataslice) -> memptr [selector=0xc57c8563, pure, abi_params=[
     icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
     v13 = slice_ptr arg0

@@ -77,7 +77,7 @@
 +   bb5:
 +     v17 = not 31
 +     v18 = and v15, v17
-+     v19 = alloc memorybytes, exact, uninitialized, panic, v18
++     v19 = alloc checked v18
 +     store v19, v13
 +     v20 = sub v4, v14
 +     v21 = gt v13, v20
@@ -104,7 +104,7 @@
 +     v2 = slt 64, 64
 +     jumpi v2, bb1, bb2
 +   bb2:
-+     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
++     v3 = alloc 64
 +     v4 = load arg0
 +     store v3, v4
 +     v5 = ptrtoint memptr arg0 to i256

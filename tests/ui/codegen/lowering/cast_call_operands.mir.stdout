@@ -50,7 +50,7 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize CallTarget_creation_code_0
     v2 = datasize CallTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -81,7 +81,7 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
     v2 = abi_encode []
     v3 = datasize CallTarget_creation_code_0
     v4 = datasize CallTarget_creation_code_0, 31, aligned
-    v5 = alloc raw, exact, uninitialized, infallible, v4
+    v5 = alloc v4
     v6 = ptrtoint memptr v5 to i256
     datacopy CallTarget_creation_code_0, v6, v3
     v7 = slice_ptr v2
@@ -164,7 +164,7 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
 fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
   bb0:
     v0 = mapping_slot arg2, 1
-    v1 = alloc memorystruct<6>, exact, uninitialized, panic, 192
+    v1 = alloc checked 192
     v2 = sload v0 !metadata(storage=symbolic(v0))
     v3 = trunc i256 v2 to i160
     v4 = zext i160 v3 to i256
@@ -319,7 +319,7 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     v94 = eq v93, false
     icall revert_if<empty>, v94
     v95 = gas
-    v96 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
+    v96 = alloc 192
     v97 = zext i160 v22 to i256
     v98 = zext i160 v23 to i256
     v99 = sext i24 v71 to i256

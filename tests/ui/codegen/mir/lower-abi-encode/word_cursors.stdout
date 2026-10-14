@@ -45,7 +45,7 @@
 +     v31 = add v30, 31
 +     v32 = not 31
 +     v33 = and v31, v32
-+     v34 = alloc raw, exact, uninitialized, infallible, v33 !metadata(preserves_fmp)
++     v34 = alloc v33 !metadata(preserves_fmp)
 +     v35 = ptrtoint memptr v34 to i256
 +     v36 = make_memory_slice v35, v30
 +     ret v36
@@ -103,7 +103,7 @@
 +     v29 = sub v27, v2
 +     v31 = add v29, 31
 +     v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-      v34 = alloc raw, exact, uninitialized, infallible, v33 !metadata(preserves_fmp)
+      v34 = alloc v33 !metadata(preserves_fmp)
       v35 = ptrtoint memptr v34 to i256
 -     v36 = make_memory_slice v35, v30
 +     v36 = make_memory_slice v35, v29
@@ -149,7 +149,7 @@
       v29 = sub v27, v2
       v31 = add v29, 31
       v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-      v34 = alloc raw, exact, uninitialized, infallible, v33 !metadata(preserves_fmp)
+      v34 = alloc v33 !metadata(preserves_fmp)
       v35 = ptrtoint memptr v34 to i256
       v36 = make_memory_slice v35, v29
       ret v36

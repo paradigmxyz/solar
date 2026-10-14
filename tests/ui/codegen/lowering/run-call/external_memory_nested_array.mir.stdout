@@ -43,7 +43,7 @@ fn @inspectItems(arg0: calldataslice) -> i256 [selector=0x68057f1e, pure, abi_pa
 
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -51,7 +51,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 1
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
@@ -62,7 +62,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall panic_if<0x32>, v11
     v12 = ptrtoint memptr v6 to i256
     store v0+32, v12
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v13 = alloc 64 !metadata(preserves_fmp)
     store v13, 2
     v14 = ptrtoint memptr v13 to i256
     v15 = add v14, 32
@@ -99,7 +99,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v38 = insert_value struct0, v37, 1, v36
     v39 = extract_value struct0, v38, 0
     v40 = extract_value struct0, v38, 1
-    v41 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v41 = alloc zeroed checked 64
     store v41, 1
     jump bb6
   bb6:
@@ -107,7 +107,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v43 = lt v42, 1
     jumpi v43, bb7, bb8
   bb8:
-    v50 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    v50 = alloc 160
     store v50, 1
     store v50+32, 2
     store v50+64, 3
@@ -154,7 +154,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v70 = phi [bb16: v69], [bb13: false]
     ret v70
   bb7:
-    v44 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
+    v44 = alloc 160 !metadata(preserves_fmp)
     v45 = ptrtoint memptr v44 to i256
     memory_zero v45, 160
     v46 = shl 5, v42

@@ -15,7 +15,7 @@ contract EventDynamicData {
     }
 
     // CHECK-LABEL: fn @literal{{[( ]}}
-    // CHECK: [[LITERAL:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[LITERAL:v[0-9]+]] = alloc
     // CHECK: store [[LITERAL]], 5
     // CHECK: [[LITERAL_PTR:v[0-9]+]] = ptrtoint memptr [[LITERAL]] to i256
     // CHECK: [[LITERAL_DATA:v[0-9]+]] = add [[LITERAL_PTR]], 32

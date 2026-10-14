@@ -32,7 +32,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     icall panic_if<0x41>, v19
     v20 = not 31
     v21 = and v18, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    v22 = alloc v21
     store v22, v17
     v23 = ptradd v22, 32
     v24 = slice_ptr v10
@@ -67,7 +67,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     icall panic_if<0x41>, v48
     v49 = not 31
     v50 = and v47, v49
-    v51 = alloc memorybytes, exact, uninitialized, infallible, v50
+    v51 = alloc v50
     store v51, v46
     v52 = ptradd v51, 32
     v53 = slice_ptr v39
@@ -100,7 +100,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     icall panic_if<0x41>, v75
     v76 = not 31
     v77 = and v74, v76
-    v78 = alloc memorybytes, exact, uninitialized, infallible, v77
+    v78 = alloc v77
     store v78, v73
     v79 = ptradd v78, 32
     v80 = slice_ptr v66

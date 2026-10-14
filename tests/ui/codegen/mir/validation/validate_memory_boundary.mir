@@ -49,7 +49,7 @@ fn @allocation() {
   bb0:
     v0 = fmp
     set_fmp v0
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     v2 = mapping_slot v0, v1
     v3 = mapping_slot_bytes v0, v1
     v4 = storage_array_data_slot v0
@@ -73,14 +73,14 @@ fn @returndataSignature(arg0: returndataslice) -> returndataslice {
 //~? ERROR: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 fn @checked_deferred() -> memptr {
   bb0:
-    v0 = alloc raw, exact, zeroed, panic, 32 !metadata(deferred_alloc)
+    v0 = alloc zeroed checked 32 !metadata(deferred_alloc)
     ret v0
 }
 
 //~? ERROR: [fn8] [bb0, inst0] deferred allocation requires a constant size
 fn @dynamic_deferred(arg0: i256) -> memptr {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, arg0 !metadata(deferred_alloc)
+    v0 = alloc arg0 !metadata(deferred_alloc)
     ret v0
 }
 

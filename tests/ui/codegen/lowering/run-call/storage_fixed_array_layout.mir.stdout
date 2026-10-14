@@ -140,7 +140,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     icall panic_if<0x32>, v29
     v30 = add 11, 8
     sstore v30, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(19))
-    v31 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
+    v31 = alloc checked 224
     jump bb7
   bb7:
     v32 = phi [bb2: 0], [bb8: v44]

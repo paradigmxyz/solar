@@ -98,7 +98,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v75 = and 4, 0xffffffffffffffffffffffffffffffff
     v76 = or v74, v75
     sstore v71, v76 !metadata(storage=symbolic(v71))
-    v77 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v77 = alloc checked 96
     v78 = sload 0 !metadata(storage=slot(0))
     v79 = trunc i256 v78 to i128
     v80 = zext i128 v79 to i256
@@ -150,7 +150,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v115 = and 7, 0xffffffffffffffffffffffffffffffff
     v116 = or v114, v115
     sstore v111, v116 !metadata(storage=symbolic(v111))
-    v117 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v117 = alloc checked 96
     v118 = sload 0 !metadata(storage=slot(0))
     v119 = trunc i256 v118 to i128
     v120 = zext i128 v119 to i256
@@ -193,7 +193,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v148 = storage_array_data_slot 6
     v149 = mul 0, 3
     v150 = add v148, v149
-    v151 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v151 = alloc checked 96
     v152 = sload 0 !metadata(storage=slot(0))
     v153 = trunc i256 v152 to i128
     v154 = zext i128 v153 to i256
@@ -208,7 +208,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     store v151+64, v160
     v161 = ptrtoint memptr v151 to i256
     icall @store_recursive_storage_0_0, v150, v151
-    v162 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v162 = alloc checked 96
     v163 = sload 3 !metadata(storage=slot(3))
     v164 = trunc i256 v163 to i128
     v165 = zext i128 v164 to i256
@@ -399,7 +399,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     v8 = zext i1 v7 to i256
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
-    v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    v10 = alloc checked v3
     store v10, v0
     v11 = storage_array_data_slot arg0
     jump bb1
@@ -411,7 +411,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
   bb3:
     ret v10
   bb2:
-    v15 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v15 = alloc checked 96
     v16 = sload v13 !metadata(storage=symbolic(v13))
     v17 = trunc i256 v16 to i128
     v18 = zext i128 v17 to i256
@@ -549,13 +549,13 @@ fn @clear_recursive_storage_0(arg0: i256) {
 
 fn @default_struct_0() -> memptr {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     store v0, 0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     store v1, 0
     v2 = ptrtoint memptr v1 to i256
     store v0+32, v2
-    v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v3 = alloc 32
     store v3, 0
     v4 = ptrtoint memptr v3 to i256
     store v0+64, v4

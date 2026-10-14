@@ -19,7 +19,7 @@ contract C {
     // recursive function returning a memory struct
     // CHECK-LABEL: fn @build(
     // CHECK: icall @build,
-    // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: [[RESULT:v[0-9]+]] = alloc 64
     // CHECK: store [[RESULT]], {{v[0-9]+}}
     // CHECK: ret
     function build(uint256 n) public pure returns (P memory) {
@@ -30,7 +30,7 @@ contract C {
 
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc zeroed checked
     // CHECK-NEXT: store [[ARRAY]], arg0
     // CHECK: ret
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
@@ -59,7 +59,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @squares{{[( ]}}
-    // CHECK: alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: alloc zeroed checked
     // CHECK: icall @fillImpl, {{v[0-9]+}}, 0
     // CHECK: ret
     function squares(uint256 n) public pure returns (uint256[] memory) {

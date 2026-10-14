@@ -46,7 +46,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v4 = datasize CreationEvaluationOrderChild_creation_code_0
     v5 = datasize CreationEvaluationOrderChild_creation_code_0, 32
     v6 = datasize CreationEvaluationOrderChild_creation_code_0, 63, aligned
-    v7 = alloc raw, exact, uninitialized, infallible, v6
+    v7 = alloc v6
     v8 = ptrtoint memptr v7 to i256
     datacopy CreationEvaluationOrderChild_creation_code_0, v8, v4
     v9 = slice_ptr v3

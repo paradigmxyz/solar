@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{Function, InstKind, MemoryObjectLayout, MirType, PtrLocation, Value, ValueId};
+use super::{Function, InstKind, MirType, PtrLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -578,15 +578,6 @@ impl EffectKind {
     }
 }
 
-/// Alignment applied to an abstract heap allocation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AllocationAlignment {
-    /// Reserve exactly the requested byte count.
-    Exact,
-    /// Round the reservation up to an EVM word.
-    Word,
-}
-
 /// Initialization performed for a newly reserved range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AllocationInitialization {
@@ -602,16 +593,7 @@ pub(crate) enum AllocationFailure {
     /// The producer has already proved the bump valid.
     Infallible,
     /// Revert with the memory-allocation panic when the bump overflows.
-    Panic,
-}
-
-/// Semantic shape produced by an allocation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum AllocationKind {
-    /// Untyped compiler scratch or ABI staging memory.
-    Raw,
-    /// A Solidity memory object whose layout is owned by the memory model.
-    Object(MemoryObjectLayout),
+    Checked,
 }
 
 /// Storage policy for an ABI-encoded result.
@@ -636,21 +618,9 @@ impl AbiEncodeMode {
     }
 }
 
-impl AllocationKind {
-    /// Returns the MIR result type of this allocation.
-    #[must_use]
-    pub(crate) const fn result_type(self) -> MirType {
-        match self {
-            Self::Raw | Self::Object(_) => MirType::MEMPTR,
-        }
-    }
-}
-
 /// Semantic allocation policy carried by [`InstKind::Alloc`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct AllocationSemantics {
-    /// Requested alignment.
-    pub alignment: AllocationAlignment,
     /// Requested initialization.
     pub initialization: AllocationInitialization,
     /// Requested failure behavior.
@@ -658,29 +628,24 @@ pub(crate) struct AllocationSemantics {
 }
 
 impl AllocationSemantics {
-    /// Exact-size, uninitialized allocation whose validity is already proven.
+    /// Uninitialized allocation whose validity is already proven.
     pub(crate) const INTERNAL: Self = Self {
-        alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Uninitialized,
         failure: AllocationFailure::Infallible,
     };
 
-    /// Checked and zero-initialized Solidity object allocation.
-    ///
-    /// Object lowering includes the header and padding in `size`, so the
-    /// allocation must preserve that already-aligned extent exactly.
+    /// Checked and zero-initialized Solidity object allocation. Object lowering includes the
+    /// header and padding in `size`.
     pub(crate) const SOLIDITY_ZEROED: Self = Self {
-        alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Zeroed,
-        failure: AllocationFailure::Panic,
+        failure: AllocationFailure::Checked,
     };
 
-    /// Checked, exact-size allocation for objects initialized by their
+    /// Checked allocation for objects initialized by their
     /// producer rather than by the allocator.
     pub(crate) const SOLIDITY_UNINITIALIZED: Self = Self {
-        alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Uninitialized,
-        failure: AllocationFailure::Panic,
+        failure: AllocationFailure::Checked,
     };
 }
 
@@ -757,8 +722,7 @@ impl Instruction {
             kind if kind.access_offset().is_some_and(|offset| offset != 0) => {
                 Some("pointer arithmetic")
             }
-            InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
-                || !matches!(kind, AllocationKind::Raw)
+            InstKind::Alloc { semantics, .. } => (!self.metadata.deferred_alloc()
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
             InstKind::Trunc(..) | InstKind::Sext(..) => Some("integer conversion"),
@@ -998,7 +962,6 @@ impl InstKind {
                     && result.is_some_and(MirType::is_pointer)
             }
             Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
-            Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
             Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
@@ -1129,12 +1092,11 @@ impl InstKind {
         self.effects().must_execute(false)
     }
 
-    /// Returns whether this instruction still carries a semantic memory-object operation: an
-    /// object allocation, pointer arithmetic, or an access at an immediate offset.
+    /// Returns whether this instruction still carries a semantic memory-object operation:
+    /// pointer arithmetic or an access at an immediate offset.
     #[must_use]
     pub(crate) fn is_memory_object_op(&self) -> bool {
-        matches!(self, Self::Alloc { kind: AllocationKind::Object(_), .. } | Self::PtrAdd(..))
-            || self.access_offset().is_some_and(|offset| offset != 0)
+        matches!(self, Self::PtrAdd(..)) || self.access_offset().is_some_and(|offset| offset != 0)
     }
 
     /// Returns the immediate byte offset of a `load`, `store`, or `store8`.

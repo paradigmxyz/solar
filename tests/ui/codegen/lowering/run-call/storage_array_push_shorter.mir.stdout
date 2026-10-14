@@ -5,10 +5,10 @@
 
 fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 5
     store v0+32, 6
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = alloc 64
     store v1, 9
     store v1+32, 9
     v2 = sload 0 !metadata(storage=slot(0))
@@ -85,7 +85,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
 
 fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 1
     store v0+32, 2
     v1 = sload 0 !metadata(storage=slot(0))
@@ -162,7 +162,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
 
 fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 7
     store v0+32, 8
     v1 = sload 0 !metadata(storage=slot(0))

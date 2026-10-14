@@ -23,7 +23,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v5 = abi_encode []
     v6 = datasize F_creation_code_0
     v7 = datasize F_creation_code_0, 31, aligned
-    v8 = alloc raw, exact, uninitialized, infallible, v7
+    v8 = alloc v7
     v9 = ptrtoint memptr v8 to i256
     datacopy F_creation_code_0, v9, v6
     v10 = slice_ptr v5
@@ -132,7 +132,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v88 = abi_encode []
     v89 = datasize F_creation_code_0
     v90 = datasize F_creation_code_0, 31, aligned
-    v91 = alloc raw, exact, uninitialized, infallible, v90
+    v91 = alloc v90
     v92 = ptrtoint memptr v91 to i256
     datacopy F_creation_code_0, v92, v89
     v93 = slice_ptr v88
@@ -147,7 +147,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     revert_returndata
   bb12:
     v99 = gas
-    v100 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v100 = alloc 64
     v101 = loadimmutable sI
     v102 = zext i24 v101 to i256
     v103 = sload 6 !metadata(storage=slot(6))

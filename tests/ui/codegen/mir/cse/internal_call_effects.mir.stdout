@@ -68,7 +68,7 @@ fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], 
 
 fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 10
     store v0+32, 20
     v1 = ptrtoint memptr v0 to i256
@@ -88,7 +88,7 @@ fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
 
 fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 10
     store v0+32, 20
     v1 = ptrtoint memptr v0 to i256
@@ -107,7 +107,7 @@ fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
 
 fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 10
     store v0+32, 20
     v1 = ptrtoint memptr v0 to i256
@@ -127,7 +127,7 @@ fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], ab
 
 fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     store v0, 10
     store v0+32, 20
     store v0+64, 30

@@ -42,9 +42,9 @@ fn @unsignedChoice(arg0: i1) -> struct1 [selector=0x77048b54, pure, abi_params=[
 
 fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[bool], abi_returns=[word, word<i16>], abi_return_params=[u256, i16]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
-    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v1 = alloc zeroed checked 64
     store v1, 1
     v2 = load v0
     v3 = lt 0, v2
@@ -79,12 +79,12 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 2
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     store v4, 0x708000000000000000000000000000000000000000000000000000000000000
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v5 = alloc 64 !metadata(preserves_fmp)
     store v5, 2
     v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
@@ -239,17 +239,17 @@ fn @assignedCallStorage() -> struct3 [selector=0xac1ea202, abi_params=[], abi_re
 
 fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 1
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
     store v2, 0x3000000000000000000000000000000000000000000000000000000000000000
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 1
     v4 = ptrtoint memptr v3 to i256
     v5 = add v4, 32
     store v5, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 1
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32

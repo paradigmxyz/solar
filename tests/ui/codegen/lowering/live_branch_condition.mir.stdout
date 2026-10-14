@@ -58,7 +58,7 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
 
 fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_params=[bool, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
     store v0+32, 0
     jumpi arg0, bb1, bb2

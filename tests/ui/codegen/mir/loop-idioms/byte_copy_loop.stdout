@@ -92,8 +92,8 @@
   
   fn @copy_allocations() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
+      v1 = alloc 64
       v2 = ptrtoint memptr v0 to i256
       v3 = ptrtoint memptr v1 to i256
       v4 = add v2, 32
@@ -123,8 +123,8 @@
   
   fn @copy_over_allocation_end() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
+      v1 = alloc 64
       v2 = ptrtoint memptr v0 to i256
       v3 = ptrtoint memptr v1 to i256
       v4 = add v2, 32
@@ -148,8 +148,8 @@
   
   fn @copy_before_size_call() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
+      v1 = alloc 64
       v2 = ptrtoint memptr v1 to i256
       v3 = ptrtoint memptr v0 to i256
       v4 = add v2, 32
@@ -174,8 +174,8 @@
   
   fn @copy_before_size_tail() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v0 = alloc 64
+      v1 = alloc 64
       v2 = ptrtoint memptr v1 to i256
       v3 = ptrtoint memptr v0 to i256
       v4 = add v2, 32

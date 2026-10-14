@@ -61,7 +61,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v39 = add v38, v35
     sstore v39, 9 !metadata(storage=symbolic(v39))
     sstore v34, v37 !metadata(storage=offset(v33, 1))
-    v40 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v40 = alloc zeroed checked 64
     store v40, 1
     jump bb1
   bb1:
@@ -69,7 +69,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v42 = lt v41, 1
     jumpi v42, bb2, bb3
   bb3:
-    v46 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v46 = alloc zeroed checked 64
     store v46, 1
     v47 = load v40
     v48 = lt 0, v47
@@ -86,7 +86,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v56 = eq v54, 0
     jumpi v56, bb4, bb5
   bb4:
-    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v57 = alloc 32
     store v57, 0
     v58 = ptrtoint memptr v57 to i256
     store v40+32, v58
@@ -138,7 +138,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v83 = eq v81, 0
     jumpi v83, bb17, bb18
   bb17:
-    v84 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v84 = alloc 32
     store v84, 0
     v85 = shl 5, v77
     v86 = ptradd v40, v85

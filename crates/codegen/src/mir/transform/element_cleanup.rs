@@ -36,9 +36,9 @@
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
-    AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
-    Function, FunctionId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, Module,
-    PtrLocation, Terminator, Value, ValueId,
+    AbiParamType, AbiWordValidator, AllocationInitialization, ArgIdx, EffectKind, Function,
+    FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PtrLocation, Terminator, Value,
+    ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -182,17 +182,11 @@ impl MirPass for ElementCleanup {
     }
 }
 
-fn is_word_array(layout: MemoryObjectLayout) -> bool {
-    matches!(
-        layout,
-        MemoryObjectLayout::DynamicArray { element_words: 1 }
-            | MemoryObjectLayout::FixedArray { element_words: 1, .. }
-    )
-}
-
 /// The array a word element load or store accesses: a `memptr` object at a word-aligned
 /// offset. The word at a dynamic object's pointer is its length, not an element, so a constant
-/// offset of zero counts only in a fixed-layout allocation.
+/// offset of zero counts only in a constant-size allocation, whose first word, length or not,
+/// is tracked like any element. Every fixed array and struct has a constant size, so only a
+/// runtime-sized allocation is known to start with a length word.
 fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
     let (InstKind::Load(address, offset, PtrLocation::Memory)
     | InstKind::Store(address, offset, _)) = func.inst(inst).kind
@@ -200,27 +194,19 @@ fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
         return None;
     };
     let (object, offset, index) = func.word_access(address, offset)?;
-    let length = index.is_none() && offset == 0 && !is_fixed_allocation(func, object);
+    let length = index.is_none() && offset == 0 && func.alloc_size(object).is_none();
     (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
 }
 
-/// Whether `object` is an allocation of a fixed array or struct, which has no length word.
-fn is_fixed_allocation(func: &Function, object: ValueId) -> bool {
-    matches!(func.value(object), Value::Inst(inst) if matches!(
-        func.inst(*inst).kind,
-        InstKind::Alloc { kind: AllocationKind::Object(layout), .. } if layout.fixed_words().is_some()
-    ))
-}
-
 /// Whether storing `length` into the header of `object` keeps the header out of reach of its
-/// elements: `object` is a direct dynamic allocation, and no index below `length` wraps the
+/// elements: `object` is a direct runtime-sized allocation, and no index below `length` wraps the
 /// element address around to the header. That holds when `length` fits in
 /// [`MAX_HEADER_LENGTH_BITS`] or is the length the allocation's checked size scales from, as in
 /// `new T[](length)`. A forged length, as from assembly, may let a wrapping index read the header.
 fn is_header_length(func: &Function, object: ValueId, length: ValueId) -> bool {
     let Value::Inst(alloc) = *func.value(object) else { return false };
     let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
-    !is_fixed_allocation(func, object)
+    func.value_u64(size).is_none()
         && (max_bits_with_args(func, length, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
             <= MAX_HEADER_LENGTH_BITS
             || scaled_root(func, size) == length)
@@ -459,9 +445,8 @@ fn object_bounds(
     for inst in func.instructions() {
         let Some(result) = func.inst_result_value(inst) else { continue };
         match &func.inst(inst).kind {
-            InstKind::Alloc { kind: AllocationKind::Object(layout), semantics, .. }
-                if is_word_array(*layout)
-                    && semantics.initialization == AllocationInitialization::Zeroed =>
+            InstKind::Alloc { semantics, .. }
+                if semantics.initialization == AllocationInitialization::Zeroed =>
             {
                 bounds.insert(result, 0);
             }

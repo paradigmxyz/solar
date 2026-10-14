@@ -11,7 +11,7 @@ contract C {
     bytes constant HUGE = new bytes(2**64);
 
     // CHECK-LABEL: fn @length(
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes, exact, zeroed
+    // CHECK: [[BYTES:v[0-9]+]] = alloc zeroed
     // CHECK: store [[BYTES]], 0x10001
     function length() public pure returns (uint256) {
         B;

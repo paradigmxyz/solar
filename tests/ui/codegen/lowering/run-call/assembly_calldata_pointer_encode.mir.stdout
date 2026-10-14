@@ -3,7 +3,7 @@
 fn @arrayCopy() -> memptr [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = make_calldata_slice 4, 2
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     v2 = ptrtoint memptr v1 to i256
     memory_zero v2, 64
     v3 = slice_ptr v0
@@ -11,7 +11,7 @@ fn @arrayCopy() -> memptr [selector=0xb192499e, pure, abi_params=[], abi_returns
     v5 = sub v4, v3
     v6 = slt v5, 64
     icall revert_if<calldata_tail_too_short>, v6
-    v7 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v7 = alloc 64
     v8 = make_calldata_slice v3, 64
     v9 = slice_ptr v8
     v10 = slice_len v8
@@ -32,7 +32,7 @@ fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns
     icall panic_if<0x41>, v7
     v8 = not 31
     v9 = and v6, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    v10 = alloc v9
     store v10, v5
     v11 = slice_ptr v4
     v12 = slice_len v4
@@ -62,7 +62,7 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     icall panic_if<0x41>, v7
     v8 = not 31
     v9 = and v6, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    v10 = alloc v9
     store v10, v5
     v11 = slice_ptr v4
     v12 = slice_len v4

@@ -58,7 +58,7 @@ fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [pure] {
     icall panic_if<0x41>, v12
     v13 = not 31
     v14 = and v11, v13
-    v15 = alloc memorybytes, exact, zeroed, panic, v14
+    v15 = alloc zeroed checked v14
     store v15, v10
     jump bb7
   bb7:
@@ -342,7 +342,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     icall panic_if<0x41>, v35
     v36 = not 31
     v37 = and v34, v36
-    v38 = alloc memorybytes, exact, zeroed, panic, v37
+    v38 = alloc zeroed checked v37
     store v38, v33
     jump bb13
   bb13:
@@ -500,7 +500,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
   bb1:
     v2 = not 31
     v3 = and 63, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    v4 = alloc zeroed checked v3
     store v4, 0
     ret v4
 }

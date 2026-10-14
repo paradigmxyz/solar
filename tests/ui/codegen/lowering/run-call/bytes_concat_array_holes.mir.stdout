@@ -6,7 +6,7 @@
 
 fn @chunksAndHash() -> struct0 [pure] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 672
+    v0 = alloc zeroed checked 672
     store v0, 20
     jump bb1
   bb1:
@@ -14,7 +14,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v2 = lt v1, 20
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v6 = alloc 96 !metadata(preserves_fmp)
     store v6, 40
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
@@ -27,7 +27,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     icall panic_if<0x32>, v12
     v13 = ptrtoint memptr v6 to i256
     store v0+32, v13
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v14 = alloc 64 !metadata(preserves_fmp)
     store v14, 4
     v15 = ptrtoint memptr v14 to i256
     v16 = add v15, 32
@@ -86,7 +86,7 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v17 = eq v15, 0
     jumpi v17, bb7, bb8
   bb7:
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v18 = alloc 32
     store v18, 0
     v19 = shl 5, v6
     v20 = ptradd v5, v19

@@ -26,7 +26,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
 fn @recordFirst(arg0: i160) {
   bb0:
     v0 = gas
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 5
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
@@ -50,7 +50,7 @@ fn @recordFirst(arg0: i160) {
 fn @recordSecond(arg0: i160) {
   bb0:
     v0 = gas
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 6
     v2 = ptrtoint memptr v1 to i256
     v3 = add v2, 32
@@ -82,7 +82,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v0 = abi_encode []
     v1 = datasize DynamicSink_creation_code_0
     v2 = datasize DynamicSink_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy DynamicSink_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -101,7 +101,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v13 = datasize DynamicCaller_creation_code_1
     v14 = datasize DynamicCaller_creation_code_1, 32
     v15 = datasize DynamicCaller_creation_code_1, 63, aligned
-    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy DynamicCaller_creation_code_1, v17, v13
     v18 = slice_ptr v12

@@ -27,11 +27,11 @@ use crate::link::LibraryId;
 use alloy_primitives::Bytes;
 
 use super::{
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind,
-    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind,
-    StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
+    ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
+    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, StorageLayoutRef,
+    StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 #[cfg(test)]
@@ -613,7 +613,6 @@ attributes! {
     u64,
     LibraryId,
     AbiEncodeMode,
-    AllocationKind,
     AllocationSemantics,
     DataRef,
     DataSize,
@@ -896,11 +895,6 @@ macro_rules! define_mir_ops {
                 let definition = self.op_def();
                 if !definition.phases.contains(phase) {
                     return definition.phase_category;
-                }
-                if matches!(self, Self::Alloc { kind: AllocationKind::Object(_), .. })
-                    && phase >= MirPhase::Lowered
-                {
-                    return Some("memory-object");
                 }
                 if matches!(self, Self::Alloc { .. })
                     && phase >= MirPhase::Lowered
@@ -1675,7 +1669,7 @@ define_mir_ops! {
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
         mnemonic = "alloc",
-        result = Custom,
+        result = MemPtr,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -1686,9 +1680,7 @@ define_mir_ops! {
     Alloc {
         /// Requested byte count.
         size: ValueId,
-        /// Semantic shape of the returned reference.
-        kind: AllocationKind,
-        /// Alignment, initialization, and failure behavior.
+        /// Initialization and failure behavior.
         semantics: AllocationSemantics,
     },
     /// ABI-encode values into memory.

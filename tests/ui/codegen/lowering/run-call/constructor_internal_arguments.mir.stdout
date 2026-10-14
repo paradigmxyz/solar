@@ -53,7 +53,7 @@ fn @constructor() [constructor] {
     v5 = datasize ConstructorInternalArgumentsHelper_creation_code_0
     v6 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
     v7 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 95, aligned
-    v8 = alloc raw, exact, uninitialized, infallible, v7
+    v8 = alloc v7
     v9 = ptrtoint memptr v8 to i256
     datacopy ConstructorInternalArgumentsHelper_creation_code_0, v9, v5
     v10 = slice_ptr v4

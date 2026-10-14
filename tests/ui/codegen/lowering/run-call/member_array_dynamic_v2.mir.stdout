@@ -3,7 +3,7 @@
 fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     v2 = calldatasize
     v3 = sub v2, v0
     v4 = slt v3, 32
@@ -36,7 +36,7 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     v26 = add 32, v19
     v27 = lt v26, 32
     icall panic_if<0x41>, v27
-    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
+    v28 = alloc v26
     store v28, v12
     v29 = make_calldata_slice v16, v19
     v30 = ptradd v28, 32
@@ -54,7 +54,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v0 = address
     v1 = gas
     v2 = slice_ptr arg0
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v3 = alloc 32
     v4 = calldatasize
     v5 = sub v4, v2
     v6 = slt v5, 32
@@ -87,7 +87,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v28 = add 32, v21
     v29 = lt v28, 32
     icall panic_if<0x41>, v29
-    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
+    v30 = alloc v28
     store v30, v14
     v31 = make_calldata_slice v18, v21
     v32 = ptradd v30, 32

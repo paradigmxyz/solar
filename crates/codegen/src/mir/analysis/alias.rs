@@ -1088,21 +1088,14 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Memory);
                 }
             }
-            InstKind::Alloc { size, semantics, .. } => {
+            InstKind::Alloc { size, semantics } => {
                 let fmp = Access::Location(Location::Memory(Self::fmp_location()));
                 effects.read(fmp);
                 effects.write(fmp);
                 if semantics.initialization == crate::mir::AllocationInitialization::Zeroed
                     && let Some(ptr) = func.inst_result_value(inst_id)
                 {
-                    let size = match semantics.alignment {
-                        crate::mir::AllocationAlignment::Exact => SizeOperand::Value(size),
-                        crate::mir::AllocationAlignment::Word => func
-                            .value_u64(size)
-                            .and_then(EvmMemoryLayout::align_word)
-                            .map_or(SizeOperand::Unknown, SizeOperand::Const),
-                    };
-                    write_memory(&mut effects, ptr, 0, size);
+                    write_memory(&mut effects, ptr, 0, SizeOperand::Value(size));
                 }
             }
             InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {

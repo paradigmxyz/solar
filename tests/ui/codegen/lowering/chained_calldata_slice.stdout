@@ -36,7 +36,7 @@ fn @bytesChain(arg0: calldataslice) -> memptr [selector=0x2007c472, pure, abi_pa
     icall panic_if<0x41>, v26
     v27 = not 31
     v28 = and v25, v27
-    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    v29 = alloc v28
     store v29, v24
     v30 = ptradd v29, 32
     v31 = slice_ptr v17

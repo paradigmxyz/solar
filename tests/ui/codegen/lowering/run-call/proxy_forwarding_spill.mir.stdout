@@ -83,7 +83,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v0 = abi_encode []
     v1 = datasize Impl_creation_code_0
     v2 = datasize Impl_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Impl_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -102,7 +102,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v13 = datasize Proxy_creation_code_1
     v14 = datasize Proxy_creation_code_1, 32
     v15 = datasize Proxy_creation_code_1, 63, aligned
-    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy Proxy_creation_code_1, v17, v13
     v18 = slice_ptr v12
@@ -117,7 +117,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb4:
     v24 = gas
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v25 = alloc 64 !metadata(preserves_fmp)
     store v25, 16
     v26 = ptrtoint memptr v25 to i256
     v27 = add v26, 32

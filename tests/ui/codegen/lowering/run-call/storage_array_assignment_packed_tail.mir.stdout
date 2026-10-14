@@ -27,7 +27,7 @@ fn @constructor() [constructor] {
 
 fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     store v0, 0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = lt 1, v1
@@ -71,7 +71,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v56 = shl v50, v55
     v57 = or v54, v56
     sstore v6, v57 !metadata(storage=symbolic(v6))
-    v58 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v58 = alloc 32
     store v58, 0
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = gt v59, 1
@@ -231,7 +231,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
-    v31 = alloc memoryarray<1>, exact, zeroed, panic, v24
+    v31 = alloc zeroed checked v24
     store v31, v1
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = lt v1, v32
@@ -451,7 +451,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
   bb5:
     jump bb2
   bb2:
-    v13 = alloc memoryfixedarray<8, 1>, exact, uninitialized, infallible, 256 !metadata(preserves_fmp)
+    v13 = alloc 256 !metadata(preserves_fmp)
     v14 = ptrtoint memptr v13 to i256
     memory_zero v14, 256
     v15 = sload 0 !metadata(storage=slot(0))

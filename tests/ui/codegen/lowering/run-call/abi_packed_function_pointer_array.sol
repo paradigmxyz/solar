@@ -18,7 +18,7 @@ contract AbiPackedFunctionPointerArray {
 
     // SEMANTIC-LABEL: fn @encode(
     // SEMANTIC: icall panic_if<0x41>, {{v[0-9]+}}
-    // SEMANTIC: alloc memoryarray<1>
+    // SEMANTIC: alloc
     // SEMANTIC: [[OFFSET:v[0-9]+]] = mul {{v[0-9]+}}, 32
     // SEMANTIC-NEXT: [[HEAD:v[0-9]+]] = add {{v[0-9]+}}, [[OFFSET]]
     // SEMANTIC-NEXT: [[VALUE:v[0-9]+]] = load calldata [[HEAD]]

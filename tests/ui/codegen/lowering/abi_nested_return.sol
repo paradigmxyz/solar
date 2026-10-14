@@ -8,8 +8,8 @@ contract AbiNestedReturn {
     }
 
     // CHECK-LABEL: fn @structArray{{[( ]}}
-    // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: [[PAIR:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: [[OUT:v[0-9]+]] = alloc zeroed checked
+    // CHECK: [[PAIR:v[0-9]+]] = alloc 64
     // CHECK: store [[PAIR]], arg0
     // CHECK-NEXT: store [[PAIR]]+32, {{v[0-9]+}}
     // CHECK: [[ELEM:v[0-9]+]] = ptrtoint memptr [[PAIR]] to i256
@@ -21,8 +21,8 @@ contract AbiNestedReturn {
     }
 
     // CHECK-LABEL: fn @nestedArray{{[( ]}}
-    // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: [[INNER:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: [[OUT:v[0-9]+]] = alloc zeroed checked
+    // CHECK: [[INNER:v[0-9]+]] = alloc zeroed checked
     // CHECK: store [[INNER]], arg0
     // CHECK: [[ELEM:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
     // CHECK-NEXT: store [[OUT]]+32, [[ELEM]]

@@ -214,7 +214,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 
 fn @table() -> memptr [pure] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
@@ -256,7 +256,7 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgAdd_creation_code_0
     v2 = datasize CheckedBaseArgAdd_creation_code_0, 32
     v3 = datasize CheckedBaseArgAdd_creation_code_0, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgAdd_creation_code_0, v5, v1
     v6 = slice_ptr v0
@@ -294,7 +294,7 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgMul_creation_code_1
     v2 = datasize CheckedBaseArgMul_creation_code_1, 32
     v3 = datasize CheckedBaseArgMul_creation_code_1, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgMul_creation_code_1, v5, v1
     v6 = slice_ptr v0
@@ -332,7 +332,7 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
     v1 = datasize CheckedBaseArgNegate_creation_code_2
     v2 = datasize CheckedBaseArgNegate_creation_code_2, 32
     v3 = datasize CheckedBaseArgNegate_creation_code_2, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgNegate_creation_code_2, v5, v1
     v6 = slice_ptr v0
@@ -370,7 +370,7 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
     v1 = datasize CheckedBaseArgElement_creation_code_3
     v2 = datasize CheckedBaseArgElement_creation_code_3, 32
     v3 = datasize CheckedBaseArgElement_creation_code_3, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgElement_creation_code_3, v5, v1
     v6 = slice_ptr v0
@@ -408,7 +408,7 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgSub_creation_code_4
     v2 = datasize CheckedBaseArgSub_creation_code_4, 32
     v3 = datasize CheckedBaseArgSub_creation_code_4, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgSub_creation_code_4, v5, v1
     v6 = slice_ptr v0
@@ -446,7 +446,7 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
     v1 = datasize CheckedBaseArgExp_creation_code_5
     v2 = datasize CheckedBaseArgExp_creation_code_5, 32
     v3 = datasize CheckedBaseArgExp_creation_code_5, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgExp_creation_code_5, v5, v1
     v6 = slice_ptr v0
@@ -484,7 +484,7 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi
     v1 = datasize CheckedBaseArgShift_creation_code_6
     v2 = datasize CheckedBaseArgShift_creation_code_6, 32
     v3 = datasize CheckedBaseArgShift_creation_code_6, 63, aligned
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy CheckedBaseArgShift_creation_code_6, v5, v1
     v6 = slice_ptr v0

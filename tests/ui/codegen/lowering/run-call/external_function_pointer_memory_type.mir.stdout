@@ -15,7 +15,7 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v5 = shl 224, v4
     v6 = shr 32, v3
     v7 = gas
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v8 = alloc 64 !metadata(preserves_fmp)
     store v8, 10
     v9 = ptrtoint memptr v8 to i256
     v10 = add v9, 32

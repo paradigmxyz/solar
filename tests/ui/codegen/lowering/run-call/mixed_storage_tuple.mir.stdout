@@ -6,7 +6,7 @@
 
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     store v0, 7
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
@@ -17,7 +17,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     v6 = load v0
     sstore v5, v6 !metadata(storage=symbolic(v5))
     sstore 0, v3 !metadata(storage=slot(0))
-    v7 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v7 = alloc 32
     store v7, 8
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gt v8, 0xffffffffffffffff
@@ -55,7 +55,7 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     icall panic_if<0x32>, v5
     v6 = storage_array_data_slot 0
     v7 = add v6, 1
-    v8 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+    v8 = alloc checked 32
     v9 = sload v2 !metadata(storage=symbolic(v2))
     store v8, v9
     v10 = load v8

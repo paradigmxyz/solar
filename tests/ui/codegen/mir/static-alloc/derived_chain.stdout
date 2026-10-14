@@ -3,7 +3,7 @@
   @module StaticAllocDerivedChain
   fn @derived_chain() -> i256 [selector=0x01020304] {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       jump bb5
     bb5:
@@ -51,7 +51,7 @@
   @module StaticAllocDerivedChain
   fn @derived_chain() -> i256 [selector=0x01020304] {
     bb0:
--     v0 = alloc raw, exact, uninitialized, infallible, 32
+-     v0 = alloc 32
 -     v1 = ptrtoint memptr v0 to i256
 +     v1 = ptrtoint memptr 128 to i256
       jump bb5

@@ -53,7 +53,7 @@ fn @pushEmpty() -> i256 [selector=0x19d30117, abi_params=[], abi_returns=[word],
 
 fn @pushMemory() -> i256 [selector=0x4d735002, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     v1 = load v0
     v2 = lt 0, v1
@@ -164,10 +164,10 @@ fn @pushMemory() -> i256 [selector=0x4d735002, abi_params=[], abi_returns=[word]
 
 fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    v0 = alloc 128 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 128
-    v2 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v2 = alloc 96 !metadata(preserves_fmp)
     v3 = ptrtoint memptr v2 to i256
     memory_zero v3, 96
     v4 = ptrtoint memptr v2 to i256
@@ -180,7 +180,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     store v5+64, 4
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, 160
+    v8 = alloc zeroed checked 160
     store v8, 4
     v9 = ptrtoint memptr v8 to i256
     store v0+96, v9
@@ -407,7 +407,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
 
 fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 3
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
@@ -420,7 +420,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     v7 = add v6, v3
     icall @store_storage_bytes, v7, v0
     sstore 2, v5 !metadata(storage=slot(2))
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v8 = alloc 64 !metadata(preserves_fmp)
     store v8, 32
     v9 = ptrtoint memptr v8 to i256
     v10 = add v9, 32
@@ -433,7 +433,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     v15 = add v14, v11
     icall @store_storage_bytes, v15, v8
     sstore 2, v13 !metadata(storage=slot(2))
-    v16 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v16 = alloc 96 !metadata(preserves_fmp)
     store v16, 64
     v17 = ptrtoint memptr v16 to i256
     v18 = add v17, 32

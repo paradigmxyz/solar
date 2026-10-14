@@ -845,19 +845,9 @@ impl<'a> FunctionBuilder<'a> {
         StorageAlias::for_value(self.func, slot)
     }
 
-    /// Reserves untyped memory under an explicit semantic policy.
-    pub(crate) fn alloc_raw(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
-        self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
-    }
-
-    /// Reserves memory for a semantically shaped object.
-    pub(crate) fn alloc_object(
-        &mut self,
-        size: ValueId,
-        layout: crate::mir::MemoryObjectLayout,
-        semantics: AllocationSemantics,
-    ) -> ValueId {
-        self.alloc_kind(size, crate::mir::AllocationKind::Object(layout), semantics)
+    /// Reserves memory under an explicit semantic policy.
+    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
+        self.emit_inst(InstKind::Alloc { size, semantics }, Some(MirType::MEMPTR))
     }
 
     /// Allocates a padded bytes object and records its logical length.
@@ -867,7 +857,7 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> ValueId {
         let size = self.checked_padded_size(length);
-        let object = self.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
         object
     }
@@ -880,7 +870,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> (ValueId, MemoryObjectLayout) {
         let size = self.imm(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
         let layout = MemoryObjectLayout::word_fixed_array(len);
-        let object = self.alloc_object(size, layout, semantics);
+        let object = self.alloc(size, semantics);
         (object, layout)
     }
 
@@ -891,7 +881,7 @@ impl<'a> FunctionBuilder<'a> {
         semantics: AllocationSemantics,
     ) -> ValueId {
         let size = self.imm(fields.saturating_mul(EvmMemoryLayout::WORD_SIZE));
-        self.alloc_object(size, MemoryObjectLayout::structure(fields), semantics)
+        self.alloc(size, semantics)
     }
 
     /// Allocates a dynamic array whose elements each occupy one memory word.
@@ -905,7 +895,7 @@ impl<'a> FunctionBuilder<'a> {
         let word_size = self.imm(32);
         let size = self.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::WORD_ARRAY;
-        let object = self.alloc_object(size, layout, semantics);
+        let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
         (object, layout)
     }
@@ -1063,7 +1053,12 @@ impl<'a> FunctionBuilder<'a> {
     /// Returns the header bytes before a memory object's words: none for a fixed array or
     /// struct, the length word for a dynamic object.
     fn header_size(layout: MemoryObjectLayout) -> u64 {
-        if layout.fixed_words().is_some() { 0 } else { EvmMemoryLayout::DYNAMIC_HEADER_SIZE }
+        match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => {
+                EvmMemoryLayout::DYNAMIC_HEADER_SIZE
+            }
+            MemoryObjectLayout::FixedArray { .. } | MemoryObjectLayout::Struct { .. } => 0,
+        }
     }
 
     /// Returns the address `offset` bytes past `header` in a memory object, or `offset` bytes into
@@ -1174,15 +1169,6 @@ impl<'a> FunctionBuilder<'a> {
         let source_ptr = self.slice_ptr(source);
         let len = self.slice_len(source);
         self.copy(destination, source_ptr, len, location);
-    }
-
-    fn alloc_kind(
-        &mut self,
-        size: ValueId,
-        kind: crate::mir::AllocationKind,
-        semantics: AllocationSemantics,
-    ) -> ValueId {
-        self.emit_inst(InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
     }
 
     /// ABI-encodes `args` into a freshly allocated memory slice.

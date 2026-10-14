@@ -1048,11 +1048,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let layout = MemoryObjectLayout::FixedArray { len, element_words };
                 let size =
                     self.builder.imm(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
-                let object = self.builder.alloc_object(
-                    size,
-                    layout,
-                    AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                );
+                let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let access =
@@ -1229,8 +1225,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let word_size = self.builder.imm(32);
         let size = self.builder.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::DynamicArray { element_words };
-        let object =
-            self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let object = self.builder.alloc(size, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         self.builder.set_memory_len(object, length);
 
         self.counted_loop(length, |this, index| {

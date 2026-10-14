@@ -113,7 +113,7 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
 
 fn @mk(arg0: i160, arg1: i160) -> i160 {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     v1 = load v0
     v2 = lt 0, v1
@@ -138,7 +138,7 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
     icall panic_if<0x41>, v15
     v16 = not 31
     v17 = and v14, v16
-    v18 = alloc raw, exact, uninitialized, infallible, v17
+    v18 = alloc v17
     v19 = ptrtoint memptr v18 to i256
     datacopy Child_creation_code_0, v19, v11
     v20 = slice_ptr v9
@@ -157,7 +157,7 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
 
 fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     v1 = load v0
     v2 = lt 0, v1
@@ -188,7 +188,7 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     icall panic_if<0x41>, v19
     v20 = not 31
     v21 = and v18, v20
-    v22 = alloc raw, exact, uninitialized, infallible, v21
+    v22 = alloc v21
     v23 = ptrtoint memptr v22 to i256
     datacopy Child_creation_code_0, v23, v15
     v24 = slice_ptr v13

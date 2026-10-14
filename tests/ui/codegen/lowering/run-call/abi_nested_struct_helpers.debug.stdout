@@ -22,7 +22,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v130 = or v16, v18
     jumpi v130, bb5, bb6
   bb6:
-    v19 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
+    v19 = alloc 96 !metadata(deferred_alloc)
     v20 = load calldata v13
     v21 = add v13, v20
     v22 = gt v20, 0xffffffffffffffff

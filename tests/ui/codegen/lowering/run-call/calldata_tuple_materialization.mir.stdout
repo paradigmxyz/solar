@@ -23,7 +23,7 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
     icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
     v13 = slice_ptr arg1
@@ -44,7 +44,7 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
     icall panic_if<0x41>, v23
     v24 = not 31
     v25 = and v22, v24
-    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
+    v26 = alloc v25
     store v26, v21
     v27 = ptradd v26, 32
     v28 = slice_ptr arg0
@@ -60,7 +60,7 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
 
 fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 96
     v1 = icall @split, arg0
     v2 = extract_value struct2, v1, 0
@@ -90,7 +90,7 @@ fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_
     v23 = add 32, v16
     v24 = lt v23, 32
     icall panic_if<0x41>, v24
-    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
+    v25 = alloc v23
     store v25, v4
     v26 = make_calldata_slice v5, v16
     v27 = ptradd v25, 32
@@ -151,7 +151,7 @@ fn @widenedTuple(arg0: calldataslice) -> struct3 [selector=0x9eda07fe, abi_param
     v8 = sub v7, v6
     v9 = slt v8, 64
     icall revert_if<calldata_tail_too_short>, v9
-    v10 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v10 = alloc 64
     v11 = make_calldata_slice v6, 64
     v12 = slice_ptr v11
     v13 = slice_len v11
@@ -244,7 +244,7 @@ fn @sliceTuple(arg0: calldataslice) -> struct3 [selector=0x09979d7d, abi_params=
     v28 = add 32, v21
     v29 = lt v28, 32
     icall panic_if<0x41>, v29
-    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
+    v30 = alloc v28
     store v30, v9
     v31 = make_calldata_slice v10, v21
     v32 = ptradd v30, 32

@@ -14,7 +14,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     v15 = slt v13, 96
     jumpi v15, bb1, bb2
   bb2:
-    v16 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
+    v16 = alloc 96 !metadata(deferred_alloc)
     v17 = load v11
     v41 = ptrtoint memptr v16 to i256
     store v41, v17
@@ -63,7 +63,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v132 = or v19, v21
     jumpi v132, bb1, bb3
   bb3:
-    v22 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
+    v22 = alloc 96 !metadata(deferred_alloc)
     v127 = load 64 !metadata(memory=scratch)
     v128 = add v127, 96
     store 64, v128 !metadata(memory=scratch)

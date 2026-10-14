@@ -115,7 +115,7 @@ contract MappingDynamicKeyPaths {
     // CHECK-LABEL: fn @setThenAlloc{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes arg0, 0
     // CHECK: sstore [[SLOT]], arg1
-    // CHECK: [[OUT:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic,
+    // CHECK: [[OUT:v[0-9]+]] = alloc zeroed checked
     // CHECK: store [[OUT]], 32
     function setThenAlloc(string calldata k, uint256 v) public returns (uint256) {
         flat[k] = v;

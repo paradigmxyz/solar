@@ -26,7 +26,7 @@ fn @decode(arg0: calldataslice) -> i256 [selector=0xe5c5e9a3, pure, abi_params=[
     icall panic_if<0x41>, v17
     v18 = not 31
     v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    v20 = alloc v19
     store v20, v15
     v21 = ptradd v20, 32
     v22 = slice_ptr v8

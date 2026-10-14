@@ -9,7 +9,7 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     v0 = abi_encode []
     v1 = datasize ConstructorStopAlways_creation_code_0
     v2 = datasize ConstructorStopAlways_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ConstructorStopAlways_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -35,7 +35,7 @@ fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_r
     v2 = datasize ConstructorStopConditional_creation_code_1
     v3 = datasize ConstructorStopConditional_creation_code_1, 32
     v4 = datasize ConstructorStopConditional_creation_code_1, 63, aligned
-    v5 = alloc raw, exact, uninitialized, infallible, v4
+    v5 = alloc v4
     v6 = ptrtoint memptr v5 to i256
     datacopy ConstructorStopConditional_creation_code_1, v6, v2
     v7 = slice_ptr v1
@@ -63,7 +63,7 @@ fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_return
     v4 = datasize ConstructorStopConditional_creation_code_1
     v5 = datasize ConstructorStopConditional_creation_code_1, 32
     v6 = datasize ConstructorStopConditional_creation_code_1, 63, aligned
-    v7 = alloc raw, exact, uninitialized, infallible, v6
+    v7 = alloc v6
     v8 = ptrtoint memptr v7 to i256
     datacopy ConstructorStopConditional_creation_code_1, v8, v4
     v9 = slice_ptr v3

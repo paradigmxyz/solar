@@ -78,7 +78,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v63 = or v60, v62
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 0, v50 !metadata(storage=slot(0))
-    v64 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v64 = alloc zeroed checked 64
     store v64, 1
     v65 = load v64
     v66 = lt 0, v65
@@ -300,7 +300,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi
     v63 = or v60, v62
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 1, v50 !metadata(storage=slot(1))
-    v64 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v64 = alloc zeroed checked 64
     store v64, 1
     v65 = load v64
     v66 = lt 0, v65
@@ -522,7 +522,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v63 = or v60, v62
     sstore v53, v63 !metadata(storage=symbolic(v53))
     sstore 2, v50 !metadata(storage=slot(2))
-    v64 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v64 = alloc zeroed checked 64
     store v64, 1
     v65 = load v64
     v66 = lt 0, v65

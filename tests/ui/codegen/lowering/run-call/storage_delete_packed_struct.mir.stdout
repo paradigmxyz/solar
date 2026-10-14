@@ -338,7 +338,7 @@ fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[
 
 fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8]] {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     store v0, 4
     store v0+32, 0x5566
     store v0+64, 7

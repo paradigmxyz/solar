@@ -1,6 +1,6 @@
 //! Scalar replacement of non-escaping memory-object allocations.
 //!
-//! A struct or fixed-array memory object that never escapes and is accessed
+//! A constant-size memory allocation that never escapes and is accessed
 //! only by word loads and stores at constant offsets can be dissolved into
 //! SSA values: each field store feeds the matching field load directly. The
 //! backing allocation remains because its free-memory-pointer bump and failure
@@ -16,8 +16,7 @@
 //! explicit.
 
 use crate::mir::{
-    AllocationKind, BlockId, Function, Immediate, InstKind, MemoryObjectLayout, Module,
-    PtrLocation, Value, ValueId,
+    BlockId, Function, Immediate, InstKind, Module, PtrLocation, Value, ValueId,
     analysis::{AliasAnalysis, CfgInfo, Location, LocationSize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
@@ -54,15 +53,15 @@ struct SroaCx {
 
 impl SroaCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let mut allocs: Vec<(ValueId, MemoryObjectLayout)> = Vec::new();
+        let mut allocs = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
-                if let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } =
-                    func.inst(inst_id).kind
-                    && layout.fixed_words().is_some()
+                if let InstKind::Alloc { size, .. } = func.inst(inst_id).kind
+                    && let Some(size) = func.value_u64(size)
+                    && EvmMemoryLayout::word_slot(size).is_some()
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
-                    allocs.push((object, layout));
+                    allocs.push((object, size));
                 }
             }
         }
@@ -75,8 +74,8 @@ impl SroaCx {
         // Promotion adds phis but no blocks, so one block order serves every allocation.
         let order = CfgInfo::new(func).rpo().to_vec();
         let mut changed = false;
-        for (object, layout) in allocs {
-            if self.try_promote(func, alias, &order, object, layout).unwrap_or(false) {
+        for (object, size) in allocs {
+            if self.try_promote(func, alias, &order, object, size).unwrap_or(false) {
                 alias.clear_cached_addresses();
                 self.eliminated += 1;
                 changed = true;
@@ -92,14 +91,13 @@ impl SroaCx {
         alias: &AliasAnalysis,
         order: &[BlockId],
         object: ValueId,
-        layout: MemoryObjectLayout,
+        zero_size: u64,
     ) -> Option<bool> {
         if alias.value_escapes(func, object) {
             return None;
         }
 
-        let words = layout.fixed_words()?;
-        let zero_size = words.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let words = zero_size / EvmMemoryLayout::WORD_SIZE;
 
         // Pointer casts and constant `ptradd`s of the object address its words; record each
         // derived address with its byte offset. A derivation is no phi, so its operand comes

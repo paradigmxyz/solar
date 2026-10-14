@@ -12,8 +12,8 @@ fn @read(arg0: memptr, arg1: i256) -> i256 [selector=0x12345678, abi_params=[arr
 
 // CHECK: + fn @read_words()
 // CHECK: + {{v[0-9]+}} = load calldata
-// CHECK: + [[TUPLE:v[0-9]+]] = alloc memorystruct<3>
-// CHECK: + [[ARR:v[0-9]+]] = alloc memoryarray<1>
+// CHECK: + [[TUPLE:v[0-9]+]] = alloc 96
+// CHECK: + [[ARR:v[0-9]+]] = alloc
 // CHECK: + store [[ARR]],
 // CHECK: + [[DATA:v[0-9]+]] = ptradd [[ARR]], 32
 // CHECK: + copy calldata [[DATA]],

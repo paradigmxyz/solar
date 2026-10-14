@@ -84,7 +84,7 @@ fn @signedUserWord() -> i256 [selector=0xf36510a8, pure, abi_params=[], abi_retu
 
 fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     v1 = load v0
     v2 = lt 0, v1
@@ -260,7 +260,7 @@ fn @packedDynamicHashModified(arg0: i256, arg1: calldataslice) -> i256 [selector
 
 fn @mutatedInput() -> memptr [selector=0x7d98764f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 3
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32

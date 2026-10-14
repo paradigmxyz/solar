@@ -28,7 +28,7 @@
 +     v6 = call arg2, v5, 0, v3, v4, 0, 0
 +     v7 = not 31 !metadata(span=30..40, modifier_depth=3)
 +     v8 = and 63, v7 !metadata(span=30..40, modifier_depth=3)
-+     v9 = alloc memorybytes, exact, uninitialized, infallible, v8 !metadata(span=30..40, modifier_depth=3)
++     v9 = alloc v8 !metadata(span=30..40, modifier_depth=3)
 +     store v9, 0 !metadata(span=30..40, modifier_depth=3)
 +     v10 = make_returndata_slice 0, 0 !metadata(span=30..40, modifier_depth=3)
 +     v11 = ptradd v9, 32 !metadata(span=30..40, modifier_depth=3)

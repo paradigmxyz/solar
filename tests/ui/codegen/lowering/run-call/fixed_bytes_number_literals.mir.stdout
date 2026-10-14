@@ -35,7 +35,7 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v0 = abi_encode []
     v1 = datasize Probe_creation_code_0
     v2 = datasize Probe_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Probe_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -121,7 +121,7 @@ fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_return
 
 fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 6
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
@@ -156,7 +156,7 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
 
 fn @returnBytes() -> struct0 [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 1
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
@@ -194,7 +194,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 9
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32

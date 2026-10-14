@@ -36,7 +36,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v33
     v34 = mul 0, 9
     v35 = add v5, v34
-    v36 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    v36 = alloc checked 96
     jump bb7
   bb7:
     v37 = phi [bb2: 0], [bb8: v50]
@@ -114,7 +114,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v56 = lt v52, 3
     jumpi v56, bb13, bb14
   bb14:
-    v65 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v65 = alloc 96
     store v65, 0
     store v65+32, 0
     store v65+64, 0
@@ -146,7 +146,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb8:
     v39 = mul v37, 3
     v40 = add v31, v39
-    v41 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v41 = alloc checked 96
     v42 = sload v40 !metadata(storage=symbolic(v40))
     store v41, v42
     v43 = add v40, 1
@@ -162,7 +162,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v50 = add v37, 1
     jump bb7
   bb4:
-    v7 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v7 = alloc 96
     v8 = checked_mul u256, v3, 3
     v9 = checked_add u256, v8, 1
     v10 = checked_mul u256, v3, 3

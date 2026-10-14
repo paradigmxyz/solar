@@ -2,7 +2,7 @@
 @module ContinuedCounter
 fn @fill() -> memptr [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 224
+    v0 = alloc zeroed checked 224
     store v0, 6
     jump bb1
   bb1:
@@ -137,7 +137,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
   bb20:
     jump bb17
   bb17:
-    v73 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v73 = alloc 64
     store v73, 0
     store v73+32, 0
     v74 = lt 4, 5
@@ -206,7 +206,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     icall panic_if<0x32>, v54
     v55 = mul v43, 2
     v56 = add v46, v55
-    v57 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v57 = alloc checked 64
     v58 = sload v52 !metadata(storage=symbolic(v52))
     v59 = trunc i256 v58 to i160
     v60 = zext i160 v59 to i256
@@ -232,7 +232,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u25
     v72 = checked_add u256, v43, 1
     jump bb16
   bb4:
-    v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v7 = alloc 64
     v8 = checked_add u160, v2, i160 1
     v9 = zext i160 v8 to i256
     v10 = checked_add u160, v2, i160 1

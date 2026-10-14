@@ -32,7 +32,7 @@
 +   bb2:
 +     v10 = not 31 !metadata(span=30..40, modifier_depth=3)
 +     v11 = and v8, v10 !metadata(span=30..40, modifier_depth=3)
-+     v12 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(span=30..40, modifier_depth=3)
++     v12 = alloc v11 !metadata(span=30..40, modifier_depth=3)
 +     store v12, v7 !metadata(span=30..40, modifier_depth=3)
 +     v13 = make_returndata_slice 0, v7 !metadata(span=30..40, modifier_depth=3)
 +     v14 = ptradd v12, 32 !metadata(span=30..40, modifier_depth=3)

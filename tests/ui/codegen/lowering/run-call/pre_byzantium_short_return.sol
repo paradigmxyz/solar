@@ -114,7 +114,7 @@ contract ShortReturns {
     // An aggregate return decodes out of a buffer taken before the arguments, so the copy out of
     // the overlaid area cannot run into memory the decoding allocates above it.
     // HOMESTEAD-LABEL: fn @emptyAgg
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, {{.*}}, 64
+    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc 64{{$}}
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // HOMESTEAD: copy [[BUFFER]], [[INPUT]], 64

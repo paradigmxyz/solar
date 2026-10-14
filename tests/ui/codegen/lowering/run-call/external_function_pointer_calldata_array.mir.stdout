@@ -131,7 +131,7 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     v21 = add 32, v14
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
-    v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
+    v23 = alloc v21
     store v23, v2
     jump bb1
   bb1:
@@ -201,7 +201,7 @@ fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[wo
 
 fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     v1 = address
     v2 = zext i160 v1 to i256

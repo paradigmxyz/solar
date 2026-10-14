@@ -38,8 +38,8 @@
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, CalldataTail,
-        EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
         MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
         analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
         transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
@@ -687,7 +687,7 @@ fn fresh_memory_object(
 ) -> bool {
     let Value::Inst(inst) = func.value(value) else { return false };
     match func.inst(*inst).kind {
-        InstKind::Alloc { kind: AllocationKind::Object(_), .. } => true,
+        InstKind::Alloc { .. } => true,
         InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
             fresh_object_returns.contains(function)
         }
@@ -740,13 +740,9 @@ fn lower_encode(
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
         if mode == AbiEncodeMode::Bytes {
-            // object = alloc bytes(aligned_size + 32) !preserves_fmp
+            // object = alloc aligned_size + 32 !preserves_fmp
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
-            let object = builder.alloc_object(
-                allocation_size,
-                MemoryObjectLayout::Bytes,
-                crate::mir::AllocationSemantics::INTERNAL,
-            );
+            let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
             if let Value::Inst(alloc) = *builder.func().value(object) {
                 builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
             }
@@ -765,11 +761,7 @@ fn lower_encode(
             // object header lets the memory lowering preserve the established
             // allocation path for creation code.
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
-            let object = builder.alloc_object(
-                allocation_size,
-                MemoryObjectLayout::Bytes,
-                crate::mir::AllocationSemantics::INTERNAL,
-            );
+            let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
             let total = builder.imm(total_size);
             builder.set_memory_len(object, total);
             let data = builder.memory_data(object);
@@ -780,7 +772,7 @@ fn lower_encode(
             builder.fmp()
         } else {
             let allocation_size = builder.imm(aligned_size);
-            builder.alloc_raw(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
+            builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
         };
         if let Some(selector) = selector {
             builder.store(buffer, selector);
@@ -801,12 +793,12 @@ fn lower_encode(
             &helpers.literal_objects,
         )
     {
-        // buffer = alloc raw, padded_size
+        // buffer = alloc padded_size
         // store buffer, selector (when present)
         // encode_tuple buffer + selector_size, args
         // make_slice buffer, total_size
         let size = builder.imm(total_size.next_multiple_of(32));
-        let buffer = builder.alloc_raw(size, crate::mir::AllocationSemantics::INTERNAL);
+        let buffer = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
         if let Some(selector) = selector {
             builder.store(buffer, selector);
         }
@@ -829,14 +821,10 @@ fn lower_encode(
     let selector_size = builder.imm(selector_size);
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
-        // object = alloc bytes allocation_size !metadata(preserves_fmp)
+        // object = alloc allocation_size !metadata(preserves_fmp)
         // store object, total
         let allocation_size = builder.checked_padded_size(total);
-        let object = builder.alloc_object(
-            allocation_size,
-            MemoryObjectLayout::Bytes,
-            crate::mir::AllocationSemantics::INTERNAL,
-        );
+        let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
         preserve_encoding_address(builder, object);
         builder.set_memory_len(object, total);
         return object;
@@ -848,9 +836,9 @@ fn lower_encode(
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
-    // allocated = alloc raw aligned !metadata(preserves_fmp)
+    // allocated = alloc aligned !metadata(preserves_fmp)
     // make_slice allocated, total
-    let allocated = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
+    let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
     preserve_encoding_address(builder, allocated);
     builder.make_slice(allocated, total, PtrLocation::Memory)
 }
@@ -1611,7 +1599,7 @@ fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) ->
     builder.eq_zero(non_null)
 }
 
-/// Finds literal candidates whose allocation and encoding share a block, with
+/// Finds literal bytes candidates whose allocation and encoding share a block, with
 /// no intervening opaque memory access or physical address observation. Capture
 /// this before lowering emits its own raw accesses. If any encoding use fails
 /// the check, reject the object for the whole function. The separate direct-use
@@ -1628,16 +1616,14 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
             if literal_opaque_instruction(func, kind) {
                 available.clear();
             }
-            if matches!(
-                kind,
-                InstKind::Alloc { kind: AllocationKind::Object(MemoryObjectLayout::Bytes), .. }
-            ) && let Some(object) = func.inst_result_value(inst)
+            if matches!(kind, InstKind::Alloc { .. })
+                && let Some(object) = func.inst_result_value(inst)
             {
                 available.insert(object);
             }
-            if let InstKind::AbiEncode { args, .. } = kind {
-                for &object in args.iter() {
-                    if func.value_ty(object) == Some(MirType::MEMPTR) {
+            if let InstKind::AbiEncode { args, layout, .. } = kind {
+                for (&object, ty) in args.iter().zip(layout.types.iter()) {
+                    if *ty == AbiType::Bytes(PtrLocation::Memory) {
                         if available.contains(&object) {
                             objects.insert(object);
                         } else {
@@ -1654,9 +1640,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 
 fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
     match kind {
-        InstKind::Alloc { kind: AllocationKind::Object(_), .. } | InstKind::AbiEncode { .. } => {
-            false
-        }
+        InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => false,
         InstKind::Store(address, offset, _) => !literal_word_in_bounds(func, *address, *offset),
         InstKind::MSize => true,
         _ => matches!(
@@ -1675,10 +1659,9 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
 /// unknown or wrapping offset can overwrite a preceding object.
 fn literal_word_in_bounds(func: &Function, address: ValueId, offset: u64) -> bool {
     let Some((object, offset)) = func.object_access(address, offset) else { return false };
-    let end = offset.checked_add(32);
-    matches!((func.value(object), end), (Value::Inst(alloc), Some(end))
-        if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), size, .. }
-            if func.value_u64(size).is_some_and(|size| end <= size)))
+    offset
+        .checked_add(32)
+        .is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
 }
 
 /// Instructions other than its allocation that use a literal object or an address into it.

@@ -43,7 +43,7 @@
 - fn @literal() -> memptr [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @literal() [selector=0x0a0a0a03, abi_wrapper] {
     bb0:
--     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+-     v0 = alloc 64
 -     v1 = ptrtoint memptr v0 to i256
 -     store v1, 1
 -     v2 = ptradd v0, 32
@@ -70,7 +70,7 @@
 - fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @longLiteral() [selector=0x0a0a0a05, abi_wrapper] {
     bb0:
--     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+-     v0 = alloc 96
 -     v1 = ptrtoint memptr v0 to i256
 -     store v1, 33
 -     v2 = ptradd v0, 32
@@ -89,7 +89,7 @@
 - fn @overlappingLiteral() -> memptr [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @overlappingLiteral() [selector=0x0a0a0a06, abi_wrapper] {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+      v0 = alloc 96
       v1 = ptrtoint memptr v0 to i256
       store v1, 33
       v2 = ptradd v0, 32
@@ -174,7 +174,7 @@
 - fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
 + fn @literal.body() -> memptr {
     bb0:
-+     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
++     v0 = alloc 64
 +     v1 = ptrtoint memptr v0 to i256
 +     store v1, 1
 +     v2 = ptradd v0, 32

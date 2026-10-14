@@ -14,7 +14,7 @@
 // CHECK: + copy {{v[0-9]+}}, [[DATA]],
 fn @encode(arg0: i256) -> memoryslice {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v3 = ptrtoint memptr v0 to i256
     store v3, 1
     v2 = ne arg0, 0
@@ -38,12 +38,12 @@ fn @encode(arg0: i256) -> memoryslice {
 // CHECK: + copy {{v[0-9]+}}, [[DATA]],
 fn @overlapping(arg0: i256) -> memoryslice {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v3 = ptrtoint memptr v0 to i256
     store v3, 1
     v4 = ptradd v0, 32
     store v4, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = alloc 64
     v5 = ptrtoint memptr v1 to i256
     store v5, 1
     v6 = ptradd v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -54,13 +54,13 @@ fn @overlapping(arg0: i256) -> memoryslice {
 
 // Literal folding cannot remove an observable free-memory-pointer bump.
 // CHECK: fn @preserved
-// CHECK: alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: alloc 64 !metadata(preserves_fmp)
 // CHECK: + {{v[0-9]+}} = load v0
 // CHECK-NEXT: + [[NULL_WORD:v[0-9]+]] = ptrtoint memptr v0 to i256
 // CHECK-NEXT: + {{v[0-9]+}} = eq [[NULL_WORD]], 0
 fn @preserved() -> memoryslice {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v2 = ptrtoint memptr v0 to i256
     store v2, 1
     v3 = ptradd v0, 32

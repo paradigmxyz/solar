@@ -27,7 +27,7 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -44,7 +44,7 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     v66 = eq v64, 0
     jumpi v66, bb4, bb5
   bb4:
-    v67 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v67 = alloc 32
     store v67, 0
     v68 = ptrtoint memptr v67 to i256
     store v21+32, v68
@@ -65,7 +65,7 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     v79 = eq v77, 0
     jumpi v79, bb6, bb7
   bb6:
-    v80 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v80 = alloc 32
     store v80, 0
     v81 = ptrtoint memptr v80 to i256
     store v21+64, v81
@@ -114,7 +114,7 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     v50 = add 32, v43
     v51 = lt v50, 32
     icall panic_if<0x41>, v51
-    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, v50
+    v52 = alloc v50
     store v52, v36
     v53 = make_calldata_slice v40, v43
     v54 = ptradd v52, 32
@@ -156,7 +156,7 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -202,7 +202,7 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     v50 = add 32, v43
     v51 = lt v50, 32
     icall panic_if<0x41>, v51
-    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, v50
+    v52 = alloc v50
     store v52, v36
     v53 = make_calldata_slice v40, v43
     v54 = ptradd v52, 32

@@ -1,12 +1,11 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
-//! Object allocations become raw allocations, `ptradd` becomes an integer `add` between pointer
-//! casts, an access's immediate offset becomes an `add` to its address, and a memory slice of a
-//! `memptr` gets its pointer cast to a word. Every memory access is already a `load`, `store`, or
-//! `copy` at an address, so nothing else changes here; the opcode boundary then casts pointer
-//! operands and results, and the casts this leaves unused are removed.
-//! Unreachable blocks are removed first: their definitions need not obey SSA and can contain cast
-//! cycles.
+//! `ptradd` becomes an integer `add` between pointer casts, an access's immediate offset becomes
+//! an `add` to its address, and a memory slice of a `memptr` gets its pointer cast to a word. Every
+//! memory access is already a `load`, `store`, or `copy` at an address, so nothing else changes
+//! here; the opcode boundary then casts pointer operands and results, and the casts this leaves
+//! unused are removed. Unreachable blocks are removed first: their definitions need not obey SSA
+//! and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -15,8 +14,8 @@
 //! subsequent phase checks.
 
 use crate::mir::{
-    AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind,
-    MirPhase, MirType, Module, Value, pass::MirPass,
+    AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirPhase, MirType,
+    Module, Value, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -79,10 +78,6 @@ fn lower_function(func: &mut Function) -> bool {
         builder.switch_to_block(block);
         for inst in instructions {
             match builder.func().inst(inst).kind {
-                InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
-                    builder.func_mut().inst_mut(inst).kind =
-                        InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
-                }
                 InstKind::PtrAdd(ptr, offset) => {
                     // address = add (ptrtoint ptr), offset
                     // result = inttoptr address
@@ -196,7 +191,7 @@ fn remove_unused_pointer_casts(func: &mut Function) {
     }
 }
 
-/// Combines adjacent exact internal allocations before their first observable
+/// Combines adjacent constant-size internal allocations before their first observable
 /// operation. Lowering a call's literal arguments commonly emits one small
 /// allocation per argument; one bump for the whole group keeps the same
 /// disjoint ranges while removing repeated free-memory-pointer updates.
@@ -206,7 +201,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
         let mut position = 0;
         while position < instructions.len() {
             let inst_id = instructions[position];
-            let Some(first) = constant_raw_allocation(func, inst_id) else {
+            let Some(first) = constant_allocation(func, inst_id) else {
                 position += 1;
                 continue;
             };
@@ -220,7 +215,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
             let mut scan = position + 1;
             while scan < instructions.len() {
                 let next_id = instructions[scan];
-                if let Some(allocation) = constant_raw_allocation(func, next_id) {
+                if let Some(allocation) = constant_allocation(func, next_id) {
                     if allocation.deferred_alloc != first.deferred_alloc {
                         break;
                     }
@@ -275,11 +270,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
             for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
                 if index == 0 {
                     let inst = func.inst_mut(*allocation_id);
-                    inst.kind = InstKind::Alloc {
-                        size,
-                        kind: AllocationKind::Raw,
-                        semantics: AllocationSemantics::INTERNAL,
-                    };
+                    inst.kind = InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL };
                     inst.metadata.set_preserves_fmp(preserves_fmp);
                 } else {
                     let offset_value =
@@ -300,24 +291,20 @@ fn coalesce_constant_allocations(func: &mut Function) {
 }
 
 #[derive(Clone, Copy)]
-struct ConstantRawAllocation {
+struct ConstantAllocation {
     result: crate::mir::ValueId,
     size: u64,
     deferred_alloc: bool,
 }
 
-fn constant_raw_allocation(
-    func: &Function,
-    inst_id: crate::mir::InstId,
-) -> Option<ConstantRawAllocation> {
-    let InstKind::Alloc { size, kind: AllocationKind::Raw, semantics } = func.inst(inst_id).kind
-    else {
+fn constant_allocation(func: &Function, inst_id: crate::mir::InstId) -> Option<ConstantAllocation> {
+    let InstKind::Alloc { size, semantics } = func.inst(inst_id).kind else {
         return None;
     };
     if semantics != AllocationSemantics::INTERNAL {
         return None;
     }
-    Some(ConstantRawAllocation {
+    Some(ConstantAllocation {
         result: func.inst_result_value(inst_id)?,
         size: func.value_u64(size)?,
         deferred_alloc: func.inst(inst_id).metadata.deferred_alloc(),

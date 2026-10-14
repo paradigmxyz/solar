@@ -175,7 +175,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     icall panic_if<0x41>, v139
     v140 = not 31
     v141 = and v138, v140
-    v142 = alloc memorybytes, exact, uninitialized, infallible, v141
+    v142 = alloc v141
     store v142, v137
     v143 = ptradd v142, 32
     v144 = slice_ptr v130
@@ -225,7 +225,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     icall panic_if<0x41>, v179
     v180 = not 31
     v181 = and v178, v180
-    v182 = alloc memorybytes, exact, uninitialized, infallible, v181
+    v182 = alloc v181
     store v182, v177
     v183 = ptradd v182, 32
     v184 = slice_ptr v170
@@ -263,13 +263,13 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
 
 fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
+    v0 = alloc 160 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 160
     store v0, 96
     store v0+64, 96
     store v0+96, 96
-    v2 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v2 = alloc zeroed checked 128
     store v2, 3
     v3 = ptrtoint memptr v2 to i256
     store v0, v3
@@ -292,14 +292,14 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     icall panic_if<0x32>, v15
     store v12+96, 2
     store v0+32, 6
-    v16 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v16 = alloc 64 !metadata(preserves_fmp)
     store v16, 10
     v17 = ptrtoint memptr v16 to i256
     v18 = add v17, 32
     store v18, 0x5374727563744e616d6500000000000000000000000000000000000000000000
     v19 = ptrtoint memptr v16 to i256
     store v0+64, v19
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v20 = alloc 64 !metadata(preserves_fmp)
     store v20, 4
     v21 = ptrtoint memptr v20 to i256
     v22 = add v21, 32
@@ -312,7 +312,7 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     store v0+128, 1
     v26 = address
     v27 = gas
-    v28 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v28 = alloc 64 !metadata(preserves_fmp)
     store v28, 8
     v29 = ptrtoint memptr v28 to i256
     v30 = add v29, 32

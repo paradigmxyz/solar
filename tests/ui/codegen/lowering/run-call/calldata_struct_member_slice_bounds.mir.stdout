@@ -69,7 +69,7 @@ fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=
     icall panic_if<0x41>, v27
     v28 = not 31
     v29 = and v26, v28
-    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
+    v30 = alloc v29
     store v30, v25
     v31 = ptradd v30, 32
     v32 = slice_ptr v18

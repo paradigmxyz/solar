@@ -32,10 +32,10 @@ fn @mapRef(arg0: i256) -> i256 [selector=0xca34aaa5, pure, abi_params=[storagept
 
 fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
-    v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v2 = alloc 64
     store v2, 1
     store v2+32, 2
     v3 = insert_value struct0, undef struct0, 0, arg0
@@ -199,7 +199,7 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 96
+    v0 = alloc 96
     v1 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
     v2 = slice_ptr v1
     v3 = slice_len v1

@@ -22,7 +22,7 @@ fn @constructor() [constructor] {
     v0 = abi_encode []
     v1 = datasize TryCatchPanicTarget_creation_code_0
     v2 = datasize TryCatchPanicTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCatchPanicTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0

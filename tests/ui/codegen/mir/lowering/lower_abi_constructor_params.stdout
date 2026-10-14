@@ -16,7 +16,7 @@
 +     jumpi v8, bb3, bb4
 +   bb4:
 +     v9 = add v5, 0
-+     v10 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     v10 = alloc 64
 +     jump bb5
 +   bb5:
 +     v11 = phi [bb4: 0], [bb10: v27]
@@ -36,7 +36,7 @@
 +   bb6:
 +     v13 = mul v11, 64
 +     v14 = add v9, v13
-+     v15 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     v15 = alloc 64
 +     jump bb8
 +   bb8:
 +     v16 = phi [bb6: 0], [bb9: v23]

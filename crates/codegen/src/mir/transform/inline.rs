@@ -1112,8 +1112,7 @@ fn is_small_literal_return(func: &Function) -> bool {
     if func.inst(*alloc).metadata.preserves_fmp() {
         return false;
     }
-    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL, .. } =
-        func.inst(*alloc).kind
+    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL } = func.inst(*alloc).kind
     else {
         return false;
     };
@@ -2222,7 +2221,7 @@ fn inline_literal_call(
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
     let mut instructions = Vec::new();
     // object = icall @literal
-    //   => object = alloc memorybytes, size
+    //   => object = alloc size
     //      store object, length
     //      store (ptradd object, 32), word
     for &inst in &callee.blocks[BlockId::ENTRY].instructions {
@@ -2231,8 +2230,8 @@ fn inline_literal_call(
         let mut instruction = Instruction::new(kind, source.result_ty);
         instruction.metadata.copy_debug_context(&source.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
-            // object = alloc memorybytes, size
-            //   => object = alloc memorybytes, size !metadata(preserves_fmp)
+            // object = alloc size
+            //   => object = alloc size !metadata(preserves_fmp)
             //
             // The inlined result escapes the call. Preserve its heap reservation even when a
             // later ABI encoding embeds the literal bytes and removes its initialization stores.

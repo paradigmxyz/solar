@@ -15,7 +15,7 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
   bb0:
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
-    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
@@ -32,7 +32,7 @@ fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_retur
   bb0:
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
-    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
     v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
@@ -49,7 +49,7 @@ fn @deploy() -> i1 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>]
     v0 = abi_encode []
     v1 = datasize EmptyRuntime_creation_code_1
     v2 = datasize EmptyRuntime_creation_code_1, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy EmptyRuntime_creation_code_1, v4, v1
     v5 = slice_ptr v0

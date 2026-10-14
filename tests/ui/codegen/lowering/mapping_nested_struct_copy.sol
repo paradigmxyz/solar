@@ -20,7 +20,7 @@ contract MappingNestedStructCopy {
     mapping(uint256 => Outer) internal values;
 
     // CHECK-LABEL: fn @set{{[( ]}}
-    // CHECK: [[OUTER:v[0-9]+]] = alloc memorystruct<3>
+    // CHECK: [[OUTER:v[0-9]+]] = alloc 96
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot
     // CHECK-NEXT: [[HEAD:v[0-9]+]] = load [[OUTER]]
     // CHECK-NEXT: sstore [[SLOT]], [[HEAD]]
@@ -30,7 +30,7 @@ contract MappingNestedStructCopy {
 
     // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: = mapping_slot
-    // CHECK: [[OUTER:v[0-9]+]] = alloc memorystruct<3>
+    // CHECK: [[OUTER:v[0-9]+]] = alloc checked 96
     // CHECK-NEXT: [[HEAD:v[0-9]+]] = sload
     // CHECK-NEXT: store [[OUTER]], [[HEAD]]
     function get(uint256 key)

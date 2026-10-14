@@ -22,7 +22,7 @@ fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, functio
   bb2:
     v13 = icall returndata_bytes<>
     v14 = abi_decode [function], v13
-    v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v15 = alloc 96 !metadata(preserves_fmp)
     v16 = ptrtoint memptr v15 to i256
     memory_zero v16, 96
     v17 = lt 0, 3
@@ -93,7 +93,7 @@ fn @f(arg0: memptr) -> memptr [selector=0x2ed7fe6a, abi_params=[array<_, functio
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    v0 = alloc zeroed checked 128
     store v0, 3
     jump bb1
   bb1:
@@ -121,7 +121,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v27 = abi_encode []
     v28 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0
     v29 = datasize ExternalFunctionPointerNestedArrayTarget_creation_code_0, 31, aligned
-    v30 = alloc raw, exact, uninitialized, infallible, v29
+    v30 = alloc v29
     v31 = ptrtoint memptr v30 to i256
     datacopy ExternalFunctionPointerNestedArrayTarget_creation_code_0, v31, v28
     v32 = slice_ptr v27
@@ -139,7 +139,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v39 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
     v40 = slice_ptr v39
     v41 = slice_len v39
-    v42 = alloc raw, exact, uninitialized, infallible, 96
+    v42 = alloc 96
     v43 = zext i160 v36 to i256
     v44 = ptrtoint memptr v42 to i256
     v45 = call v38, v43, 0, v40, v41, v44, 96

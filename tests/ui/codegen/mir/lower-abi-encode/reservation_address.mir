@@ -8,7 +8,7 @@
 // CHECK: fn @encode_empty
 // CHECK: store {{v[0-9]+}}, 32
 // CHECK: store {{v[0-9]+}}, 0
-// CHECK: = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp){{$}}
+// CHECK: = alloc 64 !metadata(preserves_fmp){{$}}
 // CHECK-NOT: deferred_alloc
 // CHECK: returndata
 fn @encode_empty() [selector=0x01020304, pure] {

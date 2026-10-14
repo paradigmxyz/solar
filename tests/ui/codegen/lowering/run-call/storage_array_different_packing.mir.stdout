@@ -5,7 +5,7 @@
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>], abi_return_params=[bytes10, bytes10, bytes10, bytes10, bytes10]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 320
+    v0 = alloc zeroed checked 320
     store v0, 9
     v1 = load v0
     v2 = sload 0 !metadata(storage=slot(0))

@@ -46,7 +46,7 @@ fn @h(arg0: calldataslice) -> memptr [selector=0x94e17704, pure, abi_params=[arr
     v2 = sub v1, v0
     v3 = slt v2, 96
     icall revert_if<calldata_tail_too_short>, v3
-    v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v4 = alloc 96
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb2: v13]

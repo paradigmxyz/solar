@@ -159,8 +159,8 @@
 (decl heapfloor () Value)
 (extractor (heapfloor) (inst (Op.HeapFloor)))
 
-(decl alloc (Value AllocationKind AllocationSemantics) Value)
-(extractor (alloc size kind semantics) (inst (Op.Alloc size kind semantics)))
+(decl alloc (Value AllocationSemantics) Value)
+(extractor (alloc size semantics) (inst (Op.Alloc size semantics)))
 
 (decl abiencode (AbiEncodeMode OptionValue Unit Unit) Value)
 (extractor (abiencode mode selector args layout) (inst (Op.AbiEncode mode selector args layout)))

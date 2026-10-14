@@ -47,7 +47,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v20 = add 32, v13
     v21 = lt v20, 32
     icall panic_if<0x41>, v21
-    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v20
+    v22 = alloc v20
     store v22, v1
     jump bb1
   bb1:
@@ -84,7 +84,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     v35 = slt v30, v34
     v36 = eq v35, false
     icall revert_if<invalid_calldata_tail_offset>, v36
-    v37 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v37 = alloc 64
     v38 = calldatasize
     v39 = sub v38, v31
     v40 = slt v39, 32
@@ -119,7 +119,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: i160) [selector=0x87c604a5, abi_pa
     icall panic_if<0x41>, v62
     v63 = not 31
     v64 = and v61, v63
-    v65 = alloc memorybytes, exact, uninitialized, infallible, v64
+    v65 = alloc v64
     store v65, v60
     v66 = ptradd v65, 32
     v67 = slice_ptr v59

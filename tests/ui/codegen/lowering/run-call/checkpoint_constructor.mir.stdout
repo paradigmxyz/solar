@@ -77,7 +77,7 @@ fn @push(arg0: i256, arg1: i96, arg2: i160) {
     icall revert_if<empty>, v8
     jump bb3
   bb3:
-    v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v9 = alloc 64
     v10 = zext i96 arg1 to i256
     v11 = zext i160 arg2 to i256
     store v9, v10
@@ -182,7 +182,7 @@ fn @nextId() -> i96 [view] {
 
 fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>], abi_return_params=[u96]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     v1 = load v0
     v2 = lt 0, v1
@@ -205,7 +205,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     icall panic_if<0x41>, v13
     v14 = not 31
     v15 = and v12, v14
-    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy CheckpointTarget_creation_code_0, v17, v9
     v18 = slice_ptr v7
@@ -247,7 +247,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v0 = abi_encode []
     v1 = datasize ConstructorMultiReturn_creation_code_1
     v2 = datasize ConstructorMultiReturn_creation_code_1, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ConstructorMultiReturn_creation_code_1, v4, v1
     v5 = slice_ptr v0

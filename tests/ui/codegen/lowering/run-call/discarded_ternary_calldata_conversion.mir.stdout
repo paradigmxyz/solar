@@ -2,7 +2,7 @@
 @module DiscardedTernaryCalldataConversion
 fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, u256>>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    v0 = alloc zeroed checked 32
     store v0, 0
     jump bb1
   bb1:
@@ -39,7 +39,7 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     v25 = add 32, v18
     v26 = lt v25, 32
     icall panic_if<0x41>, v26
-    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
+    v27 = alloc v25
     store v27, v6
     jump bb7
   bb7:
@@ -85,7 +85,7 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     v56 = add 32, v49
     v57 = lt v56, 32
     icall panic_if<0x41>, v57
-    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, v56
+    v58 = alloc v56
     store v58, v42
     v59 = make_calldata_slice v46, v49
     v60 = ptradd v58, 32
@@ -108,7 +108,7 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
 
 fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v0 = alloc zeroed checked 64
     store v0, 1
     jump bb1
   bb1:
@@ -116,7 +116,7 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v6 = alloc zeroed checked 64
     store v6, 1
     v7 = load v0
     v8 = lt 0, v7
@@ -133,7 +133,7 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v16 = eq v14, 0
     jumpi v16, bb4, bb5
   bb4:
-    v17 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v17 = alloc 32
     store v17, 0
     v18 = ptrtoint memptr v17 to i256
     store v0+32, v18

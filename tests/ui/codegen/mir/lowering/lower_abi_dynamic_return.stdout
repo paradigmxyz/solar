@@ -8,7 +8,7 @@
   
   fn @canonicalAddresses() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -43,7 +43,7 @@
   
   fn @canonicalAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -81,7 +81,7 @@
   
   fn @dirtyAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -119,7 +119,7 @@
   
   fn @givesZeroedTuple() -> memptr [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 64
       ret v0
@@ -127,7 +127,7 @@
   
   fn @dirtyAddressAliases() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -154,7 +154,7 @@
   
   fn @dirtyAddressReloads() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -185,7 +185,7 @@
   
   fn @escapingAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -238,7 +238,7 @@
   
   fn @givesZeroedThenDirtyTuple() -> memptr [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       store v0, 256
@@ -247,7 +247,7 @@
   
   fn @givesPartlyZeroedTuple() -> memptr [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       ret v0
@@ -255,7 +255,7 @@
   
   fn @givesConditionallyZeroedTuple(arg0: i1) -> memptr [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       v1 = ptrtoint memptr v0 to i256
@@ -267,7 +267,7 @@
   
   fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 1
@@ -290,7 +290,7 @@
   
   fn @givesAliasedAddressContainer() -> memptr [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = icall @aliasedAddressContainer, v0, v0
       ret v1
   }
@@ -304,7 +304,7 @@
   
   fn @conditionalFixedArray(arg0: i1) -> memptr {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 1
@@ -321,7 +321,7 @@
   
   fn @bypassedArrayLoop(arg0: i1) -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -344,7 +344,7 @@
   
   fn @lateArrayLength() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
     bb1:
@@ -379,8 +379,8 @@
   
   fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
-      v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
+      v1 = alloc checked 32
       store v1, 1
       v2 = ptradd v0, 32
       store v2, 256
@@ -416,7 +416,7 @@
   
   fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = zext i128 arg0 to i256
       store v0, v1
       ret v0
@@ -432,7 +432,7 @@
   
   fn @canonicalAddresses() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -467,7 +467,7 @@
   
   fn @canonicalAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -505,7 +505,7 @@
   
   fn @dirtyAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -543,7 +543,7 @@
   
   fn @givesZeroedTuple() -> memptr [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 64
       ret v0
@@ -551,7 +551,7 @@
   
   fn @dirtyAddressAliases() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -578,7 +578,7 @@
   
   fn @dirtyAddressReloads() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -609,7 +609,7 @@
   
   fn @escapingAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -662,7 +662,7 @@
   
   fn @givesZeroedThenDirtyTuple() -> memptr [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       store v0, 256
@@ -671,7 +671,7 @@
   
   fn @givesPartlyZeroedTuple() -> memptr [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       ret v0
@@ -679,7 +679,7 @@
   
   fn @givesConditionallyZeroedTuple(arg0: i1) -> memptr [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       v1 = ptrtoint memptr v0 to i256
@@ -691,7 +691,7 @@
   
   fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 1
@@ -714,7 +714,7 @@
   
   fn @givesAliasedAddressContainer() -> memptr [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = icall @aliasedAddressContainer, v0, v0
       ret v1
   }
@@ -728,7 +728,7 @@
   
   fn @conditionalFixedArray(arg0: i1) -> memptr {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 1
@@ -745,7 +745,7 @@
   
   fn @bypassedArrayLoop(arg0: i1) -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -768,7 +768,7 @@
   
   fn @lateArrayLength() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
     bb1:
@@ -803,8 +803,8 @@
   
   fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
-      v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
+      v1 = alloc checked 32
       store v1, 1
       v2 = ptradd v0, 32
       store v2, 256
@@ -829,7 +829,7 @@
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
-+     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     v11 = alloc checked v4
 +     store v11, v1
 +     v12 = storage_array_data_slot arg0
 +     jump bb4
@@ -882,7 +882,7 @@
 +     v12 = eq v11, 0
 +     jumpi v12, bb1, bb3
 +   bb3:
-+     v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
++     v13 = alloc checked v6
 +     store v13, v3
 +     v14 = storage_array_data_slot arg0
 +     jump bb4
@@ -923,7 +923,7 @@
   
   fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = zext i128 arg0 to i256
       store v0, v1
       ret v0
@@ -952,7 +952,7 @@
   
   fn @canonicalAddresses() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -999,7 +999,7 @@
   
   fn @canonicalAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -1049,7 +1049,7 @@
   
   fn @dirtyAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -1100,7 +1100,7 @@
 - fn @givesZeroedTuple() -> memptr [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
 + fn @givesZeroedTuple() [selector=0x0dead004, abi_wrapper] {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 64
 -     ret v0
@@ -1117,7 +1117,7 @@
   
   fn @dirtyAddressAliases() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -1144,7 +1144,7 @@
   
   fn @dirtyAddressReloads() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -1175,7 +1175,7 @@
   
   fn @escapingAddressArrays() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = add 1, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -1247,7 +1247,7 @@
 - fn @givesZeroedThenDirtyTuple() -> memptr [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
 + fn @givesZeroedThenDirtyTuple() [selector=0x0dead00c, abi_wrapper] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       store v0, 256
@@ -1264,11 +1264,11 @@
 - fn @givesPartlyZeroedTuple() -> memptr [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
 + fn @givesPartlyZeroedTuple() [selector=0x0dead00d, abi_wrapper] {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v0 = alloc checked 64
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
 -     ret v0
-+     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
++     v2 = alloc 64
 +     v3 = load v0
 +     v4 = and v3, 255
 +     store v2, v4
@@ -1289,7 +1289,7 @@
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> memptr [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
 + fn @givesConditionallyZeroedTuple() [selector=0x0dead00e, abi_wrapper] {
     bb0:
--     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+-     v0 = alloc checked 32
 -     jumpi arg0, bb1, bb2
 +     v2 = calldatasize
 +     v3 = lt v2, 36
@@ -1301,7 +1301,7 @@
 +   bb6:
 +     jump bb1
     bb1:
-+     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
++     v0 = alloc checked 32
 +     jumpi arg0, bb2, bb3
 +   bb2:
       v1 = ptrtoint memptr v0 to i256
@@ -1325,7 +1325,7 @@
 - fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
 + fn @givesConditionallyStoredTuple() [selector=0x0dead00f, abi_wrapper] {
     bb0:
--     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+-     v0 = alloc checked 32
 -     jumpi arg0, bb1, bb2
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -1339,7 +1339,7 @@
     bb1:
 -     store v0, 1
 -     jump bb2
-+     v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
++     v0 = alloc checked 32
 +     jumpi arg0, bb2, bb3
     bb2:
 -     ret v0
@@ -1372,7 +1372,7 @@
 - fn @givesAliasedAddressContainer() -> memptr [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesAliasedAddressContainer() [selector=0x0dead010, abi_wrapper] {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = icall @aliasedAddressContainer, v0, v0
 -     ret v1
 +     v2 = icall @cleanup_return.39, v1
@@ -1397,7 +1397,7 @@
   
   fn @conditionalFixedArray(arg0: i1) -> memptr {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 1
@@ -1421,7 +1421,7 @@
 +   bb1:
       v0 = icall @conditionalFixedArray, arg0
 -     ret v0
-+     v5 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
++     v5 = alloc 32
 +     jump bb5
 +   bb5:
 +     v6 = phi [bb1: 0], [bb6: v14]
@@ -1462,7 +1462,7 @@
   
   fn @bypassedArrayLoop(arg0: i1) -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       v2 = ptrtoint memptr v0 to i256
       store v2, v1
@@ -1485,7 +1485,7 @@
   
   fn @lateArrayLength() -> memptr {
     bb0:
-      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
     bb1:
@@ -1545,8 +1545,8 @@
 - fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
 + fn @givesOverlappingAllocationWrite() [selector=0x0dead015, abi_wrapper] {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
-      v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
+      v1 = alloc checked 32
       store v1, 1
       v2 = ptradd v0, 32
       store v2, 256
@@ -1576,7 +1576,7 @@
       v10 = eq v9, 0
       jumpi v10, bb1, bb3
     bb3:
-      v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
+      v11 = alloc checked v4
       store v11, v1
       v12 = storage_array_data_slot arg0
       jump bb4
@@ -1632,7 +1632,7 @@
       v12 = eq v11, 0
       jumpi v12, bb1, bb3
     bb3:
-      v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
+      v13 = alloc checked v6
       store v13, v3
       v14 = storage_array_data_slot arg0
       jump bb4
@@ -1690,7 +1690,7 @@
 +   bb4:
 +     jump bb1
 +   bb1:
-      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v0 = alloc checked 32
       v1 = zext i128 arg0 to i256
       store v0, v1
 +     v7 = load v0
@@ -1719,7 +1719,7 @@
 +     v9 = eq v8, 0
 +     jumpi v9, bb1, bb3
 +   bb3:
-+     v10 = alloc memoryarray<1>, exact, uninitialized, infallible, v3
++     v10 = alloc v3
 +     store v10, v0
 +     jump bb4
 +   bb4:
@@ -1750,7 +1750,7 @@
 +     v29 = eq v28, 0
 +     jumpi v29, bb1, bb8
 +   bb8:
-+     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
++     v30 = alloc v23
 +     store v30, v20
 +     jump bb9
 +   bb9:
@@ -1785,7 +1785,7 @@
 + 
 + fn @cleanup_return.38(arg0: memptr) -> memptr {
 +   bb0:
-+     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
++     v0 = alloc 32
 +     v1 = load arg0
 +     v2 = and v1, 255
 +     store v0, v2
@@ -1808,7 +1808,7 @@
 +     v9 = eq v8, 0
 +     jumpi v9, bb1, bb3
 +   bb3:
-+     v10 = alloc memoryarray<1>, exact, uninitialized, infallible, v3
++     v10 = alloc v3
 +     store v10, v0
 +     jump bb4
 +   bb4:

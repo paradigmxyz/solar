@@ -45,7 +45,7 @@
 +   bb4:
 +     v14 = not 31 !metadata(span=20..30, modifier_depth=2)
 +     v15 = and v12, v14 !metadata(span=20..30, modifier_depth=2)
-+     v16 = alloc memorybytes, exact, uninitialized, panic, v15 !metadata(span=20..30, modifier_depth=2)
++     v16 = alloc checked v15 !metadata(span=20..30, modifier_depth=2)
 +     store v16, v7 !metadata(span=20..30, modifier_depth=2)
 +     jumpi v3, bb6, bb5 !metadata(span=20..30, modifier_depth=2)
 +   bb5:
@@ -107,7 +107,7 @@
 +   bb7:
 +     v15 = not 31
 +     v16 = and v13, v15
-+     v17 = alloc memorybytes, exact, uninitialized, panic, v16
++     v17 = alloc checked v16
 +     store v17, v8
 +     jumpi v4, bb9, bb8
 +   bb8:

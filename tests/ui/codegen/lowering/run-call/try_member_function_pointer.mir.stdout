@@ -15,9 +15,9 @@ fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word
 
 fn @file() -> memptr [selector=0x8525855d, view, abi_params=[], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 0
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = alloc 32
     v2 = address
     v3 = zext i160 v2 to i256
     v4 = shl 32, v3
@@ -29,7 +29,7 @@ fn @file() -> memptr [selector=0x8525855d, view, abi_params=[], abi_returns=[tup
 
 fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc 32
     v1 = address
     v2 = zext i160 v1 to i256
     v3 = shl 32, v2
@@ -72,7 +72,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v2 = abi_encode [], selector 0x8525855d00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = alloc raw, exact, uninitialized, infallible, 32
+    v5 = alloc 32
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
     v8 = staticcall v1, v6, v3, v4, v7, 32

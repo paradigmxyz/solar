@@ -7,7 +7,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
   bb0:
     v0 = not 31
     v1 = and 66, v0
-    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    v2 = alloc zeroed checked v1
     store v2, 3
     v3 = trunc i256 arg0 to i8
     v4 = zext i8 v3 to i256
@@ -69,7 +69,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 3
     v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32

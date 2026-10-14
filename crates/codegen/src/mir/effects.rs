@@ -110,7 +110,7 @@ impl InstKind {
             } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ICall { function: Callee::Function(_), .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
-                may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
+                may_revert: matches!(semantics.failure, super::AllocationFailure::Checked),
                 ..ControlEffects::NONE
             },
             Self::ICall {

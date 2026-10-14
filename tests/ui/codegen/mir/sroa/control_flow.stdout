@@ -3,7 +3,7 @@
   @module SroaControlFlow
   fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb2:
 -     store v0, arg2
@@ -20,7 +20,7 @@
   
   fn @loop(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
 -     v1 = ptrtoint memptr v0 to i256
 -     memory_zero v1, 32
       jump bb1
@@ -42,7 +42,7 @@
   
   fn @missing_definition(arg0: i1) -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 7
@@ -54,7 +54,7 @@
   
   fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
 -     v1 = ptrtoint memptr v0 to i256
 -     memory_zero v1, 64
       jumpi arg0, bb1, bb2
@@ -74,7 +74,7 @@
   
   fn @observe_size() -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       store v0, 7
@@ -84,7 +84,7 @@
   
   fn @outside_object() -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = ptradd v0, 32
@@ -97,7 +97,7 @@
   @module SroaControlFlow
   fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb2:
       jump bb3
@@ -110,7 +110,7 @@
   
   fn @loop(arg0: i256) -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       jump bb1
     bb1:
       v5 = phi [bb0: 0], [bb2: v4]
@@ -125,7 +125,7 @@
   
   fn @missing_definition(arg0: i1) -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       jumpi arg0, bb1, bb2
     bb1:
       store v0, 7
@@ -137,7 +137,7 @@
   
   fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
-      v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+      v0 = alloc 64
       jumpi arg0, bb1, bb2
     bb1:
       jump bb2
@@ -148,7 +148,7 @@
   
   fn @observe_size() -> i256 {
     bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       store v0, 7
@@ -158,7 +158,7 @@
   
   fn @outside_object() -> i256 {
     bb0:
-      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+      v0 = alloc 32
       v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = ptradd v0, 32

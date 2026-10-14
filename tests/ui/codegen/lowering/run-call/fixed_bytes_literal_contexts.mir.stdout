@@ -24,7 +24,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
 
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     store v0, 0x500000000000000000000000000000000000000000000000000000000000000
     store v0+32, 0x1234000000000000000000000000000000000000000000000000000000000000
     v1 = sload 1 !metadata(storage=slot(1))

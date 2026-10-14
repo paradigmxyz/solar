@@ -41,7 +41,7 @@ fn @eight() -> struct1 [selector=0xcb94343e, pure, abi_params=[], abi_returns=[w
 
 fn @agg() -> memptr [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
@@ -74,7 +74,7 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -110,7 +110,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -148,7 +148,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -186,7 +186,7 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -231,7 +231,7 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -306,7 +306,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -321,7 +321,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     revert_returndata
   bb2:
     v11 = gas
-    v12 = alloc raw, exact, uninitialized, infallible, 64
+    v12 = alloc 64
     v13 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
     v14 = slice_ptr v13
     v15 = slice_len v13
@@ -356,7 +356,7 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
@@ -389,7 +389,7 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
     v0 = abi_encode []
     v1 = datasize CallGasCallee_creation_code_0
     v2 = datasize CallGasCallee_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0

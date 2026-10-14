@@ -10,8 +10,8 @@
 // CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
 fn @word_crosses_allocation(arg0: i1) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
+    v1 = alloc 32
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 31
     v4 = ptrtoint memptr v1 to i256
@@ -36,8 +36,8 @@ fn @word_crosses_allocation(arg0: i1) -> i256 {
 // CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
 fn @keccak_crosses_allocation(arg0: i1) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
+    v1 = alloc 32
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 0
     v4 = ptrtoint memptr v1 to i256
@@ -62,8 +62,8 @@ fn @keccak_crosses_allocation(arg0: i1) -> i256 {
 // CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
 fn @keccak_dynamic_size(arg0: i1, arg1: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
+    v1 = alloc 32
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 0
     v4 = ptrtoint memptr v1 to i256
@@ -87,8 +87,8 @@ fn @keccak_dynamic_size(arg0: i1, arg1: i256) -> i256 {
 // CHECK-NEXT: {{^[ +].*}}ret [[RELOAD]]
 fn @store_crosses_allocation(arg0: i1) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = alloc 32
+    v1 = alloc 32
     v2 = ptrtoint memptr v0 to i256
     v3 = add v2, 31
     v4 = ptrtoint memptr v1 to i256

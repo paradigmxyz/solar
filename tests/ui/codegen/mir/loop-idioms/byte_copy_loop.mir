@@ -110,8 +110,8 @@ fn @overlap_caller() -> i256 {
 // CHECK: - store8
 fn @copy_allocations() -> i256 {
   bb0:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v12 = alloc 64
+    v13 = alloc 64
     v14 = ptrtoint memptr v12 to i256
     v0 = ptrtoint memptr v13 to i256
     v3 = add v14, 32
@@ -139,8 +139,8 @@ fn @copy_allocations() -> i256 {
 // CHECK: store8
 fn @copy_over_allocation_end() -> i256 {
   bb0:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v12 = alloc 64
+    v13 = alloc 64
     v14 = ptrtoint memptr v12 to i256
     v0 = ptrtoint memptr v13 to i256
     v3 = add v14, 32
@@ -168,8 +168,8 @@ fn @copy_over_allocation_end() -> i256 {
 // CHECK: store8
 fn @copy_before_size_call() -> i256 {
   bb0:
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v13 = alloc 64
+    v12 = alloc 64
     v14 = ptrtoint memptr v12 to i256
     v0 = ptrtoint memptr v13 to i256
     v3 = add v14, 32
@@ -198,8 +198,8 @@ fn @copy_before_size_call() -> i256 {
 // CHECK: store8
 fn @copy_before_size_tail() -> i256 {
   bb0:
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v13 = alloc 64
+    v12 = alloc 64
     v14 = ptrtoint memptr v12 to i256
     v0 = ptrtoint memptr v13 to i256
     v3 = add v14, 32

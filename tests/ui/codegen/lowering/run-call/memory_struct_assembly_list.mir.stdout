@@ -5,7 +5,7 @@
 
 fn @empty() -> memptr [pure] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 0
     ret v0
 }
@@ -13,7 +13,7 @@ fn @empty() -> memptr [pure] {
 fn @append.1(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb0:
     v0 = shl 48, arg1
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = alloc 32 !metadata(preserves_fmp)
     store v1, 0
     store v1, v0
     icall @updateTail, arg0, v1
@@ -26,7 +26,7 @@ fn @append.2(arg0: memptr, arg1: memptr) -> memptr [pure] {
     v1 = shl 8, v0
     v2 = or 3, v1
     v3 = shl 40, v2
-    v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v4 = alloc 32 !metadata(preserves_fmp)
     store v4, 0
     v5 = ptrtoint memptr v4 to i256
     store v5, v3
@@ -50,7 +50,7 @@ fn @dirtyFreeMemory() [view] {
 
 fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 0
     icall @dirtyFreeMemory
     v1 = ptrtoint memptr v0 to i256
@@ -73,7 +73,7 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
 
 fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 0
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
@@ -98,7 +98,7 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
 
 fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 0
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
@@ -132,7 +132,7 @@ fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[
 
 fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 0
     v1 = icall @empty
     v2 = icall @append.2, v0, v1

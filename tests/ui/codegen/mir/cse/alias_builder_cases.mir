@@ -62,7 +62,7 @@ fn @canonical_heap_offset() -> i256 {
 // CHECK: ret [[SUM]]
 fn @same_select(arg0: i1) -> i256 {
   bb0:
-    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v11 = alloc 32
     v0 = ptrtoint memptr v11 to i256
     v1 = load v0
     v2 = select arg0, v0, v0
@@ -79,9 +79,9 @@ fn @same_select(arg0: i1) -> i256 {
 // CHECK: +     {{v[0-9]+}} = add 1, [[AFTER]]
 fn @joined_select(arg0: i1) -> i256 {
   bb0:
-    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v12 = alloc 32
     v0 = ptrtoint memptr v12 to i256
-    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v13 = alloc 32
     v1 = ptrtoint memptr v13 to i256
     store v0, 1
     v2 = load v0
@@ -106,9 +106,9 @@ fn @distinct_loop_allocations(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
-    v14 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc 32
     v0 = ptrtoint memptr v14 to i256
-    v15 = alloc raw, exact, uninitialized, infallible, 32
+    v15 = alloc 32
     v1 = ptrtoint memptr v15 to i256
     store v0, 7
     v2 = load v0

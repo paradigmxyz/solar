@@ -19,7 +19,7 @@ fn @caller(arg0: i256) -> memptr [selector=0x00000001] {
 
 fn @fill(arg0: i256, arg1: i256) -> memptr {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v2 = ptrtoint memptr v0 to i256
     store v2, arg0
     v1 = ne arg1, 0

@@ -102,7 +102,7 @@ fn @keep_len_under_unknown_store(arg0: memptr, arg1: i256) {
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = load arg0
 fn @hoist_len_over_pure_call(arg0: memptr) -> memptr {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc 64
     v9 = ptrtoint memptr v0 to i256
     store v9, 32
     jump bb1

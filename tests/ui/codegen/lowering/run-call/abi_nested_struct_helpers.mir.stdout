@@ -88,18 +88,18 @@ fn @pairs(arg0: memptr) -> i256 [selector=0x054d20d9, pure, abi_params=[array<_,
 
 fn @default_struct_1() -> memptr {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc 64
+    v1 = alloc 64
     store v1, 0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v2 = alloc 32
     store v2, 0
     v3 = ptrtoint memptr v2 to i256
     store v1+32, v3
     v4 = ptrtoint memptr v1 to i256
     store v0, v4
-    v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v5 = alloc 64
     store v5, 0
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v6 = alloc 32
     store v6, 0
     v7 = ptrtoint memptr v6 to i256
     store v5+32, v7

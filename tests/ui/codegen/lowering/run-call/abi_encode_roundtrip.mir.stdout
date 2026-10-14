@@ -57,7 +57,7 @@ fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_p
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
   bb1:
-    v8 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v8 = alloc 32
     store v8, 0
     v9 = ptrtoint memptr v8 to i256
     store v1+64, v9
@@ -74,7 +74,7 @@ fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_p
 
 fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<u8>], abi_return_params=[u256, u256, u8]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
@@ -85,7 +85,7 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     store v0+32, 9
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 3
     v7 = ptrtoint memptr v6 to i256
     v8 = add v7, 32
@@ -108,7 +108,7 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
 
 fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     jump bb1
   bb1:
@@ -116,7 +116,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v6 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v6 = alloc zeroed checked 96
     store v6, 2
     v7 = load v0
     v8 = lt 0, v7
@@ -133,7 +133,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v16 = eq v14, 0
     jumpi v16, bb4, bb5
   bb4:
-    v17 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v17 = alloc 32
     store v17, 0
     v18 = ptrtoint memptr v17 to i256
     store v0+32, v18
@@ -154,7 +154,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v28 = eq v26, 0
     jumpi v28, bb6, bb7
   bb6:
-    v29 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v29 = alloc 32
     store v29, 0
     v30 = ptrtoint memptr v29 to i256
     store v0+32, v30
@@ -166,7 +166,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     store v31+64, 8
-    v35 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v35 = alloc zeroed checked 64
     store v35, 1
     v36 = load v0
     v37 = lt 1, v36
@@ -183,7 +183,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v45 = eq v43, 0
     jumpi v45, bb8, bb9
   bb8:
-    v46 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v46 = alloc 32
     store v46, 0
     v47 = ptrtoint memptr v46 to i256
     store v0+64, v47
@@ -195,7 +195,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     store v48+32, 3
-    v52 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v52 = alloc 64 !metadata(preserves_fmp)
     store v52, 4
     v53 = ptrtoint memptr v52 to i256
     v54 = add v53, 32
@@ -214,7 +214,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v65 = eq v63, 0
     jumpi v65, bb10, bb11
   bb10:
-    v66 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v66 = alloc 32
     store v66, 0
     v67 = ptrtoint memptr v66 to i256
     store v57+32, v67
@@ -235,7 +235,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v78 = eq v76, 0
     jumpi v78, bb12, bb13
   bb12:
-    v79 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v79 = alloc 32
     store v79, 0
     v80 = ptrtoint memptr v79 to i256
     store v57+64, v80

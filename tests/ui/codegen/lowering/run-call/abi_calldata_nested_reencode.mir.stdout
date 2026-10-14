@@ -27,7 +27,7 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -75,7 +75,7 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v50 = add 32, v43
     v51 = lt v50, 32
     icall panic_if<0x41>, v51
-    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, v50
+    v52 = alloc v50
     store v52, v36
     jump bb4
   bb4:
@@ -124,7 +124,7 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v81 = add 32, v74
     v82 = lt v81, 32
     icall panic_if<0x41>, v82
-    v83 = alloc memoryarray<1>, exact, uninitialized, infallible, v81
+    v83 = alloc v81
     store v83, v67
     jump bb7
   bb7:
@@ -180,7 +180,7 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v19 = add 32, v12
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
-    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    v21 = alloc v19
     store v21, v0
     jump bb1
   bb1:
@@ -212,7 +212,7 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v37 = sub v36, v30
     v38 = slt v37, 64
     icall revert_if<calldata_tail_too_short>, v38
-    v39 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v39 = alloc 64
     jump bb4
   bb4:
     v40 = phi [bb2: 0], [bb9: v85]
@@ -260,7 +260,7 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v68 = add 32, v61
     v69 = lt v68, 32
     icall panic_if<0x41>, v69
-    v70 = alloc memoryarray<1>, exact, uninitialized, infallible, v68
+    v70 = alloc v68
     store v70, v54
     jump bb7
   bb7:

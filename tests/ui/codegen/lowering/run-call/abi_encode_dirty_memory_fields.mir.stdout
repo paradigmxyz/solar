@@ -2,7 +2,7 @@
 @module AbiEncodeDirtyMemoryFields
 fn @dirty() -> memptr [pure] {
   bb0:
-    v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
+    v0 = alloc 192 !metadata(preserves_fmp)
     v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 192
     store v0, 1
@@ -44,7 +44,7 @@ fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_return
 
 fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    v0 = alloc zeroed checked 96
     store v0, 2
     v1 = load v0
     v2 = lt 0, v1
