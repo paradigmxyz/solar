@@ -36,10 +36,10 @@ fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns
     store v10, v5
     v11 = slice_ptr v4
     v12 = slice_len v4
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = calldatasize
-    v15 = sub v14, v12
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = sub v13, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = ptradd v10, 32
@@ -66,10 +66,10 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     store v10, v5
     v11 = slice_ptr v4
     v12 = slice_len v4
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = calldatasize
-    v15 = sub v14, v12
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = sub v13, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = ptradd v10, 32

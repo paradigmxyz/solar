@@ -12,10 +12,10 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v7 = slice_ptr arg0
     v8 = slice_len arg0
-    v9 = gt v8, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v9
-    v10 = calldatasize
-    v11 = sub v10, v8
+    v9 = calldatasize
+    v10 = gt v8, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v10
+    v11 = sub v9, v8
     v12 = sgt v7, v11
     icall revert_if<calldata_tail_too_short>, v12
     v13 = slice_len arg0
@@ -34,10 +34,10 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     store v6, v22
     v23 = slice_ptr arg1
     v24 = slice_len arg1
-    v25 = gt v24, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v25
-    v26 = calldatasize
-    v27 = sub v26, v24
+    v25 = calldatasize
+    v26 = gt v24, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v26
+    v27 = sub v25, v24
     v28 = sgt v23, v27
     icall revert_if<calldata_tail_too_short>, v28
     v29 = slice_len arg1

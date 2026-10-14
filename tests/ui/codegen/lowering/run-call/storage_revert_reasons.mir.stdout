@@ -54,10 +54,10 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
-    v2 = gt v1, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v2
-    v3 = calldatasize
-    v4 = sub v3, v1
+    v2 = calldatasize
+    v3 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v3
+    v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
     v6 = slice_len arg0

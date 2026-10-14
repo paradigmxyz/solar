@@ -31,52 +31,52 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     store v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v73]
+    v22 = phi [bb0: 0], [bb2: v72]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
+    v73 = load v21
     v74 = load v21
-    v75 = load v21
-    v76 = lt 0, v75
-    v77 = eq v76, false
-    icall panic_if<0x32>, v77
-    v78 = load v21+32
-    v79 = inttoptr i256 v78 to memptr
-    v80 = eq v78, 0
-    jumpi v80, bb4, bb5
+    v75 = lt 0, v74
+    v76 = eq v75, false
+    icall panic_if<0x32>, v76
+    v77 = load v21+32
+    v78 = inttoptr i256 v77 to memptr
+    v79 = eq v77, 0
+    jumpi v79, bb4, bb5
   bb4:
-    v81 = icall @default_struct_0
-    v82 = ptrtoint memptr v81 to i256
-    store v21+32, v82
+    v80 = icall @default_struct_0
+    v81 = ptrtoint memptr v80 to i256
+    store v21+32, v81
     jump bb5
   bb5:
-    v83 = phi [bb3: v79], [bb4: v81]
-    v84 = load v83, memptr
-    v85 = load v84
-    v86 = checked_add u256, v74, v85
-    v87 = load v21
-    v88 = lt 1, v87
-    v89 = eq v88, false
-    icall panic_if<0x32>, v89
-    v90 = load v21+64
-    v91 = inttoptr i256 v90 to memptr
-    v92 = eq v90, 0
-    jumpi v92, bb6, bb7
+    v82 = phi [bb3: v78], [bb4: v80]
+    v83 = load v82, memptr
+    v84 = load v83
+    v85 = checked_add u256, v73, v84
+    v86 = load v21
+    v87 = lt 1, v86
+    v88 = eq v87, false
+    icall panic_if<0x32>, v88
+    v89 = load v21+64
+    v90 = inttoptr i256 v89 to memptr
+    v91 = eq v89, 0
+    jumpi v91, bb6, bb7
   bb6:
-    v93 = icall @default_struct_0
-    v94 = ptrtoint memptr v93 to i256
-    store v21+64, v94
+    v92 = icall @default_struct_0
+    v93 = ptrtoint memptr v92 to i256
+    store v21+64, v93
     jump bb7
   bb7:
-    v95 = phi [bb5: v91], [bb6: v93]
-    v96 = load v95, memptr
-    v97 = load v96
-    v98 = lt 0, v97
-    v99 = eq v98, false
-    icall panic_if<0x32>, v99
-    v100 = load v96+32
-    v101 = checked_add u256, v86, v100
-    ret v101
+    v94 = phi [bb5: v90], [bb6: v92]
+    v95 = load v94, memptr
+    v96 = load v95
+    v97 = lt 0, v96
+    v98 = eq v97, false
+    icall panic_if<0x32>, v98
+    v99 = load v95+32
+    v100 = checked_add u256, v85, v99
+    ret v100
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -106,40 +106,39 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v46 = eq v45, false
     icall revert_if<invalid_calldata_tail_offset>, v46
     v47 = load calldata v41
-    v48 = gt v47, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v48
-    v49 = mul v47, 32
-    v50 = add v41, 32
-    v51 = calldatasize
-    v52 = sub v51, v49
-    v53 = sgt v50, v52
+    v48 = calldatasize
+    v49 = gt v47, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v49
+    v50 = mul v47, 32
+    v51 = add v41, 32
+    v52 = sub v48, v50
+    v53 = sgt v51, v52
     icall revert_if<calldata_tail_too_short>, v53
-    v54 = add v41, 32
-    v55 = mul v47, 32
-    v56 = eq 32, 0
-    v57 = div v55, 32
-    v58 = eq v57, v47
-    v59 = or v56, v58
-    v60 = zext i1 v59 to i256
-    v61 = eq v60, 0
-    icall panic_if<0x41>, v61
-    v62 = add 32, v55
-    v63 = lt v62, 32
-    icall panic_if<0x41>, v63
-    v64 = alloc memoryarray<1>, exact, uninitialized, infallible, v62
-    store v64, v47
-    v65 = make_calldata_slice v54, v55
-    v66 = ptradd v64, 32
-    v67 = slice_ptr v65
-    v68 = slice_len v65
-    copy calldata v66, v67, v68
-    v69 = ptrtoint memptr v64 to i256
-    store v36, v69
-    v70 = ptrtoint memptr v36 to i256
-    v71 = shl 5, v22
-    v72 = ptradd v21, v71
-    store v72+32, v70
-    v73 = add v22, 1
+    v54 = mul v47, 32
+    v55 = eq 32, 0
+    v56 = div v54, 32
+    v57 = eq v56, v47
+    v58 = or v55, v57
+    v59 = zext i1 v58 to i256
+    v60 = eq v59, 0
+    icall panic_if<0x41>, v60
+    v61 = add 32, v54
+    v62 = lt v61, 32
+    icall panic_if<0x41>, v62
+    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, v61
+    store v63, v47
+    v64 = make_calldata_slice v51, v54
+    v65 = ptradd v63, 32
+    v66 = slice_ptr v64
+    v67 = slice_len v64
+    copy calldata v65, v66, v67
+    v68 = ptrtoint memptr v63 to i256
+    store v36, v68
+    v69 = ptrtoint memptr v36 to i256
+    v70 = shl 5, v22
+    v71 = ptradd v21, v70
+    store v71+32, v69
+    v72 = add v22, 1
     jump bb1
 }
 

@@ -226,6 +226,19 @@ impl AbiParamType {
             _ => Some(32),
         }
     }
+
+    /// Returns the calldata element size of a dynamically sized value: one byte for `bytes`, the
+    /// element head size for arrays, and `None` for every other shape.
+    #[must_use]
+    pub(crate) fn calldata_stride(&self) -> Option<u64> {
+        match self {
+            Self::Bytes => Some(1),
+            Self::DynamicArray(element) => {
+                Some(element.checked_head_size().expect("ABI head size exceeds u64 range"))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The ABI-relevant shape and source representation of one value.

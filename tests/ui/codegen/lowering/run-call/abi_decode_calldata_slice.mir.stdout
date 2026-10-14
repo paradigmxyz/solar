@@ -20,10 +20,10 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v10 = make_calldata_slice v9, v8
     v11 = slice_ptr v10
     v12 = slice_len v10
-    v13 = gt v12, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = calldatasize
-    v15 = sub v14, v12
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = sub v13, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = slice_len v10
@@ -55,10 +55,10 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v39 = make_calldata_slice v38, v37
     v40 = slice_ptr v39
     v41 = slice_len v39
-    v42 = gt v41, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v42
-    v43 = calldatasize
-    v44 = sub v43, v41
+    v42 = calldatasize
+    v43 = gt v41, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v43
+    v44 = sub v42, v41
     v45 = sgt v40, v44
     icall revert_if<calldata_tail_too_short>, v45
     v46 = slice_len v39
@@ -88,10 +88,10 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v66 = make_calldata_slice v65, v64
     v67 = slice_ptr v66
     v68 = slice_len v66
-    v69 = gt v68, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v69
-    v70 = calldatasize
-    v71 = sub v70, v68
+    v69 = calldatasize
+    v70 = gt v68, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v70
+    v71 = sub v69, v68
     v72 = sgt v67, v71
     icall revert_if<calldata_tail_too_short>, v72
     v73 = slice_len v66

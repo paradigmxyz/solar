@@ -38,9 +38,9 @@
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
-        MemoryObjectLayout, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, CalldataTail,
+        EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
+        MemoryObjectLayout, MirType, Module, PtrLocation, Terminator, Value, ValueId,
         analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
         transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
@@ -1391,27 +1391,18 @@ fn encode_calldata_bytes_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    // The offset bound is signed, so a negative offset that wraps to a valid load is accepted
-    // and the tail checks decide whether the element is valid. Bytes past `calldatasize` read
-    // as zero.
-    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1443-L1457>
+    // offset = calldataload(source_head)
+    // check_calldata_tail_offset(source_base, offset)
+    // element_base = source_base + offset
+    // length = calldataload(element_base)
+    // data = calldata_tail_data(element_base + 32, length, 1)
+    let tail = CalldataTail::Encode;
     let offset = builder.load(source_head, PtrLocation::Calldata);
-    let calldata_size = builder.calldatasize();
-    let available = builder.sub(calldata_size, source_base);
-    let thirty_one = builder.imm(31);
-    let bound = builder.sub(available, thirty_one);
-    let valid_offset = builder.slt(offset, bound);
-    let invalid_offset = builder.eq_zero(valid_offset);
-    builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
+    let calldata_end = builder.calldatasize();
+    builder.check_calldata_tail_offset(tail, source_base, offset, calldata_end, 32);
     let element_base = builder.add(source_base, offset);
     let length = builder.load(element_base, PtrLocation::Calldata);
-    let max_length = builder.imm(u64::MAX);
-    let invalid_length = builder.gt(length, max_length);
-    builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
-    let data = builder.add(element_base, word);
-    let limit = builder.sub(calldata_size, length);
-    let short_tail = builder.sgt(data, limit);
-    builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
+    let data = builder.calldata_tail_data(tail, element_base, 32, length, calldata_end, 1);
     let element_value = builder.make_slice(data, length, PtrLocation::Calldata);
     let new_tail = encode_value(
         builder,

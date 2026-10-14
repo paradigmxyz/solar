@@ -38,10 +38,10 @@ fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i2
     v27 = ptrtoint memptr v22 to i256
     v28 = slice_ptr arg2
     v29 = slice_len arg2
-    v30 = gt v29, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v30
-    v31 = calldatasize
-    v32 = sub v31, v29
+    v30 = calldatasize
+    v31 = gt v29, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v31
+    v32 = sub v30, v29
     v33 = sgt v28, v32
     icall revert_if<calldata_tail_too_short>, v33
     v34 = slice_len arg2
