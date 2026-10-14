@@ -6,12 +6,13 @@
 //!
 //! # Queries
 //!
-//! [`Gcx::const_eval`] evaluates an expression and [`Gcx::const_eval_var`] the value of a
-//! constant variable in its declared type. Both are memoized queries: every expression and
-//! constant is evaluated at most once, so constants that share other constants as a DAG take
-//! linear time, and repeated queries from type checking and codegen are free. Results only depend
-//! on the HIR and name resolution, never on type checking results, so a value is the same whenever
-//! it is first requested.
+//! [`Gcx::const_eval`] returns the [`ConstEval`] evaluator, whose
+//! [`eval_expr`](ConstEval::eval_expr) evaluates an expression and
+//! [`eval_var`](ConstEval::eval_var) the value of a constant variable in its declared type. Both
+//! are memoized queries: every expression and constant is evaluated at most once, so constants that
+//! share other constants as a DAG take linear time, and repeated queries from type checking and
+//! codegen are free. Results only depend on the HIR and name resolution, never on type checking
+//! results, so a value is the same whenever it is first requested.
 //!
 //! A constant's value is computed after the values of the constants it names: the query first
 //! walks the reference graph of the constants it has not evaluated yet with an explicit stack,
@@ -49,9 +50,9 @@
 //! solc's `ConstantEvaluator` folds much less: number and string literals, constants of integer
 //! and string types, arithmetic, and `erc7201`. Some of its checks only apply to values it
 //! computes, such as the division by zero error, so every value records whether solc computes it
-//! too; see [`Gcx::solc_const_eval`]. solc only follows constants through identifiers, and at
+//! too; see [`ConstEval::eval_solc`]. solc only follows constants through identifiers, and at
 //! most 32 deep. Likewise, every error records whether solc reports it or gives the expression no
-//! value instead, which decides the code of the error that [`Gcx::emit_const_eval_error`] reports.
+//! value instead, which decides the code of the error that [`ConstEval::emit_error`] reports.
 
 use crate::{hir, ty::Gcx};
 use EvalErrorKind as EE;
@@ -79,36 +80,6 @@ pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
     let mut outer = keccak256(inner.to_be_bytes::<32>());
     outer.0[31] = 0;
     outer
-}
-
-/// Evaluates the given array size expression, emitting an error diagnostic if it fails.
-///
-/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L336-L366>
-pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
-    let cx = ConstContext::ArrayLength;
-    let (int, solc) = match gcx.const_eval_result(size) {
-        Ok(Folded { value: ConstValue::Int(int), solc }) => (int, solc.is_some()),
-        Ok(_) => {
-            let err = EvalErrorKind::NotAnInteger.spanned(size.span);
-            return Err(gcx.emit_const_eval_error(size, err, cx));
-        }
-        Err(err) => return Err(gcx.emit_const_eval_error(size, *err, cx)),
-    };
-    let code = |code| cx.value_code(solc, code);
-    let Some(int) = int.as_u256() else {
-        let (code, msg) = if int.is_negative() {
-            (code(error_code!(3658)), "array length cannot be negative")
-        } else {
-            (code(error_code!(1847)), "array length is too large")
-        };
-        return Err(gcx.dcx().err(msg).code(code).span(size.span).emit());
-    };
-    if int.is_zero() {
-        let msg = "array length must be greater than zero";
-        Err(gcx.dcx().err(msg).code(code(error_code!(1406))).span(size.span).emit())
-    } else {
-        Ok(int)
-    }
 }
 
 /// Where a constant value is required, which selects solc's codes for evaluation errors.
@@ -181,51 +152,103 @@ thread_local! {
 }
 
 impl<'gcx> Gcx<'gcx> {
+    /// Returns the constant evaluator.
+    pub fn const_eval(self) -> ConstEval<'gcx> {
+        ConstEval { gcx: self }
+    }
+}
+
+/// The constant evaluator, with memoized queries for the values of expressions and constants.
+///
+/// See the [module docs](self) for the design, and [`Gcx::const_eval`] to get one.
+#[derive(Clone, Copy)]
+pub struct ConstEval<'gcx> {
+    gcx: Gcx<'gcx>,
+}
+
+impl<'gcx> ConstEval<'gcx> {
     /// Evaluates the given expression to a typed constant value without emitting diagnostics.
-    pub fn const_eval(self, expr: &hir::Expr<'_>) -> Result<&'gcx ConstValue, EvalError> {
-        self.const_eval_result(expr).as_ref().map(|folded| &folded.value).map_err(|err| *err)
+    pub fn eval_expr(self, expr: &hir::Expr<'_>) -> Result<&'gcx ConstValue, EvalError> {
+        self.expr_result(expr).as_ref().map(|folded| &folded.value).map_err(|err| *err)
     }
 
     /// Evaluates the given expression as an integer constant without emitting diagnostics.
-    pub fn const_eval_int(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, EvalError> {
-        match self.const_eval(expr)? {
+    pub fn eval_int(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, EvalError> {
+        match self.eval_expr(expr)? {
             ConstValue::Int(value) => Ok(value),
             _ => Err(EvalErrorKind::NotAnInteger.spanned(expr.span)),
         }
     }
 
     /// Returns the value of the given constant variable in its declared type.
-    pub fn const_eval_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, EvalError> {
-        self.const_eval_var_result(id).as_ref().map(|folded| &folded.value).map_err(|err| *err)
+    pub fn eval_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, EvalError> {
+        self.var_result(id).as_ref().map(|folded| &folded.value).map_err(|err| *err)
     }
 
     /// Returns the value of the given expression if solc's constant evaluator computes it too.
     ///
     /// Checks that solc runs on constant operands, such as division by zero, use this to report
     /// exactly what solc reports.
-    pub fn solc_const_eval(self, expr: &hir::Expr<'_>) -> Option<&'gcx ConstValue> {
-        let folded = self.const_eval_result(expr).as_ref().ok()?;
+    pub fn eval_solc(self, expr: &hir::Expr<'_>) -> Option<&'gcx ConstValue> {
+        let folded = self.expr_result(expr).as_ref().ok()?;
         folded.solc.map(|_| &folded.value)
     }
 
-    pub(crate) fn const_eval_result(self, expr: &hir::Expr<'_>) -> &'gcx EvalResult {
-        let cache = &self.const_eval_cache.exprs;
+    /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L336-L366>
+    pub fn eval_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
+        let cx = ConstContext::ArrayLength;
+        let (int, solc) = match self.expr_result(size) {
+            Ok(Folded { value: ConstValue::Int(int), solc }) => (int, solc.is_some()),
+            Ok(_) => {
+                let err = EvalErrorKind::NotAnInteger.spanned(size.span);
+                return Err(self.emit_error(size, err, cx));
+            }
+            Err(err) => return Err(self.emit_error(size, *err, cx)),
+        };
+        let code = |code| cx.value_code(solc, code);
+        let Some(int) = int.as_u256() else {
+            let (code, msg) = if int.is_negative() {
+                (code(error_code!(3658)), "array length cannot be negative")
+            } else {
+                (code(error_code!(1847)), "array length is too large")
+            };
+            return Err(self.gcx.dcx().err(msg).code(code).span(size.span).emit());
+        };
+        if int.is_zero() {
+            let msg = "array length must be greater than zero";
+            Err(self.gcx.dcx().err(msg).code(code(error_code!(1406))).span(size.span).emit())
+        } else {
+            Ok(int)
+        }
+    }
+
+    /// Returns the base slot of the storage of the given contract: the value of its storage layout
+    /// specifier, or zero. Type checking reports invalid base slots.
+    pub fn eval_base_slot(self, contract: hir::ContractId) -> U256 {
+        let layout = self.gcx.hir.contract(contract).layout;
+        layout.and_then(|layout| self.eval_int(layout).ok()?.as_u256()).unwrap_or_default()
+    }
+
+    pub(crate) fn expr_result(self, expr: &hir::Expr<'_>) -> &'gcx EvalResult {
+        let cache = &self.gcx.const_eval_cache.exprs;
         if let Some(result) = cache.get(&expr.id) {
             return result;
         }
         // Evaluate before inserting: the evaluation inserts other expressions and constants.
-        let result = expr::eval(self, expr);
+        let result = expr::eval(self.gcx, expr);
         cache.insert(expr.id, |_| Box::new(result))
     }
 
-    pub(crate) fn const_eval_var_result(self, id: hir::VariableId) -> &'gcx EvalResult {
-        let cache = &self.const_eval_cache.vars;
+    pub(crate) fn var_result(self, id: hir::VariableId) -> &'gcx EvalResult {
+        let cache = &self.gcx.const_eval_cache.vars;
         if let Some(result) = cache.get(&id) {
             return result;
         }
         if IN_PROGRESS.with_borrow(|stack| stack.contains(&id)) {
-            let span = self.hir.variable(id).span;
-            return self.alloc(Err(EvalErrorKind::Cycle.spanned(span)));
+            let span = self.gcx.hir.variable(id).span;
+            return self.gcx.alloc(Err(EvalErrorKind::Cycle.spanned(span)));
         }
         let references = self.constant_references(id);
         if references.iter().all(|&(dep, _)| dep != id && self.is_evaluated(dep)) {
@@ -247,7 +270,7 @@ impl<'gcx> Gcx<'gcx> {
             struct Node;
         }
 
-        let cache = &self.const_eval_cache.vars;
+        let cache = &self.gcx.const_eval_cache.vars;
         let mut nodes = IndexVec::<Node, hir::VariableId>::new();
         // The constants each one names, and whether it names them by identifier.
         let mut edges = IndexVec::<Node, Vec<(Node, bool)>>::new();
@@ -293,7 +316,8 @@ impl<'gcx> Gcx<'gcx> {
                 });
                 for &node in &scc {
                     let id = nodes[node];
-                    let err = EvalErrorKind::Cycle.spanned(self.hir.variable(id).span).solc(solc);
+                    let err =
+                        EvalErrorKind::Cycle.spanned(self.gcx.hir.variable(id).span).solc(solc);
                     cache.insert(id, |_| Box::new(Err(err)));
                 }
             }
@@ -305,7 +329,7 @@ impl<'gcx> Gcx<'gcx> {
     /// Another thread may have evaluated part of a cycle, so the cycle's constants are walked again
     /// to find the whole cycle.
     fn is_evaluated(self, id: hir::VariableId) -> bool {
-        self.const_eval_cache.vars.get(&id).is_some_and(|result| {
+        self.gcx.const_eval_cache.vars.get(&id).is_some_and(|result| {
             !matches!(result, Err(EvalError { kind: EvalErrorKind::Cycle, .. }))
         })
     }
@@ -314,7 +338,7 @@ impl<'gcx> Gcx<'gcx> {
     /// each by identifier rather than by member access.
     fn constant_references(self, id: hir::VariableId) -> Vec<(hir::VariableId, bool)> {
         let mut references = Vec::new();
-        if let Some(init) = self.hir.variable(id).initializer {
+        if let Some(init) = self.gcx.hir.variable(id).initializer {
             let _ = init.visit(&mut |expr| {
                 if let Some(dep) = self.constant_reference(expr) {
                     references.push((dep, matches!(expr.kind, hir::ExprKind::Ident(_))));
@@ -327,22 +351,23 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the constant variable that the given identifier or member access names.
     pub fn constant_reference(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
-        self.resolve_path_expr(expr)?
+        self.gcx
+            .resolve_path_expr(expr)?
             .as_variable()
-            .filter(|&id| self.hir.variable(id).is_constant())
+            .filter(|&id| self.gcx.hir.variable(id).is_constant())
     }
 
     /// Evaluates the initializer of the constant `id` and converts it to the declared type.
     fn eval_constant(self, id: hir::VariableId) -> EvalResult {
         IN_PROGRESS.with_borrow_mut(|stack| stack.push(id));
-        let result = expr::eval_constant(self, id);
+        let result = expr::eval_constant(self.gcx, id);
         IN_PROGRESS.with_borrow_mut(|stack| stack.pop());
         result
     }
 
     /// Emits a diagnostic for the given constant evaluation error of an expression whose value is
     /// required in `cx`.
-    pub fn emit_const_eval_error(
+    pub fn emit_error(
         self,
         expr: &hir::Expr<'_>,
         err: EvalError,
@@ -350,7 +375,7 @@ impl<'gcx> Gcx<'gcx> {
     ) -> ErrorGuaranteed {
         let code = match err.kind {
             EE::AlreadyEmitted(guar) => return guar,
-            EE::LiteralTooLarge => return self.literal_too_large(err.span),
+            EE::LiteralTooLarge => return self.gcx.literal_too_large(err.span),
             // solc gives the expression no value instead of reporting this error.
             _ if !err.solc => cx.unsupported_code(),
             EE::Cycle => error_code!(5210),
@@ -365,7 +390,8 @@ impl<'gcx> Gcx<'gcx> {
             _ => cx.unsupported_code(),
         };
         let msg = format!("failed to evaluate constant: {}", err.kind.msg());
-        self.dcx()
+        self.gcx
+            .dcx()
             .err(msg)
             .code(code)
             .span(expr.span)

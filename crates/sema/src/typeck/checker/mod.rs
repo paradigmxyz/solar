@@ -248,17 +248,17 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
             return;
         }
-        let value = match self.gcx.const_eval_int(slot) {
+        let value = match self.gcx.const_eval().eval_int(slot) {
             Ok(value) => value,
             // solc reports cycles in the `PostTypeChecker`, before it evaluates base slots, so
             // leave them to the constant cycle check.
             Err(err) if err.kind == EvalErrorKind::Cycle => return,
             Err(err) => {
-                let _ = self.gcx.emit_const_eval_error(slot, err, ConstContext::BaseSlot);
+                let _ = self.gcx.const_eval().emit_error(slot, err, ConstContext::BaseSlot);
                 return;
             }
         };
-        let solc = self.gcx.solc_const_eval(slot).is_some();
+        let solc = self.gcx.const_eval().eval_solc(slot).is_some();
         let code = |code| ConstContext::BaseSlot.value_code(solc, code);
         let Some(base_slot) = value.as_u256() else {
             self.dcx()
@@ -298,11 +298,12 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Checks the length expression of a fixed-size array type.
     ///
     /// Any expression with an integer value is accepted, whatever its declared signedness and
-    /// width. Only the evaluated value matters, and [`crate::eval::eval_array_len`] checks it and
+    /// width. Only the evaluated value matters, and
+    /// [`ConstEval::eval_array_len`](crate::eval::ConstEval::eval_array_len) checks it and
     /// reports values that are not integers.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let fails = self.gcx.const_eval_int(size).is_err();
+        let fails = self.gcx.const_eval().eval_int(size).is_err();
         let prev = std::mem::replace(&mut self.in_array_len, fails);
         let ty = self.check_expr(size);
         self.in_array_len = prev;
@@ -447,7 +448,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
                     && !op.kind.is_cmp()
                 {
-                    match self.gcx.const_eval_int(expr) {
+                    match self.gcx.const_eval().eval_int(expr) {
                         Ok(value) => {
                             if let Some(lit_ty) = self.int_literal_ty(value) {
                                 return lit_ty;
@@ -665,7 +666,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
+                            .and_then(|()| self.gcx.const_eval().eval_array_len(index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
@@ -975,7 +976,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if valid_unop(ty, op.kind) {
                     if let TyKind::IntLiteral(..) = ty.kind
-                        && let Ok(value) = self.gcx.const_eval_int(expr)
+                        && let Ok(value) = self.gcx.const_eval().eval_int(expr)
                         && let Some(lit_ty) = self.int_literal_ty(value)
                     {
                         return lit_ty;
@@ -4028,7 +4029,8 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
 }
 
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
-    gcx.const_eval_int(expr)
+    gcx.const_eval()
+        .eval_int(expr)
         .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
 }
 

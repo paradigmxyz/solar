@@ -692,7 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type()))
             || expr.is_int_literal());
         if foldable
-            && let Ok(value) = self.cx.gcx.const_eval(expr)
+            && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
             && !matches!(value, ConstValue::Bytes(..))
             && let Some(value) = self.lower_const_value(value)
         {

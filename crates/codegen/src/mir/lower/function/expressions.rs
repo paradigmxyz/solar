@@ -312,7 +312,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(initializer) = variable.initializer else {
             return self.cx.report_unsupported(span, "constant initializer");
         };
-        if let Ok(value) = self.cx.gcx.const_eval_var(id)
+        if let Ok(value) = self.cx.gcx.const_eval().eval_var(id)
             && let Some(value) = self.lower_const_value(value)
         {
             return Some(value);
@@ -381,9 +381,9 @@ fn fits_inline<'gcx>(gcx: Gcx<'gcx>, initializer: &'gcx hir::Expr<'gcx>) -> bool
                 return ControlFlow::Break(());
             }
             self.budget -= 1;
-            if let Some(id) = self.gcx.constant_reference(expr)
+            if let Some(id) = self.gcx.const_eval().constant_reference(expr)
                 && let Some(initializer) = self.gcx.hir.variable(id).initializer
-                && self.gcx.const_eval_var(id).is_err()
+                && self.gcx.const_eval().eval_var(id).is_err()
             {
                 self.visit_expr(initializer)?;
             }

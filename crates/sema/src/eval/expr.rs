@@ -27,7 +27,7 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
     let Some(init) = var.initializer else {
         return Err(already_emitted(gcx).spanned(var.span));
     };
-    let Folded { value, solc } = gcx.const_eval_result(init).clone()?;
+    let Folded { value, solc } = gcx.const_eval().expr_result(init).clone()?;
     let Some(ty) = ValueTy::from_hir(&var.ty) else {
         return Err(EE::UnsupportedExpr.spanned(init.span));
     };
@@ -50,7 +50,7 @@ pub(super) fn eval_constant(gcx: Gcx<'_>, id: hir::VariableId) -> EvalResult {
 }
 
 fn eval_inner(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
-    let ev = |expr| gcx.const_eval_result(expr).clone();
+    let ev = |expr| gcx.const_eval().expr_result(expr).clone();
     match expr.kind {
         hir::ExprKind::Lit(lit) => eval_lit(lit),
         hir::ExprKind::Tuple([Some(inner)]) => ev(inner),
@@ -146,7 +146,7 @@ fn eval_lit(lit: &hir::Lit<'_>) -> EvalResult {
 fn eval_res(gcx: Gcx<'_>, res: hir::Res) -> EvalResult {
     match res {
         hir::Res::Item(hir::ItemId::Variable(id)) if gcx.hir.variable(id).is_constant() => {
-            gcx.const_eval_var_result(id).clone()
+            gcx.const_eval().var_result(id).clone()
         }
         hir::Res::Item(hir::ItemId::Variable(_)) => Err(EE::NonConstantVar.into()),
         hir::Res::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
@@ -214,7 +214,7 @@ fn eval_member(gcx: Gcx<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalResult
             });
             ConstValue::Enum(id, index.ok_or(EE::UnsupportedExpr)? as u32)
         }
-        (_, sym::length) => match gcx.const_eval_result(base).clone()?.value {
+        (_, sym::length) => match gcx.const_eval().expr_result(base).clone()?.value {
             ConstValue::FixedBytes(value) => {
                 ConstValue::Int(IntScalar::typed(value.size().into(), IntTy::UINT8))
             }
@@ -270,8 +270,10 @@ fn eval_call(gcx: Gcx<'_>, callee: &hir::Expr<'_>, args: &[hir::Expr<'_>]) -> Ev
         },
     };
 
-    let mut args =
-        args.iter().map(|arg| gcx.const_eval_result(arg).clone()).collect::<Result<Vec<_>, _>>()?;
+    let mut args = args
+        .iter()
+        .map(|arg| gcx.const_eval().expr_result(arg).clone())
+        .collect::<Result<Vec<_>, _>>()?;
     let single = |args: &mut Vec<Folded>| match args[..] {
         [_] => Ok(args.pop().unwrap().value),
         _ => Err(EE::UnsupportedExpr),

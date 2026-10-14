@@ -48,7 +48,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let value = if !self.in_inline_assembly
                     && let Some(expr) = initializer
-                    && let Ok(value) = self.cx.gcx.const_eval_int(expr)
+                    && let Ok(value) = self.cx.gcx.const_eval().eval_int(expr)
                     && let Some(value) = value.as_u256()
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -324,7 +324,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && variable.is_constant()
             && let Some(initializer) = variable.initializer
         {
-            if gcx.const_eval_var(id).is_ok() {
+            if gcx.const_eval().eval_var(id).is_ok() {
                 return Some(());
             }
             return self.lower_discarded_expr(initializer);

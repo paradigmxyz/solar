@@ -168,7 +168,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .hir
                 .variable(id)
                 .initializer
-                .and_then(|init| self.gcx.constant_reference(init))
+                .and_then(|init| self.gcx.const_eval().constant_reference(init))
             else {
                 return false;
             };

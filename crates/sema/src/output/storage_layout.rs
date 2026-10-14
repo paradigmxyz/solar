@@ -115,13 +115,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
     fn build_contract(mut self, contract_id: hir::ContractId) -> StorageLayoutOutput {
         let contract = self.gcx.hir.contract(contract_id);
         let base_slot = match self.location {
-            DataLocation::Storage => contract.layout.map_or(U256::ZERO, |layout| {
-                self.gcx
-                    .const_eval_int(layout)
-                    .ok()
-                    .and_then(|value| value.as_u256())
-                    .unwrap_or_default()
-            }),
+            DataLocation::Storage => self.gcx.const_eval().eval_base_slot(contract_id),
             DataLocation::Transient => U256::ZERO,
             DataLocation::Memory | DataLocation::Calldata => unreachable!(),
         };
