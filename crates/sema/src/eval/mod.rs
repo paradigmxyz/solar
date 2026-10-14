@@ -14,8 +14,8 @@
 //!   and binary arithmetic, and `erc7201` of a string. It only uses name resolution and never
 //!   reaches a type, so type checking uses it for array lengths, base slots and literal arithmetic.
 //!   Checks that solc runs on the values its evaluator computes, such as division by zero, use it
-//!   too, and [`ConstEval::eval_with_depth_limit`] gives up on constants nested more than 32 deep
-//!   like solc; see TYPECK-020 in `docs/SOLC_DIVERGENCE.md`.
+//!   too, and give up on constants nested more than 32 deep like solc; see TYPECK-020 in
+//!   `docs/SOLC_DIVERGENCE.md`.
 //! - [`Gcx::const_eval`] evaluates everything a constant initializer can contain, after type
 //!   checking, with the declarations it selected, such as the function in `this.f.selector`.
 //!   Codegen, base slots and other checks after type checking use it.
