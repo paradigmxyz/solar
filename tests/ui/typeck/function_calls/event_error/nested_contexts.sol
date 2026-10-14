@@ -34,7 +34,8 @@ contract EventErrorNestedContexts {
         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
         //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: event invocations have to be prefixed by `emit`
-        //~| ERROR: cannot infer array element type
+        //~| ERROR: array component cannot be empty
+        //~| ERROR: array component cannot be empty
     }
 
     function eventInTernary() public {
