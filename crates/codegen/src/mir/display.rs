@@ -371,7 +371,7 @@ fn function_prints_return_values(func: &Function) -> bool {
 
 /// Formats instruction `inst_id` of `func` as the text printer prints it, without indentation or
 /// metadata.
-pub(crate) fn display_instruction<'a>(
+fn display_instruction<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
     inst_id: InstId,
@@ -885,8 +885,7 @@ fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl f
     })
 }
 
-/// Formats a value as the text printer names it: an immediate, an argument, or a result.
-pub(crate) fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
+fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
             Immediate::I1(value) => write!(f, "{value}"),
@@ -1027,7 +1026,7 @@ fn display_metadata<'a>(
 }
 
 /// Format a terminator for display, rendering operands via [`display_val`].
-pub(crate) fn display_terminator<'a>(
+fn display_terminator<'a>(
     term: &'a Terminator,
     func: &'a Function,
     module: Option<&'a Module>,

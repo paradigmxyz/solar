@@ -54,11 +54,6 @@ and the module.
 MIR has no ABI, so a directive names the function by its signature, followed by
 its outputs when it returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
 
-To look into a disagreement, run the call by hand with
-[solar-mir-interp](../mir-interp/README.md): pass it the test's
-`-Zdump=mir-final` output and the call, and add `--trace` to see every operation
-the interpreter runs.
-
 ## Compiler artifact comparisons
 
 [compiler-diff](../compiler-diff/README.md) handles local or Sourcify

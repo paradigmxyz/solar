@@ -1,9 +1,0 @@
-// An out-of-bounds returndata copy halts and discards preceding storage writes.
-@module ReturndataBounds
-@phase lowered
-fn @entry() [entry] {
-  bb0:
-    sstore 0, 1
-    returndatacopy 0, 0, 1
-    stop
-}

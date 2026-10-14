@@ -336,7 +336,6 @@ pub(super) fn check(
 /// Describes how a run ended, with the EVM's reason for halting if it has one.
 fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
     match (outcome, stop) {
-        (Outcome::Return(words), _) => format!("returned the words {words:x?}"),
         (Outcome::Success(data), _) => format!("returned 0x{}", hex::encode(data)),
         (Outcome::Revert(data), _) => format!("reverted with 0x{}", hex::encode(data)),
         (Outcome::Halt, Some(stop)) => format!("halted ({stop:?})"),

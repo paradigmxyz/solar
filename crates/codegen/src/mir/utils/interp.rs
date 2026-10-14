@@ -153,6 +153,7 @@ pub(crate) struct Limits {
 }
 
 /// What one execution did.
+#[cfg(test)]
 #[derive(Clone, Debug)]
 pub(crate) struct Execution {
     /// How it ended.
@@ -362,6 +363,7 @@ impl<'a> Machine<'a> {
     /// Runs `function` on `args` and `memory` within `limits`, reporting each operation to
     /// `meter`. With a `host`, the run also reads and writes storage and transient storage, logs
     /// events, and reads the context values the host answers.
+    #[cfg(test)]
     pub(crate) fn run(
         &self,
         function: FunctionId,
