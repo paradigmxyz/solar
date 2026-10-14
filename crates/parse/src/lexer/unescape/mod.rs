@@ -43,6 +43,7 @@ pub fn parse_string_literal<'a>(
     src: &'a str,
     kind: StrKind,
     lit_span: Span,
+    in_yul: bool,
     sess: &Session,
 ) -> (Cow<'a, [u8]>, bool) {
     let mut has_error = false;
@@ -53,7 +54,7 @@ pub fn parse_string_literal<'a>(
         let lo = content_start + BytePos(start);
         let hi = lo + BytePos(end - start);
         let span = Span::new(lo, hi);
-        emit_unescape_error(&sess.dcx, src, span, range, error);
+        emit_unescape_error(&sess.dcx, src, span, range, error, in_yul);
     });
     (bytes, has_error)
 }
@@ -157,7 +158,11 @@ fn needs_unescape(src: &str, kind: StrKind) -> bool {
     }
 
     match kind {
-        StrKind::Str => needs_unescape_chars(src) || !src.is_ascii(),
+        // Bytes outside printable ASCII are either escaped or errors.
+        StrKind::Str => {
+            memchr::memchr(b'\\', src.as_bytes()).is_some()
+                || !src.bytes().all(|b| matches!(b, b' '..=b'~'))
+        }
         StrKind::Unicode => needs_unescape_chars(src),
         StrKind::Hex => !src.len().is_multiple_of(2) || !hex::check_raw(src),
     }
@@ -236,6 +241,7 @@ where
                 Err(EscapeError::BareCarriageReturn)
             }
             c if !is_unicode && !c.is_ascii() => Err(EscapeError::StrNonAsciiChar),
+            c if !is_unicode && c.is_ascii_control() => Err(EscapeError::StrControlChar),
             c => Ok(UnescapedUnit::CodePoint(c as u32)),
         };
         let end = src.len() - chars.as_str().len();
@@ -399,7 +405,10 @@ mod tests {
             ("a\\\n \n \t \nb\\\nc", "a  \t bc", &[(4..5, StrNewline), (8..9, StrNewline)]),
         ];
         for &(src, expected_str, expected_errs) in cases {
-            check(StrKind::Str, src, expected_str, expected_errs);
+            // Raw tabs are only allowed in unicode literals.
+            if !src.contains('\t') {
+                check(StrKind::Str, src, expected_str, expected_errs);
+            }
             check(StrKind::Unicode, src, expected_str, expected_errs);
         }
 
@@ -415,18 +424,35 @@ mod tests {
 
     #[test]
     fn line_continuation_before_form_feed() {
-        check(StrKind::Str, "\\\n\x0cafter", "\x0cafter", &[]);
-        check(StrKind::Str, "\\\r\n \t\x0cafter", " \t\x0cafter", &[]);
+        check(StrKind::Unicode, "\\\n\x0cafter", "\x0cafter", &[]);
+        check(StrKind::Unicode, "\\\r\n \t\x0cafter", " \t\x0cafter", &[]);
     }
 
     #[test]
     fn line_continuation_before_vertical_tab() {
-        check(StrKind::Str, "\\\n\x0bafter", "\x0bafter", &[]);
+        check(StrKind::Unicode, "\\\n\x0bafter", "\x0bafter", &[]);
     }
 
     #[test]
     fn line_continuation_before_bare_carriage_return() {
         check(StrKind::Str, "\\\n\rafter", "after", &[(2..3, BareCarriageReturn)]);
+    }
+
+    #[test]
+    fn control_chars() {
+        let cases: &[(&str, &str, &[ExErr])] = &[
+            ("\0", "", &[(0..1, StrControlChar)]),
+            ("a\0b", "ab", &[(1..2, StrControlChar)]),
+            ("\t", "", &[(0..1, StrControlChar)]),
+            ("a\x1fb\x7f", "ab", &[(1..2, StrControlChar), (3..4, StrControlChar)]),
+            ("\x20~", " ~", &[]),
+            ("\\\n\x0c", "", &[(2..3, StrControlChar)]),
+        ];
+        for &(src, expected_str, expected_errs) in cases {
+            check(StrKind::Str, src, expected_str, expected_errs);
+            let all = src.replace("\\\n", "");
+            check(StrKind::Unicode, src, &all, &[]);
+        }
     }
 
     #[test]

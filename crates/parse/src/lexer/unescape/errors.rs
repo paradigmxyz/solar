@@ -1,4 +1,4 @@
-use solar_interface::{BytePos, Span, diagnostics::DiagCtxt};
+use solar_interface::{BytePos, Span, diagnostics::DiagCtxt, error_code};
 use std::ops::Range;
 
 /// Errors and warnings that can occur during string unescaping.
@@ -25,6 +25,8 @@ pub enum EscapeError {
     StrNewline,
     /// Non-ASCII character in non-unicode literal.
     StrNonAsciiChar,
+    /// Raw control character (`0x00..=0x1f` or `0x7f`) in non-unicode literal.
+    StrControlChar,
 
     /// Non hex-digit character in hex literal.
     HexNotHexDigit,
@@ -50,6 +52,7 @@ impl EscapeError {
             Self::StrNonAsciiChar => {
                 "unicode characters are not allowed in string literals; use a `unicode\"...\"` literal instead"
             }
+            Self::StrControlChar => "control characters are not allowed in string literals",
             Self::HexNotHexDigit => "invalid hex digit",
             Self::HexBadUnderscore => "invalid underscore in hex literal",
             Self::HexOddDigits => "odd number of hex nibbles",
@@ -67,6 +70,8 @@ pub(crate) fn emit_unescape_error(
     // range of the error inside `lit`
     range: Range<usize>,
     error: EscapeError,
+    // whether the literal is in Yul, which changes the solc error code
+    in_yul: bool,
 ) {
     let last_char = || {
         let c = lit[range.clone()].chars().next_back().unwrap();
@@ -74,6 +79,16 @@ pub(crate) fn emit_unescape_error(
         (c, span)
     };
     let mut diag = dcx.err(error.msg()).span(err_span);
+    if matches!(error, EscapeError::StrNonAsciiChar | EscapeError::StrControlChar) {
+        // solc reports both as "Invalid character in string".
+        diag = diag.code(if in_yul { error_code!(1465) } else { error_code!(8936) });
+    }
+    if error == EscapeError::StrControlChar {
+        diag = diag.help(format!(
+            "use the escape sequence `\\x{:02x}` instead",
+            lit.as_bytes()[range.start]
+        ));
+    }
     if matches!(
         error,
         EscapeError::InvalidEscape

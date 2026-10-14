@@ -1,0 +1,66 @@
+error[8936]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │         string memory a = "a␀b";
+   │                             ━
+   │
+   ╰ help: use the escape sequence `\x00` instead
+
+error[8936]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │         string memory b = "a    b";
+   │                             ━━━━
+   │
+   ╰ help: use the escape sequence `\x09` instead
+
+error[8936]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │         string memory c = "a␟b";
+   │                             ━
+   │
+   ╰ help: use the escape sequence `\x1f` instead
+
+error[8936]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │         string memory d = "a␡b";
+   │                             ━
+   │
+   ╰ help: use the escape sequence `\x7f` instead
+
+error[1465]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │             let s0 := "a␀b"
+   │                         ━
+   │
+   ╰ help: use the escape sequence `\x00` instead
+
+error[1465]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │             let s1 := "a    b"
+   │                         ━━━━
+   │
+   ╰ help: use the escape sequence `\x09` instead
+
+error[1465]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │             let s2 := "a␟b"
+   │                         ━
+   │
+   ╰ help: use the escape sequence `\x1f` instead
+
+error[1465]: control characters are not allowed in string literals
+   ╭▸ ROOT/tests/ui/lexer/string_control_chars.sol:LL:CC
+   │
+LL │             let s3 := "a␡b"
+   │                         ━
+   │
+   ╰ help: use the escape sequence `\x7f` instead
+
+error: aborting due to 8 previous errors
+
