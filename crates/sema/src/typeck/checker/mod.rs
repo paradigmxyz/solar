@@ -268,10 +268,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Checks the length expression of a fixed-size array type.
     ///
-    /// Any expression with an integer value is accepted, whatever its declared signedness and
-    /// width. Only the evaluated value matters, and
+    /// Any expression that the early evaluation gives an integer value is accepted, whatever its
+    /// declared signedness and width. Only the value matters, and
     /// [`ConstEval::eval_array_len`](crate::eval::ConstEval::eval_array_len) checks it and
-    /// reports values that are not integers.
+    /// reports the others.
     #[must_use]
     fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let fails = self

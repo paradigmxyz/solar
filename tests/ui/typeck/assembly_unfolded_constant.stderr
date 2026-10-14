@@ -4,5 +4,17 @@ error[7615]: only direct number constants are supported in inline assembly
 LL │             r := HASH
    ╰╴                 ━━━━
 
-error: aborting due to 1 previous error
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
+   │
+LL │             r := add(WRAPPED, h())
+   ╰╴                     ━━━━━━━
+
+error[7615]: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
+   │
+LL │                 v := HASH
+   ╰╴                     ━━━━
+
+error: aborting due to 3 previous errors
 

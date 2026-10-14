@@ -10,6 +10,8 @@ contract C {
         uint[true ? 1 : 1 / 0] memory b; //~ ERROR: failed to evaluate constant: attempted to divide by zero
         a;
         b;
+        // Every type with the length reports it once.
+        new uint[1 / 0][](1); //~ ERROR: failed to evaluate constant: attempted to divide by zero
     }
 
     // Like solc, a literal operation that has no value fails the length even next to an operand

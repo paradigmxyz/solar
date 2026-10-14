@@ -21,16 +21,6 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │ bytes constant X = abi.encode(new uint256[Y][](1));
    │                                           ━
-LL │
-LL │ uint256 constant Y = X.length;
-   ╰╴                     ──────── evaluation of constant value failed here
-
-error[5462]: failed to evaluate constant: unsupported expression
-   ╭▸ ROOT/tests/ui/typeck/constant_cycles/array_length_in_type.sol:LL:CC
-   │
-LL │ bytes constant X = abi.encode(new uint256[Y][](1));
-   │                                           ━
-LL │
 LL │ uint256 constant Y = X.length;
    ╰╴                     ──────── evaluation of constant value failed here
 
@@ -40,5 +30,5 @@ error[8349]: initial value for constant variable has to be compile-time constant
 LL │ uint256 constant Y = X.length;
    ╰╴                     ━━━━━━━━
 
-error: aborting due to 5 previous errors
+error: aborting due to 4 previous errors
 

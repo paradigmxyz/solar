@@ -17,7 +17,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
    │
 LL │     bytes1 constant S = "a";
-   │                         ─── evaluation of constant value failed here
+   │     ────── evaluation of constant value failed here
    ‡
 LL │     uint256[S] s;
    ╰╴            ━
@@ -26,7 +26,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_length_non_integer_constant.sol:LL:CC
    │
 LL │     bytes1 constant S = "a";
-   │                         ─── evaluation of constant value failed here
+   │     ────── evaluation of constant value failed here
    ‡
 LL │         abi.decode("", (uint256[S]));
    ╰╴                                ━

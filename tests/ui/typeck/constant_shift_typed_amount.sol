@@ -15,9 +15,15 @@ contract C {
         uint256[1 << S256] memory a; //~ ERROR: failed to evaluate constant: arithmetic overflow
         uint256[(1 << S256) >> S256] memory b; //~ ERROR: failed to evaluate constant: arithmetic overflow
         uint256[2 ** S256] memory c; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        // solc converts the amount or exponent to the left operand's type, which fails, and gives
+        // the operation no value.
+        uint256[S8 << 256] memory d; //~ ERROR: failed to evaluate constant: unsupported binary operation
+        uint256[S8 ** 300] memory e; //~ ERROR: failed to evaluate constant: unsupported binary operation
         a;
         b;
         c;
+        d;
+        e;
     }
 
     function inRange() public pure {

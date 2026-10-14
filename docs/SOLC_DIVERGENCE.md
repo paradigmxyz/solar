@@ -202,8 +202,9 @@ represent fixed-point types.
 Coverage: `tests/ui/parser/fixed_point_type.sol`,
 `tests/ui/parser/fixed_point_type_default.sol`,
 `tests/ui/parser/fixed_mxn_types.sol`,
-`tests/ui/parser/fixed_mxn_declaration_names.sol`, and
-`tests/ui/typeck/rational_literal_operators.sol`; the upstream fixtures that use
+`tests/ui/parser/fixed_mxn_declaration_names.sol`,
+`tests/ui/typeck/rational_literal_operators.sol`, and
+`tests/ui/typeck/rational_literal_mobile_type.sol`; the upstream fixtures that use
 fixed-point types are excluded from solc parity testing.
 
 ### PARSE-005: Yul number literals
@@ -219,16 +220,16 @@ Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
 
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol` and
-`tests/ui/typeck/yul_number_literal_too_large.sol`.
+`tests/ui/parser/yul_fractional_literal.sol`.
 
 ### PARSE-006: Number literals are limited to 4096 bits
 
 Status: intentional.
 
-Difference: `solc` accepts number literals of any size and limits only the
-results of literal arithmetic to 4096 bits, so `1e3000 / 1e3000` is `1`.
-`solar` also rejects a literal whose integer or fractional part is wider than
-4096 bits.
+Difference: `solc` accepts decimal and hexadecimal number literals with any
+number of digits, and limits only the results of literal arithmetic to 4096
+bits, so a 2000-digit literal divided by itself is `1`. `solar` also rejects a
+literal whose digits, before any exponent, are wider than 4096 bits.
 
 Rationale: literal arithmetic cannot produce a value wider than 4096 bits, so
 a wider literal has no use, and the limit bounds the parser's work on one
@@ -525,22 +526,24 @@ deeply.
 
 Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 
-### TYPECK-020: Constants declared after an array type
+### TYPECK-020: Early constant evaluation
 
 Status: intentional.
 
-Difference: `solar` accepts an array length that reads a constant declared
-after the array type, which `solc` rejects with error 5462.
+Difference: `solar` evaluates array lengths, base slots and constant operands
+during type checking like `solc`'s `ConstantEvaluator`, with three exceptions:
 
-When `solc` checks constant operands for a division by zero (1211) or a zero
-`addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
-(2643, 3667, 6020) and long chains (5210) it finds in them. `solar` does not.
+- An array length can read a constant declared after the array type, which
+  `solc` rejects with error 5462.
+- When `solc` checks constant operands for a division by zero (1211) or a zero
+  `addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
+  (2643, 3667, 6020) and long chains (5210) it finds in them. `solar` does not.
+- A literal operation without a value in a constant that an array length
+  reads, such as `1 / 0`, gets error 2271, as it does wherever the constant is
+  used. `solc` reports it as 6020 when it evaluates the array length first.
 
-A literal operation without a value in a constant that an array length reads,
-such as `1 / 0`, gets error 2271, as it does wherever the constant is used.
-`solc` reports it as 6020 when it evaluates the array length first.
-
-Rationale: the order of declarations does not change the value of a constant.
+Rationale: the order of declarations does not change the value of a constant,
+and each error is reported once, where the expression is checked.
 
 Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
 `tests/ui/typeck/array_len_eval_errors.sol`,
@@ -572,12 +575,14 @@ Status: intentional.
 Difference: `solar` accepts base slots of storage layout specifiers whose value
 its constant evaluator computes after type checking but `solc`'s does not, such
 as conditionals (`layout at true ? 42 : 94`), conversions, member accesses and
-builtins, and the constants they read. `solc` rejects them with error 1505.
+builtins, and the constants they read. `solc` rejects them with error 1505, or
+with error 9796 for `erc7201` of a string its evaluator does not compute.
 
 Rationale: the base slot has a well-defined value. Errors in a value that
 `solc` does not compute get `solc`'s code for it, 1505.
 
-Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol` and
+Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`,
+`tests/ui/typeck/storage_layout_base_slot_erc7201.sol` and
 `tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
 upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
@@ -603,7 +608,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   per-use-site masks, and keeps the in-assembly raw-scratch idiom
   (`value := shl(96, value)` then reading `value` back) working exactly like
   `solc`.
-- Coverage: `tests/ui/codegen/run-call/assembly_assign_cleanup.sol`;
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol`;
   external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
   `testBrutalizedBool` fail by asserting dirt survives.
 
@@ -813,15 +818,16 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-013
 - Status: intentional
-- Difference: `solc` evaluates the initializer of a constant at every use, in
-  the arithmetic mode of the use, so a use can wrap inside `unchecked`.
-  `solar` evaluates a constant once at compile time and uses its value. A
-  constant without a value at compile time, because its initializer reverts,
-  as with `uint8 constant C = A + 1` where `A` is `255`, or because `solar`
-  does not compute it, such as `keccak256(type(C).creationCode)` or a byte
-  array larger than 64 KiB, gets a helper function that runs its initializer,
-  and every use calls the helper, as in `solc`'s IR codegen. The helper uses
-  checked arithmetic, so such a constant reverts inside `unchecked` too.
+- Difference: `solc` evaluates the initializer of a constant at every use. Its
+  legacy codegen does so in the arithmetic mode of the use, so a use can wrap
+  inside `unchecked`. `solar` evaluates a constant once at compile time and
+  uses its value. A constant without a value at compile time, because its
+  initializer reverts, as with `uint8 constant C = A + 1` where `A` is `255`,
+  or because `solar` does not compute it, such as
+  `keccak256(type(C).creationCode)` or a byte array larger than 64 KiB, gets a
+  helper function that runs its initializer, and every use calls the helper,
+  as in `solc`'s IR codegen. The helper uses checked arithmetic, so such a
+  constant reverts inside `unchecked` too.
 - Rationale: a constant is one value, and computing it once is cheaper than
   running its initializer at every use.
 - Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,

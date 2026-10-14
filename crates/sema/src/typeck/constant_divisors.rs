@@ -38,7 +38,10 @@ struct Checker<'gcx> {
 impl Checker<'_> {
     /// Returns whether solc's constant evaluator gives the given expression the value zero.
     fn is_zero(&self, expr: &hir::Expr<'_>) -> bool {
-        self.gcx.early_const_eval().eval_expr(expr).is_ok_and(ConstValue::is_zero)
+        let early = self.gcx.early_const_eval();
+        // The depth walk is not cached, so only run it on a zero.
+        early.eval_expr(expr).is_ok_and(ConstValue::is_zero)
+            && early.eval_with_depth_limit(expr).is_ok()
     }
 }
 
@@ -55,7 +58,7 @@ impl<'gcx> Visit<'gcx> for Checker<'gcx> {
                 if matches!(op.kind, hir::BinOpKind::Div | hir::BinOpKind::Rem)
                     && self.gcx.user_operator(expr.id).is_none()
                     && self.is_zero(rhs)
-                    && self.gcx.early_const_eval().eval_expr(lhs).is_ok() =>
+                    && self.gcx.early_const_eval().eval_with_depth_limit(lhs).is_ok() =>
             {
                 let msg =
                     if op.kind == hir::BinOpKind::Div { "division by zero" } else { "modulo zero" };

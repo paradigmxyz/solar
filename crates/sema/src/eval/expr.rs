@@ -1,7 +1,7 @@
 //! Evaluation of HIR expressions.
 
 use super::{
-    ConstEval, EvalError, EvalErrorKind as EE, EvalResult, Folded, Mode, SOLC_MAX_DEPTH, builtins,
+    ConstEval, EvalError, EvalErrorKind as EE, EvalResult, Mode, builtins,
     value::{BytesKind, CodeKind, ConstValue, IntScalar, IntTy, ValueTy},
 };
 use crate::{
@@ -34,19 +34,13 @@ pub(super) fn eval_constant(cx: ConstEval<'_>, id: hir::VariableId) -> EvalResul
     let Some(init) = var.initializer else {
         return Err(already_emitted(gcx).spanned(var.span));
     };
-    let Folded { value, depth } = cx.expr_result(init).clone()?;
+    let value = cx.expr_result(init).clone()?;
     let Some(ty) = ValueTy::from_hir(&var.ty) else {
         return Err(EE::UnsupportedExpr.spanned(init.span));
     };
-    let depth = depth + 1;
-    if cx.mode == Mode::Early {
-        // solc's evaluator keeps the values of integer and string constants, at most 32 deep.
-        if !matches!(ty, ValueTy::Int(_) | ValueTy::Bytes | ValueTy::String) {
-            return Err(EE::UnsupportedExpr.spanned(init.span));
-        }
-        if depth > SOLC_MAX_DEPTH {
-            return Err(EE::DepthLimit.spanned(var.span));
-        }
+    // solc's evaluator keeps the values of integer, string and `bytes` constants.
+    if cx.mode == Mode::Early && !matches!(ty, ValueTy::Int(_) | ValueTy::Bytes | ValueTy::String) {
+        return Err(EE::UnsupportedExpr.spanned(var.ty.span));
     }
     let value = match (value, ty) {
         // An initializer that does not fit its declared type is already a type error at the
@@ -57,7 +51,7 @@ pub(super) fn eval_constant(cx: ConstEval<'_>, id: hir::VariableId) -> EvalResul
         (value @ ConstValue::Rational(_), ValueTy::Int(_)) => value,
         (value, ty) => value.implicit_to(gcx, ty).map_err(|kind| kind.spanned(init.span))?,
     };
-    Ok(Folded { value, depth })
+    Ok(value)
 }
 
 fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
@@ -74,7 +68,7 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
             eval_res(cx, res)
         }
         hir::ExprKind::Unary(op, inner) => {
-            let Folded { value, depth } = ev(inner)?;
+            let value = ev(inner)?;
             // solc folds `-` and `~` of numbers, and converts `~` of an unsigned value back to its
             // type, which fails.
             if early {
@@ -89,39 +83,38 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
                     _ => return Err(EE::UnsupportedUnaryOp.into()),
                 }
             }
-            Ok(Folded { value: value.unop(op.kind)?, depth })
+            Ok(value.unop(op.kind)?)
         }
         hir::ExprKind::Binary(lhs, op, rhs) => {
             // Evaluate both operands, even of `&&` and `||`; see the module docs.
             let (l, r) = both(ev(lhs), ev(rhs))?;
-            let depth = l.depth.max(r.depth);
             let mut solc = Ok(());
             if early {
                 if op.kind.is_cmp() || op.kind.is_logical() {
                     return Err(EE::UnsupportedBinaryOp.into());
                 }
-                if let (ConstValue::Int(l), ConstValue::Int(r)) = (&l.value, &r.value) {
+                if let (ConstValue::Int(l), ConstValue::Int(r)) = (&l, &r) {
                     solc = l.solc_binop(r, op.kind);
                 }
             } else if let (hir::BinOpKind::And, Some(false)) | (hir::BinOpKind::Or, Some(true)) =
-                (op.kind, l.value.as_bool())
+                (op.kind, l.as_bool())
             {
-                return Ok(Folded::new(l.value));
+                return Ok(l);
             }
             // Only an untyped literal next to a typed operand can be too large.
             let literal =
-                if matches!(&l.value, ConstValue::Int(l) if l.is_literal()) { lhs } else { rhs };
-            let value = l.value.binop(r.value, op.kind).map_err(|kind| match kind {
-                EE::LiteralTooLarge => kind.spanned(literal.span),
-                kind => kind.into(),
-            })?;
-            solc?;
-            Ok(Folded { value, depth })
+                if matches!(&l, ConstValue::Int(l) if l.is_literal()) { lhs } else { rhs };
+            // A literal too large for its operation is a type error, which comes first, then solc's
+            // error, if any.
+            match (l.binop(r, op.kind), solc) {
+                (Err(EE::LiteralTooLarge), _) => Err(EE::LiteralTooLarge.spanned(literal.span)),
+                (_, Err(kind)) | (Err(kind), _) => Err(kind.into()),
+                (Ok(value), Ok(())) => Ok(value),
+            }
         }
         hir::ExprKind::Call(callee, args) if early => match (cx.res(callee), args.kind) {
             (Some(hir::Res::Builtin(Builtin::Erc7201)), hir::CallArgsKind::Unnamed([arg])) => {
-                let Folded { value, depth } = ev(arg)?;
-                Ok(Folded { value: builtins::call(gcx, Builtin::Erc7201, &[value])?, depth })
+                Ok(builtins::call(gcx, Builtin::Erc7201, &[ev(arg)?])?)
             }
             _ => unsupported_early(cx, expr),
         },
@@ -130,30 +123,28 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
         hir::ExprKind::Member(base, member) => eval_member(cx, base, member.name),
         hir::ExprKind::Ternary(cond, then, els) => {
             let (cond, (then, els)) = both(ev(cond), both(ev(then), ev(els)))?;
-            let Some(cond) = cond.value.as_bool() else {
+            let Some(cond) = cond.as_bool() else {
                 return Err(EE::UnsupportedExpr.into());
             };
             // Both branches decide the result type.
-            let (then, els) = then.value.unify(gcx, els.value)?;
-            Ok(Folded::new(if cond { then } else { els }))
+            let (then, els) = then.unify(gcx, els)?;
+            Ok(if cond { then } else { els })
         }
         hir::ExprKind::Call(callee, args) if let hir::ExprKind::New(ty) = &callee.kind => {
             eval_new(cx, ty, &args)
         }
         hir::ExprKind::Call(callee, args) => eval_call(cx, callee, &args),
-        hir::ExprKind::Payable(inner) => {
-            Ok(Folded::new(ev(inner)?.value.explicit_to(gcx, ValueTy::Address)?))
-        }
+        hir::ExprKind::Payable(inner) => Ok(ev(inner)?.explicit_to(gcx, ValueTy::Address)?),
         hir::ExprKind::Index(base, Some(index)) => {
             let (base, index) = both(ev(base), ev(index))?;
-            let (base, index) = (base.value, index.value.as_u256().ok_or(EE::OutOfRange)?);
+            let index = index.as_u256().ok_or(EE::OutOfRange)?;
             let bytes = match &base {
                 ConstValue::FixedBytes(value) => value.as_slice(),
                 ConstValue::Bytes(data, BytesKind::Bytes) => data.as_byte_str(),
                 _ => return Err(EE::UnsupportedExpr.into()),
             };
             let byte = usize::try_from(index).ok().and_then(|index| bytes.get(index));
-            Ok(Folded::new(builtins::fixed_bytes(&[*byte.ok_or(EE::OutOfRange)?])))
+            Ok(builtins::fixed_bytes(&[*byte.ok_or(EE::OutOfRange)?]))
         }
         _ => Err(EE::UnsupportedExpr.into()),
     }
@@ -192,7 +183,7 @@ fn eval_lit(cx: ConstEval<'_>, lit: &hir::Lit<'_>) -> EvalResult {
         LitKind::Address(address) => ConstValue::Address(address),
         LitKind::Bool(value) => ConstValue::Bool(value),
     };
-    Ok(Folded::new(value))
+    Ok(value)
 }
 
 fn lit_uint(n: LitUint) -> BigInt {
@@ -210,7 +201,7 @@ fn eval_res(cx: ConstEval<'_>, res: hir::Res) -> EvalResult {
             if let Some(hir::ItemId::Enum(enum_id)) = gcx.hir.variable(id).parent
                 && let Some(index) = res.enum_variant_index(&gcx.hir) =>
         {
-            Ok(Folded::new(ConstValue::Enum(enum_id, index as u32)))
+            Ok(ConstValue::Enum(enum_id, index as u32))
         }
         hir::Res::Item(hir::ItemId::Variable(_)) => Err(EE::NonConstantVar.into()),
         hir::Res::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
@@ -277,7 +268,7 @@ fn eval_member(cx: ConstEval<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalR
             },
             _ => return Err(EE::UnsupportedExpr.into()),
         },
-        (_, sym::length) => match cx.expr_result(base).clone()?.value {
+        (_, sym::length) => match cx.expr_result(base).clone()? {
             ConstValue::FixedBytes(value) => {
                 ConstValue::Int(IntScalar::typed(value.size().into(), IntTy::UINT8))
             }
@@ -288,7 +279,7 @@ fn eval_member(cx: ConstEval<'_>, base: &hir::Expr<'_>, member: Symbol) -> EvalR
         },
         _ => return Err(EE::UnsupportedExpr.into()),
     };
-    Ok(Folded::new(value))
+    Ok(value)
 }
 
 /// Evaluates a call: a type conversion, a pure builtin, `abi.encodeCall`, `wrap` or `unwrap` of a
@@ -351,8 +342,8 @@ fn eval_call(
     };
 
     let mut args = operands(args?.iter().map(|arg| cx.expr_result(arg).clone()))?;
-    let single = |args: &mut Vec<Folded>| match args[..] {
-        [_] => Ok(args.pop().unwrap().value),
+    let single = |args: &mut Vec<ConstValue>| match args[..] {
+        [_] => Ok(args.pop().unwrap()),
         _ => Err(EE::UnsupportedExpr),
     };
     let value = match callee {
@@ -366,12 +357,9 @@ fn eval_call(
             ConstValue::Udvt(udvt, value) if udvt == id => *value,
             _ => return Err(EE::UnsupportedExpr.into()),
         },
-        Callee::Builtin(builtin) => {
-            let args = args.into_iter().map(|arg| arg.value).collect::<Vec<_>>();
-            builtins::call(gcx, builtin, &args)?
-        }
+        Callee::Builtin(builtin) => builtins::call(gcx, builtin, &args)?,
     };
-    Ok(Folded::new(value))
+    Ok(value)
 }
 
 /// Evaluates `new T(len)` of a byte array or a dynamic array, which holds zero values.
@@ -405,7 +393,7 @@ fn eval_new(cx: ConstEval<'_>, ty: &hir::Type<'_>, args: &hir::CallArgs<'_>) -> 
         }
         _ => return Err(EE::UnsupportedExpr.into()),
     };
-    Ok(Folded::new(value))
+    Ok(value)
 }
 
 /// Returns the zero value of a type in memory, counting the values it builds against `budget`.
@@ -422,9 +410,9 @@ fn zero_value(gcx: Gcx<'_>, ty: &hir::Type<'_>, budget: &mut usize) -> Result<Co
             ConstValue::Array { elements: Box::new([]), dynamic: true }
         }
         hir::TypeKind::Array(hir::TypeArray { element, size: Some(size) }) => {
-            // Array lengths are early values, whose errors type checking reports.
-            let len = gcx.early_const_eval().eval_int(size).map_err(|err| err.kind)?.as_u256();
-            let len = len.and_then(|len| usize::try_from(len).ok()).ok_or(EE::UnsupportedExpr)?;
+            // Type checking reported the errors of the length.
+            let len = gcx.early_const_eval().eval_array_len(size).map_err(EE::AlreadyEmitted)?;
+            let len = usize::try_from(len).map_err(|_| EE::ValueTooLarge)?;
             ConstValue::Array { elements: zero_values(gcx, element, len, budget)?, dynamic: false }
         }
         _ => ValueTy::from_hir(ty).ok_or(EE::UnsupportedExpr)?.zero(gcx)?,
@@ -462,9 +450,9 @@ fn eval_struct(cx: ConstEval<'_>, id: hir::StructId, args: &hir::CallArgs<'_>) -
         cx.expr_result(arg).clone()
     }))?;
     let values = std::iter::zip(fields, args)
-        .map(|(&field, arg)| implicit_to_declared(gcx, arg.value, &gcx.hir.variable(field).ty))
+        .map(|(&field, arg)| implicit_to_declared(gcx, arg, &gcx.hir.variable(field).ty))
         .collect::<Result<_, _>>()?;
-    Ok(Folded::new(ConstValue::Struct(id, values)))
+    Ok(ConstValue::Struct(id, values))
 }
 
 /// Converts a value implicitly to a declared type, like an assignment. Structs and arrays keep
@@ -505,9 +493,9 @@ fn eval_encode_call(cx: ConstEval<'_>, args: &[hir::Expr<'_>]) -> EvalResult {
     let args = operands::<_, Vec<_>>(call_args.iter().map(|arg| cx.expr_result(arg).clone()))?;
     let mut values = vec![builtins::fixed_bytes(&gcx.function_selector(id).0)];
     for (&param, arg) in std::iter::zip(params, args) {
-        values.push(implicit_to_declared(gcx, arg.value, &gcx.hir.variable(param).ty)?);
+        values.push(implicit_to_declared(gcx, arg, &gcx.hir.variable(param).ty)?);
     }
-    Ok(Folded::new(builtins::call(gcx, Builtin::AbiEncodeWithSelector, &values)?))
+    Ok(builtins::call(gcx, Builtin::AbiEncodeWithSelector, &values)?)
 }
 
 /// Returns whether the given item has a selector: a public or external function, an error or a
@@ -534,8 +522,8 @@ fn both<T, U>(l: Result<T, EvalError>, r: Result<U, EvalError>) -> Result<(T, U)
 }
 
 /// Returns the values of operands that all must evaluate. Of several errors, it returns the first
-/// that is not [`EE::is_unsupported`], so whether a constant reverts does not depend on the order
-/// of its operands.
+/// that is not [`EE::is_unsupported`], so the reported error does not depend on the order of the
+/// operands.
 fn operands<T, C: FromIterator<T>>(
     results: impl IntoIterator<Item = Result<T, EvalError>>,
 ) -> Result<C, EvalError> {

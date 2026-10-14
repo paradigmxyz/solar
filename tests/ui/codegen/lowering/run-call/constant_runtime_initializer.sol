@@ -1,12 +1,16 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: Child::selectors => 0x26121ff0, 0x26121ff0
 //@ run-call: Child::precompile => 0x0000000000000000000000000000000000000000
 //@ run-call: Child::decoded => 7
 //@ run-call: Child::codeHash => true
 //@ run-call: Child::widened => 7
+//@ run-call: Child::deployedHash => true
 
-// A constant whose value constant evaluation does not compute calls a helper that runs its
-// initializer at every use, as solc does. The values come from solc.
+// The selectors of `this.f` and `super.f` fold after type checking. The other constants have no
+// value at compile time, so every use calls a helper that runs the initializer, as solc does. The
+// values come from solc.
 contract D {}
 
 contract Base {
@@ -22,12 +26,24 @@ contract Child is Base {
     uint256 constant WIDENED = DECODED;
     bytes32 constant CODE_HASH = keccak256(type(D).creationCode);
 
+    bytes32 immutable deployed;
+
+    // Creation code calls the helper too.
+    constructor() {
+        deployed = CODE_HASH;
+    }
+
     function f() public pure override {}
 
+    // CHECK-LABEL: fn @selectors()
+    // CHECK-NOT: icall
+    // CHECK: ret
     function selectors() external pure returns (bytes4, bytes4) {
         return (THIS_SELECTOR, SUPER_SELECTOR);
     }
 
+    // CHECK-LABEL: fn @precompile()
+    // CHECK: icall @constant_
     function precompile() external pure returns (address) {
         return RECOVERED;
     }
@@ -42,5 +58,9 @@ contract Child is Base {
 
     function widened() external pure returns (uint256) {
         return WIDENED;
+    }
+
+    function deployedHash() external view returns (bool) {
+        return deployed == CODE_HASH;
     }
 }

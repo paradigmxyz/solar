@@ -9,4 +9,3 @@ contract C {
     uint256[X] x; //~ ERROR: failed to evaluate constant: unsupported binary operation
     uint256[Y] y; //~ ERROR: failed to evaluate constant: unsupported binary operation
 }
-

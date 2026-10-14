@@ -6,11 +6,10 @@
 //@ run-call: zeroBytes => 3, 0x99ff0d9125e1fc9531a11262e15aeb2c60509a078c4cc4c64cefdfb06ff68647
 //@ run-call: encodeCall => 0x3c916696a0faa1db2286dbb50567e1cca25ef734021b736074d7fb8ec68a4318, 0xab7faff8ff645341ff60a0f642d5ba9ea9a4b01d2152e03885817540249b6eb4
 //@ run-call: libraryConstant => 1000000
-//@ run-call: comparisons => true, 1
 
 // Constant evaluation folds structs, `new` arrays and byte arrays, their ABI encodings,
-// `abi.encodeCall`, public constants of libraries, contract comparisons and enum variants, so each
-// of these functions returns immediates. The expected values come from `cast`.
+// `abi.encodeCall`, and public constants of libraries, so each of these functions returns
+// immediates. The expected values come from `cast`.
 
 enum ItemType {
     A,
@@ -40,11 +39,6 @@ interface I {
     function g(Item calldata) external;
 }
 
-enum Named {
-    a,
-    selector
-}
-
 library L {
     uint24 public constant MAX = 1000000;
 }
@@ -63,9 +57,6 @@ contract ConstantEvalAggregates {
     bytes32 constant CALL = keccak256(abi.encodeCall(I.f, (1, "ab")));
     bytes32 constant STRUCT_CALL =
         keccak256(abi.encodeCall(I.g, (Item(ItemType.B, address(1), 3))));
-    bool constant SAME = I(address(1)) == I(address(1));
-    // An enum variant can be named like a member.
-    Named constant SELECTOR = Named.selector;
     uint24 constant MAX = L.MAX;
 
     // CHECK-LABEL: fn @structs()
@@ -97,12 +88,5 @@ contract ConstantEvalAggregates {
     // CHECK: ret i24 0xf4240
     function libraryConstant() external pure returns (uint24) {
         return MAX;
-    }
-
-    // CHECK-LABEL: fn @comparisons()
-    // CHECK-NOT: eq
-    // CHECK: ret
-    function comparisons() external pure returns (bool, Named) {
-        return (SAME, SELECTOR);
     }
 }

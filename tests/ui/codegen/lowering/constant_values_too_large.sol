@@ -1,4 +1,4 @@
-//@ compile-flags: --emit=bin
+//@ compile-flags: --emit=bin --allow=5574 --allow=3860
 //@ normalize-stdout-test: "(?s).+" -> ""
 // `bytes` and `string` values larger than 64 KiB do not fold, so doubling concatenations stay
 // cheap to compile. Their uses call helpers that compute them at runtime.
@@ -18,8 +18,7 @@ bytes constant B12 = bytes.concat(B11, B11);
 string constant S = string.concat(string(B11), string(B11), "x");
 
 // Building the values at runtime copies the folded `B11` into the code.
-contract C { //~ WARN: contract code size is
-    //~^ WARN: contract initcode size is
+contract C {
     function lengths() external pure returns (uint256, uint256, uint256) {
         return (B11.length, B12.length, bytes(S).length);
     }

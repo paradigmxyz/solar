@@ -39,8 +39,8 @@ LL │         uint[M.C] memory f;
 error[5210]: failed to evaluate constant: constants are nested too deeply
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
-LL │ uint constant C32 = C31 + 1;
-   │ ──────────────────────────── evaluation of constant value failed here
+LL │ uint constant C8 = C7 + 1;
+   │ ────────────────────────── evaluation of constant value failed here
    ‡
 LL │         uint[C40] memory g;
    ╰╴             ━━━

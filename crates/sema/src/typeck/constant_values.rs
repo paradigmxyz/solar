@@ -12,7 +12,8 @@
 //!   Every use of such a constant calls a helper that computes it, which can allocate memory over
 //!   data the assembly stored past the free memory pointer.
 //!
-//! As in solc, this only runs when no other error was reported.
+//! This only runs when no other error was reported, as solc's base slot checks do: a constant with
+//! an error has no value. solc reports 7615 with its other type errors.
 //!
 //! Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/PostTypeContractLevelChecker.cpp#L87-L194>
 
@@ -53,7 +54,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
 /// base slots.
 pub(super) fn check_early_base_slot(gcx: Gcx<'_>, contract: hir::ContractId, slot: &hir::Expr<'_>) {
     let early = gcx.early_const_eval();
-    match early.eval_int(slot) {
+    match early.eval_int_with_depth_limit(slot) {
         Ok(value) => check_base_slot_value(gcx, contract, slot, value, true),
         Err(err) if err.kind.is_unsupported() => {}
         // solc reports cycles in the `PostTypeChecker`, before it evaluates base slots, so leave

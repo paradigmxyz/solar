@@ -10,11 +10,12 @@
 //! two modes, each with its own memoized results:
 //!
 //! - [`Gcx::early_const_eval`] evaluates what solc's `ConstantEvaluator` evaluates: number and
-//!   string literals, constants of integer and string types named by identifiers, at most 32 deep,
-//!   unary and binary arithmetic, and `erc7201` of a string. It only uses name resolution and never
-//!   reaches a type, so type checking uses it for array lengths and literal arithmetic. Checks that
-//!   solc runs on the values its evaluator computes, such as division by zero, use it to report
-//!   exactly what solc reports.
+//!   string literals, constants of integer, string and `bytes` types named by identifiers, unary
+//!   and binary arithmetic, and `erc7201` of a string. It only uses name resolution and never
+//!   reaches a type, so type checking uses it for array lengths, base slots and literal arithmetic.
+//!   Checks that solc runs on the values its evaluator computes, such as division by zero, use it
+//!   too, and [`ConstEval::eval_with_depth_limit`] gives up on constants nested more than 32 deep
+//!   like solc; see TYPECK-020 in `docs/SOLC_DIVERGENCE.md`.
 //! - [`Gcx::const_eval`] evaluates everything a constant initializer can contain, after type
 //!   checking, with the declarations it selected, such as the function in `this.f.selector`.
 //!   Codegen, base slots and other checks after type checking use it.
@@ -33,8 +34,9 @@
 //! then evaluates them in dependency order. Long chains of constants therefore do not recurse.
 //! The constants of a reference cycle, found as strongly connected components of that graph, all
 //! evaluate to [`EvalErrorKind::Cycle`]. The cycle check after type checking reports the cycles
-//! themselves. Neither mode evaluates a constant through a type, so the graph has every edge: the
-//! early mode reaches no types, and the full mode reads types that type checking computed.
+//! themselves. Neither mode evaluates a constant through a type that is not computed yet, so the
+//! graph has every edge: the early mode reaches no types, and the full mode reads types that type
+//! checking computed.
 //!
 //! # Values
 //!
@@ -62,8 +64,9 @@
 //! out-of-range conversion, does not fold. Neither does anything that reads state or the
 //! environment, calls a function, builds array literals, or uses the bytes of contract code, nor
 //! a value larger than 64 KiB. Every operand must evaluate, even the branch a conditional does not
-//! take and the second operand of `&&` and `||`: the branches decide the type of a conditional,
-//! and a constant with an operand that reverts is a mistake.
+//! take and the second operand of `&&` and `||`, as the branches decide the type of a conditional.
+//! A constant without a value runs its initializer at runtime, which only takes the branches it
+//! needs.
 
 use crate::{
     hir,
@@ -71,7 +74,12 @@ use crate::{
 };
 use EvalErrorKind as EE;
 use alloy_primitives::U256;
-use solar_data_structures::{graph::sccs, index::IndexVec, map::FxHashMap, newtype_index};
+use solar_data_structures::{
+    graph::sccs,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+    newtype_index,
+};
 use solar_interface::{
     Span,
     diagnostics::{DiagId, ErrorGuaranteed},
@@ -122,21 +130,8 @@ enum Mode {
     Full,
 }
 
-/// A value and the depth of the constants it reads, which only the early mode limits, like solc.
-#[derive(Clone, Debug)]
-pub(crate) struct Folded {
-    value: ConstValue,
-    depth: u32,
-}
-
-impl Folded {
-    fn new(value: ConstValue) -> Self {
-        Self { value, depth: 0 }
-    }
-}
-
 /// The result of evaluating an expression or a constant.
-pub(crate) type EvalResult = Result<Folded, EvalError>;
+pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 /// The memoized results of constant evaluation.
 #[derive(Default)]
@@ -146,6 +141,8 @@ pub(crate) struct ConstEvalCache {
     /// The errors of literal operations that have no value, see
     /// [`ConstEval::emit_literal_op_error`].
     literal_op_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
+    /// Checked array lengths, so each reports its errors once.
+    array_lens: FxOnceMap<hir::ExprId, Result<U256, ErrorGuaranteed>>,
 }
 
 /// The memoized results of one evaluation mode.
@@ -189,7 +186,7 @@ pub struct ConstEval<'gcx> {
 impl<'gcx> ConstEval<'gcx> {
     /// Evaluates the given expression to a typed constant value without emitting diagnostics.
     pub fn eval_expr(self, expr: &hir::Expr<'_>) -> Result<&'gcx ConstValue, EvalError> {
-        self.expr_result(expr).as_ref().map(|folded| &folded.value).map_err(|err| *err)
+        self.expr_result(expr).as_ref().map_err(|err| *err)
     }
 
     /// Evaluates the given expression as an integer constant without emitting diagnostics.
@@ -203,7 +200,7 @@ impl<'gcx> ConstEval<'gcx> {
     /// Returns the value of the given constant variable, converted to its declared type when it
     /// fits.
     pub fn eval_var(self, id: hir::VariableId) -> Result<&'gcx ConstValue, EvalError> {
-        self.var_result(id).as_ref().map(|folded| &folded.value).map_err(|err| *err)
+        self.var_result(id).as_ref().map_err(|err| *err)
     }
 
     /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
@@ -213,9 +210,13 @@ impl<'gcx> ConstEval<'gcx> {
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L336-L366>
     pub fn eval_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
         debug_assert_eq!(self.mode, Mode::Early, "array lengths use the early evaluator");
+        self.gcx.const_eval_cache.array_lens.insert_cloned(size.id, |_| self.check_array_len(size))
+    }
+
+    fn check_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
         let cx = ConstContext::ArrayLength;
         let dcx = self.gcx.dcx();
-        let int = match self.eval_expr(size) {
+        let int = match self.eval_with_depth_limit(size) {
             Ok(ConstValue::Int(int)) => int,
             Ok(ConstValue::Rational(_)) => {
                 let msg = "array length cannot be fractional";
@@ -239,6 +240,56 @@ impl<'gcx> ConstEval<'gcx> {
         } else {
             Ok(int)
         }
+    }
+
+    /// Evaluates an expression whose value solc requires, such as an array length, and returns
+    /// [`EvalErrorKind::DepthLimit`] where solc's evaluator gives up on nested constants.
+    pub(crate) fn eval_with_depth_limit(
+        self,
+        expr: &hir::Expr<'_>,
+    ) -> Result<&'gcx ConstValue, EvalError> {
+        debug_assert_eq!(self.mode, Mode::Early, "the depth limit is solc's");
+        if let Some(id) = self.solc_depth_limit(expr) {
+            return Err(EE::DepthLimit.spanned(self.gcx.hir.variable(id).span));
+        }
+        self.eval_expr(expr)
+    }
+
+    /// Like [`eval_with_depth_limit`](Self::eval_with_depth_limit), as an integer.
+    pub(crate) fn eval_int_with_depth_limit(
+        self,
+        expr: &hir::Expr<'_>,
+    ) -> Result<&'gcx IntScalar, EvalError> {
+        match self.eval_with_depth_limit(expr)? {
+            ConstValue::Int(value) => Ok(value),
+            _ => Err(EE::NotAnInteger.spanned(expr.span)),
+        }
+    }
+
+    /// Returns the constant at which solc's evaluator gives up on `expr` with error 5210.
+    ///
+    /// solc's evaluator follows the constants that identifiers name, at most 32 deep. It evaluates
+    /// each constant once, the first time it reaches it, so the depth of a constant is that of the
+    /// first path to it, in source order, whatever the constant's type.
+    fn solc_depth_limit(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
+        fn walk(
+            cx: ConstEval<'_>,
+            references: Vec<hir::VariableId>,
+            depth: u32,
+            seen: &mut FxHashSet<hir::VariableId>,
+        ) -> ControlFlow<hir::VariableId> {
+            for id in references {
+                if seen.insert(id) {
+                    if depth == SOLC_MAX_DEPTH {
+                        return ControlFlow::Break(id);
+                    }
+                    walk(cx, cx.constant_references(id), depth + 1, seen)?;
+                }
+            }
+            ControlFlow::Continue(())
+        }
+
+        walk(self, self.references_in(expr), 0, &mut FxHashSet::default()).break_value()
     }
 
     /// Returns the base slot of the storage of the given contract: the value of its storage layout
@@ -353,15 +404,23 @@ impl<'gcx> ConstEval<'gcx> {
 
     /// Returns the constants that the initializer of the constant `id` names.
     fn constant_references(self, id: hir::VariableId) -> Vec<hir::VariableId> {
+        self.gcx
+            .hir
+            .variable(id)
+            .initializer
+            .map(|init| self.references_in(init))
+            .unwrap_or_default()
+    }
+
+    /// Returns the constants that the given expression names, in source order.
+    fn references_in(self, expr: &hir::Expr<'_>) -> Vec<hir::VariableId> {
         let mut references = Vec::new();
-        if let Some(init) = self.gcx.hir.variable(id).initializer {
-            let _ = init.visit(&mut |expr| {
-                if let Some(dep) = self.constant_reference(expr) {
-                    references.push(dep);
-                }
-                ControlFlow::<()>::Continue(())
-            });
-        }
+        let _ = expr.visit(&mut |expr| {
+            if let Some(dep) = self.constant_reference(expr) {
+                references.push(dep);
+            }
+            ControlFlow::<()>::Continue(())
+        });
         references
     }
 

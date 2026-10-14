@@ -1,8 +1,12 @@
 //@ codegen-matrix: standard
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call-fail: overflow() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: power() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: divided() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
 //@ run-call-fail: discarded() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: discardedTuple() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call-fail: inUnchecked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: branch => 1
 //@ run-call: and => false
 //@ run-call-fail: hashFirst() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -25,11 +29,14 @@ contract C {
     bool constant AND = false && OVERFLOW > 0;
     uint256 constant HASH = uint256(keccak256(type(D).creationCode));
     uint8 constant MAX8 = 255;
+    uint8 constant WRAPPED = MAX8 + 1;
     uint256 constant HASH_FIRST = HASH + (MAX8 + 1);
     uint256 constant HASH_LAST = (MAX8 + 1) + HASH;
     // A constant that no code uses has no helper.
     uint256 constant UNUSED = MAX + 2;
 
+    // CHECK-LABEL: fn @overflow()
+    // CHECK: icall @constant_
     function overflow() external pure returns (uint256) {
         return OVERFLOW;
     }
@@ -45,6 +52,19 @@ contract C {
     function discarded() external pure returns (uint256) {
         C.OVERFLOW;
         return 1;
+    }
+
+    // The tuple reads its elements in order.
+    function discardedTuple() external pure returns (uint256) {
+        (DIVIDED, OVERFLOW);
+        return 1;
+    }
+
+    // The helper runs in checked arithmetic, even for a use inside `unchecked`.
+    function inUnchecked() external pure returns (uint8) {
+        unchecked {
+            return WRAPPED;
+        }
     }
 
     function branch() external pure returns (int8) {
@@ -65,6 +85,9 @@ contract C {
         return HASH_LAST;
     }
 
+    // CHECK-LABEL: fn @unused()
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: ret 1
     function unused() external pure returns (uint256) {
         return 1;
     }

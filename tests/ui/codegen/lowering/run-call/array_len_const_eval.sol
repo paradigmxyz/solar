@@ -40,15 +40,6 @@ uint constant C28 = C27 + 1;
 uint constant C29 = C28 + 1;
 uint constant C30 = C29 + 1;
 uint constant C31 = C30 + 1;
-uint constant C32 = C31 + 1;
-uint constant C33 = C32 + 1;
-uint constant C34 = C33 + 1;
-uint constant C35 = C34 + 1;
-uint constant C36 = C35 + 1;
-uint constant C37 = C36 + 1;
-uint constant C38 = C37 + 1;
-uint constant C39 = C38 + 1;
-uint constant C40 = C39 + 1;
 
 contract ArrayLenConstEval {
     // CHECK-LABEL: fn @lengths()

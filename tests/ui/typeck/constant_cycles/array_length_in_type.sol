@@ -9,7 +9,6 @@ uint256 constant A = uint256(keccak256(abi.encode(new S[](1)))) % 4 + 1;
 uint256 constant B = A;
 
 bytes constant X = abi.encode(new uint256[Y][](1)); //~ ERROR: failed to evaluate constant: unsupported expression
-//~^ ERROR: failed to evaluate constant: unsupported expression
 uint256 constant Y = X.length; //~ ERROR: initial value for constant variable has to be compile-time constant
 
 contract C {
