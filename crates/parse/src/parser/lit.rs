@@ -185,6 +185,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let extra = self.alloc_vec(extra);
         Ok(LitKind::Str(kind, ByteSymbol::intern(&value), extra))
     }
+
+    /// Reports invalid characters and escapes in a [`StrLit`], as [`parse_lit`](Self::parse_lit)
+    /// does for string literals in expressions. Returns `true` if the literal is valid.
+    pub(super) fn validate_str_lit(&self, lit: &StrLit) -> bool {
+        let (_, has_error) =
+            unescape::parse_string_literal(lit.value.as_str(), StrKind::Str, lit.span, self.sess);
+        !has_error
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

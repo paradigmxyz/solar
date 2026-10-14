@@ -321,10 +321,25 @@ impl<'gcx> TypeChecker<'gcx> {
                         guar.get_or_insert(g);
                         continue;
                     }
+                    if expr_ty.is_unit() {
+                        let g = self
+                            .dcx()
+                            .err("array component cannot be empty")
+                            .code(error_code!(5604))
+                            .span(expr.span)
+                            .emit();
+                        guar.get_or_insert(g);
+                        continue;
+                    }
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
-                        let g = self.dcx().emit_err(expr.span, "invalid mobile type");
+                        let g = self
+                            .dcx()
+                            .err("invalid mobile type")
+                            .code(error_code!(9563))
+                            .span(expr.span)
+                            .emit();
                         guar.get_or_insert(g);
                     }
                     if let Some(common_ty) = common {
@@ -350,11 +365,14 @@ impl<'gcx> TypeChecker<'gcx> {
                             "type `{}` is only valid in storage because it contains a (nested) mapping",
                             common.display(self.gcx),
                         );
-                        self.gcx.mk_ty_err(self.dcx().emit_err(expr.span, msg))
+                        self.gcx.mk_ty_err(
+                            self.dcx().err(msg).code(error_code!(1545)).span(expr.span).emit(),
+                        )
                     } else if !common.nameable() {
                         self.gcx.mk_ty_err(
                             self.dcx()
                                 .err("cannot infer nameable array element type")
+                                .code(error_code!(9656))
                                 .span(expr.span)
                                 .help("add an explicit type conversion for the first element")
                                 .emit(),
@@ -368,7 +386,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 } else {
                     self.gcx.mk_ty_err(
-                        self.dcx().emit_err(expr.span, "cannot infer array element type"),
+                        self.dcx()
+                            .err("cannot infer array element type")
+                            .code(error_code!(6378))
+                            .span(expr.span)
+                            .emit(),
                     )
                 }
             }

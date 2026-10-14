@@ -20,73 +20,67 @@ fn @arrayCopy() -> memptr [selector=0xb192499e, pure, abi_params=[], abi_returns
 fn @bytesCopy() -> memptr [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = make_calldata_slice 4, v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = make_calldata_slice v4, 64
-    v7 = slice_len v6
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = slice_ptr v6
-    v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v13, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    memory_object_copy_from_slice memorybytes, v12, v6
-    ret v12
+    v1 = slice_len v0
+    v2 = make_calldata_slice 4, v1
+    v3 = slice_ptr v2
+    v4 = make_calldata_slice v3, 64
+    v5 = slice_len v4
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    icall panic_if<0x41>, v7
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = slice_ptr v4
+    v12 = slice_len v4
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    icall revert_if<calldata_tail_too_short>, v16
+    memory_object_copy_from_slice memorybytes, v10, v4
+    ret v10
 }
 
 fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = make_calldata_slice 4, v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = make_calldata_slice v4, 64
-    v7 = slice_len v6
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = slice_ptr v6
-    v14 = slice_len v6
-    v15 = gt v14, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = calldatasize
-    v17 = sub v16, v14
-    v18 = sgt v13, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    memory_object_copy_from_slice memorybytes, v12, v6
-    v19 = keccak256_bytes v12
-    ret v19
+    v1 = slice_len v0
+    v2 = make_calldata_slice 4, v1
+    v3 = slice_ptr v2
+    v4 = make_calldata_slice v3, 64
+    v5 = slice_len v4
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    icall panic_if<0x41>, v7
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = slice_ptr v4
+    v12 = slice_len v4
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    icall revert_if<calldata_tail_too_short>, v16
+    memory_object_copy_from_slice memorybytes, v10, v4
+    v17 = keccak256_bytes v10
+    ret v17
 }
 
 fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = make_calldata_slice 4, v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = make_calldata_slice v4, 64
-    v7 = slice_len v6
-    ret v7
+    v1 = slice_len v0
+    v2 = make_calldata_slice 4, v1
+    v3 = slice_ptr v2
+    v4 = make_calldata_slice v3, 64
+    v5 = slice_len v4
+    ret v5
 }
 
 fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

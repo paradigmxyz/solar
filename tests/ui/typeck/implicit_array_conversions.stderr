@@ -58,13 +58,13 @@ error: mismatched types
 LL │         uint256[] calldata b = uint256[](a);
    ╰╴                               ━━━━━━━━━━━━ expected `uint256[] calldata`, found `uint256[] storage`
 
-error: invalid mobile type
+error[9563]: invalid mobile type
    ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
    │
 LL │         [uint256];
    ╰╴         ━━━━━━━
 
-error: cannot infer nameable array element type
+error[9656]: cannot infer nameable array element type
    ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
    │
 LL │         [(uint256(1), uint256(2)), (uint256(3), uint256(4))];
@@ -72,7 +72,7 @@ LL │         [(uint256(1), uint256(2)), (uint256(3), uint256(4))];
    │
    ╰ help: add an explicit type conversion for the first element
 
-error: type `mapping(int256 => int256) storage` is only valid in storage because it contains a (nested) mapping
+error[1545]: type `mapping(int256 => int256) storage` is only valid in storage because it contains a (nested) mapping
    ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
    │
 LL │         [mappingArrElement];

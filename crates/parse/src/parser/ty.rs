@@ -124,6 +124,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;
+        // The grammar only allows `elementaryTypeName[false]` keys, which excludes
+        // `address payable`. Keep parsing to recover.
+        if let TypeKind::Elementary(ElementaryType::Address(true)) = key.kind {
+            self.dcx()
+                .err("`address payable` is not allowed as a mapping key type")
+                .span(key.span)
+                .help("use `address` instead")
+                .emit();
+        }
         let key_name = self.parse_ident_opt()?;
 
         self.expect(TokenKind::FatArrow)?;

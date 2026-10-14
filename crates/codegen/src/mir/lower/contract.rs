@@ -192,13 +192,14 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let has_implicit_base_constructors =
         contract.linearized_bases.iter().skip(1).any(|&base| gcx.hir.contract(base).ctor.is_some())
             || contract.linearized_bases_args.iter().any(Option::is_some);
+    let bytecode_dependencies = gcx.contract_bytecode_dependencies(contract_id);
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
             gcx,
             module: &mut module,
             storage: &storage,
             contract_id,
-            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
+            bytecode_dependencies: &bytecode_dependencies,
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             state: &mut state,
