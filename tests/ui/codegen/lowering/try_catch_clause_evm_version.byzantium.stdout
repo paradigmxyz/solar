@@ -4,8 +4,8 @@ fn @bare(arg0: i160) -> i256 [selector=0x590eaf9b, abi_params=[address], abi_ret
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
     v5 = call v0, v4, 0, v2, v3, 0, 32
     jumpi v5, bb1, bb2
@@ -32,20 +32,20 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
     v5 = call v0, v4, 0, v2, v3, 0, 32
     jumpi v5, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = ptrtoint memptr v10 to i256
+    v11 = ptrtoint ptr<memory> v10 to i256
     v12 = add v11, 32
     v13 = load v10
     v14 = make_memory_slice v12, v13
-    v15 = extract_value memoryslice, v14, 0
-    v16 = extract_value memoryslice, v14, 1
-    v17 = extract_value memoryslice, v14, 0
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = extract_value slice<memory>, v14, 0
     v18 = load v17
     v19 = shr 224, v18
     v20 = eq v19, 0x8c379a0
@@ -72,13 +72,13 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
   bb11:
     jump bb3
   bb9:
-    v34 = ptrtoint memptr v10 to i256
+    v34 = ptrtoint ptr<memory> v10 to i256
     v35 = add v34, 36
     v36 = load v35
     jump bb3
   bb7:
     v23 = load v10
-    v24 = ptrtoint memptr v10 to i256
+    v24 = ptrtoint ptr<memory> v10 to i256
     v25 = add v24, 36
     v26 = sub v23, 4
     v27 = make_memory_slice v25, v26

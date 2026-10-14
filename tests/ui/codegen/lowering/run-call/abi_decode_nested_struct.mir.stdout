@@ -10,7 +10,7 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     store v1+64, 0xbb8
     store v1+96, v2
     store v1+128, 0
-    v3 = ptrtoint memptr v1 to i256
+    v3 = ptrtoint ptr<memory> v1 to i256
     v4 = alloc 128
     v5 = sext i24 0xffff88 to i256
     v6 = sext i24 120 to i256
@@ -18,10 +18,10 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     store v4+32, v6
     store v4+64, 0xde0b6b3a7640000
     store v4+96, 0
-    v7 = ptrtoint memptr v4 to i256
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = alloc 32
     store v8, 0
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     store v0, 0x7fa9385be102ac3eac297483dd6233d62b3e1496
     store v0+32, v3
     store v0+64, v7
@@ -36,61 +36,61 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v15 = trunc i256 v14 to i160
     v16 = eq v13, v15
     icall require<short_string>, v16, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
-    v17 = load v11+32, memptr
+    v17 = load v11+32, ptr<memory>
     v18 = load v17
     v19 = trunc i256 v18 to i160
-    v20 = load v0+32, memptr
+    v20 = load v0+32, ptr<memory>
     v21 = load v20
     v22 = trunc i256 v21 to i160
     v23 = eq v19, v22
     icall require<short_string>, v23, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
-    v24 = load v11+32, memptr
+    v24 = load v11+32, ptr<memory>
     v25 = load v24+32
     v26 = trunc i256 v25 to i160
-    v27 = load v0+32, memptr
+    v27 = load v0+32, ptr<memory>
     v28 = load v27+32
     v29 = trunc i256 v28 to i160
     v30 = eq v26, v29
     icall require<short_string>, v30, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
-    v31 = load v11+32, memptr
+    v31 = load v11+32, ptr<memory>
     v32 = load v31+64
     v33 = trunc i256 v32 to i24
-    v34 = load v0+32, memptr
+    v34 = load v0+32, ptr<memory>
     v35 = load v34+64
     v36 = trunc i256 v35 to i24
     v37 = eq v33, v36
     icall require<short_string>, v37, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
-    v38 = load v11+32, memptr
+    v38 = load v11+32, ptr<memory>
     v39 = load v38+96
     v40 = trunc i256 v39 to i24
-    v41 = load v0+32, memptr
+    v41 = load v0+32, ptr<memory>
     v42 = load v41+96
     v43 = trunc i256 v42 to i24
     v44 = eq v40, v43
     icall require<short_string>, v44, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
-    v45 = load v11+32, memptr
+    v45 = load v11+32, ptr<memory>
     v46 = load v45+128
     v47 = trunc i256 v46 to i160
-    v48 = load v0+32, memptr
+    v48 = load v0+32, ptr<memory>
     v49 = load v48+128
     v50 = trunc i256 v49 to i160
     v51 = eq v47, v50
     icall require<short_string>, v51, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
-    v52 = load v11+64, memptr
+    v52 = load v11+64, ptr<memory>
     v53 = load v52
     v54 = trunc i256 v53 to i24
     v55 = eq v54, i24 0xffff88
     icall require<short_string>, v55, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
-    v56 = load v11+64, memptr
+    v56 = load v11+64, ptr<memory>
     v57 = load v56+32
     v58 = trunc i256 v57 to i24
     v59 = eq v58, i24 120
     icall require<short_string>, v59, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
-    v60 = load v11+64, memptr
+    v60 = load v11+64, ptr<memory>
     v61 = load v60+64
     v62 = eq v61, 0xde0b6b3a7640000
     icall require<short_string>, v62, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
-    v63 = load v11+96, memptr
+    v63 = load v11+96, ptr<memory>
     v64 = load v63
     v65 = eq v64, 0
     icall require<short_string>, v65, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
@@ -110,11 +110,11 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
   bb3:
     v74 = phi [bb1: v73], [bb2: false]
     icall require<short_string>, v74, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
-    v75 = load v0+32, memptr
-    v76 = load v11+32, memptr
-    v77 = ptrtoint memptr v75 to i256
+    v75 = load v0+32, ptr<memory>
+    v76 = load v11+32, ptr<memory>
+    v77 = ptrtoint ptr<memory> v75 to i256
     v78 = keccak256 v77, 160
-    v79 = ptrtoint memptr v76 to i256
+    v79 = ptrtoint ptr<memory> v76 to i256
     v80 = keccak256 v79, 160
     v81 = eq v78, v80
     icall require<short_string>, v81, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
@@ -133,23 +133,23 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     store v1+64, 0xbb8
     store v1+96, v2
     store v1+128, 0
-    v3 = ptrtoint memptr v1 to i256
+    v3 = ptrtoint ptr<memory> v1 to i256
     v4 = alloc 32
     store v4, 0
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     store v0, 0x7fa9385be102ac3eac297483dd6233d62b3e1496
     store v0+32, v3
     store v0+64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88
     store v0+96, v5
-    v6 = load v0+32, memptr
-    v7 = ptrtoint memptr v6 to i256
+    v6 = load v0+32, ptr<memory>
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = keccak256 v7, 160
     v9 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
     v10 = address
     v11 = gas
     v12 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v9
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v10 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 32
     jumpi v16, bb2, bb1
@@ -166,17 +166,17 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     ret 1
 }
 
-fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -185,28 +185,28 @@ fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, pure, abi_params=[b
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
     v15 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, i256, bytes>], v11
-    v16 = load v15+32, memptr
-    v17 = ptrtoint memptr v16 to i256
+    v16 = load v15+32, ptr<memory>
+    v17 = ptrtoint ptr<memory> v16 to i256
     v18 = keccak256 v17, 160
     ret v18
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
-fn @idOfKeyOnly(arg0: memptr, arg1: i160) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyOnly(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @idOfKeyMixed(arg0: memptr, arg1: memptr, arg2: calldataslice) -> i256 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyMixed(arg0: ptr<memory>, arg1: ptr<memory>, arg2: slice<calldata>) -> i256 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
@@ -227,13 +227,13 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     store v2+32, v4
     store v2+64, 0xde0b6b3a7640000
     store v2+96, 0
-    v5 = ptrtoint memptr v0 to i256
+    v5 = ptrtoint ptr<memory> v0 to i256
     v6 = keccak256 v5, 160
     v7 = address
     v8 = gas
     v9 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, 1
-    v10 = extract_value memoryslice, v9, 0
-    v11 = extract_value memoryslice, v9, 1
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
     v12 = zext i160 v7 to i256
     v13 = staticcall v8, v12, v10, v11, 0, 32
     jumpi v13, bb2, bb1
@@ -250,8 +250,8 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v20 = alloc 32
     store v20, 0
     v21 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v2, v20
-    v22 = extract_value memoryslice, v21, 0
-    v23 = extract_value memoryslice, v21, 1
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
     v24 = zext i160 v18 to i256
     v25 = staticcall v19, v24, v22, v23, 0, 32
     jumpi v25, bb4, bb3

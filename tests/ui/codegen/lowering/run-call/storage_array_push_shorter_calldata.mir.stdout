@@ -5,17 +5,17 @@
   struct1: {i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256}
 
-fn @pushShorterCalldata(arg0: calldataslice) -> struct0 [selector=0x4e10bf3a, abi_params=[array<2, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, abi_params=[array<2, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 64
     icall revert_if<calldata_tail_too_short>, v3
     v4 = alloc 64
     v5 = make_calldata_slice v0, 64
-    v6 = extract_value calldataslice, v5, 0
-    v7 = extract_value calldataslice, v5, 1
+    v6 = extract_value slice<calldata>, v5, 0
+    v7 = extract_value slice<calldata>, v5, 1
     copy calldata v4, v6, v7
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gt v8, 0xffffffffffffffff
@@ -89,9 +89,9 @@ fn @pushShorterCalldata(arg0: calldataslice) -> struct0 [selector=0x4e10bf3a, ab
     jump bb1
 }
 
-fn @pushNarrowCalldata(arg0: calldataslice) -> struct0 [selector=0x3c12c61b, abi_params=[array<2, u8>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, abi_params=[array<2, u8>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 64
@@ -104,8 +104,8 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> struct0 [selector=0x3c12c61b, abi
     jumpi v6, bb2, bb3
   bb3:
     v14 = make_calldata_slice v0, 64
-    v15 = extract_value calldataslice, v14, 0
-    v16 = extract_value calldataslice, v14, 1
+    v15 = extract_value slice<calldata>, v14, 0
+    v16 = extract_value slice<calldata>, v14, 1
     copy calldata v4, v15, v16
     v17 = sload 0 !metadata(storage=slot(0))
     v18 = gt v17, 0xffffffffffffffff
@@ -189,9 +189,9 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> struct0 [selector=0x3c12c61b, abi
     jump bb1
 }
 
-fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae051216, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae051216, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 128
@@ -333,7 +333,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     jumpi v27, bb7, bb8
   bb8:
     v40 = alloc 96
-    v41 = ptrtoint memptr v40 to i256
+    v41 = ptrtoint ptr<memory> v40 to i256
     memory_zero v41, 96
     jump bb16
   bb16:
@@ -381,7 +381,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     jump bb15
   bb13:
     v35 = shl 5, v31
-    v36 = inttoptr i256 v30 to memptr
+    v36 = inttoptr i256 v30 to ptr<memory>
     v37 = ptradd v36, v35
     v38 = load v37
     sstore v33, v38 !metadata(storage=symbolic(v33))
@@ -394,10 +394,10 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     v8 = add v0, v7
     v9 = alloc 64
     v10 = make_calldata_slice v8, 64
-    v11 = extract_value calldataslice, v10, 0
-    v12 = extract_value calldataslice, v10, 1
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = extract_value slice<calldata>, v10, 1
     copy calldata v9, v11, v12
-    v13 = ptrtoint memptr v9 to i256
+    v13 = ptrtoint ptr<memory> v9 to i256
     v14 = shl 5, v5
     v15 = ptradd v4, v14
     store v15, v13
@@ -405,17 +405,17 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     jump bb1
 }
 
-fn @pushExactCalldata(arg0: calldataslice) -> struct2 [selector=0x9b4dcbee, abi_params=[array<2, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, abi_params=[array<2, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 64
     icall revert_if<calldata_tail_too_short>, v3
     v4 = alloc 64
     v5 = make_calldata_slice v0, 64
-    v6 = extract_value calldataslice, v5, 0
-    v7 = extract_value calldataslice, v5, 1
+    v6 = extract_value slice<calldata>, v5, 0
+    v7 = extract_value slice<calldata>, v5, 1
     copy calldata v4, v6, v7
     v8 = sload 1 !metadata(storage=slot(1))
     v9 = gt v8, 0xffffffffffffffff

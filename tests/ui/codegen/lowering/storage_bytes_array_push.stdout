@@ -203,7 +203,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v28 = keccak256 0, 32 !metadata(memory=scratch)
     v4 = add v28, arg0
     v5 = icall @load_storage_bytes, v4
-    v29 = ptrtoint memptr v5 to i256
+    v29 = ptrtoint ptr<memory> v5 to i256
     v14 = ne v29, 0
     v15 = zext i1 v14 to i256
     v11 = load v29
@@ -237,7 +237,7 @@ fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
     tail_call @revert_stub.6
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> [may_return_memory] {
   bb0:
     v1 = sload arg0 !metadata(storage=symbolic(arg0))
     v2 = and v1, 1
@@ -255,7 +255,7 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v12 = add v7, 63
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v33 = load 64 !metadata(memory=scratch)
-    v16 = inttoptr i256 v33 to memptr !metadata(memory=scratch)
+    v16 = inttoptr i256 v33 to ptr<memory> !metadata(memory=scratch)
     v34 = add v33, v15
     v35 = lt v34, v33
     v36 = gt v34, 0xffffffffffffffff

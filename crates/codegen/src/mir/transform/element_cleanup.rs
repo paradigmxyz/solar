@@ -182,7 +182,7 @@ impl MirPass for ElementCleanup {
     }
 }
 
-/// The array a word element load or store accesses: a `memptr` object at a word-aligned
+/// The array a word element load or store accesses: a `ptr<memory>` object at a word-aligned
 /// offset. The word at a dynamic object's pointer is its length, not an element, so a constant
 /// offset of zero counts only in a constant-size allocation, whose first word, length or not,
 /// is tracked like any element. Every fixed array and struct has a constant size, so only a

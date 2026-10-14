@@ -12,11 +12,11 @@
 //~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
-//~? ERROR: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
-//~? ERROR: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
-//~? ERROR: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
-//~? ERROR: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
-//~? ERROR: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
+//~? ERROR: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
+//~? ERROR: [fn1] non-word type `slice<memory>` survives the `lowered` phase boundary
+//~? ERROR: [fn4] non-word type `slice<memory>` survives the `lowered` phase boundary
+//~? ERROR: [fn5] non-word type `slice<calldata>` survives the `lowered` phase boundary
+//~? ERROR: [fn6] non-word type `slice<returndata>` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn3] [bb0, inst4] `mapping_slot_bytes` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn3] [bb0, inst5] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
@@ -32,15 +32,15 @@
 fn @slice(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
-    v3 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 1
     ret v3
 }
-fn @abi(arg0: i256) -> memoryslice {
+fn @abi(arg0: i256) -> slice<memory> {
   bb0:
     v1 = abi_encode [word], args arg0
     ret v1
 }
-fn @aggregate(arg0: i256, arg1: memptr) {
+fn @aggregate(arg0: i256, arg1: ptr<memory>) {
   bb0:
     storage_to_memory struct<word>, arg0, arg1
     stop
@@ -57,28 +57,28 @@ fn @allocation() {
     stop
 }
 
-fn @memorySignature(arg0: memoryslice) -> memoryslice {
+fn @memorySignature(arg0: slice<memory>) -> slice<memory> {
   bb0:
     ret arg0
 }
-fn @calldataSignature(arg0: calldataslice) -> calldataslice {
+fn @calldataSignature(arg0: slice<calldata>) -> slice<calldata> {
   bb0:
     ret arg0
 }
-fn @returndataSignature(arg0: returndataslice) -> returndataslice {
+fn @returndataSignature(arg0: slice<returndata>) -> slice<returndata> {
   bb0:
     ret arg0
 }
 
 //~? ERROR: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
-fn @checked_deferred() -> memptr {
+fn @checked_deferred() -> ptr<memory> {
   bb0:
     v0 = alloc zeroed checked 32 !metadata(deferred_alloc)
     ret v0
 }
 
 //~? ERROR: [fn8] [bb0, inst0] deferred allocation requires a constant size
-fn @dynamic_deferred(arg0: i256) -> memptr {
+fn @dynamic_deferred(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = alloc arg0 !metadata(deferred_alloc)
     ret v0

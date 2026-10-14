@@ -3,7 +3,7 @@
   @module LowerAggregates
   fn @storage_to_memory(arg0: i256, arg1: i256) {
     bb0:
-      v0 = inttoptr i256 arg1 to memptr
+      v0 = inttoptr i256 arg1 to ptr<memory>
 -     storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     store v0, v1
@@ -14,7 +14,7 @@
 +     v5 = add v2, 1
 +     v6 = sload v5 !metadata(storage=offset(arg0, 2))
 +     store v3+32, v6
-+     v7 = ptrtoint memptr v3 to i256
++     v7 = ptrtoint ptr<memory> v3 to i256
 +     store v0+32, v7
 +     v8 = add arg0, 3
 +     v9 = alloc 64
@@ -24,7 +24,7 @@
 +     v11 = lt v10, 2
 +     jumpi v11, bb2, bb3
 +   bb3:
-+     v18 = ptrtoint memptr v9 to i256
++     v18 = ptrtoint ptr<memory> v9 to i256
 +     store v0+64, v18
       stop
 +   bb2:
@@ -40,7 +40,7 @@
   
   fn @memory_to_storage(arg0: i256, arg1: i256) {
     bb0:
-      v0 = inttoptr i256 arg0 to memptr
+      v0 = inttoptr i256 arg0 to ptr<memory>
 -     memory_to_storage struct<word, struct<word, word>, array<2, word>>, v0, arg1
 +     v1 = load v0
 +     sstore arg1, v1 !metadata(storage=symbolic(arg1))
@@ -64,7 +64,7 @@
 +     v11 = mul v9, 1
 +     v12 = add v7, v11
 +     v13 = shl 5, v9
-+     v14 = inttoptr i256 v8 to memptr
++     v14 = inttoptr i256 v8 to ptr<memory>
 +     v15 = ptradd v14, v13
 +     v16 = load v15
 +     sstore v12, v16 !metadata(storage=symbolic(v12))

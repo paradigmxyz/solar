@@ -1,18 +1,18 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (after lower-slices) ===
   @module SplitAggregates
-- fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: i1) -> i256 {
+- fn @select_slice(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
 + fn @select_slice(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i1) -> i256 {
     bb0:
 -     v0 = select arg2, arg0, arg1
--     v1 = extract_value calldataslice, v0, 1
+-     v1 = extract_value slice<calldata>, v0, 1
 -     ret v1
 +     v6 = select arg4, arg0, arg2
 +     v7 = select arg4, arg1, arg3
 +     ret v7
   }
   
-- fn @phi_slice(arg0: calldataslice, arg1: calldataslice, arg2: i1) -> i256 {
+- fn @phi_slice(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
 + fn @phi_slice(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i1) -> i256 {
     bb0:
 -     jumpi arg2, bb1, bb2
@@ -23,7 +23,7 @@
       jump bb3
     bb3:
 -     v0 = phi [bb1: arg0], [bb2: arg1]
--     v1 = extract_value calldataslice, v0, 1
+-     v1 = extract_value slice<calldata>, v0, 1
 -     ret v1
 +     v6 = phi [bb1: arg0], [bb2: arg2]
 +     v7 = phi [bb1: arg1], [bb2: arg3]

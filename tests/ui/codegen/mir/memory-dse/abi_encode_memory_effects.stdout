@@ -1,10 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (after memory-dse) ===
   @module AbiEncodeMemoryEffects
-  fn @encode(arg0: i256) -> memoryslice {
+  fn @encode(arg0: i256) -> slice<memory> {
     bb0:
       store arg0, 1
-      v0 = inttoptr i256 arg0 to memptr
+      v0 = inttoptr i256 arg0 to ptr<memory>
       v1 = abi_encode [memory_bytes], args v0
       ret v1
   }
@@ -12,7 +12,7 @@
   fn @require_reads_message(arg0: i1, arg1: i256) {
     bb0:
       store arg1, 1
-      v0 = inttoptr i256 arg1 to memptr
+      v0 = inttoptr i256 arg1 to ptr<memory>
       icall require<error_string>, arg0, v0
       ret
   }
@@ -20,25 +20,25 @@
   fn @require_reads_children(arg0: i1) {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v1, 7
       store v3, v1
-      v4 = inttoptr i256 v3 to memptr
+      v4 = inttoptr i256 v3 to ptr<memory>
       icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v4
       ret
   }
   
-  fn @packed_reads_children() -> memptr {
+  fn @packed_reads_children() -> ptr<memory> {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v1, 7
       store v3, v1
-      v4 = inttoptr i256 v3 to memptr
+      v4 = inttoptr i256 v3 to ptr<memory>
       v5 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v4)
       ret v5
   }

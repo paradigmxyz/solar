@@ -54,13 +54,13 @@ fn @constructor() [constructor] {
     v6 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
     v7 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 95, aligned
     v8 = alloc v7
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     datacopy ConstructorInternalArgumentsHelper_creation_code_0, v9, v5
-    v10 = extract_value memoryslice, v4, 0
-    v11 = ptrtoint memptr v8 to i256
+    v10 = extract_value slice<memory>, v4, 0
+    v11 = ptrtoint ptr<memory> v8 to i256
     v12 = add v11, v5
     copy v12, v10, 64 !metadata(memory=heap)
-    v13 = ptrtoint memptr v8 to i256
+    v13 = ptrtoint ptr<memory> v8 to i256
     v14 = create 0, v13, v6
     v15 = ne v14, i160 0
     jumpi v15, bb2, bb1
@@ -83,8 +83,8 @@ fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0xf963393000000000000000000000000000000000000000000000000000000000
-    v4 = extract_value memoryslice, v3, 0
-    v5 = extract_value memoryslice, v3, 1
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
     v7 = staticcall v2, v6, v4, v5, 0, 32
     jumpi v7, bb2, bb1
@@ -109,8 +109,8 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
-    v4 = extract_value memoryslice, v3, 0
-    v5 = extract_value memoryslice, v3, 1
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
     v7 = staticcall v2, v6, v4, v5, 0, 32
     jumpi v7, bb2, bb1

@@ -13,7 +13,7 @@ contract BytesMemoryElements {
     // CHECK: store [[BUF]], 96
     // CHECK: store8 [[BUF]]+37, {{v[0-9]+}}
     // CHECK: store8 [[BUF]]+127, {{v[0-9]+}}
-    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint ptr<memory> [[BUF]] to i256
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
     // CHECK-NEXT: [[LEN:v[0-9]+]] = load [[BUF]]
     // CHECK-NEXT: keccak256 [[DATA]], [[LEN]]
@@ -28,7 +28,7 @@ contract BytesMemoryElements {
     // CHECK: [[BUF:v[0-9]+]] = alloc 64
     // CHECK: store [[BUF]], 10
     // CHECK: store8 [[BUF]]+37, {{v[0-9]+}}
-    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint ptr<memory> [[BUF]] to i256
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
     // CHECK-NEXT: [[LEN:v[0-9]+]] = load [[BUF]]
     // CHECK-NEXT: keccak256 [[DATA]], [[LEN]]

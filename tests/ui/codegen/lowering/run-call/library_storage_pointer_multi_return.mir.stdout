@@ -5,11 +5,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:LibraryStoragePointerMultiReturn ===
 @module LibraryStoragePointerMultiReturn
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
   struct1: {i256, i256}
   struct2: {i8, i256}
-  struct3: {memptr, i256}
-  struct4: {memptr, i256, memptr}
+  struct3: {ptr<memory>, i256}
+  struct4: {ptr<memory>, i256, ptr<memory>}
   struct5: {i256, i256, i256}
 
 fn @constructor() [constructor] {
@@ -79,7 +79,7 @@ fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], ab
     store v4, v5
     v6 = add v3, 1
     v7 = icall @load_storage_word_array, v6
-    v8 = ptrtoint memptr v7 to i256
+    v8 = ptrtoint ptr<memory> v7 to i256
     store v4+32, v8
     v9 = insert_value struct0, undef struct0, 0, v2
     v10 = insert_value struct0, v9, 1, v4
@@ -223,7 +223,7 @@ fn @triple(arg0: i256, arg1: i256) -> struct5 [view] {
     ret v3
 }
 
-fn @load_storage_word_array(arg0: i256) -> memptr {
+fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

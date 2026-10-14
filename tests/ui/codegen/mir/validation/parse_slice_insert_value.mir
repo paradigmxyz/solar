@@ -3,8 +3,8 @@
 @module SliceInsertValue
 
 // Slices are built with `make_*_slice`; only structs take `insert_value`.
-fn @f(arg0: calldataslice) -> calldataslice {
+fn @f(arg0: slice<calldata>) -> slice<calldata> {
   bb0:
-    v0 = insert_value calldataslice, arg0, 1, 0 //~ ERROR: expected a struct type
+    v0 = insert_value slice<calldata>, arg0, 1, 0 //~ ERROR: expected a struct type
     ret v0
 }

@@ -74,7 +74,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     store v88, v114
     v90 = add v126, 64
     store v90, v21
-    v107 = ptrtoint memptr v19 to i256
+    v107 = ptrtoint ptr<memory> v19 to i256
     store v107, v126
     v50 = add v13, 32
     v51 = load calldata v50
@@ -134,12 +134,12 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     store v100, v13
     v111 = load v107
     v1 = load v111
-    v2 = load v98, memptr
-    v112 = ptrtoint memptr v2 to i256
+    v2 = load v98, ptr<memory>
+    v112 = ptrtoint ptr<memory> v2 to i256
     v3 = load v112
     v104 = add v112, 32
-    v5 = load v104, memptr
-    v113 = ptrtoint memptr v5 to i256
+    v5 = load v104, ptr<memory>
+    v113 = ptrtoint ptr<memory> v5 to i256
     v6 = load v113
     store 128, v1
     store 160, v3
@@ -257,17 +257,17 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v150 = add v189, v8
     v151 = add v150, 32
     v10 = load v151
-    v11 = inttoptr i256 v10 to memptr
+    v11 = inttoptr i256 v10 to ptr<memory>
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = icall @default_struct_1
-    v16 = ptrtoint memptr v13 to i256
+    v16 = ptrtoint ptr<memory> v13 to i256
     store v151, v16
     jump bb5
   bb5:
     v17 = phi [bb2: v11], [bb4: v13]
-    v179 = ptrtoint memptr v17 to i256
+    v179 = ptrtoint ptr<memory> v17 to i256
     v180 = load v179
     v19 = load v180
     v20 = load v189
@@ -279,23 +279,23 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 28, 36
   bb9:
     v25 = load v151
-    v26 = inttoptr i256 v25 to memptr
+    v26 = inttoptr i256 v25 to ptr<memory>
     v27 = eq v25, 0
     jumpi v27, bb6, bb7
   bb6:
     v28 = icall @default_struct_1
-    v31 = ptrtoint memptr v28 to i256
+    v31 = ptrtoint ptr<memory> v28 to i256
     store v151, v31
     jump bb7
   bb7:
     v32 = phi [bb9: v26], [bb6: v28]
-    v154 = ptrtoint memptr v32 to i256
+    v154 = ptrtoint ptr<memory> v32 to i256
     v155 = add v154, 32
-    v33 = load v155, memptr
-    v156 = ptrtoint memptr v33 to i256
+    v33 = load v155, ptr<memory>
+    v156 = ptrtoint ptr<memory> v33 to i256
     v157 = add v156, 32
-    v34 = load v157, memptr
-    v182 = ptrtoint memptr v34 to i256
+    v34 = load v157, ptr<memory>
+    v182 = ptrtoint ptr<memory> v34 to i256
     v35 = load v182
     v39 = add v19, v35
     v40 = lt v39, v19
@@ -503,10 +503,10 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 0, 132
 }
 
-fn @default_struct_1() -> memptr [may_return_memory] {
+fn @default_struct_1() -> ptr<memory> [may_return_memory] {
   bb0:
     v26 = load 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
+    v0 = inttoptr i256 v26 to ptr<memory> !metadata(memory=scratch)
     v27 = add v26, 256
     store 64, v27
     v23 = add v26, 64

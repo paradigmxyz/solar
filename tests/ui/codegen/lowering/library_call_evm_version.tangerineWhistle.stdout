@@ -19,10 +19,10 @@ fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], a
     ret v2
 }
 
-fn @arr(arg0: i256) -> memptr [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @arr(arg0: i256) -> ptr<memory> [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = alloc 64
     store v2, arg0
@@ -36,7 +36,7 @@ fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[u256], abi_re
     ret v0
 }
 
-fn @flagged(arg0: i256) -> memptr [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
+fn @flagged(arg0: i256) -> ptr<memory> [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
@@ -60,7 +60,7 @@ fn @noret(arg0: i256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns
     ret
 }
 
-fn @six(arg0: memptr) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = load arg0
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -81,8 +81,8 @@ fn @six(arg0: memptr) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes],
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x5d2a686300000000000000000000000000000000000000000000000000000000, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -100,8 +100,8 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
 fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x645751af00000000000000000000000000000000000000000000000000000000, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -124,15 +124,15 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     ret v16
 }
 
-fn @aggregate(arg0: i256) -> memptr [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = alloc 64
     v3 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
-    v4 = extract_value memoryslice, v3, 0
-    v5 = extract_value memoryslice, v3, 1
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = gas
     v7 = extcodesize 0x1111111111111111111111111111111111111111
     v8 = eq v7, 0
@@ -143,7 +143,7 @@ fn @aggregate(arg0: i256) -> memptr [selector=0x407b7269, pure, abi_params=[u256
     revert_returndata
   bb2:
     copy v2, v4, 64
-    v10 = ptrtoint memptr v2 to i256
+    v10 = ptrtoint ptr<memory> v2 to i256
     v11 = make_memory_slice v10, 64
     v12 = abi_decode [array<2, u256>], v11
     ret v12
@@ -152,8 +152,8 @@ fn @aggregate(arg0: i256) -> memptr [selector=0x407b7269, pure, abi_params=[u256
 fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode [word], selector 0xbb760a7500000000000000000000000000000000000000000000000000000000, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -175,15 +175,15 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
     ret v14
 }
 
-fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
+fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
     store v0+32, 0
     v1 = alloc 64
     v2 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = gas
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
@@ -194,7 +194,7 @@ fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u25
     revert_returndata
   bb2:
     copy v1, v3, 64
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = make_memory_slice v9, 64
     v11 = abi_decode [tuple<bool, u256>], v10
     ret v11
@@ -203,8 +203,8 @@ fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u25
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xa2fc82bf00000000000000000000000000000000000000000000000000000000, args 0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -219,11 +219,11 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     ret v8
 }
 
-fn @dynamicArgument(arg0: memptr) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -265,8 +265,8 @@ fn @dynamicArgument(arg0: memptr) -> struct0 [selector=0x11b8efbf, pure, abi_par
 fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [word], selector 0x89b964400000000000000000000000000000000000000000000000000000000, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0

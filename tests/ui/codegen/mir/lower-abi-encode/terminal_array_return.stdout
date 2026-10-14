@@ -1,10 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (after lower-abi-encode) ===
   @module TerminalArrayReturn
-  fn @fresh_array() -> memptr {
+  fn @fresh_array() -> ptr<memory> {
     bb0:
       v0 = alloc 96
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 2
       ret v0
   }
@@ -13,45 +13,45 @@
     bb0:
       v0 = icall @fresh_array
 -     v1 = abi_encode [memory_array<word>], args v0
--     v2 = extract_value memoryslice, v1, 0
--     v3 = extract_value memoryslice, v1, 1
+-     v2 = extract_value slice<memory>, v1, 0
+-     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = load v0
-+     v5 = ptrtoint memptr v0 to i256
++     v5 = ptrtoint ptr<memory> v0 to i256
 +     v6 = eq v5, 0
 +     v7 = eq v6, false
 +     v8 = zext i1 v7 to i256
 +     v9 = mul v4, v8
-+     v10 = ptrtoint memptr v0 to i256
++     v10 = ptrtoint ptr<memory> v0 to i256
 +     v11 = add v10, 32
 +     v12 = shl 5, v9
-+     v13 = ptrtoint memptr v0 to i256
++     v13 = ptrtoint ptr<memory> v0 to i256
 +     v14 = add v13, 64
 +     copy v14, v11, v12
 +     store v0, 32
 +     store v11, v9
 +     v15 = add v12, 64
-+     v16 = ptrtoint memptr v0 to i256
++     v16 = ptrtoint ptr<memory> v0 to i256
 +     v17 = make_memory_slice v16, v15
-+     v2 = extract_value memoryslice, v17, 0
-+     v3 = extract_value memoryslice, v17, 1
++     v2 = extract_value slice<memory>, v17, 0
++     v3 = extract_value slice<memory>, v17, 1
 +     returndata v16, v15
   }
   
-  fn @borrowed(arg0: memptr) {
+  fn @borrowed(arg0: ptr<memory>) {
     bb0:
 -     v0 = abi_encode [memory_array<word>], args arg0
--     v1 = extract_value memoryslice, v0, 0
--     v2 = extract_value memoryslice, v0, 1
+-     v1 = extract_value slice<memory>, v0, 0
+-     v2 = extract_value slice<memory>, v0, 1
 -     returndata v1, v2
 +     v3 = fmp
-+     v4 = ptrtoint memptr v3 to i256
++     v4 = ptrtoint ptr<memory> v3 to i256
 +     v5 = add v4, 32
-+     v6 = ptrtoint memptr v3 to i256
++     v6 = ptrtoint ptr<memory> v3 to i256
 +     v7 = sub v5, v6
 +     store v3, v7
 +     v8 = load arg0
-+     v9 = ptrtoint memptr arg0 to i256
++     v9 = ptrtoint ptr<memory> arg0 to i256
 +     v10 = eq v9, 0
 +     v11 = eq v10, false
 +     v12 = zext i1 v11 to i256
@@ -59,33 +59,33 @@
 +     store v5, v13
 +     v14 = mul v13, 32
 +     v15 = add v5, 32
-+     v16 = ptrtoint memptr arg0 to i256
++     v16 = ptrtoint ptr<memory> arg0 to i256
 +     v17 = add v16, 32
 +     v18 = add v15, v14
 +     copy v15, v17, v14 !metadata(memory=heap, disjoint)
-+     v19 = ptrtoint memptr v3 to i256
++     v19 = ptrtoint ptr<memory> v3 to i256
 +     v20 = sub v18, v19
 +     v21 = add v20, 0
 +     v22 = add v21, 31
 +     v23 = not 31
 +     v24 = and v22, v23
 +     v25 = alloc v24 !metadata(preserves_fmp)
-+     v26 = ptrtoint memptr v25 to i256
++     v26 = ptrtoint ptr<memory> v25 to i256
 +     v27 = make_memory_slice v26, v21
-+     v1 = extract_value memoryslice, v27, 0
-+     v2 = extract_value memoryslice, v27, 1
++     v1 = extract_value slice<memory>, v27, 0
++     v2 = extract_value slice<memory>, v27, 1
 +     returndata v26, v21
   }
   
-  fn @fresh_bytes(arg0: i256) -> memptr {
+  fn @fresh_bytes(arg0: i256) -> ptr<memory> {
     bb0:
       v0 = alloc 96
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, arg0
       ret v0
   }
   
-  fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
+  fn @fresh_bytes_wrapper(arg0: i256) -> ptr<memory> {
     bb0:
       v0 = icall @fresh_bytes, arg0
       ret v0
@@ -95,32 +95,32 @@
     bb0:
       v0 = icall @fresh_bytes_wrapper, arg0
 -     v1 = abi_encode [memory_bytes], args v0
--     v2 = extract_value memoryslice, v1, 0
--     v3 = extract_value memoryslice, v1, 1
+-     v2 = extract_value slice<memory>, v1, 0
+-     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = load v0
-+     v5 = ptrtoint memptr v0 to i256
++     v5 = ptrtoint ptr<memory> v0 to i256
 +     v6 = eq v5, 0
 +     v7 = eq v6, false
 +     v8 = zext i1 v7 to i256
 +     v9 = mul v4, v8
-+     v10 = ptrtoint memptr v0 to i256
++     v10 = ptrtoint ptr<memory> v0 to i256
 +     v11 = add v10, 32
 +     v12 = add v9, 31
 +     v13 = not 31
 +     v14 = and v12, v13
 +     v15 = add v11, v14
 +     store v15, 0
-+     v16 = ptrtoint memptr v0 to i256
++     v16 = ptrtoint ptr<memory> v0 to i256
 +     v17 = add v16, 64
 +     copy v17, v11, v9
 +     store v0, 32
 +     store v11, v9
 +     v18 = add v14, 64
-+     v19 = ptrtoint memptr v0 to i256
++     v19 = ptrtoint ptr<memory> v0 to i256
 +     v20 = make_memory_slice v19, v18
-+     v2 = extract_value memoryslice, v20, 0
-+     v3 = extract_value memoryslice, v20, 1
++     v2 = extract_value slice<memory>, v20, 0
++     v3 = extract_value slice<memory>, v20, 1
 +     returndata v19, v18
   }
   

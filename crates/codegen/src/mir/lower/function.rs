@@ -416,15 +416,14 @@ impl InternalFunctionPointerShape {
     fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        helper_name(
-            sym::internal_dispatcher,
-            format!(
-                "{}p_{}_r_{}",
-                if from_assembly { "asm_" } else { "" },
-                if params.is_empty() { "none" } else { &params },
-                if returns.is_empty() { "none" } else { &returns },
-            ),
-        )
+        let suffix = format!(
+            "{}p_{}_r_{}",
+            if from_assembly { "asm_" } else { "" },
+            if params.is_empty() { "none" } else { &params },
+            if returns.is_empty() { "none" } else { &returns },
+        );
+        // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
+        helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
 }
 

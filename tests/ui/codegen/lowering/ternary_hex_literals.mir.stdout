@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/ternary_hex_literals.sol:TernaryHexLiterals ===
 @module TernaryHexLiterals
 @types
-  struct0: {memptr, i256}
+  struct0: {ptr<memory>, i256}
 
-fn @pick(arg0: i1) -> memptr [selector=0x85ffb95f, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pick(arg0: i1) -> ptr<memory> [selector=0x85ffb95f, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -17,7 +17,7 @@ fn @pick(arg0: i1) -> memptr [selector=0x85ffb95f, pure, abi_params=[bool], abi_
     ret v2
 }
 
-fn @packed(arg0: i1) -> memptr [selector=0x6ebaaff1, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @packed(arg0: i1) -> ptr<memory> [selector=0x6ebaaff1, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -38,14 +38,14 @@ fn @pairHash(arg0: i1) -> i256 [selector=0x7e8b97e2, pure, abi_params=[bool], ab
   bb2:
     v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 32
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     v5 = add v4, 32
     store v5, 0x863fcfbbee75e679d2a43818f377afc8a63590091c47f069b36b7cf8a4d4cad2
     jump bb3
   bb1:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 32
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f
     jump bb3
@@ -94,7 +94,7 @@ fn @discarded(arg0: i1) -> i256 [selector=0xa9c2e0b6, pure, abi_params=[bool], a
     ret v3
 }
 
-fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, arg1

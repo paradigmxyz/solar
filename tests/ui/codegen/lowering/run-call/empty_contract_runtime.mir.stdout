@@ -13,10 +13,10 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v1 = datasize A_creation_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     v5 = datasize A_creation_code_0, 31, aligned
-    v6 = ptrtoint memptr v2 to i256
+    v6 = ptrtoint ptr<memory> v2 to i256
     v7 = add v6, v5
     store v7, 0
     datacopy A_creation_code_0, v4, v0
@@ -30,10 +30,10 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v11 = datasize A_runtime_code_1, 63, aligned
     v12 = alloc v11 !metadata(preserves_fmp)
     store v12, v10
-    v13 = ptrtoint memptr v12 to i256
+    v13 = ptrtoint ptr<memory> v12 to i256
     v14 = add v13, 32
     v15 = datasize A_runtime_code_1, 31, aligned
-    v16 = ptrtoint memptr v12 to i256
+    v16 = ptrtoint ptr<memory> v12 to i256
     v17 = add v16, v15
     store v17, 0
     datacopy A_runtime_code_1, v14, v10
@@ -73,10 +73,10 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v1 = datasize InternalContract_runtime_code_0, 63, aligned
     v2 = alloc v1 !metadata(preserves_fmp)
     store v2, v0
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     v5 = datasize InternalContract_runtime_code_0, 31, aligned
-    v6 = ptrtoint memptr v2 to i256
+    v6 = ptrtoint ptr<memory> v2 to i256
     v7 = add v6, v5
     store v7, 0
     datacopy InternalContract_runtime_code_0, v4, v0
@@ -90,10 +90,10 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v11 = datasize ConstructorOnly_runtime_code_1, 63, aligned
     v12 = alloc v11 !metadata(preserves_fmp)
     store v12, v10
-    v13 = ptrtoint memptr v12 to i256
+    v13 = ptrtoint ptr<memory> v12 to i256
     v14 = add v13, 32
     v15 = datasize ConstructorOnly_runtime_code_1, 31, aligned
-    v16 = ptrtoint memptr v12 to i256
+    v16 = ptrtoint ptr<memory> v12 to i256
     v17 = add v16, v15
     store v17, 0
     datacopy ConstructorOnly_runtime_code_1, v14, v10
@@ -110,10 +110,10 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v22 = datasize InternalLibrary_runtime_code_2, 63, aligned
     v23 = alloc v22 !metadata(preserves_fmp)
     store v23, v21
-    v24 = ptrtoint memptr v23 to i256
+    v24 = ptrtoint ptr<memory> v23 to i256
     v25 = add v24, 32
     v26 = datasize InternalLibrary_runtime_code_2, 31, aligned
-    v27 = ptrtoint memptr v23 to i256
+    v27 = ptrtoint ptr<memory> v23 to i256
     v28 = add v27, v26
     store v28, 0
     datacopy InternalLibrary_runtime_code_2, v25, v21
@@ -131,13 +131,13 @@ fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_ret
     v1 = datasize A_creation_code_3
     v2 = datasize A_creation_code_3, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy A_creation_code_3, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -147,7 +147,7 @@ fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_ret
     v11 = gas
     v12 = alloc 64 !metadata(preserves_fmp)
     store v12, 4
-    v13 = ptrtoint memptr v12 to i256
+    v13 = ptrtoint ptr<memory> v12 to i256
     v14 = add v13, 32
     store v14, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
     v15 = address_call v9, v12, gas v11
@@ -171,13 +171,13 @@ fn @hasCode() -> i1 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>
     v1 = datasize A_creation_code_3
     v2 = datasize A_creation_code_3, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy A_creation_code_3, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -196,13 +196,13 @@ fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<
     v1 = datasize A_creation_code_3
     v2 = datasize A_creation_code_3, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy A_creation_code_3, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -210,7 +210,7 @@ fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<
     revert_returndata
   bb2:
     v11 = gas
-    v12 = address_call v9, memptr 96, gas v11
+    v12 = address_call v9, ptr<memory> 96, gas v11
     v13 = eq v12, false
     ret v13
 }

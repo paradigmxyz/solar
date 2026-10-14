@@ -5,16 +5,16 @@
     bb0:
       v0 = make_calldata_slice 0, 0
 -     v1 = abi_encode [calldata_bytes], args v0
--     v2 = extract_value memoryslice, v1, 0
--     v3 = extract_value memoryslice, v1, 1
+-     v2 = extract_value slice<memory>, v1, 0
+-     v3 = extract_value slice<memory>, v1, 1
 -     returndata v2, v3
 +     v4 = fmp
-+     v5 = ptrtoint memptr v4 to i256
++     v5 = ptrtoint ptr<memory> v4 to i256
 +     v6 = add v5, 32
-+     v7 = ptrtoint memptr v4 to i256
++     v7 = ptrtoint ptr<memory> v4 to i256
 +     v8 = sub v6, v7
 +     store v4, v8
-+     v9 = extract_value calldataslice, v0, 1
++     v9 = extract_value slice<calldata>, v0, 1
 +     v10 = not 31
 +     v11 = add 0, 31
 +     v12 = and v11, v10
@@ -22,20 +22,20 @@
 +     v14 = add v6, v12
 +     store v14, 0
 +     store v6, 0
-+     v15 = extract_value calldataslice, v0, 0
++     v15 = extract_value slice<calldata>, v0, 0
 +     v16 = add v13, v12
 +     copy calldata v13, 0, 0
-+     v17 = ptrtoint memptr v4 to i256
++     v17 = ptrtoint ptr<memory> v4 to i256
 +     v18 = sub v16, v17
 +     v19 = add v18, 0
 +     v20 = add v19, 31
 +     v21 = not 31
 +     v22 = and v20, v21
 +     v23 = alloc v22 !metadata(preserves_fmp)
-+     v24 = ptrtoint memptr v23 to i256
++     v24 = ptrtoint ptr<memory> v23 to i256
 +     v25 = make_memory_slice v24, v19
-+     v2 = extract_value memoryslice, v25, 0
-+     v3 = extract_value memoryslice, v25, 1
++     v2 = extract_value slice<memory>, v25, 0
++     v3 = extract_value slice<memory>, v25, 1
 +     returndata v24, v19
   }
   
@@ -46,13 +46,13 @@
     bb0:
       v0 = make_calldata_slice 0, 0
       v4 = fmp
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
       v6 = add v5, 32
--     v7 = ptrtoint memptr v4 to i256
+-     v7 = ptrtoint ptr<memory> v4 to i256
 -     v8 = sub v6, v7
 -     store v4, v8
 +     store v4, 32
-      v9 = extract_value calldataslice, v0, 1
+      v9 = extract_value slice<calldata>, v0, 1
 -     v10 = not 31
 -     v11 = add 0, 31
 -     v12 = and v11, v10
@@ -61,10 +61,10 @@
 -     store v14, 0
       store v6, 0
 +     store v6, 0
-      v15 = extract_value calldataslice, v0, 0
+      v15 = extract_value slice<calldata>, v0, 0
 -     v16 = add v13, v12
 -     copy calldata v13, 0, 0
--     v17 = ptrtoint memptr v4 to i256
+-     v17 = ptrtoint ptr<memory> v4 to i256
 -     v18 = sub v16, v17
 -     v19 = add v18, 0
 -     v20 = add v19, 31
@@ -72,11 +72,11 @@
 -     v22 = and v20, v21
 -     v23 = alloc v22 !metadata(preserves_fmp)
 +     v23 = alloc 64 !metadata(preserves_fmp)
-      v24 = ptrtoint memptr v23 to i256
+      v24 = ptrtoint ptr<memory> v23 to i256
 -     v25 = make_memory_slice v24, v19
 +     v25 = make_memory_slice v24, 64
-      v2 = extract_value memoryslice, v25, 0
-      v3 = extract_value memoryslice, v25, 1
+      v2 = extract_value slice<memory>, v25, 0
+      v3 = extract_value slice<memory>, v25, 1
 -     returndata v24, v19
 +     returndata v24, 64
   }
@@ -88,19 +88,19 @@
     bb0:
 -     v0 = make_calldata_slice 0, 0
       v4 = fmp
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
       v6 = add v5, 32
       store v4, 32
--     v9 = extract_value calldataslice, v0, 1
+-     v9 = extract_value slice<calldata>, v0, 1
 -     v13 = add v6, 32
       store v6, 0
       store v6, 0
--     v15 = extract_value calldataslice, v0, 0
+-     v15 = extract_value slice<calldata>, v0, 0
       v23 = alloc 64 !metadata(preserves_fmp)
-      v24 = ptrtoint memptr v23 to i256
+      v24 = ptrtoint ptr<memory> v23 to i256
 -     v25 = make_memory_slice v24, 64
--     v2 = extract_value memoryslice, v25, 0
--     v3 = extract_value memoryslice, v25, 1
+-     v2 = extract_value slice<memory>, v25, 0
+-     v3 = extract_value slice<memory>, v25, 1
       returndata v24, 64
   }
   
@@ -110,13 +110,13 @@
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v4 = fmp
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
       v6 = add v5, 32
       store v4, 32
       store v6, 0
       store v6, 0
       v23 = alloc 64 !metadata(preserves_fmp)
-      v24 = ptrtoint memptr v23 to i256
+      v24 = ptrtoint ptr<memory> v23 to i256
       returndata v24, 64
   }
   

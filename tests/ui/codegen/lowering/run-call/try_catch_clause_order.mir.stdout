@@ -34,20 +34,20 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = ptrtoint memptr v11 to i256
+    v12 = ptrtoint ptr<memory> v11 to i256
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = extract_value memoryslice, v15, 0
-    v17 = extract_value memoryslice, v15, 1
-    v18 = extract_value memoryslice, v15, 0
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = extract_value slice<memory>, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x8c379a0
@@ -74,13 +74,13 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
   bb11:
     ret 100
   bb9:
-    v35 = ptrtoint memptr v11 to i256
+    v35 = ptrtoint ptr<memory> v11 to i256
     v36 = add v35, 36
     v37 = load v36
     ret 300
   bb7:
     v24 = load v11
-    v25 = ptrtoint memptr v11 to i256
+    v25 = ptrtoint ptr<memory> v11 to i256
     v26 = add v25, 36
     v27 = sub v24, 4
     v28 = make_memory_slice v26, v27
@@ -102,20 +102,20 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = ptrtoint memptr v11 to i256
+    v12 = ptrtoint ptr<memory> v11 to i256
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = extract_value memoryslice, v15, 0
-    v17 = extract_value memoryslice, v15, 1
-    v18 = extract_value memoryslice, v15, 0
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = extract_value slice<memory>, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x8c379a0
@@ -142,13 +142,13 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
   bb11:
     ret 100
   bb9:
-    v35 = ptrtoint memptr v11 to i256
+    v35 = ptrtoint ptr<memory> v11 to i256
     v36 = add v35, 36
     v37 = load v36
     ret 300
   bb7:
     v24 = load v11
-    v25 = ptrtoint memptr v11 to i256
+    v25 = ptrtoint ptr<memory> v11 to i256
     v26 = add v25, 36
     v27 = sub v24, 4
     v28 = make_memory_slice v26, v27
@@ -170,20 +170,20 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = ptrtoint memptr v11 to i256
+    v12 = ptrtoint ptr<memory> v11 to i256
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = extract_value memoryslice, v15, 0
-    v17 = extract_value memoryslice, v15, 1
-    v18 = extract_value memoryslice, v15, 0
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = extract_value slice<memory>, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x4e487b71
@@ -199,7 +199,7 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
   bb6:
     ret 100
   bb4:
-    v26 = ptrtoint memptr v11 to i256
+    v26 = ptrtoint ptr<memory> v11 to i256
     v27 = add v26, 36
     v28 = load v27
     ret 300

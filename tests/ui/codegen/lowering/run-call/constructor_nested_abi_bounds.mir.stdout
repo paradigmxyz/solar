@@ -18,25 +18,25 @@ fn @lengths() -> i256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
+fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
   bb0:
     v0 = load arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = load arg0+32
-    v4 = inttoptr i256 v3 to memptr
+    v4 = inttoptr i256 v3 to ptr<memory>
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc 32
     store v6, 0
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     store arg0+32, v7
     jump bb2
   bb2:
     v8 = phi [bb0: v4], [bb1: v6]
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
     v11 = load v8
     v12 = keccak256 v10, v11
@@ -46,18 +46,18 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = load arg0+64
-    v17 = inttoptr i256 v16 to memptr
+    v17 = inttoptr i256 v16 to ptr<memory>
     v18 = eq v16, 0
     jumpi v18, bb3, bb4
   bb3:
     v19 = alloc 32
     store v19, 0
-    v20 = ptrtoint memptr v19 to i256
+    v20 = ptrtoint ptr<memory> v19 to i256
     store arg0+64, v20
     jump bb4
   bb4:
     v21 = phi [bb2: v17], [bb3: v19]
-    v22 = ptrtoint memptr v21 to i256
+    v22 = ptrtoint ptr<memory> v21 to i256
     v23 = add v22, 32
     v24 = load v21
     v25 = keccak256 v23, v24
@@ -67,13 +67,13 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = load arg0+32
-    v30 = inttoptr i256 v29 to memptr
+    v30 = inttoptr i256 v29 to ptr<memory>
     v31 = eq v29, 0
     jumpi v31, bb5, bb6
   bb5:
     v32 = alloc 32
     store v32, 0
-    v33 = ptrtoint memptr v32 to i256
+    v33 = ptrtoint ptr<memory> v32 to i256
     store arg0+32, v33
     jump bb6
   bb6:
@@ -85,13 +85,13 @@ fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = load arg0+64
-    v41 = inttoptr i256 v40 to memptr
+    v41 = inttoptr i256 v40 to ptr<memory>
     v42 = eq v40, 0
     jumpi v42, bb7, bb8
   bb7:
     v43 = alloc 32
     store v43, 0
-    v44 = ptrtoint memptr v43 to i256
+    v44 = ptrtoint ptr<memory> v43 to i256
     store arg0+64, v44
     jump bb8
   bb8:
@@ -119,7 +119,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb3:
     v6 = alloc 96 !metadata(preserves_fmp)
     store v6, 62
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
     store v8, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
     v9 = add v7, 64
@@ -128,21 +128,21 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = ptrtoint memptr v6 to i256
+    v13 = ptrtoint ptr<memory> v6 to i256
     store v0+32, v13
     v14 = alloc 64 !metadata(preserves_fmp)
     store v14, 5
-    v15 = ptrtoint memptr v14 to i256
+    v15 = ptrtoint ptr<memory> v14 to i256
     v16 = add v15, 32
     store v16, 0x102030405000000000000000000000000000000000000000000000000000000
     v17 = load v0
     v18 = lt 1, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = ptrtoint memptr v14 to i256
+    v20 = ptrtoint ptr<memory> v14 to i256
     store v0+64, v20
     v21 = abi_encode [memory_array<memory_bytes>], args v0
-    v22 = extract_value memoryslice, v21, 1
+    v22 = extract_value slice<memory>, v21, 1
     v23 = datasize NestedConstructor_creation_code_0
     v24 = add v23, v22
     v25 = lt v24, v23
@@ -153,13 +153,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v28 = not 31
     v29 = and v26, v28
     v30 = alloc v29
-    v31 = ptrtoint memptr v30 to i256
+    v31 = ptrtoint ptr<memory> v30 to i256
     datacopy NestedConstructor_creation_code_0, v31, v23
-    v32 = extract_value memoryslice, v21, 0
-    v33 = ptrtoint memptr v30 to i256
+    v32 = extract_value slice<memory>, v21, 0
+    v33 = ptrtoint ptr<memory> v30 to i256
     v34 = add v33, v23
     copy v34, v32, v22 !metadata(memory=heap)
-    v35 = ptrtoint memptr v30 to i256
+    v35 = ptrtoint ptr<memory> v30 to i256
     v36 = create 0, v35, v24
     v37 = ne v36, i160 0
     jumpi v37, bb5, bb4
@@ -168,8 +168,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb5:
     v38 = gas
     v39 = abi_encode [], selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
-    v40 = extract_value memoryslice, v39, 0
-    v41 = extract_value memoryslice, v39, 1
+    v40 = extract_value slice<memory>, v39, 0
+    v41 = extract_value slice<memory>, v39, 1
     v42 = zext i160 v36 to i256
     v43 = staticcall v38, v42, v40, v41, 0, 32
     jumpi v43, bb7, bb6
@@ -186,18 +186,18 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = load v0+32
-    v52 = inttoptr i256 v51 to memptr
+    v52 = inttoptr i256 v51 to ptr<memory>
     v53 = eq v51, 0
     jumpi v53, bb8, bb9
   bb8:
     v54 = alloc 32
     store v54, 0
-    v55 = ptrtoint memptr v54 to i256
+    v55 = ptrtoint ptr<memory> v54 to i256
     store v0+32, v55
     jump bb9
   bb9:
     v56 = phi [bb7: v52], [bb8: v54]
-    v57 = ptrtoint memptr v56 to i256
+    v57 = ptrtoint ptr<memory> v56 to i256
     v58 = add v57, 32
     v59 = load v56
     v60 = keccak256 v58, v59
@@ -208,8 +208,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb10:
     v62 = gas
     v63 = abi_encode [], selector 0xf799654200000000000000000000000000000000000000000000000000000000
-    v64 = extract_value memoryslice, v63, 0
-    v65 = extract_value memoryslice, v63, 1
+    v64 = extract_value slice<memory>, v63, 0
+    v65 = extract_value slice<memory>, v63, 1
     v66 = zext i160 v36 to i256
     v67 = staticcall v62, v66, v64, v65, 0, 32
     jumpi v67, bb14, bb13
@@ -226,18 +226,18 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v74 = eq v73, false
     icall panic_if<0x32>, v74
     v75 = load v0+64
-    v76 = inttoptr i256 v75 to memptr
+    v76 = inttoptr i256 v75 to ptr<memory>
     v77 = eq v75, 0
     jumpi v77, bb15, bb16
   bb15:
     v78 = alloc 32
     store v78, 0
-    v79 = ptrtoint memptr v78 to i256
+    v79 = ptrtoint ptr<memory> v78 to i256
     store v0+64, v79
     jump bb16
   bb16:
     v80 = phi [bb14: v76], [bb15: v78]
-    v81 = ptrtoint memptr v80 to i256
+    v81 = ptrtoint ptr<memory> v80 to i256
     v82 = add v81, 32
     v83 = load v80
     v84 = keccak256 v82, v83
@@ -247,8 +247,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v86 = phi [bb16: v85], [bb11: false]
     v87 = gas
     v88 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
-    v89 = extract_value memoryslice, v88, 0
-    v90 = extract_value memoryslice, v88, 1
+    v89 = extract_value slice<memory>, v88, 0
+    v90 = extract_value slice<memory>, v88, 1
     v91 = zext i160 v36 to i256
     v92 = staticcall v87, v91, v89, v90, 0, 32
     jumpi v92, bb18, bb17
@@ -265,13 +265,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v99 = eq v98, false
     icall panic_if<0x32>, v99
     v100 = load v0+32
-    v101 = inttoptr i256 v100 to memptr
+    v101 = inttoptr i256 v100 to ptr<memory>
     v102 = eq v100, 0
     jumpi v102, bb19, bb20
   bb19:
     v103 = alloc 32
     store v103, 0
-    v104 = ptrtoint memptr v103 to i256
+    v104 = ptrtoint ptr<memory> v103 to i256
     store v0+32, v104
     jump bb20
   bb20:
@@ -283,13 +283,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v110 = eq v109, false
     icall panic_if<0x32>, v110
     v111 = load v0+64
-    v112 = inttoptr i256 v111 to memptr
+    v112 = inttoptr i256 v111 to ptr<memory>
     v113 = eq v111, 0
     jumpi v113, bb21, bb22
   bb21:
     v114 = alloc 32
     store v114, 0
-    v115 = ptrtoint memptr v114 to i256
+    v115 = ptrtoint ptr<memory> v114 to i256
     store v0+64, v115
     jump bb22
   bb22:

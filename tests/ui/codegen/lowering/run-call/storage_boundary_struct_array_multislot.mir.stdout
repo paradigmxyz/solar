@@ -43,7 +43,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v38 = lt v37, 3
     jumpi v38, bb8, bb9
   bb9:
-    v51 = ptrtoint memptr v36 to i256
+    v51 = ptrtoint ptr<memory> v36 to i256
     jump bb10
   bb10:
     v52 = phi [bb9: 0], [bb15: v71]
@@ -155,7 +155,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v45 = add v40, 2
     v46 = sload v45 !metadata(storage=offset(v40, 2))
     store v41+64, v46
-    v47 = ptrtoint memptr v41 to i256
+    v47 = ptrtoint ptr<memory> v41 to i256
     v48 = shl 5, v37
     v49 = ptradd v36, v48
     store v49, v47

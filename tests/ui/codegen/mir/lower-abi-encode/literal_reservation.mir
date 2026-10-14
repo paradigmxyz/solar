@@ -7,20 +7,20 @@
 // CHECK: fn @encode
 // CHECK: [[BUFFER_PTR:v[0-9]+]] = alloc 256{{$}}
 // CHECK: store [[BUFFER_PTR]], 0x12345678
-// CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
+// CHECK: [[BUFFER:v[0-9]+]] = ptrtoint ptr<memory> [[BUFFER_PTR]] to i256
 // CHECK: make_memory_slice [[BUFFER]], 228
 // CHECK-NOT: preserves_fmp
-fn @encode(arg0: i256) -> memoryslice {
+fn @encode(arg0: i256) -> slice<memory> {
   bb0:
     v0 = alloc 96
-    v3 = ptrtoint memptr v0 to i256
+    v3 = ptrtoint ptr<memory> v0 to i256
     store v3, 33
     v9001 = ptradd v0, 32
     store v9001, 0x6161616161616161616161616161616161616161616161616161616161616161
     v9002 = ptradd v0, 64
     store v9002, 0x6200000000000000000000000000000000000000000000000000000000000000
     v1 = alloc 32
-    v5 = ptrtoint memptr v1 to i256
+    v5 = ptrtoint ptr<memory> v1 to i256
     store v5, 0
     v2 = abi_encode [memory_bytes, word, memory_bytes], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v1
     ret v2

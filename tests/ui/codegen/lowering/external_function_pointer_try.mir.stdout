@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/external_function_pointer_try.sol:ExternalFunctionPointerTry ===
 @module ExternalFunctionPointerTry
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
 
-fn @invoke(arg0: i256, arg1: memptr) {
+fn @invoke(arg0: i256, arg1: ptr<memory>) {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
     v2 = shr 32, arg0
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = extcodesize v2
     v8 = eq v7, 0
     icall revert_if<target_contract_has_no_code>, v8
@@ -19,13 +19,13 @@ fn @invoke(arg0: i256, arg1: memptr) {
     jumpi v9, bb1, bb2
   bb2:
     v10 = icall returndata_bytes<>
-    v11 = ptrtoint memptr v10 to i256
+    v11 = ptrtoint ptr<memory> v10 to i256
     v12 = add v11, 32
     v13 = load v10
     v14 = make_memory_slice v12, v13
-    v15 = extract_value memoryslice, v14, 0
-    v16 = extract_value memoryslice, v14, 1
-    v17 = extract_value memoryslice, v14, 0
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = extract_value slice<memory>, v14, 0
     v18 = load v17
     v19 = shr 224, v18
     jumpi true, bb4, bb5
@@ -41,25 +41,25 @@ fn @invoke(arg0: i256, arg1: memptr) {
     ret
 }
 
-fn @succeed(arg0: memptr) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = load arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: memptr) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: ptr<memory>) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = load arg0
     v1 = alloc 64 !metadata(preserves_fmp)
     store v1, 2
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     store v3, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v4 = insert_value struct0, undef struct0, 0, v0
@@ -67,15 +67,15 @@ fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<
     ret v5
 }
 
-fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
+fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
     v2 = shr 32, arg0
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:
@@ -86,7 +86,7 @@ fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
   bb4:
     v14 = alloc 64 !metadata(preserves_fmp)
     store v14, 6
-    v15 = ptrtoint memptr v14 to i256
+    v15 = ptrtoint ptr<memory> v14 to i256
     v16 = add v15, 32
     store v16, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v17 = insert_value struct0, undef struct0, 0, 0
@@ -102,7 +102,7 @@ fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
     ret v13
   bb3:
     v19 = insert_value struct0, undef struct0, 0, 0
-    v20 = insert_value struct0, v19, 1, memptr 96
+    v20 = insert_value struct0, v19, 1, ptr<memory> 96
     ret v20
 }
 

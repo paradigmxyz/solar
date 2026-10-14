@@ -22,7 +22,7 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u256, u256]] {
     v3 = and v0, v2
     v4 = alloc zeroed checked v3
     store v4, arg0
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
     v7 = load v4
     v8 = keccak256 v6, v7

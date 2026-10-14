@@ -15,7 +15,7 @@ fn @unread(arg0: i256) -> i256 {
   bb0:
     v0 = alloc zeroed checked 64
     v9001 = ptradd v0, 32
-    v1 = ptrtoint memptr v9001 to i256
+    v1 = ptrtoint ptr<memory> v9001 to i256
     copy calldata v1, 4, 32
     ret arg0
 }
@@ -28,7 +28,7 @@ fn @read(arg0: i256) -> i256 {
   bb0:
     v0 = alloc 64
     v9001 = ptradd v0, 32
-    v1 = ptrtoint memptr v9001 to i256
+    v1 = ptrtoint ptr<memory> v9001 to i256
     copy calldata v1, 4, 32
     v2 = load v1
     ret v2
@@ -41,7 +41,7 @@ fn @absolute_alias() -> i256 {
   bb0:
     v0 = alloc 64
     v9001 = ptradd v0, 32
-    v1 = ptrtoint memptr v9001 to i256
+    v1 = ptrtoint ptr<memory> v9001 to i256
     store v1, 7
     v2 = load 128
     ret v2
@@ -54,7 +54,7 @@ fn @mstore8_escape() -> i256 {
   bb0:
     v0 = alloc 64
     v9001 = ptradd v0, 32
-    v1 = ptrtoint memptr v9001 to i256
+    v1 = ptrtoint ptr<memory> v9001 to i256
     store v1, 9
     store8 0, v1
     ret 0
@@ -65,10 +65,10 @@ fn @mstore8_escape() -> i256 {
 fn @zero_sized_write() -> i256 {
   bb0:
     v8 = alloc 0
-    v0 = ptrtoint memptr v8 to i256
+    v0 = ptrtoint ptr<memory> v8 to i256
     store v0, 7
     v9 = fmp
-    v1 = ptrtoint memptr v9 to i256
+    v1 = ptrtoint ptr<memory> v9 to i256
     v2 = load v1
     ret v2
 }
@@ -78,9 +78,9 @@ fn @zero_sized_write() -> i256 {
 fn @write_past_allocation() -> i256 {
   bb0:
     v10 = alloc 32
-    v0 = ptrtoint memptr v10 to i256
+    v0 = ptrtoint ptr<memory> v10 to i256
     v11 = alloc 32
-    v1 = ptrtoint memptr v11 to i256
+    v1 = ptrtoint ptr<memory> v11 to i256
     v2 = add v0, 32
     store v2, 7
     v3 = load v1

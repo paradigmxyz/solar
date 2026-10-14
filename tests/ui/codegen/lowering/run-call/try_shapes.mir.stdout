@@ -28,13 +28,13 @@ fn @constructor() [constructor] {
     v1 = datasize Callee_creation_code_0
     v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy Callee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -67,20 +67,20 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = ptrtoint memptr v11 to i256
+    v12 = ptrtoint ptr<memory> v11 to i256
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = extract_value memoryslice, v15, 0
-    v17 = extract_value memoryslice, v15, 1
-    v18 = extract_value memoryslice, v15, 0
+    v16 = extract_value slice<memory>, v15, 0
+    v17 = extract_value slice<memory>, v15, 1
+    v18 = extract_value slice<memory>, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x8c379a0
@@ -97,7 +97,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     revert v16, v17
   bb7:
     v24 = load v11
-    v25 = ptrtoint memptr v11 to i256
+    v25 = ptrtoint ptr<memory> v11 to i256
     v26 = add v25, 36
     v27 = sub v24, 4
     v28 = make_memory_slice v26, v27
@@ -115,20 +115,20 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v31 = address
     v32 = gas
     v33 = abi_encode [], selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
-    v34 = extract_value memoryslice, v33, 0
-    v35 = extract_value memoryslice, v33, 1
+    v34 = extract_value slice<memory>, v33, 0
+    v35 = extract_value slice<memory>, v33, 1
     v36 = zext i160 v31 to i256
     v37 = staticcall v32, v36, v34, v35, 0, 32
     jumpi v37, bb9, bb10
   bb10:
     v43 = icall returndata_bytes<>
-    v44 = ptrtoint memptr v43 to i256
+    v44 = ptrtoint ptr<memory> v43 to i256
     v45 = add v44, 32
     v46 = load v43
     v47 = make_memory_slice v45, v46
-    v48 = extract_value memoryslice, v47, 0
-    v49 = extract_value memoryslice, v47, 1
-    v50 = extract_value memoryslice, v47, 0
+    v48 = extract_value slice<memory>, v47, 0
+    v49 = extract_value slice<memory>, v47, 1
+    v50 = extract_value slice<memory>, v47, 0
     v51 = load v50
     v52 = shr 224, v51
     v53 = eq v52, 0x8c379a0
@@ -150,7 +150,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     jump bb11
   bb15:
     v56 = load v43
-    v57 = ptrtoint memptr v43 to i256
+    v57 = ptrtoint ptr<memory> v43 to i256
     v58 = add v57, 36
     v59 = sub v56, 4
     v60 = make_memory_slice v58, v59
@@ -173,20 +173,20 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v68 = trunc i256 v67 to i160
     v69 = gas
     v70 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 3
-    v71 = extract_value memoryslice, v70, 0
-    v72 = extract_value memoryslice, v70, 1
+    v71 = extract_value slice<memory>, v70, 0
+    v72 = extract_value slice<memory>, v70, 1
     v73 = zext i160 v68 to i256
     v74 = staticcall v69, v73, v71, v72, 0, 32
     jumpi v74, bb19, bb20
   bb20:
     v80 = icall returndata_bytes<>
-    v81 = ptrtoint memptr v80 to i256
+    v81 = ptrtoint ptr<memory> v80 to i256
     v82 = add v81, 32
     v83 = load v80
     v84 = make_memory_slice v82, v83
-    v85 = extract_value memoryslice, v84, 0
-    v86 = extract_value memoryslice, v84, 1
-    v87 = extract_value memoryslice, v84, 0
+    v85 = extract_value slice<memory>, v84, 0
+    v86 = extract_value slice<memory>, v84, 1
+    v87 = extract_value slice<memory>, v84, 0
     v88 = load v87
     v89 = shr 224, v88
     v90 = eq v89, 0x4e487b71
@@ -203,7 +203,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v99 = checked_add u256, v66, 500
     jump bb21
   bb22:
-    v95 = ptrtoint memptr v80 to i256
+    v95 = ptrtoint ptr<memory> v80 to i256
     v96 = add v95, 36
     v97 = load v96
     v98 = checked_add u256, v66, 400
@@ -222,8 +222,8 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v102 = trunc i256 v101 to i160
     v103 = gas
     v104 = abi_encode [word], selector 0xe420264a00000000000000000000000000000000000000000000000000000000, args 4
-    v105 = extract_value memoryslice, v104, 0
-    v106 = extract_value memoryslice, v104, 1
+    v105 = extract_value slice<memory>, v104, 0
+    v106 = extract_value slice<memory>, v104, 1
     v107 = zext i160 v102 to i256
     v108 = staticcall v103, v107, v105, v106, v105, 64
     jumpi v108, bb26, bb27
@@ -252,8 +252,8 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v120 = trunc i256 v119 to i160
     v121 = gas
     v122 = abi_encode [word], selector 0xb3de648b00000000000000000000000000000000000000000000000000000000, args 5
-    v123 = extract_value memoryslice, v122, 0
-    v124 = extract_value memoryslice, v122, 1
+    v123 = extract_value slice<memory>, v122, 0
+    v124 = extract_value slice<memory>, v122, 1
     v125 = zext i160 v120 to i256
     v126 = staticcall 0x186a0, v125, v123, v124, 0, 32
     jumpi v126, bb31, bb32
@@ -279,13 +279,13 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v135 = datasize Callee_creation_code_0
     v136 = datasize Callee_creation_code_0, 31, aligned
     v137 = alloc v136
-    v138 = ptrtoint memptr v137 to i256
+    v138 = ptrtoint ptr<memory> v137 to i256
     datacopy Callee_creation_code_0, v138, v135
-    v139 = extract_value memoryslice, v134, 0
-    v140 = ptrtoint memptr v137 to i256
+    v139 = extract_value slice<memory>, v134, 0
+    v140 = ptrtoint ptr<memory> v137 to i256
     v141 = add v140, v135
     copy v141, v139, 0 !metadata(memory=heap)
-    v142 = ptrtoint memptr v137 to i256
+    v142 = ptrtoint ptr<memory> v137 to i256
     v143 = create 0, v142, v135
     v144 = eq v143, i160 0
     v145 = eq v144, false
@@ -313,8 +313,8 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v156 = shr 32, v153
     v157 = gas
     v158 = abi_encode [word], selector v155, args 6
-    v159 = extract_value memoryslice, v158, 0
-    v160 = extract_value memoryslice, v158, 1
+    v159 = extract_value slice<memory>, v158, 0
+    v160 = extract_value slice<memory>, v158, 1
     v161 = call v157, v156, 0, v159, v160, 0, 32
     jumpi v161, bb41, bb42
   bb42:

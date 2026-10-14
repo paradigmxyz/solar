@@ -19,7 +19,7 @@ contract TryLibraryCall {
     // delegatecall's static output size carries the return values out of the area overlaying its
     // input, with no return data involved.
     // HOMESTEAD-LABEL: fn @libCall
-    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -38,7 +38,7 @@ contract TryLibraryCall {
     }
 
     // HOMESTEAD-LABEL: fn @libNoReturn
-    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 0
     function libNoReturn(uint256 x) external returns (uint256 r) {

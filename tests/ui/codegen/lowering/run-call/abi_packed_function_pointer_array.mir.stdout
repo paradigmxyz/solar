@@ -5,7 +5,7 @@ fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_retu
     ret
 }
 
-fn @memoryEncode() -> memptr [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 64
     store v0, 1
@@ -21,10 +21,10 @@ fn @memoryEncode() -> memptr [selector=0xe39243fb, pure, abi_params=[], abi_retu
     ret v7
 }
 
-fn @encode(arg0: calldataslice) -> memptr [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32

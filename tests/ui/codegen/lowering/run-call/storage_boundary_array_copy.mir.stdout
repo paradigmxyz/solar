@@ -54,7 +54,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v25 = lt v24, 10
     jumpi v25, bb8, bb9
   bb9:
-    v31 = ptrtoint memptr v23 to i256
+    v31 = ptrtoint ptr<memory> v23 to i256
     jump bb10
   bb10:
     v32 = phi [bb9: 0], [bb15: v39]

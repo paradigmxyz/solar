@@ -105,11 +105,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     store v77, v80
     v81 = add 0, 1
     v82 = icall @load_storage_bytes, v81
-    v83 = ptrtoint memptr v82 to i256
+    v83 = ptrtoint ptr<memory> v82 to i256
     store v77+32, v83
     v84 = add 0, 2
     v85 = icall @load_storage_struct_array_0, v84
-    v86 = ptrtoint memptr v85 to i256
+    v86 = ptrtoint ptr<memory> v85 to i256
     store v77+64, v86
     v87 = sload 6 !metadata(storage=slot(6))
     v88 = gt v87, 0xffffffffffffffff
@@ -157,11 +157,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     store v117, v120
     v121 = add 0, 1
     v122 = icall @load_storage_bytes, v121
-    v123 = ptrtoint memptr v122 to i256
+    v123 = ptrtoint ptr<memory> v122 to i256
     store v117+32, v123
     v124 = add 0, 2
     v125 = icall @load_storage_struct_array_0, v124
-    v126 = ptrtoint memptr v125 to i256
+    v126 = ptrtoint ptr<memory> v125 to i256
     store v117+64, v126
     v127 = sload 6 !metadata(storage=slot(6))
     v128 = gt v127, 0xffffffffffffffff
@@ -200,13 +200,13 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     store v151, v154
     v155 = add 0, 1
     v156 = icall @load_storage_bytes, v155
-    v157 = ptrtoint memptr v156 to i256
+    v157 = ptrtoint ptr<memory> v156 to i256
     store v151+32, v157
     v158 = add 0, 2
     v159 = icall @load_storage_struct_array_0, v158
-    v160 = ptrtoint memptr v159 to i256
+    v160 = ptrtoint ptr<memory> v159 to i256
     store v151+64, v160
-    v161 = ptrtoint memptr v151 to i256
+    v161 = ptrtoint ptr<memory> v151 to i256
     icall @store_recursive_storage_0_0, v150, v151
     v162 = alloc checked 96
     v163 = sload 3 !metadata(storage=slot(3))
@@ -215,11 +215,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     store v162, v165
     v166 = add 3, 1
     v167 = icall @load_storage_bytes, v166
-    v168 = ptrtoint memptr v167 to i256
+    v168 = ptrtoint ptr<memory> v167 to i256
     store v162+32, v168
     v169 = add 3, 2
     v170 = icall @load_storage_struct_array_0, v169
-    v171 = ptrtoint memptr v170 to i256
+    v171 = ptrtoint ptr<memory> v170 to i256
     store v162+64, v171
     v172 = sload 6 !metadata(storage=slot(6))
     v173 = gt v172, 0xffffffffffffffff
@@ -379,13 +379,13 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     ret v307
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
 }
 
-fn @load_storage_struct_array_0(arg0: i256) -> memptr {
+fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -418,22 +418,22 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     store v15, v18
     v19 = add v13, 1
     v20 = icall @load_storage_bytes, v19
-    v21 = ptrtoint memptr v20 to i256
+    v21 = ptrtoint ptr<memory> v20 to i256
     store v15+32, v21
     v22 = add v13, 2
     v23 = icall @load_storage_struct_array_0, v22
-    v24 = ptrtoint memptr v23 to i256
+    v24 = ptrtoint ptr<memory> v23 to i256
     store v15+64, v24
     v25 = shl 5, v12
     v26 = ptradd v10, v25
-    v27 = ptrtoint memptr v15 to i256
+    v27 = ptrtoint ptr<memory> v15 to i256
     store v26+32, v27
     v28 = add v12, 1
     v29 = add v13, 3
     jump bb1
 }
 
-fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
+fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
   bb0:
     v0 = load arg1
     v1 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -444,7 +444,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
     sstore arg0, v5 !metadata(storage=symbolic(arg0))
     v6 = add arg0, 1
     v7 = load arg1+32
-    v8 = inttoptr i256 v7 to memptr
+    v8 = inttoptr i256 v7 to ptr<memory>
     icall @store_storage_bytes, v6, v8
     v9 = add arg0, 2
     v10 = load arg1+64
@@ -471,18 +471,18 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
     ret
   bb7:
     v22 = shl 5, v20
-    v23 = inttoptr i256 v10 to memptr
+    v23 = inttoptr i256 v10 to ptr<memory>
     v24 = ptradd v23, v22
     v25 = load v24+32
-    v26 = inttoptr i256 v25 to memptr
+    v26 = inttoptr i256 v25 to ptr<memory>
     v27 = eq v25, 0
     jumpi v27, bb9, bb10
   bb9:
     v28 = icall @default_struct_0
     v29 = shl 5, v20
-    v30 = inttoptr i256 v10 to memptr
+    v30 = inttoptr i256 v10 to ptr<memory>
     v31 = ptradd v30, v29
-    v32 = ptrtoint memptr v28 to i256
+    v32 = ptrtoint ptr<memory> v28 to i256
     store v31+32, v32
     jump bb10
   bb10:
@@ -502,7 +502,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -547,17 +547,17 @@ fn @clear_recursive_storage_0(arg0: i256) {
     jump bb3
 }
 
-fn @default_struct_0() -> memptr {
+fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 96
     store v0, 0
     v1 = alloc 32
     store v1, 0
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     store v0+32, v2
     v3 = alloc 32
     store v3, 0
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     store v0+64, v4
     ret v0
 }

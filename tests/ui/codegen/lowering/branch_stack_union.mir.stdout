@@ -24,13 +24,13 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v6 = datasize F_creation_code_0
     v7 = datasize F_creation_code_0, 31, aligned
     v8 = alloc v7
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     datacopy F_creation_code_0, v9, v6
-    v10 = extract_value memoryslice, v5, 0
-    v11 = ptrtoint memptr v8 to i256
+    v10 = extract_value slice<memory>, v5, 0
+    v11 = ptrtoint ptr<memory> v8 to i256
     v12 = add v11, v6
     copy v12, v10, 0 !metadata(memory=heap)
-    v13 = ptrtoint memptr v8 to i256
+    v13 = ptrtoint ptr<memory> v8 to i256
     v14 = create 0, v13, v6
     v15 = ne v14, i160 0
     jumpi v15, bb2, bb1
@@ -42,8 +42,8 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v18 = sext i144 0 to i256
     v19 = zext i24 v17 to i256
     v20 = abi_encode [word<u24>, word, word<i144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v19, 0, v18
-    v21 = extract_value memoryslice, v20, 0
-    v22 = extract_value memoryslice, v20, 1
+    v21 = extract_value slice<memory>, v20, 0
+    v22 = extract_value slice<memory>, v20, 1
     v23 = zext i160 v14 to i256
     v24 = call v16, v23, 0, v21, v22, 0, 32
     jumpi v24, bb4, bb3
@@ -133,13 +133,13 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v89 = datasize F_creation_code_0
     v90 = datasize F_creation_code_0, 31, aligned
     v91 = alloc v90
-    v92 = ptrtoint memptr v91 to i256
+    v92 = ptrtoint ptr<memory> v91 to i256
     datacopy F_creation_code_0, v92, v89
-    v93 = extract_value memoryslice, v88, 0
-    v94 = ptrtoint memptr v91 to i256
+    v93 = extract_value slice<memory>, v88, 0
+    v94 = ptrtoint ptr<memory> v91 to i256
     v95 = add v94, v89
     copy v95, v93, 0 !metadata(memory=heap)
-    v96 = ptrtoint memptr v91 to i256
+    v96 = ptrtoint ptr<memory> v91 to i256
     v97 = create 0, v96, v89
     v98 = ne v97, i160 0
     jumpi v98, bb12, bb11
@@ -179,8 +179,8 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v125 = sext i144 v124 to i256
     v126 = zext i24 v105 to i256
     v127 = abi_encode [word<u24>, word, word<i144>], selector 0xafabfe2900000000000000000000000000000000000000000000000000000000, args v126, v111, v125
-    v128 = extract_value memoryslice, v127, 0
-    v129 = extract_value memoryslice, v127, 1
+    v128 = extract_value slice<memory>, v127, 0
+    v129 = extract_value slice<memory>, v127, 1
     v130 = zext i160 v97 to i256
     v131 = call v99, v130, 0, v128, v129, 0, 32
     jumpi v131, bb14, bb13

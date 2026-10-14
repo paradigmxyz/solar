@@ -18,10 +18,10 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     store v0, v5
     v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 1
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
     store v8, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v9 = ptrtoint memptr v6 to i256
+    v9 = ptrtoint ptr<memory> v6 to i256
     store v0+32, v9
     v10 = load v0
     v11 = load v0+32
@@ -78,11 +78,11 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v50 = add v36, 32
     v51 = make_memory_slice v50, v41
     v52 = ptradd v33, 64
-    v53 = extract_value memoryslice, v51, 0
-    v54 = extract_value memoryslice, v51, 1
+    v53 = extract_value slice<memory>, v51, 0
+    v54 = extract_value slice<memory>, v51, 1
     copy v52, v53, v54
     v55 = add 32, v45
-    v56 = ptrtoint memptr v33 to i256
+    v56 = ptrtoint ptr<memory> v33 to i256
     v57 = add v56, 32
     v58 = load v33
     v59 = keccak256 v57, v58

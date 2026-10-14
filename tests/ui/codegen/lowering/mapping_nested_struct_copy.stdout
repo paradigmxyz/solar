@@ -9,7 +9,7 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x
     v1 = alloc 64
     store v1, arg2
     store v1+32, arg3
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     store v0, arg1
     store v0+32, v2
     store v0+64, arg4
@@ -42,15 +42,15 @@ fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     v6 = add v3, 1
     v7 = sload v6 !metadata(storage=offset(v0, 2))
     store v4+32, v7
-    v8 = ptrtoint memptr v4 to i256
+    v8 = ptrtoint ptr<memory> v4 to i256
     store v1+32, v8
     v9 = add v0, 3
     v10 = sload v9 !metadata(storage=offset(v0, 3))
     store v1+64, v10
     v11 = load v1
-    v12 = load v1+32, memptr
+    v12 = load v1+32, ptr<memory>
     v13 = load v12
-    v14 = load v1+32, memptr
+    v14 = load v1+32, ptr<memory>
     v15 = load v14+32
     v16 = load v1+64
     v17 = insert_value struct0, undef struct0, 0, v11

@@ -5,9 +5,9 @@
     bb0:
       v0 = alloc 32
       v1 = alloc 32
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 31
-      v4 = ptrtoint memptr v1 to i256
+      v4 = ptrtoint ptr<memory> v1 to i256
       v5 = load v3
       jumpi arg0, bb1, bb2
     bb2:
@@ -25,9 +25,9 @@
     bb0:
       v0 = alloc 32
       v1 = alloc 32
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 0
-      v4 = ptrtoint memptr v1 to i256
+      v4 = ptrtoint ptr<memory> v1 to i256
       v5 = keccak256 v3, 33
       jumpi arg0, bb1, bb2
     bb2:
@@ -45,9 +45,9 @@
     bb0:
       v0 = alloc 32
       v1 = alloc 32
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 0
-      v4 = ptrtoint memptr v1 to i256
+      v4 = ptrtoint ptr<memory> v1 to i256
       v5 = keccak256 v3, arg1
       jumpi arg0, bb1, bb2
     bb2:
@@ -65,9 +65,9 @@
     bb0:
       v0 = alloc 32
       v1 = alloc 32
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 31
-      v4 = ptrtoint memptr v1 to i256
+      v4 = ptrtoint ptr<memory> v1 to i256
       store v3, 99
       jumpi arg0, bb1, bb2
     bb2:

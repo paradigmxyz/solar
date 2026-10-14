@@ -83,7 +83,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v57 = shl 5, v26
     v58 = ptradd v24, v57
     v59 = load v58+32
-    v60 = inttoptr i256 v59 to memptr
+    v60 = inttoptr i256 v59 to ptr<memory>
     v61 = eq v59, 0
     jumpi v61, bb10, bb11
   bb10:
@@ -91,7 +91,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     store v62, 0
     v63 = shl 5, v26
     v64 = ptradd v24, v63
-    v65 = ptrtoint memptr v62 to i256
+    v65 = ptrtoint ptr<memory> v62 to i256
     store v64+32, v65
     jump bb11
   bb11:
@@ -130,7 +130,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v48 = lt v27, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = ptrtoint memptr v46 to i256
+    v50 = ptrtoint ptr<memory> v46 to i256
     v51 = shl 5, v27
     v52 = ptradd v24, v51
     store v52+32, v50
@@ -151,7 +151,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
 fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 96
     v2 = lt arg0, 3
     v3 = eq v2, false
@@ -198,16 +198,16 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v28 = shl 5, arg1
     v29 = ptradd v16, v28
     v30 = load v29+32
-    v31 = inttoptr i256 v30 to memptr
+    v31 = inttoptr i256 v30 to ptr<memory>
     v32 = eq v30, 0
     jumpi v32, bb4, bb5
   bb4:
     v33 = alloc 128
-    v34 = ptrtoint memptr v33 to i256
+    v34 = ptrtoint ptr<memory> v33 to i256
     memory_zero v34, 128
     v35 = shl 5, arg1
     v36 = ptradd v16, v35
-    v37 = ptrtoint memptr v33 to i256
+    v37 = ptrtoint ptr<memory> v33 to i256
     store v36+32, v37
     jump bb5
   bb5:
@@ -219,11 +219,11 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     ret v41
   bb2:
     v19 = alloc 128 !metadata(preserves_fmp)
-    v20 = ptrtoint memptr v19 to i256
+    v20 = ptrtoint ptr<memory> v19 to i256
     memory_zero v20, 128
     v21 = shl 5, v17
     v22 = ptradd v16, v21
-    v23 = ptrtoint memptr v19 to i256
+    v23 = ptrtoint ptr<memory> v19 to i256
     store v22+32, v23
     v24 = add v17, 1
     jump bb1

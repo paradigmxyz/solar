@@ -12,7 +12,7 @@
 fn @observing_caller() -> i1 [selector=0x01020304] {
   bb0:
     v6 = alloc 32
-    v0 = ptrtoint memptr v6 to i256
+    v0 = ptrtoint ptr<memory> v6 to i256
     store v0, 7
     v1 = icall fn4, v0
     v2 = ne v1, false
@@ -27,7 +27,7 @@ fn @observing_caller() -> i1 [selector=0x01020304] {
 fn @forwarding_caller() -> i1 [selector=0x01020305] {
   bb0:
     v7 = alloc 32
-    v0 = ptrtoint memptr v7 to i256
+    v0 = ptrtoint ptr<memory> v7 to i256
     store v0, 7
     v1 = icall fn5, v0
     v2 = ne v1, false
@@ -39,14 +39,14 @@ fn @forwarding_caller() -> i1 [selector=0x01020305] {
 // CHECK:   fn @dereferencing_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: -     v0 = alloc 32
-// CHECK-NEXT: -     v1 = ptrtoint memptr v0 to i256
-// CHECK-NEXT: +     v1 = ptrtoint memptr 128 to i256
+// CHECK-NEXT: -     v1 = ptrtoint ptr<memory> v0 to i256
+// CHECK-NEXT: +     v1 = ptrtoint ptr<memory> 128 to i256
 // CHECK-NEXT:       store v1, 7
 // CHECK-NEXT:       v2 = icall @dereferences, v1
 fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
     v8 = alloc 32
-    v0 = ptrtoint memptr v8 to i256
+    v0 = ptrtoint ptr<memory> v8 to i256
     store v0, 7
     v1 = icall fn6, v0
     ret v1
@@ -59,7 +59,7 @@ fn @dereferencing_caller() -> i256 [selector=0x01020306] {
 fn @msize_caller() -> i256 [selector=0x01020307] {
   bb0:
     v9 = alloc 32
-    v0 = ptrtoint memptr v9 to i256
+    v0 = ptrtoint ptr<memory> v9 to i256
     store v0, 7
     v1 = icall fn7, v0
     ret v1
@@ -120,14 +120,14 @@ fn @reserve_frame() [selector=0x01020308] {
 // CHECK:   fn @iterating_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: -     v0 = alloc 32
-// CHECK-NEXT: -     v1 = ptrtoint memptr v0 to i256
-// CHECK-NEXT: +     v1 = ptrtoint memptr 128 to i256
+// CHECK-NEXT: -     v1 = ptrtoint ptr<memory> v0 to i256
+// CHECK-NEXT: +     v1 = ptrtoint ptr<memory> 128 to i256
 // CHECK-NEXT:       store v1, 7
 // CHECK-NEXT:       v2 = icall @iterates, v1
 fn @iterating_caller() -> i256 [selector=0x01020309] {
   bb0:
     v10 = alloc 32
-    v0 = ptrtoint memptr v10 to i256
+    v0 = ptrtoint ptr<memory> v10 to i256
     store v0, 7
     v1 = icall fn10, v0
     ret v1

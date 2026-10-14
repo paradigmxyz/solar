@@ -3,47 +3,47 @@
 @types
   struct0: {i256, i256, i256, i256, i256}
 
-fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = extract_value calldataslice, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 0
     v5 = add v4, 0
     v6 = make_calldata_slice v5, 64
-    v7 = extract_value calldataslice, v6, 0
+    v7 = extract_value slice<calldata>, v6, 0
     v8 = add v7, 0
     v9 = load calldata v8
-    v10 = extract_value calldataslice, arg0, 1
+    v10 = extract_value slice<calldata>, arg0, 1
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = extract_value calldataslice, arg0, 0
+    v13 = extract_value slice<calldata>, arg0, 0
     v14 = add v13, 0
     v15 = make_calldata_slice v14, 64
-    v16 = extract_value calldataslice, v15, 0
+    v16 = extract_value slice<calldata>, v15, 0
     v17 = add v16, 32
     v18 = load calldata v17
-    v19 = extract_value calldataslice, arg0, 1
+    v19 = extract_value slice<calldata>, arg0, 1
     v20 = lt 1, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = extract_value calldataslice, arg0, 0
+    v22 = extract_value slice<calldata>, arg0, 0
     v23 = add v22, 64
     v24 = make_calldata_slice v23, 64
-    v25 = extract_value calldataslice, v24, 0
+    v25 = extract_value slice<calldata>, v24, 0
     v26 = add v25, 0
     v27 = load calldata v26
-    v28 = extract_value calldataslice, arg0, 1
+    v28 = extract_value slice<calldata>, arg0, 1
     v29 = lt 1, v28
     v30 = eq v29, false
     icall panic_if<0x32>, v30
-    v31 = extract_value calldataslice, arg0, 0
+    v31 = extract_value slice<calldata>, arg0, 0
     v32 = add v31, 64
     v33 = make_calldata_slice v32, 64
-    v34 = extract_value calldataslice, v33, 0
+    v34 = extract_value slice<calldata>, v33, 0
     v35 = add v34, 32
     v36 = load calldata v35
     v37 = insert_value struct0, undef struct0, 0, v0

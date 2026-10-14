@@ -1,17 +1,17 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (after lower-abi-encode) ===
   @module BytePadding
-  fn @encode(arg0: calldataslice) -> memoryslice {
+  fn @encode(arg0: slice<calldata>) -> slice<memory> {
     bb0:
 -     v0 = abi_encode [calldata_bytes], args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = ptrtoint memptr v1 to i256
++     v2 = ptrtoint ptr<memory> v1 to i256
 +     v3 = add v2, 32
-+     v4 = ptrtoint memptr v1 to i256
++     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
 +     store v1, v5
-+     v6 = extract_value calldataslice, arg0, 1
++     v6 = extract_value slice<calldata>, arg0, 1
 +     store v3, v6
 +     v7 = not 31
 +     v8 = add v6, 31
@@ -24,17 +24,17 @@
 +     store v12, 0
 +     jump bb2
 +   bb2:
-+     v13 = extract_value calldataslice, arg0, 0
++     v13 = extract_value slice<calldata>, arg0, 0
 +     v14 = add v10, v9
 +     copy calldata v10, v13, v6 !metadata(memory=heap)
-+     v15 = ptrtoint memptr v1 to i256
++     v15 = ptrtoint ptr<memory> v1 to i256
 +     v16 = sub v14, v15
 +     v17 = add v16, 0
 +     v18 = add v17, 31
 +     v19 = not 31
 +     v20 = and v18, v19
 +     v21 = alloc v20 !metadata(preserves_fmp)
-+     v22 = ptrtoint memptr v21 to i256
++     v22 = ptrtoint ptr<memory> v21 to i256
 +     v23 = make_memory_slice v22, v17
 +     ret v23
   }

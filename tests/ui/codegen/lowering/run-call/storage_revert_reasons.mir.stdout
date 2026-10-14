@@ -50,17 +50,17 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[], abi_ret
     ret
 }
 
-fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @calldataReason(arg0: slice<calldata>) [selector=0x3f2c0e1e, pure, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -69,14 +69,14 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
     icall require<error_string>, false, v11
     invalid
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

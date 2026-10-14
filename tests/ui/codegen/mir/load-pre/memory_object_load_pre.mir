@@ -6,15 +6,15 @@
 // CHECK:     bb3:
 // CHECK-NEXT: -     {{v[0-9]+}} = load arg0
 // CHECK: +     ret arg2
-fn @forward_length_across_join(arg0: memptr, arg1: i1, arg2: i256) -> i256 {
+fn @forward_length_across_join(arg0: ptr<memory>, arg1: i1, arg2: i256) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     store v0, arg2
     jump bb3
   bb2:
-    v1 = ptrtoint memptr arg0 to i256
+    v1 = ptrtoint ptr<memory> arg0 to i256
     store v1, arg2
     jump bb3
   bb3:
@@ -29,16 +29,16 @@ fn @forward_length_across_join(arg0: memptr, arg1: i1, arg2: i256) -> i256 {
 fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
   bb0:
     v0 = alloc 64
-    v5 = ptrtoint memptr v0 to i256
+    v5 = ptrtoint ptr<memory> v0 to i256
     store v5, 7
     v9001 = ptradd v0, 32
-    v1 = ptrtoint memptr v9001 to i256
+    v1 = ptrtoint ptr<memory> v9001 to i256
     store v1, 99
     v2 = load v0
     jumpi arg0, bb1, bb2
   bb1:
     v3 = alloc 32
-    v6 = ptrtoint memptr v3 to i256
+    v6 = ptrtoint ptr<memory> v3 to i256
     store v6, 0
     jump bb2
   bb2:
@@ -53,18 +53,18 @@ fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
 fn @unknown_data_write_can_reset_fmp(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v0 = alloc 64
-    v7 = ptrtoint memptr v0 to i256
+    v7 = ptrtoint ptr<memory> v0 to i256
     store v7, 7
-    v1 = inttoptr i256 arg1 to memptr
+    v1 = inttoptr i256 arg1 to ptr<memory>
     v9001 = ptradd v1, 32
-    v2 = ptrtoint memptr v9001 to i256
-    v6 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v9001 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
     store v2, v6
     v3 = load v0
     jumpi arg0, bb1, bb2
   bb1:
     v4 = alloc 32
-    v10 = ptrtoint memptr v4 to i256
+    v10 = ptrtoint ptr<memory> v4 to i256
     store v10, 0
     jump bb2
   bb2:
@@ -114,7 +114,7 @@ fn @reuse_live_length() -> i256 {
 fn @forward_latest_store() -> i256 {
   bb0:
     v0 = alloc 32
-    v5 = ptrtoint memptr v0 to i256
+    v5 = ptrtoint ptr<memory> v0 to i256
     store v5, 7
     v1 = load v0
     store v5, 9

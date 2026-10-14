@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_static_dynamic.sol:AbiCalldataDynamicStaticDynamic ===
 @module AbiCalldataDynamicStaticDynamic
-fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_params=[array<_, array<1, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_params=[array<_, array<1, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = extract_value calldataslice, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 0
     v5 = add v4, 0
     v6 = calldatasize
     v7 = sub v6, v5
@@ -22,11 +22,11 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = make_calldata_slice v10, 1
-    v17 = extract_value calldataslice, v16, 1
+    v17 = extract_value slice<calldata>, v16, 1
     v18 = lt 0, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = extract_value calldataslice, v16, 0
+    v20 = extract_value slice<calldata>, v16, 0
     v21 = add v20, 0
     v22 = calldatasize
     v23 = sub v22, v21
@@ -50,13 +50,13 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v38 = sgt v36, v37
     icall revert_if<calldata_tail_too_short>, v38
     v39 = make_calldata_slice v36, v32
-    v40 = extract_value calldataslice, v39, 1
+    v40 = extract_value slice<calldata>, v39, 1
     v41 = checked_add u256, v0, v40
-    v42 = extract_value calldataslice, arg0, 1
+    v42 = extract_value slice<calldata>, arg0, 1
     v43 = lt 0, v42
     v44 = eq v43, false
     icall panic_if<0x32>, v44
-    v45 = extract_value calldataslice, arg0, 0
+    v45 = extract_value slice<calldata>, arg0, 0
     v46 = add v45, 0
     v47 = calldatasize
     v48 = sub v47, v46
@@ -71,11 +71,11 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v56 = eq v55, false
     icall revert_if<invalid_calldata_tail_offset>, v56
     v57 = make_calldata_slice v51, 1
-    v58 = extract_value calldataslice, v57, 1
+    v58 = extract_value slice<calldata>, v57, 1
     v59 = lt 0, v58
     v60 = eq v59, false
     icall panic_if<0x32>, v60
-    v61 = extract_value calldataslice, v57, 0
+    v61 = extract_value slice<calldata>, v57, 0
     v62 = add v61, 0
     v63 = calldatasize
     v64 = sub v63, v62
@@ -99,11 +99,11 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     v79 = sgt v77, v78
     icall revert_if<calldata_tail_too_short>, v79
     v80 = make_calldata_slice v77, v73
-    v81 = extract_value calldataslice, v80, 1
+    v81 = extract_value slice<calldata>, v80, 1
     v82 = lt 0, v81
     v83 = eq v82, false
     icall panic_if<0x32>, v83
-    v84 = extract_value calldataslice, v80, 0
+    v84 = extract_value slice<calldata>, v80, 0
     v85 = add v84, 0
     v86 = load calldata v85
     v87 = shr 8, v86
@@ -116,14 +116,14 @@ fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_para
     ret v92
 }
 
-fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readWide(arg0: slice<calldata>) -> i256 [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = extract_value calldataslice, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 0
     v5 = add v4, 0
     v6 = calldatasize
     v7 = sub v6, v5
@@ -138,11 +138,11 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = make_calldata_slice v10, 2
-    v17 = extract_value calldataslice, v16, 1
+    v17 = extract_value slice<calldata>, v16, 1
     v18 = lt 0, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = extract_value calldataslice, v16, 0
+    v20 = extract_value slice<calldata>, v16, 0
     v21 = add v20, 0
     v22 = calldatasize
     v23 = sub v22, v21
@@ -166,13 +166,13 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v38 = sgt v36, v37
     icall revert_if<calldata_tail_too_short>, v38
     v39 = make_calldata_slice v36, v32
-    v40 = extract_value calldataslice, v39, 1
+    v40 = extract_value slice<calldata>, v39, 1
     v41 = checked_add u256, v0, v40
-    v42 = extract_value calldataslice, arg0, 1
+    v42 = extract_value slice<calldata>, arg0, 1
     v43 = lt 0, v42
     v44 = eq v43, false
     icall panic_if<0x32>, v44
-    v45 = extract_value calldataslice, arg0, 0
+    v45 = extract_value slice<calldata>, arg0, 0
     v46 = add v45, 0
     v47 = calldatasize
     v48 = sub v47, v46
@@ -187,11 +187,11 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v56 = eq v55, false
     icall revert_if<invalid_calldata_tail_offset>, v56
     v57 = make_calldata_slice v51, 2
-    v58 = extract_value calldataslice, v57, 1
+    v58 = extract_value slice<calldata>, v57, 1
     v59 = lt 0, v58
     v60 = eq v59, false
     icall panic_if<0x32>, v60
-    v61 = extract_value calldataslice, v57, 0
+    v61 = extract_value slice<calldata>, v57, 0
     v62 = add v61, 0
     v63 = calldatasize
     v64 = sub v63, v62
@@ -215,19 +215,19 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v79 = sgt v77, v78
     icall revert_if<calldata_tail_too_short>, v79
     v80 = make_calldata_slice v77, v73
-    v81 = extract_value calldataslice, v80, 1
+    v81 = extract_value slice<calldata>, v80, 1
     v82 = lt 0, v81
     v83 = eq v82, false
     icall panic_if<0x32>, v83
-    v84 = extract_value calldataslice, v80, 0
+    v84 = extract_value slice<calldata>, v80, 0
     v85 = add v84, 0
     v86 = load calldata v85
     v87 = checked_add u256, v41, v86
-    v88 = extract_value calldataslice, arg0, 1
+    v88 = extract_value slice<calldata>, arg0, 1
     v89 = lt 0, v88
     v90 = eq v89, false
     icall panic_if<0x32>, v90
-    v91 = extract_value calldataslice, arg0, 0
+    v91 = extract_value slice<calldata>, arg0, 0
     v92 = add v91, 0
     v93 = calldatasize
     v94 = sub v93, v92
@@ -242,11 +242,11 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v102 = eq v101, false
     icall revert_if<invalid_calldata_tail_offset>, v102
     v103 = make_calldata_slice v97, 2
-    v104 = extract_value calldataslice, v103, 1
+    v104 = extract_value slice<calldata>, v103, 1
     v105 = lt 1, v104
     v106 = eq v105, false
     icall panic_if<0x32>, v106
-    v107 = extract_value calldataslice, v103, 0
+    v107 = extract_value slice<calldata>, v103, 0
     v108 = add v107, 32
     v109 = calldatasize
     v110 = sub v109, v108
@@ -270,11 +270,11 @@ fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params
     v125 = sgt v123, v124
     icall revert_if<calldata_tail_too_short>, v125
     v126 = make_calldata_slice v123, v119
-    v127 = extract_value calldataslice, v126, 1
+    v127 = extract_value slice<calldata>, v126, 1
     v128 = lt 0, v127
     v129 = eq v128, false
     icall panic_if<0x32>, v129
-    v130 = extract_value calldataslice, v126, 0
+    v130 = extract_value slice<calldata>, v126, 0
     v131 = add v130, 0
     v132 = load calldata v131
     v133 = checked_add u256, v87, v132

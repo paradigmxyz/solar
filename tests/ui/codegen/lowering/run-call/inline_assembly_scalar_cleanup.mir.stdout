@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
 @types
-  struct0: {i256, memptr}
-  struct1: {i8, memptr}
+  struct0: {i256, ptr<memory>}
+  struct1: {i8, ptr<memory>}
   struct2: {i256, i256}
   struct3: {i8, i8, i8, i8, i8, i8}
   struct4: {i1, i1, i1, i1, i1, i1}
@@ -89,8 +89,8 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xeacc97f100000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb1, bb2
@@ -126,8 +126,8 @@ fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bo
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xeacc97f100000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb2, bb1

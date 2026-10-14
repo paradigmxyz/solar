@@ -1,4 +1,4 @@
-error: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
 
 error: [fn0] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 

@@ -16,10 +16,10 @@ fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[], abi_return_params=[
     ret
 }
 
-fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_params=[array<_, function>], abi_returns=[], abi_return_params=[]] {
+fn @storeCalldata(arg0: slice<calldata>) [selector=0x6aabe1c4, abi_params=[array<_, function>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -127,7 +127,7 @@ fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_params=[array<_
     jump bb1
 }
 
-fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 96
     store v0, 2
@@ -190,8 +190,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v71 = shr 32, v68
     v72 = gas
     v73 = abi_encode [], selector v70
-    v74 = extract_value memoryslice, v73, 0
-    v75 = extract_value memoryslice, v73, 1
+    v74 = extract_value slice<memory>, v73, 0
+    v75 = extract_value slice<memory>, v73, 1
     v76 = extcodesize v71
     v77 = eq v76, 0
     icall revert_if<target_contract_has_no_code>, v77
@@ -219,8 +219,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v94 = shr 32, v91
     v95 = gas
     v96 = abi_encode [], selector v93
-    v97 = extract_value memoryslice, v96, 0
-    v98 = extract_value memoryslice, v96, 1
+    v97 = extract_value slice<memory>, v96, 0
+    v98 = extract_value slice<memory>, v96, 1
     v99 = extcodesize v94
     v100 = eq v99, 0
     icall revert_if<target_contract_has_no_code>, v100
@@ -232,8 +232,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v102 = address
     v103 = gas
     v104 = abi_encode [memory_array<function>], selector 0x6aabe1c400000000000000000000000000000000000000000000000000000000, args v0
-    v105 = extract_value memoryslice, v104, 0
-    v106 = extract_value memoryslice, v104, 1
+    v105 = extract_value slice<memory>, v104, 0
+    v106 = extract_value slice<memory>, v104, 1
     v107 = zext i160 v102 to i256
     v108 = extcodesize v107
     v109 = eq v108, 0
@@ -263,8 +263,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v127 = shr 32, v124
     v128 = gas
     v129 = abi_encode [], selector v126
-    v130 = extract_value memoryslice, v129, 0
-    v131 = extract_value memoryslice, v129, 1
+    v130 = extract_value slice<memory>, v129, 0
+    v131 = extract_value slice<memory>, v129, 1
     v132 = extcodesize v127
     v133 = eq v132, 0
     icall revert_if<target_contract_has_no_code>, v133
@@ -292,8 +292,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v150 = shr 32, v147
     v151 = gas
     v152 = abi_encode [], selector v149
-    v153 = extract_value memoryslice, v152, 0
-    v154 = extract_value memoryslice, v152, 1
+    v153 = extract_value slice<memory>, v152, 0
+    v154 = extract_value slice<memory>, v152, 1
     v155 = extcodesize v150
     v156 = eq v155, 0
     icall revert_if<target_contract_has_no_code>, v156
@@ -330,7 +330,7 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v177 = lt v176, v158
     jumpi v177, bb20, bb21
   bb21:
-    v192 = ptrtoint memptr v175 to i256
+    v192 = ptrtoint ptr<memory> v175 to i256
     v193 = load v192
     v194 = sload 2 !metadata(storage=slot(2))
     v195 = gt v194, v193
@@ -370,8 +370,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v247 = shr 32, v244
     v248 = gas
     v249 = abi_encode [], selector v246
-    v250 = extract_value memoryslice, v249, 0
-    v251 = extract_value memoryslice, v249, 1
+    v250 = extract_value slice<memory>, v249, 0
+    v251 = extract_value slice<memory>, v249, 1
     v252 = extcodesize v247
     v253 = eq v252, 0
     icall revert_if<target_contract_has_no_code>, v253
@@ -399,8 +399,8 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     v270 = shr 32, v267
     v271 = gas
     v272 = abi_encode [], selector v269
-    v273 = extract_value memoryslice, v272, 0
-    v274 = extract_value memoryslice, v272, 1
+    v273 = extract_value slice<memory>, v272, 0
+    v274 = extract_value slice<memory>, v272, 1
     v275 = extcodesize v270
     v276 = eq v275, 0
     icall revert_if<target_contract_has_no_code>, v276
@@ -506,7 +506,7 @@ fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

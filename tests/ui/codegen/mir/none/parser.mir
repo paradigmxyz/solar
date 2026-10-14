@@ -160,7 +160,7 @@ fn @view() [view] {
 // CHECK: = icall sha256<>, arg0
 // CHECK: = icall ripemd160<>, arg0
 // CHECK: icall ecrecover<>, 0, 0, 0, 0
-fn @precompiles(arg0: memptr) -> i256 {
+fn @precompiles(arg0: ptr<memory>) -> i256 {
   bb0:
     icall sha256<>, arg0
     icall ripemd160<>, arg0
@@ -170,7 +170,7 @@ fn @precompiles(arg0: memptr) -> i256 {
 
 // CHECK-LABEL: fn @concatenate
 // CHECK: abi_encode_packed (bytes arg0, bytes2 0x1234
-fn @concatenate(arg0: memptr) -> memptr {
+fn @concatenate(arg0: ptr<memory>) -> ptr<memory> {
   bb0:
     v0 = abi_encode_packed (bytes arg0, bytes2 0x1234000000000000000000000000000000000000000000000000000000000000)
     ret v0
@@ -240,23 +240,23 @@ fn @integer_undef() -> i24 {
 // CHECK: trunc i256 arg0 to i1
 // CHECK: zext i1 arg1 to i256
 // CHECK: sext i1 arg1 to i256
-// CHECK: ptrtoint memptr arg2 to i160
-// CHECK: inttoptr i256 arg0 to memptr
-fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
+// CHECK: ptrtoint ptr<memory> arg2 to i160
+// CHECK: inttoptr i256 arg0 to ptr<memory>
+fn @llvm_casts(arg0: i256, arg1: i1, arg2: ptr<memory>) -> ptr<memory> {
   bb0:
     v0 = trunc i256 arg0 to i1
     v1 = zext i1 arg1 to i256
     v2 = sext i1 arg1 to i256
-    v3 = ptrtoint memptr arg2 to i160
-    v4 = inttoptr i256 arg0 to memptr
+    v3 = ptrtoint ptr<memory> arg2 to i160
+    v4 = inttoptr i256 arg0 to ptr<memory>
     ret v4
 }
 
 // CHECK-LABEL: fn @cast_undef
-// CHECK: inttoptr i256 undef to memptr
-fn @cast_undef() -> memptr {
+// CHECK: inttoptr i256 undef to ptr<memory>
+fn @cast_undef() -> ptr<memory> {
   bb0:
-    v0 = inttoptr i256 undef to memptr
+    v0 = inttoptr i256 undef to ptr<memory>
     ret v0
 }
 
@@ -320,14 +320,14 @@ fn @bool_bitwise(arg0: i1, arg1: i1) -> i256 {
 
 // CHECK-LABEL: @access_offsets
 // CHECK: {{^ +}}[[WORD:v[0-9]+]] = load arg0+32
-// CHECK: {{^ +}}[[POINTER:v[0-9]+]] = load arg0+64, memptr
+// CHECK: {{^ +}}[[POINTER:v[0-9]+]] = load arg0+64, ptr<memory>
 // CHECK: {{^ +}}[[DATA:v[0-9]+]] = load calldata arg1+4
 // CHECK: {{^ +}}store [[POINTER]]+32, [[WORD]]
 // CHECK: {{^ +}}store8 arg0+1, [[DATA]]
-fn @access_offsets(arg0: memptr, arg1: i256) {
+fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
   bb0:
     v0 = load arg0+32
-    v1 = load arg0+64, memptr
+    v1 = load arg0+64, ptr<memory>
     v2 = load calldata arg1+4
     store v1+32, v0
     store8 arg0+1, v2

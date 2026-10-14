@@ -102,7 +102,7 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
+  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: ptr<memory>) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -133,7 +133,7 @@
       ret v0
   }
   
-  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memptr {
+  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

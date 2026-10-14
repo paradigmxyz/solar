@@ -165,26 +165,26 @@ fn @pushMemory() -> i256 [selector=0x4d735002, abi_params=[], abi_returns=[word]
 fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 128
     v2 = alloc 96 !metadata(preserves_fmp)
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     memory_zero v3, 96
-    v4 = ptrtoint memptr v2 to i256
+    v4 = ptrtoint ptr<memory> v2 to i256
     store v0+64, v4
     store v0+96, 96
     store v0, 2
     store v0+32, 3
-    v5 = load v0+64, memptr
+    v5 = load v0+64, ptr<memory>
     v6 = lt 2, 3
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     store v5+64, 4
     v8 = alloc zeroed checked 160
     store v8, 4
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     store v0+96, v9
-    v10 = load v0+96, memptr
+    v10 = load v0+96, ptr<memory>
     v11 = load v10
     v12 = lt 2, v11
     v13 = eq v12, false
@@ -331,7 +331,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     ret v177
   bb13:
     v87 = shl 5, v85
-    v88 = inttoptr i256 v65 to memptr
+    v88 = inttoptr i256 v65 to ptr<memory>
     v89 = ptradd v88, v87
     v90 = load v89+32
     v91 = storage_array_data_slot v64
@@ -387,7 +387,7 @@ fn @pushStruct() -> i256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     jump bb6
   bb4:
     v43 = shl 5, v36
-    v44 = inttoptr i256 v35 to memptr
+    v44 = inttoptr i256 v35 to ptr<memory>
     v45 = ptradd v44, v43
     v46 = load v45
     v47 = mul v41, 8
@@ -409,7 +409,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 3
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6162630000000000000000000000000000000000000000000000000000000000
     v3 = sload 2 !metadata(storage=slot(2))
@@ -422,7 +422,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     sstore 2, v5 !metadata(storage=slot(2))
     v8 = alloc 64 !metadata(preserves_fmp)
     store v8, 32
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
     store v10, 0x6162636465666768616263646566676861626364656667686162636465666768
     v11 = sload 2 !metadata(storage=slot(2))
@@ -435,7 +435,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     sstore 2, v13 !metadata(storage=slot(2))
     v16 = alloc 96 !metadata(preserves_fmp)
     store v16, 64
-    v17 = ptrtoint memptr v16 to i256
+    v17 = ptrtoint ptr<memory> v16 to i256
     v18 = add v17, 32
     datacopy literal_0, v18, 64
     v19 = sload 2 !metadata(storage=slot(2))
@@ -485,7 +485,7 @@ fn @pushBytes() -> i256 [selector=0x7a248eac, abi_params=[], abi_returns=[word],
     ret v50
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

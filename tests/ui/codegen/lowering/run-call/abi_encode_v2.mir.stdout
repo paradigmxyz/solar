@@ -1,31 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_v2.sol:AbiEncodeV2 ===
 @module AbiEncodeV2
-fn @f0() -> memptr [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f0() -> ptr<memory> [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [], object
     ret v0
 }
 
-fn @f1() -> memptr [selector=0xc27fc305, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f1() -> ptr<memory> [selector=0xc27fc305, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
     ret v0
 }
 
-fn @f2() -> memptr [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f2() -> ptr<memory> [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     ret v1
 }
 
-fn @f3() -> memptr [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f3() -> ptr<memory> [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 3
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     store v4, 0x6465660000000000000000000000000000000000000000000000000000000000
     v5 = load v2
@@ -57,7 +57,7 @@ fn @f3() -> memptr [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memor
     ret v1
 }
 
-fn @f4() -> memptr [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f4() -> ptr<memory> [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     sstore 0, 7 !metadata(storage=slot(0))
@@ -84,12 +84,12 @@ fn @f4() -> memptr [selector=0xc3f90202, abi_params=[], abi_returns=[memory_byte
     store v13, v14
     v15 = add 0, 1
     v16 = icall @load_storage_word_array, v15
-    v17 = ptrtoint memptr v16 to i256
+    v17 = ptrtoint ptr<memory> v16 to i256
     store v13+32, v17
     v18 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
     v19 = alloc 64 !metadata(preserves_fmp)
     store v19, 3
-    v20 = ptrtoint memptr v19 to i256
+    v20 = ptrtoint ptr<memory> v19 to i256
     v21 = add v20, 32
     store v21, 0x6465660000000000000000000000000000000000000000000000000000000000
     v22 = load v19
@@ -125,7 +125,7 @@ fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_re
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [memory_bytes], object, args v0
-    v2 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v0 to i256
     v3 = add v2, 32
     v4 = load v0
     v5 = keccak256 v3, v4
@@ -142,7 +142,7 @@ fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_re
     ret v9
 }
 
-fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, arg1
@@ -150,7 +150,7 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
     ret v0
 }
 
-fn @load_storage_word_array(arg0: i256) -> memptr {
+fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

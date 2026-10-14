@@ -5,7 +5,7 @@ fn @forged(arg0: i256) -> i256 [selector=0x0fa02195, pure, abi_params=[u256], ab
     v0 = alloc zeroed checked 64
     store v0, 1
     v1 = not 0
-    v2 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v0 to i256
     store v2, v1
     v3 = load v0
     v4 = lt arg0, v3

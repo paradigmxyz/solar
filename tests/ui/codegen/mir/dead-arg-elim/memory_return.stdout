@@ -2,13 +2,13 @@
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (after dead-arg-elim) ===
   @module MemoryReturn
   @types
-    struct0: {memoryslice, i256}
+    struct0: {slice<memory>, i256}
     struct1: {struct0, i1}
   
   fn @escape() -> i256 {
     bb0:
       v0 = fmp
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       ret v1
   }
   
@@ -18,7 +18,7 @@
       ret
   }
   
-- fn @escape_slice() -> memoryslice {
+- fn @escape_slice() -> slice<memory> {
 + fn @escape_slice() [may_return_memory] {
     bb0:
       v0 = make_memory_slice 128, 32

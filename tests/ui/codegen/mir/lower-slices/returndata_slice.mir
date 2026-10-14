@@ -14,14 +14,14 @@ fn @copy_returndata() -> i256 {
   bb0:
     v0 = returndatasize
     v1 = make_returndata_slice 0, v0
-    v2 = extract_value returndataslice, v1, 0
-    v3 = extract_value returndataslice, v1, 1
+    v2 = extract_value slice<returndata>, v1, 0
+    v3 = extract_value slice<returndata>, v1, 1
     v4 = add v3, 32
     v5 = alloc v4
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     store v6, v3
     v9001 = ptradd v5, 32
-    v8 = ptrtoint memptr v9001 to i256
+    v8 = ptrtoint ptr<memory> v9001 to i256
     copy returndata v8, v2, v3
     ret v6
 }
@@ -31,10 +31,10 @@ fn @copy_returndata() -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @consume_returndata(arg0: i256, arg1: i256)
 // CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg1
 // CHECK: {{^[ +].*}}ret [[SUM]]
-fn @consume_returndata(arg0: returndataslice) -> i256 {
+fn @consume_returndata(arg0: slice<returndata>) -> i256 {
   bb0:
-    v0 = extract_value returndataslice, arg0, 0
-    v1 = extract_value returndataslice, arg0, 1
+    v0 = extract_value slice<returndata>, arg0, 0
+    v1 = extract_value slice<returndata>, arg0, 1
     v2 = add v0, v1
     ret v2
 }

@@ -48,7 +48,7 @@ fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_retur
     ret v11
 }
 
-fn @test_calldata(arg0: calldataslice) -> i256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_calldata(arg0: slice<calldata>) -> i256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @first, arg0
     ret v0
@@ -95,7 +95,7 @@ fn @bump(arg0: i256) {
     ret
 }
 
-fn @pick(arg0: memptr) -> struct0 [pure] {
+fn @pick(arg0: ptr<memory>) -> struct0 [pure] {
   bb0:
     v0 = load arg0
     v1 = lt 0, v0
@@ -112,13 +112,13 @@ fn @pick(arg0: memptr) -> struct0 [pure] {
     ret v9
 }
 
-fn @first(arg0: calldataslice) -> i256 [pure] {
+fn @first(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = extract_value calldataslice, arg0, 0
+    v3 = extract_value slice<calldata>, arg0, 0
     v4 = add v3, 0
     v5 = load calldata v4
     ret v5

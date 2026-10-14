@@ -108,7 +108,7 @@ fn @observe_memory() -> i256 {
 // CHECK-LABEL: fn @abi_dependency
 // CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = load arg0
 // CHECK: {{^[ +].*}}validate_abi [[FIELD]]
-fn @abi_dependency(arg0: memptr) {
+fn @abi_dependency(arg0: ptr<memory>) {
   bb0:
     v0 = load arg0
     validate_abi v0

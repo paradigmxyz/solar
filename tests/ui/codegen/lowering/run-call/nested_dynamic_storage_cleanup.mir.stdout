@@ -75,20 +75,20 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v48 = lt 0, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = ptrtoint memptr v46 to i256
+    v50 = ptrtoint ptr<memory> v46 to i256
     store v40+32, v50
     v51 = load v40
     v52 = lt 0, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = load v40+32
-    v55 = inttoptr i256 v54 to memptr
+    v55 = inttoptr i256 v54 to ptr<memory>
     v56 = eq v54, 0
     jumpi v56, bb4, bb5
   bb4:
     v57 = alloc 32
     store v57, 0
-    v58 = ptrtoint memptr v57 to i256
+    v58 = ptrtoint ptr<memory> v57 to i256
     store v40+32, v58
     jump bb5
   bb5:
@@ -134,7 +134,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v79 = shl 5, v77
     v80 = ptradd v40, v79
     v81 = load v80+32
-    v82 = inttoptr i256 v81 to memptr
+    v82 = inttoptr i256 v81 to ptr<memory>
     v83 = eq v81, 0
     jumpi v83, bb17, bb18
   bb17:
@@ -142,7 +142,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     store v84, 0
     v85 = shl 5, v77
     v86 = ptradd v40, v85
-    v87 = ptrtoint memptr v84 to i256
+    v87 = ptrtoint ptr<memory> v84 to i256
     store v86+32, v87
     jump bb18
   bb18:

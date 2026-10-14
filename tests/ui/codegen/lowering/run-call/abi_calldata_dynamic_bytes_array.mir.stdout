@@ -3,23 +3,23 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256}
 
-fn @encode(arg0: calldataslice) -> i256 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @encode(arg0: slice<calldata>) -> i256 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<calldata_bytes>], scratch, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }
 
-fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256]] {
+fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = extract_value calldataslice, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 0
     v5 = add v4, 0
     v6 = calldatasize
     v7 = sub v6, v5
@@ -42,12 +42,12 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v21 = sgt v19, v20
     icall revert_if<calldata_tail_too_short>, v21
     v22 = make_calldata_slice v19, v16
-    v23 = extract_value calldataslice, v22, 1
-    v24 = extract_value calldataslice, arg0, 1
+    v23 = extract_value slice<calldata>, v22, 1
+    v24 = extract_value slice<calldata>, arg0, 1
     v25 = lt 0, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = extract_value calldataslice, arg0, 0
+    v27 = extract_value slice<calldata>, arg0, 0
     v28 = add v27, 0
     v29 = calldatasize
     v30 = sub v29, v28
@@ -70,23 +70,23 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v44 = sgt v42, v43
     icall revert_if<calldata_tail_too_short>, v44
     v45 = make_calldata_slice v42, v39
-    v46 = extract_value calldataslice, v45, 1
+    v46 = extract_value slice<calldata>, v45, 1
     v47 = lt 0, v46
     v48 = eq v47, false
     icall panic_if<0x32>, v48
-    v49 = extract_value calldataslice, v45, 0
-    v50 = extract_value calldataslice, v45, 0
+    v49 = extract_value slice<calldata>, v45, 0
+    v50 = extract_value slice<calldata>, v45, 0
     v51 = load calldata v50
     v52 = byte 0, v51
     v53 = shl 248, v52
     v54 = shr 248, v53
     v55 = trunc i256 v54 to i8
     v56 = zext i8 v55 to i256
-    v57 = extract_value calldataslice, arg0, 1
+    v57 = extract_value slice<calldata>, arg0, 1
     v58 = lt 0, v57
     v59 = eq v58, false
     icall panic_if<0x32>, v59
-    v60 = extract_value calldataslice, arg0, 0
+    v60 = extract_value slice<calldata>, arg0, 0
     v61 = add v60, 0
     v62 = calldatasize
     v63 = sub v62, v61
@@ -109,23 +109,23 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v77 = sgt v75, v76
     icall revert_if<calldata_tail_too_short>, v77
     v78 = make_calldata_slice v75, v72
-    v79 = extract_value calldataslice, v78, 1
+    v79 = extract_value slice<calldata>, v78, 1
     v80 = lt 1, v79
     v81 = eq v80, false
     icall panic_if<0x32>, v81
-    v82 = extract_value calldataslice, v78, 0
-    v83 = extract_value calldataslice, v78, 0
+    v82 = extract_value slice<calldata>, v78, 0
+    v83 = extract_value slice<calldata>, v78, 0
     v84 = load calldata v83+1
     v85 = byte 0, v84
     v86 = shl 248, v85
     v87 = shr 248, v86
     v88 = trunc i256 v87 to i8
     v89 = zext i8 v88 to i256
-    v90 = extract_value calldataslice, arg0, 1
+    v90 = extract_value slice<calldata>, arg0, 1
     v91 = lt 1, v90
     v92 = eq v91, false
     icall panic_if<0x32>, v92
-    v93 = extract_value calldataslice, arg0, 0
+    v93 = extract_value slice<calldata>, arg0, 0
     v94 = add v93, 32
     v95 = calldatasize
     v96 = sub v95, v94
@@ -148,12 +148,12 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v110 = sgt v108, v109
     icall revert_if<calldata_tail_too_short>, v110
     v111 = make_calldata_slice v108, v105
-    v112 = extract_value calldataslice, v111, 1
-    v113 = extract_value calldataslice, arg0, 1
+    v112 = extract_value slice<calldata>, v111, 1
+    v113 = extract_value slice<calldata>, arg0, 1
     v114 = lt 1, v113
     v115 = eq v114, false
     icall panic_if<0x32>, v115
-    v116 = extract_value calldataslice, arg0, 0
+    v116 = extract_value slice<calldata>, arg0, 0
     v117 = add v116, 32
     v118 = calldatasize
     v119 = sub v118, v117
@@ -176,23 +176,23 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v133 = sgt v131, v132
     icall revert_if<calldata_tail_too_short>, v133
     v134 = make_calldata_slice v131, v128
-    v135 = extract_value calldataslice, v134, 1
+    v135 = extract_value slice<calldata>, v134, 1
     v136 = lt 0, v135
     v137 = eq v136, false
     icall panic_if<0x32>, v137
-    v138 = extract_value calldataslice, v134, 0
-    v139 = extract_value calldataslice, v134, 0
+    v138 = extract_value slice<calldata>, v134, 0
+    v139 = extract_value slice<calldata>, v134, 0
     v140 = load calldata v139
     v141 = byte 0, v140
     v142 = shl 248, v141
     v143 = shr 248, v142
     v144 = trunc i256 v143 to i8
     v145 = zext i8 v144 to i256
-    v146 = extract_value calldataslice, arg0, 1
+    v146 = extract_value slice<calldata>, arg0, 1
     v147 = lt 1, v146
     v148 = eq v147, false
     icall panic_if<0x32>, v148
-    v149 = extract_value calldataslice, arg0, 0
+    v149 = extract_value slice<calldata>, arg0, 0
     v150 = add v149, 32
     v151 = calldatasize
     v152 = sub v151, v150
@@ -215,23 +215,23 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v166 = sgt v164, v165
     icall revert_if<calldata_tail_too_short>, v166
     v167 = make_calldata_slice v164, v161
-    v168 = extract_value calldataslice, v167, 1
+    v168 = extract_value slice<calldata>, v167, 1
     v169 = lt 1, v168
     v170 = eq v169, false
     icall panic_if<0x32>, v170
-    v171 = extract_value calldataslice, v167, 0
-    v172 = extract_value calldataslice, v167, 0
+    v171 = extract_value slice<calldata>, v167, 0
+    v172 = extract_value slice<calldata>, v167, 0
     v173 = load calldata v172+1
     v174 = byte 0, v173
     v175 = shl 248, v174
     v176 = shr 248, v175
     v177 = trunc i256 v176 to i8
     v178 = zext i8 v177 to i256
-    v179 = extract_value calldataslice, arg0, 1
+    v179 = extract_value slice<calldata>, arg0, 1
     v180 = lt 1, v179
     v181 = eq v180, false
     icall panic_if<0x32>, v181
-    v182 = extract_value calldataslice, arg0, 0
+    v182 = extract_value slice<calldata>, arg0, 0
     v183 = add v182, 32
     v184 = calldatasize
     v185 = sub v184, v183
@@ -254,12 +254,12 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v199 = sgt v197, v198
     icall revert_if<calldata_tail_too_short>, v199
     v200 = make_calldata_slice v197, v194
-    v201 = extract_value calldataslice, v200, 1
+    v201 = extract_value slice<calldata>, v200, 1
     v202 = lt 2, v201
     v203 = eq v202, false
     icall panic_if<0x32>, v203
-    v204 = extract_value calldataslice, v200, 0
-    v205 = extract_value calldataslice, v200, 0
+    v204 = extract_value slice<calldata>, v200, 0
+    v205 = extract_value slice<calldata>, v200, 0
     v206 = load calldata v205+2
     v207 = byte 0, v206
     v208 = shl 248, v207

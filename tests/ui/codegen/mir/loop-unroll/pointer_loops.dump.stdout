@@ -21,7 +21,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
   bb7:
     v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v88 = load 64 !metadata(memory=scratch)
-    v48 = inttoptr i256 v88 to memptr !metadata(memory=scratch)
+    v48 = inttoptr i256 v88 to ptr<memory> !metadata(memory=scratch)
     v89 = add v88, v47
     v90 = lt v89, v88
     v91 = gt v89, 0xffffffffffffffff
@@ -43,7 +43,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     store 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
     v7 = add v88, v42
-    v99 = ptrtoint memptr v48 to i256
+    v99 = ptrtoint ptr<memory> v48 to i256
     v127 = sub v7, v99
     v128 = and v127, 1
     v129 = ne v128, 0
@@ -61,7 +61,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v109 = load v108
     store8 v5, v109
     v110 = add v5, 2
-    v111 = inttoptr i256 v101 to memptr
+    v111 = inttoptr i256 v101 to ptr<memory>
     jump bb11
   bb11:
     v130 = phi [bb8: v5], [bb10: v110]
@@ -70,7 +70,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
   bb1:
     v8 = phi [bb11: v130], [bb3: v125]
     v9 = phi [bb11: v131], [bb3: v126]
-    v13 = ptrtoint memptr v9 to i256
+    v13 = ptrtoint ptr<memory> v9 to i256
     v16 = ne v13, v7
     jumpi v16, bb3, bb2
   bb2:
@@ -110,8 +110,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v27 = and v26, 15
     v28 = load v27
     store8 v8, v28
-    v30 = inttoptr i256 v20 to memptr
-    v114 = ptrtoint memptr v30 to i256
+    v30 = inttoptr i256 v20 to ptr<memory>
+    v114 = ptrtoint ptr<memory> v30 to i256
     v116 = add v114, 1
     v117 = load v116
     v118 = and v117, 15
@@ -125,7 +125,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v29 = add v8, 2
     store8 v29, v124
     v125 = add v8, 4
-    v126 = inttoptr i256 v116 to memptr
+    v126 = inttoptr i256 v116 to ptr<memory>
     jump bb1
   bb6:
     store 32, 65 !metadata(memory=scratch)

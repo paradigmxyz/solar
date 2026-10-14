@@ -12,7 +12,7 @@ fn @libLiteral() -> i256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6869000000000000000000000000000000000000000000000000000000000000
     v3 = icall @lenPlus, v0, 1
@@ -23,7 +23,7 @@ fn @libConstant() -> i256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 20
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
     v3 = icall @lenPlus, v0, 0
@@ -34,7 +34,7 @@ fn @libHex() -> i256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0xaabb000000000000000000000000000000000000000000000000000000000000
     v3 = icall @lenBytes, v0
@@ -68,7 +68,7 @@ fn @literalContent() -> i256 [selector=0x4ab72711, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6869000000000000000000000000000000000000000000000000000000000000
     v3 = icall @firstWord, v0
@@ -79,7 +79,7 @@ fn @encodeConstant() -> i256 [selector=0xbffc53ff, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 20
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
     v3 = abi_encode [memory_bytes, word], object, selector 0xb60e72cc00000000000000000000000000000000000000000000000000000000, args v0, 1
@@ -91,7 +91,7 @@ fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 20
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6d61782075696e74313238206578636565646564000000000000000000000000
     v3 = abi_encode [memory_bytes], object, selector 0xd45754f800000000000000000000000000000000000000000000000000000000, args v0
@@ -99,32 +99,32 @@ fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_
     ret v4
 }
 
-fn @lenPlus(arg0: memptr, arg1: i256) -> i256 [pure] {
+fn @lenPlus(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = load arg0
     v1 = checked_add u256, v0, arg1
     ret v1
 }
 
-fn @lenBytes(arg0: memptr) -> i256 [pure] {
+fn @lenBytes(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = load arg0
     ret v0
 }
 
-fn @firstWord(arg0: memptr) -> i256 [pure] {
+fn @firstWord(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
     v2 = load v1
     ret v2
 }
 
-fn @literal_bytes_0() -> memptr {
+fn @literal_bytes_0() -> ptr<memory> {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     store v0, 40
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x3031323334353637383930313233343536373839303132333435363738393031
     v3 = add v1, 64

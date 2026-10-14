@@ -212,10 +212,10 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @table() -> memptr [pure] {
+fn @table() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
     v3 = eq v2, false
@@ -257,13 +257,13 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
     v2 = datasize CheckedBaseArgAdd_creation_code_0, 32
     v3 = datasize CheckedBaseArgAdd_creation_code_0, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgAdd_creation_code_0, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -272,8 +272,8 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -295,13 +295,13 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
     v2 = datasize CheckedBaseArgMul_creation_code_1, 32
     v3 = datasize CheckedBaseArgMul_creation_code_1, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgMul_creation_code_1, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -310,8 +310,8 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -333,13 +333,13 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
     v2 = datasize CheckedBaseArgNegate_creation_code_2, 32
     v3 = datasize CheckedBaseArgNegate_creation_code_2, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgNegate_creation_code_2, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -348,8 +348,8 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xa56dfe4a00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -371,13 +371,13 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
     v2 = datasize CheckedBaseArgElement_creation_code_3, 32
     v3 = datasize CheckedBaseArgElement_creation_code_3, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgElement_creation_code_3, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -386,8 +386,8 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -409,13 +409,13 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
     v2 = datasize CheckedBaseArgSub_creation_code_4, 32
     v3 = datasize CheckedBaseArgSub_creation_code_4, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgSub_creation_code_4, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -424,8 +424,8 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -447,13 +447,13 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
     v2 = datasize CheckedBaseArgExp_creation_code_5, 32
     v3 = datasize CheckedBaseArgExp_creation_code_5, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgExp_creation_code_5, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -462,8 +462,8 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -485,13 +485,13 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi
     v2 = datasize CheckedBaseArgShift_creation_code_6, 32
     v3 = datasize CheckedBaseArgShift_creation_code_6, 63, aligned
     v4 = alloc v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     datacopy CheckedBaseArgShift_creation_code_6, v5, v1
-    v6 = extract_value memoryslice, v0, 0
-    v7 = ptrtoint memptr v4 to i256
+    v6 = extract_value slice<memory>, v0, 0
+    v7 = ptrtoint ptr<memory> v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
-    v9 = ptrtoint memptr v4 to i256
+    v9 = ptrtoint ptr<memory> v4 to i256
     v10 = create 0, v9, v2
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
@@ -500,8 +500,8 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3

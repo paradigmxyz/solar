@@ -2,16 +2,16 @@
 // A dynamic memory value is encoded into returndata by the ABI wrapper. The
 // later lower-abi-encode pass expands the semantic encoder operation.
 @module LowerAbiDynamicReturn
-fn @givesBytes(arg0: memptr) -> memptr [selector=0x0dead001, abi_returns=[memory_bytes]] {
+fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
   bb0:
     ret arg0
 }
 
-fn @canonicalAddresses() -> memptr {
+fn @canonicalAddresses() -> ptr<memory> {
   bb0:
     v0 = alloc checked 96
     v1 = add 2, 0
-    v6 = ptrtoint memptr v0 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
     store v6, v1
     jump bb1
   bb1:
@@ -30,23 +30,23 @@ fn @canonicalAddresses() -> memptr {
     ret v0
 }
 
-fn @givesAddresses() -> memptr [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesAddresses() -> ptr<memory> [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @canonicalAddresses
     ret v0
 }
 
-fn @givesAddressesAgain() -> memptr [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesAddressesAgain() -> ptr<memory> [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @canonicalAddresses
     ret v0
 }
 
-fn @canonicalAddressArrays() -> memptr {
+fn @canonicalAddressArrays() -> ptr<memory> {
   bb0:
     v0 = alloc checked 64
     v1 = add 1, 0
-    v10 = ptrtoint memptr v0 to i256
+    v10 = ptrtoint ptr<memory> v0 to i256
     store v10, v1
     jump bb1
   bb1:
@@ -55,9 +55,9 @@ fn @canonicalAddressArrays() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    v8 = ptrtoint memptr v4 to i256
-    v9 = inttoptr i256 v8 to memptr
-    v6 = ptrtoint memptr v9 to i256
+    v8 = ptrtoint ptr<memory> v4 to i256
+    v9 = inttoptr i256 v8 to ptr<memory>
+    v6 = ptrtoint ptr<memory> v9 to i256
     v113 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v113
@@ -68,23 +68,23 @@ fn @canonicalAddressArrays() -> memptr {
     ret v0
 }
 
-fn @givesAddressArrays() -> memptr [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesAddressArrays() -> ptr<memory> [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @canonicalAddressArrays
     ret v0
 }
 
-fn @givesAddressArraysAgain() -> memptr [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesAddressArraysAgain() -> ptr<memory> [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @canonicalAddressArrays
     ret v0
 }
 
-fn @dirtyAddressArrays() -> memptr {
+fn @dirtyAddressArrays() -> ptr<memory> {
   bb0:
     v0 = alloc checked 64
     v1 = add 1, 0
-    v7 = ptrtoint memptr v0 to i256
+    v7 = ptrtoint ptr<memory> v0 to i256
     store v7, v1
     jump bb1
   bb1:
@@ -95,7 +95,7 @@ fn @dirtyAddressArrays() -> memptr {
     v4 = icall @canonicalAddresses
     v9001 = ptradd v4, 32
     store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = ptrtoint memptr v4 to i256
+    v6 = ptrtoint ptr<memory> v4 to i256
     v114 = shl 5, v2
     v9002 = ptradd v0, 32
     v9003 = ptradd v9002, v114
@@ -106,31 +106,31 @@ fn @dirtyAddressArrays() -> memptr {
     ret v0
 }
 
-fn @givesDirtyAddressArrays() -> memptr [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesDirtyAddressArrays() -> ptr<memory> [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @dirtyAddressArrays
     ret v0
 }
 
-fn @givesDirtyAddressArraysAgain() -> memptr [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesDirtyAddressArraysAgain() -> ptr<memory> [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @dirtyAddressArrays
     ret v0
 }
 
-fn @givesZeroedTuple() -> memptr [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
+fn @givesZeroedTuple() -> ptr<memory> [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
   bb0:
     v0 = alloc checked 64
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     ret v0
 }
 
-fn @dirtyAddressAliases() -> memptr {
+fn @dirtyAddressAliases() -> ptr<memory> {
   bb0:
     v0 = alloc checked 64
     v1 = add 1, 0
-    v8 = ptrtoint memptr v0 to i256
+    v8 = ptrtoint ptr<memory> v0 to i256
     store v8, v1
     jump bb1
   bb1:
@@ -139,8 +139,8 @@ fn @dirtyAddressAliases() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    v6 = ptrtoint memptr v4 to i256
-    v7 = inttoptr i256 v6 to memptr
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = inttoptr i256 v6 to ptr<memory>
     v9001 = ptradd v7, 32
     store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v115 = shl 5, v2
@@ -153,11 +153,11 @@ fn @dirtyAddressAliases() -> memptr {
     ret v0
 }
 
-fn @dirtyAddressReloads() -> memptr {
+fn @dirtyAddressReloads() -> ptr<memory> {
   bb0:
     v0 = alloc checked 64
     v1 = add 1, 0
-    v9 = ptrtoint memptr v0 to i256
+    v9 = ptrtoint ptr<memory> v0 to i256
     store v9, v1
     jump bb1
   bb1:
@@ -166,7 +166,7 @@ fn @dirtyAddressReloads() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    v6 = ptrtoint memptr v4 to i256
+    v6 = ptrtoint ptr<memory> v4 to i256
     v116 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v116
@@ -175,7 +175,7 @@ fn @dirtyAddressReloads() -> memptr {
     v9003 = ptradd v0, 32
     v9004 = ptradd v9003, v117
     v7 = load v9004
-    v8 = inttoptr i256 v7 to memptr
+    v8 = inttoptr i256 v7 to ptr<memory>
     v9005 = ptradd v8, 32
     store v9005, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = add v2, 1
@@ -184,11 +184,11 @@ fn @dirtyAddressReloads() -> memptr {
     ret v0
 }
 
-fn @escapingAddressArrays() -> memptr {
+fn @escapingAddressArrays() -> ptr<memory> {
   bb0:
     v0 = alloc checked 64
     v1 = add 1, 0
-    v7 = ptrtoint memptr v0 to i256
+    v7 = ptrtoint ptr<memory> v0 to i256
     store v7, v1
     jump bb1
   bb1:
@@ -197,7 +197,7 @@ fn @escapingAddressArrays() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    v6 = ptrtoint memptr v4 to i256
+    v6 = ptrtoint ptr<memory> v4 to i256
     v118 = shl 5, v2
     v9001 = ptradd v0, 32
     v9002 = ptradd v9001, v118
@@ -209,64 +209,64 @@ fn @escapingAddressArrays() -> memptr {
     ret v0
 }
 
-fn @dirtyNestedArray(arg0: memptr) {
+fn @dirtyNestedArray(arg0: ptr<memory>) {
   bb0:
     v9001 = ptradd arg0, 32
     v0 = load v9001
-    v1 = inttoptr i256 v0 to memptr
+    v1 = inttoptr i256 v0 to ptr<memory>
     v9002 = ptradd v1, 32
     store v9002, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret
 }
 
-fn @givesDirtyAddressAliases() -> memptr [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesDirtyAddressAliases() -> ptr<memory> [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @dirtyAddressAliases
     ret v0
 }
 
-fn @givesDirtyAddressReloads() -> memptr [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesDirtyAddressReloads() -> ptr<memory> [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @dirtyAddressReloads
     ret v0
 }
 
-fn @givesEscapingAddressArrays() -> memptr [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+fn @givesEscapingAddressArrays() -> ptr<memory> [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = icall @escapingAddressArrays
     ret v0
 }
 
-fn @givesZeroedThenDirtyTuple() -> memptr [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = alloc checked 32
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 32
     store v0, 256
     ret v0
 }
 
-fn @givesPartlyZeroedTuple() -> memptr [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
+fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
   bb0:
     v0 = alloc checked 64
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 32
     ret v0
 }
 
-fn @givesConditionallyZeroedTuple(arg0: i1) -> memptr [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
   bb1:
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 32
     jump bb2
   bb2:
     ret v0
 }
 
-fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
@@ -277,33 +277,33 @@ fn @givesConditionallyStoredTuple(arg0: i1) -> memptr [selector=0x0dead00f, abi_
     ret v0
 }
 
-fn @aliasedAddressContainer(arg0: memptr, arg1: memptr) -> memptr {
+fn @aliasedAddressContainer(arg0: ptr<memory>, arg1: ptr<memory>) -> ptr<memory> {
   bb0:
     v0 = icall @canonicalAddresses
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     store arg0, v1
     v2 = load arg1
-    v3 = inttoptr i256 v2 to memptr
+    v3 = inttoptr i256 v2 to ptr<memory>
     v9001 = ptradd v3, 32
     store v9001, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
-fn @givesAliasedAddressContainer() -> memptr [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesAliasedAddressContainer() -> ptr<memory> [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = alloc checked 32
     v1 = icall @aliasedAddressContainer, v0, v0
     ret v1
 }
 
-fn @givesRawMemoryWrite() -> memptr [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesRawMemoryWrite() -> ptr<memory> [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @canonicalAddresses
     store 0, 256
     ret v0
 }
 
-fn @conditionalFixedArray(arg0: i1) -> memptr {
+fn @conditionalFixedArray(arg0: i1) -> ptr<memory> {
   bb0:
     v0 = alloc checked 32
     jumpi arg0, bb1, bb2
@@ -314,17 +314,17 @@ fn @conditionalFixedArray(arg0: i1) -> memptr {
     ret v0
 }
 
-fn @givesConditionalFixedArray(arg0: i1) -> memptr [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, u8>]] {
+fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, u8>]] {
   bb0:
     v0 = icall @conditionalFixedArray, arg0
     ret v0
 }
 
-fn @bypassedArrayLoop(arg0: i1) -> memptr {
+fn @bypassedArrayLoop(arg0: i1) -> ptr<memory> {
   bb0:
     v0 = alloc checked 96
     v1 = add 2, 0
-    v6 = ptrtoint memptr v0 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
     store v6, v1
     jumpi arg0, bb1, bb3
   bb1:
@@ -343,7 +343,7 @@ fn @bypassedArrayLoop(arg0: i1) -> memptr {
     ret v0
 }
 
-fn @lateArrayLength() -> memptr {
+fn @lateArrayLength() -> ptr<memory> {
   bb0:
     v0 = alloc checked 96
     v1 = add 2, 0
@@ -353,7 +353,7 @@ fn @lateArrayLength() -> memptr {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb2:
-    v6 = ptrtoint memptr v0 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
     store v6, v1
     v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     v120 = shl 5, v2
@@ -366,19 +366,19 @@ fn @lateArrayLength() -> memptr {
     ret v0
 }
 
-fn @givesBypassedArrayLoop(arg0: i1) -> memptr [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesBypassedArrayLoop(arg0: i1) -> ptr<memory> [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @bypassedArrayLoop, arg0
     ret v0
 }
 
-fn @givesLateArrayLength() -> memptr [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesLateArrayLength() -> ptr<memory> [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @lateArrayLength
     ret v0
 }
 
-fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = alloc checked 32
     v1 = alloc checked 32
@@ -388,34 +388,34 @@ fn @givesOverlappingAllocationWrite() -> memptr [selector=0x0dead015, abi_return
     ret v1
 }
 
-fn @canonicalStorageAddresses(arg0: i256) -> memptr {
+fn @canonicalStorageAddresses(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u160, arg0
     ret v0
 }
 
-fn @givesStorageAddresses() -> memptr [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesStorageAddresses() -> ptr<memory> [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @canonicalStorageAddresses, 0
     ret v0
 }
 
-fn @dirtyStorageAddresses(arg0: i256) -> memptr {
+fn @dirtyStorageAddresses(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u160, arg0
     v9001 = ptradd v0, 32
-    v2 = ptrtoint memptr v9001 to i256
+    v2 = ptrtoint ptr<memory> v9001 to i256
     store v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
-fn @givesDirtyStorageAddresses() -> memptr [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+fn @givesDirtyStorageAddresses() -> ptr<memory> [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @dirtyStorageAddresses, 0
     ret v0
 }
 
-fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
+fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
   bb0:
     v0 = alloc checked 32
     v1 = zext i128 arg0 to i256

@@ -3,20 +3,20 @@
 @types
   struct0: {i1, i1}
 
-fn @encode(arg0: memptr) -> memptr [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode(arg0: ptr<memory>) -> ptr<memory> [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encodeImpl, arg0
     ret v0
 }
 
-fn @encodeTwice(arg0: memptr) -> memptr [selector=0xf58df096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeTwice(arg0: ptr<memory>) -> ptr<memory> [selector=0xf58df096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encodeImpl, arg0
     v1 = icall @encodeImpl, v0
     ret v1
 }
 
-fn @encodeImpl(arg0: memptr) -> memptr [pure] {
+fn @encodeImpl(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = load arg0
     v1 = checked_mul u256, v0, 2
@@ -88,13 +88,13 @@ fn @encodeImpl(arg0: memptr) -> memptr [pure] {
     jump bb1
 }
 
-fn @scan(arg0: memptr) -> i1 [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @scan(arg0: ptr<memory>) -> i1 [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @scanImpl, arg0
     ret v0
 }
 
-fn @twice(arg0: memptr, arg1: memptr) -> struct0 [selector=0xbca4d4a4, pure, abi_params=[bytes, bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @twice(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0xbca4d4a4, pure, abi_params=[bytes, bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = icall @scanImpl, arg0
     v1 = icall @scanImpl, arg1
@@ -103,7 +103,7 @@ fn @twice(arg0: memptr, arg1: memptr) -> struct0 [selector=0xbca4d4a4, pure, abi
     ret v3
 }
 
-fn @scanImpl(arg0: memptr) -> i1 [pure] {
+fn @scanImpl(arg0: ptr<memory>) -> i1 [pure] {
   bb0:
     jump bb1
   bb1:
@@ -141,7 +141,7 @@ fn @scanImpl(arg0: memptr) -> i1 [pure] {
     ret false
 }
 
-fn @firstHigh(arg0: memptr) -> i256 [selector=0xec31a730, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @firstHigh(arg0: ptr<memory>) -> i256 [selector=0xec31a730, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

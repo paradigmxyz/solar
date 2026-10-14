@@ -147,7 +147,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v33 = lt v32, 7
     jumpi v33, bb8, bb9
   bb9:
-    v45 = ptrtoint memptr v31 to i256
+    v45 = ptrtoint ptr<memory> v31 to i256
     jump bb10
   bb10:
     v46 = phi [bb9: 0], [bb15: v53]

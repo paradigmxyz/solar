@@ -51,7 +51,7 @@ contract TryBareCatch {
     // is.
     // HOMESTEAD-LABEL: fn @live
     // HOMESTEAD: create
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -75,10 +75,10 @@ contract TryBareCatch {
     // HOMESTEAD-LABEL: fn @liveTwo
     // HOMESTEAD: create
     // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
-    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint ptr<memory> [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: store [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64

@@ -5,10 +5,10 @@
 // A terminal ABI encoder may reuse a fresh full-word array. The payload moves
 // forward once, then the old length and data words become the tuple header.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
-fn @fresh_array() -> memptr {
+fn @fresh_array() -> ptr<memory> {
   bb0:
     v0 = alloc 96
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     store v1, 2
     ret v0
 }
@@ -17,7 +17,7 @@ fn @fresh_array() -> memptr {
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
-// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
 // CHECK: + [[DESTINATION:v[0-9]+]] = add {{v[0-9]+}}, 64
@@ -25,14 +25,14 @@ fn @fresh_array() -> memptr {
 // CHECK: + store [[OBJECT]], 32
 // CHECK: + store [[SOURCE]], [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
-// CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[SLICE_POINTER]], [[TOTAL]]
 fn @terminal() {
   bb0:
     v0 = icall @fresh_array
     v1 = abi_encode [memory_array<word>], args v0
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     returndata v2, v3
 }
 
@@ -40,24 +40,24 @@ fn @terminal() {
 // CHECK-LABEL: {{^[ +].*}}fn @borrowed{{[( ]}}
 // CHECK: + copy
 // CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc
-// CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
-fn @borrowed(arg0: memptr) {
+// CHECK: [[BUFFER:v[0-9]+]] = ptrtoint ptr<memory> [[BUFFER_PTR]] to i256
+fn @borrowed(arg0: ptr<memory>) {
   bb0:
     v0 = abi_encode [memory_array<word>], args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     returndata v1, v2
 }
 
-fn @fresh_bytes(arg0: i256) -> memptr {
+fn @fresh_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = alloc 96
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     store v1, arg0
     ret v0
 }
 
-fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
+fn @fresh_bytes_wrapper(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = icall @fresh_bytes, arg0
     ret v0
@@ -69,7 +69,7 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = load [[OBJECT:v[0-9]+]]
 // CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
-// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK-NEXT: + [[DATA_WORD:v[0-9]+]] = ptrtoint ptr<memory> [[OBJECT]] to i256
 // CHECK-NEXT: + [[SOURCE:v[0-9]+]] = add [[DATA_WORD]], 32
 // CHECK: + [[LAST:v[0-9]+]] = add [[SOURCE]],
 // CHECK: + store [[LAST]], 0
@@ -80,7 +80,7 @@ fn @terminal_bytes(arg0: i256) {
   bb0:
     v0 = icall @fresh_bytes_wrapper, arg0
     v1 = abi_encode [memory_bytes], args v0
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     returndata v2, v3
 }

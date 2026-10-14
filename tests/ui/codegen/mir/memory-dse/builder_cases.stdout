@@ -100,7 +100,7 @@
   fn @unused_frame_store() -> i256 {
     bb0:
       v0 = internal_frame_addr 192
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
 -     store v1, 0
       ret 0
   }

@@ -4,23 +4,23 @@ fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word],
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = extract_value calldataslice, v1, 1
+    v2 = extract_value slice<calldata>, v1, 1
     ret v2
 }
 
-fn @copy() -> memptr [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = extract_value calldataslice, v1, 0
-    v3 = extract_value calldataslice, v1, 1
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
     v7 = sgt v2, v6
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = extract_value calldataslice, v1, 1
+    v8 = extract_value slice<calldata>, v1, 1
     v9 = add v8, 63
     v10 = lt v9, v8
     icall panic_if<0x41>, v10
@@ -29,8 +29,8 @@ fn @copy() -> memptr [selector=0x60726abb, pure, abi_params=[], abi_returns=[mem
     v13 = alloc v12
     store v13, v8
     v14 = ptradd v13, 32
-    v15 = extract_value calldataslice, v1, 0
-    v16 = extract_value calldataslice, v1, 1
+    v15 = extract_value slice<calldata>, v1, 0
+    v16 = extract_value slice<calldata>, v1, 1
     copy calldata v14, v15, v16
     ret v13
 }
@@ -70,12 +70,12 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     ret v29
 }
 
-fn @tail(arg0: i256, arg1: i256) -> memptr [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = extract_value calldataslice, v1, 0
-    v3 = extract_value calldataslice, v1, 1
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = gt arg1, v3
     v5 = lt arg1, arg0
     v6 = or v4, v5
@@ -84,15 +84,15 @@ fn @tail(arg0: i256, arg1: i256) -> memptr [selector=0xb62868c3, pure, abi_param
     v8 = sub arg1, arg0
     v9 = add v2, arg0
     v10 = make_calldata_slice v9, v8
-    v11 = extract_value calldataslice, v10, 0
-    v12 = extract_value calldataslice, v10, 1
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = extract_value slice<calldata>, v10, 1
     v13 = calldatasize
     v14 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = sub v13, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
-    v17 = extract_value calldataslice, v10, 1
+    v17 = extract_value slice<calldata>, v10, 1
     v18 = add v17, 63
     v19 = lt v18, v17
     icall panic_if<0x41>, v19
@@ -101,8 +101,8 @@ fn @tail(arg0: i256, arg1: i256) -> memptr [selector=0xb62868c3, pure, abi_param
     v22 = alloc v21
     store v22, v17
     v23 = ptradd v22, 32
-    v24 = extract_value calldataslice, v10, 0
-    v25 = extract_value calldataslice, v10, 1
+    v24 = extract_value slice<calldata>, v10, 0
+    v25 = extract_value slice<calldata>, v10, 1
     copy calldata v23, v24, v25
     ret v22
 }

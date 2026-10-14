@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_array_literal_calldata.sol:MemoryArrayLiteralCalldata ===
 @module MemoryArrayLiteralCalldata
-fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
+fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
@@ -10,15 +10,15 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc 64
-    v7 = extract_value calldataslice, arg0, 0
-    v8 = extract_value calldataslice, arg0, 1
+    v7 = extract_value slice<calldata>, arg0, 0
+    v8 = extract_value slice<calldata>, arg0, 1
     v9 = calldatasize
     v10 = gt v8, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v10
     v11 = sub v9, v8
     v12 = sgt v7, v11
     icall revert_if<calldata_tail_too_short>, v12
-    v13 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 1
     v14 = add v13, 63
     v15 = lt v14, v13
     icall panic_if<0x41>, v15
@@ -27,20 +27,20 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v18 = alloc v17
     store v18, v13
     v19 = ptradd v18, 32
-    v20 = extract_value calldataslice, arg0, 0
-    v21 = extract_value calldataslice, arg0, 1
+    v20 = extract_value slice<calldata>, arg0, 0
+    v21 = extract_value slice<calldata>, arg0, 1
     copy calldata v19, v20, v21
-    v22 = ptrtoint memptr v18 to i256
+    v22 = ptrtoint ptr<memory> v18 to i256
     store v6, v22
-    v23 = extract_value calldataslice, arg1, 0
-    v24 = extract_value calldataslice, arg1, 1
+    v23 = extract_value slice<calldata>, arg1, 0
+    v24 = extract_value slice<calldata>, arg1, 1
     v25 = calldatasize
     v26 = gt v24, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v26
     v27 = sub v25, v24
     v28 = sgt v23, v27
     icall revert_if<calldata_tail_too_short>, v28
-    v29 = extract_value calldataslice, arg1, 1
+    v29 = extract_value slice<calldata>, arg1, 1
     v30 = add v29, 63
     v31 = lt v30, v29
     icall panic_if<0x41>, v31
@@ -49,10 +49,10 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v34 = alloc v33
     store v34, v29
     v35 = ptradd v34, 32
-    v36 = extract_value calldataslice, arg1, 0
-    v37 = extract_value calldataslice, arg1, 1
+    v36 = extract_value slice<calldata>, arg1, 0
+    v37 = extract_value slice<calldata>, arg1, 1
     copy calldata v35, v36, v37
-    v38 = ptrtoint memptr v34 to i256
+    v38 = ptrtoint ptr<memory> v34 to i256
     store v6+32, v38
     ret v6
   bb2:

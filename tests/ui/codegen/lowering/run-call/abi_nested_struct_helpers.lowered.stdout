@@ -7,16 +7,16 @@
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb0:
     v12 = icall @decode_calldata_type.4, 4, 4
-    v21 = ptrtoint memptr v12 to i256
+    v21 = ptrtoint ptr<memory> v12 to i256
     v22 = load v21
     v1 = load v22
     v18 = add v21, 32
-    v2 = load v18, memptr
-    v23 = ptrtoint memptr v2 to i256
+    v2 = load v18, ptr<memory>
+    v23 = ptrtoint ptr<memory> v2 to i256
     v3 = load v23
     v20 = add v23, 32
-    v5 = load v20, memptr
-    v24 = ptrtoint memptr v5 to i256
+    v5 = load v20, ptr<memory>
+    v24 = ptrtoint ptr<memory> v5 to i256
     v6 = load v24
     store 128, v1
     store 160, v3
@@ -82,17 +82,17 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     returndata 128, 32
   bb3:
     v10 = load v108
-    v11 = inttoptr i256 v10 to memptr
+    v11 = inttoptr i256 v10 to ptr<memory>
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
     v13 = icall @default_struct_1
-    v16 = ptrtoint memptr v13 to i256
+    v16 = ptrtoint ptr<memory> v13 to i256
     store v108, v16
     jump bb5
   bb5:
     v17 = phi [bb3: v11], [bb4: v13]
-    v96 = ptrtoint memptr v17 to i256
+    v96 = ptrtoint ptr<memory> v17 to i256
     v97 = load v96
     v19 = load v97
     v20 = load v101
@@ -104,23 +104,23 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 28, 36
   bb9:
     v25 = load v108
-    v26 = inttoptr i256 v25 to memptr
+    v26 = inttoptr i256 v25 to ptr<memory>
     v27 = eq v25, 0
     jumpi v27, bb6, bb7
   bb6:
     v28 = icall @default_struct_1
-    v31 = ptrtoint memptr v28 to i256
+    v31 = ptrtoint ptr<memory> v28 to i256
     store v108, v31
     jump bb7
   bb7:
     v32 = phi [bb9: v26], [bb6: v28]
-    v87 = ptrtoint memptr v32 to i256
+    v87 = ptrtoint ptr<memory> v32 to i256
     v88 = add v87, 32
-    v33 = load v88, memptr
-    v89 = ptrtoint memptr v33 to i256
+    v33 = load v88, ptr<memory>
+    v89 = ptrtoint ptr<memory> v33 to i256
     v90 = add v89, 32
-    v34 = load v90, memptr
-    v99 = ptrtoint memptr v34 to i256
+    v34 = load v90, ptr<memory>
+    v99 = ptrtoint ptr<memory> v34 to i256
     v35 = load v99
     v39 = add v19, v35
     v40 = lt v39, v19
@@ -138,7 +138,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 28, 36
   bb18:
     v73 = icall @decode_calldata_type.4, v70, v49
-    v76 = ptrtoint memptr v73 to i256
+    v76 = ptrtoint ptr<memory> v73 to i256
     store v111, v76
     v77 = sub v69, 1
     v78 = add v70, 32
@@ -153,10 +153,10 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @default_struct_1() -> memptr [may_return_memory] {
+fn @default_struct_1() -> ptr<memory> [may_return_memory] {
   bb0:
     v26 = load 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
+    v0 = inttoptr i256 v26 to ptr<memory> !metadata(memory=scratch)
     v27 = add v26, 256
     store 64, v27 !metadata(memory=scratch)
     v23 = add v26, 64
@@ -177,7 +177,7 @@ fn @default_struct_1() -> memptr [may_return_memory] {
     ret v0
 }
 
-fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata arg0
@@ -190,7 +190,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     jumpi v47, bb1, bb2
   bb2:
     v45 = load 64 !metadata(memory=scratch)
-    v7 = inttoptr i256 v45 to memptr !metadata(memory=scratch)
+    v7 = inttoptr i256 v45 to ptr<memory> !metadata(memory=scratch)
     v46 = add v45, 96
     store 64, v46 !metadata(memory=scratch)
     v8 = load calldata v2
@@ -238,7 +238,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     revert 0, 0
 }
 
-fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata arg0
@@ -251,15 +251,15 @@ fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     jumpi v20, bb1, bb2
   bb2:
     v18 = load 64 !metadata(memory=scratch)
-    v7 = inttoptr i256 v18 to memptr !metadata(memory=scratch)
+    v7 = inttoptr i256 v18 to ptr<memory> !metadata(memory=scratch)
     v19 = add v18, 96
     store 64, v19 !metadata(memory=scratch)
     v8 = icall @decode_calldata_type.3, v2, v2
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     store v18, v9
     v10 = add v2, 32
     v11 = icall @decode_calldata_type.3, v10, v2
-    v12 = ptrtoint memptr v11 to i256
+    v12 = ptrtoint ptr<memory> v11 to i256
     v14 = add v18, 32
     store v14, v12
     v16 = add v18, 64

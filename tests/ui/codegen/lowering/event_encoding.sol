@@ -13,8 +13,8 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitArray
     // CHECK: [[ARRAY_ENCODED:v[0-9]+]] = abi_encode [array<2, word>], args
-    // CHECK: [[ARRAY_PTR:v[0-9]+]] = extract_value memoryslice, [[ARRAY_ENCODED]], 0
-    // CHECK: [[ARRAY_LEN:v[0-9]+]] = extract_value memoryslice, [[ARRAY_ENCODED]], 1
+    // CHECK: [[ARRAY_PTR:v[0-9]+]] = extract_value slice<memory>, [[ARRAY_ENCODED]], 0
+    // CHECK: [[ARRAY_LEN:v[0-9]+]] = extract_value slice<memory>, [[ARRAY_ENCODED]], 1
     // CHECK: log [[ARRAY_PTR]], [[ARRAY_LEN]], 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
     function emitArray(uint256[2] memory values) external {
         emit ArrayEvent(values);
@@ -29,7 +29,7 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitIndexedBytes
-    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr arg0 to i256
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[ADDR]], 32
     // CHECK-NEXT: [[LEN:v[0-9]+]] = load arg0
     // CHECK-NEXT: [[HASH:v[0-9]+]] = keccak256 [[DATA]], [[LEN]]
@@ -67,8 +67,8 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitNamed
     // CHECK: [[NAMED_ENCODED:v[0-9]+]] = abi_encode [word, word], args 1, 2
-    // CHECK: [[NAMED_PTR:v[0-9]+]] = extract_value memoryslice, [[NAMED_ENCODED]], 0
-    // CHECK: [[NAMED_LEN:v[0-9]+]] = extract_value memoryslice, [[NAMED_ENCODED]], 1
+    // CHECK: [[NAMED_PTR:v[0-9]+]] = extract_value slice<memory>, [[NAMED_ENCODED]], 0
+    // CHECK: [[NAMED_LEN:v[0-9]+]] = extract_value slice<memory>, [[NAMED_ENCODED]], 1
     // CHECK: log [[NAMED_PTR]], [[NAMED_LEN]],
     function emitNamed() external {
         emit NamedEvent({b: 2, a: 1});

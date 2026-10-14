@@ -3,12 +3,12 @@
 @phase lowered
 @types
   struct0: {i256, i256, i1}
-  struct1: {i256, memptr, i256}
+  struct1: {i256, ptr<memory>, i256}
 
 fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
     v27 = icall @decode_calldata_type
-    v10 = ptrtoint memptr v27 to i256
+    v10 = ptrtoint ptr<memory> v27 to i256
     v11 = add v10, 32
     v13 = load v10
     v15 = slt v13, 96
@@ -16,7 +16,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb2:
     v16 = alloc 96 !metadata(deferred_alloc)
     v17 = load v11
-    v41 = ptrtoint memptr v16 to i256
+    v41 = ptrtoint ptr<memory> v16 to i256
     store v41, v17
     v18 = add v11, 32
     v19 = load v18
@@ -48,7 +48,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
 fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb0:
     v60 = icall @decode_calldata_type
-    v10 = ptrtoint memptr v60 to i256
+    v10 = ptrtoint ptr<memory> v60 to i256
     v11 = add v10, 32
     v13 = load v10
     v14 = add v11, v13
@@ -84,11 +84,11 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb5:
     v99 = add v127, 64
     store v99, v30
-    v114 = ptrtoint memptr v22 to i256
+    v114 = ptrtoint ptr<memory> v22 to i256
     store v114, v127
     v33 = add v17, 96
     v34 = icall @decode_memory_type, v33, v17, v14
-    v35 = ptrtoint memptr v34 to i256
+    v35 = ptrtoint ptr<memory> v34 to i256
     v101 = add v114, 32
     store v101, v35
     v36 = add v17, 128
@@ -125,19 +125,19 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     store v105, v121
     v117 = load v114
     v2 = load v117
-    v3 = load v101, memptr
-    v108 = ptrtoint memptr v3 to i256
+    v3 = load v101, ptr<memory>
+    v108 = ptrtoint ptr<memory> v3 to i256
     v109 = add v108, 32
-    v4 = load v109, memptr
-    v5 = load v105, memptr
-    v118 = ptrtoint memptr v5 to i256
+    v4 = load v109, ptr<memory>
+    v5 = load v105, ptr<memory>
+    v118 = ptrtoint ptr<memory> v5 to i256
     v6 = load v118
     v129 = load 64 !metadata(memory=scratch)
     v66 = add v129, 96
     store v129, v2
     v68 = add v129, 32
     store v68, 96
-    v120 = ptrtoint memptr v4 to i256
+    v120 = ptrtoint ptr<memory> v4 to i256
     v74 = ne v120, 0
     v75 = zext i1 v74 to i256
     v71 = load v120
@@ -171,7 +171,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
 fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb0:
     v35 = icall @decode_calldata_type
-    v11 = ptrtoint memptr v35 to i256
+    v11 = ptrtoint ptr<memory> v35 to i256
     v12 = add v11, 32
     v14 = load v11
     v15 = add v12, v14
@@ -199,12 +199,12 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb8:
     v45 = add v48, 32
     v3 = load v45
-    v4 = inttoptr i256 v3 to memptr
+    v4 = inttoptr i256 v3 to ptr<memory>
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
     v56 = load 64
-    v57 = inttoptr i256 v56 to memptr
+    v57 = inttoptr i256 v56 to ptr<memory>
     v58 = add v56, 160
     store 64, v58
     store v56, 0
@@ -216,21 +216,21 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     store v61, 0
     v62 = add v56, 64
     store v62, v61
-    v7 = ptrtoint memptr v57 to i256
+    v7 = ptrtoint ptr<memory> v57 to i256
     store v45, v7
     jump bb2
   bb2:
     v8 = phi [bb8: v4], [bb1: v57]
-    v40 = ptrtoint memptr v8 to i256
+    v40 = ptrtoint ptr<memory> v8 to i256
     v41 = add v40, 64
-    v9 = load v41, memptr
-    v47 = ptrtoint memptr v9 to i256
+    v9 = load v41, ptr<memory>
+    v47 = ptrtoint ptr<memory> v9 to i256
     v10 = load v47
     store 128, v10
     returndata 128, 32
   bb7:
     v28 = icall @decode_memory_type, v50, v18, v15
-    v31 = ptrtoint memptr v28 to i256
+    v31 = ptrtoint ptr<memory> v28 to i256
     store v52, v31
     v51 = add v50, 32
     v53 = add v52, 32
@@ -242,7 +242,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
 fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb0:
     v50 = icall @decode_calldata_type
-    v2 = ptrtoint memptr v50 to i256
+    v2 = ptrtoint ptr<memory> v50 to i256
     v3 = add v2, 32
     v5 = load v2
     v6 = add v3, v5
@@ -297,7 +297,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     returndata 128, 32
   bb10:
     v41 = icall @decode_memory_type, v38, v10, v6
-    v44 = ptrtoint memptr v41 to i256
+    v44 = ptrtoint ptr<memory> v41 to i256
     v42 = shl 5, v39
     v54 = add v59, v42
     v55 = add v54, 32
@@ -314,7 +314,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @decode_calldata_type() -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> ptr<memory> [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata 4
@@ -332,7 +332,7 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v24 = load 64 !metadata(memory=scratch)
-    v14 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v14 = inttoptr i256 v24 to ptr<memory> !metadata(memory=scratch)
     v25 = add v24, v13
     v26 = lt v25, v24
     v27 = gt v25, 0xffffffffffffffff
@@ -356,7 +356,7 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> memptr [may_return_memory] {
+fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [may_return_memory] {
   bb0:
     v0 = load arg0
     v1 = add arg1, v0
@@ -368,7 +368,7 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> memptr [may_return
     jumpi v90, bb1, bb2
   bb2:
     v88 = load 64 !metadata(memory=scratch)
-    v6 = inttoptr i256 v88 to memptr !metadata(memory=scratch)
+    v6 = inttoptr i256 v88 to ptr<memory> !metadata(memory=scratch)
     v89 = add v88, 96
     store 64, v89 !metadata(memory=scratch)
     v7 = load v1

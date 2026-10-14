@@ -205,14 +205,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v194 = eq v193, false
     icall panic_if<0x32>, v194
     v195 = load v167+32
-    v196 = inttoptr i256 v195 to memptr
+    v196 = inttoptr i256 v195 to ptr<memory>
     v197 = eq v195, 0
     jumpi v197, bb13, bb14
   bb13:
     v198 = alloc 160
-    v199 = ptrtoint memptr v198 to i256
+    v199 = ptrtoint ptr<memory> v198 to i256
     memory_zero v199, 160
-    v200 = ptrtoint memptr v198 to i256
+    v200 = ptrtoint ptr<memory> v198 to i256
     store v167+32, v200
     jump bb14
   bb14:
@@ -227,14 +227,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v208 = eq v207, false
     icall panic_if<0x32>, v208
     v209 = load v167+32
-    v210 = inttoptr i256 v209 to memptr
+    v210 = inttoptr i256 v209 to ptr<memory>
     v211 = eq v209, 0
     jumpi v211, bb15, bb16
   bb15:
     v212 = alloc 160
-    v213 = ptrtoint memptr v212 to i256
+    v213 = ptrtoint ptr<memory> v212 to i256
     memory_zero v213, 160
-    v214 = ptrtoint memptr v212 to i256
+    v214 = ptrtoint ptr<memory> v212 to i256
     store v167+32, v214
     jump bb16
   bb16:
@@ -250,14 +250,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v223 = eq v222, false
     icall panic_if<0x32>, v223
     v224 = load v167+64
-    v225 = inttoptr i256 v224 to memptr
+    v225 = inttoptr i256 v224 to ptr<memory>
     v226 = eq v224, 0
     jumpi v226, bb17, bb18
   bb17:
     v227 = alloc 160
-    v228 = ptrtoint memptr v227 to i256
+    v228 = ptrtoint ptr<memory> v227 to i256
     memory_zero v228, 160
-    v229 = ptrtoint memptr v227 to i256
+    v229 = ptrtoint ptr<memory> v227 to i256
     store v167+64, v229
     jump bb18
   bb18:
@@ -273,14 +273,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v238 = eq v237, false
     icall panic_if<0x32>, v238
     v239 = load v167+64
-    v240 = inttoptr i256 v239 to memptr
+    v240 = inttoptr i256 v239 to ptr<memory>
     v241 = eq v239, 0
     jumpi v241, bb19, bb20
   bb19:
     v242 = alloc 160
-    v243 = ptrtoint memptr v242 to i256
+    v243 = ptrtoint ptr<memory> v242 to i256
     memory_zero v243, 160
-    v244 = ptrtoint memptr v242 to i256
+    v244 = ptrtoint ptr<memory> v242 to i256
     store v167+64, v244
     jump bb20
   bb20:
@@ -296,14 +296,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v253 = eq v252, false
     icall panic_if<0x32>, v253
     v254 = load v167+96
-    v255 = inttoptr i256 v254 to memptr
+    v255 = inttoptr i256 v254 to ptr<memory>
     v256 = eq v254, 0
     jumpi v256, bb21, bb22
   bb21:
     v257 = alloc 160
-    v258 = ptrtoint memptr v257 to i256
+    v258 = ptrtoint ptr<memory> v257 to i256
     memory_zero v258, 160
-    v259 = ptrtoint memptr v257 to i256
+    v259 = ptrtoint ptr<memory> v257 to i256
     store v167+96, v259
     jump bb22
   bb22:
@@ -319,14 +319,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v268 = eq v267, false
     icall panic_if<0x32>, v268
     v269 = load v167+128
-    v270 = inttoptr i256 v269 to memptr
+    v270 = inttoptr i256 v269 to ptr<memory>
     v271 = eq v269, 0
     jumpi v271, bb23, bb24
   bb23:
     v272 = alloc 160
-    v273 = ptrtoint memptr v272 to i256
+    v273 = ptrtoint ptr<memory> v272 to i256
     memory_zero v273, 160
-    v274 = ptrtoint memptr v272 to i256
+    v274 = ptrtoint ptr<memory> v272 to i256
     store v167+128, v274
     jump bb24
   bb24:
@@ -342,14 +342,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v283 = eq v282, false
     icall panic_if<0x32>, v283
     v284 = load v167+128
-    v285 = inttoptr i256 v284 to memptr
+    v285 = inttoptr i256 v284 to ptr<memory>
     v286 = eq v284, 0
     jumpi v286, bb25, bb26
   bb25:
     v287 = alloc 160
-    v288 = ptrtoint memptr v287 to i256
+    v288 = ptrtoint ptr<memory> v287 to i256
     memory_zero v288, 160
-    v289 = ptrtoint memptr v287 to i256
+    v289 = ptrtoint ptr<memory> v287 to i256
     store v167+128, v289
     jump bb26
   bb26:
@@ -373,7 +373,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v175 = lt v174, 5
     jumpi v175, bb11, bb12
   bb12:
-    v188 = ptrtoint memptr v173 to i256
+    v188 = ptrtoint ptr<memory> v173 to i256
     v189 = shl 5, v168
     v190 = ptradd v167, v189
     store v190+32, v188

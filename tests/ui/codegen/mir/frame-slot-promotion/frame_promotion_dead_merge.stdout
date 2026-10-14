@@ -10,20 +10,20 @@
       jump bb3
     bb3:
       v0 = internal_frame_addr 128
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
 -     store v1, 0
       jump bb4
     bb4:
 +     v12 = phi [bb3: 0], [bb5: v6]
       v2 = internal_frame_addr 128
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
 -     v4 = load v3
 -     v5 = lt v4, arg0
 +     v5 = lt v12, arg0
       jumpi v5, bb5, bb6
     bb6:
       v9 = internal_frame_addr 128
-      v10 = ptrtoint memptr v9 to i256
+      v10 = ptrtoint ptr<memory> v9 to i256
 -     v11 = load v10
 -     ret v11
 +     ret v12
@@ -31,7 +31,7 @@
 -     v6 = add v4, 1
 +     v6 = add v12, 1
       v7 = internal_frame_addr 128
-      v8 = ptrtoint memptr v7 to i256
+      v8 = ptrtoint ptr<memory> v7 to i256
 -     store v8, v6
       jump bb4
   }

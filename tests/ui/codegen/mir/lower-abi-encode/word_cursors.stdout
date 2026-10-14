@@ -1,18 +1,18 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (after lower-abi-encode) ===
   @module WordCursors
-  fn @words(arg0: memptr) -> memoryslice {
+  fn @words(arg0: ptr<memory>) -> slice<memory> {
     bb0:
 -     v0 = abi_encode [memory_array<word<u8>>], args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = ptrtoint memptr v1 to i256
++     v2 = ptrtoint ptr<memory> v1 to i256
 +     v3 = add v2, 32
-+     v4 = ptrtoint memptr v1 to i256
++     v4 = ptrtoint ptr<memory> v1 to i256
 +     v5 = sub v3, v4
 +     store v1, v5
 +     v6 = load arg0
-+     v7 = ptrtoint memptr arg0 to i256
++     v7 = ptrtoint ptr<memory> arg0 to i256
 +     v8 = eq v7, 0
 +     v9 = eq v8, false
 +     v10 = zext i1 v9 to i256
@@ -20,7 +20,7 @@
 +     store v3, v11
 +     v12 = mul v11, 32
 +     v13 = add v3, 32
-+     v14 = ptrtoint memptr arg0 to i256
++     v14 = ptrtoint ptr<memory> arg0 to i256
 +     v15 = add v14, 32
 +     v16 = add v13, v12
 +     v17 = sub v15, v13
@@ -39,14 +39,14 @@
 +     jumpi v26, bb1, bb2
 +   bb2:
 +     v27 = phi [bb0: v13], [bb1: v25]
-+     v28 = ptrtoint memptr v1 to i256
++     v28 = ptrtoint ptr<memory> v1 to i256
 +     v29 = sub v27, v28
 +     v30 = add v29, 0
 +     v31 = add v30, 31
 +     v32 = not 31
 +     v33 = and v31, v32
 +     v34 = alloc v33 !metadata(preserves_fmp)
-+     v35 = ptrtoint memptr v34 to i256
++     v35 = ptrtoint ptr<memory> v34 to i256
 +     v36 = make_memory_slice v35, v30
 +     ret v36
   }
@@ -54,17 +54,17 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (after egraph) ===
   @module WordCursors
-  fn @words(arg0: memptr) -> memoryslice {
+  fn @words(arg0: ptr<memory>) -> slice<memory> {
     bb0:
       v1 = fmp
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       v3 = add v2, 32
--     v4 = ptrtoint memptr v1 to i256
+-     v4 = ptrtoint ptr<memory> v1 to i256
 -     v5 = sub v3, v4
 -     store v1, v5
 +     store v1, 32
       v6 = load arg0
-      v7 = ptrtoint memptr arg0 to i256
+      v7 = ptrtoint ptr<memory> arg0 to i256
       v8 = eq v7, 0
 -     v9 = eq v8, false
 +     v9 = ne v7, 0
@@ -74,7 +74,7 @@
 -     v12 = mul v11, 32
 +     v12 = shl 5, v11
       v13 = add v3, 32
--     v14 = ptrtoint memptr arg0 to i256
+-     v14 = ptrtoint ptr<memory> arg0 to i256
 -     v15 = add v14, 32
 +     v15 = add v7, 32
       v16 = add v13, v12
@@ -94,7 +94,7 @@
       jumpi v26, bb1, bb2
     bb2:
       v27 = phi [bb0: v13], [bb1: v25]
--     v28 = ptrtoint memptr v1 to i256
+-     v28 = ptrtoint ptr<memory> v1 to i256
 -     v29 = sub v27, v28
 -     v30 = add v29, 0
 -     v31 = add v30, 31
@@ -104,7 +104,7 @@
 +     v31 = add v29, 31
 +     v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       v34 = alloc v33 !metadata(preserves_fmp)
-      v35 = ptrtoint memptr v34 to i256
+      v35 = ptrtoint ptr<memory> v34 to i256
 -     v36 = make_memory_slice v35, v30
 +     v36 = make_memory_slice v35, v29
       ret v36
@@ -113,14 +113,14 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (after dce) ===
   @module WordCursors
-  fn @words(arg0: memptr) -> memoryslice {
+  fn @words(arg0: ptr<memory>) -> slice<memory> {
     bb0:
       v1 = fmp
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       v3 = add v2, 32
       store v1, 32
       v6 = load arg0
-      v7 = ptrtoint memptr arg0 to i256
+      v7 = ptrtoint ptr<memory> arg0 to i256
 -     v8 = eq v7, 0
       v9 = ne v7, 0
       v10 = zext i1 v9 to i256
@@ -150,7 +150,7 @@
       v31 = add v29, 31
       v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       v34 = alloc v33 !metadata(preserves_fmp)
-      v35 = ptrtoint memptr v34 to i256
+      v35 = ptrtoint ptr<memory> v34 to i256
       v36 = make_memory_slice v35, v29
       ret v36
   }

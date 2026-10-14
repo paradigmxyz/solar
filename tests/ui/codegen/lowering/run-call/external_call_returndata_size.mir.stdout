@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn ===
 @module LongReturn
-fn @f() -> memptr [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, u256>]] {
+fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, u256>]] {
   bb0:
     v0 = alloc 640 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 640
     v2 = lt 0, 20
     v3 = eq v2, false
@@ -39,13 +39,13 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     v1 = datasize LongReturn_creation_code_0
     v2 = datasize LongReturn_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy LongReturn_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -55,8 +55,8 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     v11 = load 64 !metadata(memory=scratch)
     v12 = gas
     v13 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v9 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -81,13 +81,13 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     v1 = datasize LongReturn_creation_code_0
     v2 = datasize LongReturn_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy LongReturn_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -103,8 +103,8 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     v17 = shr 32, v13
     v18 = gas
     v19 = abi_encode [], selector v16
-    v20 = extract_value memoryslice, v19, 0
-    v21 = extract_value memoryslice, v19, 1
+    v20 = extract_value slice<memory>, v19, 0
+    v21 = extract_value slice<memory>, v19, 1
     v22 = staticcall v18, v17, v20, v21, 0, 32
     jumpi v22, bb4, bb3
   bb3:
@@ -128,13 +128,13 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     v1 = datasize LongReturn_creation_code_0
     v2 = datasize LongReturn_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy LongReturn_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -144,8 +144,8 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     v11 = load 64 !metadata(memory=scratch)
     v12 = gas
     v13 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = zext i160 v9 to i256
     v17 = staticcall v12, v16, v14, v15, v14, 64
     jumpi v17, bb4, bb3
@@ -177,13 +177,13 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     v1 = datasize LongReturn_creation_code_0
     v2 = datasize LongReturn_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy LongReturn_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -199,8 +199,8 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
     v17 = shr 32, v13
     v18 = gas
     v19 = abi_encode [], selector v16
-    v20 = extract_value memoryslice, v19, 0
-    v21 = extract_value memoryslice, v19, 1
+    v20 = extract_value slice<memory>, v19, 0
+    v21 = extract_value slice<memory>, v19, 1
     v22 = staticcall v18, v17, v20, v21, v20, 64
     jumpi v22, bb4, bb3
   bb3:
@@ -227,13 +227,13 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
     v1 = datasize ShortReturn_creation_code_1
     v2 = datasize ShortReturn_creation_code_1, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ShortReturn_creation_code_1, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -242,8 +242,8 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, v13, 64
     jumpi v16, bb4, bb3
@@ -272,13 +272,13 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     v1 = datasize ShortReturn_creation_code_1
     v2 = datasize ShortReturn_creation_code_1, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ShortReturn_creation_code_1, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -293,8 +293,8 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     v16 = shr 32, v13
     v17 = gas
     v18 = abi_encode [], selector v15
-    v19 = extract_value memoryslice, v18, 0
-    v20 = extract_value memoryslice, v18, 1
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
     v21 = staticcall v17, v16, v19, v20, v19, 64
     jumpi v21, bb4, bb3
   bb3:
@@ -318,13 +318,13 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     v1 = datasize ShortReturn_creation_code_1
     v2 = datasize ShortReturn_creation_code_1, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ShortReturn_creation_code_1, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -333,8 +333,8 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 32
     jumpi v16, bb4, bb3
@@ -359,13 +359,13 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     v1 = datasize ShortReturn_creation_code_1
     v2 = datasize ShortReturn_creation_code_1, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ShortReturn_creation_code_1, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -380,8 +380,8 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     v16 = shr 32, v13
     v17 = gas
     v18 = abi_encode [], selector v15
-    v19 = extract_value memoryslice, v18, 0
-    v20 = extract_value memoryslice, v18, 1
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
     v21 = staticcall v17, v16, v19, v20, 0, 32
     jumpi v21, bb4, bb3
   bb3:

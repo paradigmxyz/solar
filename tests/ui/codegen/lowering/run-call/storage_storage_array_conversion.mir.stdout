@@ -106,7 +106,7 @@ fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     sstore v84, 11 !metadata(storage=symbolic(v84))
     sstore 1, v82 !metadata(storage=slot(1))
     v85 = icall @load_storage_packed_array_8_0, 0
-    v86 = ptrtoint memptr v85 to i256
+    v86 = ptrtoint ptr<memory> v85 to i256
     v87 = load v86
     v88 = sload 1 !metadata(storage=slot(1))
     v89 = gt v88, v87
@@ -346,7 +346,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v158 = lt v157, 2
     jumpi v158, bb2, bb3
   bb3:
-    v179 = ptrtoint memptr v156 to i256
+    v179 = ptrtoint ptr<memory> v156 to i256
     jump bb7
   bb7:
     v180 = phi [bb3: 0], [bb12: v245]
@@ -379,7 +379,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jumpi v184, bb10, bb11
   bb11:
     v216 = alloc 192
-    v217 = ptrtoint memptr v216 to i256
+    v217 = ptrtoint ptr<memory> v216 to i256
     memory_zero v217, 192
     jump bb19
   bb19:
@@ -457,7 +457,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jump bb18
   bb16:
     v195 = shl 5, v188
-    v196 = inttoptr i256 v187 to memptr
+    v196 = inttoptr i256 v187 to ptr<memory>
     v197 = ptradd v196, v195
     v198 = load v197
     v199 = mul v193, 8
@@ -482,7 +482,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v162 = lt v161, 5
     jumpi v162, bb5, bb6
   bb6:
-    v175 = ptrtoint memptr v160 to i256
+    v175 = ptrtoint ptr<memory> v160 to i256
     v176 = shl 5, v157
     v177 = ptradd v156, v176
     store v177, v175
@@ -519,7 +519,7 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     v5 = lt v4, 9
     jumpi v5, bb2, bb3
   bb3:
-    v11 = ptrtoint memptr v3 to i256
+    v11 = ptrtoint ptr<memory> v3 to i256
     v12 = sload 11 !metadata(storage=slot(11))
     v13 = gt v12, 9
     jumpi v13, bb4, bb5
@@ -574,7 +574,7 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     jump bb1
 }
 
-fn @load_storage_packed_array_8_0(arg0: i256) -> memptr {
+fn @load_storage_packed_array_8_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u64, arg0
     ret v0

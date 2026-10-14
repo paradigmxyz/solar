@@ -125,14 +125,14 @@ library Base64 {
 }
 
 contract CheckedBase64 {
-    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: memptr, arg1: i1, arg2: i1)
+    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: ptr<memory>, arg1: i1, arg2: i1)
     // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
+    // OPT: [[INPUT:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
     // OPT: {{v[0-9]+}} = load [[INPUT]]
     // OPT: {{v[0-9]+}} = load [[INPUT]]
-    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: memptr)
+    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: ptr<memory>)
     // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
+    // OPT: [[INPUT:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
     // OPT: {{v[0-9]+}} = load [[INPUT]]
     // OPT: {{v[0-9]+}} = load [[INPUT]]
     // OPT-NOT: icall @literal_bytes_word

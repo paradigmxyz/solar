@@ -18,15 +18,15 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     store v38, 2
     v23 = add v39, 96
     store v23, arg0
-    v34 = ptrtoint memptr v0 to i256
+    v34 = ptrtoint ptr<memory> v0 to i256
     store v34, v39
     v25 = add v34, 32
     store v25, v38
     v27 = add v34, 64
     store v27, 3
     v6 = load v39
-    v7 = load v25, memptr
-    v30 = ptrtoint memptr v7 to i256
+    v7 = load v25, ptr<memory>
+    v30 = ptrtoint ptr<memory> v7 to i256
     v31 = add v30, 32
     v8 = load v31
     v12 = add v6, v8

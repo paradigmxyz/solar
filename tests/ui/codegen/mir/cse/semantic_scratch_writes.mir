@@ -74,7 +74,7 @@ fn @store_storage_bytes_literal(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @store_storage_bytes{{[( ]}}
 // CHECK: {{^ +}}{{v[0-9]+}} = load 0
 // CHECK: {{^ +}}{{v[0-9]+}} = load 0
-fn @store_storage_bytes(arg0: i256, arg1: memptr) -> i256 {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) -> i256 {
   bb0:
     v0 = load 0
     store_storage_bytes arg0, arg1
@@ -88,7 +88,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memptr) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_slot_memory{{[( ]}}
 // CHECK: {{^ +}}{{v[0-9]+}} = load 0x400
 // CHECK: {{^ +}}{{v[0-9]+}} = load 0x400
-fn @mapping_slot_memory(arg0: memptr, arg1: i256) -> i256 {
+fn @mapping_slot_memory(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     v0 = load 0x400
     v1 = mapping_slot_bytes arg0, arg1
@@ -101,7 +101,7 @@ fn @mapping_slot_memory(arg0: memptr, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_slot_calldata{{[( ]}}
 // CHECK: {{^ +}}{{v[0-9]+}} = load 0x400
 // CHECK: {{^ +}}{{v[0-9]+}} = load 0x400
-fn @mapping_slot_calldata(arg0: calldataslice, arg1: i256) -> i256 {
+fn @mapping_slot_calldata(arg0: slice<calldata>, arg1: i256) -> i256 {
   bb0:
     v0 = load 0x400
     v1 = mapping_slot_bytes arg0, arg1

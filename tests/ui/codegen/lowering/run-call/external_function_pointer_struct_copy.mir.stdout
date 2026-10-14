@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
 @module ExternalFunctionPointerStructCopyTarget
-fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
+fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 96
-    v1 = extract_value calldataslice, arg0, 1
-    v2 = extract_value calldataslice, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = extract_value slice<calldata>, arg0, 0
     v3 = mul v1, 32
     v4 = eq 32, 0
     v5 = div v3, 32
@@ -37,7 +37,7 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
     v24 = lt v23, v1
     jumpi v24, bb2, bb3
   bb3:
-    v36 = ptrtoint memptr v22 to i256
+    v36 = ptrtoint ptr<memory> v22 to i256
     store v0, v36
     v37 = alloc 32 !metadata(preserves_fmp)
     store v37, 96
@@ -70,13 +70,13 @@ fn @constructor() [constructor] {
     v1 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
     v2 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -131,8 +131,8 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v26 = trunc i256 v25 to i160
     v27 = gas
     v28 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
-    v29 = extract_value memoryslice, v28, 0
-    v30 = extract_value memoryslice, v28, 1
+    v29 = extract_value slice<memory>, v28, 0
+    v30 = extract_value slice<memory>, v28, 1
     v31 = zext i160 v26 to i256
     v32 = staticcall v27, v31, v29, v30, 0, 0
     jumpi v32, bb2, bb1
@@ -141,12 +141,12 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
   bb2:
     v33 = icall returndata_bytes<>
     v34 = abi_decode [tuple<array<_, function>>], v33
-    v35 = load v34, memptr
+    v35 = load v34, ptr<memory>
     v36 = load v35
     v37 = eq v36, 3
     v38 = eq v37, false
     icall revert_if<empty>, v38
-    v39 = load v34, memptr
+    v39 = load v34, ptr<memory>
     v40 = load v39
     v41 = lt 0, v40
     v42 = eq v41, false
@@ -160,7 +160,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v49 = eq v44, v48
     v50 = eq v49, false
     icall revert_if<empty>, v50
-    v51 = load v34, memptr
+    v51 = load v34, ptr<memory>
     v52 = load v51
     v53 = lt 1, v52
     v54 = eq v53, false
@@ -174,7 +174,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v61 = eq v56, v60
     v62 = eq v61, false
     icall revert_if<empty>, v62
-    v63 = load v34, memptr
+    v63 = load v34, ptr<memory>
     v64 = load v63
     v65 = lt 2, v64
     v66 = eq v65, false

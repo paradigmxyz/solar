@@ -11,21 +11,21 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     store v0, 8
     v1 = alloc zeroed checked 128
     store v1, 3
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     store v0+32, v2
-    v3 = load v0+32, memptr
+    v3 = load v0+32, ptr<memory>
     v4 = load v3
     v5 = lt 0, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     store v3+32, 9
-    v7 = load v0+32, memptr
+    v7 = load v0+32, ptr<memory>
     v8 = load v7
     v9 = lt 1, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     store v7+64, 10
-    v11 = load v0+32, memptr
+    v11 = load v0+32, ptr<memory>
     v12 = load v11
     v13 = lt 2, v12
     v14 = eq v13, false
@@ -36,15 +36,15 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v16 = load_storage_bytes 0
     v17 = abi_decode [tuple<u256, array<_, u256>>], v16
     v18 = load v17
-    v19 = load v17+32, memptr
+    v19 = load v17+32, ptr<memory>
     v20 = load v19
-    v21 = load v17+32, memptr
+    v21 = load v17+32, ptr<memory>
     v22 = load v21
     v23 = lt 0, v22
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = load v21+32
-    v26 = load v17+32, memptr
+    v26 = load v17+32, ptr<memory>
     v27 = load v26
     v28 = lt 2, v27
     v29 = eq v28, false
@@ -57,7 +57,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v34
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

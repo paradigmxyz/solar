@@ -4,7 +4,7 @@
   fn @observing_caller() -> i1 [selector=0x01020304] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @observes, v1
       v3 = ne v2, false
@@ -14,7 +14,7 @@
   fn @forwarding_caller() -> i1 [selector=0x01020305] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @forwards, v1
       v3 = ne v2, false
@@ -24,7 +24,7 @@
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @dereferences, v1
       ret v2
@@ -33,7 +33,7 @@
   fn @msize_caller() -> i256 [selector=0x01020307] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @measures, v1
       ret v2
@@ -94,7 +94,7 @@
   fn @iterating_caller() -> i256 [selector=0x01020309] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @iterates, v1
       ret v2
@@ -118,7 +118,7 @@
   fn @observing_caller() -> i1 [selector=0x01020304] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @observes, v1
       v3 = ne v2, false
@@ -128,7 +128,7 @@
   fn @forwarding_caller() -> i1 [selector=0x01020305] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @forwards, v1
       v3 = ne v2, false
@@ -138,8 +138,8 @@
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
 -     v0 = alloc 32
--     v1 = ptrtoint memptr v0 to i256
-+     v1 = ptrtoint memptr 128 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
++     v1 = ptrtoint ptr<memory> 128 to i256
       store v1, 7
       v2 = icall @dereferences, v1
       ret v2
@@ -148,7 +148,7 @@
   fn @msize_caller() -> i256 [selector=0x01020307] {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = icall @measures, v1
       ret v2
@@ -206,8 +206,8 @@
   fn @iterating_caller() -> i256 [selector=0x01020309] {
     bb0:
 -     v0 = alloc 32
--     v1 = ptrtoint memptr v0 to i256
-+     v1 = ptrtoint memptr 128 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
++     v1 = ptrtoint ptr<memory> 128 to i256
       store v1, 7
       v2 = icall @iterates, v1
       ret v2

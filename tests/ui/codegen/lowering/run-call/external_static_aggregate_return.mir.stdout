@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_static_aggregate_return.sol:ExternalStaticAggregateReturn ===
 @module ExternalStaticAggregateReturn
 @types
-  struct0: {memptr, i256}
+  struct0: {ptr<memory>, i256}
 
-fn @makeStruct(arg0: i256) -> memptr [selector=0x62dc8436, pure, abi_params=[u256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u256, u256>]] {
+fn @makeStruct(arg0: i256) -> ptr<memory> [selector=0x62dc8436, pure, abi_params=[u256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u256, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 0
@@ -15,10 +15,10 @@ fn @makeStruct(arg0: i256) -> memptr [selector=0x62dc8436, pure, abi_params=[u25
     ret v1
 }
 
-fn @makeArray(arg0: i256) -> memptr [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[array<3, word>], abi_return_params=[array<3, u256>]] {
+fn @makeArray(arg0: i256) -> ptr<memory> [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[array<3, word>], abi_return_params=[array<3, u256>]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 96
     v2 = alloc 96
     store v2, arg0
@@ -54,11 +54,11 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u25
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x62dc843600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint memptr v5 to i256
+    v7 = ptrtoint ptr<memory> v5 to i256
     v8 = staticcall v1, v6, v3, v4, v7, 64
     jumpi v8, bb2, bb1
   bb1:
@@ -67,7 +67,7 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u25
     v9 = returndatasize
     v10 = lt v9, 64
     icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint memptr v5 to i256
+    v11 = ptrtoint ptr<memory> v5 to i256
     v12 = make_memory_slice v11, 64
     v13 = abi_decode [tuple<u256, u256>], v12
     v14 = load v13
@@ -81,11 +81,11 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x9510f21200000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 96
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint memptr v5 to i256
+    v7 = ptrtoint ptr<memory> v5 to i256
     v8 = staticcall v1, v6, v3, v4, v7, 96
     jumpi v8, bb2, bb1
   bb1:
@@ -94,7 +94,7 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256
     v9 = returndatasize
     v10 = lt v9, 96
     icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint memptr v5 to i256
+    v11 = ptrtoint ptr<memory> v5 to i256
     v12 = make_memory_slice v11, 96
     v13 = abi_decode [array<3, u256>], v12
     v14 = lt 0, 3
@@ -119,11 +119,11 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x62dc843600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint memptr v5 to i256
+    v7 = ptrtoint ptr<memory> v5 to i256
     v8 = staticcall v1, v6, v3, v4, v7, 64
     jumpi v8, bb1, bb2
   bb2:
@@ -137,7 +137,7 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v9 = returndatasize
     v10 = lt v9, 64
     icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint memptr v5 to i256
+    v11 = ptrtoint ptr<memory> v5 to i256
     v12 = make_memory_slice v11, 64
     v13 = abi_decode [tuple<u256, u256>], v12
     v14 = load v13
@@ -153,11 +153,11 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256]
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xf4d7be1100000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 96
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint memptr v5 to i256
+    v7 = ptrtoint ptr<memory> v5 to i256
     v8 = staticcall v1, v6, v3, v4, v7, 96
     jumpi v8, bb2, bb1
   bb1:
@@ -166,7 +166,7 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256]
     v9 = returndatasize
     v10 = lt v9, 96
     icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint memptr v5 to i256
+    v11 = ptrtoint ptr<memory> v5 to i256
     v12 = make_memory_slice v11, 96
     v13 = abi_decode [tuple<u256, u256>, u256], v12
     v14 = extract_value struct0, v13, 0
@@ -187,11 +187,11 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
-    v7 = ptrtoint memptr v5 to i256
+    v7 = ptrtoint ptr<memory> v5 to i256
     v8 = staticcall v1, v6, v3, v4, v7, 64
     jumpi v8, bb2, bb1
   bb1:
@@ -200,7 +200,7 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v9 = returndatasize
     v10 = lt v9, 64
     icall revert_if<tuple_data_too_short>, v10
-    v11 = ptrtoint memptr v5 to i256
+    v11 = ptrtoint ptr<memory> v5 to i256
     v12 = make_memory_slice v11, 64
     v13 = abi_decode [tuple<u256, u256>], v12
     v14 = load v13

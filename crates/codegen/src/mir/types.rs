@@ -277,9 +277,8 @@ impl fmt::Display for MirType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(bits) => write!(f, "i{bits}"),
-            Self::Ptr(PtrLocation::Memory) => f.write_str("memptr"),
-            Self::Ptr(location) => write!(f, "{location}ptr"),
-            Self::Slice(location) => write!(f, "{location}slice"),
+            Self::Ptr(location) => write!(f, "ptr<{location}>"),
+            Self::Slice(location) => write!(f, "slice<{location}>"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => f.write_str("void"),
         }
@@ -388,11 +387,11 @@ impl fmt::Display for ValueLayout {
             Self::Bool => write!(f, "bool"),
             Self::Address => write!(f, "address"),
             Self::FixedBytes(size) => write!(f, "bytes{}", size.bytes()),
-            Self::MemPtr => write!(f, "memptr"),
+            Self::MemPtr => MirType::MEMPTR.fmt(f),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::StoragePtr => write!(f, "storageptr"),
-            Self::CalldataPtr => write!(f, "calldataptr"),
-            Self::Slice(location) => write!(f, "{location}slice"),
+            Self::CalldataPtr => MirType::Ptr(PtrLocation::Calldata).fmt(f),
+            Self::Slice(location) => MirType::Slice(*location).fmt(f),
             Self::Function => write!(f, "function"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => write!(f, "void"),

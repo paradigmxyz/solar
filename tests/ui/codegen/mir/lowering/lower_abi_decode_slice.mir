@@ -7,7 +7,7 @@
 // keeps the slice, whose length bounds the tail offsets.
 @module LowerAbiDecodeSlice
 
-fn @inline(arg0: memoryslice) -> i256 {
+fn @inline(arg0: slice<memory>) -> i256 {
   bb0:
     v0 = abi_decode [u256], arg0
     ret v0
@@ -26,7 +26,7 @@ fn @shared(arg0: i256, arg1: i256) -> i256 {
     ret v6
 }
 
-fn @dynamic(arg0: memoryslice) -> memptr {
+fn @dynamic(arg0: slice<memory>) -> ptr<memory> {
   bb0:
     v0 = abi_decode [bytes], arg0
     ret v0

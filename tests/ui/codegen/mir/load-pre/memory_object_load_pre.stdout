@@ -1,15 +1,15 @@
 - // === ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir (before load-pre) ===
 + // === ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir (after load-pre) ===
   @module MemoryObjectLoadPre
-  fn @forward_length_across_join(arg0: memptr, arg1: i1, arg2: i256) -> i256 {
+  fn @forward_length_across_join(arg0: ptr<memory>, arg1: i1, arg2: i256) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
-      v1 = ptrtoint memptr arg0 to i256
+      v1 = ptrtoint ptr<memory> arg0 to i256
       store v1, arg2
       jump bb3
     bb1:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, arg2
       jump bb3
     bb3:
@@ -21,16 +21,16 @@
   fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = ptradd v0, 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v3, 99
       v4 = load v0
       jumpi arg0, bb1, bb2
     bb1:
       v5 = alloc 32
-      v6 = ptrtoint memptr v5 to i256
+      v6 = ptrtoint ptr<memory> v5 to i256
       store v6, 0
       jump bb2
     bb2:
@@ -41,18 +41,18 @@
   fn @unknown_data_write_can_reset_fmp(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
-      v2 = inttoptr i256 arg1 to memptr
+      v2 = inttoptr i256 arg1 to ptr<memory>
       v3 = ptradd v2, 32
-      v4 = ptrtoint memptr v3 to i256
-      v5 = ptrtoint memptr v0 to i256
+      v4 = ptrtoint ptr<memory> v3 to i256
+      v5 = ptrtoint ptr<memory> v0 to i256
       store v4, v5
       v6 = load v0
       jumpi arg0, bb1, bb2
     bb1:
       v7 = alloc 32
-      v8 = ptrtoint memptr v7 to i256
+      v8 = ptrtoint ptr<memory> v7 to i256
       store v8, 0
       jump bb2
     bb2:
@@ -91,7 +91,7 @@
   fn @forward_latest_store() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = load v0
       store v1, 9

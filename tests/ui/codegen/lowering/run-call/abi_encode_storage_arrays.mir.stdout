@@ -3,10 +3,10 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
 
-fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeDynamicStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 64
     v3 = eq 64, 0
     v4 = div v2, 64
@@ -99,7 +99,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v103 = lt v102, 2
     jumpi v103, bb27, bb28
   bb28:
-    v109 = ptrtoint memptr v101 to i256
+    v109 = ptrtoint ptr<memory> v101 to i256
     v110 = shl 5, v96
     v111 = ptradd v95, v110
     store v111+32, v109
@@ -117,16 +117,16 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v55 = shl 5, v53
     v56 = ptradd v21, v55
     v57 = load v56+32
-    v58 = inttoptr i256 v57 to memptr
+    v58 = inttoptr i256 v57 to ptr<memory>
     v59 = eq v57, 0
     jumpi v59, bb15, bb16
   bb15:
     v60 = alloc 64
-    v61 = ptrtoint memptr v60 to i256
+    v61 = ptrtoint ptr<memory> v60 to i256
     memory_zero v61, 64
     v62 = shl 5, v53
     v63 = ptradd v21, v62
-    v64 = ptrtoint memptr v60 to i256
+    v64 = ptrtoint ptr<memory> v60 to i256
     store v63+32, v64
     jump bb16
   bb16:
@@ -187,10 +187,10 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v31 = add v1, v24
     v32 = alloc 64
     v33 = make_calldata_slice v31, 64
-    v34 = extract_value calldataslice, v33, 0
-    v35 = extract_value calldataslice, v33, 1
+    v34 = extract_value slice<calldata>, v33, 0
+    v35 = extract_value slice<calldata>, v33, 1
     copy calldata v32, v34, v35
-    v36 = ptrtoint memptr v32 to i256
+    v36 = ptrtoint ptr<memory> v32 to i256
     v37 = shl 5, v22
     v38 = ptradd v21, v37
     store v38+32, v36
@@ -198,10 +198,10 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     jump bb1
 }
 
-fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 64
     v3 = eq 64, 0
     v4 = div v2, 64
@@ -336,16 +336,16 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v55 = shl 5, v53
     v56 = ptradd v21, v55
     v57 = load v56+32
-    v58 = inttoptr i256 v57 to memptr
+    v58 = inttoptr i256 v57 to ptr<memory>
     v59 = eq v57, 0
     jumpi v59, bb15, bb16
   bb15:
     v60 = alloc 64
-    v61 = ptrtoint memptr v60 to i256
+    v61 = ptrtoint ptr<memory> v60 to i256
     memory_zero v61, 64
     v62 = shl 5, v53
     v63 = ptradd v21, v62
-    v64 = ptrtoint memptr v60 to i256
+    v64 = ptrtoint ptr<memory> v60 to i256
     store v63+32, v64
     jump bb16
   bb16:
@@ -406,10 +406,10 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v31 = add v1, v24
     v32 = alloc 64
     v33 = make_calldata_slice v31, 64
-    v34 = extract_value calldataslice, v33, 0
-    v35 = extract_value calldataslice, v33, 1
+    v34 = extract_value slice<calldata>, v33, 0
+    v35 = extract_value slice<calldata>, v33, 1
     copy calldata v32, v34, v35
-    v36 = ptrtoint memptr v32 to i256
+    v36 = ptrtoint ptr<memory> v32 to i256
     v37 = shl 5, v22
     v38 = ptradd v21, v37
     store v38+32, v36
@@ -417,9 +417,9 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     jump bb1
 }
 
-fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeStaticStatic(arg0: slice<calldata>) -> ptr<memory> [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 128
@@ -456,7 +456,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     v52 = lt v51, 2
     jumpi v52, bb26, bb27
   bb27:
-    v58 = ptrtoint memptr v50 to i256
+    v58 = ptrtoint ptr<memory> v50 to i256
     v59 = shl 5, v46
     v60 = ptradd v45, v59
     store v60, v58
@@ -477,7 +477,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     jumpi v21, bb7, bb8
   bb8:
     v34 = alloc 64
-    v35 = ptrtoint memptr v34 to i256
+    v35 = ptrtoint ptr<memory> v34 to i256
     memory_zero v35, 64
     jump bb16
   bb16:
@@ -525,7 +525,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     jump bb15
   bb13:
     v29 = shl 5, v25
-    v30 = inttoptr i256 v24 to memptr
+    v30 = inttoptr i256 v24 to ptr<memory>
     v31 = ptradd v30, v29
     v32 = load v31
     sstore v27, v32 !metadata(storage=symbolic(v27))
@@ -538,10 +538,10 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     v8 = add v0, v7
     v9 = alloc 64
     v10 = make_calldata_slice v8, 64
-    v11 = extract_value calldataslice, v10, 0
-    v12 = extract_value calldataslice, v10, 1
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = extract_value slice<calldata>, v10, 1
     copy calldata v9, v11, v12
-    v13 = ptrtoint memptr v9 to i256
+    v13 = ptrtoint ptr<memory> v9 to i256
     v14 = shl 5, v5
     v15 = ptradd v4, v14
     store v15, v13

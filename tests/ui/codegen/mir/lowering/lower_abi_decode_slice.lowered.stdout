@@ -1,13 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_slice.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_slice.mir (after lower-abi) ===
   @module LowerAbiDecodeSlice
-  fn @inline(arg0: memoryslice) -> i256 {
+  fn @inline(arg0: slice<memory>) -> i256 {
     bb0:
 -     v0 = abi_decode [u256], arg0
 -     ret v0
-+     v1 = extract_value memoryslice, arg0, 0
-+     v2 = inttoptr i256 v1 to memptr
-+     v3 = extract_value memoryslice, arg0, 1
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = inttoptr i256 v1 to ptr<memory>
++     v3 = extract_value slice<memory>, arg0, 1
 +     v4 = add v1, v3
 +     v5 = slt v3, 32
 +     jumpi v5, bb1, bb2
@@ -22,9 +22,9 @@
     bb0:
       v0 = make_memory_slice arg0, 64
 -     v1 = abi_decode [tuple<u256, u256>], v0
-+     v8 = extract_value memoryslice, v0, 0
-+     v9 = inttoptr i256 v8 to memptr
-+     v10 = extract_value memoryslice, v0, 1
++     v8 = extract_value slice<memory>, v0, 0
++     v9 = inttoptr i256 v8 to ptr<memory>
++     v10 = extract_value slice<memory>, v0, 1
 +     v11 = slt v10, 64
 +     jumpi v11, bb1, bb2
 +   bb2:
@@ -33,9 +33,9 @@
 -     v3 = abi_decode [tuple<u256, u256>], v2
 -     v4 = load v1
 -     v5 = ptradd v3, 32
-+     v13 = extract_value memoryslice, v2, 0
-+     v14 = inttoptr i256 v13 to memptr
-+     v15 = extract_value memoryslice, v2, 1
++     v13 = extract_value slice<memory>, v2, 0
++     v14 = inttoptr i256 v13 to ptr<memory>
++     v15 = extract_value slice<memory>, v2, 1
 +     v16 = slt v15, 64
 +     jumpi v16, bb1, bb3
 +   bb3:
@@ -49,13 +49,13 @@
 +     revert 0, 0
   }
   
-  fn @dynamic(arg0: memoryslice) -> memptr {
+  fn @dynamic(arg0: slice<memory>) -> ptr<memory> {
     bb0:
 -     v0 = abi_decode [bytes], arg0
 -     ret v0
-+     v1 = extract_value memoryslice, arg0, 0
-+     v2 = inttoptr i256 v1 to memptr
-+     v3 = extract_value memoryslice, arg0, 1
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = inttoptr i256 v1 to ptr<memory>
++     v3 = extract_value slice<memory>, arg0, 1
 +     v4 = add v1, v3
 +     v5 = slt v3, 32
 +     jumpi v5, bb1, bb2
@@ -85,8 +85,8 @@
 +   bb6:
 +     v22 = make_memory_slice v14, v13
 +     v23 = ptradd v19, 32
-+     v24 = extract_value memoryslice, v22, 0
-+     v25 = extract_value memoryslice, v22, 1
++     v24 = extract_value slice<memory>, v22, 0
++     v25 = extract_value slice<memory>, v22, 1
 +     copy v23, v24, v25
 +     ret v19
 +   bb4:
@@ -97,9 +97,9 @@
 +     revert 0, 0
 + }
 + 
-+ fn @decode_static(arg0: memptr) -> memptr {
++ fn @decode_static(arg0: ptr<memory>) -> ptr<memory> {
 +   bb0:
-+     v0 = ptrtoint memptr arg0 to i256
++     v0 = ptrtoint ptr<memory> arg0 to i256
 +     v1 = add v0, 64
 +     v2 = slt 64, 64
 +     jumpi v2, bb1, bb2
@@ -107,7 +107,7 @@
 +     v3 = alloc 64
 +     v4 = load arg0
 +     store v3, v4
-+     v5 = ptrtoint memptr arg0 to i256
++     v5 = ptrtoint ptr<memory> arg0 to i256
 +     v6 = add v5, 32
 +     v7 = load v6
 +     store v3+32, v7

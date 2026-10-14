@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/member_array_dynamic_v2.sol:C ===
 @module C
-fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = alloc 32
     v2 = calldatasize
     v3 = sub v2, v0
@@ -40,20 +40,20 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     store v28, v12
     v29 = make_calldata_slice v16, v19
     v30 = ptradd v28, 32
-    v31 = extract_value calldataslice, v29, 0
-    v32 = extract_value calldataslice, v29, 1
+    v31 = extract_value slice<calldata>, v29, 0
+    v32 = extract_value slice<calldata>, v29, 1
     copy calldata v30, v31, v32
-    v33 = ptrtoint memptr v28 to i256
+    v33 = ptrtoint ptr<memory> v28 to i256
     store v1, v33
     v34 = abi_encode [tuple<memory_array<word>>], object, args v1
     ret v34
 }
 
-fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = extract_value calldataslice, arg0, 0
+    v2 = extract_value slice<calldata>, arg0, 0
     v3 = alloc 32
     v4 = calldatasize
     v5 = sub v4, v2
@@ -91,14 +91,14 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     store v30, v14
     v31 = make_calldata_slice v18, v21
     v32 = ptradd v30, 32
-    v33 = extract_value calldataslice, v31, 0
-    v34 = extract_value calldataslice, v31, 1
+    v33 = extract_value slice<calldata>, v31, 0
+    v34 = extract_value slice<calldata>, v31, 1
     copy calldata v32, v33, v34
-    v35 = ptrtoint memptr v30 to i256
+    v35 = ptrtoint ptr<memory> v30 to i256
     store v3, v35
     v36 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
-    v37 = extract_value memoryslice, v36, 0
-    v38 = extract_value memoryslice, v36, 1
+    v37 = extract_value slice<memory>, v36, 0
+    v38 = extract_value slice<memory>, v36, 1
     v39 = zext i160 v0 to i256
     v40 = call v1, v39, 0, v37, v38, 0, 0
     jumpi v40, bb2, bb1

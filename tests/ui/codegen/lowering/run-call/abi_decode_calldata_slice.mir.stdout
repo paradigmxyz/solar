@@ -8,8 +8,8 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = extract_value calldataslice, v1, 0
-    v3 = extract_value calldataslice, v1, 1
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = gt v3, v3
     v5 = lt v3, 4
     v6 = or v4, v5
@@ -18,15 +18,15 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v8 = sub v3, 4
     v9 = add v2, 4
     v10 = make_calldata_slice v9, v8
-    v11 = extract_value calldataslice, v10, 0
-    v12 = extract_value calldataslice, v10, 1
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = extract_value slice<calldata>, v10, 1
     v13 = calldatasize
     v14 = gt v12, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = sub v13, v12
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
-    v17 = extract_value calldataslice, v10, 1
+    v17 = extract_value slice<calldata>, v10, 1
     v18 = add v17, 63
     v19 = lt v18, v17
     icall panic_if<0x41>, v19
@@ -35,16 +35,16 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v22 = alloc v21
     store v22, v17
     v23 = ptradd v22, 32
-    v24 = extract_value calldataslice, v10, 0
-    v25 = extract_value calldataslice, v10, 1
+    v24 = extract_value slice<calldata>, v10, 0
+    v25 = extract_value slice<calldata>, v10, 1
     copy calldata v23, v24, v25
     v26 = abi_decode [u256, u256], v22
     v27 = extract_value struct1, v26, 0
     v28 = extract_value struct1, v26, 1
     v29 = calldatasize
     v30 = make_calldata_slice 0, v29
-    v31 = extract_value calldataslice, v30, 0
-    v32 = extract_value calldataslice, v30, 1
+    v31 = extract_value slice<calldata>, v30, 0
+    v32 = extract_value slice<calldata>, v30, 1
     v33 = gt 36, v32
     v34 = lt 36, 4
     v35 = or v33, v34
@@ -53,15 +53,15 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v37 = sub 36, 4
     v38 = add v31, 4
     v39 = make_calldata_slice v38, v37
-    v40 = extract_value calldataslice, v39, 0
-    v41 = extract_value calldataslice, v39, 1
+    v40 = extract_value slice<calldata>, v39, 0
+    v41 = extract_value slice<calldata>, v39, 1
     v42 = calldatasize
     v43 = gt v41, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v43
     v44 = sub v42, v41
     v45 = sgt v40, v44
     icall revert_if<calldata_tail_too_short>, v45
-    v46 = extract_value calldataslice, v39, 1
+    v46 = extract_value slice<calldata>, v39, 1
     v47 = add v46, 63
     v48 = lt v47, v46
     icall panic_if<0x41>, v48
@@ -70,14 +70,14 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v51 = alloc v50
     store v51, v46
     v52 = ptradd v51, 32
-    v53 = extract_value calldataslice, v39, 0
-    v54 = extract_value calldataslice, v39, 1
+    v53 = extract_value slice<calldata>, v39, 0
+    v54 = extract_value slice<calldata>, v39, 1
     copy calldata v52, v53, v54
     v55 = abi_decode [u256], v51
     v56 = calldatasize
     v57 = make_calldata_slice 0, v56
-    v58 = extract_value calldataslice, v57, 0
-    v59 = extract_value calldataslice, v57, 1
+    v58 = extract_value slice<calldata>, v57, 0
+    v59 = extract_value slice<calldata>, v57, 1
     v60 = gt 68, v59
     v61 = lt 68, 36
     v62 = or v60, v61
@@ -86,15 +86,15 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v64 = sub 68, 36
     v65 = add v58, 36
     v66 = make_calldata_slice v65, v64
-    v67 = extract_value calldataslice, v66, 0
-    v68 = extract_value calldataslice, v66, 1
+    v67 = extract_value slice<calldata>, v66, 0
+    v68 = extract_value slice<calldata>, v66, 1
     v69 = calldatasize
     v70 = gt v68, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v70
     v71 = sub v69, v68
     v72 = sgt v67, v71
     icall revert_if<calldata_tail_too_short>, v72
-    v73 = extract_value calldataslice, v66, 1
+    v73 = extract_value slice<calldata>, v66, 1
     v74 = add v73, 63
     v75 = lt v74, v73
     icall panic_if<0x41>, v75
@@ -103,8 +103,8 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v78 = alloc v77
     store v78, v73
     v79 = ptradd v78, 32
-    v80 = extract_value calldataslice, v66, 0
-    v81 = extract_value calldataslice, v66, 1
+    v80 = extract_value slice<calldata>, v66, 0
+    v81 = extract_value slice<calldata>, v66, 1
     copy calldata v79, v80, v81
     v82 = abi_decode [u256], v78
     v83 = insert_value struct0, undef struct0, 0, v27

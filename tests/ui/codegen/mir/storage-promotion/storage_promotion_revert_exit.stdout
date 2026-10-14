@@ -137,7 +137,7 @@
     bb3:
       v3 = load_storage_bytes 0
       v4 = ptradd v3, 32
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
       v6 = load v3
       revert v5, v6
     bb4:

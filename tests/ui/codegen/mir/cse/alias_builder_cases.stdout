@@ -15,11 +15,11 @@
   fn @canonical_frame_offset() -> i256 {
     bb0:
       v0 = internal_frame_addr 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = add v1, 64
       v3 = load v2
       v4 = internal_frame_addr 96
-      v5 = ptrtoint memptr v4 to i256
+      v5 = ptrtoint ptr<memory> v4 to i256
 -     v6 = load v5
 -     v7 = add v3, v6
 +     v7 = add v3, v3
@@ -29,11 +29,11 @@
   fn @canonical_heap_offset() -> i256 {
     bb0:
       v0 = fmp
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = add v1, 64
       v3 = load v2
 -     v4 = fmp
--     v5 = ptrtoint memptr v4 to i256
+-     v5 = ptrtoint ptr<memory> v4 to i256
 -     v6 = add 64, v5
 -     v7 = load v6
 -     v8 = add v3, v7
@@ -44,7 +44,7 @@
   fn @same_select(arg0: i1) -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = load v1
       v3 = select arg0, v1, v1
 -     v4 = load v3
@@ -56,9 +56,9 @@
   fn @joined_select(arg0: i1) -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v1, 1
 -     v4 = load v1
       v5 = select arg0, v1, v3
@@ -74,9 +74,9 @@
       jump bb1
     bb1:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v1, 7
 -     v4 = load v1
       store v3, 9

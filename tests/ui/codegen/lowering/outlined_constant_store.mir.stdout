@@ -26,7 +26,7 @@ fn @narrow8(arg0: i256) -> i8 [selector=0x2da3006c, pure, abi_params=[u256], abi
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
     store v2, 37
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     store v4, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2038
     v5 = add v3, 64
@@ -42,7 +42,7 @@ fn @narrow32(arg0: i256) -> i32 [selector=0xb5be099a, pure, abi_params=[u256], a
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
     store v2, 38
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     store v4, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2033
     v5 = add v3, 64
@@ -58,7 +58,7 @@ fn @narrow128(arg0: i256) -> i128 [selector=0x9646654f, pure, abi_params=[u256],
     v1 = eq v0, false
     v2 = alloc 96 !metadata(preserves_fmp)
     store v2, 39
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     store v4, 0x53616665436173743a2076616c756520646f65736e27742066697420696e2031
     v5 = add v3, 64

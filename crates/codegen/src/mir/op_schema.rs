@@ -103,7 +103,7 @@ pub(crate) enum ResultKind {
     Word,
     /// A raw memory pointer.
     MemPtr,
-    /// The pointer type of the first operand, or a `memptr` when that operand is a raw word.
+    /// The pointer type of the first operand, or a `ptr<memory>` when that operand is a raw word.
     Pointer,
     /// A 160-bit integer.
     I160,
@@ -1574,7 +1574,7 @@ define_mir_ops! {
     #[raw_memory(Read(ptr + offset, 32) if *location == PtrLocation::Memory)]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location)]))]
     Load(ptr: ValueId, offset: u64, location: PtrLocation),
-    /// Store a word to memory at `ptr + offset`, which may be a `memptr`, as for `load`.
+    /// Store a word to memory at `ptr + offset`, which may be a `ptr<memory>`, as for `load`.
     #[mir_op(
         mnemonic = "store",
         result = None,
@@ -1876,7 +1876,7 @@ define_mir_ops! {
     #[mnemonic(InstKind::MakeSlice { location: PtrLocation::Returndata, .. } => "make_returndata_slice")]
     #[operand_types(func => Some(smallvec![typing::address(func, *ptr, *location), MirType::I256]))]
     MakeSlice {
-        /// Address of the first element or byte; a memory slice may start at a `memptr`.
+        /// Address of the first element or byte; a memory slice may start at a `ptr<memory>`.
         ptr: ValueId,
         /// Logical element or byte length.
         len: ValueId,

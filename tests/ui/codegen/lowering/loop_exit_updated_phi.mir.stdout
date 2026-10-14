@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_exit_updated_phi.sol:Test ===
 @module Test
-fn @decimal(arg0: i256) -> memptr [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @decimal(arg0: i256) -> ptr<memory> [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load 64 !metadata(memory=scratch)
     v1 = add v0, 128
@@ -39,6 +39,6 @@ fn @decimal(arg0: i256) -> memptr [selector=0xf371efa4, pure, abi_params=[u256],
     v15 = sub v3, v13
     v16 = sub v13, 32
     store v16, v15
-    v17 = inttoptr i256 v16 to memptr
+    v17 = inttoptr i256 v16 to ptr<memory>
     ret v17
 }

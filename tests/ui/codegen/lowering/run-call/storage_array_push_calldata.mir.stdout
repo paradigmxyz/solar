@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_calldata.sol:StorageArrayPushCalldata ===
 @module StorageArrayPushCalldata
-fn @pushArray(arg0: calldataslice) -> i120 [selector=0xac513f44, abi_params=[array<_, u120>], abi_returns=[word<u120>], abi_return_params=[u120]] {
+fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[array<_, u120>], abi_returns=[word<u120>], abi_return_params=[u120]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -149,9 +149,9 @@ fn @pushArray(arg0: calldataslice) -> i120 [selector=0xac513f44, abi_params=[arr
     jump bb1
 }
 
-fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tuple<u16, u16, array<3, u16>, array<_, u16>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[tuple<u16, u16, array<3, u16>, array<_, u16>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = alloc 128
     v2 = calldatasize
     v3 = sub v2, v0
@@ -187,10 +187,10 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     jumpi v23, bb2, bb3
   bb3:
     v31 = make_calldata_slice v17, 96
-    v32 = extract_value calldataslice, v31, 0
-    v33 = extract_value calldataslice, v31, 1
+    v32 = extract_value slice<calldata>, v31, 0
+    v33 = extract_value slice<calldata>, v31, 1
     copy calldata v21, v32, v33
-    v34 = ptrtoint memptr v21 to i256
+    v34 = ptrtoint ptr<memory> v21 to i256
     store v1+64, v34
     v35 = add v0, 160
     v36 = calldatasize
@@ -233,7 +233,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v64 = lt v63, v46
     jumpi v64, bb5, bb6
   bb6:
-    v74 = ptrtoint memptr v62 to i256
+    v74 = ptrtoint ptr<memory> v62 to i256
     store v1+96, v74
     v75 = sload 1 !metadata(storage=slot(1))
     v76 = gt v75, 0xffffffffffffffff
@@ -376,7 +376,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     ret v238
   bb19:
     v148 = shl 5, v146
-    v149 = inttoptr i256 v126 to memptr
+    v149 = inttoptr i256 v126 to ptr<memory>
     v150 = ptradd v149, v148
     v151 = load v150+32
     v152 = storage_array_data_slot v125
@@ -432,7 +432,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     jump bb12
   bb10:
     v104 = shl 5, v97
-    v105 = inttoptr i256 v96 to memptr
+    v105 = inttoptr i256 v96 to ptr<memory>
     v106 = ptradd v105, v104
     v107 = load v106
     v108 = mul v102, 8

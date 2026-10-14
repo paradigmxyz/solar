@@ -85,7 +85,7 @@
       ret v0
   }
   
-  fn @abi_dependency(arg0: memptr) {
+  fn @abi_dependency(arg0: ptr<memory>) {
     bb0:
       v0 = load arg0
       validate_abi v0

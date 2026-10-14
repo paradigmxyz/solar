@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
 @types
-  struct0: {i160, memptr}
+  struct0: {i160, ptr<memory>}
   struct1: {i256, i160, i1}
-  struct2: {i256, memptr, i256}
-  struct3: {i256, memptr, memptr}
+  struct2: {i256, ptr<memory>, i256}
+  struct3: {i256, ptr<memory>, ptr<memory>}
   struct4: {i256, i256, i256, i256}
   struct5: {i256, i256}
   struct6: {i256, i256, i256}
   struct7: {i256, i256, i256, i256, i256, i256}
   struct8: {i256, i256, i256, i256, i256}
-  struct9: {memptr, memptr}
+  struct9: {ptr<memory>, ptr<memory>}
 
-fn @dAddress(arg0: memptr) -> i160 [selector=0xd6ff3ab5, pure, abi_params=[bytes], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @dAddress(arg0: ptr<memory>) -> i160 [selector=0xd6ff3ab5, pure, abi_params=[bytes], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_decode [address, bytes], arg0
     v1 = extract_value struct0, v0, 0
@@ -20,7 +20,7 @@ fn @dAddress(arg0: memptr) -> i160 [selector=0xd6ff3ab5, pure, abi_params=[bytes
     ret v1
 }
 
-fn @dAddressLength(arg0: memptr) -> i256 [selector=0xcdb9aa25, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @dAddressLength(arg0: ptr<memory>) -> i256 [selector=0xcdb9aa25, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [address, bytes], arg0
     v1 = extract_value struct0, v0, 0
@@ -29,7 +29,7 @@ fn @dAddressLength(arg0: memptr) -> i256 [selector=0xcdb9aa25, pure, abi_params=
     ret v3
 }
 
-fn @dFlat(arg0: memptr) -> struct1 [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
+fn @dFlat(arg0: ptr<memory>) -> struct1 [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
   bb0:
     v0 = abi_decode [tuple<u256, address, bool>], arg0
     v1 = load v0
@@ -44,7 +44,7 @@ fn @dFlat(arg0: memptr) -> struct1 [selector=0x6644232b, pure, abi_params=[bytes
     ret v9
 }
 
-fn @dMixed(arg0: memptr) -> struct2 [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
+fn @dMixed(arg0: ptr<memory>) -> struct2 [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
   bb0:
     v0 = abi_decode [u256, bytes, array<_, u256>], arg0
     v1 = extract_value struct3, v0, 0
@@ -57,14 +57,14 @@ fn @dMixed(arg0: memptr) -> struct2 [selector=0x1be4db0e, pure, abi_params=[byte
     ret v7
 }
 
-fn @dNested(arg0: memptr) -> struct2 [selector=0xfc7ec666, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
+fn @dNested(arg0: ptr<memory>) -> struct2 [selector=0xfc7ec666, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
   bb0:
     v0 = abi_decode [tuple<tuple<u256, address, bool>, tuple<u256, bytes, array<_, u256>>, bytes>], arg0
-    v1 = load v0, memptr
+    v1 = load v0, ptr<memory>
     v2 = load v1
-    v3 = load v0+32, memptr
-    v4 = load v3+32, memptr
-    v5 = load v0+64, memptr
+    v3 = load v0+32, ptr<memory>
+    v4 = load v3+32, ptr<memory>
+    v5 = load v0+64, ptr<memory>
     v6 = load v5
     v7 = insert_value struct2, undef struct2, 0, v2
     v8 = insert_value struct2, v7, 1, v4
@@ -72,7 +72,7 @@ fn @dNested(arg0: memptr) -> struct2 [selector=0xfc7ec666, pure, abi_params=[byt
     ret v9
 }
 
-fn @dDynArr(arg0: memptr) -> struct4 [selector=0xaca542ca, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dDynArr(arg0: ptr<memory>) -> struct4 [selector=0xaca542ca, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<_, tuple<u256, bytes, array<_, u256>>>], arg0
     v1 = load v0
@@ -81,12 +81,12 @@ fn @dDynArr(arg0: memptr) -> struct4 [selector=0xaca542ca, pure, abi_params=[byt
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = load v0+32
-    v6 = inttoptr i256 v5 to memptr
+    v6 = inttoptr i256 v5 to ptr<memory>
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
   bb1:
     v8 = icall @default_struct_1
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     store v0+32, v9
     jump bb2
   bb2:
@@ -97,12 +97,12 @@ fn @dDynArr(arg0: memptr) -> struct4 [selector=0xaca542ca, pure, abi_params=[byt
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = load v0+64
-    v16 = inttoptr i256 v15 to memptr
+    v16 = inttoptr i256 v15 to ptr<memory>
     v17 = eq v15, 0
     jumpi v17, bb3, bb4
   bb3:
     v18 = icall @default_struct_1
-    v19 = ptrtoint memptr v18 to i256
+    v19 = ptrtoint ptr<memory> v18 to i256
     store v0+64, v19
     jump bb4
   bb4:
@@ -113,17 +113,17 @@ fn @dDynArr(arg0: memptr) -> struct4 [selector=0xaca542ca, pure, abi_params=[byt
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = load v0+32
-    v26 = inttoptr i256 v25 to memptr
+    v26 = inttoptr i256 v25 to ptr<memory>
     v27 = eq v25, 0
     jumpi v27, bb5, bb6
   bb5:
     v28 = icall @default_struct_1
-    v29 = ptrtoint memptr v28 to i256
+    v29 = ptrtoint ptr<memory> v28 to i256
     store v0+32, v29
     jump bb6
   bb6:
     v30 = phi [bb4: v26], [bb5: v28]
-    v31 = load v30+64, memptr
+    v31 = load v30+64, ptr<memory>
     v32 = load v31
     v33 = insert_value struct4, undef struct4, 0, v1
     v34 = insert_value struct4, v33, 1, v11
@@ -132,20 +132,20 @@ fn @dDynArr(arg0: memptr) -> struct4 [selector=0xaca542ca, pure, abi_params=[byt
     ret v36
 }
 
-fn @dFixedDyn(arg0: memptr) -> struct5 [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @dFixedDyn(arg0: ptr<memory>) -> struct5 [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_decode [array<2, bytes>], arg0
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = load v0
-    v4 = inttoptr i256 v3 to memptr
+    v4 = inttoptr i256 v3 to ptr<memory>
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc 32
     store v6, 0
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     store v0, v7
     jump bb2
   bb2:
@@ -155,13 +155,13 @@ fn @dFixedDyn(arg0: memptr) -> struct5 [selector=0x94edd832, pure, abi_params=[b
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = load v0+32
-    v13 = inttoptr i256 v12 to memptr
+    v13 = inttoptr i256 v12 to ptr<memory>
     v14 = eq v12, 0
     jumpi v14, bb3, bb4
   bb3:
     v15 = alloc 32
     store v15, 0
-    v16 = ptrtoint memptr v15 to i256
+    v16 = ptrtoint ptr<memory> v15 to i256
     store v0+32, v16
     jump bb4
   bb4:
@@ -172,14 +172,14 @@ fn @dFixedDyn(arg0: memptr) -> struct5 [selector=0x94edd832, pure, abi_params=[b
     ret v20
 }
 
-fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = extract_value calldataslice, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 0
     v5 = add v4, 0
     v6 = calldatasize
     v7 = sub v6, v5
@@ -194,14 +194,14 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = make_calldata_slice v10, 32
-    v17 = extract_value calldataslice, v16, 0
+    v17 = extract_value slice<calldata>, v16, 0
     v18 = add v17, 0
     v19 = load calldata v18
-    v20 = extract_value calldataslice, arg0, 1
+    v20 = extract_value slice<calldata>, arg0, 1
     v21 = lt 1, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = extract_value calldataslice, arg0, 0
+    v23 = extract_value slice<calldata>, arg0, 0
     v24 = add v23, 32
     v25 = calldatasize
     v26 = sub v25, v24
@@ -216,7 +216,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v34 = eq v33, false
     icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = make_calldata_slice v29, 32
-    v36 = extract_value calldataslice, v35, 0
+    v36 = extract_value slice<calldata>, v35, 0
     v37 = add v36, 0
     v38 = load calldata v37
     v39 = insert_value struct6, undef struct6, 0, v0
@@ -232,45 +232,45 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     store v1, 0
     store v1+32, 0
     store v1+64, 0
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     store v0, v2
     v3 = alloc 96 !metadata(preserves_fmp)
     store v3, 0
     store v3+32, 96
     store v3+64, 96
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     store v0+32, v4
     store v0+64, 96
     v5 = alloc 96
     store v5, 7
     store v5+32, 1
     store v5+64, 1
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     store v0, v6
-    v7 = load v0+32, memptr
+    v7 = load v0+32, ptr<memory>
     store v7, 42
     v8 = alloc 64 !metadata(preserves_fmp)
     store v8, 2
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
     store v10, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v11 = load v0+32, memptr
-    v12 = ptrtoint memptr v8 to i256
+    v11 = load v0+32, ptr<memory>
+    v12 = ptrtoint ptr<memory> v8 to i256
     store v11+32, v12
     v13 = alloc zeroed checked 96
     store v13, 2
-    v14 = load v0+32, memptr
-    v15 = ptrtoint memptr v13 to i256
+    v14 = load v0+32, ptr<memory>
+    v15 = ptrtoint ptr<memory> v13 to i256
     store v14+64, v15
-    v16 = load v0+32, memptr
-    v17 = load v16+64, memptr
+    v16 = load v0+32, ptr<memory>
+    v17 = load v16+64, ptr<memory>
     v18 = load v17
     v19 = lt 0, v18
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     store v17+32, 4
-    v21 = load v0+32, memptr
-    v22 = load v21+64, memptr
+    v21 = load v0+32, ptr<memory>
+    v22 = load v21+64, ptr<memory>
     v23 = load v22
     v24 = lt 1, v23
     v25 = eq v24, false
@@ -278,10 +278,10 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     store v22+64, 5
     v26 = alloc 64 !metadata(preserves_fmp)
     store v26, 3
-    v27 = ptrtoint memptr v26 to i256
+    v27 = ptrtoint ptr<memory> v26 to i256
     v28 = add v27, 32
     store v28, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    v29 = ptrtoint memptr v26 to i256
+    v29 = ptrtoint ptr<memory> v26 to i256
     store v0+64, v29
     v30 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
     v31 = icall @dNested, v30
@@ -311,22 +311,22 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     store v8, 42
     v9 = alloc 64 !metadata(preserves_fmp)
     store v9, 2
-    v10 = ptrtoint memptr v9 to i256
+    v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 32
     store v11, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v12 = ptrtoint memptr v9 to i256
+    v12 = ptrtoint ptr<memory> v9 to i256
     store v8+32, v12
     v13 = alloc zeroed checked 96
     store v13, 2
-    v14 = ptrtoint memptr v13 to i256
+    v14 = ptrtoint ptr<memory> v13 to i256
     store v8+64, v14
-    v15 = load v8+64, memptr
+    v15 = load v8+64, ptr<memory>
     v16 = load v15
     v17 = lt 0, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     store v15+32, 4
-    v19 = load v8+64, memptr
+    v19 = load v8+64, ptr<memory>
     v20 = load v19
     v21 = lt 1, v20
     v22 = eq v21, false
@@ -339,16 +339,16 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     store v23, 43
     v24 = alloc 64 !metadata(preserves_fmp)
     store v24, 3
-    v25 = ptrtoint memptr v24 to i256
+    v25 = ptrtoint ptr<memory> v24 to i256
     v26 = add v25, 32
     store v26, 0x6279650000000000000000000000000000000000000000000000000000000000
-    v27 = ptrtoint memptr v24 to i256
+    v27 = ptrtoint ptr<memory> v24 to i256
     store v23+32, v27
     v28 = alloc zeroed checked 64
     store v28, 1
-    v29 = ptrtoint memptr v28 to i256
+    v29 = ptrtoint ptr<memory> v28 to i256
     store v23+64, v29
-    v30 = load v23+64, memptr
+    v30 = load v23+64, ptr<memory>
     v31 = load v30
     v32 = lt 0, v31
     v33 = eq v32, false
@@ -358,13 +358,13 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v35 = lt 0, v34
     v36 = eq v35, false
     icall panic_if<0x32>, v36
-    v37 = ptrtoint memptr v8 to i256
+    v37 = ptrtoint ptr<memory> v8 to i256
     store v0+32, v37
     v38 = load v0
     v39 = lt 1, v38
     v40 = eq v39, false
     icall panic_if<0x32>, v40
-    v41 = ptrtoint memptr v23 to i256
+    v41 = ptrtoint ptr<memory> v23 to i256
     store v0+64, v41
     v42 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
     v43 = icall @dDynArr, v42
@@ -384,7 +384,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     store v3+64, 96
     v4 = shl 5, v1
     v5 = ptradd v0, v4
-    v6 = ptrtoint memptr v3 to i256
+    v6 = ptrtoint ptr<memory> v3 to i256
     store v5+32, v6
     v7 = add v1, 1
     jump bb1
@@ -401,23 +401,23 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
   bb3:
     v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 1
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
     store v8, 0x100000000000000000000000000000000000000000000000000000000000000
     v9 = lt 0, 2
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = ptrtoint memptr v6 to i256
+    v11 = ptrtoint ptr<memory> v6 to i256
     store v0, v11
     v12 = alloc 64 !metadata(preserves_fmp)
     store v12, 2
-    v13 = ptrtoint memptr v12 to i256
+    v13 = ptrtoint ptr<memory> v12 to i256
     v14 = add v13, 32
     store v14, 0x203000000000000000000000000000000000000000000000000000000000000
     v15 = lt 1, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = ptrtoint memptr v12 to i256
+    v17 = ptrtoint ptr<memory> v12 to i256
     store v0+32, v17
     v18 = abi_encode [array<2, memory_bytes>], object, args v0
     v19 = abi_decode [array<2, bytes>], v18
@@ -425,13 +425,13 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = load v19
-    v23 = inttoptr i256 v22 to memptr
+    v23 = inttoptr i256 v22 to ptr<memory>
     v24 = eq v22, 0
     jumpi v24, bb4, bb5
   bb4:
     v25 = alloc 32
     store v25, 0
-    v26 = ptrtoint memptr v25 to i256
+    v26 = ptrtoint ptr<memory> v25 to i256
     store v19, v26
     jump bb5
   bb5:
@@ -441,13 +441,13 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = load v19+32
-    v32 = inttoptr i256 v31 to memptr
+    v32 = inttoptr i256 v31 to ptr<memory>
     v33 = eq v31, 0
     jumpi v33, bb6, bb7
   bb6:
     v34 = alloc 32
     store v34, 0
-    v35 = ptrtoint memptr v34 to i256
+    v35 = ptrtoint ptr<memory> v34 to i256
     store v19+32, v35
     jump bb7
   bb7:
@@ -464,17 +464,17 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     jump bb1
 }
 
-fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @dStaticNested(arg0: slice<calldata>) -> struct7 [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -483,22 +483,22 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
     v15 = abi_decode [array<3, array<2, u256>>], v11
     v16 = lt 0, 3
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = load v15
-    v19 = inttoptr i256 v18 to memptr
+    v19 = inttoptr i256 v18 to ptr<memory>
     v20 = eq v18, 0
     jumpi v20, bb1, bb2
   bb1:
     v21 = alloc 64
-    v22 = ptrtoint memptr v21 to i256
+    v22 = ptrtoint ptr<memory> v21 to i256
     memory_zero v22, 64
-    v23 = ptrtoint memptr v21 to i256
+    v23 = ptrtoint ptr<memory> v21 to i256
     store v15, v23
     jump bb2
   bb2:
@@ -511,14 +511,14 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = load v15
-    v31 = inttoptr i256 v30 to memptr
+    v31 = inttoptr i256 v30 to ptr<memory>
     v32 = eq v30, 0
     jumpi v32, bb3, bb4
   bb3:
     v33 = alloc 64
-    v34 = ptrtoint memptr v33 to i256
+    v34 = ptrtoint ptr<memory> v33 to i256
     memory_zero v34, 64
-    v35 = ptrtoint memptr v33 to i256
+    v35 = ptrtoint ptr<memory> v33 to i256
     store v15, v35
     jump bb4
   bb4:
@@ -531,14 +531,14 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = load v15+32
-    v43 = inttoptr i256 v42 to memptr
+    v43 = inttoptr i256 v42 to ptr<memory>
     v44 = eq v42, 0
     jumpi v44, bb5, bb6
   bb5:
     v45 = alloc 64
-    v46 = ptrtoint memptr v45 to i256
+    v46 = ptrtoint ptr<memory> v45 to i256
     memory_zero v46, 64
-    v47 = ptrtoint memptr v45 to i256
+    v47 = ptrtoint ptr<memory> v45 to i256
     store v15+32, v47
     jump bb6
   bb6:
@@ -551,14 +551,14 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = load v15+32
-    v55 = inttoptr i256 v54 to memptr
+    v55 = inttoptr i256 v54 to ptr<memory>
     v56 = eq v54, 0
     jumpi v56, bb7, bb8
   bb7:
     v57 = alloc 64
-    v58 = ptrtoint memptr v57 to i256
+    v58 = ptrtoint ptr<memory> v57 to i256
     memory_zero v58, 64
-    v59 = ptrtoint memptr v57 to i256
+    v59 = ptrtoint ptr<memory> v57 to i256
     store v15+32, v59
     jump bb8
   bb8:
@@ -571,14 +571,14 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = load v15+64
-    v67 = inttoptr i256 v66 to memptr
+    v67 = inttoptr i256 v66 to ptr<memory>
     v68 = eq v66, 0
     jumpi v68, bb9, bb10
   bb9:
     v69 = alloc 64
-    v70 = ptrtoint memptr v69 to i256
+    v70 = ptrtoint ptr<memory> v69 to i256
     memory_zero v70, 64
-    v71 = ptrtoint memptr v69 to i256
+    v71 = ptrtoint ptr<memory> v69 to i256
     store v15+64, v71
     jump bb10
   bb10:
@@ -591,14 +591,14 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v77 = eq v76, false
     icall panic_if<0x32>, v77
     v78 = load v15+64
-    v79 = inttoptr i256 v78 to memptr
+    v79 = inttoptr i256 v78 to ptr<memory>
     v80 = eq v78, 0
     jumpi v80, bb11, bb12
   bb11:
     v81 = alloc 64
-    v82 = ptrtoint memptr v81 to i256
+    v82 = ptrtoint ptr<memory> v81 to i256
     memory_zero v82, 64
-    v83 = ptrtoint memptr v81 to i256
+    v83 = ptrtoint ptr<memory> v81 to i256
     store v15+64, v83
     jump bb12
   bb12:
@@ -616,7 +616,7 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     ret v93
 }
 
-fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dNestedArrays(arg0: ptr<memory>) -> struct4 [selector=0xa8c86b4a, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<_, array<_, u256>>], arg0
     v1 = load v0
@@ -625,13 +625,13 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = load v0+32
-    v6 = inttoptr i256 v5 to memptr
+    v6 = inttoptr i256 v5 to ptr<memory>
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
   bb1:
     v8 = alloc 32
     store v8, 0
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     store v0+32, v9
     jump bb2
   bb2:
@@ -642,13 +642,13 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = load v0+32
-    v16 = inttoptr i256 v15 to memptr
+    v16 = inttoptr i256 v15 to ptr<memory>
     v17 = eq v15, 0
     jumpi v17, bb3, bb4
   bb3:
     v18 = alloc 32
     store v18, 0
-    v19 = ptrtoint memptr v18 to i256
+    v19 = ptrtoint ptr<memory> v18 to i256
     store v0+32, v19
     jump bb4
   bb4:
@@ -663,13 +663,13 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = load v0+64
-    v29 = inttoptr i256 v28 to memptr
+    v29 = inttoptr i256 v28 to ptr<memory>
     v30 = eq v28, 0
     jumpi v30, bb5, bb6
   bb5:
     v31 = alloc 32
     store v31, 0
-    v32 = ptrtoint memptr v31 to i256
+    v32 = ptrtoint ptr<memory> v31 to i256
     store v0+64, v32
     jump bb6
   bb6:
@@ -686,7 +686,7 @@ fn @dNestedArrays(arg0: memptr) -> struct4 [selector=0xa8c86b4a, pure, abi_param
     ret v41
 }
 
-fn @dArrayFixed(arg0: memptr) -> struct8 [selector=0x11d9968b, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<_, array<2, u256>>], arg0
     v1 = load v0
@@ -695,14 +695,14 @@ fn @dArrayFixed(arg0: memptr) -> struct8 [selector=0x11d9968b, pure, abi_params=
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = load v0+32
-    v6 = inttoptr i256 v5 to memptr
+    v6 = inttoptr i256 v5 to ptr<memory>
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
   bb1:
     v8 = alloc 64
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     memory_zero v9, 64
-    v10 = ptrtoint memptr v8 to i256
+    v10 = ptrtoint ptr<memory> v8 to i256
     store v0+32, v10
     jump bb2
   bb2:
@@ -716,14 +716,14 @@ fn @dArrayFixed(arg0: memptr) -> struct8 [selector=0x11d9968b, pure, abi_params=
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = load v0+32
-    v19 = inttoptr i256 v18 to memptr
+    v19 = inttoptr i256 v18 to ptr<memory>
     v20 = eq v18, 0
     jumpi v20, bb3, bb4
   bb3:
     v21 = alloc 64
-    v22 = ptrtoint memptr v21 to i256
+    v22 = ptrtoint ptr<memory> v21 to i256
     memory_zero v22, 64
-    v23 = ptrtoint memptr v21 to i256
+    v23 = ptrtoint ptr<memory> v21 to i256
     store v0+32, v23
     jump bb4
   bb4:
@@ -737,14 +737,14 @@ fn @dArrayFixed(arg0: memptr) -> struct8 [selector=0x11d9968b, pure, abi_params=
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = load v0+64
-    v32 = inttoptr i256 v31 to memptr
+    v32 = inttoptr i256 v31 to ptr<memory>
     v33 = eq v31, 0
     jumpi v33, bb5, bb6
   bb5:
     v34 = alloc 64
-    v35 = ptrtoint memptr v34 to i256
+    v35 = ptrtoint ptr<memory> v34 to i256
     memory_zero v35, 64
-    v36 = ptrtoint memptr v34 to i256
+    v36 = ptrtoint ptr<memory> v34 to i256
     store v0+64, v36
     jump bb6
   bb6:
@@ -758,14 +758,14 @@ fn @dArrayFixed(arg0: memptr) -> struct8 [selector=0x11d9968b, pure, abi_params=
     v43 = eq v42, false
     icall panic_if<0x32>, v43
     v44 = load v0+64
-    v45 = inttoptr i256 v44 to memptr
+    v45 = inttoptr i256 v44 to ptr<memory>
     v46 = eq v44, 0
     jumpi v46, bb7, bb8
   bb7:
     v47 = alloc 64
-    v48 = ptrtoint memptr v47 to i256
+    v48 = ptrtoint ptr<memory> v47 to i256
     memory_zero v48, 64
-    v49 = ptrtoint memptr v47 to i256
+    v49 = ptrtoint ptr<memory> v47 to i256
     store v0+64, v49
     jump bb8
   bb8:
@@ -782,20 +782,20 @@ fn @dArrayFixed(arg0: memptr) -> struct8 [selector=0x11d9968b, pure, abi_params=
     ret v58
 }
 
-fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @dFixedNestedDyn(arg0: ptr<memory>) -> struct8 [selector=0xf648fcec, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<2, array<_, u256>>], arg0
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = load v0
-    v4 = inttoptr i256 v3 to memptr
+    v4 = inttoptr i256 v3 to ptr<memory>
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc 32
     store v6, 0
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     store v0, v7
     jump bb2
   bb2:
@@ -805,13 +805,13 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = load v0
-    v13 = inttoptr i256 v12 to memptr
+    v13 = inttoptr i256 v12 to ptr<memory>
     v14 = eq v12, 0
     jumpi v14, bb3, bb4
   bb3:
     v15 = alloc 32
     store v15, 0
-    v16 = ptrtoint memptr v15 to i256
+    v16 = ptrtoint ptr<memory> v15 to i256
     store v0, v16
     jump bb4
   bb4:
@@ -825,13 +825,13 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = load v0
-    v25 = inttoptr i256 v24 to memptr
+    v25 = inttoptr i256 v24 to ptr<memory>
     v26 = eq v24, 0
     jumpi v26, bb5, bb6
   bb5:
     v27 = alloc 32
     store v27, 0
-    v28 = ptrtoint memptr v27 to i256
+    v28 = ptrtoint ptr<memory> v27 to i256
     store v0, v28
     jump bb6
   bb6:
@@ -845,13 +845,13 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = load v0+32
-    v37 = inttoptr i256 v36 to memptr
+    v37 = inttoptr i256 v36 to ptr<memory>
     v38 = eq v36, 0
     jumpi v38, bb7, bb8
   bb7:
     v39 = alloc 32
     store v39, 0
-    v40 = ptrtoint memptr v39 to i256
+    v40 = ptrtoint ptr<memory> v39 to i256
     store v0+32, v40
     jump bb8
   bb8:
@@ -861,13 +861,13 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = load v0+32
-    v46 = inttoptr i256 v45 to memptr
+    v46 = inttoptr i256 v45 to ptr<memory>
     v47 = eq v45, 0
     jumpi v47, bb9, bb10
   bb9:
     v48 = alloc 32
     store v48, 0
-    v49 = ptrtoint memptr v48 to i256
+    v49 = ptrtoint ptr<memory> v48 to i256
     store v0+32, v49
     jump bb10
   bb10:
@@ -885,17 +885,17 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
     ret v59
 }
 
-fn @dCalldataDyn(arg0: calldataslice) -> struct6 [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @dCalldataDyn(arg0: slice<calldata>) -> struct6 [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -904,8 +904,8 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct6 [selector=0xe931c6df, pure, abi
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
     v15 = abi_decode [array<_, u256>], v11
     v16 = load v15
@@ -925,18 +925,18 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct6 [selector=0xe931c6df, pure, abi
     ret v27
 }
 
-fn @dOverlap(arg0: memptr) -> struct5 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @dOverlap(arg0: ptr<memory>) -> struct5 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = abi_decode [array<_, u256>, array<_, u256>], arg0
     v1 = extract_value struct9, v0, 0
     v2 = extract_value struct9, v0, 1
-    v3 = ptrtoint memptr v2 to i256
-    v4 = ptrtoint memptr v1 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = ptrtoint ptr<memory> v1 to i256
     v5 = eq v4, v3
     v6 = zext i1 v5 to i256
-    v7 = ptrtoint memptr arg0 to i256
+    v7 = ptrtoint ptr<memory> arg0 to i256
     v8 = add v7, 96
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = eq v9, v8
     v11 = zext i1 v10 to i256
     v12 = insert_value struct5, undef struct5, 0, v6
@@ -944,17 +944,17 @@ fn @dOverlap(arg0: memptr) -> struct5 [selector=0x9297ba94, pure, abi_params=[by
     ret v13
 }
 
-fn @default_struct_1() -> memptr {
+fn @default_struct_1() -> ptr<memory> {
   bb0:
     v0 = alloc 96
     store v0, 0
     v1 = alloc 32
     store v1, 0
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     store v0+32, v2
     v3 = alloc 32
     store v3, 0
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     store v0+64, v4
     ret v0
 }

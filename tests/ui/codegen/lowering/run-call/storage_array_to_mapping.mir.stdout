@@ -353,7 +353,7 @@ fn @constructor() [constructor] {
     v23 = shl 5, v21
     v24 = ptradd v0, v23
     v25 = load v24+32
-    v26 = inttoptr i256 v25 to memptr
+    v26 = inttoptr i256 v25 to ptr<memory>
     v27 = eq v25, 0
     jumpi v27, bb12, bb13
   bb12:
@@ -361,7 +361,7 @@ fn @constructor() [constructor] {
     store v28, 0
     v29 = shl 5, v21
     v30 = ptradd v0, v29
-    v31 = ptrtoint memptr v28 to i256
+    v31 = ptrtoint ptr<memory> v28 to i256
     store v30+32, v31
     jump bb13
   bb13:
@@ -464,7 +464,7 @@ fn @constructor() [constructor] {
     jump bb1
 }
 
-fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_storage() -> ptr<memory> [selector=0x904f60db, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = sload 1 !metadata(storage=slot(1))
@@ -495,7 +495,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v20 = lt v19, v1
     jumpi v20, bb2, bb3
   bb3:
-    v28 = ptrtoint memptr v18 to i256
+    v28 = ptrtoint ptr<memory> v18 to i256
     v29 = load v28
     v30 = sload v0 !metadata(storage=symbolic(v0))
     v31 = gt v30, v29
@@ -550,7 +550,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v128 = storage_array_data_slot v107
     v129 = add v128, v126
     v130 = icall @load_storage_packed_array_1_0, v129
-    v131 = ptrtoint memptr v130 to i256
+    v131 = ptrtoint ptr<memory> v130 to i256
     v132 = shl 5, v126
     v133 = ptradd v125, v132
     store v133+32, v131
@@ -560,7 +560,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v46 = shl 5, v44
     v47 = ptradd v18, v46
     v48 = load v47+32
-    v49 = inttoptr i256 v48 to memptr
+    v49 = inttoptr i256 v48 to ptr<memory>
     v50 = eq v48, 0
     jumpi v50, bb12, bb13
   bb12:
@@ -568,7 +568,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     store v51, 0
     v52 = shl 5, v44
     v53 = ptradd v18, v52
-    v54 = ptrtoint memptr v51 to i256
+    v54 = ptrtoint ptr<memory> v51 to i256
     store v53+32, v54
     jump bb13
   bb13:
@@ -667,7 +667,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     v21 = storage_array_data_slot 1
     v22 = add v21, v19
     v23 = icall @load_storage_packed_array_1_0, v22
-    v24 = ptrtoint memptr v23 to i256
+    v24 = ptrtoint ptr<memory> v23 to i256
     v25 = shl 5, v19
     v26 = ptradd v18, v25
     store v26+32, v24
@@ -675,7 +675,7 @@ fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[m
     jump bb1
 }
 
-fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_storage_ptr() -> ptr<memory> [selector=0x764eb525, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = sload 1 !metadata(storage=slot(1))
@@ -706,7 +706,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v20 = lt v19, v1
     jumpi v20, bb2, bb3
   bb3:
-    v28 = ptrtoint memptr v18 to i256
+    v28 = ptrtoint ptr<memory> v18 to i256
     v29 = load v28
     v30 = sload v0 !metadata(storage=symbolic(v0))
     v31 = gt v30, v29
@@ -761,7 +761,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v128 = storage_array_data_slot v107
     v129 = add v128, v126
     v130 = icall @load_storage_packed_array_1_0, v129
-    v131 = ptrtoint memptr v130 to i256
+    v131 = ptrtoint ptr<memory> v130 to i256
     v132 = shl 5, v126
     v133 = ptradd v125, v132
     store v133+32, v131
@@ -771,7 +771,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v46 = shl 5, v44
     v47 = ptradd v18, v46
     v48 = load v47+32
-    v49 = inttoptr i256 v48 to memptr
+    v49 = inttoptr i256 v48 to ptr<memory>
     v50 = eq v48, 0
     jumpi v50, bb12, bb13
   bb12:
@@ -779,7 +779,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     store v51, 0
     v52 = shl 5, v44
     v53 = ptradd v18, v52
-    v54 = ptrtoint memptr v51 to i256
+    v54 = ptrtoint ptr<memory> v51 to i256
     store v53+32, v54
     jump bb13
   bb13:
@@ -878,7 +878,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     v21 = storage_array_data_slot 1
     v22 = add v21, v19
     v23 = icall @load_storage_packed_array_1_0, v22
-    v24 = ptrtoint memptr v23 to i256
+    v24 = ptrtoint ptr<memory> v23 to i256
     v25 = shl 5, v19
     v26 = ptradd v18, v25
     store v26+32, v24
@@ -886,7 +886,7 @@ fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_return
     jump bb1
 }
 
-fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_memory() -> ptr<memory> [selector=0x841ae8f5, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -971,7 +971,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v127 = storage_array_data_slot v106
     v128 = add v127, v125
     v129 = icall @load_storage_packed_array_1_0, v128
-    v130 = ptrtoint memptr v129 to i256
+    v130 = ptrtoint ptr<memory> v129 to i256
     v131 = shl 5, v125
     v132 = ptradd v124, v131
     store v132+32, v130
@@ -981,7 +981,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v45 = shl 5, v43
     v46 = ptradd v17, v45
     v47 = load v46+32
-    v48 = inttoptr i256 v47 to memptr
+    v48 = inttoptr i256 v47 to ptr<memory>
     v49 = eq v47, 0
     jumpi v49, bb12, bb13
   bb12:
@@ -989,7 +989,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     store v50, 0
     v51 = shl 5, v43
     v52 = ptradd v17, v51
-    v53 = ptrtoint memptr v50 to i256
+    v53 = ptrtoint ptr<memory> v50 to i256
     store v52+32, v53
     jump bb13
   bb13:
@@ -1088,7 +1088,7 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     v20 = storage_array_data_slot 1
     v21 = add v20, v18
     v22 = icall @load_storage_packed_array_1_0, v21
-    v23 = ptrtoint memptr v22 to i256
+    v23 = ptrtoint ptr<memory> v22 to i256
     v24 = shl 5, v18
     v25 = ptradd v17, v24
     store v25+32, v23
@@ -1096,10 +1096,10 @@ fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[me
     jump bb1
 }
 
-fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -1186,7 +1186,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v168 = storage_array_data_slot v147
     v169 = add v168, v166
     v170 = icall @load_storage_packed_array_1_0, v169
-    v171 = ptrtoint memptr v170 to i256
+    v171 = ptrtoint ptr<memory> v170 to i256
     v172 = shl 5, v166
     v173 = ptradd v165, v172
     store v173+32, v171
@@ -1196,7 +1196,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v86 = shl 5, v84
     v87 = ptradd v21, v86
     v88 = load v87+32
-    v89 = inttoptr i256 v88 to memptr
+    v89 = inttoptr i256 v88 to ptr<memory>
     v90 = eq v88, 0
     jumpi v90, bb15, bb16
   bb15:
@@ -1204,7 +1204,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     store v91, 0
     v92 = shl 5, v84
     v93 = ptradd v21, v92
-    v94 = ptrtoint memptr v91 to i256
+    v94 = ptrtoint ptr<memory> v91 to i256
     store v93+32, v94
     jump bb16
   bb16:
@@ -1342,7 +1342,7 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     v54 = lt v53, v36
     jumpi v54, bb5, bb6
   bb6:
-    v64 = ptrtoint memptr v52 to i256
+    v64 = ptrtoint ptr<memory> v52 to i256
     v65 = shl 5, v22
     v66 = ptradd v21, v65
     store v66+32, v64
@@ -1363,19 +1363,19 @@ fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_param
     jump bb4
 }
 
-fn @from_address_storage() -> memptr [selector=0x2c88d24b, view, abi_params=[], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+fn @from_address_storage() -> ptr<memory> [selector=0x2c88d24b, view, abi_params=[], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @load_storage_packed_array_20_0, 2
     ret v0
 }
 
-fn @load_storage_packed_array_1_0(arg0: i256) -> memptr {
+fn @load_storage_packed_array_1_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u8, arg0
     ret v0
 }
 
-fn @load_storage_packed_array_20_0(arg0: i256) -> memptr {
+fn @load_storage_packed_array_20_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u160, arg0
     ret v0

@@ -2,7 +2,7 @@
 @module TryCatchFull
 @phase lowered
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
 
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
@@ -108,7 +108,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     store v239, 1
     v95 = add v239, 32
     store v95, 64
-    v225 = ptrtoint memptr v70 to i256
+    v225 = ptrtoint ptr<memory> v70 to i256
     v101 = ne v225, 0
     v102 = zext i1 v101 to i256
     v98 = load v225
@@ -137,7 +137,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb9:
     v54 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v250 = load 64 !metadata(memory=scratch)
-    v55 = inttoptr i256 v250 to memptr !metadata(memory=scratch)
+    v55 = inttoptr i256 v250 to ptr<memory> !metadata(memory=scratch)
     v251 = add v250, v54
     store 64, v251 !metadata(memory=scratch)
     store v250, v50
@@ -146,13 +146,13 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v214 = icall @decode_aggregate.5, v55
     v218 = load 32 !metadata(memory=scratch)
     v216 = add v218, 32
-    v217 = load v216, memptr
+    v217 = load v216, ptr<memory>
     v252 = load 64 !metadata(memory=scratch)
     v186 = add v252, 64
     store v252, v214
     v188 = add v252, 32
     store v188, 64
-    v233 = ptrtoint memptr v217 to i256
+    v233 = ptrtoint ptr<memory> v217 to i256
     v194 = ne v233, 0
     v195 = zext i1 v194 to i256
     v191 = load v233
@@ -224,7 +224,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb8:
     v36 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v78 = load 64 !metadata(memory=scratch)
-    v37 = inttoptr i256 v78 to memptr !metadata(memory=scratch)
+    v37 = inttoptr i256 v78 to ptr<memory> !metadata(memory=scratch)
     v79 = add v78, v36
     store 64, v79 !metadata(memory=scratch)
     store v78, v32
@@ -272,7 +272,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_aggregate.4(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
+fn @decode_aggregate.4(arg0: i256, arg1: i256) -> ptr<memory> [may_return_memory] {
   bb0:
     v3 = add arg0, arg1
     v4 = slt arg1, 32
@@ -293,7 +293,7 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
   bb5:
     v17 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v28 = load 64 !metadata(memory=scratch)
-    v18 = inttoptr i256 v28 to memptr !metadata(memory=scratch)
+    v18 = inttoptr i256 v28 to ptr<memory> !metadata(memory=scratch)
     v29 = add v28, v17
     v30 = lt v29, v28
     v31 = gt v29, 0xffffffffffffffff
@@ -317,9 +317,9 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_aggregate.5(arg0: memptr) -> struct0 [may_return_memory, return_abi=[i256, memptr]] {
+fn @decode_aggregate.5(arg0: ptr<memory>) -> struct0 [may_return_memory, return_abi=[i256, ptr<memory>]] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
     v3 = load v0
     v4 = add v1, v3
@@ -343,7 +343,7 @@ fn @decode_aggregate.5(arg0: memptr) -> struct0 [may_return_memory, return_abi=[
   bb5:
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v34 = load 64 !metadata(memory=scratch)
-    v21 = inttoptr i256 v34 to memptr !metadata(memory=scratch)
+    v21 = inttoptr i256 v34 to ptr<memory> !metadata(memory=scratch)
     v35 = add v34, v20
     v36 = lt v35, v34
     v37 = gt v35, 0xffffffffffffffff

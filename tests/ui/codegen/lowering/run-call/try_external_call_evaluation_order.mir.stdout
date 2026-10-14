@@ -16,13 +16,13 @@ fn @constructor() [constructor] {
     v1 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0
     v2 = datasize TryExternalCallEvaluationOrderTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryExternalCallEvaluationOrderTarget_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -86,8 +86,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v3 = icall @valueOpt
     v4 = icall @arg
     v5 = abi_encode [word], selector 0x773acdef00000000000000000000000000000000000000000000000000000000, args v4
-    v6 = extract_value memoryslice, v5, 0
-    v7 = extract_value memoryslice, v5, 1
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v0 to i256
     v9 = call v2, v8, v3, v6, v7, 0, 32
     jumpi v9, bb1, bb2

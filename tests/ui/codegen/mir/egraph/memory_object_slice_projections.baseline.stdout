@@ -1,26 +1,26 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after lower-memory-objects) ===
   @module MemoryObjectSliceProjections
-- fn @dynamic_payload(arg0: memoryslice) -> i256 {
-+ fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
+- fn @dynamic_payload(arg0: slice<memory>) -> i256 {
++ fn @dynamic_payload(arg0: slice<memory>) -> i256 [may_return_memory] {
     bb0:
-      v0 = extract_value memoryslice, arg0, 0
--     v1 = inttoptr i256 v0 to memptr
--     v2 = ptrtoint memptr v1 to i256
+      v0 = extract_value slice<memory>, arg0, 0
+-     v1 = inttoptr i256 v0 to ptr<memory>
+-     v2 = ptrtoint ptr<memory> v1 to i256
 -     ret v2
 +     ret v0
   }
   
-  fn @memory_field(arg0: memoryslice) -> i256 {
+  fn @memory_field(arg0: slice<memory>) -> i256 {
     bb0:
-      v0 = extract_value memoryslice, arg0, 0
+      v0 = extract_value slice<memory>, arg0, 0
       v1 = load v0
       ret v1
   }
   
-  fn @calldata_field(arg0: calldataslice) -> i256 {
+  fn @calldata_field(arg0: slice<calldata>) -> i256 {
     bb0:
-      v0 = extract_value calldataslice, arg0, 0
+      v0 = extract_value slice<calldata>, arg0, 0
       v1 = load calldata v0
       ret v1
   }
@@ -28,27 +28,27 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after lower-slices) ===
   @module MemoryObjectSliceProjections
-- fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
+- fn @dynamic_payload(arg0: slice<memory>) -> i256 [may_return_memory] {
 + fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v0 = extract_value memoryslice, arg0, 0
+-     v0 = extract_value slice<memory>, arg0, 0
 -     ret v0
 +     ret arg0
   }
   
-- fn @memory_field(arg0: memoryslice) -> i256 {
+- fn @memory_field(arg0: slice<memory>) -> i256 {
 + fn @memory_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v0 = extract_value memoryslice, arg0, 0
+-     v0 = extract_value slice<memory>, arg0, 0
 -     v1 = load v0
 +     v1 = load arg0
       ret v1
   }
   
-- fn @calldata_field(arg0: calldataslice) -> i256 {
+- fn @calldata_field(arg0: slice<calldata>) -> i256 {
 + fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v0 = extract_value calldataslice, arg0, 0
+-     v0 = extract_value slice<calldata>, arg0, 0
 -     v1 = load calldata v0
 +     v1 = load calldata arg0
       ret v1

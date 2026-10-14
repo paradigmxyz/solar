@@ -489,7 +489,7 @@ fn @constructor() [constructor] {
     v501 = shl 5, v499
     v502 = ptradd v475, v501
     v503 = load v502+32
-    v504 = inttoptr i256 v503 to memptr
+    v504 = inttoptr i256 v503 to ptr<memory>
     v505 = eq v503, 0
     jumpi v505, bb119, bb120
   bb119:
@@ -497,7 +497,7 @@ fn @constructor() [constructor] {
     store v506, 0
     v507 = shl 5, v499
     v508 = ptradd v475, v507
-    v509 = ptrtoint memptr v506 to i256
+    v509 = ptrtoint ptr<memory> v506 to i256
     store v508+32, v509
     jump bb120
   bb120:
@@ -602,7 +602,7 @@ fn @constructor() [constructor] {
     v310 = shl 5, v308
     v311 = ptradd v282, v310
     v312 = load v311+32
-    v313 = inttoptr i256 v312 to memptr
+    v313 = inttoptr i256 v312 to ptr<memory>
     v314 = eq v312, 0
     jumpi v314, bb96, bb97
   bb96:
@@ -610,7 +610,7 @@ fn @constructor() [constructor] {
     store v315, 0
     v316 = shl 5, v308
     v317 = ptradd v282, v316
-    v318 = ptrtoint memptr v315 to i256
+    v318 = ptrtoint ptr<memory> v315 to i256
     store v317+32, v318
     jump bb97
   bb97:
@@ -715,7 +715,7 @@ fn @constructor() [constructor] {
     v191 = shl 5, v189
     v192 = ptradd v162, v191
     v193 = load v192+32
-    v194 = inttoptr i256 v193 to memptr
+    v194 = inttoptr i256 v193 to ptr<memory>
     v195 = eq v193, 0
     jumpi v195, bb63, bb64
   bb63:
@@ -723,7 +723,7 @@ fn @constructor() [constructor] {
     store v196, 0
     v197 = shl 5, v189
     v198 = ptradd v162, v197
-    v199 = ptrtoint memptr v196 to i256
+    v199 = ptrtoint ptr<memory> v196 to i256
     store v198+32, v199
     jump bb64
   bb64:
@@ -756,7 +756,7 @@ fn @constructor() [constructor] {
     v220 = shl 5, v218
     v221 = ptradd v200, v220
     v222 = load v221+32
-    v223 = inttoptr i256 v222 to memptr
+    v223 = inttoptr i256 v222 to ptr<memory>
     v224 = eq v222, 0
     jumpi v224, bb73, bb74
   bb73:
@@ -764,7 +764,7 @@ fn @constructor() [constructor] {
     store v225, 0
     v226 = shl 5, v218
     v227 = ptradd v200, v226
-    v228 = ptrtoint memptr v225 to i256
+    v228 = ptrtoint ptr<memory> v225 to i256
     store v227+32, v228
     jump bb74
   bb74:
@@ -896,7 +896,7 @@ fn @constructor() [constructor] {
     v35 = shl 5, v33
     v36 = ptradd v0, v35
     v37 = load v36+32
-    v38 = inttoptr i256 v37 to memptr
+    v38 = inttoptr i256 v37 to ptr<memory>
     v39 = eq v37, 0
     jumpi v39, bb18, bb19
   bb18:
@@ -909,7 +909,7 @@ fn @constructor() [constructor] {
   bb22:
     v48 = shl 5, v33
     v49 = ptradd v0, v48
-    v50 = ptrtoint memptr v40 to i256
+    v50 = ptrtoint ptr<memory> v40 to i256
     store v49+32, v50
     jump bb19
   bb19:
@@ -1050,7 +1050,7 @@ fn @constructor() [constructor] {
     jump bb23
   bb35:
     v83 = shl 5, v81
-    v84 = inttoptr i256 v61 to memptr
+    v84 = inttoptr i256 v61 to ptr<memory>
     v85 = ptradd v84, v83
     v86 = load v85+32
     v87 = storage_array_data_slot v57
@@ -1091,7 +1091,7 @@ fn @constructor() [constructor] {
     store v43, 0
     v44 = shl 5, v41
     v45 = ptradd v40, v44
-    v46 = ptrtoint memptr v43 to i256
+    v46 = ptrtoint ptr<memory> v43 to i256
     store v45, v46
     v47 = add v41, 1
     jump bb20
@@ -1130,7 +1130,7 @@ fn @constructor() [constructor] {
   bb6:
     v9 = shl 5, v1
     v10 = ptradd v0, v9
-    v11 = ptrtoint memptr v3 to i256
+    v11 = ptrtoint ptr<memory> v3 to i256
     store v10+32, v11
     v12 = add v1, 1
     jump bb1
@@ -1178,7 +1178,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v24 = lt v23, v5
     jumpi v24, bb2, bb3
   bb3:
-    v32 = ptrtoint memptr v22 to i256
+    v32 = ptrtoint ptr<memory> v22 to i256
     v33 = load v32
     v34 = sload 4 !metadata(storage=slot(4))
     v35 = gt v34, v33
@@ -1284,7 +1284,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v50 = shl 5, v48
     v51 = ptradd v22, v50
     v52 = load v51+32
-    v53 = inttoptr i256 v52 to memptr
+    v53 = inttoptr i256 v52 to ptr<memory>
     v54 = eq v52, 0
     jumpi v54, bb12, bb13
   bb12:
@@ -1292,7 +1292,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     store v55, 0
     v56 = shl 5, v48
     v57 = ptradd v22, v56
-    v58 = ptrtoint memptr v55 to i256
+    v58 = ptrtoint ptr<memory> v55 to i256
     store v57+32, v58
     jump bb13
   bb13:
@@ -1391,7 +1391,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v25 = storage_array_data_slot v4
     v26 = add v25, v23
     v27 = icall @load_storage_packed_array_1_0, v26
-    v28 = ptrtoint memptr v27 to i256
+    v28 = ptrtoint ptr<memory> v27 to i256
     v29 = shl 5, v23
     v30 = ptradd v22, v29
     store v30+32, v28
@@ -1433,7 +1433,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v22 = lt v21, v3
     jumpi v22, bb2, bb3
   bb3:
-    v30 = ptrtoint memptr v20 to i256
+    v30 = ptrtoint ptr<memory> v20 to i256
     v31 = load v30
     v32 = sload 4 !metadata(storage=slot(4))
     v33 = gt v32, v31
@@ -1539,7 +1539,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v48 = shl 5, v46
     v49 = ptradd v20, v48
     v50 = load v49+32
-    v51 = inttoptr i256 v50 to memptr
+    v51 = inttoptr i256 v50 to ptr<memory>
     v52 = eq v50, 0
     jumpi v52, bb12, bb13
   bb12:
@@ -1547,7 +1547,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     store v53, 0
     v54 = shl 5, v46
     v55 = ptradd v20, v54
-    v56 = ptrtoint memptr v53 to i256
+    v56 = ptrtoint ptr<memory> v53 to i256
     store v55+32, v56
     jump bb13
   bb13:
@@ -1646,7 +1646,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v23 = storage_array_data_slot v2
     v24 = add v23, v21
     v25 = icall @load_storage_packed_array_1_0, v24
-    v26 = ptrtoint memptr v25 to i256
+    v26 = ptrtoint ptr<memory> v25 to i256
     v27 = shl 5, v21
     v28 = ptradd v20, v27
     store v28+32, v26
@@ -1670,7 +1670,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v8 = lt v7, 2
     jumpi v8, bb2, bb3
   bb3:
-    v15 = ptrtoint memptr v6 to i256
+    v15 = ptrtoint ptr<memory> v6 to i256
     jump bb4
   bb4:
     v16 = phi [bb3: 0], [bb9: v121]
@@ -1875,7 +1875,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     jump bb4
   bb16:
     v44 = shl 5, v42
-    v45 = inttoptr i256 v22 to memptr
+    v45 = inttoptr i256 v22 to ptr<memory>
     v46 = ptradd v45, v44
     v47 = load v46+32
     v48 = storage_array_data_slot v18
@@ -1914,7 +1914,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
   bb2:
     v9 = add v5, v7
     v10 = icall @load_storage_packed_array_1_0, v9
-    v11 = ptrtoint memptr v10 to i256
+    v11 = ptrtoint ptr<memory> v10 to i256
     v12 = shl 5, v7
     v13 = ptradd v6, v12
     store v13, v11
@@ -1922,7 +1922,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     jump bb1
 }
 
-fn @load_storage_packed_array_1_0(arg0: i256) -> memptr {
+fn @load_storage_packed_array_1_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u8, arg0
     ret v0

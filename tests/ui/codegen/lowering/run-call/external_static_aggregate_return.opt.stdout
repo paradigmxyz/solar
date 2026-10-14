@@ -2,7 +2,7 @@
 @module ExternalStaticAggregateReturn
 @phase lowered
 @types
-  struct0: {memptr, i256}
+  struct0: {ptr<memory>, i256}
 
 fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
   bb0:
@@ -21,7 +21,7 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v4 = eq v3, 0
     jumpi v4, bb1, bb2
   bb2:
-    v19 = ptrtoint memptr v1 to i256
+    v19 = ptrtoint ptr<memory> v1 to i256
     store v19, arg0
     v14 = add v19, 32
     store v14, v3
@@ -102,7 +102,7 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
   bb2:
-    v25 = ptrtoint memptr v1 to i256
+    v25 = ptrtoint ptr<memory> v1 to i256
     store v25, arg0
     v20 = add v25, 32
     store v20, v6
@@ -145,7 +145,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v32 = add v41, 4
     store v32, arg0
     v40 = add v41, 64
-    v5 = inttoptr i256 v40 to memptr
+    v5 = inttoptr i256 v40 to ptr<memory>
     v8 = staticcall v1, v0, v41, 36, v40, 64
     jumpi v8, bb2, bb1
   bb1:
@@ -159,7 +159,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     jumpi v10, bb3, bb4
   bb4:
     v23 = icall @decode_static, v5
-    v37 = ptrtoint memptr v23 to i256
+    v37 = ptrtoint ptr<memory> v23 to i256
     v14 = load v37
     v36 = add v37, 32
     v15 = load v36
@@ -259,7 +259,7 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v32 = add v41, 4
     store v32, arg0
     v40 = add v41, 64
-    v5 = inttoptr i256 v40 to memptr
+    v5 = inttoptr i256 v40 to ptr<memory>
     v8 = staticcall v1, v0, v41, 36, v40, 64
     jumpi v8, bb1, bb2
   bb2:
@@ -271,7 +271,7 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     jumpi v10, bb3, bb4
   bb4:
     v23 = icall @decode_static, v5
-    v37 = ptrtoint memptr v23 to i256
+    v37 = ptrtoint ptr<memory> v23 to i256
     v14 = load v37
     v36 = add v37, 32
     v15 = load v36
@@ -318,7 +318,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb4:
     v33 = alloc 64 !metadata(deferred_alloc)
     v34 = load v58
-    v55 = ptrtoint memptr v33 to i256
+    v55 = ptrtoint ptr<memory> v33 to i256
     store v55, v34
     v35 = add v59, 96
     v36 = load v35
@@ -352,7 +352,7 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     store 64, v40 !metadata(memory=scratch)
     store v39, 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
     v38 = add v39, 32
-    v5 = inttoptr i256 v38 to memptr
+    v5 = inttoptr i256 v38 to ptr<memory>
     v8 = staticcall v1, v0, v39, 4, v38, 64
     jumpi v8, bb2, bb1
   bb1:
@@ -366,7 +366,7 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     jumpi v10, bb3, bb4
   bb4:
     v23 = icall @decode_static, v5
-    v36 = ptrtoint memptr v23 to i256
+    v36 = ptrtoint ptr<memory> v23 to i256
     v14 = load v36
     v34 = add v36, 32
     v15 = load v34
@@ -384,13 +384,13 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @decode_static(arg0: memptr) -> memptr [may_return_memory] {
+fn @decode_static(arg0: ptr<memory>) -> ptr<memory> [may_return_memory] {
   bb0:
     v12 = load 64 !metadata(memory=scratch)
-    v3 = inttoptr i256 v12 to memptr !metadata(memory=scratch)
+    v3 = inttoptr i256 v12 to ptr<memory> !metadata(memory=scratch)
     v13 = add v12, 64
     store 64, v13 !metadata(memory=scratch)
-    v10 = ptrtoint memptr arg0 to i256
+    v10 = ptrtoint ptr<memory> arg0 to i256
     v4 = load v10
     store v12, v4
     v6 = add v10, 32

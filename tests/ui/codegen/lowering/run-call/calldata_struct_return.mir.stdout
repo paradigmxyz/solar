@@ -6,16 +6,16 @@
 @module CalldataStructReturn
 @types
   struct0: {i1, i256}
-  struct1: {i1, calldataslice}
+  struct1: {i1, slice<calldata>}
   struct2: {i1, i256, i256, i256, i256, i256, i256}
-  struct3: {i1, memptr}
+  struct3: {i1, ptr<memory>}
 
-fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
+fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
     v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
-    v3 = extract_value calldataslice, v2, 0
+    v3 = extract_value slice<calldata>, v2, 0
     v4 = add v3, 64
     v5 = load calldata v4
     v6 = insert_value struct0, undef struct0, 0, v1
@@ -23,7 +23,7 @@ fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_param
     ret v7
 }
 
-fn @decode.1(arg0: calldataslice) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
+fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
   bb0:
     v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
@@ -39,20 +39,20 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v1 = gas
     v2 = alloc 64 !metadata(preserves_fmp)
     store v2, 3
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     store v4, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
-    v5 = ptrtoint memptr v2 to i256
+    v5 = ptrtoint ptr<memory> v2 to i256
     v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 4
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
     store v8, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
-    v9 = ptrtoint memptr v6 to i256
+    v9 = ptrtoint ptr<memory> v6 to i256
     v10 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v6
     v11 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v10
-    v12 = extract_value memoryslice, v11, 0
-    v13 = extract_value memoryslice, v11, 1
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v0 to i256
     v15 = staticcall v1, v14, v12, v13, 0, 0
     jumpi v15, bb2, bb1
@@ -71,9 +71,9 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v25 = load v23+32
     v26 = load v23+64
     v27 = load v23+96
-    v28 = load v23+128, memptr
+    v28 = load v23+128, ptr<memory>
     v29 = load v28
-    v30 = load v23+160, memptr
+    v30 = load v23+160, ptr<memory>
     v31 = load v30
     v32 = insert_value struct2, undef struct2, 0, v22
     v33 = insert_value struct2, v32, 1, v24
@@ -85,9 +85,9 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     ret v38
 }
 
-fn @decode.3(arg0: calldataslice) -> struct1 [pure] {
+fn @decode.3(arg0: slice<calldata>) -> struct1 [pure] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = make_calldata_slice v0, 0
     v2 = insert_value struct1, undef struct1, 0, true
     v3 = insert_value struct1, v2, 1, v1

@@ -503,7 +503,7 @@ fn display_inst_kind<'a>(
         }
         InstKind::Load(..) if result_ty == Some(MirType::MEMPTR) => {
             display_inst_operands(f, kind, func)?;
-            write!(f, ", memptr")
+            write!(f, ", ptr<memory>")
         }
         InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
             f,

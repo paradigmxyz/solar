@@ -1,10 +1,10 @@
-error: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn0] non-word type `slice<memory>` survives the `lowered` phase boundary
 
 error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
 
 error: [fn0] [bb0, inst1] slice instruction `extract_value` survives the `lowered` phase boundary
 
-error: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn1] non-word type `slice<memory>` survives the `lowered` phase boundary
 
 error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 
@@ -32,11 +32,11 @@ error: [fn3] [bb0, inst5] storage slot instruction `storage_array_data_slot` sur
 
 error: [fn3] [bb0, inst6] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
 
-error: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
+error: [fn4] non-word type `slice<memory>` survives the `lowered` phase boundary
 
-error: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
+error: [fn5] non-word type `slice<calldata>` survives the `lowered` phase boundary
 
-error: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
+error: [fn6] non-word type `slice<returndata>` survives the `lowered` phase boundary
 
 error: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 

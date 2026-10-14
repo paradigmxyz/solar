@@ -9,10 +9,10 @@
 fn @operations(arg0: i256) -> i256 {
   bb0:
     v4 = fmp
-    v1 = ptrtoint memptr v4 to i256
+    v1 = ptrtoint ptr<memory> v4 to i256
     set_fmp v4 !metadata(preserves_fmp, effect=memory_write)
     v5 = alloc 64
-    v2 = ptrtoint memptr v5 to i256
+    v2 = ptrtoint ptr<memory> v5 to i256
     store v2, arg0
     ret v2
 }
@@ -22,7 +22,7 @@ fn @operations(arg0: i256) -> i256 {
 fn @deferred() {
   bb0:
     v6 = alloc 32 !metadata(deferred_alloc)
-    v0 = ptrtoint memptr v6 to i256
+    v0 = ptrtoint ptr<memory> v6 to i256
     store v0, 1
     stop
 }

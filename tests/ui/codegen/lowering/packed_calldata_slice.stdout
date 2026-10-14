@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/packed_calldata_slice.sol:PackedCalldataSlice ===
 @module PackedCalldataSlice
-fn @slice(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @slice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
@@ -16,12 +16,12 @@ fn @slice(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xe00
     ret v9
 }
 
-fn @all() -> memptr [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @all() -> ptr<memory> [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = extract_value calldataslice, v1, 0
-    v3 = extract_value calldataslice, v1, 1
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5

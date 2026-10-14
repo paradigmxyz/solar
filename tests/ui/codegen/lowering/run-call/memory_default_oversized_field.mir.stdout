@@ -13,17 +13,17 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = load v0
-    v11 = inttoptr i256 v10 to memptr
+    v11 = inttoptr i256 v10 to ptr<memory>
     v12 = eq v10, 0
     jumpi v12, bb5, bb6
   bb5:
     v13 = icall @default_struct_0
-    v14 = ptrtoint memptr v13 to i256
+    v14 = ptrtoint ptr<memory> v13 to i256
     store v0, v14
     jump bb6
   bb6:
     v15 = phi [bb3: v11], [bb5: v13]
-    v16 = load v15, memptr
+    v16 = load v15, ptr<memory>
     v17 = lt 2, 0x1000000000000000
     v18 = eq v17, false
     icall panic_if<0x32>, v18
@@ -37,7 +37,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     store v3, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
-    v6 = ptrtoint memptr v3 to i256
+    v6 = ptrtoint ptr<memory> v3 to i256
     store v5, v6
     v7 = add v1, 1
     jump bb1
@@ -58,17 +58,17 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = load v0+32
-    v12 = inttoptr i256 v11 to memptr
+    v12 = inttoptr i256 v11 to ptr<memory>
     v13 = eq v11, 0
     jumpi v13, bb5, bb6
   bb5:
     v14 = icall @default_struct_0
-    v15 = ptrtoint memptr v14 to i256
+    v15 = ptrtoint ptr<memory> v14 to i256
     store v0+32, v15
     jump bb6
   bb6:
     v16 = phi [bb3: v12], [bb5: v14]
-    v17 = load v16, memptr
+    v17 = load v16, ptr<memory>
     v18 = lt 2, 0x1000000000000000
     v19 = eq v18, false
     icall panic_if<0x32>, v19
@@ -82,13 +82,13 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     store v3, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
-    v6 = ptrtoint memptr v3 to i256
+    v6 = ptrtoint ptr<memory> v3 to i256
     store v5+32, v6
     v7 = add v1, 1
     jump bb1
 }
 
-fn @default_struct_0() -> memptr {
+fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 32
     icall panic_if<0x41>, true

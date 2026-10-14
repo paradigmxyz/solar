@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/run-call/string_line_continuation.sol:StringLineContinuation ===
 @module StringLineContinuation
-fn @unicodeLine() -> memptr [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @unicodeLine() -> ptr<memory> [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 20
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
     ret v0
 }
 
-fn @asciiLine() -> memptr [selector=0x9c02ba08, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @asciiLine() -> ptr<memory> [selector=0x9c02ba08, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 5
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6120202062000000000000000000000000000000000000000000000000000000
     ret v0

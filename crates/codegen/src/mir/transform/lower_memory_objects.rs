@@ -1,11 +1,11 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
 //! `ptradd` becomes an integer `add` between pointer casts, an access's immediate offset becomes
-//! an `add` to its address, and a memory slice of a `memptr` gets its pointer cast to a word. Every
-//! memory access is already a `load`, `store`, or `copy` at an address, so nothing else changes
-//! here; the opcode boundary then casts pointer operands and results, and the casts this leaves
-//! unused are removed. Unreachable blocks are removed first: their definitions need not obey SSA
-//! and can contain cast cycles.
+//! an `add` to its address, and a memory slice of a `ptr<memory>` gets that pointer cast to a
+//! word. Every memory access is already a `load`, `store`, or `copy` at an address, so nothing
+//! else changes here; the opcode boundary then casts pointer operands and results, and the casts
+//! this leaves unused are removed. Unreachable blocks are removed first: their definitions need
+//! not obey SSA and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -319,7 +319,7 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
         builder.switch_to_block(block);
         for id in instructions {
             let inst = builder.func().inst(id).clone();
-            // Memory accesses accept a `memptr` address, which `scalar_types_match` allows; cast
+            // Memory accesses accept a pointer address, which `scalar_types_match` allows; cast
             // it too, so every use of the object's address shares one stack value.
             let mut pointer_address = false;
             inst.kind.visit_operands(|value| {
@@ -335,7 +335,7 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
                 kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
                 if inst.result_ty == Some(MirType::MEMPTR) {
                     // integer_result = opcode integer_operands
-                    // pointer_result = inttoptr integer_result to memptr
+                    // pointer_result = inttoptr integer_result to ptr<memory>
                     let value = builder.emit_inst(kind, Some(MirType::I256));
                     if let Value::Inst(emitted) = *builder.func().value(value) {
                         builder.func_mut().inst_mut(emitted).metadata = inst.metadata.clone();

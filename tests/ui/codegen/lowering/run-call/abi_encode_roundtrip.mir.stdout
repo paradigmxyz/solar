@@ -2,9 +2,9 @@
 @module AbiEncodeRoundtrip
 @types
   struct0: {i256, i256, i8}
-  struct1: {memptr, memptr, i8}
+  struct1: {ptr<memory>, ptr<memory>, i8}
   struct2: {i256, i256, i256, i256}
-  struct3: {memptr, memptr}
+  struct3: {ptr<memory>, ptr<memory>}
 
 fn @roundtrip(arg0: i256) -> i256 [selector=0x33cddcf6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -13,14 +13,14 @@ fn @roundtrip(arg0: i256) -> i256 [selector=0x33cddcf6, pure, abi_params=[u256],
     ret v1
 }
 
-fn @bytesRoundtrip(arg0: memptr) -> memptr [selector=0x2e2230c7, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bytesRoundtrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x2e2230c7, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [memory_bytes], object, args arg0
     v1 = abi_decode [bytes], v0
     ret v1
 }
 
-fn @wordsRoundtrip(arg0: memptr) -> i256 [selector=0x285417c3, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @wordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0x285417c3, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [memory_array<word>], object, args arg0
     v1 = abi_decode [array<_, u256>], v0
@@ -44,7 +44,7 @@ fn @wordsRoundtrip(arg0: memptr) -> i256 [selector=0x285417c3, pure, abi_params=
     ret v15
 }
 
-fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedWordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], object, args arg0
     v1 = abi_decode [array<_, array<_, u256>>], v0
@@ -53,13 +53,13 @@ fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_p
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = load v1+64
-    v6 = inttoptr i256 v5 to memptr
+    v6 = inttoptr i256 v5 to ptr<memory>
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
   bb1:
     v8 = alloc 32
     store v8, 0
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     store v1+64, v9
     jump bb2
   bb2:
@@ -75,7 +75,7 @@ fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_p
 fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<u8>], abi_return_params=[u256, u256, u8]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
     v3 = eq v2, false
@@ -87,7 +87,7 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
     store v0+32, 9
     v6 = alloc 64 !metadata(preserves_fmp)
     store v6, 3
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
     store v8, 0x102030000000000000000000000000000000000000000000000000000000000
     v9 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v6, 3
@@ -122,20 +122,20 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = ptrtoint memptr v6 to i256
+    v10 = ptrtoint ptr<memory> v6 to i256
     store v0+32, v10
     v11 = load v0
     v12 = lt 0, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = load v0+32
-    v15 = inttoptr i256 v14 to memptr
+    v15 = inttoptr i256 v14 to ptr<memory>
     v16 = eq v14, 0
     jumpi v16, bb4, bb5
   bb4:
     v17 = alloc 32
     store v17, 0
-    v18 = ptrtoint memptr v17 to i256
+    v18 = ptrtoint ptr<memory> v17 to i256
     store v0+32, v18
     jump bb5
   bb5:
@@ -150,13 +150,13 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = load v0+32
-    v27 = inttoptr i256 v26 to memptr
+    v27 = inttoptr i256 v26 to ptr<memory>
     v28 = eq v26, 0
     jumpi v28, bb6, bb7
   bb6:
     v29 = alloc 32
     store v29, 0
-    v30 = ptrtoint memptr v29 to i256
+    v30 = ptrtoint ptr<memory> v29 to i256
     store v0+32, v30
     jump bb7
   bb7:
@@ -172,20 +172,20 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v37 = lt 1, v36
     v38 = eq v37, false
     icall panic_if<0x32>, v38
-    v39 = ptrtoint memptr v35 to i256
+    v39 = ptrtoint ptr<memory> v35 to i256
     store v0+64, v39
     v40 = load v0
     v41 = lt 1, v40
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = load v0+64
-    v44 = inttoptr i256 v43 to memptr
+    v44 = inttoptr i256 v43 to ptr<memory>
     v45 = eq v43, 0
     jumpi v45, bb8, bb9
   bb8:
     v46 = alloc 32
     store v46, 0
-    v47 = ptrtoint memptr v46 to i256
+    v47 = ptrtoint ptr<memory> v46 to i256
     store v0+64, v47
     jump bb9
   bb9:
@@ -197,7 +197,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     store v48+32, 3
     v52 = alloc 64 !metadata(preserves_fmp)
     store v52, 4
-    v53 = ptrtoint memptr v52 to i256
+    v53 = ptrtoint ptr<memory> v52 to i256
     v54 = add v53, 32
     store v54, 0x102030400000000000000000000000000000000000000000000000000000000
     v55 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v52
@@ -210,13 +210,13 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = load v57+32
-    v64 = inttoptr i256 v63 to memptr
+    v64 = inttoptr i256 v63 to ptr<memory>
     v65 = eq v63, 0
     jumpi v65, bb10, bb11
   bb10:
     v66 = alloc 32
     store v66, 0
-    v67 = ptrtoint memptr v66 to i256
+    v67 = ptrtoint ptr<memory> v66 to i256
     store v57+32, v67
     jump bb11
   bb11:
@@ -231,13 +231,13 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v75 = eq v74, false
     icall panic_if<0x32>, v75
     v76 = load v57+64
-    v77 = inttoptr i256 v76 to memptr
+    v77 = inttoptr i256 v76 to ptr<memory>
     v78 = eq v76, 0
     jumpi v78, bb12, bb13
   bb12:
     v79 = alloc 32
     store v79, 0
-    v80 = ptrtoint memptr v79 to i256
+    v80 = ptrtoint ptr<memory> v79 to i256
     store v57+64, v80
     jump bb13
   bb13:
@@ -264,8 +264,8 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
 fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [word], scratch, args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }

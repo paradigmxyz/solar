@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_reencode.sol:AbiCalldataNestedReencode ===
 @module AbiCalldataNestedReencode
-fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @encode3d(arg0: slice<calldata>) -> i256 [selector=0x92a57dfa, pure, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -36,8 +36,8 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     jumpi v23, bb2, bb3
   bb3:
     v103 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v21
-    v104 = extract_value memoryslice, v103, 0
-    v105 = extract_value memoryslice, v103, 1
+    v104 = extract_value slice<memory>, v103, 0
+    v105 = extract_value slice<memory>, v103, 1
     v106 = keccak256 v104, v105
     ret v106
   bb2:
@@ -83,7 +83,7 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v54 = lt v53, v36
     jumpi v54, bb5, bb6
   bb6:
-    v99 = ptrtoint memptr v52 to i256
+    v99 = ptrtoint ptr<memory> v52 to i256
     v100 = shl 5, v22
     v101 = ptradd v21, v100
     store v101+32, v99
@@ -132,7 +132,7 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     v85 = lt v84, v67
     jumpi v85, bb8, bb9
   bb9:
-    v95 = ptrtoint memptr v83 to i256
+    v95 = ptrtoint ptr<memory> v83 to i256
     v96 = shl 5, v53
     v97 = ptradd v52, v96
     store v97+32, v95
@@ -153,10 +153,10 @@ fn @encode3d(arg0: calldataslice) -> i256 [selector=0x92a57dfa, pure, abi_params
     jump bb7
 }
 
-fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_params=[array<_, array<2, array<_, u16>>>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @encodeFixed(arg0: slice<calldata>) -> i256 [selector=0x8942c5a0, pure, abi_params=[array<_, array<2, array<_, u16>>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -189,8 +189,8 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     jumpi v23, bb2, bb3
   bb3:
     v90 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v21
-    v91 = extract_value memoryslice, v90, 0
-    v92 = extract_value memoryslice, v90, 1
+    v91 = extract_value slice<memory>, v90, 0
+    v92 = extract_value slice<memory>, v90, 1
     v93 = keccak256 v91, v92
     ret v93
   bb2:
@@ -219,7 +219,7 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v41 = lt v40, 2
     jumpi v41, bb5, bb6
   bb6:
-    v86 = ptrtoint memptr v39 to i256
+    v86 = ptrtoint ptr<memory> v39 to i256
     v87 = shl 5, v22
     v88 = ptradd v21, v87
     store v88+32, v86
@@ -268,7 +268,7 @@ fn @encodeFixed(arg0: calldataslice) -> i256 [selector=0x8942c5a0, pure, abi_par
     v72 = lt v71, v54
     jumpi v72, bb8, bb9
   bb9:
-    v82 = ptrtoint memptr v70 to i256
+    v82 = ptrtoint ptr<memory> v70 to i256
     v83 = shl 5, v40
     v84 = ptradd v39, v83
     store v84, v82

@@ -1,16 +1,16 @@
 - // === ROOT/tests/ui/codegen/mir/cse/memory_object_cse.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/memory_object_cse.mir (after cse) ===
   @module MemoryObjectCse
-  fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr) -> i256 {
+  fn @reuse_projections(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 {
     bb0:
       v0 = ptradd arg0, 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
 -     v2 = ptradd arg0, 32
--     v3 = ptrtoint memptr v2 to i256
-      v4 = ptrtoint memptr arg1 to i256
--     v5 = ptrtoint memptr arg1 to i256
-      v6 = ptrtoint memptr arg2 to i256
--     v7 = ptrtoint memptr arg2 to i256
+-     v3 = ptrtoint ptr<memory> v2 to i256
+      v4 = ptrtoint ptr<memory> arg1 to i256
+-     v5 = ptrtoint ptr<memory> arg1 to i256
+      v6 = ptrtoint ptr<memory> arg2 to i256
+-     v7 = ptrtoint ptr<memory> arg2 to i256
 -     v8 = eq v1, v3
 -     v9 = eq v4, v5
 -     v10 = eq v6, v7
@@ -25,11 +25,11 @@
       ret v15
   }
   
-  fn @invalidate_length(arg0: memptr) -> i256 {
+  fn @invalidate_length(arg0: ptr<memory>) -> i256 {
     bb0:
       v0 = load arg0
 -     v1 = load arg0
-      v2 = ptrtoint memptr arg0 to i256
+      v2 = ptrtoint ptr<memory> arg0 to i256
       store v2, 9
 -     v3 = load arg0
 -     v4 = add v0, v1
@@ -85,10 +85,10 @@
   fn @forward_initialized_length() -> i256 {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 3
       v2 = ptradd v0, 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v3, 0
       jump bb1
     bb1:
@@ -97,9 +97,9 @@
 +     ret 3
   }
   
-  fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
+  fn @raw_header_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 3
       store v0, arg1
 -     v1 = load arg0
@@ -107,9 +107,9 @@
 +     ret arg1
   }
   
-  fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
+  fn @diamond_header_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
@@ -123,9 +123,9 @@
       ret v2
   }
   
-  fn @loop_header_clobber(arg0: memptr) -> i256 {
+  fn @loop_header_clobber(arg0: ptr<memory>) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 7
       jump bb1
     bb1:
@@ -142,22 +142,22 @@
   fn @recycled_header_clobber() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 3
-      v2 = inttoptr i256 v1 to memptr
+      v2 = inttoptr i256 v1 to ptr<memory>
       set_fmp v2
       v3 = alloc 32
-      v4 = ptrtoint memptr v3 to i256
+      v4 = ptrtoint ptr<memory> v3 to i256
       store v4, 4
       v5 = load v0
       ret v5
   }
   
-  fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
+  fn @parameter_may_overlap_allocation(arg0: ptr<memory>) -> i256 {
     bb0:
       v0 = alloc 32
       v1 = load arg0
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       store v2, 7
       v3 = load arg0
       v4 = add v1, v3
@@ -167,7 +167,7 @@
   fn @fabricated_parameter() -> i256 {
     bb0:
       v0 = load 64
-      v1 = inttoptr i256 v0 to memptr
+      v1 = inttoptr i256 v0 to ptr<memory>
       v2 = icall @parameter_may_overlap_allocation, v1
       ret v2
   }

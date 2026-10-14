@@ -18,7 +18,7 @@ fn @pack() -> struct0 [selector=0xef082838, pure, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v6
     store v0+64, 2
     v7 = abi_encode_packed (array<word> memoryarray<1> v0)
-    v8 = ptrtoint memptr v7 to i256
+    v8 = ptrtoint ptr<memory> v7 to i256
     v9 = add v8, 32
     v10 = load v7
     v11 = keccak256 v9, v10
@@ -32,17 +32,17 @@ fn @cleanDirtyMemory() -> i256 [selector=0x4585502b, pure, abi_params=[], abi_re
   bb0:
     v0 = alloc zeroed checked 96
     store v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 257
-    v3 = ptrtoint memptr v0 to i256
+    v3 = ptrtoint ptr<memory> v0 to i256
     v4 = add v3, 64
     store v4, 514
     v5 = abi_encode_packed (array<word<u8>> memoryarray<1> v0)
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     v7 = add v6, 32
     v8 = load v7
-    v9 = ptrtoint memptr v5 to i256
+    v9 = ptrtoint ptr<memory> v5 to i256
     v10 = add v9, 64
     v11 = load v10
     v12 = load v5
@@ -67,10 +67,10 @@ fn @cleanDirtyMemory() -> i256 [selector=0x4585502b, pure, abi_params=[], abi_re
     ret 1
 }
 
-fn @packCalldata(arg0: calldataslice) -> i256 [selector=0x38651f67, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packCalldata(arg0: slice<calldata>) -> i256 [selector=0x38651f67, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -103,7 +103,7 @@ fn @packCalldata(arg0: calldataslice) -> i256 [selector=0x38651f67, pure, abi_pa
     jumpi v23, bb2, bb3
   bb3:
     v33 = abi_encode_packed (array<word<u8>> memoryarray<1> v21)
-    v34 = ptrtoint memptr v33 to i256
+    v34 = ptrtoint ptr<memory> v33 to i256
     v35 = add v34, 32
     v36 = load v33
     v37 = keccak256 v35, v36
@@ -133,7 +133,7 @@ fn @rejectDirtyCalldata() -> i256 [selector=0xe0d4a2a5, abi_params=[], abi_retur
     icall panic_if<0x32>, v3
     store v0+32, 1
     v4 = abi_encode [memory_array<word<u8>>], object, selector 0x38651f6700000000000000000000000000000000000000000000000000000000, args v0
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 100
     store v6, 257
     v7 = address

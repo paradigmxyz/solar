@@ -14,7 +14,7 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
     v0 = icall @decode.8, v3
-    v24 = ptrtoint memptr v0 to i256
+    v24 = ptrtoint ptr<memory> v0 to i256
     v10 = ne v24, 0
     v11 = zext i1 v10 to i256
     v7 = load v24
@@ -36,7 +36,7 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, false, false
-    v26 = ptrtoint memptr v1 to i256
+    v26 = ptrtoint ptr<memory> v1 to i256
     v12 = ne v26, 0
     v13 = zext i1 v12 to i256
     v9 = load v26
@@ -58,7 +58,7 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, true, false
-    v26 = ptrtoint memptr v1 to i256
+    v26 = ptrtoint ptr<memory> v1 to i256
     v12 = ne v26, 0
     v13 = zext i1 v12 to i256
     v9 = load v26
@@ -80,7 +80,7 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
     v0 = icall @encode.4, v3, false, true
-    v24 = ptrtoint memptr v0 to i256
+    v24 = ptrtoint ptr<memory> v0 to i256
     v10 = ne v24, 0
     v11 = zext i1 v10 to i256
     v7 = load v24
@@ -98,9 +98,9 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     returndata v24, v21
 }
 
-fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [may_return_memory, pure] {
+fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [may_return_memory, pure] {
   bb0:
-    v396 = ptrtoint memptr arg0 to i256
+    v396 = ptrtoint ptr<memory> arg0 to i256
     v0 = load v396
     v115 = mod v0, 3
     v117 = sub 3, v115
@@ -129,7 +129,7 @@ fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [may_return_memory, pur
   bb15:
     v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v408 = load 64 !metadata(memory=scratch)
-    v15 = inttoptr i256 v408 to memptr !metadata(memory=scratch)
+    v15 = inttoptr i256 v408 to ptr<memory> !metadata(memory=scratch)
     v409 = add v408, v14
     v410 = lt v409, v408
     v411 = gt v409, 0xffffffffffffffff
@@ -581,9 +581,9 @@ fn @encode.4(arg0: memptr, arg1: i1, arg2: i1) -> memptr [may_return_memory, pur
     revert 28, 36
 }
 
-fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
+fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [may_return_memory, pure] {
   bb0:
-    v456 = ptrtoint memptr arg0 to i256
+    v456 = ptrtoint ptr<memory> arg0 to i256
     v0 = load v456
     v1 = eq v0, 0
     jumpi v1, bb1, bb29
@@ -633,7 +633,7 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     v34 = add v33, 63
     v37 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v473 = load 64 !metadata(memory=scratch)
-    v38 = inttoptr i256 v473 to memptr !metadata(memory=scratch)
+    v38 = inttoptr i256 v473 to ptr<memory> !metadata(memory=scratch)
     v474 = add v473, v37
     v475 = lt v474, v473
     v476 = gt v474, 0xffffffffffffffff
@@ -1014,7 +1014,7 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     jump bb39
   bb1:
     v467 = load 64 !metadata(memory=scratch)
-    v4 = inttoptr i256 v467 to memptr !metadata(memory=scratch)
+    v4 = inttoptr i256 v467 to ptr<memory> !metadata(memory=scratch)
     v468 = add v467, 32
     v469 = lt v468, v467
     v470 = gt v468, 0xffffffffffffffff
@@ -1045,7 +1045,7 @@ fn @revert_stub.9() {
     revert 28, 36
 }
 
-fn @decode_calldata_type() -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> ptr<memory> [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata 4
@@ -1063,7 +1063,7 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v24 = load 64 !metadata(memory=scratch)
-    v14 = inttoptr i256 v24 to memptr !metadata(memory=scratch)
+    v14 = inttoptr i256 v24 to ptr<memory> !metadata(memory=scratch)
     v25 = add v24, v13
     v26 = lt v25, v24
     v27 = gt v25, 0xffffffffffffffff

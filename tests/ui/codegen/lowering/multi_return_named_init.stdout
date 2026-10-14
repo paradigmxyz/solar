@@ -4,7 +4,7 @@
   struct0: {i64, i256}
   struct1: {i64, i64}
 
-fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
+fn @readU64(arg0: slice<calldata>, arg1: i256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
@@ -25,12 +25,12 @@ fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
   bb4:
     v6 = trunc i256 v3 to i64
     v7 = shl i64 8, v6
-    v8 = extract_value calldataslice, v1, 1
+    v8 = extract_value slice<calldata>, v1, 1
     v9 = lt v0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = extract_value calldataslice, v1, 0
-    v12 = extract_value calldataslice, v1, 0
+    v11 = extract_value slice<calldata>, v1, 0
+    v12 = extract_value slice<calldata>, v1, 0
     v13 = add v12, v0
     v14 = load calldata v13
     v15 = byte 0, v14
@@ -49,7 +49,7 @@ fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
     jump bb1
 }
 
-fn @readTwice(arg0: calldataslice) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
+fn @readTwice(arg0: slice<calldata>) -> struct1 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
   bb0:
     v0 = icall @readU64, arg0, 0
     v1 = extract_value struct0, v0, 0

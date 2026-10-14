@@ -38,7 +38,7 @@ fn @relay() -> i256 [selector=0xb59589d1, abi_params=[], abi_returns=[word], abi
     ret v2
 }
 
-fn @relayLocked() -> memptr [selector=0x54cea6b3, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @relayLocked() -> ptr<memory> [selector=0x54cea6b3, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @locked
     v1 = abi_encode [word<u160>, word], object, selector 0x117de2fd00000000000000000000000000000000000000000000000000000000, args 0, 1

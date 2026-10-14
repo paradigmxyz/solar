@@ -358,7 +358,7 @@
       ret v2
   }
   
-  fn @public_reset(arg0: memptr) -> memptr [selector=0x12345684, abi_returns=[memory_bytes]] {
+  fn @public_reset(arg0: ptr<memory>) -> ptr<memory> [selector=0x12345684, abi_returns=[memory_bytes]] {
     bb0:
 -     store 64, 128
 +     v0 = heap_floor
@@ -368,7 +368,7 @@
       ret arg0
   }
   
-  fn @call_public_reset(arg0: memptr) -> i256 [selector=0x12345685] {
+  fn @call_public_reset(arg0: ptr<memory>) -> i256 [selector=0x12345685] {
     bb0:
       v0 = icall @public_reset, arg0
       ret 1
@@ -471,7 +471,7 @@
       ret v2
   }
   
-  fn @copy_low_object() -> memptr [selector=0x1234568b] {
+  fn @copy_low_object() -> ptr<memory> [selector=0x1234568b] {
     bb0:
       v0 = alloc zeroed checked 64
       v1 = load calldata 4
@@ -592,7 +592,7 @@
 +     v6 = select v5, v4, v0
 +     store 64, v6
       v1 = load 64
-      v2 = inttoptr i256 v1 to memptr
+      v2 = inttoptr i256 v1 to ptr<memory>
       v3 = load v2
       ret v3
   }

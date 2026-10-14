@@ -51,7 +51,7 @@ contract MappingDynamicKeyPaths {
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
     // CHECK: store {{v[0-9]+}}, 5
-    // CHECK: [[LITERAL_PTR:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+    // CHECK: [[LITERAL_PTR:v[0-9]+]] = ptrtoint ptr<memory> {{v[0-9]+}} to i256
     // CHECK: [[LITERAL_DATA:v[0-9]+]] = add [[LITERAL_PTR]], 32
     // CHECK: store [[LITERAL_DATA]], 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_bytes {{v[0-9]+}}, 0

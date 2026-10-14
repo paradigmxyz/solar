@@ -22,7 +22,7 @@
 // The raw allocation frontier has no disjointness proof for the input header.
 // Keep the source bounds check and byte loop when that length cannot be reused.
 // CHECK-LABEL: fn @_slice
-// CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK: [[INPUT:v[0-9]+]] = ptrtoint ptr<memory> arg0 to i256
 // CHECK: load [[INPUT]]
 // CHECK: load [[INPUT]]
 // CHECK: store8

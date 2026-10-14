@@ -54,7 +54,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v74 = lt v73, 10
     jumpi v74, bb8, bb9
   bb9:
-    v96 = ptrtoint memptr v72 to i256
+    v96 = ptrtoint ptr<memory> v72 to i256
     jump bb10
   bb10:
     v97 = phi [bb9: 0], [bb15: v165]
@@ -284,7 +284,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v90 = trunc i256 v89 to i64
     v91 = zext i64 v90 to i256
     store v76+96, v91
-    v92 = ptrtoint memptr v76 to i256
+    v92 = ptrtoint ptr<memory> v76 to i256
     v93 = shl 5, v73
     v94 = ptradd v72, v93
     store v94, v92

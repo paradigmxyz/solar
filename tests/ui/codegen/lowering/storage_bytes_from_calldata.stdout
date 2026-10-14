@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
 @module StorageBytesFromCalldata
-fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @setText(arg0: slice<calldata>) [selector=0x5d3a1f9d, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -19,24 +19,24 @@ fn @setText(arg0: calldataslice) [selector=0x5d3a1f9d, abi_params=[bytes], abi_r
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
     icall @store_storage_bytes, 0, v11
     ret
 }
 
-fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @setBlob(arg0: slice<calldata>) [selector=0xdd7d5edb, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -45,32 +45,32 @@ fn @setBlob(arg0: calldataslice) [selector=0xdd7d5edb, abi_params=[bytes], abi_r
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
     icall @store_storage_bytes, 1, v11
     ret
 }
 
-fn @getText() -> memptr [selector=0xe00fe2eb, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @getText() -> ptr<memory> [selector=0xe00fe2eb, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
-fn @getBlob() -> memptr [selector=0x32db030e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @getBlob() -> ptr<memory> [selector=0x32db030e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

@@ -10,11 +10,11 @@ fn @mappingEmpty() -> i1 [selector=0x20f98002, abi_params=[], abi_returns=[word<
     icall @store_storage_bytes, v3, v2
     v4 = mapping_slot 0, 0
     v5 = icall @load_storage_bytes, v4
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     v7 = add v6, 32
     v8 = load v5
     v9 = keccak256 v7, v8
-    v10 = ptrtoint memptr v2 to i256
+    v10 = ptrtoint ptr<memory> v2 to i256
     v11 = add v10, 32
     v12 = load v2
     v13 = keccak256 v11, v12
@@ -30,11 +30,11 @@ fn @mappingLong(arg0: i256, arg1: i256) -> i1 [selector=0xa4972bce, abi_params=[
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 0, 0
     v4 = icall @load_storage_bytes, v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
     v7 = load v4
     v8 = keccak256 v6, v7
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = add v9, 32
     v11 = load v1
     v12 = keccak256 v10, v11
@@ -50,11 +50,11 @@ fn @mappingShort(arg0: i256) -> i1 [selector=0xd17dedff, abi_params=[bytes31], a
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 1, 0
     v4 = icall @load_storage_bytes, v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
     v7 = load v4
     v8 = keccak256 v6, v7
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = add v9, 32
     v11 = load v1
     v12 = keccak256 v10, v11
@@ -69,11 +69,11 @@ fn @mappingWord(arg0: i256) -> i1 [selector=0x95027de5, abi_params=[bytes32], ab
     icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 2, 0
     v3 = icall @load_storage_bytes, v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     v5 = add v4, 32
     v6 = load v3
     v7 = keccak256 v5, v6
-    v8 = ptrtoint memptr v0 to i256
+    v8 = ptrtoint ptr<memory> v0 to i256
     v9 = add v8, 32
     v10 = load v0
     v11 = keccak256 v9, v10
@@ -89,11 +89,11 @@ fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xb0efa5
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 3, 0
     v4 = icall @load_storage_bytes, v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
     v7 = load v4
     v8 = keccak256 v6, v7
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = add v9, 32
     v11 = load v1
     v12 = keccak256 v10, v11
@@ -109,11 +109,11 @@ fn @mappingReference(arg0: i256, arg1: i256) -> i1 [selector=0xe1bd71bc, abi_par
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 4, 0
     v4 = icall @load_storage_bytes, v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
     v7 = load v4
     v8 = keccak256 v6, v7
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = add v9, 32
     v11 = load v1
     v12 = keccak256 v10, v11
@@ -131,11 +131,11 @@ fn @nestedMapping(arg0: i256, arg1: i256) -> i1 [selector=0x9670c676, abi_params
     v4 = mapping_slot 0, 1
     v5 = mapping_slot 1, v4
     v6 = icall @load_storage_bytes, v5
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 32
     v9 = load v6
     v10 = keccak256 v8, v9
-    v11 = ptrtoint memptr v1 to i256
+    v11 = ptrtoint ptr<memory> v1 to i256
     v12 = add v11, 32
     v13 = load v1
     v14 = keccak256 v12, v13
@@ -149,11 +149,11 @@ fn @structField(arg0: i256, arg1: i256) -> i1 [selector=0xc85878d4, abi_params=[
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
     icall @store_storage_bytes, 3, v1
     v2 = icall @load_storage_bytes, 3
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     v5 = load v2
     v6 = keccak256 v4, v5
-    v7 = ptrtoint memptr v1 to i256
+    v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 32
     v9 = load v1
     v10 = keccak256 v8, v9
@@ -167,11 +167,11 @@ fn @directValue(arg0: i256, arg1: i256) -> i1 [selector=0xdb5536af, abi_params=[
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
     icall @store_storage_bytes, 4, v1
     v2 = icall @load_storage_bytes, 4
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     v4 = add v3, 32
     v5 = load v2
     v6 = keccak256 v4, v5
-    v7 = ptrtoint memptr v1 to i256
+    v7 = ptrtoint ptr<memory> v1 to i256
     v8 = add v7, 32
     v9 = load v1
     v10 = keccak256 v8, v9
@@ -187,7 +187,7 @@ fn @internalReference(arg0: i256, arg1: i256) -> i1 [selector=0xd14b1bf5, abi_pa
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 5, 0
     v4 = icall @hashStorageBytes, v3
-    v5 = ptrtoint memptr v1 to i256
+    v5 = ptrtoint ptr<memory> v1 to i256
     v6 = add v5, 32
     v7 = load v1
     v8 = keccak256 v6, v7
@@ -198,7 +198,7 @@ fn @internalReference(arg0: i256, arg1: i256) -> i1 [selector=0xd14b1bf5, abi_pa
 fn @hashStorageBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = icall @load_storage_bytes, arg0
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     v3 = load v0
     v4 = keccak256 v2, v3
@@ -213,11 +213,11 @@ fn @mappingString(arg0: i256, arg1: i256) -> i1 [selector=0x4cbcb134, abi_params
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 0, 2
     v4 = icall @load_storage_bytes, v3
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
     v7 = load v4
     v8 = keccak256 v6, v7
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint ptr<memory> v1 to i256
     v10 = add v9, 32
     v11 = load v1
     v12 = keccak256 v10, v11
@@ -239,13 +239,13 @@ fn @mappingStringErc7201(arg0: i256, arg1: i256) -> i1 [selector=0x55edb0fc, abi
     ret v7
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memptr {
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

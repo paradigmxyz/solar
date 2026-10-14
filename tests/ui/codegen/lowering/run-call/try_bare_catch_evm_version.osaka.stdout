@@ -15,10 +15,10 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     ret v1
 }
 
-fn @agg() -> memptr [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
     v3 = eq v2, false
@@ -53,13 +53,13 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -68,8 +68,8 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = call v11, v15, 0, v13, v14, 0, 32
     jumpi v16, bb3, bb4
@@ -98,13 +98,13 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -113,8 +113,8 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = call v11, v15, 0, v13, v14, v13, 64
     jumpi v16, bb3, bb4
@@ -146,13 +146,13 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -161,11 +161,11 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = alloc 64
     v16 = zext i160 v9 to i256
-    v17 = ptrtoint memptr v15 to i256
+    v17 = ptrtoint ptr<memory> v15 to i256
     v18 = call v11, v16, 0, v13, v14, v17, 64
     jumpi v18, bb3, bb4
   bb4:
@@ -179,7 +179,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v19 = returndatasize
     v20 = lt v19, 64
     icall revert_if<tuple_data_too_short>, v20
-    v21 = ptrtoint memptr v15 to i256
+    v21 = ptrtoint ptr<memory> v15 to i256
     v22 = make_memory_slice v21, 64
     v23 = abi_decode [array<2, u256>], v22
     v24 = lt 0, 2
@@ -203,13 +203,13 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -218,8 +218,8 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
@@ -247,13 +247,13 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -262,8 +262,8 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = call v11, v15, 1, v13, v14, 0, 32
     jumpi v16, bb3, bb4
@@ -292,13 +292,13 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -313,8 +313,8 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v16 = shr 32, v13
     v17 = gas
     v18 = abi_encode [], selector v15
-    v19 = extract_value memoryslice, v18, 0
-    v20 = extract_value memoryslice, v18, 1
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
     v21 = call v17, v16, 0, v19, v20, 0, 32
     jumpi v21, bb3, bb4
   bb4:
@@ -342,13 +342,13 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v1 = datasize TryCallee_creation_code_0
     v2 = datasize TryCallee_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = eq v9, i160 0
     v11 = eq v10, false
@@ -371,8 +371,8 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = call v0, 0, 0, v2, v3, 0, 32
     jumpi v4, bb1, bb2
   bb2:
@@ -398,8 +398,8 @@ fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
     v5 = eq v4, 0
     icall revert_if<target_contract_has_no_code>, v5

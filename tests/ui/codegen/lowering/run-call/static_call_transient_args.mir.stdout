@@ -35,16 +35,16 @@ fn @isOperation(arg0: i256) -> i1 [selector=0x31d50750, view, abi_params=[bytes3
     ret v2
 }
 
-fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }
 
-fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
@@ -58,13 +58,13 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb3:
     jump bb4
   bb4:
-    v10 = extract_value calldataslice, arg0, 1
-    v11 = extract_value calldataslice, arg1, 1
+    v10 = extract_value slice<calldata>, arg0, 1
+    v11 = extract_value slice<calldata>, arg1, 1
     v12 = ne v10, v11
     jumpi v12, bb7, bb6
   bb6:
-    v13 = extract_value calldataslice, arg0, 1
-    v14 = extract_value calldataslice, arg2, 1
+    v13 = extract_value slice<calldata>, arg0, 1
+    v14 = extract_value slice<calldata>, arg2, 1
     v15 = ne v13, v14
     jump bb8
   bb7:
@@ -88,7 +88,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v27 = phi [bb11: arg0], [bb14: v27]
     v28 = phi [bb11: arg4], [bb14: v28]
     v29 = phi [bb11: arg1], [bb14: v29]
-    v30 = extract_value calldataslice, v27, 1
+    v30 = extract_value slice<calldata>, v27, 1
     v31 = lt v26, v30
     jumpi v31, bb15, bb16
   bb16:
@@ -109,11 +109,11 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb1:
     ret v24
   bb15:
-    v32 = extract_value calldataslice, v27, 1
+    v32 = extract_value slice<calldata>, v27, 1
     v33 = lt v26, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
-    v35 = extract_value calldataslice, v27, 0
+    v35 = extract_value slice<calldata>, v27, 0
     v36 = mul v26, 32
     v37 = eq 32, 0
     v38 = div v36, 32
@@ -129,11 +129,11 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v47 = eq v46, false
     icall revert_if<empty>, v47
     v48 = trunc i256 v44 to i160
-    v49 = extract_value calldataslice, v29, 1
+    v49 = extract_value slice<calldata>, v29, 1
     v50 = lt v26, v49
     v51 = eq v50, false
     icall panic_if<0x32>, v51
-    v52 = extract_value calldataslice, v29, 0
+    v52 = extract_value slice<calldata>, v29, 0
     v53 = mul v26, 32
     v54 = eq 32, 0
     v55 = div v53, 32
@@ -144,11 +144,11 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     icall panic_if<0x41>, v59
     v60 = add v52, v53
     v61 = load calldata v60
-    v62 = extract_value calldataslice, v23, 1
+    v62 = extract_value slice<calldata>, v23, 1
     v63 = lt v26, v62
     v64 = eq v63, false
     icall panic_if<0x32>, v64
-    v65 = extract_value calldataslice, v23, 0
+    v65 = extract_value slice<calldata>, v23, 0
     v66 = mul v26, 32
     v67 = eq 32, 0
     v68 = div v66, 32
@@ -179,8 +179,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v89 = sgt v87, v88
     icall revert_if<calldata_tail_too_short>, v89
     v90 = make_calldata_slice v87, v84
-    v91 = extract_value calldataslice, v90, 0
-    v92 = extract_value calldataslice, v90, 1
+    v91 = extract_value slice<calldata>, v90, 0
+    v92 = extract_value slice<calldata>, v90, 1
     v93 = calldatasize
     v94 = gt v92, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v94
@@ -189,8 +189,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     icall revert_if<calldata_tail_too_short>, v96
     v97 = zext i160 v48 to i256
     v98 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v97, v61, v90, v25, v21
-    v99 = extract_value memoryslice, v98, 0
-    v100 = extract_value memoryslice, v98, 1
+    v99 = extract_value slice<memory>, v98, 0
+    v100 = extract_value slice<memory>, v98, 1
     log v99, v100, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v24, v26
     jump bb17
   bb17:
@@ -199,9 +199,9 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v101 = checked_add u256, v26, 1
     jump bb12
   bb9:
-    v17 = extract_value calldataslice, arg0, 1
-    v18 = extract_value calldataslice, arg2, 1
-    v19 = extract_value calldataslice, arg1, 1
+    v17 = extract_value slice<calldata>, arg0, 1
+    v18 = extract_value slice<calldata>, arg2, 1
+    v19 = extract_value slice<calldata>, arg1, 1
     icall require<custom_error [word, word, word]>, false, 0x679057600000000000000000000000000000000000000000000000000000000, v17, v18, v19
     invalid
   bb2:

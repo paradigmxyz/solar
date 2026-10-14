@@ -15,13 +15,13 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = load v0+32
-    v12 = inttoptr i256 v11 to memptr
+    v12 = inttoptr i256 v11 to ptr<memory>
     v13 = eq v11, 0
     jumpi v13, bb4, bb5
   bb4:
     v14 = alloc 32
     store v14, 0
-    v15 = ptrtoint memptr v14 to i256
+    v15 = ptrtoint ptr<memory> v14 to i256
     store v0+32, v15
     jump bb5
   bb5:
@@ -32,13 +32,13 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = load v0+64
-    v21 = inttoptr i256 v20 to memptr
+    v21 = inttoptr i256 v20 to ptr<memory>
     v22 = eq v20, 0
     jumpi v22, bb6, bb7
   bb6:
     v23 = alloc 32
     store v23, 0
-    v24 = ptrtoint memptr v23 to i256
+    v24 = ptrtoint ptr<memory> v23 to i256
     store v0+64, v24
     jump bb7
   bb7:
@@ -49,13 +49,13 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = load v0+32
-    v30 = inttoptr i256 v29 to memptr
+    v30 = inttoptr i256 v29 to ptr<memory>
     v31 = eq v29, 0
     jumpi v31, bb8, bb9
   bb8:
     v32 = alloc 32
     store v32, 0
-    v33 = ptrtoint memptr v32 to i256
+    v33 = ptrtoint ptr<memory> v32 to i256
     store v0+32, v33
     jump bb9
   bb9:
@@ -67,13 +67,13 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = load v0+64
-    v41 = inttoptr i256 v40 to memptr
+    v41 = inttoptr i256 v40 to ptr<memory>
     v42 = eq v40, 0
     jumpi v42, bb10, bb11
   bb10:
     v43 = alloc 32
     store v43, 0
-    v44 = ptrtoint memptr v43 to i256
+    v44 = ptrtoint ptr<memory> v43 to i256
     store v0+64, v44
     jump bb11
   bb11:
@@ -86,7 +86,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     store v3, 0
     v4 = shl 5, v1
     v5 = ptradd v0, v4
-    v6 = ptrtoint memptr v3 to i256
+    v6 = ptrtoint ptr<memory> v3 to i256
     store v5+32, v6
     v7 = add v1, 1
     jump bb1
@@ -102,10 +102,10 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v6 = ptrtoint memptr v0 to i256
+    v6 = ptrtoint ptr<memory> v0 to i256
     v7 = add v6, 64
     v8 = load v7
-    v9 = ptrtoint memptr v0 to i256
+    v9 = ptrtoint ptr<memory> v0 to i256
     v10 = add v9, 32
     v11 = load v10
     v12 = eq v11, v8

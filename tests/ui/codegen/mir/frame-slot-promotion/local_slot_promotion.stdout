@@ -4,31 +4,31 @@
   fn @promote_loop_carried_slot(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
 -     store v1, 0
       jump bb1
     bb1:
 +     v15 = phi [bb0: 0], [bb2: v9]
       v2 = internal_frame_addr 128
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
 -     v4 = load v3
 -     v5 = lt v4, arg0
 +     v5 = lt v15, arg0
       jumpi v5, bb2, bb3
     bb3:
       v12 = internal_frame_addr 128
-      v13 = ptrtoint memptr v12 to i256
+      v13 = ptrtoint ptr<memory> v12 to i256
 -     v14 = load v13
 -     ret v14
 +     ret v15
     bb2:
       v6 = internal_frame_addr 128
-      v7 = ptrtoint memptr v6 to i256
+      v7 = ptrtoint ptr<memory> v6 to i256
 -     v8 = load v7
 -     v9 = add v8, 1
 +     v9 = add v15, 1
       v10 = internal_frame_addr 128
-      v11 = ptrtoint memptr v10 to i256
+      v11 = ptrtoint ptr<memory> v10 to i256
 -     store v11, v9
       jump bb1
   }
@@ -39,24 +39,24 @@
   fn @promote_loop_carried_slot(arg0: i256) -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
       jump bb1
     bb1:
       v15 = phi [bb0: 0], [bb2: v9]
 -     v2 = internal_frame_addr 128
--     v3 = ptrtoint memptr v2 to i256
+-     v3 = ptrtoint ptr<memory> v2 to i256
       v5 = lt v15, arg0
       jumpi v5, bb2, bb3
     bb3:
 -     v12 = internal_frame_addr 128
--     v13 = ptrtoint memptr v12 to i256
+-     v13 = ptrtoint ptr<memory> v12 to i256
       ret v15
     bb2:
 -     v6 = internal_frame_addr 128
--     v7 = ptrtoint memptr v6 to i256
+-     v7 = ptrtoint ptr<memory> v6 to i256
       v9 = add v15, 1
 -     v10 = internal_frame_addr 128
--     v11 = ptrtoint memptr v10 to i256
+-     v11 = ptrtoint ptr<memory> v10 to i256
       jump bb1
   }
   

@@ -1,91 +1,91 @@
 - // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
   @module LowerMemoryObjects
-- fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
-+ fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) [may_return_memory] {
+- fn @objects(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: ptr<memory>) {
++ fn @objects(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: ptr<memory>) [may_return_memory] {
     bb0:
       v0 = alloc zeroed checked 96
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 3
 -     v2 = load v0
 -     v3 = ptradd v0, 32
--     v4 = ptrtoint memptr v3 to i256
+-     v4 = ptrtoint ptr<memory> v3 to i256
 -     store8 v4, v2
 -     v5 = ptradd arg2, 32
 -     store v5, v2
-+     v20 = ptrtoint memptr v0 to i256
++     v20 = ptrtoint ptr<memory> v0 to i256
 +     v2 = load v20
-+     v11 = ptrtoint memptr v0 to i256
++     v11 = ptrtoint ptr<memory> v0 to i256
 +     v12 = add v11, 32
 +     store8 v12, v2
-+     v13 = ptrtoint memptr arg2 to i256
++     v13 = ptrtoint ptr<memory> arg2 to i256
 +     v14 = add v13, 32
 +     store v14, v2
       v6 = shl 5, v2
 -     v7 = ptradd arg1, 32
 -     v8 = ptradd v7, v6
 -     store v8, v2
-+     v15 = ptrtoint memptr arg1 to i256
++     v15 = ptrtoint ptr<memory> arg1 to i256
 +     v16 = add v15, 32
 +     v17 = add v16, v6
 +     store v17, v2
       v9 = shl 5, v2
 -     v10 = ptradd arg3, v9
 -     store v10, v2
-+     v18 = ptrtoint memptr arg3 to i256
++     v18 = ptrtoint ptr<memory> arg3 to i256
 +     v19 = add v18, v9
 +     store v19, v2
       stop
   }
   
-- fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
-+ fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) [may_return_memory] {
+- fn @copy_from_slice(arg0: ptr<memory>, arg1: slice<memory>, arg2: slice<calldata>, arg3: slice<returndata>) {
++ fn @copy_from_slice(arg0: ptr<memory>, arg1: slice<memory>, arg2: slice<calldata>, arg3: slice<returndata>) [may_return_memory] {
     bb0:
 -     v0 = ptradd arg0, 32
-+     v9 = ptrtoint memptr arg0 to i256
++     v9 = ptrtoint ptr<memory> arg0 to i256
 +     v10 = add v9, 32
-      v1 = extract_value memoryslice, arg1, 0
-      v2 = extract_value memoryslice, arg1, 1
+      v1 = extract_value slice<memory>, arg1, 0
+      v2 = extract_value slice<memory>, arg1, 1
 -     copy v0, v1, v2
 -     v3 = ptradd arg0, 32
 +     copy v10, v1, v2
-+     v11 = ptrtoint memptr arg0 to i256
++     v11 = ptrtoint ptr<memory> arg0 to i256
 +     v12 = add v11, 32
-      v4 = extract_value calldataslice, arg2, 0
-      v5 = extract_value calldataslice, arg2, 1
+      v4 = extract_value slice<calldata>, arg2, 0
+      v5 = extract_value slice<calldata>, arg2, 1
 -     copy calldata v3, v4, v5
 -     v6 = ptradd arg0, 32
 +     copy calldata v12, v4, v5
-+     v13 = ptrtoint memptr arg0 to i256
++     v13 = ptrtoint ptr<memory> arg0 to i256
 +     v14 = add v13, 32
-      v7 = extract_value returndataslice, arg3, 0
-      v8 = extract_value returndataslice, arg3, 1
+      v7 = extract_value slice<returndata>, arg3, 0
+      v8 = extract_value slice<returndata>, arg3, 1
 -     copy returndata v6, v7, v8
 +     copy returndata v14, v7, v8
       stop
   }
   
-- fn @copy_object(arg0: memptr, arg1: memptr, arg2: i256) {
-+ fn @copy_object(arg0: memptr, arg1: memptr, arg2: i256) [may_return_memory] {
+- fn @copy_object(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) {
++ fn @copy_object(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [may_return_memory] {
     bb0:
 -     v0 = ptradd arg0, 32
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     v2 = ptradd arg1, 32
--     v3 = ptrtoint memptr v2 to i256
+-     v3 = ptrtoint ptr<memory> v2 to i256
 -     copy v1, v3, arg2
-+     v4 = ptrtoint memptr arg0 to i256
++     v4 = ptrtoint ptr<memory> arg0 to i256
 +     v5 = add v4, 32
-+     v6 = ptrtoint memptr arg1 to i256
++     v6 = ptrtoint ptr<memory> arg1 to i256
 +     v7 = add v6, 32
 +     copy v5, v7, arg2
       stop
   }
   
-- fn @word_carrier(arg0: memptr) -> i256 {
-+ fn @word_carrier(arg0: memptr) -> i256 [may_return_memory] {
+- fn @word_carrier(arg0: ptr<memory>) -> i256 {
++ fn @word_carrier(arg0: ptr<memory>) -> i256 [may_return_memory] {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
--     v1 = inttoptr i256 v0 to memptr
+      v0 = ptrtoint ptr<memory> arg0 to i256
+-     v1 = inttoptr i256 v0 to ptr<memory>
 -     v2 = load v1
 +     v2 = load v0
       ret v2
@@ -95,47 +95,47 @@
     bb0:
       ret 0
 -   bb1:
--     v0 = inttoptr i256 v1 to memptr
--     v1 = ptrtoint memptr v0 to i256
+-     v0 = inttoptr i256 v1 to ptr<memory>
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     ret v1
   }
   
-- fn @merged_allocations() -> memptr {
-+ fn @merged_allocations() -> memptr [may_return_memory] {
+- fn @merged_allocations() -> ptr<memory> {
++ fn @merged_allocations() -> ptr<memory> [may_return_memory] {
     bb0:
 -     v0 = alloc 32
 +     v0 = alloc 64 !metadata(preserves_fmp)
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 0
 -     v2 = alloc 32 !metadata(preserves_fmp)
-+     v4 = ptrtoint memptr v0 to i256
++     v4 = ptrtoint ptr<memory> v0 to i256
 +     v5 = add v4, 32
-+     v2 = inttoptr i256 v5 to memptr
-      v3 = ptrtoint memptr v2 to i256
++     v2 = inttoptr i256 v5 to ptr<memory>
+      v3 = ptrtoint ptr<memory> v2 to i256
       store v3, 0
       ret v2
   }
   
-- fn @access_offsets(arg0: memptr, arg1: i256) {
-+ fn @access_offsets(arg0: memptr, arg1: i256) [may_return_memory] {
+- fn @access_offsets(arg0: ptr<memory>, arg1: i256) {
++ fn @access_offsets(arg0: ptr<memory>, arg1: i256) [may_return_memory] {
     bb0:
 -     v0 = load arg0+32
 -     store arg0+64, v0
 -     store8 arg0+1, v0
 -     v1 = load calldata arg1+4
 -     store arg0, v1
-+     v2 = ptrtoint memptr arg0 to i256
++     v2 = ptrtoint ptr<memory> arg0 to i256
 +     v3 = add v2, 32
 +     v0 = load v3
-+     v4 = ptrtoint memptr arg0 to i256
++     v4 = ptrtoint ptr<memory> arg0 to i256
 +     v5 = add v4, 64
 +     store v5, v0
-+     v6 = ptrtoint memptr arg0 to i256
++     v6 = ptrtoint ptr<memory> arg0 to i256
 +     v7 = add v6, 1
 +     store8 v7, v0
 +     v8 = add arg1, 4
 +     v1 = load calldata v8
-+     v9 = ptrtoint memptr arg0 to i256
++     v9 = ptrtoint ptr<memory> arg0 to i256
 +     store v9, v1
       stop
   }

@@ -9,15 +9,16 @@ is a late lowering decision.
 ## Value types and conversions
 
 SSA values use integers (`iN`), opaque pointers, structs, or slices. A pointer
-names the location it points into: `memptr`, `calldataptr`, or `returndataptr`.
-It carries a 256-bit address without implying validity or heap provenance.
-Memory objects are `memptr` values too, accessed with ordinary instructions:
+names the location it points into: `ptr<memory>`, `ptr<calldata>`, or
+`ptr<returndata>`. It carries a 256-bit address without implying validity or
+heap provenance.
+Memory objects are `ptr<memory>` values too, accessed with ordinary instructions:
 every word access is a `load`, `store`, or `store8`, and every bulk copy into
 memory is a `copy`. `load` and `copy` name the location they read, so
 `load calldata v0` selects `CALLDATALOAD` and `copy returndata v0, v1, v2`
 selects `RETURNDATACOPY`; a plain `load` or `copy` reads memory. Like an LLVM
-load from `ptr`, a memory access takes a `memptr` or a raw `i256` address, and
-`lower-memory-objects` casts it to a word at the opcode boundary. An access also
+load from `ptr`, a memory access takes a `ptr<memory>` or a raw `i256` address,
+and `lower-memory-objects` casts it to a word at the opcode boundary. An access also
 takes an immediate byte offset, written `load v0+32` or `store v0+32, v1`, which
 adds to the address as `ptradd` does for a pointer and as `add` does for a word.
 It keeps a constant field or element access to one instruction;
@@ -31,7 +32,7 @@ places an access at a runtime offset at or after `p`, and assembly's raw
 arithmetic uses `add` on words instead. A fixed array or struct has no length
 word, so field or element `i` is the word at `v0+32 * i`, and at
 `ptradd v0, shl 5, i` for a runtime index. A dynamic memory object (`bytes`,
-`string`, `T[] memory`) is a `memptr` to its length word, which assembly can
+`string`, `T[] memory`) is a `ptr<memory>` to its length word, which assembly can
 read and rewrite: `load v0` reads the length, the payload starts at `v0+32`, and
 element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
 Where a slice value is needed, `make_memory_slice` pairs the payload address
@@ -70,8 +71,8 @@ and use `opcode source-type value to destination-type`:
 - `trunc i256 value to i160` keeps the low 160 bits.
 - `zext i160 value to i256` widens with zero bits.
 - `sext i160 value to i256` widens by copying the sign bit.
-- `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
-- `inttoptr i256 value to memptr` interprets integer bits as a pointer.
+- `ptrtoint ptr<memory> value to i256` exposes a pointer's bits; narrower results truncate.
+- `inttoptr i256 value to ptr<memory>` interprets integer bits as a pointer.
 
 `trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
 nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
@@ -110,7 +111,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256`, `i1`, and `ptr<memory>` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -527,14 +528,14 @@ transforms justify their cost.
 
 `insert_value` and `extract_value` construct and project fixed SSA structs.
 They do not allocate storage, copy bytes, or imply an address. A slice field
-carries its pointer and length; a memory-object field carries a `memptr`, not a
+carries its pointer and length; a memory-object field carries a `ptr<memory>`, not a
 copy of the referenced object.
 
 A raw `i256` field can carry all bits of a pointer. Keep the conversion
 explicit: `ptrtoint` exposes pointer bits as an integer; `inttoptr` turns an
-integer into a `memptr` without proving validity or ownership. Neither operation
+integer into a `ptr<memory>` without proving validity or ownership. Neither operation
 allocates or copies memory. Field and element loads of a pointer produce a
-`memptr` directly, and later simplification removes redundant word casts. Alias
+`ptr<memory>` directly, and later simplification removes redundant word casts. Alias
 analysis follows their unchanged addresses.
 
 The verifier checks that semantic accesses receive pointers; the access itself

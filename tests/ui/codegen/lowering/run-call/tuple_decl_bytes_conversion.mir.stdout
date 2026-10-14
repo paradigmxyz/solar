@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_decl_bytes_conversion.sol:TupleDeclBytesConversion ===
 @module TupleDeclBytesConversion
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
 
 fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
@@ -76,7 +76,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     ret v49
 }
 
-fn @declareMemory() -> memptr [selector=0x0f124233, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @declareMemory() -> ptr<memory> [selector=0x0f124233, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
@@ -86,14 +86,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 5
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

@@ -25,14 +25,14 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = load v7+128
-    v20 = inttoptr i256 v19 to memptr
+    v20 = inttoptr i256 v19 to ptr<memory>
     v21 = eq v19, 0
     jumpi v21, bb4, bb5
   bb4:
     v22 = alloc 64
-    v23 = ptrtoint memptr v22 to i256
+    v23 = ptrtoint ptr<memory> v22 to i256
     memory_zero v23, 64
-    v24 = ptrtoint memptr v22 to i256
+    v24 = ptrtoint ptr<memory> v22 to i256
     store v7+128, v24
     jump bb5
   bb5:
@@ -54,17 +54,17 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = load v28+96
-    v43 = inttoptr i256 v42 to memptr
+    v43 = inttoptr i256 v42 to ptr<memory>
     v44 = eq v42, 0
     jumpi v44, bb9, bb10
   bb9:
     v45 = icall @default_struct_0
-    v46 = ptrtoint memptr v45 to i256
+    v46 = ptrtoint ptr<memory> v45 to i256
     store v28+96, v46
     jump bb10
   bb10:
     v47 = phi [bb8: v43], [bb9: v45]
-    v48 = load v47, memptr
+    v48 = load v47, ptr<memory>
     v49 = lt 1, 2
     v50 = eq v49, false
     icall panic_if<0x32>, v50
@@ -78,34 +78,34 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = load v28+96
-    v58 = inttoptr i256 v57 to memptr
+    v58 = inttoptr i256 v57 to ptr<memory>
     v59 = eq v57, 0
     jumpi v59, bb11, bb12
   bb11:
     v60 = icall @default_struct_0
-    v61 = ptrtoint memptr v60 to i256
+    v61 = ptrtoint ptr<memory> v60 to i256
     store v28+96, v61
     jump bb12
   bb12:
     v62 = phi [bb10: v58], [bb11: v60]
-    v63 = ptrtoint memptr v53 to i256
+    v63 = ptrtoint ptr<memory> v53 to i256
     store v62+32, v63
     v64 = load v28
     v65 = lt 2, v64
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = load v28+96
-    v68 = inttoptr i256 v67 to memptr
+    v68 = inttoptr i256 v67 to ptr<memory>
     v69 = eq v67, 0
     jumpi v69, bb13, bb14
   bb13:
     v70 = icall @default_struct_0
-    v71 = ptrtoint memptr v70 to i256
+    v71 = ptrtoint ptr<memory> v70 to i256
     store v28+96, v71
     jump bb14
   bb14:
     v72 = phi [bb12: v68], [bb13: v70]
-    v73 = load v72+32, memptr
+    v73 = load v72+32, ptr<memory>
     v74 = load v73
     v75 = lt 5, v74
     v76 = eq v75, false
@@ -126,14 +126,14 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v88 = eq v87, false
     icall panic_if<0x32>, v88
     v89 = load v7+128
-    v90 = inttoptr i256 v89 to memptr
+    v90 = inttoptr i256 v89 to ptr<memory>
     v91 = eq v89, 0
     jumpi v91, bb15, bb16
   bb15:
     v92 = alloc 64
-    v93 = ptrtoint memptr v92 to i256
+    v93 = ptrtoint ptr<memory> v92 to i256
     memory_zero v93, 64
-    v94 = ptrtoint memptr v92 to i256
+    v94 = ptrtoint ptr<memory> v92 to i256
     store v7+128, v94
     jump bb16
   bb16:
@@ -149,17 +149,17 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v103 = eq v102, false
     icall panic_if<0x32>, v103
     v104 = load v28+96
-    v105 = inttoptr i256 v104 to memptr
+    v105 = inttoptr i256 v104 to ptr<memory>
     v106 = eq v104, 0
     jumpi v106, bb17, bb18
   bb17:
     v107 = icall @default_struct_0
-    v108 = ptrtoint memptr v107 to i256
+    v108 = ptrtoint ptr<memory> v107 to i256
     store v28+96, v108
     jump bb18
   bb18:
     v109 = phi [bb16: v105], [bb17: v107]
-    v110 = load v109, memptr
+    v110 = load v109, ptr<memory>
     v111 = lt 1, 2
     v112 = eq v111, false
     icall panic_if<0x32>, v112
@@ -170,17 +170,17 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v117 = eq v116, false
     icall panic_if<0x32>, v117
     v118 = load v28+96
-    v119 = inttoptr i256 v118 to memptr
+    v119 = inttoptr i256 v118 to ptr<memory>
     v120 = eq v118, 0
     jumpi v120, bb19, bb20
   bb19:
     v121 = icall @default_struct_0
-    v122 = ptrtoint memptr v121 to i256
+    v122 = ptrtoint ptr<memory> v121 to i256
     store v28+96, v122
     jump bb20
   bb20:
     v123 = phi [bb18: v119], [bb19: v121]
-    v124 = load v123+32, memptr
+    v124 = load v123+32, ptr<memory>
     v125 = load v124
     v126 = lt 5, v125
     v127 = eq v126, false
@@ -196,40 +196,40 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
   bb7:
     v31 = alloc 64 !metadata(preserves_fmp)
     v32 = alloc 64 !metadata(preserves_fmp)
-    v33 = ptrtoint memptr v32 to i256
+    v33 = ptrtoint ptr<memory> v32 to i256
     memory_zero v33, 64
-    v34 = ptrtoint memptr v32 to i256
+    v34 = ptrtoint ptr<memory> v32 to i256
     store v31, v34
     store v31+32, 96
     v35 = shl 5, v29
     v36 = ptradd v28, v35
-    v37 = ptrtoint memptr v31 to i256
+    v37 = ptrtoint ptr<memory> v31 to i256
     store v36+32, v37
     v38 = add v29, 1
     jump bb6
   bb2:
     v10 = alloc 64 !metadata(preserves_fmp)
-    v11 = ptrtoint memptr v10 to i256
+    v11 = ptrtoint ptr<memory> v10 to i256
     memory_zero v11, 64
     v12 = shl 5, v8
     v13 = ptradd v7, v12
-    v14 = ptrtoint memptr v10 to i256
+    v14 = ptrtoint ptr<memory> v10 to i256
     store v13+32, v14
     v15 = add v8, 1
     jump bb1
 }
 
-fn @default_struct_0() -> memptr {
+fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v1 = alloc 64
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     memory_zero v2, 64
-    v3 = ptrtoint memptr v1 to i256
+    v3 = ptrtoint ptr<memory> v1 to i256
     store v0, v3
     v4 = alloc 32
     store v4, 0
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     store v0+32, v5
     ret v0
 }

@@ -150,13 +150,13 @@ fn @equivalent_base_overwrite(arg0: i256) {
 
 // CHECK-LABEL: @unused_frame_store
 // CHECK:       [[FRAME_PTR:v[0-9]+]] = internal_frame_addr
-// CHECK: [[FRAME:v[0-9]+]] = ptrtoint memptr [[FRAME_PTR]] to i256
+// CHECK: [[FRAME:v[0-9]+]] = ptrtoint ptr<memory> [[FRAME_PTR]] to i256
 // CHECK: -     store [[FRAME]], 0
 // CHECK:       ret 0
 fn @unused_frame_store() -> i256 {
   bb0:
     v7 = internal_frame_addr 192
-    v0 = ptrtoint memptr v7 to i256
+    v0 = ptrtoint ptr<memory> v7 to i256
     store v0, 0
     ret 0
 }

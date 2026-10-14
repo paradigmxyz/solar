@@ -32,8 +32,8 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v11 = shr 32, v8
     v12 = gas
     v13 = abi_encode [], selector v10
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = call v12, v11, 0, v14, v15, 0, 32
     jumpi v16, bb2, bb1
   bb1:

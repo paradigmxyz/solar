@@ -11,6 +11,6 @@ fn @metadata(arg0: i256) -> i256 {
     v2 = load 64 !metadata(memory=scratch, unchecked)
     v3 = add v1, v2
     v5 = alloc 32 !metadata(preserves_fmp)
-    v4 = ptrtoint memptr v5 to i256
+    v4 = ptrtoint ptr<memory> v5 to i256
     ret v3
 }

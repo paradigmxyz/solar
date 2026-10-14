@@ -6,7 +6,7 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<134217727, u256>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<134217727, u256>, u256]] {
   bb0:
     v0 = lt arg1, 0x7ffffff
     v1 = eq v0, false
@@ -26,7 +26,7 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<3, u256>, u256]] {
+fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<3, u256>, u256]] {
   bb0:
     v0 = lt 2, 3
     v1 = eq v0, false

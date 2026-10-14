@@ -1090,7 +1090,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
     /// Rewrites each pointer load into a cast of the word it reads.
     fn apply_casts(&self, func: &mut Function) {
-        // result = load slot, memptr => result = inttoptr reaching_value to memptr
+        // result = load slot, ptr<memory> => result = inttoptr reaching_value to ptr<memory>
         for &(inst, value) in &self.casts {
             func.inst_mut(inst).replace_kind(InstKind::IntToPtr(value));
         }

@@ -1,15 +1,15 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after lower-builtins) ===
   @module PackedEncoding
-  fn @mixed(arg0: i16, arg1: memptr) -> memptr {
+  fn @mixed(arg0: i16, arg1: ptr<memory>) -> ptr<memory> {
     bb0:
 -     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
 -     ret v0
-+     v1 = ptrtoint memptr arg1 to i256
++     v1 = ptrtoint ptr<memory> arg1 to i256
 +     v2 = add v1, 32
 +     v3 = load arg1
 +     v4 = make_memory_slice v2, v3
-+     v5 = extract_value memoryslice, v4, 1
++     v5 = extract_value slice<memory>, v4, 1
 +     v6 = add 5, v5
 +     v7 = add v6, 63
 +     v8 = lt v7, v6
@@ -24,8 +24,8 @@
 +     v14 = or 0x1020000000000000000000000000000000000000000000000000000000000, v13
 +     store v11+32, v14
 +     v15 = ptradd v11, 37
-+     v16 = extract_value memoryslice, v4, 0
-+     v17 = extract_value memoryslice, v4, 1
++     v16 = extract_value slice<memory>, v4, 0
++     v17 = extract_value slice<memory>, v4, 1
 +     copy v15, v16, v17
 +     v18 = add 5, v5
 +     ret v11
@@ -49,7 +49,7 @@
 +     ret v5
   }
   
-  fn @arrays(arg0: memptr, arg1: calldataslice) -> memptr {
+  fn @arrays(arg0: ptr<memory>, arg1: slice<calldata>) -> ptr<memory> {
     bb0:
 -     v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
 -     ret v0
@@ -64,7 +64,7 @@
 +     jumpi v8, bb1, bb2
 +   bb2:
 +     v9 = add 0, v2
-+     v10 = extract_value calldataslice, arg1, 1
++     v10 = extract_value slice<calldata>, arg1, 1
 +     v11 = mul v10, 32
 +     v12 = eq 32, 0
 +     v13 = div v11, 32
@@ -113,7 +113,7 @@
 +     v49 = lt v48, v29
 +     jumpi v49, bb1, bb11
 +   bb11:
-+     v50 = extract_value calldataslice, arg1, 0
++     v50 = extract_value slice<calldata>, arg1, 0
 +     jump bb12
 +   bb12:
 +     v51 = phi [bb11: 0], [bb13: v62]
@@ -124,7 +124,7 @@
 +   bb13:
 +     v53 = mul v51, 32
 +     v54 = add v29, v53
-+     v55 = extract_value calldataslice, arg1, 0
++     v55 = extract_value slice<calldata>, arg1, 0
 +     v56 = add v55, v53
 +     v57 = load calldata v56
 +     v58 = eq v57, 0
@@ -151,7 +151,7 @@
 +     revert 28, 36
   }
   
-  fn @nested(arg0: memptr) -> memptr {
+  fn @nested(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
 -     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
 -     ret v0
@@ -186,7 +186,7 @@
 +     v13 = mul v11, 32
 +     v14 = add v5, v13
 +     v15 = shl 5, v11
-+     v16 = inttoptr i256 v8 to memptr
++     v16 = inttoptr i256 v8 to ptr<memory>
 +     v17 = ptradd v16, v15
 +     v18 = load v17
 +     v19 = lt v18, 3
@@ -206,7 +206,7 @@
 +     revert 28, 36
   }
   
-  fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
+  fn @edge(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -270,7 +270,7 @@
 +     revert 28, 36
   }
   
-  fn @prefixed_array(arg0: memptr) -> memptr {
+  fn @prefixed_array(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
 -     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
 -     ret v0

@@ -102,7 +102,7 @@ fn @recursive(arg0: i256) {
 fn @known_memory() -> i256 {
   bb0:
     v2 = alloc 32
-    v0 = ptrtoint memptr v2 to i256
+    v0 = ptrtoint ptr<memory> v2 to i256
     store v0, 19
     icall @guard, 42
     v1 = icall @read, v0
@@ -117,14 +117,14 @@ fn @read(arg0: i256) -> i256 {
 // Constant references remain calls to avoid disrupting pointer induction.
 // CHECK-LABEL: fn @reference_caller
 // CHECK: {{^ +}}v0 = icall @reference
-fn @reference_caller() -> memptr {
+fn @reference_caller() -> ptr<memory> {
   bb0:
     v0 = icall @reference
     ret v0
 }
-fn @reference() -> memptr {
+fn @reference() -> ptr<memory> {
   bb0:
-    ret memptr 5
+    ret ptr<memory> 5
 }
 
 // CHECK-LABEL: fn @closed_i8

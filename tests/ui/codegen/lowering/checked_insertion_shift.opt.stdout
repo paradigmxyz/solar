@@ -8,7 +8,7 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     jumpi v56, bb8, bb9
   bb9:
     v57 = icall @decode_calldata_type
-    v89 = ptrtoint memptr v57 to i256
+    v89 = ptrtoint ptr<memory> v57 to i256
     v45 = load v89
     v90 = add v89, 64
     jump bb1
@@ -73,7 +73,7 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     jumpi v0, bb1, bb2
   bb1:
     v13 = sub arg1, 1
-    v41 = ptrtoint memptr v17 to i256
+    v41 = ptrtoint ptr<memory> v17 to i256
     v2 = load v41
     v3 = lt v13, v2
     jumpi v3, bb4, bb3
@@ -93,7 +93,7 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     store v40, v7
     jump bb2
   bb2:
-    v42 = ptrtoint memptr v17 to i256
+    v42 = ptrtoint ptr<memory> v17 to i256
     v24 = ne v42, 0
     v25 = zext i1 v24 to i256
     v21 = load v42
@@ -117,7 +117,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type() -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> ptr<memory> [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = load calldata 4
@@ -138,7 +138,7 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     jumpi v36, bb3, bb4
   bb4:
     v30 = load 64 !metadata(memory=scratch)
-    v19 = inttoptr i256 v30 to memptr !metadata(memory=scratch)
+    v19 = inttoptr i256 v30 to ptr<memory> !metadata(memory=scratch)
     v31 = add v30, v17
     v32 = lt v31, v30
     v33 = gt v31, 0xffffffffffffffff

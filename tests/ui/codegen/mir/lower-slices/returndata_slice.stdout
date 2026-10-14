@@ -5,26 +5,26 @@
     bb0:
       v0 = returndatasize
 -     v1 = make_returndata_slice 0, v0
--     v2 = extract_value returndataslice, v1, 0
--     v3 = extract_value returndataslice, v1, 1
+-     v2 = extract_value slice<returndata>, v1, 0
+-     v3 = extract_value slice<returndata>, v1, 1
 -     v4 = add v3, 32
 +     v4 = add v0, 32
       v5 = alloc v4
-      v6 = ptrtoint memptr v5 to i256
+      v6 = ptrtoint ptr<memory> v5 to i256
 -     store v6, v3
 +     store v6, v0
       v7 = ptradd v5, 32
-      v8 = ptrtoint memptr v7 to i256
+      v8 = ptrtoint ptr<memory> v7 to i256
 -     copy returndata v8, v2, v3
 +     copy returndata v8, 0, v0
       ret v6
   }
   
-- fn @consume_returndata(arg0: returndataslice) -> i256 {
+- fn @consume_returndata(arg0: slice<returndata>) -> i256 {
 + fn @consume_returndata(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v0 = extract_value returndataslice, arg0, 0
--     v1 = extract_value returndataslice, arg0, 1
+-     v0 = extract_value slice<returndata>, arg0, 0
+-     v1 = extract_value slice<returndata>, arg0, 1
 -     v2 = add v0, v1
 +     v2 = add arg0, arg1
       ret v2

@@ -9,7 +9,7 @@
 // CHECK: {{^ +}}jump [[HEADER:bb[0-9]+]]
 // CHECK: {{^ +}}[[HEADER]]:
 // CHECK: -     [[LEN]] = load arg0
-fn @hoist_len_over_element_stores(arg0: memptr) {
+fn @hoist_len_over_element_stores(arg0: ptr<memory>) {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +34,7 @@ fn @hoist_len_over_element_stores(arg0: memptr) {
 // CHECK: {{^ +}}jump [[HEADER:bb[0-9]+]]
 // CHECK: {{^ +}}[[HEADER]]:
 // CHECK: -     [[LEN]] = load arg0
-fn @hoist_len_over_byte_stores(arg0: memptr) {
+fn @hoist_len_over_byte_stores(arg0: ptr<memory>) {
   bb0:
     jump bb1
   bb1:
@@ -57,7 +57,7 @@ fn @hoist_len_over_byte_stores(arg0: memptr) {
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = load arg0
-fn @keep_len_when_loop_resizes(arg0: memptr) {
+fn @keep_len_when_loop_resizes(arg0: ptr<memory>) {
   bb0:
     jump bb1
   bb1:
@@ -66,7 +66,7 @@ fn @keep_len_when_loop_resizes(arg0: memptr) {
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
-    v5 = ptrtoint memptr arg0 to i256
+    v5 = ptrtoint ptr<memory> arg0 to i256
     store v5, v0
     v3 = add v0, 1
     jump bb1
@@ -79,7 +79,7 @@ fn @keep_len_when_loop_resizes(arg0: memptr) {
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = load arg0
-fn @keep_len_under_unknown_store(arg0: memptr, arg1: i256) {
+fn @keep_len_under_unknown_store(arg0: ptr<memory>, arg1: i256) {
   bb0:
     jump bb1
   bb1:
@@ -100,10 +100,10 @@ fn @keep_len_under_unknown_store(arg0: memptr, arg1: i256) {
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = load arg0
-fn @hoist_len_over_pure_call(arg0: memptr) -> memptr {
+fn @hoist_len_over_pure_call(arg0: ptr<memory>) -> ptr<memory> {
   bb0:
     v0 = alloc 64
-    v9 = ptrtoint memptr v0 to i256
+    v9 = ptrtoint ptr<memory> v0 to i256
     store v9, 32
     jump bb1
   bb1:
@@ -135,7 +135,7 @@ fn @mask_low(arg0: i256) -> i256 {
 // CHECK-LABEL: @keep_unexecuted_header
 // CHECK: {{^ +}}bb2:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = load arg0
-fn @keep_unexecuted_header(arg0: memptr, arg1: i256) -> i256 {
+fn @keep_unexecuted_header(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -156,7 +156,7 @@ fn @keep_unexecuted_header(arg0: memptr, arg1: i256) -> i256 {
 // CHECK: {{^ +}}bb1:
 // CHECK: {{^ +}}v1 = icall @observe_size
 // CHECK-NEXT: {{^ +}}v2 = load arg0
-fn @keep_header_after_size_call(arg0: memptr, arg1: i256) -> i256 {
+fn @keep_header_after_size_call(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

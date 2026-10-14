@@ -9,19 +9,19 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_projections{{[( ]}}
 // CHECK: - {{v[0-9]+}} = ptradd arg0, 32
-// CHECK: - {{v[0-9]+}} = ptrtoint memptr {{v[0-9]+}} to i256
-// CHECK: - {{v[0-9]+}} = ptrtoint memptr arg1 to i256
-// CHECK: - {{v[0-9]+}} = ptrtoint memptr arg2 to i256
-fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr) -> i256 {
+// CHECK: - {{v[0-9]+}} = ptrtoint ptr<memory> {{v[0-9]+}} to i256
+// CHECK: - {{v[0-9]+}} = ptrtoint ptr<memory> arg1 to i256
+// CHECK: - {{v[0-9]+}} = ptrtoint ptr<memory> arg2 to i256
+fn @reuse_projections(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 {
   bb0:
     v9001 = ptradd arg0, 32
-    v4 = ptrtoint memptr v9001 to i256
+    v4 = ptrtoint ptr<memory> v9001 to i256
     v9002 = ptradd arg0, 32
-    v5 = ptrtoint memptr v9002 to i256
-    v6 = ptrtoint memptr arg1 to i256
-    v7 = ptrtoint memptr arg1 to i256
-    v8 = ptrtoint memptr arg2 to i256
-    v9 = ptrtoint memptr arg2 to i256
+    v5 = ptrtoint ptr<memory> v9002 to i256
+    v6 = ptrtoint ptr<memory> arg1 to i256
+    v7 = ptrtoint ptr<memory> arg1 to i256
+    v8 = ptrtoint ptr<memory> arg2 to i256
+    v9 = ptrtoint ptr<memory> arg2 to i256
     v10 = eq v4, v5
     v11 = eq v6, v7
     v12 = eq v8, v9
@@ -36,11 +36,11 @@ fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @invalidate_length{{[( ]}}
 // CHECK: - {{v[0-9]+}} = load arg0
 // CHECK: + {{v[0-9]+}} = add [[LENGTH:v[0-9]+]], [[LENGTH]]
-fn @invalidate_length(arg0: memptr) -> i256 {
+fn @invalidate_length(arg0: ptr<memory>) -> i256 {
   bb0:
     v1 = load arg0
     v2 = load arg0
-    v8 = ptrtoint memptr arg0 to i256
+    v8 = ptrtoint ptr<memory> arg0 to i256
     store v8, 9
     v3 = load arg0
     v4 = add v1, v2
@@ -117,10 +117,10 @@ fn @reuse_struct_field() -> i256 {
 fn @forward_initialized_length() -> i256 {
   bb0:
     v0 = alloc 64
-    v26 = ptrtoint memptr v0 to i256
+    v26 = ptrtoint ptr<memory> v0 to i256
     store v26, 3
     v9001 = ptradd v0, 32
-    v1 = ptrtoint memptr v9001 to i256
+    v1 = ptrtoint ptr<memory> v9001 to i256
     store v1, 0
     jump bb1
   bb1:
@@ -131,9 +131,9 @@ fn @forward_initialized_length() -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @raw_header_clobber{{[( ]}}
 // CHECK:       -     {{v[0-9]+}} = load arg0
 // CHECK:       +     ret arg1
-fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
+fn @raw_header_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
-    v2 = ptrtoint memptr arg0 to i256
+    v2 = ptrtoint ptr<memory> arg0 to i256
     store v2, 3
     store v2, arg1
     v3 = load arg0
@@ -144,9 +144,9 @@ fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
 // CHECK:       bb3:
 // CHECK-NEXT:  {{^ +}}[[LENGTH:v[0-9]+]] = load arg0
 // CHECK-NEXT:  {{^ +}}ret [[LENGTH]]
-fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
+fn @diamond_header_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
   bb0:
-    v4 = ptrtoint memptr arg0 to i256
+    v4 = ptrtoint ptr<memory> arg0 to i256
     store v4, 3
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
@@ -165,9 +165,9 @@ fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
 // CHECK-NEXT:  {{^ +}}[[LENGTH:v[0-9]+]] = load arg0
 // CHECK-NEXT:       [[COND:v[0-9]+]] = ne [[LENGTH]], 0
 // CHECK-NEXT:       jumpi [[COND]],
-fn @loop_header_clobber(arg0: memptr) -> i256 {
+fn @loop_header_clobber(arg0: ptr<memory>) -> i256 {
   bb0:
-    v3 = ptrtoint memptr arg0 to i256
+    v3 = ptrtoint ptr<memory> arg0 to i256
     store v3, 7
     jump bb1
   bb1:
@@ -187,12 +187,12 @@ fn @loop_header_clobber(arg0: memptr) -> i256 {
 fn @recycled_header_clobber() -> i256 {
   bb0:
     v0 = alloc 32
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     store v1, 3
-    v4 = inttoptr i256 v1 to memptr
+    v4 = inttoptr i256 v1 to ptr<memory>
     set_fmp v4
     v2 = alloc 32
-    v5 = ptrtoint memptr v2 to i256
+    v5 = ptrtoint ptr<memory> v2 to i256
     store v5, 4
     v3 = load v0
     ret v3
@@ -204,11 +204,11 @@ fn @recycled_header_clobber() -> i256 {
 // CHECK: store {{v[0-9]+}}, 7
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = load arg0
 // CHECK: add [[LEN]], [[AFTER]]
-fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
+fn @parameter_may_overlap_allocation(arg0: ptr<memory>) -> i256 {
   bb0:
     v0 = alloc 32
     v1 = load arg0
-    v5 = ptrtoint memptr v0 to i256
+    v5 = ptrtoint ptr<memory> v0 to i256
     store v5, 7
     v2 = load arg0
     v3 = add v1, v2
@@ -218,7 +218,7 @@ fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
 fn @fabricated_parameter() -> i256 {
   bb0:
     v0 = load 64
-    v1 = inttoptr i256 v0 to memptr
+    v1 = inttoptr i256 v0 to ptr<memory>
     v3 = icall @parameter_may_overlap_allocation, v1
     ret v3
 }

@@ -29,7 +29,7 @@ fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_retu
     icall panic_if<0x32>, v13
     v14 = byte 0, v10
     store8 v6+32, v14
-    v15 = ptrtoint memptr v6 to i256
+    v15 = ptrtoint ptr<memory> v6 to i256
     v16 = add v15, 32
     v17 = load v6
     v18 = keccak256 v16, v17

@@ -6,7 +6,7 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @version
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     v3 = load v0
     v4 = keccak256 v2, v3
@@ -14,11 +14,11 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @version() -> memptr [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 1
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
@@ -30,8 +30,8 @@ fn @constructorAndRuntime() -> i1 [selector=0x6b57fb7b, view, abi_params=[], abi
     v1 = address
     v2 = gas
     v3 = abi_encode [], selector 0x54fd4d5000000000000000000000000000000000000000000000000000000000
-    v4 = extract_value memoryslice, v3, 0
-    v5 = extract_value memoryslice, v3, 1
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
     v7 = staticcall v2, v6, v4, v5, 0, 0
     jumpi v7, bb2, bb1
@@ -40,7 +40,7 @@ fn @constructorAndRuntime() -> i1 [selector=0x6b57fb7b, view, abi_params=[], abi
   bb2:
     v8 = icall returndata_bytes<>
     v9 = abi_decode [bytes], v8
-    v10 = ptrtoint memptr v9 to i256
+    v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 32
     v12 = load v9
     v13 = keccak256 v11, v12

@@ -684,11 +684,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if id == sym::i1 {
             return Ok(MirType::I1);
         }
-        if id == sym::calldataptr {
-            return Ok(MirType::Ptr(PtrLocation::Calldata));
+        if id == sym::ptr {
+            return Ok(MirType::Ptr(self.parse_type_location()?));
         }
-        if id == sym::returndataptr {
-            return Ok(MirType::Ptr(PtrLocation::Returndata));
+        if id == sym::slice {
+            return Ok(MirType::Slice(self.parse_type_location()?));
         }
         if let Some(bits) = id.as_str().strip_prefix('i')
             && !bits.is_empty()
@@ -706,17 +706,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let layout = self.parse_value_layout_from_ident(id)?;
         match layout {
-            super::ValueLayout::MemPtr
-            | super::ValueLayout::Slice(_)
-            | super::ValueLayout::Struct(_)
-            | super::ValueLayout::Void => Ok(layout.mir_type()),
-            super::ValueLayout::MemoryObject(_) => Err(self
-                .parser
-                .error(format!("`{id}` is an object layout; memory objects are `memptr` values"))),
+            super::ValueLayout::Struct(_) | super::ValueLayout::Void => Ok(layout.mir_type()),
+            super::ValueLayout::MemoryObject(_) => Err(self.parser.error(format!(
+                "`{id}` is an object layout; memory objects are `ptr<memory>` values"
+            ))),
             _ => Err(self
                 .parser
                 .error(format!("`{id}` is a layout type; use `iN` for a scalar SSA value"))),
         }
+    }
+
+    /// Parses the `<location>` argument of a `ptr` or `slice` type.
+    fn parse_type_location(&mut self) -> PResult<'sess, PtrLocation> {
+        self.parser.expect(TokenKind::Lt)?;
+        let id = self.parser.parse_ident()?;
+        let location = location_from_ident(id)
+            .ok_or_else(|| self.parser.error(format!("unknown location `{id}`")))?;
+        self.expect_gt()?;
+        Ok(location)
     }
 
     fn parse_value_layout(&mut self) -> PResult<'sess, super::ValueLayout> {
@@ -759,7 +766,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match id {
                 kw::Bool => super::ValueLayout::Bool,
                 kw::Address => super::ValueLayout::Address,
-                sym::memptr => super::ValueLayout::MemPtr,
                 sym::memorybytes => super::ValueLayout::MemoryObject(MemoryObjectKind::Bytes),
                 sym::memoryarray => {
                     super::ValueLayout::MemoryObject(MemoryObjectKind::DynamicArray)
@@ -769,10 +775,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::memorystruct => super::ValueLayout::MemoryObject(MemoryObjectKind::Struct),
                 sym::storageptr => super::ValueLayout::StoragePtr,
-                sym::calldataptr => super::ValueLayout::CalldataPtr,
-                sym::memoryslice => super::ValueLayout::Slice(PtrLocation::Memory),
-                sym::calldataslice => super::ValueLayout::Slice(PtrLocation::Calldata),
-                sym::returndataslice => super::ValueLayout::Slice(PtrLocation::Returndata),
+                sym::ptr => match self.parse_type_location()? {
+                    PtrLocation::Memory => super::ValueLayout::MemPtr,
+                    PtrLocation::Calldata => super::ValueLayout::CalldataPtr,
+                    PtrLocation::Returndata => {
+                        return Err(self.parser.error("`ptr<returndata>` is not a layout type"));
+                    }
+                },
+                sym::slice => super::ValueLayout::Slice(self.parse_type_location()?),
                 kw::Function => super::ValueLayout::Function,
                 sym::void => super::ValueLayout::Void,
                 _ => return Err(self.parser.error(format!("unknown type `{id}`"))),
@@ -836,7 +846,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.value_labels.insert(idx, value);
             return Ok(value);
         }
-        if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
+        if starts_typed_literal(ident, &self.parser.token().kind) {
             let ty = self.parse_type_from_ident(ident)?;
             let value = self.parser.parse_uint()?;
             if ty == MirType::I1 && value > alloy_primitives::U256::ONE {
@@ -1408,10 +1418,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     || symbol == kw::False
                     || symbol == sym::err
                     || symbol == sym::undef
-                    || matches!(
-                        self.parser.look_ahead(1).kind,
-                        TokenKind::Literal(TokenLitKind::Integer, _)
-                    )
+                    || starts_typed_literal(symbol, &self.parser.look_ahead(1).kind)
                     || symbol
                         .as_str()
                         .strip_prefix("arg")
@@ -1597,13 +1604,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
         let kind = self.parser.parse_ident()?;
-        Ok(match kind {
-            sym::word => FrameSlotKind::Word,
-            kw::Memory => FrameSlotKind::Slice(PtrLocation::Memory),
-            kw::Calldata => FrameSlotKind::Slice(PtrLocation::Calldata),
-            sym::returndata => FrameSlotKind::Slice(PtrLocation::Returndata),
-            _ => return Err(self.parser.error(format!("unknown frame slot kind `{kind}`"))),
-        })
+        if kind == sym::word {
+            return Ok(FrameSlotKind::Word);
+        }
+        location_from_ident(kind)
+            .map(FrameSlotKind::Slice)
+            .ok_or_else(|| self.parser.error(format!("unknown frame slot kind `{kind}`")))
     }
 
     fn parse_effect_kind(&self, value: Symbol) -> PResult<'sess, EffectKind> {
@@ -1814,7 +1820,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
                     if ty != MirType::MEMPTR {
-                        return Err(self.parser.error("load annotation must be `memptr`"));
+                        return Err(self.parser.error("load annotation must be `ptr<memory>`"));
                     }
                     ty
                 } else {
@@ -2295,4 +2301,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         Ok(parsed)
     }
+}
+
+/// Returns the location a `ptr<...>`, `slice<...>`, or frame slot keyword names.
+fn location_from_ident(id: Symbol) -> Option<PtrLocation> {
+    match id {
+        kw::Memory => Some(PtrLocation::Memory),
+        kw::Calldata => Some(PtrLocation::Calldata),
+        sym::returndata => Some(PtrLocation::Returndata),
+        _ => None,
+    }
+}
+
+/// Whether `ident` followed by `next` starts a typed literal: `i8 5`, `ptr<memory> 64`.
+fn starts_typed_literal(ident: Symbol, next: &TokenKind) -> bool {
+    ident == sym::ptr || matches!(next, TokenKind::Literal(TokenLitKind::Integer, _))
 }

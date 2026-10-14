@@ -25,7 +25,7 @@ contract AbiEncodePackedMixed {
 
     // CHECK-LABEL: fn @hashArray{{[( ]}}
     // CHECK: [[BYTES:v[0-9]+]] = abi_encode_packed (array<word> memoryarray<1> arg0)
-    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint memptr [[BYTES]] to i256
+    // CHECK: [[ADDR:v[0-9]+]] = ptrtoint ptr<memory> [[BYTES]] to i256
     // CHECK: [[DATA:v[0-9]+]] = add [[ADDR]], 32
     // CHECK: [[LEN:v[0-9]+]] = load [[BYTES]]
     // CHECK: keccak256 [[DATA]], [[LEN]]

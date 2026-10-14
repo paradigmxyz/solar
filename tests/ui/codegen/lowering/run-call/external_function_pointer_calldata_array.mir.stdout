@@ -3,17 +3,17 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 1
     v1 = eq v0, 3
     v2 = eq v1, false
     icall revert_if<empty>, v2
-    v3 = extract_value calldataslice, arg0, 1
+    v3 = extract_value slice<calldata>, arg0, 1
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = extract_value calldataslice, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 0
     v7 = add v6, 0
     v8 = load calldata v7
     v9 = shl 192, v8
@@ -26,8 +26,8 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v15 = shr 32, v12
     v16 = gas
     v17 = abi_encode [], selector v14
-    v18 = extract_value memoryslice, v17, 0
-    v19 = extract_value memoryslice, v17, 1
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = extract_value slice<memory>, v17, 1
     v20 = call v16, v15, 0, v18, v19, 0, 32
     jumpi v20, bb2, bb1
   bb1:
@@ -38,11 +38,11 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = load v23
-    v25 = extract_value calldataslice, arg0, 1
+    v25 = extract_value slice<calldata>, arg0, 1
     v26 = lt 1, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = extract_value calldataslice, arg0, 0
+    v28 = extract_value slice<calldata>, arg0, 0
     v29 = add v28, 32
     v30 = load calldata v29
     v31 = shl 192, v30
@@ -55,8 +55,8 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v37 = shr 32, v34
     v38 = gas
     v39 = abi_encode [], selector v36
-    v40 = extract_value memoryslice, v39, 0
-    v41 = extract_value memoryslice, v39, 1
+    v40 = extract_value slice<memory>, v39, 0
+    v41 = extract_value slice<memory>, v39, 1
     v42 = call v38, v37, 0, v40, v41, 0, 32
     jumpi v42, bb4, bb3
   bb3:
@@ -67,11 +67,11 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     icall revert_if<tuple_data_too_short>, v44
     v45 = add 0, 0
     v46 = load v45
-    v47 = extract_value calldataslice, arg0, 1
+    v47 = extract_value slice<calldata>, arg0, 1
     v48 = lt 2, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = extract_value calldataslice, arg0, 0
+    v50 = extract_value slice<calldata>, arg0, 0
     v51 = add v50, 64
     v52 = load calldata v51
     v53 = shl 192, v52
@@ -84,8 +84,8 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     v59 = shr 32, v56
     v60 = gas
     v61 = abi_encode [], selector v58
-    v62 = extract_value memoryslice, v61, 0
-    v63 = extract_value memoryslice, v61, 1
+    v62 = extract_value slice<memory>, v61, 0
+    v63 = extract_value slice<memory>, v61, 1
     v64 = call v60, v59, 0, v62, v63, 0, 32
     jumpi v64, bb6, bb5
   bb5:
@@ -102,12 +102,12 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     ret v71
 }
 
-fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = extract_value calldataslice, arg0, 1
-    v3 = extract_value calldataslice, arg0, 0
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul v2, 32
     v5 = eq 32, 0
     v6 = div v4, 32
@@ -140,8 +140,8 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     jumpi v25, bb2, bb3
   bb3:
     v37 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v23
-    v38 = extract_value memoryslice, v37, 0
-    v39 = extract_value memoryslice, v37, 1
+    v38 = extract_value slice<memory>, v37, 0
+    v39 = extract_value slice<memory>, v37, 1
     v40 = zext i160 v0 to i256
     v41 = call v1, v40, 0, v38, v39, v38, 96
     jumpi v41, bb5, bb4
@@ -238,8 +238,8 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v46 = address
     v47 = gas
     v48 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
-    v49 = extract_value memoryslice, v48, 0
-    v50 = extract_value memoryslice, v48, 1
+    v49 = extract_value slice<memory>, v48, 0
+    v50 = extract_value slice<memory>, v48, 1
     v51 = zext i160 v46 to i256
     v52 = call v47, v51, 0, v49, v50, v49, 96
     jumpi v52, bb7, bb6
@@ -266,8 +266,8 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v25 = address
     v26 = gas
     v27 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
-    v28 = extract_value memoryslice, v27, 0
-    v29 = extract_value memoryslice, v27, 1
+    v28 = extract_value slice<memory>, v27, 0
+    v29 = extract_value slice<memory>, v27, 1
     v30 = zext i160 v25 to i256
     v31 = call v26, v30, 0, v28, v29, v28, 96
     jumpi v31, bb5, bb4

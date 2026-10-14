@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        // value = inttoptr value to memptr
+        // value = inttoptr value to ptr<memory>
         let value = self.builder.cast(value, MirType::MEMPTR);
         let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
@@ -109,7 +109,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if small {
             return self.default_object(element);
         }
-        // fn @default_struct_N() -> memptr { object = default(Struct); ret object }
+        // fn @default_struct_N() -> ptr<memory> { object = default(Struct); ret object }
         let helper =
             self.lazy_helper(helper_name(sym::default_struct, id.index()), |this, function| {
                 let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);

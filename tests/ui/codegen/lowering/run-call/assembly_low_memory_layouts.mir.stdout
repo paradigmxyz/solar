@@ -185,7 +185,7 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     v3 = and 0x43f, v2
     v4 = alloc zeroed checked v3
     store v4, 0x400
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = load v5
     v7 = load 0x2400
     v8 = add v7, v6
@@ -643,11 +643,11 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v2 = alloc zeroed checked v1
     store v2, 1
     v3 = not 0
-    v4 = ptrtoint memptr v2 to i256
+    v4 = ptrtoint ptr<memory> v2 to i256
     store v4, v3
     v5 = load calldata 4
     store 64, v5 !metadata(memory=scratch)
-    v6 = ptrtoint memptr v2 to i256
+    v6 = ptrtoint ptr<memory> v2 to i256
     v7 = add v6, 32
     v8 = sub 95, v7
     v9 = load v2
@@ -670,11 +670,11 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     v0 = alloc zeroed checked 64
     store v0, 1
     v1 = not 0
-    v2 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v0 to i256
     store v2, v1
     v3 = load calldata 4
     store 64, v3 !metadata(memory=scratch)
-    v4 = ptrtoint memptr v0 to i256
+    v4 = ptrtoint ptr<memory> v0 to i256
     v5 = add v4, 32
     v6 = sub 64, v5
     v7 = shr 5, v6
@@ -799,7 +799,7 @@ fn @_putScratch() [pure] {
     ret
 }
 
-fn @_copy(arg0: i256) -> memptr [pure] {
+fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = load 64 !metadata(memory=scratch)
     store v0, arg0
@@ -808,7 +808,7 @@ fn @_copy(arg0: i256) -> memptr [pure] {
     v2 = add v0, 32
     v3 = add v2, arg0
     store 64, v3 !metadata(memory=scratch)
-    v4 = inttoptr i256 v0 to memptr
+    v4 = inttoptr i256 v0 to ptr<memory>
     ret v4
 }
 

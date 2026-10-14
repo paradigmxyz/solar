@@ -11,7 +11,7 @@
 fn @returning_caller() -> i256 [selector=0x01020304] {
   bb0:
     v6 = alloc 32
-    v0 = ptrtoint memptr v6 to i256
+    v0 = ptrtoint ptr<memory> v6 to i256
     store v0, 7
     v1 = icall @returns, v0
     ret v1
@@ -24,7 +24,7 @@ fn @returning_caller() -> i256 [selector=0x01020304] {
 fn @masking_caller() -> i256 [selector=0x01020305] {
   bb0:
     v7 = alloc 32
-    v0 = ptrtoint memptr v7 to i256
+    v0 = ptrtoint ptr<memory> v7 to i256
     store v0, 7
     v1 = icall @masks, v0
     ret v1
@@ -38,7 +38,7 @@ fn @masking_caller() -> i256 [selector=0x01020305] {
 fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
     v8 = alloc 32
-    v0 = ptrtoint memptr v8 to i256
+    v0 = ptrtoint ptr<memory> v8 to i256
     store v0, 7
     v1 = icall @dereferences, v0
     ret v1

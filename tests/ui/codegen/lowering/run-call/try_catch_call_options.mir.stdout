@@ -16,13 +16,13 @@ fn @constructor() [constructor] {
     v1 = datasize TryCallOptionsTarget_creation_code_0
     v2 = datasize TryCallOptionsTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy TryCallOptionsTarget_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -45,8 +45,8 @@ fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v4 = extract_value memoryslice, v3, 0
-    v5 = extract_value memoryslice, v3, 1
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v1 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0
@@ -80,8 +80,8 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0

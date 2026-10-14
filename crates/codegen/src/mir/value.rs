@@ -45,7 +45,7 @@ pub(crate) enum Immediate {
     Int(U256, NonZeroU32),
     /// A 256-bit integer constant.
     I256(U256),
-    /// A constant `memptr`, with no implied validity or aliasing guarantee.
+    /// A constant `ptr<memory>`, with no implied validity or aliasing guarantee.
     Pointer(U256),
 }
 

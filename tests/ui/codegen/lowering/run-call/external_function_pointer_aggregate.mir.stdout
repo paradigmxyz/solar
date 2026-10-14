@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget ===
 @module ExternalFunctionPointerAggregateTarget
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v3 = insert_value struct0, undef struct0, 0, 7
@@ -15,7 +15,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     ret v4
 }
 
-fn @combine(arg0: memptr, arg1: memptr) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = load arg0
     v1 = lt 0, v0
@@ -36,7 +36,7 @@ fn @combine(arg0: memptr, arg1: memptr) -> struct0 [selector=0x3488ea15, pure, a
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
 @module ExternalFunctionPointerAggregate
 @types
-  struct0: {i256, memptr}
+  struct0: {i256, ptr<memory>}
 
 @data
   ExternalFunctionPointerAggregateTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget"
@@ -47,13 +47,13 @@ fn @constructor() [constructor] {
     v1 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0
     v2 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -82,8 +82,8 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v7 = shr 32, v4
     v8 = gas
     v9 = abi_encode [], selector v6
-    v10 = extract_value memoryslice, v9, 0
-    v11 = extract_value memoryslice, v9, 1
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
     v12 = staticcall v8, v7, v10, v11, 0, 0
     jumpi v12, bb2, bb1
   bb1:
@@ -123,12 +123,12 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v15 = gas
     v16 = alloc 64 !metadata(preserves_fmp)
     store v16, 2
-    v17 = ptrtoint memptr v16 to i256
+    v17 = ptrtoint ptr<memory> v16 to i256
     v18 = add v17, 32
     store v18, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v19 = abi_encode [memory_array<word>, memory_bytes], selector v13, args v5, v16
-    v20 = extract_value memoryslice, v19, 0
-    v21 = extract_value memoryslice, v19, 1
+    v20 = extract_value slice<memory>, v19, 0
+    v21 = extract_value slice<memory>, v19, 1
     v22 = staticcall v15, v14, v20, v21, 0, 0
     jumpi v22, bb2, bb1
   bb1:
@@ -156,8 +156,8 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     v2 = shr 32, arg0
     v3 = gas
     v4 = abi_encode [word], selector v1, args arg1
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 32
     jumpi v7, bb2, bb1
   bb1:
@@ -202,8 +202,8 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x2f5f3b3c00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb2, bb1
@@ -217,8 +217,8 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v11 = shr 32, v8
     v12 = gas
     v13 = abi_encode [word], selector v10, args 8
-    v14 = extract_value memoryslice, v13, 0
-    v15 = extract_value memoryslice, v13, 1
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
     v16 = call v12, v11, 0, v14, v15, 0, 32
     jumpi v16, bb4, bb3
   bb3:
@@ -249,8 +249,8 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     v10 = shr 32, v7
     v11 = gas
     v12 = abi_encode [word], selector v9, args 8
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = call v11, v10, 0, v13, v14, 0, 32
     jumpi v15, bb2, bb1
   bb1:
@@ -299,8 +299,8 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v24 = shr 32, v21
     v25 = gas
     v26 = abi_encode [word], selector v23, args 3
-    v27 = extract_value memoryslice, v26, 0
-    v28 = extract_value memoryslice, v26, 1
+    v27 = extract_value slice<memory>, v26, 0
+    v28 = extract_value slice<memory>, v26, 1
     v29 = call v25, v24, 0, v27, v28, 0, 32
     jumpi v29, bb2, bb1
   bb1:
@@ -322,8 +322,8 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v41 = shr 32, v38
     v42 = gas
     v43 = abi_encode [word], selector v40, args 4
-    v44 = extract_value memoryslice, v43, 0
-    v45 = extract_value memoryslice, v43, 1
+    v44 = extract_value slice<memory>, v43, 0
+    v45 = extract_value slice<memory>, v43, 1
     v46 = call v42, v41, 0, v44, v45, 0, 32
     jumpi v46, bb4, bb3
   bb3:
@@ -338,17 +338,17 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     ret v51
 }
 
-fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
-    v1 = extract_value calldataslice, arg0, 1
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = extract_value calldataslice, arg0, 1
+    v6 = extract_value slice<calldata>, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -357,10 +357,10 @@ fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_pa
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = extract_value calldataslice, arg0, 0
-    v14 = extract_value calldataslice, arg0, 1
+    v13 = extract_value slice<calldata>, arg0, 0
+    v14 = extract_value slice<calldata>, arg0, 1
     copy calldata v12, v13, v14
-    v15 = ptrtoint memptr v11 to i256
+    v15 = ptrtoint ptr<memory> v11 to i256
     v16 = add v15, 32
     v17 = load v11
     v18 = keccak256 v16, v17
@@ -380,12 +380,12 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v7 = gas
     v8 = alloc 64 !metadata(preserves_fmp)
     store v8, 10
-    v9 = ptrtoint memptr v8 to i256
+    v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
     store v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
     v11 = abi_encode [memory_bytes], selector v5, args v8
-    v12 = extract_value memoryslice, v11, 0
-    v13 = extract_value memoryslice, v11, 1
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
     v14 = call v7, v6, 0, v12, v13, 0, 32
     jumpi v14, bb2, bb1
   bb1:

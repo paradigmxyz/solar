@@ -974,7 +974,7 @@ impl<'a> FunctionBuilder<'a> {
         self.memory_load_field_as(object, field, MirType::I256)
     }
 
-    /// Loads a struct field as a `memptr` when `ty` is one, and as a word otherwise.
+    /// Loads a struct field as a `ptr<memory>` when `ty` is one, and as a word otherwise.
     pub(crate) fn memory_load_field_as(
         &mut self,
         object: ValueId,
@@ -1003,7 +1003,7 @@ impl<'a> FunctionBuilder<'a> {
         self.memory_load_element_as(object, layout, index, MirType::I256)
     }
 
-    /// Loads an array element as a `memptr` when `ty` is one, and as a word otherwise.
+    /// Loads an array element as a `ptr<memory>` when `ty` is one, and as a word otherwise.
     pub(crate) fn memory_load_element_as(
         &mut self,
         object: ValueId,
@@ -1063,7 +1063,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Returns the address `offset` bytes past `header` in a memory object, or `offset` bytes into
     /// a slice's data, as a base and an immediate byte offset for a memory access, with the
-    /// location it reads. An object base stays a `memptr`; a constant offset joins the header in
+    /// location it reads. An object base stays a pointer; a constant offset joins the header in
     /// the immediate.
     fn object_address(
         &mut self,
@@ -1097,7 +1097,7 @@ impl<'a> FunctionBuilder<'a> {
         self.ptradd(base, offset)
     }
 
-    /// Loads a word at `address + offset` as a `memptr` when `ty` is one, and as a word otherwise.
+    /// Loads a word at `address + offset` as a pointer when `ty` is one, and as a word otherwise.
     fn load_as(
         &mut self,
         address: ValueId,
@@ -1110,7 +1110,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Load(address, offset, location), Some(result))
     }
 
-    /// Offsets a pointer by `offset` bytes; a raw word offsets as a `memptr`.
+    /// Offsets a pointer by `offset` bytes; a raw word offsets as a `ptr<memory>`.
     pub(crate) fn ptradd(&mut self, ptr: ValueId, offset: ValueId) -> ValueId {
         // result = ptradd ptr, offset
         let ty = crate::mir::typing::pointer(self.func, ptr);

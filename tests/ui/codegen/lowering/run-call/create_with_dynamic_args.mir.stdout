@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token ===
 @module Token
-fn @name() -> memptr [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
@@ -13,7 +13,7 @@ fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[wor
     ret v1
 }
 
-fn @constructor(arg0: memptr, arg1: i8) [constructor, abi_params=[bytes, u8]] {
+fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, u8]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = sload 1 !metadata(storage=slot(1))
@@ -26,7 +26,7 @@ fn @constructor(arg0: memptr, arg1: i8) [constructor, abi_params=[bytes, u8]] {
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -44,11 +44,11 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 5
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [memory_bytes, word<u8>], args v0, 18
-    v4 = extract_value memoryslice, v3, 1
+    v4 = extract_value slice<memory>, v3, 1
     v5 = datasize Token_creation_code_0
     v6 = add v5, v4
     v7 = lt v6, v5
@@ -59,13 +59,13 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc v11
-    v13 = ptrtoint memptr v12 to i256
+    v13 = ptrtoint ptr<memory> v12 to i256
     datacopy Token_creation_code_0, v13, v5
-    v14 = extract_value memoryslice, v3, 0
-    v15 = ptrtoint memptr v12 to i256
+    v14 = extract_value slice<memory>, v3, 0
+    v15 = ptrtoint ptr<memory> v12 to i256
     v16 = add v15, v5
     copy v16, v14, v4 !metadata(memory=heap)
-    v17 = ptrtoint memptr v12 to i256
+    v17 = ptrtoint ptr<memory> v12 to i256
     v18 = create 0, v17, v6
     v19 = ne v18, i160 0
     jumpi v19, bb2, bb1
@@ -74,8 +74,8 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
   bb2:
     v20 = gas
     v21 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
-    v22 = extract_value memoryslice, v21, 0
-    v23 = extract_value memoryslice, v21, 1
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
     v24 = zext i160 v18 to i256
     v25 = staticcall v20, v24, v22, v23, 0, 0
     jumpi v25, bb4, bb3
@@ -87,8 +87,8 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v28 = load v27
     v29 = gas
     v30 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v31 = extract_value memoryslice, v30, 0
-    v32 = extract_value memoryslice, v30, 1
+    v31 = extract_value slice<memory>, v30, 0
+    v32 = extract_value slice<memory>, v30, 1
     v33 = zext i160 v18 to i256
     v34 = staticcall v29, v33, v31, v32, 0, 32
     jumpi v34, bb6, bb5

@@ -55,13 +55,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v1 = datasize Registry_creation_code_0
     v2 = datasize Registry_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy Registry_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -70,8 +70,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v11 = gas
     v12 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args 0x1111111111111111111111111111111111111111, 0x2200000000000000000000000000000000000000000000000000000000000033, 0x7a69, 0x4444444444444444444444444444444444444444, 0x5555
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = call v11, v15, 0, v13, v14, 0, 32
     jumpi v16, bb4, bb3
@@ -97,20 +97,20 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v30 = and v27, v29
     v31 = alloc zeroed checked v30
     store v31, v26
-    v32 = ptrtoint memptr v31 to i256
+    v32 = ptrtoint ptr<memory> v31 to i256
     v33 = add v32, 32
     v34 = zext i160 v24 to i256
     extcodecopy v34, v33, 0, v26 !metadata(memory=heap)
     v35 = load v31
     v36 = eq v35, 173
     icall require<short_string>, v36, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v37 = ptrtoint memptr v31 to i256
+    v37 = ptrtoint ptr<memory> v31 to i256
     v38 = add v37, 109
     v39 = load v38
-    v40 = ptrtoint memptr v31 to i256
+    v40 = ptrtoint ptr<memory> v31 to i256
     v41 = add v40, 141
     v42 = load v41
-    v43 = ptrtoint memptr v31 to i256
+    v43 = ptrtoint ptr<memory> v31 to i256
     v44 = add v43, 173
     v45 = load v44
     v46 = eq v39, 0x7a69

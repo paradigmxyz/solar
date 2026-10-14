@@ -1,19 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/event_indexed_aggregate.sol:EventIndexedAggregate ===
 @module EventIndexedAggregate
-fn @emitArray(arg0: memptr) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[], abi_return_params=[]] {
+fn @emitArray(arg0: ptr<memory>) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [array<2, word>], args arg0
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = keccak256 v1, v2
     log 0, 0, 0x593dc6b174959b601bb79a461ad966793c2efcb91b01656672c2ca58b06730f3, v3
     ret
 }
 
-fn @emitDynamicArray(arg0: memptr) [selector=0xf38510d4, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
+fn @emitDynamicArray(arg0: ptr<memory>) [selector=0xf38510d4, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     v3 = load v0
     v4 = keccak256 v2, v3

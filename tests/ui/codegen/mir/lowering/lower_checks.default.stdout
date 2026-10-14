@@ -36,7 +36,7 @@
       ret v5
   }
   
-  fn @payloads(arg0: i1, arg1: memptr, arg2: i256) {
+  fn @payloads(arg0: i1, arg1: ptr<memory>, arg2: i256) {
     bb0:
 -     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
 -     icall require<empty_string>, arg0
@@ -57,15 +57,15 @@
 +     jumpi arg0, bb6, bb5
 +   bb5:
 +     v0 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
-+     v1 = extract_value memoryslice, v0, 0
-+     v2 = extract_value memoryslice, v0, 1
++     v1 = extract_value slice<memory>, v0, 0
++     v2 = extract_value slice<memory>, v0, 1
 +     revert v1, v2
 +   bb6:
 +     jumpi arg0, bb8, bb7
 +   bb7:
 +     v3 = abi_encode [word, memory_bytes], selector 0, args arg2, arg1
-+     v4 = extract_value memoryslice, v3, 0
-+     v5 = extract_value memoryslice, v3, 1
++     v4 = extract_value slice<memory>, v3, 0
++     v5 = extract_value slice<memory>, v3, 1
 +     revert v4, v5
 +   bb8:
       ret

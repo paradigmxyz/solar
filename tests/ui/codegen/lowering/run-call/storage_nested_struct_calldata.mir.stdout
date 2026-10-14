@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_calldata.sol:StorageNestedStructCalldata ===
 @module StorageNestedStructCalldata
-fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -139,7 +139,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v162 = shl 5, v160
     v163 = ptradd v21, v162
     v164 = load v163+32
-    v165 = inttoptr i256 v164 to memptr
+    v165 = inttoptr i256 v164 to ptr<memory>
     v166 = eq v164, 0
     jumpi v166, bb27, bb28
   bb27:
@@ -147,7 +147,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     store v167, 0
     v168 = shl 5, v160
     v169 = ptradd v21, v168
-    v170 = ptrtoint memptr v167 to i256
+    v170 = ptrtoint ptr<memory> v167 to i256
     store v169+32, v170
     jump bb28
   bb28:
@@ -180,14 +180,14 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v197 = shl 5, v195
     v198 = ptradd v171, v197
     v199 = load v198+32
-    v200 = inttoptr i256 v199 to memptr
+    v200 = inttoptr i256 v199 to ptr<memory>
     v201 = eq v199, 0
     jumpi v201, bb40, bb41
   bb40:
     v202 = icall @default_struct_0
     v203 = shl 5, v195
     v204 = ptradd v171, v203
-    v205 = ptrtoint memptr v202 to i256
+    v205 = ptrtoint ptr<memory> v202 to i256
     store v204+32, v205
     jump bb41
   bb41:
@@ -261,7 +261,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     jump bb57
   bb55:
     v269 = shl 5, v262
-    v270 = inttoptr i256 v261 to memptr
+    v270 = inttoptr i256 v261 to ptr<memory>
     v271 = ptradd v270, v269
     v272 = load v271
     v273 = mul v267, 8
@@ -279,7 +279,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     jump bb52
   bb48:
     v232 = shl 5, v230
-    v233 = inttoptr i256 v210 to memptr
+    v233 = inttoptr i256 v210 to ptr<memory>
     v234 = ptradd v233, v232
     v235 = load v234+32
     v236 = storage_array_data_slot v209
@@ -425,7 +425,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v54 = lt v53, v36
     jumpi v54, bb5, bb6
   bb6:
-    v129 = ptrtoint memptr v52 to i256
+    v129 = ptrtoint ptr<memory> v52 to i256
     v130 = shl 5, v22
     v131 = ptradd v21, v130
     store v131+32, v129
@@ -487,7 +487,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     v96 = lt v95, v78
     jumpi v96, bb8, bb9
   bb9:
-    v106 = ptrtoint memptr v94 to i256
+    v106 = ptrtoint ptr<memory> v94 to i256
     store v67, v106
     v107 = add v61, 32
     v108 = calldatasize
@@ -502,12 +502,12 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     jumpi v113, bb11, bb12
   bb12:
     v121 = make_calldata_slice v107, 64
-    v122 = extract_value calldataslice, v121, 0
-    v123 = extract_value calldataslice, v121, 1
+    v122 = extract_value slice<calldata>, v121, 0
+    v123 = extract_value slice<calldata>, v121, 1
     copy calldata v111, v122, v123
-    v124 = ptrtoint memptr v111 to i256
+    v124 = ptrtoint ptr<memory> v111 to i256
     store v67+32, v124
-    v125 = ptrtoint memptr v67 to i256
+    v125 = ptrtoint ptr<memory> v67 to i256
     v126 = shl 5, v53
     v127 = ptradd v52, v126
     store v127+32, v125
@@ -538,9 +538,9 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     jump bb7
 }
 
-fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 32
@@ -664,14 +664,14 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v266 = shl 5, v264
     v267 = ptradd v242, v266
     v268 = load v267+32
-    v269 = inttoptr i256 v268 to memptr
+    v269 = inttoptr i256 v268 to ptr<memory>
     v270 = eq v268, 0
     jumpi v270, bb59, bb60
   bb59:
     v271 = icall @default_struct_0
     v272 = shl 5, v264
     v273 = ptradd v242, v272
-    v274 = ptrtoint memptr v271 to i256
+    v274 = ptrtoint ptr<memory> v271 to i256
     store v273+32, v274
     jump bb60
   bb60:
@@ -745,7 +745,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jump bb76
   bb74:
     v338 = shl 5, v331
-    v339 = inttoptr i256 v330 to memptr
+    v339 = inttoptr i256 v330 to ptr<memory>
     v340 = ptradd v339, v338
     v341 = load v340
     v342 = mul v336, 8
@@ -763,7 +763,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jump bb71
   bb67:
     v301 = shl 5, v299
-    v302 = inttoptr i256 v279 to memptr
+    v302 = inttoptr i256 v279 to ptr<memory>
     v303 = ptradd v302, v301
     v304 = load v303+32
     v305 = storage_array_data_slot v278
@@ -856,18 +856,18 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jump bb13
   bb28:
     v146 = shl 5, v144
-    v147 = inttoptr i256 v122 to memptr
+    v147 = inttoptr i256 v122 to ptr<memory>
     v148 = ptradd v147, v146
     v149 = load v148+32
-    v150 = inttoptr i256 v149 to memptr
+    v150 = inttoptr i256 v149 to ptr<memory>
     v151 = eq v149, 0
     jumpi v151, bb30, bb31
   bb30:
     v152 = icall @default_struct_0
     v153 = shl 5, v144
-    v154 = inttoptr i256 v122 to memptr
+    v154 = inttoptr i256 v122 to ptr<memory>
     v155 = ptradd v154, v153
-    v156 = ptrtoint memptr v152 to i256
+    v156 = ptrtoint ptr<memory> v152 to i256
     store v155+32, v156
     jump bb31
   bb31:
@@ -941,7 +941,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jump bb47
   bb45:
     v220 = shl 5, v213
-    v221 = inttoptr i256 v212 to memptr
+    v221 = inttoptr i256 v212 to ptr<memory>
     v222 = ptradd v221, v220
     v223 = load v222
     v224 = mul v218, 8
@@ -959,7 +959,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jump bb42
   bb38:
     v183 = shl 5, v181
-    v184 = inttoptr i256 v161 to memptr
+    v184 = inttoptr i256 v161 to ptr<memory>
     v185 = ptradd v184, v183
     v186 = load v185+32
     v187 = storage_array_data_slot v160
@@ -1065,7 +1065,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v37 = lt v36, v19
     jumpi v37, bb5, bb6
   bb6:
-    v112 = ptrtoint memptr v35 to i256
+    v112 = ptrtoint ptr<memory> v35 to i256
     v113 = shl 5, v5
     v114 = ptradd v4, v113
     store v114, v112
@@ -1127,7 +1127,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     v79 = lt v78, v61
     jumpi v79, bb8, bb9
   bb9:
-    v89 = ptrtoint memptr v77 to i256
+    v89 = ptrtoint ptr<memory> v77 to i256
     store v50, v89
     v90 = add v44, 32
     v91 = calldatasize
@@ -1142,12 +1142,12 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jumpi v96, bb11, bb12
   bb12:
     v104 = make_calldata_slice v90, 64
-    v105 = extract_value calldataslice, v104, 0
-    v106 = extract_value calldataslice, v104, 1
+    v105 = extract_value slice<calldata>, v104, 0
+    v106 = extract_value slice<calldata>, v104, 1
     copy calldata v94, v105, v106
-    v107 = ptrtoint memptr v94 to i256
+    v107 = ptrtoint ptr<memory> v94 to i256
     store v50+32, v107
-    v108 = ptrtoint memptr v50 to i256
+    v108 = ptrtoint ptr<memory> v50 to i256
     v109 = shl 5, v36
     v110 = ptradd v35, v109
     store v110+32, v108
@@ -1178,10 +1178,10 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jump bb7
 }
 
-fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -1314,7 +1314,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v148 = shl 5, v146
     v149 = ptradd v21, v148
     v150 = load v149+32
-    v151 = inttoptr i256 v150 to memptr
+    v151 = inttoptr i256 v150 to ptr<memory>
     v152 = eq v150, 0
     jumpi v152, bb27, bb28
   bb27:
@@ -1327,7 +1327,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
   bb31:
     v166 = shl 5, v146
     v167 = ptradd v21, v166
-    v168 = ptrtoint memptr v153 to i256
+    v168 = ptrtoint ptr<memory> v153 to i256
     store v167+32, v168
     jump bb28
   bb28:
@@ -1352,12 +1352,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v261 = alloc 64
     v262 = alloc 32
     store v262, 0
-    v263 = ptrtoint memptr v262 to i256
+    v263 = ptrtoint ptr<memory> v262 to i256
     store v261, v263
     v264 = alloc 64
-    v265 = ptrtoint memptr v264 to i256
+    v265 = ptrtoint ptr<memory> v264 to i256
     memory_zero v265, 64
-    v266 = ptrtoint memptr v264 to i256
+    v266 = ptrtoint ptr<memory> v264 to i256
     store v261+32, v266
     v267 = load v261
     v268 = load v267
@@ -1424,7 +1424,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jump bb69
   bb67:
     v326 = shl 5, v319
-    v327 = inttoptr i256 v318 to memptr
+    v327 = inttoptr i256 v318 to ptr<memory>
     v328 = ptradd v327, v326
     v329 = load v328
     v330 = mul v324, 8
@@ -1442,7 +1442,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jump bb64
   bb60:
     v289 = shl 5, v287
-    v290 = inttoptr i256 v267 to memptr
+    v290 = inttoptr i256 v267 to ptr<memory>
     v291 = ptradd v290, v289
     v292 = load v291+32
     v293 = storage_array_data_slot v176
@@ -1550,7 +1550,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jump bb53
   bb51:
     v240 = shl 5, v233
-    v241 = inttoptr i256 v232 to memptr
+    v241 = inttoptr i256 v232 to ptr<memory>
     v242 = ptradd v241, v240
     v243 = load v242
     v244 = mul v238, 8
@@ -1568,7 +1568,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jump bb48
   bb44:
     v203 = shl 5, v201
-    v204 = inttoptr i256 v181 to memptr
+    v204 = inttoptr i256 v181 to ptr<memory>
     v205 = ptradd v204, v203
     v206 = load v205+32
     v207 = storage_array_data_slot v176
@@ -1608,16 +1608,16 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v156 = alloc 64
     v157 = alloc 32
     store v157, 0
-    v158 = ptrtoint memptr v157 to i256
+    v158 = ptrtoint ptr<memory> v157 to i256
     store v156, v158
     v159 = alloc 64
-    v160 = ptrtoint memptr v159 to i256
+    v160 = ptrtoint ptr<memory> v159 to i256
     memory_zero v160, 64
-    v161 = ptrtoint memptr v159 to i256
+    v161 = ptrtoint ptr<memory> v159 to i256
     store v156+32, v161
     v162 = shl 5, v154
     v163 = ptradd v153, v162
-    v164 = ptrtoint memptr v156 to i256
+    v164 = ptrtoint ptr<memory> v156 to i256
     store v163, v164
     v165 = add v154, 1
     jump bb29
@@ -1685,7 +1685,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v41 = lt v40, 1
     jumpi v41, bb5, bb6
   bb6:
-    v116 = ptrtoint memptr v39 to i256
+    v116 = ptrtoint ptr<memory> v39 to i256
     v117 = shl 5, v22
     v118 = ptradd v21, v117
     store v118+32, v116
@@ -1747,7 +1747,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     v83 = lt v82, v65
     jumpi v83, bb8, bb9
   bb9:
-    v93 = ptrtoint memptr v81 to i256
+    v93 = ptrtoint ptr<memory> v81 to i256
     store v54, v93
     v94 = add v48, 32
     v95 = calldatasize
@@ -1762,12 +1762,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jumpi v100, bb11, bb12
   bb12:
     v108 = make_calldata_slice v94, 64
-    v109 = extract_value calldataslice, v108, 0
-    v110 = extract_value calldataslice, v108, 1
+    v109 = extract_value slice<calldata>, v108, 0
+    v110 = extract_value slice<calldata>, v108, 1
     copy calldata v98, v109, v110
-    v111 = ptrtoint memptr v98 to i256
+    v111 = ptrtoint ptr<memory> v98 to i256
     store v54+32, v111
-    v112 = ptrtoint memptr v54 to i256
+    v112 = ptrtoint ptr<memory> v54 to i256
     v113 = shl 5, v40
     v114 = ptradd v39, v113
     store v114, v112
@@ -1798,17 +1798,17 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jump bb7
 }
 
-fn @default_struct_0() -> memptr {
+fn @default_struct_0() -> ptr<memory> {
   bb0:
     v0 = alloc 64
     v1 = alloc 32
     store v1, 0
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     store v0, v2
     v3 = alloc 64
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     memory_zero v4, 64
-    v5 = ptrtoint memptr v3 to i256
+    v5 = ptrtoint ptr<memory> v3 to i256
     store v0+32, v5
     ret v0
 }

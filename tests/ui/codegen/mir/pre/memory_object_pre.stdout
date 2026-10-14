@@ -1,9 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (before pre) ===
 + // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (after pre) ===
   @module MemoryObjectPre
-  fn @hoist_projection(arg0: memptr, arg1: i1) -> i256 {
+  fn @hoist_projection(arg0: ptr<memory>, arg1: i1) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       jumpi arg1, bb1, bb2
     bb2:
 +     v3 = add v0, 64

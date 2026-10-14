@@ -1,27 +1,27 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after memory-dse) ===
   @module MemoryObjectMemoryDse
-  fn @forward_length(arg0: memptr) -> i256 {
+  fn @forward_length(arg0: ptr<memory>) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 39
 -     v1 = load arg0
 -     ret v1
 +     ret 39
   }
   
-  fn @keep_length_after_clobber(arg0: memptr, arg1: i256) -> i256 {
+  fn @keep_length_after_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 39
       store arg1, 7
       v1 = load arg0
       ret v1
   }
   
-  fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
+  fn @store_bytes_reads_memory(arg0: i256, arg1: ptr<memory>) {
     bb0:
-      v0 = ptrtoint memptr arg1 to i256
+      v0 = ptrtoint ptr<memory> arg1 to i256
       store v0, 32
       v1 = ptradd arg1, 32
       store v1, 7
@@ -35,10 +35,10 @@
       jumpi v0, bb3, bb1
     bb1:
       v1 = alloc 64
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       store v2, 39
       v3 = ptradd v1, 32
-      v4 = ptrtoint memptr v3 to i256
+      v4 = ptrtoint ptr<memory> v3 to i256
       store v4, 7
 -     v5 = load v2
       v6 = ne arg1, 0
@@ -53,25 +53,25 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
   @module MemoryObjectMemoryDse
-  fn @forward_length(arg0: memptr) -> i256 {
+  fn @forward_length(arg0: ptr<memory>) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 39
       ret 39
   }
   
-  fn @keep_length_after_clobber(arg0: memptr, arg1: i256) -> i256 {
+  fn @keep_length_after_clobber(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
-      v0 = ptrtoint memptr arg0 to i256
+      v0 = ptrtoint ptr<memory> arg0 to i256
       store v0, 39
       store arg1, 7
       v1 = load arg0
       ret v1
   }
   
-  fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
+  fn @store_bytes_reads_memory(arg0: i256, arg1: ptr<memory>) {
     bb0:
-      v0 = ptrtoint memptr arg1 to i256
+      v0 = ptrtoint ptr<memory> arg1 to i256
       store v0, 32
       v1 = ptradd arg1, 32
       store v1, 7
@@ -85,10 +85,10 @@
       jumpi v0, bb3, bb1
     bb1:
       v1 = alloc 64
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       store v2, 39
       v3 = ptradd v1, 32
-      v4 = ptrtoint memptr v3 to i256
+      v4 = ptrtoint ptr<memory> v3 to i256
       store v4, 7
       v6 = ne arg1, 0
       jumpi v6, bb3, bb2

@@ -3,24 +3,24 @@
 @module MemoryObjectGvn
 
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_projections{{[( ]}}
-// CHECK: - {{v[0-9]+}} = ptrtoint memptr arg0 to i256
+// CHECK: - {{v[0-9]+}} = ptrtoint ptr<memory> arg0 to i256
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, 32
 // CHECK: - {{v[0-9]+}} = make_memory_slice arg1, 3
 // CHECK: - {{v[0-9]+}} = make_memory_slice arg2, 4
-fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr) -> i256 {
+fn @reuse_projections(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 {
   bb0:
-    v18 = ptrtoint memptr arg0 to i256
+    v18 = ptrtoint ptr<memory> arg0 to i256
     v4 = add v18, 32
-    v19 = ptrtoint memptr arg0 to i256
+    v19 = ptrtoint ptr<memory> arg0 to i256
     v5 = add v19, 32
     v20 = make_memory_slice arg1, 3
-    v6 = extract_value memoryslice, v20, 0
+    v6 = extract_value slice<memory>, v20, 0
     v21 = make_memory_slice arg1, 3
-    v7 = extract_value memoryslice, v21, 0
+    v7 = extract_value slice<memory>, v21, 0
     v22 = make_memory_slice arg2, 4
-    v8 = extract_value memoryslice, v22, 0
+    v8 = extract_value slice<memory>, v22, 0
     v23 = make_memory_slice arg2, 4
-    v9 = extract_value memoryslice, v23, 0
+    v9 = extract_value slice<memory>, v23, 0
     v10 = eq v4, v5
     v11 = eq v6, v7
     v12 = eq v8, v9

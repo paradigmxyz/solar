@@ -71,7 +71,7 @@ fn @copyReference() -> struct0 [selector=0x4cf1051d, abi_params=[], abi_returns=
     ret v17
 }
 
-fn @load_storage_word_array(arg0: i256) -> memptr {
+fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0
@@ -115,14 +115,14 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = load v19+32
-    v24 = inttoptr i256 v23 to memptr
+    v24 = inttoptr i256 v23 to ptr<memory>
     v25 = eq v23, 0
     jumpi v25, bb1, bb2
   bb1:
     v26 = alloc 64
     store v26, 0
     store v26+32, 0
-    v27 = ptrtoint memptr v26 to i256
+    v27 = ptrtoint ptr<memory> v26 to i256
     store v19+32, v27
     jump bb2
   bb2:
@@ -133,14 +133,14 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = load v19+32
-    v34 = inttoptr i256 v33 to memptr
+    v34 = inttoptr i256 v33 to ptr<memory>
     v35 = eq v33, 0
     jumpi v35, bb3, bb4
   bb3:
     v36 = alloc 64
     store v36, 0
     store v36+32, 0
-    v37 = ptrtoint memptr v36 to i256
+    v37 = ptrtoint ptr<memory> v36 to i256
     store v19+32, v37
     jump bb4
   bb4:
@@ -153,7 +153,7 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     ret v43
 }
 
-fn @load_storage_struct_array_0(arg0: i256) -> memptr {
+fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -187,7 +187,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     store v15+32, v18
     v19 = shl 5, v12
     v20 = ptradd v10, v19
-    v21 = ptrtoint memptr v15 to i256
+    v21 = ptrtoint ptr<memory> v15 to i256
     store v20+32, v21
     v22 = add v12, 1
     v23 = add v13, 2
@@ -236,13 +236,13 @@ fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word]
     ret v9
 }
 
-fn @load_storage_packed_array_1_0_enum_2(arg0: i256) -> memptr {
+fn @load_storage_packed_array_1_0_enum_2(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array enum<2>, arg0
     ret v0
 }
 
-fn @load_storage_packed_array_1_0_enum_3(arg0: i256) -> memptr {
+fn @load_storage_packed_array_1_0_enum_3(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array enum<3>, arg0
     ret v0

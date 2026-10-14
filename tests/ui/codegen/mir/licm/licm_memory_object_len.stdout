@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_memory_object_len.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_memory_object_len.mir (after licm) ===
   @module LicmMemoryObjectLen
-  fn @hoist_len_over_element_stores(arg0: memptr) {
+  fn @hoist_len_over_element_stores(arg0: ptr<memory>) {
     bb0:
 +     v1 = load arg0
 +     v4 = ptradd arg0, 32
@@ -22,7 +22,7 @@
       jump bb1
   }
   
-  fn @hoist_len_over_byte_stores(arg0: memptr) {
+  fn @hoist_len_over_byte_stores(arg0: ptr<memory>) {
     bb0:
 +     v1 = load arg0
 +     v3 = ptradd arg0, 32
@@ -42,9 +42,9 @@
       jump bb1
   }
   
-  fn @keep_len_when_loop_resizes(arg0: memptr) {
+  fn @keep_len_when_loop_resizes(arg0: ptr<memory>) {
     bb0:
-+     v3 = ptrtoint memptr arg0 to i256
++     v3 = ptrtoint ptr<memory> arg0 to i256
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
@@ -54,13 +54,13 @@
     bb3:
       stop
     bb2:
--     v3 = ptrtoint memptr arg0 to i256
+-     v3 = ptrtoint ptr<memory> arg0 to i256
       store v3, v0
       v4 = add v0, 1
       jump bb1
   }
   
-  fn @keep_len_under_unknown_store(arg0: memptr, arg1: i256) {
+  fn @keep_len_under_unknown_store(arg0: ptr<memory>, arg1: i256) {
     bb0:
       jump bb1
     bb1:
@@ -76,10 +76,10 @@
       jump bb1
   }
   
-  fn @hoist_len_over_pure_call(arg0: memptr) -> memptr {
+  fn @hoist_len_over_pure_call(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 32
 +     v5 = ptradd arg0, 32
 +     v10 = ptradd v0, 32
@@ -110,7 +110,7 @@
       ret v0
   }
   
-  fn @keep_unexecuted_header(arg0: memptr, arg1: i256) -> i256 {
+  fn @keep_unexecuted_header(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -126,7 +126,7 @@
       jump bb1
   }
   
-  fn @keep_header_after_size_call(arg0: memptr, arg1: i256) -> i256 {
+  fn @keep_header_after_size_call(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

@@ -21,7 +21,7 @@
   fn @loop(arg0: i256) -> i256 {
     bb0:
       v0 = alloc 32
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     memory_zero v1, 32
       jump bb1
     bb1:
@@ -55,7 +55,7 @@
   fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = alloc 64
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     memory_zero v1, 64
       jumpi arg0, bb1, bb2
     bb1:
@@ -75,7 +75,7 @@
   fn @observe_size() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       store v0, 7
       v2 = msize
@@ -85,7 +85,7 @@
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       v2 = ptradd v0, 32
       v3 = load v2
@@ -149,7 +149,7 @@
   fn @observe_size() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       store v0, 7
       v2 = msize
@@ -159,7 +159,7 @@
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       v2 = ptradd v0, 32
       v3 = load v2

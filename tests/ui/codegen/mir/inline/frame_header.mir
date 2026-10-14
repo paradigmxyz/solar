@@ -13,7 +13,7 @@ fn @caller() -> i256 [selector=0x01020304] {
 fn @callee(arg0: i256) -> i256 {
   bb0:
     v0 = internal_frame_addr 64
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = load v1
     v3 = add v2, arg0
     ret v3

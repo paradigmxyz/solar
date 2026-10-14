@@ -26,7 +26,7 @@
       v4 = load v3
       v5 = add v2, v4
       v6 = fmp
-      v7 = ptrtoint memptr v6 to i256
+      v7 = ptrtoint ptr<memory> v6 to i256
       v8 = add v5, v7
       ret v8
   }
@@ -34,7 +34,7 @@
   fn @zeroed_array() -> i256 {
     bb0:
       v0 = alloc 128
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     memory_zero v1, 128
 -     v2 = ptradd v0, 96
 -     v3 = load v2
@@ -45,7 +45,7 @@
   fn @return_zeroed_object() {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 64
       returndata v1, 64
   }
@@ -53,7 +53,7 @@
   fn @revert_zeroed_object() {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 64
       revert v1, 64
   }
@@ -63,7 +63,7 @@
       v0 = alloc 64
       v1 = ptradd v0, 32
       store v1, arg0
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       returndata v3, 32
   }
@@ -73,7 +73,7 @@
       v0 = alloc 64
       v1 = ptradd v0, 32
       store v1, arg0
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       jump bb1
     bb1:
@@ -83,7 +83,7 @@
   fn @zeroed_through_word() -> i256 {
     bb0:
       v0 = alloc 32
--     v1 = ptrtoint memptr v0 to i256
+-     v1 = ptrtoint ptr<memory> v0 to i256
 -     memory_zero v1, 32
 -     v2 = load v0
 -     ret v2
@@ -93,7 +93,7 @@
   fn @truncated_pointer_escapes() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       v2 = trunc i256 v1 to i160
       v3 = zext i160 v2 to i256
@@ -123,7 +123,7 @@
       v4 = load v3
       v5 = add v2, v4
       v6 = fmp
-      v7 = ptrtoint memptr v6 to i256
+      v7 = ptrtoint ptr<memory> v6 to i256
       v8 = add v5, v7
       ret v8
   }
@@ -137,7 +137,7 @@
   fn @return_zeroed_object() {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 64
       returndata v1, 64
   }
@@ -145,7 +145,7 @@
   fn @revert_zeroed_object() {
     bb0:
       v0 = alloc 64
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 64
       revert v1, 64
   }
@@ -155,7 +155,7 @@
       v0 = alloc 64
       v1 = ptradd v0, 32
       store v1, arg0
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       returndata v3, 32
   }
@@ -165,7 +165,7 @@
       v0 = alloc 64
       v1 = ptradd v0, 32
       store v1, arg0
-      v2 = ptrtoint memptr v0 to i256
+      v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       jump bb1
     bb1:
@@ -181,7 +181,7 @@
   fn @truncated_pointer_escapes() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       v2 = trunc i256 v1 to i160
       v3 = zext i160 v2 to i256

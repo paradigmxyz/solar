@@ -29,8 +29,8 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
     v5 = eq v4, 0
     icall revert_if<target_contract_has_no_code>, v5
@@ -51,8 +51,8 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_pa
     v4 = shr 32, v1
     v5 = gas
     v6 = abi_encode [], selector v3
-    v7 = extract_value memoryslice, v6, 0
-    v8 = extract_value memoryslice, v6, 1
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
     v9 = extcodesize v4
     v10 = eq v9, 0
     icall revert_if<target_contract_has_no_code>, v10
@@ -67,8 +67,8 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_pa
 fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v1 = extract_value memoryslice, v0, 0
-    v2 = extract_value memoryslice, v0, 1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -85,8 +85,8 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
     v5 = eq v4, 0
     icall revert_if<target_contract_has_no_code>, v5
@@ -114,8 +114,8 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
     v4 = shr 32, v1
     v5 = gas
     v6 = abi_encode [], selector v3
-    v7 = extract_value memoryslice, v6, 0
-    v8 = extract_value memoryslice, v6, 1
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
     v9 = extcodesize v4
     v10 = eq v9, 0
     icall revert_if<target_contract_has_no_code>, v10
@@ -138,8 +138,8 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = extcodesize 0
     v5 = eq v4, 0
     icall revert_if<target_contract_has_no_code>, v5
@@ -163,8 +163,8 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -188,7 +188,7 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
 fn @lowLevel() -> i1 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
-    v1 = address_call i160 0, memptr 96, gas v0
+    v1 = address_call i160 0, ptr<memory> 96, gas v0
     ret v1
 }
 
@@ -197,8 +197,8 @@ fn @selfCall() -> i1 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -228,13 +228,13 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_par
     v1 = datasize EmptyCodeTryConstructor_creation_code_0
     v2 = datasize EmptyCodeTryConstructor_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy EmptyCodeTryConstructor_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -251,8 +251,8 @@ fn @constructor() [constructor] {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0

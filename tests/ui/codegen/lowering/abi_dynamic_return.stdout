@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/abi_dynamic_return.sol:AbiDynamicReturn ===
 @module AbiDynamicReturn
-fn @bytesLiteral() -> memptr [selector=0x96115be7, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bytesLiteral() -> ptr<memory> [selector=0x96115be7, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 3
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x102030000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @stringLiteral() -> memptr [selector=0xb5d549e9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @stringLiteral() -> ptr<memory> [selector=0xb5d549e9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 5
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0

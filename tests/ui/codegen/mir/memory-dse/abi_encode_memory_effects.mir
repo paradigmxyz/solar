@@ -5,10 +5,10 @@
 // CHECK-LABEL: {{^[ +].*}}fn @encode{{[( ]}}
 // CHECK: {{^[ +].*}}store arg0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = abi_encode
-fn @encode(arg0: i256) -> memoryslice {
+fn @encode(arg0: i256) -> slice<memory> {
   bb0:
     store arg0, 1
-    v1 = inttoptr i256 arg0 to memptr
+    v1 = inttoptr i256 arg0 to ptr<memory>
     v0 = abi_encode [memory_bytes], args v1
     ret v0
 }
@@ -19,41 +19,41 @@ fn @encode(arg0: i256) -> memoryslice {
 fn @require_reads_message(arg0: i1, arg1: i256) {
   bb0:
     store arg1, 1
-    v0 = inttoptr i256 arg1 to memptr
+    v0 = inttoptr i256 arg1 to ptr<memory>
     icall require<error_string>, arg0, v0
     ret
 }
 
 // CHECK-LABEL: fn @require_reads_children
-// CHECK: {{^[ +].*}}[[CHILD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: {{^[ +].*}}[[CHILD:v[0-9]+]] = ptrtoint ptr<memory> {{v[0-9]+}} to i256
 // CHECK: {{^[ +].*}}store [[CHILD]], 7
 // CHECK: {{^[ +].*}}icall require<custom_error
 fn @require_reads_children(arg0: i1) {
   bb0:
     v3 = alloc 32
-    v0 = ptrtoint memptr v3 to i256
+    v0 = ptrtoint ptr<memory> v3 to i256
     v4 = alloc 32
-    v1 = ptrtoint memptr v4 to i256
+    v1 = ptrtoint ptr<memory> v4 to i256
     store v0, 7
     store v1, v0
-    v5 = inttoptr i256 v1 to memptr
+    v5 = inttoptr i256 v1 to ptr<memory>
     icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v5
     ret
 }
 
 // CHECK-LABEL: fn @packed_reads_children
-// CHECK: {{^[ +].*}}[[CHILD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: {{^[ +].*}}[[CHILD:v[0-9]+]] = ptrtoint ptr<memory> {{v[0-9]+}} to i256
 // CHECK: {{^[ +].*}}store [[CHILD]], 7
 // CHECK: {{^[ +].*}}abi_encode_packed
-fn @packed_reads_children() -> memptr {
+fn @packed_reads_children() -> ptr<memory> {
   bb0:
     v5 = alloc 32
-    v0 = ptrtoint memptr v5 to i256
+    v0 = ptrtoint ptr<memory> v5 to i256
     v6 = alloc 32
-    v1 = ptrtoint memptr v6 to i256
+    v1 = ptrtoint ptr<memory> v6 to i256
     store v0, 7
     store v1, v0
-    v7 = inttoptr i256 v1 to memptr
+    v7 = inttoptr i256 v1 to ptr<memory>
     v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v7)
     ret v2
 }

@@ -11,10 +11,10 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @get(arg0: i256) -> memptr [selector=0x9507d39a, pure, abi_params=[u256], abi_returns=[tuple<word, word, word, word>], abi_return_params=[tuple<u256, u256, u256, u256>]] {
+fn @get(arg0: i256) -> ptr<memory> [selector=0x9507d39a, pure, abi_params=[u256], abi_returns=[tuple<word, word, word, word>], abi_return_params=[tuple<u256, u256, u256, u256>]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 128
     v2 = alloc 128
     v3 = checked_add u256, arg0, 1
@@ -33,10 +33,10 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[u256], abi
     v0 = loadimmutable target
     v1 = gas
     v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 128
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     v7 = staticcall v1, v0, v3, v4, v6, 128
     jumpi v7, bb2, bb1
   bb1:
@@ -45,7 +45,7 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[u256], abi
     v8 = returndatasize
     v9 = lt v8, 128
     icall revert_if<tuple_data_too_short>, v9
-    v10 = ptrtoint memptr v5 to i256
+    v10 = ptrtoint ptr<memory> v5 to i256
     v11 = make_memory_slice v10, 128
     v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
     v13 = load v12
@@ -57,10 +57,10 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[u256], ab
     v0 = loadimmutable target
     v1 = gas
     v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 128
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     v7 = staticcall v1, v0, v3, v4, v6, 128
     jumpi v7, bb2, bb1
   bb1:
@@ -69,7 +69,7 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[u256], ab
     v8 = returndatasize
     v9 = lt v8, 128
     icall revert_if<tuple_data_too_short>, v9
-    v10 = ptrtoint memptr v5 to i256
+    v10 = ptrtoint ptr<memory> v5 to i256
     v11 = make_memory_slice v10, 128
     v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
     v13 = load v12
@@ -84,10 +84,10 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi
     v0 = loadimmutable target
     v1 = gas
     v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value memoryslice, v2, 0
-    v4 = extract_value memoryslice, v2, 1
+    v3 = extract_value slice<memory>, v2, 0
+    v4 = extract_value slice<memory>, v2, 1
     v5 = alloc 128
-    v6 = ptrtoint memptr v5 to i256
+    v6 = ptrtoint ptr<memory> v5 to i256
     v7 = staticcall v1, v0, v3, v4, v6, 128
     jumpi v7, bb2, bb1
   bb1:
@@ -96,7 +96,7 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[u256], abi
     v8 = returndatasize
     v9 = lt v8, 128
     icall revert_if<tuple_data_too_short>, v9
-    v10 = ptrtoint memptr v5 to i256
+    v10 = ptrtoint ptr<memory> v5 to i256
     v11 = make_memory_slice v10, 128
     v12 = abi_decode [tuple<u256, u256, u256, u256>], v11
     v13 = load v12+64

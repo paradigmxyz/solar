@@ -5,7 +5,7 @@
     bb0:
       v0 = alloc zeroed checked 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       copy calldata v2, 4, 32
       ret arg0
   }
@@ -14,7 +14,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       copy calldata v2, 4, 32
       v3 = load v2
       ret v3
@@ -24,7 +24,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       store v2, 7
       v3 = load 128
       ret v3
@@ -34,7 +34,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       store v2, 9
       store8 0, v2
       ret 0
@@ -43,10 +43,10 @@
   fn @zero_sized_write() -> i256 {
     bb0:
       v0 = alloc 0
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = fmp
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = load v3
       ret v4
   }
@@ -54,9 +54,9 @@
   fn @write_past_allocation() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = add v1, 32
       store v4, 7
       v5 = load v3
@@ -118,7 +118,7 @@
     bb0:
       v0 = alloc zeroed checked 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       copy calldata v2, 4, 32
       ret arg0
   }
@@ -127,7 +127,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       copy calldata v2, 4, 32
       v3 = load v2
       ret v3
@@ -137,7 +137,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       store v2, 7
       v3 = load 128
       ret v3
@@ -147,7 +147,7 @@
     bb0:
       v0 = alloc 64
       v1 = ptradd v0, 32
-      v2 = ptrtoint memptr v1 to i256
+      v2 = ptrtoint ptr<memory> v1 to i256
       store v2, 9
       store8 0, v2
       ret 0
@@ -156,10 +156,10 @@
   fn @zero_sized_write() -> i256 {
     bb0:
       v0 = alloc 0
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       store v1, 7
       v2 = fmp
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = load v3
       ret v4
   }
@@ -167,9 +167,9 @@
   fn @write_past_allocation() -> i256 {
     bb0:
       v0 = alloc 32
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
-      v3 = ptrtoint memptr v2 to i256
+      v3 = ptrtoint ptr<memory> v2 to i256
       v4 = add v1, 32
       store v4, 7
       v5 = load v3

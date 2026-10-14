@@ -483,13 +483,13 @@ fn @use_public_pair() -> i256 [selector=0x12345683] {
 // CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
 // CHECK-NEXT: + store 64, [[CLAMPED]]
-fn @public_reset(arg0: memptr) -> memptr [selector=0x12345684, abi_returns=[memory_bytes]] {
+fn @public_reset(arg0: ptr<memory>) -> ptr<memory> [selector=0x12345684, abi_returns=[memory_bytes]] {
   bb0:
     store 64, 128
     ret arg0
 }
 
-fn @call_public_reset(arg0: memptr) -> i256 [selector=0x12345685] {
+fn @call_public_reset(arg0: ptr<memory>) -> i256 [selector=0x12345685] {
   bb0:
     v0 = icall @public_reset, arg0
     ret 1
@@ -626,7 +626,7 @@ fn @hash_low_object() -> i256 [selector=0x1234568a] {
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = load 64
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK: alloc
-fn @copy_low_object() -> memptr [selector=0x1234568b] {
+fn @copy_low_object() -> ptr<memory> [selector=0x1234568b] {
   bb0:
     v0 = alloc zeroed checked 64
     v1 = load calldata 4
@@ -770,7 +770,7 @@ fn @object_from_scratch() -> i256 [selector=0x12345692] {
     v0 = load calldata 4
     store 64, v0
     v1 = load 64
-    v2 = inttoptr i256 v1 to memptr
+    v2 = inttoptr i256 v1 to ptr<memory>
     v3 = load v2
     ret v3
 }

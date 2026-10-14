@@ -63,7 +63,7 @@ fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
     v6 = load v3
     v7 = add v4, v6
     v18 = fmp
-    v8 = ptrtoint memptr v18 to i256
+    v8 = ptrtoint ptr<memory> v18 to i256
     v9 = add v7, v8
     ret v9
 }
@@ -71,7 +71,7 @@ fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
 fn @zeroed_array() -> i256 {
   bb0:
     v0 = alloc 128
-    v30 = ptrtoint memptr v0 to i256
+    v30 = ptrtoint ptr<memory> v0 to i256
     memory_zero v30, 128
     v1 = ptradd v0, 96
     v2 = load v1
@@ -81,7 +81,7 @@ fn @zeroed_array() -> i256 {
 fn @return_zeroed_object() {
   bb0:
     v0 = alloc 64
-    v30 = ptrtoint memptr v0 to i256
+    v30 = ptrtoint ptr<memory> v0 to i256
     memory_zero v30, 64
     returndata v30, 64
 }
@@ -89,7 +89,7 @@ fn @return_zeroed_object() {
 fn @revert_zeroed_object() {
   bb0:
     v0 = alloc 64
-    v30 = ptrtoint memptr v0 to i256
+    v30 = ptrtoint ptr<memory> v0 to i256
     memory_zero v30, 64
     revert v30, 64
 }
@@ -99,7 +99,7 @@ fn @return_field(arg0: i256) {
     v0 = alloc 64
     v1 = ptradd v0, 32
     store v1, arg0
-    v2 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v0 to i256
     v3 = add v2, 32
     returndata v3, 32
 }
@@ -109,7 +109,7 @@ fn @revert_field_successor(arg0: i256) {
     v0 = alloc 64
     v1 = ptradd v0, 32
     store v1, arg0
-    v2 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v0 to i256
     v3 = add v2, 32
     jump bb1
   bb1:
@@ -121,7 +121,7 @@ fn @revert_field_successor(arg0: i256) {
 fn @zeroed_through_word() -> i256 {
   bb0:
     v0 = alloc 32
-    v2 = ptrtoint memptr v0 to i256
+    v2 = ptrtoint ptr<memory> v0 to i256
     memory_zero v2, 32
     v5 = load v0
     ret v5
@@ -134,7 +134,7 @@ fn @zeroed_through_word() -> i256 {
 fn @truncated_pointer_escapes() -> i256 {
   bb0:
     v0 = alloc 32
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 32
     v2 = trunc i256 v1 to i160
     v3 = zext i160 v2 to i256

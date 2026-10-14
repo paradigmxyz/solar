@@ -18,7 +18,7 @@ fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word
     icall panic_if<0x32>, v9
     v10 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
     store8 v2+127, v10
-    v11 = ptrtoint memptr v2 to i256
+    v11 = ptrtoint ptr<memory> v2 to i256
     v12 = add v11, 32
     v13 = load v2
     v14 = keccak256 v12, v13
@@ -29,7 +29,7 @@ fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 10
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x1020304050607080900000000000000000000000000000000000000000000
     v3 = load v0
@@ -38,7 +38,7 @@ fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v5
     v6 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
     store8 v0+37, v6
-    v7 = ptrtoint memptr v0 to i256
+    v7 = ptrtoint ptr<memory> v0 to i256
     v8 = add v7, 32
     v9 = load v0
     v10 = keccak256 v8, v9
@@ -58,7 +58,7 @@ fn @allocDynamic(arg0: i256) -> i256 [selector=0x2ab2abe8, pure, abi_params=[u25
     ret v5
 }
 
-fn @readWrite(arg0: memptr, arg1: i256, arg2: i256) -> i256 [selector=0x4b25a5a7, pure, abi_params=[bytes, u256, bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @readWrite(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x4b25a5a7, pure, abi_params=[bytes, u256, bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = load arg0
     v1 = lt arg1, v0

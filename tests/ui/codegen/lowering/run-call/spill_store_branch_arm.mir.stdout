@@ -58,7 +58,7 @@ fn @sync(arg0: i160) [selector=0xa5841194, abi_params=[address], abi_returns=[],
     ret
 }
 
-fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word], abi_return_params=[i256]] {
+fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>) -> i256 [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 255
@@ -66,7 +66,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v3 = and 1, 255
     v4 = or v2, v3
     sstore 1, v4 !metadata(storage=slot(1))
-    v5 = extract_value calldataslice, arg0, 0
+    v5 = extract_value slice<calldata>, arg0, 0
     v6 = add v5, 64
     v7 = load calldata v6
     v8 = shr 24, v7
@@ -75,7 +75,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     icall revert_if<empty>, v10
     v11 = trunc i256 v7 to i24
     v12 = zext i24 v11 to i256
-    v13 = extract_value calldataslice, arg1, 0
+    v13 = extract_value slice<calldata>, arg1, 0
     v14 = add v13, 64
     v15 = load calldata v14
     v16 = shr 160, v15
@@ -85,7 +85,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v19 = trunc i256 v15 to i160
     v20 = zext i160 v19 to i256
     v21 = checked_add u256, v12, v20
-    v22 = extract_value calldataslice, arg2, 1
+    v22 = extract_value slice<calldata>, arg2, 1
     v23 = checked_add u256, v21, v22
     ret v23
 }
@@ -124,13 +124,13 @@ fn @constructor() [constructor] {
     v15 = datasize Mgr_creation_code_0
     v16 = datasize Mgr_creation_code_0, 31, aligned
     v17 = alloc v16
-    v18 = ptrtoint memptr v17 to i256
+    v18 = ptrtoint ptr<memory> v17 to i256
     datacopy Mgr_creation_code_0, v18, v15
-    v19 = extract_value memoryslice, v14, 0
-    v20 = ptrtoint memptr v17 to i256
+    v19 = extract_value slice<memory>, v14, 0
+    v20 = ptrtoint ptr<memory> v17 to i256
     v21 = add v20, v15
     copy v21, v19, 0 !metadata(memory=heap)
-    v22 = ptrtoint memptr v17 to i256
+    v22 = ptrtoint ptr<memory> v17 to i256
     v23 = create 0, v22, v15
     v24 = ne v23, i160 0
     jumpi v24, bb2, bb1
@@ -154,8 +154,8 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v2 = gas
     v3 = zext i160 arg0 to i256
     v4 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v1 to i256
     v8 = staticcall v2, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
@@ -173,8 +173,8 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v16 = address
     v17 = zext i160 v16 to i256
     v18 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
-    v19 = extract_value memoryslice, v18, 0
-    v20 = extract_value memoryslice, v18, 1
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v14 to i256
     v22 = staticcall v15, v21, v19, v20, 0, 32
     jumpi v22, bb4, bb3
@@ -191,8 +191,8 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v29 = gas
     v30 = zext i160 arg0 to i256
     v31 = abi_encode [word<u160>], selector 0xacaa1fa00000000000000000000000000000000000000000000000000000000, args v30
-    v32 = extract_value memoryslice, v31, 0
-    v33 = extract_value memoryslice, v31, 1
+    v32 = extract_value slice<memory>, v31, 0
+    v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v28 to i256
     v35 = staticcall v29, v34, v32, v33, 0, 32
     jumpi v35, bb6, bb5
@@ -217,8 +217,8 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v2 = gas
     v3 = zext i160 arg0 to i256
     v4 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v1 to i256
     v8 = staticcall v2, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
@@ -236,8 +236,8 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v16 = address
     v17 = zext i160 v16 to i256
     v18 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
-    v19 = extract_value memoryslice, v18, 0
-    v20 = extract_value memoryslice, v18, 1
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
     v21 = zext i160 v14 to i256
     v22 = staticcall v15, v21, v19, v20, 0, 32
     jumpi v22, bb4, bb3
@@ -254,8 +254,8 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v29 = gas
     v30 = zext i160 arg0 to i256
     v31 = abi_encode [word<u160>], selector 0xf6e32b8b00000000000000000000000000000000000000000000000000000000, args v30
-    v32 = extract_value memoryslice, v31, 0
-    v33 = extract_value memoryslice, v31, 1
+    v32 = extract_value slice<memory>, v31, 0
+    v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v28 to i256
     v35 = staticcall v29, v34, v32, v33, 0, 32
     jumpi v35, bb6, bb5
@@ -344,8 +344,8 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v33 = trunc i256 v32 to i160
     v34 = gas
     v35 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v3
-    v36 = extract_value memoryslice, v35, 0
-    v37 = extract_value memoryslice, v35, 1
+    v36 = extract_value slice<memory>, v35, 0
+    v37 = extract_value slice<memory>, v35, 1
     v38 = zext i160 v33 to i256
     v39 = extcodesize v38
     v40 = eq v39, 0
@@ -367,8 +367,8 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v45 = trunc i256 v44 to i160
     v46 = gas
     v47 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v7
-    v48 = extract_value memoryslice, v47, 0
-    v49 = extract_value memoryslice, v47, 1
+    v48 = extract_value slice<memory>, v47, 0
+    v49 = extract_value slice<memory>, v47, 1
     v50 = zext i160 v45 to i256
     v51 = extcodesize v50
     v52 = eq v51, 0
@@ -385,8 +385,8 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v56 = trunc i256 v55 to i160
     v57 = gas
     v58 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v59 = extract_value memoryslice, v58, 0
-    v60 = extract_value memoryslice, v58, 1
+    v59 = extract_value slice<memory>, v58, 0
+    v60 = extract_value slice<memory>, v58, 1
     v61 = zext i160 v56 to i256
     v62 = staticcall v57, v61, v59, v60, 0, 32
     jumpi v62, bb24, bb23
@@ -418,7 +418,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     store v2+64, 99
     v3 = alloc 64 !metadata(preserves_fmp)
     store v3, 4
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     v5 = add v4, 32
     store v5, 0x1234567800000000000000000000000000000000000000000000000000000000
     v6 = load v0
@@ -441,8 +441,8 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v21 = trunc i256 v20 to i160
     v22 = gas
     v23 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<bool>, word, word<u160>>, memory_bytes], selector 0x2360a5fc00000000000000000000000000000000000000000000000000000000, args v0, v2, v3
-    v24 = extract_value memoryslice, v23, 0
-    v25 = extract_value memoryslice, v23, 1
+    v24 = extract_value slice<memory>, v23, 0
+    v25 = extract_value slice<memory>, v23, 1
     v26 = zext i160 v21 to i256
     v27 = call v22, v26, 0, v24, v25, 0, 32
     jumpi v27, bb2, bb1
@@ -552,8 +552,8 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v83 = trunc i256 v82 to i160
     v84 = gas
     v85 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v37
-    v86 = extract_value memoryslice, v85, 0
-    v87 = extract_value memoryslice, v85, 1
+    v86 = extract_value slice<memory>, v85, 0
+    v87 = extract_value slice<memory>, v85, 1
     v88 = zext i160 v83 to i256
     v89 = extcodesize v88
     v90 = eq v89, 0
@@ -575,8 +575,8 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v95 = trunc i256 v94 to i160
     v96 = gas
     v97 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v43
-    v98 = extract_value memoryslice, v97, 0
-    v99 = extract_value memoryslice, v97, 1
+    v98 = extract_value slice<memory>, v97, 0
+    v99 = extract_value slice<memory>, v97, 1
     v100 = zext i160 v95 to i256
     v101 = extcodesize v100
     v102 = eq v101, 0
@@ -595,8 +595,8 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v107 = trunc i256 v106 to i160
     v108 = gas
     v109 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v110 = extract_value memoryslice, v109, 0
-    v111 = extract_value memoryslice, v109, 1
+    v110 = extract_value slice<memory>, v109, 0
+    v111 = extract_value slice<memory>, v109, 1
     v112 = zext i160 v107 to i256
     v113 = staticcall v108, v112, v110, v111, 0, 32
     jumpi v113, bb29, bb28
@@ -617,8 +617,8 @@ fn @settle(arg0: i160, arg1: i160, arg2: i256) {
   bb0:
     v0 = gas
     v1 = abi_encode [word<u160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args 0x1234
-    v2 = extract_value memoryslice, v1, 0
-    v3 = extract_value memoryslice, v1, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
     v4 = zext i160 arg0 to i256
     v5 = extcodesize v4
     v6 = eq v5, 0
@@ -631,8 +631,8 @@ fn @settle(arg0: i160, arg1: i160, arg2: i256) {
   bb2:
     v9 = gas
     v10 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args arg2
-    v11 = extract_value memoryslice, v10, 0
-    v12 = extract_value memoryslice, v10, 1
+    v11 = extract_value slice<memory>, v10, 0
+    v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 arg0 to i256
     v14 = extcodesize v13
     v15 = eq v14, 0

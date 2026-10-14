@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_arrays.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_arrays.mir (after lower-builtins) ===
   @module StorageArrays
-  fn @words(arg0: i256) -> memptr {
+  fn @words(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = load_storage_array u256, arg0
 -     ret v0
@@ -44,7 +44,7 @@
 +     revert 28, 36
   }
   
-  fn @signed(arg0: i256) -> memptr {
+  fn @signed(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = load_storage_array i24, arg0
 -     ret v0
@@ -92,7 +92,7 @@
 +     revert 28, 36
   }
   
-  fn @fixed(arg0: i256) -> memptr {
+  fn @fixed(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = load_storage_array bytes9, arg0
 -     ret v0
@@ -140,7 +140,7 @@
 +     revert 28, 36
   }
   
-  fn @enums(arg0: i256) -> memptr {
+  fn @enums(arg0: i256) -> ptr<memory> {
     bb0:
 -     v0 = load_storage_array enum<3>, arg0
 -     ret v0
@@ -195,7 +195,7 @@
 +     revert 28, 36
   }
   
-  fn @bytes(arg0: i1, arg1: i256, arg2: memptr) -> memptr {
+  fn @bytes(arg0: i1, arg1: i256, arg2: ptr<memory>) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -235,7 +235,7 @@
 +     v17 = icall @load_storage_bytes, v16 !metadata(span=50..60, modifier_depth=5)
 +     v18 = shl 5, v14 !metadata(span=50..60, modifier_depth=5)
 +     v19 = ptradd v12, v18 !metadata(span=50..60, modifier_depth=5)
-+     v20 = ptrtoint memptr v17 to i256 !metadata(span=50..60, modifier_depth=5)
++     v20 = ptrtoint ptr<memory> v17 to i256 !metadata(span=50..60, modifier_depth=5)
 +     store v19+32, v20 !metadata(span=50..60, modifier_depth=5)
 +     v21 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
@@ -245,7 +245,7 @@
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
 + }
 + 
-+ fn @load_storage_bytes(arg0: i256) -> memptr {
++ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 +   bb0:
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v2 = and v1, 1

@@ -1,25 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer ===
 @module ReturnProducer
-fn @aggregate() -> memptr [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>], abi_return_params=[tuple<tuple<array<2, u256>>, u256>]] {
+fn @aggregate() -> ptr<memory> [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>], abi_return_params=[tuple<tuple<array<2, u256>>, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     v1 = alloc 32 !metadata(preserves_fmp)
     v2 = alloc 64 !metadata(preserves_fmp)
-    v3 = ptrtoint memptr v2 to i256
+    v3 = ptrtoint ptr<memory> v2 to i256
     memory_zero v3, 64
-    v4 = ptrtoint memptr v2 to i256
+    v4 = ptrtoint ptr<memory> v2 to i256
     store v1, v4
-    v5 = ptrtoint memptr v1 to i256
+    v5 = ptrtoint ptr<memory> v1 to i256
     store v0, v5
     store v0+32, 0
-    v6 = load v0, memptr
-    v7 = load v6, memptr
+    v6 = load v0, ptr<memory>
+    v7 = load v6, ptr<memory>
     v8 = lt 0, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     store v7, 11
-    v10 = load v0, memptr
-    v11 = load v10, memptr
+    v10 = load v0, ptr<memory>
+    v11 = load v10, ptr<memory>
     v12 = lt 1, 2
     v13 = eq v12, false
     icall panic_if<0x32>, v13
@@ -46,18 +46,18 @@ fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_return
 @data
   ReturnProducer_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer"
 
-fn @check(arg0: memptr) -> i256 [pure] {
+fn @check(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
-    v0 = load arg0, memptr
-    v1 = load v0, memptr
+    v0 = load arg0, ptr<memory>
+    v1 = load v0, ptr<memory>
     v2 = lt 0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = load v1
     v5 = eq v4, 11
     icall require<short_string>, v5, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
-    v6 = load arg0, memptr
-    v7 = load v6, memptr
+    v6 = load arg0, ptr<memory>
+    v7 = load v6, ptr<memory>
     v8 = lt 1, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -76,13 +76,13 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     v1 = datasize ReturnProducer_creation_code_0
     v2 = datasize ReturnProducer_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ReturnProducer_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -91,11 +91,11 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = alloc 96
     v16 = zext i160 v9 to i256
-    v17 = ptrtoint memptr v15 to i256
+    v17 = ptrtoint ptr<memory> v15 to i256
     v18 = staticcall v11, v16, v13, v14, v17, 96
     jumpi v18, bb4, bb3
   bb3:
@@ -104,7 +104,7 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     v19 = returndatasize
     v20 = lt v19, 96
     icall revert_if<tuple_data_too_short>, v20
-    v21 = ptrtoint memptr v15 to i256
+    v21 = ptrtoint ptr<memory> v15 to i256
     v22 = make_memory_slice v21, 96
     v23 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v22
     v24 = icall @check, v23
@@ -117,13 +117,13 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v1 = datasize ReturnProducer_creation_code_0
     v2 = datasize ReturnProducer_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ReturnProducer_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -132,11 +132,11 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = alloc 96
     v16 = zext i160 v9 to i256
-    v17 = ptrtoint memptr v15 to i256
+    v17 = ptrtoint ptr<memory> v15 to i256
     v18 = staticcall v11, v16, v13, v14, v17, 96
     jumpi v18, bb4, bb3
   bb3:
@@ -145,11 +145,11 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v19 = returndatasize
     v20 = lt v19, 96
     icall revert_if<tuple_data_too_short>, v20
-    v21 = ptrtoint memptr v15 to i256
+    v21 = ptrtoint ptr<memory> v15 to i256
     v22 = make_memory_slice v21, 96
     v23 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v22
-    v24 = load v23, memptr
-    v25 = load v24, memptr
+    v24 = load v23, ptr<memory>
+    v25 = load v24, ptr<memory>
     v26 = lt 1, 2
     v27 = eq v26, false
     icall panic_if<0x32>, v27
@@ -163,13 +163,13 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v1 = datasize ReturnProducer_creation_code_0
     v2 = datasize ReturnProducer_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ReturnProducer_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -184,10 +184,10 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v16 = shr 32, v13
     v17 = gas
     v18 = abi_encode [], selector v15
-    v19 = extract_value memoryslice, v18, 0
-    v20 = extract_value memoryslice, v18, 1
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
     v21 = alloc 96
-    v22 = ptrtoint memptr v21 to i256
+    v22 = ptrtoint ptr<memory> v21 to i256
     v23 = staticcall v17, v16, v19, v20, v22, 96
     jumpi v23, bb4, bb3
   bb3:
@@ -196,7 +196,7 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v24 = returndatasize
     v25 = lt v24, 96
     icall revert_if<tuple_data_too_short>, v25
-    v26 = ptrtoint memptr v21 to i256
+    v26 = ptrtoint ptr<memory> v21 to i256
     v27 = make_memory_slice v26, 96
     v28 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v27
     v29 = icall @check, v28
@@ -209,13 +209,13 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     v1 = datasize ReturnProducer_creation_code_0
     v2 = datasize ReturnProducer_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ReturnProducer_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -224,8 +224,8 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 32
     jumpi v16, bb4, bb3
@@ -253,13 +253,13 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
     v1 = datasize ReturnProducer_creation_code_0
     v2 = datasize ReturnProducer_creation_code_0, 31, aligned
     v3 = alloc v2
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     datacopy ReturnProducer_creation_code_0, v4, v1
-    v5 = extract_value memoryslice, v0, 0
-    v6 = ptrtoint memptr v3 to i256
+    v5 = extract_value slice<memory>, v0, 0
+    v6 = ptrtoint ptr<memory> v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
+    v8 = ptrtoint ptr<memory> v3 to i256
     v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
@@ -268,8 +268,8 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
-    v13 = extract_value memoryslice, v12, 0
-    v14 = extract_value memoryslice, v12, 1
+    v13 = extract_value slice<memory>, v12, 0
+    v14 = extract_value slice<memory>, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 0
     jumpi v16, bb4, bb3

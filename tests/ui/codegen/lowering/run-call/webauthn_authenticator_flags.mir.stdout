@@ -13,7 +13,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<
 fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = load v1
     v3 = add v2, 33
     v4 = load v3
@@ -26,7 +26,7 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
 fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = load v0, memptr
+    v1 = load v0, ptr<memory>
     v2 = load v1
     v3 = lt 32, v2
     v4 = eq v3, false
@@ -40,51 +40,51 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
     ret v10
 }
 
-fn @auth() -> memptr [pure] {
+fn @auth() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     store v0, 62
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     datacopy literal_0, v2, 64
     v3 = alloc 192 !metadata(preserves_fmp)
-    v4 = ptrtoint memptr v3 to i256
+    v4 = ptrtoint ptr<memory> v3 to i256
     memory_zero v4, 192
     store v3, 96
     store v3+32, 96
-    v5 = ptrtoint memptr v0 to i256
+    v5 = ptrtoint ptr<memory> v0 to i256
     store v3, v5
     v6 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     store v3+32, v7
     store v3+64, 27
     store v3+96, 2
     ret v3
 }
 
-fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
+fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     store v0, 2
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     store v2, 0x4667000000000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint memptr arg1 to i256
+    v3 = ptrtoint ptr<memory> arg1 to i256
     v4 = add v3, 32
     v5 = load v4
     v6 = load v5
     v7 = add v5, 32
-    v8 = ptrtoint memptr arg1 to i256
+    v8 = ptrtoint ptr<memory> arg1 to i256
     v9 = add v8, 64
     v10 = load v9
-    v11 = ptrtoint memptr arg1 to i256
+    v11 = ptrtoint ptr<memory> arg1 to i256
     v12 = add v11, 96
     v13 = load v12
-    v14 = ptrtoint memptr v0 to i256
+    v14 = ptrtoint ptr<memory> v0 to i256
     v15 = load v14
     v16 = add v15, 13
     v17 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
-    v18 = ptrtoint memptr v0 to i256
+    v18 = ptrtoint ptr<memory> v0 to i256
     store v18, v17
     v19 = add v16, v10
     v20 = lt v19, v6
@@ -96,7 +96,7 @@ fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
     v26 = eq v25, 34
     v27 = zext i1 v26 to i256
     v28 = and v27, v21
-    v29 = ptrtoint memptr v0 to i256
+    v29 = ptrtoint ptr<memory> v0 to i256
     v30 = add v29, 19
     v31 = keccak256 v30, v16
     v32 = add v7, v10
@@ -119,9 +119,9 @@ fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
     v49 = zext i1 v48 to i256
     v50 = and v49, v43
     v51 = and v50, v36
-    v52 = ptrtoint memptr v0 to i256
+    v52 = ptrtoint ptr<memory> v0 to i256
     store v52, v15
-    v53 = ptrtoint memptr arg1 to i256
+    v53 = ptrtoint ptr<memory> arg1 to i256
     v54 = load v53
     v55 = load v54
     v56 = eq arg0, 0
@@ -130,7 +130,7 @@ fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
     v59 = zext i1 v58 to i256
     v60 = shl 2, v59
     v61 = or 1, v60
-    v62 = ptrtoint memptr arg1 to i256
+    v62 = ptrtoint ptr<memory> arg1 to i256
     v63 = load v62
     v64 = add v63, 33
     v65 = load v64

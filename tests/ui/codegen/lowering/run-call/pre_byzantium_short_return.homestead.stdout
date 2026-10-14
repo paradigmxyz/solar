@@ -38,12 +38,12 @@ fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word
     store 0, 42 !metadata(memory=scratch)
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     store v3, 0
     v4 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -65,12 +65,12 @@ fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     store v3, 0
     v4 = abi_encode [word], selector 0x8308677200000000000000000000000000000000000000000000000000000000, args 0xdead
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -94,12 +94,12 @@ fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[wor
     store 32, 43 !metadata(memory=scratch)
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 64
     store v3, 0
     v4 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -129,12 +129,12 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 128
     store v3, 0
     v4 = abi_encode [], selector 0xa1fca2b600000000000000000000000000000000000000000000000000000000
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -170,20 +170,20 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
     ret v33
 }
 
-fn @emptyAgg() -> memptr [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAgg() -> ptr<memory> [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = address
     v3 = alloc 64
     v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 64
     store v6, 0
     v7 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v8 = extract_value memoryslice, v7, 0
-    v9 = extract_value memoryslice, v7, 1
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
     v10 = zext i160 v2 to i256
     v11 = extcodesize v10
     v12 = eq v11, 0
@@ -197,26 +197,26 @@ fn @emptyAgg() -> memptr [selector=0x06df237b, abi_params=[], abi_returns=[array
     revert_returndata
   bb2:
     copy v3, v8, 64
-    v17 = ptrtoint memptr v3 to i256
+    v17 = ptrtoint ptr<memory> v3 to i256
     v18 = make_memory_slice v17, 64
     v19 = abi_decode [array<2, u256>], v18
     ret v19
 }
 
-fn @emptyAggArg() -> memptr [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAggArg() -> ptr<memory> [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = address
     v3 = alloc 64
     v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 64
     store v6, 0
     v7 = abi_encode [word, word, word], selector 0xf5a636f000000000000000000000000000000000000000000000000000000000, args 1, 2, 3
-    v8 = extract_value memoryslice, v7, 0
-    v9 = extract_value memoryslice, v7, 1
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
     v10 = zext i160 v2 to i256
     v11 = extcodesize v10
     v12 = eq v11, 0
@@ -230,7 +230,7 @@ fn @emptyAggArg() -> memptr [selector=0x3dd9064d, abi_params=[], abi_returns=[ar
     revert_returndata
   bb2:
     copy v3, v8, 64
-    v17 = ptrtoint memptr v3 to i256
+    v17 = ptrtoint ptr<memory> v3 to i256
     v18 = make_memory_slice v17, 64
     v19 = abi_decode [array<2, u256>], v18
     ret v19
@@ -240,12 +240,12 @@ fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[wo
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 32
     store v3, 0
     v4 = abi_encode [], selector 0x818f584000000000000000000000000000000000000000000000000000000000
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -267,12 +267,12 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
   bb0:
     v0 = address
     v1 = fmp
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint ptr<memory> v1 to i256
     v3 = add v2, 64
     store v3, 0
     v4 = abi_encode [], selector 0x80cc043300000000000000000000000000000000000000000000000000000000
-    v5 = extract_value memoryslice, v4, 0
-    v6 = extract_value memoryslice, v4, 1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
     v8 = extcodesize v7
     v9 = eq v8, 0
@@ -298,20 +298,20 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
     ret v23
 }
 
-fn @partialAgg() -> memptr [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     memory_zero v1, 64
     v2 = address
     v3 = alloc 64
     v4 = fmp
-    v5 = ptrtoint memptr v4 to i256
+    v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 64
     store v6, 0
     v7 = abi_encode [], selector 0x391c2d2800000000000000000000000000000000000000000000000000000000
-    v8 = extract_value memoryslice, v7, 0
-    v9 = extract_value memoryslice, v7, 1
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
     v10 = zext i160 v2 to i256
     v11 = extcodesize v10
     v12 = eq v11, 0
@@ -325,7 +325,7 @@ fn @partialAgg() -> memptr [selector=0xbf0809fa, abi_params=[], abi_returns=[arr
     revert_returndata
   bb2:
     copy v3, v8, 64
-    v17 = ptrtoint memptr v3 to i256
+    v17 = ptrtoint ptr<memory> v3 to i256
     v18 = make_memory_slice v17, 64
     v19 = abi_decode [array<2, u256>], v18
     ret v19
@@ -343,12 +343,12 @@ fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[wor
     store v4, 0x1234
     v5 = address
     v6 = fmp
-    v7 = ptrtoint memptr v6 to i256
+    v7 = ptrtoint ptr<memory> v6 to i256
     v8 = add v7, 128
     store v8, 0
     v9 = abi_encode [], selector 0xfb8720fc00000000000000000000000000000000000000000000000000000000
-    v10 = extract_value memoryslice, v9, 0
-    v11 = extract_value memoryslice, v9, 1
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
     v12 = zext i160 v5 to i256
     v13 = extcodesize v12
     v14 = eq v13, 0

@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_dynamic_memory.sol:AbiCalldataNestedDynamicMemory ===
 @module AbiCalldataNestedDynamicMemory
-fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>], abi_return_params=[array<_, array<_, array<_, u256>>>]] {
+fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>], abi_return_params=[array<_, array<_, array<_, u256>>>]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -79,7 +79,7 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     v54 = lt v53, v36
     jumpi v54, bb5, bb6
   bb6:
-    v92 = ptrtoint memptr v52 to i256
+    v92 = ptrtoint ptr<memory> v52 to i256
     v93 = shl 5, v22
     v94 = ptradd v21, v93
     store v94+32, v92
@@ -124,10 +124,10 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     store v83, v67
     v84 = make_calldata_slice v71, v74
     v85 = ptradd v83, 32
-    v86 = extract_value calldataslice, v84, 0
-    v87 = extract_value calldataslice, v84, 1
+    v86 = extract_value slice<calldata>, v84, 0
+    v87 = extract_value slice<calldata>, v84, 1
     copy calldata v85, v86, v87
-    v88 = ptrtoint memptr v83 to i256
+    v88 = ptrtoint ptr<memory> v83 to i256
     v89 = shl 5, v53
     v90 = ptradd v52, v89
     store v90+32, v88
@@ -135,10 +135,10 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     jump bb4
 }
 
-fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>], abi_return_params=[array<_, array<_, array<2, u256>>>]] {
+fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>], abi_return_params=[array<_, array<_, array<2, u256>>>]] {
   bb0:
-    v0 = extract_value calldataslice, arg0, 1
-    v1 = extract_value calldataslice, arg0, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -214,7 +214,7 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     v54 = lt v53, v36
     jumpi v54, bb5, bb6
   bb6:
-    v71 = ptrtoint memptr v52 to i256
+    v71 = ptrtoint ptr<memory> v52 to i256
     v72 = shl 5, v22
     v73 = ptradd v21, v72
     store v73+32, v71
@@ -232,10 +232,10 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     v62 = add v40, v55
     v63 = alloc 64
     v64 = make_calldata_slice v62, 64
-    v65 = extract_value calldataslice, v64, 0
-    v66 = extract_value calldataslice, v64, 1
+    v65 = extract_value slice<calldata>, v64, 0
+    v66 = extract_value slice<calldata>, v64, 1
     copy calldata v63, v65, v66
-    v67 = ptrtoint memptr v63 to i256
+    v67 = ptrtoint ptr<memory> v63 to i256
     v68 = shl 5, v53
     v69 = ptradd v52, v68
     store v69+32, v67
