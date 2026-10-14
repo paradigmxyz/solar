@@ -229,22 +229,51 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
-        let mut expr = expr;
-        loop {
-            expr = expr.peel_parens();
-            if let Some((callee, args, _)) = expr.as_call()
-                && let ExprKind::Type(ty) = &callee.kind
-                && matches!(
+        self.peel_type_conversions(expr, |_, callee| {
+            matches!(
+                &callee.kind,
+                ExprKind::Type(ty) if matches!(
                     ty.kind,
                     hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 )
+            )
+        })
+    }
+
+    /// Peels parentheses and the single-argument type conversions that `peel` accepts. `peel`
+    /// receives the conversion call and its callee.
+    pub(super) fn peel_type_conversions<'b>(
+        &self,
+        mut expr: &'b hir::Expr<'b>,
+        peel: impl Fn(&'b hir::Expr<'b>, &'b hir::Expr<'b>) -> bool,
+    ) -> &'b hir::Expr<'b> {
+        loop {
+            expr = expr.peel_parens();
+            if let Some((callee, args, _)) = expr.as_call()
                 && let hir::CallArgsKind::Unnamed([inner]) = args.kind
+                && peel(expr, callee)
+                && self.is_type_conversion(callee)
             {
                 expr = inner;
             } else {
                 return expr;
             }
         }
+    }
+
+    /// Returns whether calling `callee` converts its argument to another type.
+    pub(super) fn is_type_conversion(&self, callee: &hir::Expr<'_>) -> bool {
+        let gcx = self.cx.gcx;
+        matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
+            || gcx.resolved_expr(callee).is_some_and(|res| {
+                matches!(
+                    res,
+                    hir::Res::Item(
+                        hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
+                    )
+                )
+            })
+            || gcx.type_of_expr(callee.id).is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)))
     }
 
     /// Lowers a use of a constant to its value, which constant evaluation computes once.
