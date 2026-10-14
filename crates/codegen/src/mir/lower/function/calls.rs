@@ -117,21 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
-        let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
-            || self.cx.gcx.resolved_expr(callee).is_some_and(|res| {
-                matches!(
-                    res,
-                    hir::Res::Item(
-                        hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
-                    )
-                )
-            })
-            || self
-                .cx
-                .gcx
-                .type_of_expr(callee.id)
-                .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
-        if is_type_conversion {
+        if self.is_type_conversion(callee) {
             // result = convert(callee, args)
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "type conversion");
@@ -160,26 +146,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
                 return Some(CallResult::Value(value));
             }
-            let value = if source_ty.is_ref_at(DataLocation::Storage)
-                && matches!(
-                    source_ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                )
-                && matches!(
-                    target_ty.peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-                ) {
+            if target_ty.is_ref_at(DataLocation::Storage) {
+                // A storage reference conversion is an identity: the result is the argument's
+                // slot, so writes through it reach storage.
+                // result = slot(arg)
                 let Some(access) = self.storage_access(arg) else {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
-                self.load_storage_bytes(access.slot)
-            } else if target_ty.is_ref_at(DataLocation::Storage) {
-                // NOTE: The result still refers to storage, so lowering the argument as a
-                // memory copy would redirect writes through it.
-                return self.cx.report_unsupported(arg.span, "storage reference conversion");
-            } else {
-                self.lower_expr(arg)?
-            };
+                return self.load_storage_access(expr, access).map(CallResult::Value);
+            }
+            if source_ty.is_ref_at(DataLocation::Storage)
+                && let Some(size) = fixed_bytes_size(target_ty)
+            {
+                // `lower_expr` yields a slot for most storage `bytes` arguments but copies a
+                // storage state variable to memory, so read the first data word from the slot.
+                // word, length = storage_bytes_first_word(slot(arg))
+                // result = word & mask(min(length, width))
+                let Some(access) = self.storage_access(arg) else {
+                    return self.cx.report_unsupported(arg.span, "storage access");
+                };
+                let (word, length) = self.storage_bytes_first_word(access.slot);
+                return Some(CallResult::Value(self.bytes_prefix(word, length, size)));
+            }
+            let value = self.lower_expr(arg)?;
             return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {
@@ -628,18 +617,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => None,
             };
             if let Some((word, length)) = word_and_length {
-                // value = word & mask(min(length, fixed_width))
-                let width = u64::from(size.bytes());
-                let fixed_mask =
-                    self.builder.imm(U256::MAX << (256 - usize::from(size.bytes()) * 8));
-                let width_value = self.builder.imm(width);
-                let short = self.builder.lt(length, width_value);
-                let missing = self.builder.sub(width_value, length);
-                let bits_per_byte = self.builder.imm(8);
-                let shift = self.builder.mul(bits_per_byte, missing);
-                let short_mask = self.builder.shl(shift, fixed_mask);
-                let mask = self.builder.select(short, short_mask, fixed_mask);
-                return self.builder.and(word, mask);
+                return self.bytes_prefix(word, length, size);
             }
         }
         if destination_size.is_some()
@@ -694,6 +672,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // value = value << (32 - to.width) * 8
         let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
         self.builder.shl(shift, value)
+    }
+
+    /// Converts the first data word of a dynamic `bytes` value of `length` bytes to a
+    /// fixed-bytes value of `size`, zeroing the bytes past `min(length, size)`.
+    fn bytes_prefix(&mut self, word: ValueId, length: ValueId, size: TypeSize) -> ValueId {
+        // value = word & mask(min(length, fixed_width))
+        let width = u64::from(size.bytes());
+        let fixed_mask = self.builder.imm(U256::MAX << (256 - usize::from(size.bytes()) * 8));
+        let width_value = self.builder.imm(width);
+        let short = self.builder.lt(length, width_value);
+        let missing = self.builder.sub(width_value, length);
+        let bits_per_byte = self.builder.imm(8);
+        let shift = self.builder.mul(bits_per_byte, missing);
+        let short_mask = self.builder.shl(shift, fixed_mask);
+        let mask = self.builder.select(short, short_mask, fixed_mask);
+        self.builder.and(word, mask)
     }
 
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
