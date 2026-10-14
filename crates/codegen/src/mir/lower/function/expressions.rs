@@ -257,20 +257,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        let gcx = self.cx.gcx;
-        if let Err(err) = gcx.const_eval().eval_var(id)
-            && matches!(err.kind, EvalErrorKind::ValueTooLarge)
-            && let Some(initializer) = gcx.hir.variable(id).initializer
-        {
+        if let Some(initializer) = self.unfolded_constant_initializer(id) {
             // value = <initializer>
             return self.lower_expr(initializer);
         }
-        match gcx.const_eval().require_var(id) {
+        match self.cx.gcx.const_eval().require_var(id) {
             Ok(value) => self
                 .lower_const_value(value, span)
                 .or_else(|| self.cx.report_unsupported(span, "constant")),
             // value = error
             Err(guar) => Some(self.builder.error_value(guar)),
+        }
+    }
+
+    /// Returns the initializer of a constant whose value is too large to fold, which uses build
+    /// at runtime instead.
+    pub(super) fn unfolded_constant_initializer(
+        &self,
+        id: VariableId,
+    ) -> Option<&'gcx hir::Expr<'gcx>> {
+        let gcx = self.cx.gcx;
+        if let Err(err) = gcx.const_eval().eval_var(id)
+            && matches!(err.kind, EvalErrorKind::ValueTooLarge)
+        {
+            gcx.hir.variable(id).initializer
+        } else {
+            None
         }
     }
 
