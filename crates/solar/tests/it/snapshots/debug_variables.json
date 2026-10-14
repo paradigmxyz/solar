@@ -1,0 +1,977 @@
+[
+  {
+    "operation": "DUP2",
+    "variables": [
+      {
+        "identifier": "x",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "y",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 1
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "local",
+        "pointer": null,
+        "type": {
+          "id": "t_uint256"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "ADD",
+    "variables": [
+      {
+        "identifier": "x",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 1
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "y",
+        "pointer": {
+          "length": 32,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "local",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "DUP2",
+    "variables": [
+      {
+        "identifier": "a",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "b",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 1
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "intermediate",
+        "pointer": null,
+        "type": {
+          "id": "t_uint256"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "ADD",
+    "variables": [
+      {
+        "identifier": "a",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 1
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "b",
+        "pointer": {
+          "length": 32,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "intermediate",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH1",
+    "variables": [
+      {
+        "identifier": "x",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      },
+      {
+        "identifier": "y",
+        "pointer": {
+          "length": 32,
+          "location": "stack",
+          "offset": 0,
+          "slot": 1
+        },
+        "type": {
+          "id": "t_uint256"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "DUP1",
+    "variables": [
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "length": 32,
+              "location": "stack",
+              "name": "-carrier-address",
+              "offset": 0,
+              "slot": 0
+            },
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": {
+                "~read": "-carrier-address"
+              },
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": {
+                      "~read": "-carrier-address"
+                    }
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          {
+                            "~read": "-carrier-address"
+                          },
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "DUP2",
+    "variables": [
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      },
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": "0x60",
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": "0x60"
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          "0x60",
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "MSTORE",
+    "variables": [
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "length": 32,
+              "location": "stack",
+              "name": "-carrier-address",
+              "offset": 0,
+              "slot": 0
+            },
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": {
+                "~read": "-carrier-address"
+              },
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": {
+                      "~read": "-carrier-address"
+                    }
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          {
+                            "~read": "-carrier-address"
+                          },
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "DUP2",
+    "variables": [
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "length": 32,
+              "location": "stack",
+              "name": "-carrier-address",
+              "offset": 0,
+              "slot": 0
+            },
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": {
+                "~read": "-carrier-address"
+              },
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": {
+                      "~read": "-carrier-address"
+                    }
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          {
+                            "~read": "-carrier-address"
+                          },
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH1",
+    "variables": [
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      },
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": "0x60",
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": "0x60"
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          "0x60",
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "ADD",
+    "variables": [
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      },
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": "0x60",
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": "0x60"
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          "0x60",
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "MSTORE",
+    "variables": [
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "length": 32,
+              "location": "stack",
+              "name": "-carrier-address",
+              "offset": 0,
+              "slot": 0
+            },
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": {
+                "~read": "-carrier-address"
+              },
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": {
+                      "~read": "-carrier-address"
+                    }
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          {
+                            "~read": "-carrier-address"
+                          },
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH0",
+    "variables": [
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      },
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "length": 32,
+              "location": "stack",
+              "name": "-carrier-address",
+              "offset": 0,
+              "slot": 2
+            },
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": {
+                "~read": "-carrier-address"
+              },
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": {
+                      "~read": "-carrier-address"
+                    }
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          {
+                            "~read": "-carrier-address"
+                          },
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "MSTORE",
+    "variables": [
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x23"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      },
+      {
+        "identifier": "buffer",
+        "pointer": {
+          "group": [
+            {
+              "length": 32,
+              "location": "stack",
+              "name": "-carrier-address",
+              "offset": 0,
+              "slot": 0
+            },
+            {
+              "else": {
+                "length": 0,
+                "location": "memory",
+                "name": "data",
+                "offset": 0
+              },
+              "if": {
+                "~read": "-carrier-address"
+              },
+              "then": {
+                "group": [
+                  {
+                    "length": 32,
+                    "location": "memory",
+                    "name": "length",
+                    "offset": {
+                      "~read": "-carrier-address"
+                    }
+                  },
+                  {
+                    "length": {
+                      "~read": "length"
+                    },
+                    "location": "memory",
+                    "name": "data",
+                    "offset": {
+                      "~wordsized": {
+                        "~sum": [
+                          {
+                            "~read": "-carrier-address"
+                          },
+                          32
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "type": {
+          "id": "t_bytes_storage"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH1",
+    "variables": [
+      {
+        "identifier": "x",
+        "pointer": {
+          "length": 2,
+          "location": "stack",
+          "offset": 30,
+          "slot": 1
+        },
+        "type": {
+          "id": "t_int16"
+        }
+      },
+      {
+        "identifier": "prefix",
+        "pointer": {
+          "length": 4,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_bytes4"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x63"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH2",
+    "variables": [
+      {
+        "identifier": "prefix",
+        "pointer": {
+          "length": 4,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_bytes4"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x63"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "CALLDATALOAD",
+    "variables": [
+      {
+        "identifier": "prefix",
+        "pointer": {
+          "length": 4,
+          "location": "stack",
+          "offset": 0,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_bytes4"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x63"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH32",
+    "variables": [
+      {
+        "identifier": "prefix",
+        "pointer": {
+          "length": 4,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_bytes4"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x63"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "PUSH32",
+    "variables": [
+      {
+        "identifier": "prefix",
+        "pointer": {
+          "length": 4,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_bytes4"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "calldata",
+          "offset": "0x63"
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "CALLDATALOAD",
+    "variables": [
+      {
+        "identifier": "prefix",
+        "pointer": {
+          "length": 4,
+          "location": "calldata",
+          "offset": "0x24"
+        },
+        "type": {
+          "id": "t_bytes4"
+        }
+      },
+      {
+        "identifier": "flag_",
+        "pointer": {
+          "length": 1,
+          "location": "stack",
+          "offset": 31,
+          "slot": 0
+        },
+        "type": {
+          "id": "t_bool"
+        }
+      }
+    ]
+  }
+]

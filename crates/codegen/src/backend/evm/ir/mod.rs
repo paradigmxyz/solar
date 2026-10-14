@@ -28,6 +28,7 @@ use std::fmt;
 pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 pub(in crate::backend) mod builder;
+mod debug;
 mod display;
 mod parse;
 mod passes;
@@ -768,8 +769,14 @@ enum PushValue {
 }
 
 /// Metadata carried by instructions and terminators.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Metadata {
+    /// Variable locations in this operation's postcondition; never machine operands.
+    pub(crate) variables: Vec<super::DebugStackVariable>,
+    /// A structural rewrite retained this exact postcondition without changing its stack.
+    pub(crate) variable_locations_preserved: bool,
+    /// A CFG rewrite preserves memory carriers while stack carriers still need replay.
+    pub(crate) variable_memory_preserved: bool,
     /// Whether this instruction must stay immediately before the next instruction of its block.
     ///
     /// Only meaningful on instructions. It forbids every transform both from turning the boundary
@@ -795,6 +802,20 @@ pub(crate) struct Metadata {
     /// Whether the source location was preserved or intentionally dropped.
     debug_info_handled: bool,
 }
+
+// Variable observations must not participate in machine-code identity or profitability.
+impl PartialEq for Metadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.keep_with_next == other.keep_with_next
+            && self.source_spans == other.source_spans
+            && self.function_invoke == other.function_invoke
+            && self.function_exit == other.function_exit
+            && self.modifier_depth == other.modifier_depth
+            && self.debug_info_handled == other.debug_info_handled
+    }
+}
+
+impl Eq for Metadata {}
 
 fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
     let first = events.next()?;
@@ -909,8 +930,15 @@ impl Metadata {
             self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
         );
         for other in others {
+            self.merge_variable_locations(other);
             self.merge_source_spans(other);
         }
+    }
+
+    /// Keeps only locations guaranteed for every origin of shared code.
+    pub(crate) fn merge_variable_locations(&mut self, other: &Self) {
+        self.variables.retain(|variable| other.variables.contains(variable));
+        self.variable_locations_preserved = true;
     }
 
     /// Returns the function entered after this operation.

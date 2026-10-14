@@ -1614,7 +1614,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// The offset of an internal function's spill area in its frame, after its parameters,
     /// results, and frame objects.
-    fn internal_spill_area_offset(func: &Function) -> u64 {
+    pub(in crate::backend::evm::codegen) fn internal_spill_area_offset(func: &Function) -> u64 {
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
             + (func.return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE

@@ -113,6 +113,7 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) current_source_spans: DebugSpans,
     /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
     pub(in crate::backend) current_modifier_depth: u32,
+    pub(in crate::backend) current_debug_variables: Vec<crate::backend::evm::DebugStackVariable>,
     /// Original assembler label attached to each EVM IR block.
     pub(in crate::backend) block_labels: Vec<Option<Label>>,
     /// Defined assembler labels and their EVM IR blocks.
@@ -175,6 +176,7 @@ impl<'gcx> Assembler<'gcx> {
             program_is_finalized: false,
             current_block: None,
             current_source_spans: DebugSpans::new(),
+            current_debug_variables: Vec::new(),
             current_modifier_depth: 0,
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
@@ -201,6 +203,7 @@ impl<'gcx> Assembler<'gcx> {
         self.program.clear();
         self.program_is_finalized = false;
         self.current_block = None;
+        self.current_debug_variables.clear();
         self.current_source_spans.clear();
         self.current_modifier_depth = 0;
         self.block_labels.clear();
@@ -462,6 +465,12 @@ impl<'gcx> Assembler<'gcx> {
             let function_exit = program.function_exits.as_ref().and_then(|exits| exits[idx]);
             let modifier_depth = program.modifier_depths.as_ref().map_or(0, |depths| depths[idx]);
             out.set_function_events(function_invoke, function_exit);
+            if let Some(debug_info) = &mut out.debug_info {
+                debug_info.record_variables(
+                    out.bytecode.len(),
+                    program.variables.as_ref().map_or(&[], |variables| variables[idx].as_slice()),
+                );
+            }
             out.set_modifier_depth(modifier_depth);
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {

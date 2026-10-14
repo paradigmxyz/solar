@@ -113,6 +113,15 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
             module.blocks[block].terminator = Some(terminator);
         }
     }
+    // NOTE: Redirecting identical bodies preserves their physical postconditions, including
+    // spill stores. Shared bodies retain only the debug facts common to every incoming copy.
+    if changed && module.debug_info_is_tracked() {
+        for block in &mut module.blocks {
+            for inst in &mut block.instructions {
+                inst.metadata.variable_locations_preserved = true;
+            }
+        }
+    }
     changed
 }
 

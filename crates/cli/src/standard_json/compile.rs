@@ -445,8 +445,10 @@ fn compile(
 
                 if let Some(compilation) = compilation {
                     let mut ethdebug = EthdebugOutput::default();
-                    if global_ethdebug.contains(OutputSelectionFlags::ETHDEBUG_RESOURCES) {
-                        ethdebug.resources = Some(compilation.clone().into_resources());
+                    if global_ethdebug.contains(OutputSelectionFlags::ETHDEBUG_RESOURCES)
+                        || contract_output_requested(gcx, output_selection, ethdebug_outputs)
+                    {
+                        ethdebug.resources = Some(compilation.clone().into_resources(gcx));
                     }
                     // A program always references its compilation resource. Emit it
                     // even when the caller selected only a per-contract program.

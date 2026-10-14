@@ -61,6 +61,7 @@ pub(super) use views::{
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
+    pub(super) capture_variables: bool,
     pub(super) gcx: Gcx<'gcx>,
     pub(super) module: &'ctx mut Module,
     pub(super) storage: &'ctx StorageLayout<'gcx>,
@@ -78,6 +79,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
     pub(super) fn reborrow<'a>(&'a mut self) -> LoweringContext<'gcx, 'a> {
         LoweringContext {
+            capture_variables: self.capture_variables,
             gcx: self.gcx,
             module: &mut *self.module,
             storage: self.storage,
@@ -146,6 +148,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function);
+    mir.debug_values.enabled = context.capture_variables;
     if !expose_selector {
         mir.selector = None;
     }
@@ -219,6 +222,7 @@ pub(super) fn lower(
         lowerer.builder.replace_source_span(hir_function.span);
         lowerer.finish(hir_function.returns)?;
     }
+    super::super::debug::DebugValues::anchor(&mut mir);
     Some(mir)
 }
 

@@ -201,7 +201,7 @@ fn debug_output_directory_and_resources_only() {
         let path = Path::new(FIXTURES).join(source["path"].as_str().unwrap());
         source["contents"] == RealFileLoader.load_file(&path).unwrap()
     }));
-    assert!(resources["types"].as_object().unwrap().is_empty());
+    assert_eq!(resources["types"]["t_uint256"], json!({"kind": "uint", "bits": 256}));
     assert!(resources["pointers"].as_object().unwrap().is_empty());
 }
 
@@ -420,4 +420,305 @@ fn ethdebug_omits_unresolved_library_operands() {
         }
     }
     assert!(unresolved > 0);
+}
+
+#[test]
+fn debug_types_storage_templates_and_variable_observations() {
+    let source = "debug_variables.sol";
+    let output =
+        compile_json(&[source, "-O", "none", "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime"]);
+    let resources = &output["ethdebug"];
+    assert_eq!(resources["ethdebug"]["version"], "0.1.0-draft.2");
+    let mut documents = json!({"types": resources["types"], "pointers": resources["pointers"]});
+    // Declaration coordinates are checked below; the resource snapshot focuses on composition.
+    for document in documents["types"].as_object_mut().unwrap().values_mut() {
+        if let Some(definition) = document.get_mut("definition") {
+            definition.as_object_mut().unwrap().remove("location");
+        }
+    }
+    snapbox::assert_data_eq!(
+        serde_json::to_string_pretty(&documents).unwrap(),
+        snapbox::file!["snapshots/debug_types.json"]
+    );
+    let program = &output["contracts"]["debug_variables.sol:DebugVariables"]["ethdebug-runtime"];
+    let variables = program["context"]["variables"].as_array().unwrap();
+    let small = variables.iter().find(|variable| variable["identifier"] == "small").unwrap();
+    assert_eq!(
+        small["pointer"],
+        json!({"location": "storage", "slot": "0x00", "offset": 31, "length": 1})
+    );
+    let signed = variables.iter().find(|variable| variable["identifier"] == "signedValue").unwrap();
+    assert_eq!(signed["pointer"]["offset"], 28);
+    let temporary =
+        variables.iter().find(|variable| variable["identifier"] == "temporary").unwrap();
+    assert_eq!(temporary["pointer"]["location"], "transient");
+    assert_eq!(temporary["pointer"]["slot"], "0x00");
+    let text = variables.iter().find(|variable| variable["identifier"] == "text").unwrap();
+    assert_eq!(text["pointer"]["in"], json!({"template": "t_string_storage"}));
+    for variable in variables {
+        let range = &variable["declaration"]["range"];
+        let start = range["offset"].as_u64().unwrap() as usize;
+        let end = start + range["length"].as_u64().unwrap() as usize;
+        let contents = resources["compilation"]["sources"][0]["contents"].as_str().unwrap();
+        assert!(!contents[start..end].is_empty());
+        assert!(resources["types"].get(variable["type"]["id"].as_str().unwrap()).is_some());
+    }
+    let observations = program["instructions"].as_array().unwrap().iter().filter_map(|instruction| {
+        let variables = context_variables(&instruction["context"]);
+        if variables.is_empty() { return None; }
+        Some(json!({"operation": instruction["operation"]["mnemonic"], "variables": variables.iter().map(|variable| json!({"identifier": variable["identifier"], "type": variable["type"], "pointer": variable["pointer"]})).collect::<Vec<_>>()}))
+    }).collect::<Vec<_>>();
+    assert!(!observations.is_empty());
+    snapbox::assert_data_eq!(
+        serde_json::to_string_pretty(&observations).unwrap(),
+        snapbox::file!["snapshots/debug_variables.json"]
+    );
+}
+
+#[test]
+fn variable_debug_records_preserve_optimized_bytecode() {
+    for mode in ["none", "gas", "size"] {
+        let baseline = compile_json(&["debug_variables.sol", "-O", mode, "--emit=bin,bin-runtime"]);
+        let mut debug = compile_json(&[
+            "debug_variables.sol",
+            "-O",
+            mode,
+            "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime",
+        ]);
+        for contract in debug["contracts"].as_object_mut().unwrap().values_mut() {
+            contract.as_object_mut().unwrap().remove("ethdebug");
+            contract.as_object_mut().unwrap().remove("ethdebug-runtime");
+        }
+        assert_eq!(debug["contracts"], baseline["contracts"], "{mode}");
+    }
+}
+
+#[test]
+fn shared_variable_origins_are_unavailable() {
+    let source = "debug_variables.sol";
+    for mode in ["gas", "size"] {
+        let output = compile_json(&[source, "-O", mode, "--emit=ethdebug-runtime"]);
+        for contract in output["contracts"].as_object().unwrap().values() {
+            for instruction in contract["ethdebug-runtime"]["instructions"].as_array().unwrap() {
+                if let Some(origins) = instruction["context"]["pick"].as_array() {
+                    assert!(origins.len() > 1);
+                    assert!(context_variables(&instruction["context"]).is_empty());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn immutable_debug_locations_follow_final_relocations() {
+    for mode in ["none", "gas", "size"] {
+        let output = compile_json(&[
+            "debug_variables.sol",
+            "-O",
+            mode,
+            "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime",
+        ]);
+        let contract = &output["contracts"]["debug_variables.sol:DebugImmutables"];
+        let runtime = contract["bin-runtime"].as_str().unwrap();
+        let variables = contract["ethdebug-runtime"]["context"]["variables"].as_array().unwrap();
+        for (name, length) in [("value", 8), ("prefix", 4)] {
+            let variable =
+                variables.iter().find(|variable| variable["identifier"] == name).unwrap();
+            let pointer = &variable["pointer"];
+            assert_eq!(pointer["location"], "code");
+            assert_eq!(pointer["length"], length);
+            let start = pointer["offset"].as_u64().unwrap() as usize;
+            assert!(start + length as usize <= runtime.len() / 2);
+            // Unlinked immutable operands are zero placeholders, not a constant recovery recipe.
+            assert_eq!(
+                &runtime[2 * start..2 * (start + length as usize)],
+                "0".repeat(length as usize * 2)
+            );
+        }
+        for variable in contract["ethdebug"]["context"]["variables"].as_array().unwrap() {
+            assert!(variable.get("pointer").is_none());
+        }
+        let constant = variables.iter().find(|variable| variable["identifier"] == "SCALE").unwrap();
+        assert!(constant.get("pointer").is_none());
+    }
+}
+
+#[test]
+fn standard_json_programs_include_their_type_resources() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"C.sol": {"content": "contract C { uint8 x; function read() external view returns (uint8) { return x; } }"}},
+        "settings": {"outputSelection": {"*": {"*": ["evm.deployedBytecode.ethdebug"]}}}
+    });
+    let mut bytes = Vec::new();
+    solar::cli::standard_json::compile_standard_json(
+        &input.to_string(),
+        CompileOpts::default(),
+        None,
+        &mut bytes,
+    )
+    .unwrap();
+    let output = serde_json::from_slice::<Value>(&bytes).unwrap();
+    let program = &output["contracts"]["C.sol"]["C"]["evm"]["deployedBytecode"]["ethdebug"];
+    assert_eq!(program["context"]["variables"][0]["type"]["id"], "t_uint8");
+    assert_eq!(
+        output["ethdebug"]["resources"]["types"]["t_uint8"],
+        json!({"kind": "uint", "bits": 8})
+    );
+    assert_eq!(program["compilation"]["id"], output["ethdebug"]["resources"]["compilation"]["id"]);
+}
+
+#[test]
+fn assignment_inside_an_expression_invalidates_old_variable_reads() {
+    let output = compile_json(&["debug_variables.sol", "-O", "none", "--emit=ethdebug-runtime"]);
+    let source = output["ethdebug"]["compilation"]["sources"][0]["contents"].as_str().unwrap();
+    let begin = source.find("function mutate(").unwrap();
+    let declaration = begin + source[begin..].find("uint256 x").unwrap();
+    let program = &output["contracts"]["debug_variables.sol:DebugVariables"]["ethdebug-runtime"];
+    for instruction in program["instructions"].as_array().unwrap() {
+        for variable in context_variables(&instruction["context"]) {
+            assert_ne!(variable["declaration"]["range"]["offset"], declaration);
+        }
+    }
+    // A read after an assignment with no intervening opcode is a different epoch.
+    let begin = source.find("function afterWrite(").unwrap();
+    let declaration = begin + source[begin..].find("uint256 x").unwrap();
+    assert!(program["instructions"].as_array().unwrap().iter().any(|instruction| {
+        {
+            let variables = context_variables(&instruction["context"]);
+            variables
+                .iter()
+                .any(|variable| variable["declaration"]["range"]["offset"] == declaration)
+        }
+    }));
+}
+
+fn context_variables(context: &Value) -> Vec<&Value> {
+    let mut variables = context["variables"].as_array().into_iter().flatten().collect::<Vec<_>>();
+    for child in context["gather"].as_array().into_iter().flatten() {
+        variables.extend(context_variables(child));
+    }
+    variables
+}
+
+#[test]
+fn optimized_debug_tracking_preserves_scopes_spills_and_bytecode() {
+    for mode in ["none", "gas", "size"] {
+        let baseline = compile_json(&["debug_tracking.sol", "-O", mode, "--emit=bin,bin-runtime"]);
+        let output = compile_json(&[
+            "debug_tracking.sol",
+            "-O",
+            mode,
+            "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime",
+        ]);
+        let key = "debug_tracking.sol:DebugTracking";
+        for field in ["bin", "bin-runtime"] {
+            assert_eq!(
+                baseline["contracts"][key][field], output["contracts"][key][field],
+                "{mode}: {field}"
+            );
+        }
+        let program = &output["contracts"][key]["ethdebug-runtime"];
+        let contexts = program["instructions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|inst| &inst["context"])
+            .collect::<Vec<_>>();
+        for context in &contexts {
+            check_context_gathers(context);
+        }
+        let variables =
+            contexts.iter().flat_map(|context| context_variables(context)).collect::<Vec<_>>();
+        for variable in &variables {
+            assert!(
+                output["ethdebug"]["types"].get(variable["type"]["id"].as_str().unwrap()).is_some()
+            );
+        }
+        assert!(
+            variables
+                .iter()
+                .any(|var| var["identifier"] == "object" && var.get("pointer").is_some()),
+            "{mode}: composite object"
+        );
+        assert!(
+            variables
+                .iter()
+                .any(|var| var["identifier"] == "input" && var.get("pointer").is_some()),
+            "{mode}: calldata bytes"
+        );
+        assert!(
+            variables
+                .iter()
+                .any(|var| var["identifier"] == "items" && var.get("pointer").is_some()),
+            "{mode}: multiword array"
+        );
+        assert!(
+            variables
+                .iter()
+                .any(|var| var["identifier"].as_str().is_some_and(|name| name.starts_with('a'))
+                    && var["pointer"]["location"] == "memory"),
+            "{mode}: spill"
+        );
+        if mode != "none" {
+            let inline = contexts
+                .iter()
+                .flat_map(|context| context_names(context, "inline:"))
+                .collect::<std::collections::BTreeSet<_>>();
+            assert!(inline.len() >= 2, "{mode}: separate inlined instances: {inline:?}");
+        }
+        let declarations = variables
+            .iter()
+            .filter(|var| var["identifier"] == "value")
+            .filter_map(|var| var["declaration"]["range"]["offset"].as_u64())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(declarations.len() >= 2, "{mode}: shadowed declarations");
+        // A modified memory object must not be reconstructed from its original calldata.
+        let source = output["ethdebug"]["compilation"]["sources"][0]["contents"].as_str().unwrap();
+        let begin = source.find("function mutateObject(").unwrap();
+        let declaration = begin + source[begin..].find("Tree memory object").unwrap();
+        for variable in
+            variables.iter().filter(|var| var["declaration"]["range"]["offset"] == declaration)
+        {
+            assert!(
+                !pointer_uses_location(&variable["pointer"], "calldata"),
+                "{mode}: stale ABI origin"
+            );
+        }
+    }
+}
+
+fn context_names<'a>(context: &'a Value, prefix: &str) -> Vec<&'a str> {
+    let mut names = context["name"]
+        .as_str()
+        .filter(|name| name.starts_with(prefix))
+        .into_iter()
+        .collect::<Vec<_>>();
+    for child in context["gather"].as_array().into_iter().flatten() {
+        names.extend(context_names(child, prefix));
+    }
+    names
+}
+
+fn pointer_uses_location(pointer: &Value, location: &str) -> bool {
+    match pointer {
+        Value::Object(object) => {
+            object.get("location").is_some_and(|value| value == location)
+                || object.values().any(|value| pointer_uses_location(value, location))
+        }
+        Value::Array(values) => values.iter().any(|value| pointer_uses_location(value, location)),
+        _ => false,
+    }
+}
+
+fn check_context_gathers(context: &Value) {
+    if let Some(children) = context["gather"].as_array() {
+        assert!(children.len() >= 2, "ETHDebug gather requires two contexts: {context}");
+        for child in children {
+            check_context_gathers(child);
+        }
+    }
+    for child in context["pick"].as_array().into_iter().flatten() {
+        check_context_gathers(child);
+    }
 }

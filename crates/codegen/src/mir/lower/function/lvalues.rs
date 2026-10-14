@@ -207,6 +207,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn load_variable(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
+        let value = self.load_variable_value(id, span)?;
+        if self.cx.capture_variables && !self.cx.gcx.hir.variable(id).is_state_variable() {
+            let position = self.builder.func().num_insts();
+            let debug = &mut self.builder.func_mut().debug_values;
+            let sequence = debug.reads.len() + debug.writes.len();
+            debug.reads.push((id, value, span, position, sequence));
+        }
+        Some(value)
+    }
+
+    fn load_variable_value(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
@@ -263,6 +274,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if self.cx.capture_variables {
+            let position = self.builder.func().num_insts();
+            let debug = &mut self.builder.func_mut().debug_values;
+            let sequence = debug.reads.len() + debug.writes.len();
+            debug.writes.push((id, position, sequence));
+        }
         if self.views.contains_key(&id) {
             return self.report_view_use(id, span);
         }

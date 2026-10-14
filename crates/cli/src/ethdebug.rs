@@ -9,6 +9,8 @@ use solar_codegen::{
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, hir::ContractId};
 
+mod resources;
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 enum EthdebugId {
@@ -58,8 +60,16 @@ struct EthdebugCodePointer {
 #[derive(Clone, Debug, Serialize)]
 struct EthdebugFunctionExit {}
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 struct EthdebugContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    gather: Vec<Self>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    transform: Vec<&'static str>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    variables: Vec<resources::Variable>,
     #[serde(skip_serializing_if = "Option::is_none")]
     code: Option<EthdebugSourceRange>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -102,10 +112,19 @@ enum EthdebugEnvironment {
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct EthdebugProgram {
+    ethdebug: EthdebugStamp,
     compilation: EthdebugReference,
     contract: EthdebugContract,
     environment: EthdebugEnvironment,
     instructions: Vec<EthdebugInstruction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context: Option<EthdebugContext>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct EthdebugStamp {
+    schema: &'static str,
+    version: &'static str,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -131,6 +150,7 @@ pub(crate) struct EthdebugCompilation {
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct EthdebugResources {
+    ethdebug: EthdebugStamp,
     compilation: EthdebugCompilation,
     types: Map<String, Value>,
     pointers: Map<String, Value>,
@@ -142,11 +162,15 @@ impl EthdebugCompilation {
         id
     }
 
-    pub(crate) fn into_resources(self) -> EthdebugResources {
+    pub(crate) fn into_resources(self, gcx: Gcx<'_>) -> EthdebugResources {
         EthdebugResources {
+            ethdebug: EthdebugStamp {
+                schema: "ethdebug/format/info/resources",
+                version: "0.1.0-draft.2",
+            },
             compilation: self,
-            types: Default::default(),
-            pointers: Default::default(),
+            types: resources::types(gcx),
+            pointers: resources::pointers(gcx),
         }
     }
 }
@@ -172,7 +196,7 @@ pub(crate) fn make_ethdebug_compilation(
         .collect::<Vec<_>>();
 
     let version = solar_config::version::SEMVER_VERSION.to_owned();
-    let mut identity = String::from("ethdebug-solar-compilation-v1");
+    let mut identity = String::from("ethdebug-solar-compilation-v2");
     // A compilation ID names the complete source-to-bytecode context, not only
     // the source files. Include every code-generation setting that can change
     // instruction offsets or operations so programs cannot cross-reference a
@@ -282,8 +306,32 @@ pub(crate) fn make_ethdebug_program(
                 .map(|argument| format!("0x{}", alloy_primitives::hex::display(argument)))
                 .into_iter()
                 .collect();
-            let context =
+            let mut context =
                 make_ethdebug_context(gcx, &source_ids, bytecode, previous.as_ref(), &instruction);
+            let variables = debug_info
+                .variables_at(instruction.offset)
+                .iter()
+                .filter_map(|variable| resources::variable_context(gcx, variable, &source_ids))
+                .collect::<Vec<_>>();
+            if !variables.is_empty() {
+                let mut variables = variables;
+                let context = context.get_or_insert_default();
+                if variables.len() == 1 {
+                    let mut scope = variables.pop().unwrap();
+                    context.name = scope.name.take();
+                    context.transform = scope.transform;
+                    context.gather = if scope.gather.is_empty() {
+                        vec![
+                            EthdebugContext { code: scope.code, ..Default::default() },
+                            EthdebugContext { variables: scope.variables, ..Default::default() },
+                        ]
+                    } else {
+                        scope.gather
+                    };
+                } else {
+                    context.gather = variables;
+                }
+            }
             previous = Some(instruction);
             EthdebugInstruction {
                 offset: instruction.offset as usize,
@@ -294,6 +342,7 @@ pub(crate) fn make_ethdebug_program(
         .collect();
 
     Some(EthdebugProgram {
+        ethdebug: EthdebugStamp { schema: "ethdebug/format/program", version: "0.1.0-draft.2" },
         compilation: EthdebugReference { id: EthdebugId::Text(compilation_id.to_owned()) },
         contract: EthdebugContract {
             name: contract.name.to_string(),
@@ -306,6 +355,7 @@ pub(crate) fn make_ethdebug_program(
         },
         environment: if deployed { EthdebugEnvironment::Call } else { EthdebugEnvironment::Create },
         instructions,
+        context: resources::context(gcx, contract_id, artifact, deployed, &source_ids),
     })
 }
 
@@ -332,11 +382,13 @@ fn make_ethdebug_context(
         .iter()
         .filter_map(|&span| make_ethdebug_source_range(gcx, source_ids, span))
         .map(|code| EthdebugContext {
+            variables: Vec::new(),
             code: Some(code),
             pick: Vec::new(),
             invoke: None,
             r#return: None,
             revert: None,
+            ..Default::default()
         })
         .collect::<Vec<_>>();
     let (code, pick) = match contexts.len() {
@@ -362,7 +414,15 @@ fn make_ethdebug_context(
     {
         None
     } else {
-        Some(EthdebugContext { code, pick, invoke, r#return, revert })
+        Some(EthdebugContext {
+            variables: Vec::new(),
+            code,
+            pick,
+            invoke,
+            r#return,
+            revert,
+            ..Default::default()
+        })
     }
 }
 

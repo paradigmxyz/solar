@@ -4,9 +4,44 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
+        let snapshot = self.cx.capture_variables.then(|| {
+            let debug = &self.builder.func().debug_values;
+            (
+                self.builder.func().num_insts(),
+                debug.reads.len() + debug.writes.len(),
+                self.values
+                    .iter()
+                    .filter(|(id, _)| !self.cx.gcx.hir.variable(**id).is_state_variable())
+                    .map(|(&id, &value)| (id, value))
+                    .collect::<Vec<_>>(),
+            )
+        });
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_stmt_inner(stmt);
+        if let Some((start, sequence, bindings)) = snapshot {
+            let end = self.builder.func().num_insts();
+            self.builder
+                .func_mut()
+                .debug_values
+                .snapshot_bindings(stmt.span, start, end, sequence, bindings);
+            if matches!(
+                stmt.kind,
+                StmtKind::DeclSingle(_) | StmtKind::DeclMulti(..) | StmtKind::Expr(_)
+            ) && let Some(&inst) =
+                self.builder.func().blocks[self.builder.current_block()].instructions.last()
+                && inst.index() >= start
+                && let Some(span) = self.builder.func().inst(inst).metadata.source_span()
+            {
+                let bindings = self
+                    .values
+                    .iter()
+                    .filter(|(id, _)| !self.cx.gcx.hir.variable(**id).is_state_variable())
+                    .map(|(&id, &value)| (id, value))
+                    .collect();
+                self.builder.func_mut().debug_values.assign_after(inst, span, bindings);
+            }
+        }
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result

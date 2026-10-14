@@ -4548,6 +4548,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "solar-ast",
  "solar-codegen",
  "solar-config",
  "solar-data-structures",

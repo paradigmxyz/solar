@@ -446,11 +446,25 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
+        instruction.metadata.variables = std::mem::take(&mut self.current_debug_variables);
         instruction.metadata.set_source_spans(self.current_source_spans.iter().copied());
         instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
         (block, index)
+    }
+
+    /// Records the current machine state as the previous opcode's postcondition.
+    pub(crate) fn set_debug_variables(
+        &mut self,
+        variables: Vec<crate::backend::evm::DebugStackVariable>,
+    ) {
+        if let Some(block) = self.current_block
+            && let Some(inst) = self.program.blocks[block].instructions.last_mut()
+            && !variables.is_empty()
+        {
+            inst.metadata.variables = variables;
+        }
     }
 
     /// Returns the block and index the next emitted instruction will take.

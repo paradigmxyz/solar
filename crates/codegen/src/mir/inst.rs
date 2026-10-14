@@ -6,11 +6,17 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
 use solar_sema::hir;
-use std::fmt;
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct InstructionMetadata {
+    /// LLVM-style lexical inlining provenance; excluded from instruction identity.
+    inlined_at: Option<Box<SmallVec<[crate::source_info::DebugInlineFrame; 1]>>>,
+    inline_ambiguous: bool,
     /// Proven storage alias key for `sload`/`sstore` instructions.
     storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
@@ -31,6 +37,8 @@ impl InstructionMetadata {
     /// Empty instruction metadata.
     pub(crate) const EMPTY: Self = Self {
         storage_alias: None,
+        inlined_at: None,
+        inline_ambiguous: false,
         hir_expr: None,
         source_span: Span::DUMMY,
         additional_source_spans: None,
@@ -97,6 +105,10 @@ impl InstructionMetadata {
 
     /// Unions origins without importing instruction-specific analysis facts.
     pub(crate) fn merge_debug_context(&mut self, other: &Self) {
+        if self.inlined_at != other.inlined_at || other.inline_ambiguous {
+            self.inlined_at = None;
+            self.inline_ambiguous = true;
+        }
         for span in other.source_spans() {
             self.insert_source_span(span);
         }
@@ -110,6 +122,8 @@ impl InstructionMetadata {
 
     /// Copies all debug fields without copying semantic or analysis metadata.
     pub(crate) fn copy_debug_context(&mut self, other: &Self) {
+        self.inlined_at = other.inlined_at.clone();
+        self.inline_ambiguous = other.inline_ambiguous;
         self.source_span = other.source_span;
         self.additional_source_spans = other.additional_source_spans.clone();
         self.modifier_depth = other.modifier_depth;
@@ -148,6 +162,8 @@ impl InstructionMetadata {
 
     /// Marks this instruction as intentionally having no source location.
     pub(crate) fn mark_debug_info_dropped(&mut self) {
+        self.inlined_at = None;
+        self.inline_ambiguous = false;
         self.set_debug_source_span(None);
         self.modifier_depth = 0;
     }
@@ -169,6 +185,19 @@ impl InstructionMetadata {
         let mut metadata = Self::EMPTY;
         metadata.copy_debug_context(self);
         metadata
+    }
+
+    pub(crate) fn inlined_at(&self) -> Option<&[crate::source_info::DebugInlineFrame]> {
+        (!self.inline_ambiguous)
+            .then(|| self.inlined_at.as_deref().map_or(&[][..], SmallVec::as_slice))
+    }
+
+    pub(crate) fn set_inlined_at(
+        &mut self,
+        frames: SmallVec<[crate::source_info::DebugInlineFrame; 1]>,
+    ) {
+        self.inlined_at = (!frames.is_empty()).then(|| Box::new(frames));
+        self.inline_ambiguous = false;
     }
 
     /// Returns the proven memory region.
@@ -251,6 +280,35 @@ impl InstructionMetadata {
     /// Marks a cast of an address inside a live allocation to a memory object.
     pub(crate) fn set_nonnull(&mut self) {
         self.flags.set_nonnull();
+    }
+}
+
+impl PartialEq for InstructionMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.storage_alias == other.storage_alias
+            && self.source_span == other.source_span
+            && self.additional_source_spans == other.additional_source_spans
+            && self.modifier_depth == other.modifier_depth
+            && self.hir_expr == other.hir_expr
+            && self.loop_depth == other.loop_depth
+            && self.flags == other.flags
+    }
+}
+
+impl Eq for InstructionMetadata {}
+
+impl Hash for InstructionMetadata {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (
+            &self.storage_alias,
+            self.source_span,
+            &self.additional_source_spans,
+            self.modifier_depth,
+            self.hir_expr,
+            self.loop_depth,
+            self.flags,
+        )
+            .hash(state);
     }
 }
 

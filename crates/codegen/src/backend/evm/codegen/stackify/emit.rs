@@ -5,7 +5,7 @@ use crate::{
     backend::{
         assembler::Label,
         evm::{
-            DebugFunctionExit,
+            DebugFunctionExit, DebugWord,
             codegen::{
                 Body, EvmCodegen, StackOp, select::rematerializable_nullary_value,
                 values::gas_minus,
@@ -363,6 +363,24 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_stackified_step(&mut self, func_id: FunctionId, func: &Function, step: &Step) {
+        if let Step::Op(opcode, variables) = step {
+            let variables = self.resolve_debug_spills(func, variables);
+            self.asm.set_debug_variables(variables);
+            self.asm.emit_op(*opcode);
+            return;
+        }
+        if let Step::Inst(inst, variables) = step {
+            let variables = self.resolve_debug_spills(func, variables);
+            self.asm.set_debug_variables(variables);
+            self.emit_stackified_inst(func_id, func, *inst);
+            self.asm.set_debug_variables(Vec::new());
+            return;
+        }
+        if let Step::End(variables) = step {
+            let variables = self.resolve_debug_spills(func, variables);
+            self.asm.set_debug_variables(variables);
+            return;
+        }
         match *step {
             Step::Stack(op) => self.asm.emit_stack_op(op),
             Step::Materialize(value) => self.emit_materialized(func, value),
@@ -389,8 +407,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.set_modifier_depth(metadata.modifier_depth());
                 }
             }
-            Step::Op(opcode) => self.asm.emit_op(opcode),
-            Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
+            Step::Op(..) | Step::Inst(..) | Step::End(..) => unreachable!("handled above"),
             Step::Call(callee, _) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
@@ -420,6 +437,50 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::MSTORE);
             }
         }
+    }
+
+    /// Uses already-emitted spill addresses without changing frame ranking or placement.
+    fn resolve_debug_spills(
+        &self,
+        func: &Function,
+        variables: &[crate::backend::evm::DebugStackVariable],
+    ) -> Vec<crate::backend::evm::DebugStackVariable> {
+        variables
+            .iter()
+            .filter_map(|variable| {
+                let mut variable = variable.clone();
+                let valid = variable.words.iter_mut().all(|word| {
+                    word.rewrite_leaves(&mut |word| {
+                        let DebugWord::Spill(slot) = *word else { return true };
+                        let replacement = (|| {
+                            Some(match self.body {
+                                Body::External => DebugWord::DeferredMemory(
+                                    self.spill_addr_consts.get(&slot)?.0.index() as u32,
+                                ),
+                                Body::Internal(id) => {
+                                    let offset = self.compact_static_frame_offset(
+                                        Self::internal_spill_area_offset(func)
+                                            + u64::from(slot) * EvmMemoryLayout::WORD_SIZE,
+                                    );
+                                    DebugWord::DeferredMemory(
+                                        self.static_frame_addr_consts.get(&(id, offset))?.0.index()
+                                            as u32,
+                                    )
+                                }
+                                Body::Constructor(_) => DebugWord::Memory(U256::from(
+                                    self.constructor_spill_base(self.immutable_encodings.len())
+                                        + u64::from(slot) * EvmMemoryLayout::WORD_SIZE,
+                                )),
+                            })
+                        })();
+                        let Some(replacement) = replacement else { return false };
+                        *word = replacement;
+                        true
+                    })
+                });
+                valid.then_some(variable)
+            })
+            .collect()
     }
 
     /// Attributes the code that follows to the block's terminator.

@@ -28,6 +28,8 @@ pub(crate) struct Function {
     pub(crate) declaration_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub(crate) debug_identifier: Option<Symbol>,
+    /// Source reads and their exact instruction anchors; never executable uses.
+    pub(crate) debug_values: super::debug::DebugValues,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -87,6 +89,7 @@ impl Function {
             name_span: name.span,
             declaration_span: name.span,
             debug_identifier: None,
+            debug_values: Default::default(),
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -306,6 +309,7 @@ impl Function {
             return 0;
         }
 
+        self.debug_values.replace_uses(&replacements, false);
         let mut replaced = 0;
         self.for_each_instruction_mut(|_, inst| {
             replaced += utils::replace_inst_uses(inst, &replacements);
@@ -358,6 +362,13 @@ impl Function {
                 term.visit_operands_mut(&mut canonicalize);
             }
         }
+        self.debug_values.rewrite_values(|value| {
+            if let Value::Arg(index) = values[*value]
+                && let Some(existing) = canonical[index]
+            {
+                *value = existing;
+            }
+        });
         replaced
     }
 
@@ -551,6 +562,7 @@ impl Function {
 
     /// Replaces all value uses according to a one-step replacement map.
     pub(crate) fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
+        self.debug_values.replace_uses(replacements, false);
         if replacements.is_empty() {
             return;
         }
@@ -570,6 +582,7 @@ impl Function {
         &mut self,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
+        self.debug_values.replace_uses(replacements, true);
         if replacements.is_empty() {
             return;
         }

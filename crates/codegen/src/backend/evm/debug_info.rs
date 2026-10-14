@@ -24,22 +24,64 @@ use solar_data_structures::{
     map::{FxHashMap, FxIndexSet},
     newtype_index,
 };
-use solar_interface::{BytePos, Span, Symbol};
+use solar_interface::{BytePos, Span};
 use std::iter::FusedIterator;
 
-pub use crate::source_info::MAX_DEBUG_SPANS;
+/// A source variable recoverable in the postcondition of a machine instruction.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DebugStackVariable {
+    /// Source declaration identity, independent of its possibly shadowed name.
+    pub variable: solar_sema::hir::VariableId,
+    /// Physical carriers, in source representation order (pointer, then length for a slice).
+    pub words: SmallVec<[DebugWord; 2]>,
+    /// Inlining provenance, outermost call site first.
+    pub inline: SmallVec<[DebugInlineFrame; 1]>,
+    /// Source point at which the binding is known, independent of the carrier's origin.
+    pub source: Span,
+    /// Selector bias for the compact calldata-head representation.
+    pub calldata_bias: u8,
+    /// Original ABI head of a reference parameter whose source body cannot modify memory.
+    pub abi_head: Option<u64>,
+}
+
+/// A recoverable word; these locations never create executable operands.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DebugWord {
+    /// Zero-based distance from the top of the physical stack.
+    Stack(u32),
+    /// A word stored at a byte address in memory.
+    Memory(alloy_primitives::U256),
+    /// A value eliminated by constant folding.
+    Constant(alloy_primitives::U256),
+    /// A spill address awaiting ordinary frame placement; absent in finalized debug info.
+    DeferredMemory(u32),
+    /// Planner spill index, resolved without creating an executable frame reference.
+    Spill(u32),
+    /// An immutable calldata word, recoverable even when its load was optimized away.
+    Calldata(alloy_primitives::U256),
+    /// Wrapping word arithmetic salvaged from an eliminated address computation.
+    Add(Box<Self>, Box<Self>),
+    /// Wrapping word subtraction salvaged from an eliminated address computation.
+    Sub(Box<Self>, Box<Self>),
+    /// Wrapping word multiplication salvaged from an eliminated address computation.
+    Mul(Box<Self>, Box<Self>),
+}
+
+impl DebugWord {
+    pub(crate) fn rewrite_leaves(&mut self, rewrite: &mut impl FnMut(&mut Self) -> bool) -> bool {
+        match self {
+            Self::Add(lhs, rhs) | Self::Sub(lhs, rhs) | Self::Mul(lhs, rhs) => {
+                lhs.rewrite_leaves(rewrite) && rhs.rewrite_leaves(rewrite)
+            }
+            _ => rewrite(self),
+        }
+    }
+}
+
+pub use crate::source_info::{DebugFunction, DebugInlineFrame, MAX_DEBUG_SPANS};
 
 /// Source origins associated with one machine instruction.
 pub type DebugSpans = SmallVec<[Span; 2]>;
-
-/// Source-language identity of a function activation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct DebugFunction {
-    /// Function identifier in the source language.
-    pub identifier: Symbol,
-    /// Source range of the complete declaration.
-    pub declaration: Span,
-}
 
 /// Function activation transition associated with an instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -133,6 +175,8 @@ impl Flags {
 /// Final instruction locations of one bytecode artifact.
 #[derive(Clone, Debug, Default)]
 pub struct DebugInfo {
+    /// Sparse variable observations keyed by finalized opcode offset.
+    variables: FxHashMap<u32, Box<[DebugStackVariable]>>,
     locations: IndexVec<DebugLocationId, Location>,
     /// Source span sets that do not have exactly one span.
     spans: Vec<Span>,
@@ -144,6 +188,10 @@ pub struct DebugInfo {
 }
 
 impl DebugInfo {
+    /// Returns variable observations valid after the opcode at this offset executes.
+    pub fn variables_at(&self, offset: u32) -> &[DebugStackVariable] {
+        self.variables.get(&offset).map_or(&[], |variables| variables)
+    }
     /// Returns the recorded instructions, decoded from the bytecode they describe.
     pub fn instructions<'a>(&'a self, bytecode: &'a [u8]) -> DebugInstructions<'a> {
         DebugInstructions {
@@ -256,6 +304,11 @@ struct PendingRow {
 }
 
 impl DebugInfoBuilder {
+    pub(crate) fn record_variables(&mut self, offset: usize, variables: &[DebugStackVariable]) {
+        if !variables.is_empty() {
+            self.info.variables.insert(offset as u32, variables.into());
+        }
+    }
     /// Records one instruction whose opcode byte is at `offset`.
     pub(crate) fn record(
         &mut self,

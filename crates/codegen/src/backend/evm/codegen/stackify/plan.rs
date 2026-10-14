@@ -7,6 +7,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
+        DebugWord,
         codegen::{
             StackOp,
             select::{OpcodeLowering, opcode_lowering, rematerializable_nullary_value},
@@ -35,6 +36,7 @@ use solar_data_structures::{
 #[derive(Clone)]
 struct Sim {
     stack: Layout,
+    active_debug_instruction: Option<InstId>,
     steps: Vec<Step>,
     cost: Cost,
     /// The highest physical stack seen, counting the words below `stack`.
@@ -50,7 +52,14 @@ impl Sim {
 
     fn with_below(stack: Layout, below: usize) -> Self {
         let peak = below + stack.len();
-        Self { stack, steps: Vec::new(), cost: Cost::ZERO, peak, below }
+        Self {
+            stack,
+            active_debug_instruction: None,
+            steps: Vec::new(),
+            cost: Cost::ZERO,
+            peak,
+            below,
+        }
     }
 
     fn height(&self) -> usize {
@@ -75,7 +84,14 @@ impl Sim {
     fn fork(&self) -> Self {
         let mut stack = Layout::with_capacity(self.stack.len() + FORK_HEADROOM);
         stack.extend_from_slice(&self.stack);
-        Self { stack, steps: Vec::new(), cost: self.cost, peak: self.peak, below: self.below }
+        Self {
+            stack,
+            active_debug_instruction: self.active_debug_instruction,
+            steps: Vec::new(),
+            cost: self.cost,
+            peak: self.peak,
+            below: self.below,
+        }
     }
 
     /// Makes this a fork of `other`, reusing its buffers.
@@ -83,6 +99,7 @@ impl Sim {
         self.stack.clear();
         self.stack.reserve(other.stack.len() + FORK_HEADROOM);
         self.stack.extend_from_slice(&other.stack);
+        self.active_debug_instruction = other.active_debug_instruction;
         self.steps.clear();
         self.cost = other.cost;
         self.peak = other.peak;
@@ -92,6 +109,7 @@ impl Sim {
     /// Continues with a fork's state, appending its steps.
     fn join(&mut self, fork: Self) {
         self.stack = fork.stack;
+        self.active_debug_instruction = fork.active_debug_instruction;
         self.steps.extend(fork.steps);
         self.cost = fork.cost;
         self.peak = fork.peak;
@@ -1619,6 +1637,8 @@ impl<'a> Planner<'a> {
     ) -> Result<(), Fail> {
         let func = self.func;
         let kind = &func.inst(inst).kind;
+        let debug_step_start = sim.steps.len();
+        sim.active_debug_instruction = Some(inst);
         sim.steps.push(Step::Begin(inst));
         let result = func.inst_result_value(inst);
         let operands = kind.operands();
@@ -1721,7 +1741,9 @@ impl<'a> Planner<'a> {
                 // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
                 self.prepare(sim, &[*false_value, *cond, *true_value], &dying)?;
                 sim.observe(1);
-                sim.steps.push(Step::Inst(inst));
+                let variables = self.debug_stack_variables(sim, inst);
+                sim.active_debug_instruction = None;
+                sim.steps.push(Step::Inst(inst, variables));
                 sim.cost += self.target.opcode(op::DUP3).plus(self.target.opcode(op::SWAP1));
                 sim.stack.truncate(sim.stack.len() - 3);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
@@ -1730,7 +1752,9 @@ impl<'a> Planner<'a> {
                 // [size, dest] -> push_data data; swap1; codecopy
                 self.prepare(sim, &[*size, *dest], &dying)?;
                 sim.observe(1);
-                sim.steps.push(Step::Inst(inst));
+                let variables = self.debug_stack_variables(sim, inst);
+                sim.active_debug_instruction = None;
+                sim.steps.push(Step::Inst(inst, variables));
                 sim.cost += self.target.opcode(op::SWAP1);
                 sim.stack.truncate(sim.stack.len() - 2);
             }
@@ -1766,14 +1790,18 @@ impl<'a> Planner<'a> {
             InstKind::Alloc { .. }
             | InstKind::LibraryAddress(_)
             | InstKind::InternalFrameAddr(_) => {
-                sim.steps.push(Step::Inst(inst));
+                let variables = self.debug_stack_variables(sim, inst);
+                sim.active_debug_instruction = None;
+                sim.steps.push(Step::Inst(inst, variables));
                 sim.cost += self.target.opcode(op::PUSH2);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
                 sim.observe(0);
             }
             InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd => {
                 // push base; [push offset; codesize; sub; add]
-                sim.steps.push(Step::Inst(inst));
+                let variables = self.debug_stack_variables(sim, inst);
+                sim.active_debug_instruction = None;
+                sim.steps.push(Step::Inst(inst, variables));
                 sim.cost += self.target.opcode(op::PUSH2);
                 if matches!(kind, InstKind::ConstructorArgsEnd) {
                     sim.cost += self
@@ -1788,7 +1816,9 @@ impl<'a> Planner<'a> {
             InstKind::LoadImmutable(_) | InstKind::HeapFloor => {
                 // A heap floor in a constructor is recomputed from the argument blob.
                 let push = if matches!(kind, InstKind::HeapFloor) { op::PUSH2 } else { op::PUSH32 };
-                sim.steps.push(Step::Inst(inst));
+                let variables = self.debug_stack_variables(sim, inst);
+                sim.active_debug_instruction = None;
+                sim.steps.push(Step::Inst(inst, variables));
                 sim.cost += self.target.opcode(push);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
                 sim.observe(1);
@@ -1815,19 +1845,136 @@ impl<'a> Planner<'a> {
                 self.set_top_result(sim, result);
             }
         }
+        sim.active_debug_instruction = None;
         self.finish_inst(sim, &operands, block, uses, result)?;
         // [saved, result] -> [result]
-        self.restore_saved(sim, &saved)
+        self.restore_saved(sim, &saved)?;
+        if self.func.debug_values.enabled && sim.steps.len() > debug_step_start + 1 {
+            let variables = self.debug_stack_variables_at(sim, inst, true);
+            if !variables.is_empty() {
+                sim.steps.push(Step::End(variables));
+            }
+        }
+        Ok(())
     }
 
     /// Records an opcode with its stack effect; the result word is anonymous until named.
     fn op(&self, sim: &mut Sim, opcode: u8, pops: usize, pushes: usize) {
-        sim.steps.push(Step::Op(opcode));
+        let variables = if self.func.debug_values.is_empty() {
+            Box::default()
+        } else {
+            sim.active_debug_instruction
+                .map(|inst| self.debug_stack_variables(sim, inst))
+                .unwrap_or_default()
+        };
+        sim.steps.push(Step::Op(opcode, variables));
         sim.stack.truncate(sim.stack.len() - pops);
         for _ in 0..pushes {
             sim.stack.push(Slot::Junk);
         }
         sim.observe(0);
+    }
+
+    /// Describes only source operands already present in the chosen physical stack.
+    fn debug_stack_variables(
+        &self,
+        sim: &Sim,
+        inst: InstId,
+    ) -> Box<[crate::backend::evm::DebugStackVariable]> {
+        self.debug_stack_variables_at(sim, inst, false)
+    }
+
+    fn debug_stack_variables_at(
+        &self,
+        sim: &Sim,
+        inst: InstId,
+        after: bool,
+    ) -> Box<[crate::backend::evm::DebugStackVariable]> {
+        let bindings = if after {
+            self.func.debug_values.at_after(self.func, inst)
+        } else {
+            self.func.debug_values.at(self.func, inst)
+        };
+        bindings
+            .iter()
+            .filter_map(|binding| {
+                let words = binding
+                    .values
+                    .iter()
+                    .map(|&value| self.debug_word(sim, value, 0))
+                    .collect::<Option<SmallVec<[_; 2]>>>();
+                let words = match words {
+                    _ if binding.abi_head.is_some() => SmallVec::new(),
+                    Some(words) => words,
+                    None => return None,
+                };
+                Some(crate::backend::evm::DebugStackVariable {
+                    variable: binding.variable,
+                    words,
+                    inline: binding.inline.clone(),
+                    source: self.func.inst(inst).metadata.source_span()?,
+                    calldata_bias: binding.calldata_bias,
+                    abi_head: binding.abi_head,
+                })
+            })
+            .collect()
+    }
+
+    /// Recomputes only immutable, wrapping expressions in metadata. Memory loads are excluded:
+    /// their old SSA result cannot be recovered by reading possibly overwritten memory again.
+    fn debug_word(
+        &self,
+        sim: &Sim,
+        value: ValueId,
+        depth: usize,
+    ) -> Option<crate::backend::evm::DebugWord> {
+        if depth >= 16 {
+            return None;
+        }
+        let identity = crate::mir::debug::word_identity(self.func, value);
+        if let Some(slot) = sim.stack.iter().rev().position(|slot| matches!(slot, Slot::Value(value) | Slot::Saved(value) if crate::mir::debug::same_word(self.func, *value, identity))) {
+            return Some(DebugWord::Stack(slot as u32));
+        }
+        if let Some(immediate) = self.func.value_u256(identity) {
+            return Some(DebugWord::Constant(immediate));
+        }
+        if let Value::Arg(index) = self.func.value(identity)
+            && self.func.selector.is_some()
+            && !self.func.attributes.is_constructor
+        {
+            return Some(DebugWord::Calldata(U256::from(4 + index.index() as u64 * 32)));
+        }
+        if let Some(slot) = self.spilled.iter().position(|candidate| candidate == identity) {
+            return Some(DebugWord::Spill(slot as u32));
+        }
+        let Value::Inst(inst) = self.func.value(identity) else { return None };
+        let pair = |lhs, rhs, build: fn(Box<DebugWord>, Box<DebugWord>) -> DebugWord| {
+            Some(build(
+                Box::new(self.debug_word(sim, lhs, depth + 1)?),
+                Box::new(self.debug_word(sim, rhs, depth + 1)?),
+            ))
+        };
+        match self.func.inst(*inst).kind {
+            InstKind::CalldataLoad(offset) => {
+                Some(DebugWord::Calldata(self.func.value_u256(offset)?))
+            }
+            InstKind::Add(lhs, rhs)
+                if self.func.value_ty(identity) == Some(crate::mir::MirType::I256) =>
+            {
+                pair(lhs, rhs, DebugWord::Add)
+            }
+            InstKind::Sub(lhs, rhs)
+                if self.func.value_ty(identity) == Some(crate::mir::MirType::I256) =>
+            {
+                pair(lhs, rhs, DebugWord::Sub)
+            }
+            InstKind::Mul(lhs, rhs)
+                if self.func.value_ty(identity) == Some(crate::mir::MirType::I256) =>
+            {
+                pair(lhs, rhs, DebugWord::Mul)
+            }
+            _ => None,
+        }
     }
 
     fn set_top_result(&self, sim: &mut Sim, result: Option<ValueId>) {
@@ -1866,6 +2013,7 @@ impl<'a> Planner<'a> {
     // ----------------------------------------------------------------------------------------
 
     fn plan_terminator(&mut self, sim: &mut Sim, block: BlockId) -> Result<Exit, Fail> {
+        sim.active_debug_instruction = None;
         let func = self.func;
         let Some(term) = &func.blocks[block].terminator else {
             return Err(Fail::Unsupported("block without a terminator"));

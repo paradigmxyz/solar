@@ -7,6 +7,7 @@ use solar_data_structures::newtype_index;
 pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 pub(crate) mod analysis;
+pub(crate) mod debug;
 pub(crate) mod immutable;
 pub mod lower;
 pub(crate) mod memory;
