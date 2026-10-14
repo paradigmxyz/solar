@@ -128,17 +128,16 @@ impl MirPass for LowerAbiEncode {
 }
 
 /// A dynamic memory array layout whose element-wise encoding loop several sites share as one
-/// helper function, like solc's per-type `abi_encode_t_array` functions. The key carries the
-/// MIR type the sites pass so the helper's parameter matches it.
+/// helper function. The key carries the MIR type the sites pass so the helper's parameter
+/// matches it.
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct ArrayHelperKey {
     element: AbiType,
     value_ty: MirType,
 }
 
-/// A whole encoding several sites share as one helper function, like solc's per-signature
-/// `abi_encode_tuple` functions: the same layout, storage policy, selector presence, and MIR
-/// types of the values passed.
+/// A whole encoding several sites share as one helper function: the same layout, storage policy,
+/// selector presence, and MIR types of the values passed.
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct TupleHelperKey {
     mode: AbiEncodeMode,
@@ -1153,10 +1152,9 @@ fn encode_static_slice(
     }
 }
 
-/// Canonicalizes a word read from memory before it is encoded, like solc's per-type
-/// `cleanup` and `validator_assert` helpers: narrow values are masked or sign-extended and an
-/// out-of-range enum panics. Scalars arriving on the stack were already cleaned by the
-/// lowering, and calldata words were validated when decoded.
+/// Canonicalizes a word read from memory before it is encoded: narrow values are masked or
+/// sign-extended and an out-of-range enum panics. Scalars arriving on the stack were already
+/// cleaned by the lowering, and calldata words were validated when decoded.
 fn clean_word(
     builder: &mut FunctionBuilder<'_>,
     cleanup: AbiWordValidator,
@@ -1393,9 +1391,10 @@ fn encode_calldata_bytes_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    // Mirror solc's calldata tail access: the offset bound is signed, so a negative
-    // offset that wraps to a valid load is accepted and the tail checks decide whether
-    // the element is valid. Bytes past `calldatasize` read as zero.
+    // The offset bound is signed, so a negative offset that wraps to a valid load is accepted
+    // and the tail checks decide whether the element is valid. Bytes past `calldatasize` read
+    // as zero.
+    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1443-L1457>
     let offset = builder.load(source_head, PtrLocation::Calldata);
     let calldata_size = builder.calldatasize();
     let available = builder.sub(calldata_size, source_base);
@@ -1458,8 +1457,8 @@ fn encode_word_array(
         PtrLocation::Calldata | PtrLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    // Memory elements that need cleanup are copied one word at a time, like solc's per-element
-    // array encoder; full words and calldata elements copy as one block.
+    // Memory elements that need cleanup are copied one word at a time; full words and calldata
+    // elements copy as one block.
     if let Some(cleanup) = cleanup
         && location == PtrLocation::Memory
     {
@@ -1591,8 +1590,7 @@ fn encode_bytes(
 /// Copies a source value's data into the output buffer.
 ///
 /// Source objects live below the free-memory pointer, and the output is either untouched memory
-/// above it or a fresh allocation, so memory copies run forward, like solc's pre-Cancun
-/// `copy_memory_to_memory`.
+/// above it or a fresh allocation, so memory copies run forward.
 fn copy_source_data(
     builder: &mut FunctionBuilder<'_>,
     location: PtrLocation,

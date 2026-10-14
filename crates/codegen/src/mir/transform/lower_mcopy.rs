@@ -9,16 +9,16 @@
 //!
 //! The loop is expanded at every site, or built once per loop shape (direction
 //! and whole-word length) as an internal function `mcopy_words(dest, src, len)`
-//! that eligible runtime sites of that shape call, like solc's shared
-//! `copy_memory_to_memory` routine. A helper is built when the objective ranks
-//! the calls above the expanded loops: bytes first in size mode, and in gas mode
-//! the lifetime cost of the call protocol's gas over the optimizer runs against
-//! the deposit of the repeated bytes. Constructor-reachable sites remain inline
-//! because their ABI output may occupy the free-memory pointer where an internal
-//! call would stage its frame. Copies through raw or symbolic memory bases also
-//! remain inline because the helper's argument frame could overlap either copied
-//! range, unless the copy is marked `disjoint`: ABI encoding copies from heap
-//! objects into heap output, clear of every frame.
+//! that eligible runtime sites of that shape call. A helper is built when the
+//! objective ranks the calls above the expanded loops: bytes first in size
+//! mode, and in gas mode the lifetime cost of the call protocol's gas over the
+//! optimizer runs against the deposit of the repeated bytes.
+//! Constructor-reachable sites remain inline because their ABI output may
+//! occupy the free-memory pointer where an internal call would stage its frame.
+//! Copies through raw or symbolic memory bases also remain inline because the
+//! helper's argument frame could overlap either copied range, unless the copy
+//! is marked `disjoint`: ABI encoding copies from heap objects into heap
+//! output, clear of every frame.
 //!
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Otherwise pointer provenance picks the direction at

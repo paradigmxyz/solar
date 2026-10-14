@@ -251,8 +251,10 @@ struct LoweredCallOptions {
     value: ValueId,
     /// Whether the call has an explicit `{value: ...}` option.
     ///
-    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, like
-    /// solc's `valueSet`, because the amount is not known to be zero.
+    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, because
+    /// the amount is not known to be zero.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ExpressionCompiler.cpp#L2923-L2924>
     value_set: bool,
     /// A zero immediate, reusable by the caller.
     zero: ValueId,

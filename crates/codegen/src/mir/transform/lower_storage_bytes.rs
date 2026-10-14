@@ -243,8 +243,8 @@ pub(super) fn store(
         let element_slot = builder.add(data_slot, index);
         builder.sstore(element_slot, value);
     });
-    // The final memory word can contain dirty padding bytes, so mask it before storage,
-    // matching solc's `copy_byte_array_to_storage`.
+    // The final memory word can contain dirty padding bytes, so mask it before storage.
+    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2064>
     let partial_block = builder.create_block();
     let remainder = builder.and(length, thirty_one);
     let has_partial = builder.eq_zero(remainder);

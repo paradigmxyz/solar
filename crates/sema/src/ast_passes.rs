@@ -2,7 +2,10 @@
 
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Ident, Session, Span, diagnostics::DiagCtxt, error_code, sym};
+use solar_interface::{
+    Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
+    sym,
+};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -245,10 +248,19 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         pragma: &'ast ast::PragmaDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         match &pragma.tokens {
-            ast::PragmaTokens::Version(name, _version) => {
+            ast::PragmaTokens::Version(name, req) => {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().emit_err(name.span, msg);
+                } else if !req.dis.is_empty()
+                    && let version = solc_semver_version()
+                    && !req.matches(&version.into())
+                {
+                    let msg = format!(
+                        "source file requires different compiler version \
+                         (current compiler is {version})"
+                    );
+                    self.dcx().warn(msg).code(error_code!(5333)).span(self.item_span).emit();
                 }
             }
             ast::PragmaTokens::Custom(name, value) => {
@@ -604,7 +616,8 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
     if value.contains("._") || value.contains("_.") {
         errors.push("remove underscores in front of the fraction part");
     }
-    // Like solc, accept underscores next to an uppercase `E` exponent.
+    // Accept underscores next to an uppercase `E` exponent.
+    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/SyntaxChecker.cpp#L349-L353>
     if value.contains("_e") {
         errors.push("remove underscores at the end of the mantissa");
     }

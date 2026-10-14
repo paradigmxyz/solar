@@ -1,12 +1,11 @@
 //! Removal of element masks on arrays that only hold narrow words.
 //!
 //! A word loaded from a typed memory array is masked to its element type,
-//! because inline assembly may have stored a dirty word there and solc masks
-//! such reads the same way. When every word an array can hold fits the mask,
-//! the mask is an identity. This pass bounds the width of the words each
-//! array can hold and drops the masks that cover the bound, which removes a
-//! mask and its constant from every element read of the address and
-//! narrow-integer kernels.
+//! because inline assembly may have stored a dirty word there. When every
+//! word an array can hold fits the mask, the mask is an identity. This pass
+//! bounds the width of the words each array can hold and drops the masks
+//! that cover the bound, which removes a mask and its constant from every
+//! element read of the address and narrow-integer kernels.
 //!
 //! The bound is a least fixed point over the call graph. A function's store
 //! bound is the widest word it stores into any array element, by the proved

@@ -163,8 +163,8 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                // Like solc, do not fold `bytesN` constants: integers do not model the width
-                // that their conversions, shifts and bit operations depend on.
+                // Do not fold `bytesN` constants: integers do not model the width that their
+                // conversions, shifts and bit operations depend on.
                 if matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
                     return Err(EE::FixedBytesConstant.into());
                 }
@@ -401,9 +401,9 @@ pub struct IntScalar {
     data: BigInt,
     /// The declared type the value was computed in, if it came from a typed constant.
     ///
-    /// Values built only from literals are unbounded, like solc's rational numbers, and carry no
-    /// type; as soon as a typed constant takes part in the expression, arithmetic is checked
-    /// against the declared type instead of yielding the mathematical result.
+    /// Values built only from literals are unbounded and carry no type; as soon as a typed
+    /// constant takes part in the expression, arithmetic is checked against the declared type
+    /// instead of yielding the mathematical result.
     ty: Option<IntTy>,
 }
 
@@ -585,8 +585,8 @@ impl IntScalar {
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
     /// in the common type of both operands. Two literals stay untyped and keep their exact value up
-    /// to `MAX_INTERMEDIATE_BITS`, like solc's rational arithmetic, and operands without a common
-    /// type stay untyped because the type checker already rejects them.
+    /// to `MAX_INTERMEDIATE_BITS`, and operands without a common type stay untyped because the
+    /// type checker already rejects them.
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -702,7 +702,7 @@ impl IntScalar {
         }
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
         let exp = u32::try_from(exp).map_err(|_| EE::ArithmeticOverflow)?;
-        // Like solc, bound the result size before computing the power.
+        // Bound the result size before computing the power.
         if self.data.magnitude().bits().saturating_mul(exp.into()) > MAX_INTERMEDIATE_BITS {
             return Err(EE::ArithmeticOverflow);
         }

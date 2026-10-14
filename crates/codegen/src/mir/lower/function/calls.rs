@@ -48,8 +48,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `this` is no exception, because the executing code and `address(this)` come apart under
     /// `DELEGATECALL`, where the account may well have no code of its own.
     ///
-    /// With `--revert-strings debug` the check is always emitted, as in solc, so a code-less
-    /// target reports "Target contract does not contain code" instead of a decoding failure.
+    /// With `--revert-strings debug` the check is always emitted, so a code-less target reports
+    /// "Target contract does not contain code" instead of a decoding failure.
     pub(super) fn needs_code_check(&self, returns: usize) -> bool {
         let opts = &self.cx.gcx.sess.opts;
         returns == 0 || !opts.evm_version.supports_returndata() || opts.revert_strings.is_debug()
@@ -736,9 +736,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
-    // A word read from memory is cleaned like solc cleans it: inline assembly
-    // may have stored a dirty word, so a value that reaches an expression or a
-    // variable is masked to its type.
+    // A word read from memory is cleaned: inline assembly may have stored a dirty word, so a
+    // value that reaches an expression or a variable is masked to its type.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
@@ -757,11 +756,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value
     }
 
-    // A scalar reaching a memory store is canonical unless inline assembly
-    // produced it: arithmetic truncates, conversions clean, and loads from
-    // calldata, storage, and memory yield clean words. Cleaning only the
-    // assembly-dirtied values keeps memory canonical without masking every
-    // element copy, which is also solc's behavior.
+    // A scalar reaching a memory store is canonical unless inline assembly produced it:
+    // arithmetic truncates, conversions clean, and loads from calldata, storage, and memory yield
+    // clean words. Cleaning only the assembly-dirtied values keeps memory canonical without
+    // masking every element copy.
     pub(super) fn encode_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
@@ -1185,7 +1183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// inaccessible dynamic type whose decoding type is `uint256`
     /// (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the call reserves a word for it
     /// in its output area and nothing decodes it, because the type checker rejects every use of
-    /// the value. The remaining return values stay accessible, as in solc.
+    /// the value. The remaining return values stay accessible.
     pub(super) fn external_return_types(&mut self, return_tys: &[Ty<'gcx>]) -> Vec<Ty<'gcx>> {
         if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
             return return_tys.to_vec();
@@ -1280,9 +1278,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// The size in bytes of the output area a pre-Byzantium call declares, which overlays the
     /// call's input area.
     ///
-    /// This is solc's `ReturnInfo::estimatedReturnSize`: the head size of the static return
-    /// values, and nothing for a dynamically encoded one, which `finish_external_call` reports as
-    /// unsupported before Byzantium.
+    /// This is the head size of the static return values, and nothing for a dynamically encoded
+    /// one, which `finish_external_call` reports as unsupported before Byzantium.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ReturnInfo.cpp#L43-L55>
     fn pre_byzantium_output_size(
         &mut self,
         return_tys: &[Ty<'gcx>],

@@ -176,9 +176,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(expr.span, "slice");
         } else {
             let element = self.array_element_type(receiver_ty)?;
-            // The semantic checker rejects range access on arrays with
-            // dynamically encoded base types, matching solc, so only
-            // statically encoded elements reach this point.
+            // The semantic checker rejects range access on arrays with dynamically encoded base
+            // types, so only statically encoded elements reach this point.
             self.types.abi_type(element)?.head_size()
         };
         let base_ptr = self.builder.slice_ptr(source);

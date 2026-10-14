@@ -14,18 +14,18 @@
 //! if no valid entry can be formed. The final conversion verifies the complete lowered
 //! representation before the backend can consume it.
 //!
-//! Library modules differ in two ways, both matching solc. Their entry never
-//! checks `callvalue`: a `DELEGATECALL` sees the caller's value, so a library
-//! must accept it. And every non-view route first compares `address()` against
-//! the library's own deployment address (the synthetic
-//! [`Module::library_deploy_address`] immutable, staged by the creation code
-//! and patched into the runtime code), reverting when they are equal, so
-//! state-changing library functions only run through `DELEGATECALL`. Each
-//! guarded case computes the comparison itself: a value shared across the
-//! selector switch would be spilled to memory before dispatch, which unguarded
-//! view and pure routes could observe through `msize()` or a raw `load`. In
-//! `--revert-strings debug` mode the revert carries solc's "Non-view function of
-//! library called without DELEGATECALL" message.
+//! Library modules differ in two ways. Their entry never checks `callvalue`: a
+//! `DELEGATECALL` sees the caller's value, so a library must accept it. And
+//! every non-view route first compares `address()` against the library's own
+//! deployment address (the synthetic [`Module::library_deploy_address`]
+//! immutable, staged by the creation code and patched into the runtime code),
+//! reverting when they are equal, so state-changing library functions only run
+//! through `DELEGATECALL`. Each guarded case computes the comparison itself: a
+//! value shared across the selector switch would be spilled to memory before
+//! dispatch, which unguarded view and pure routes could observe through
+//! `msize()` or a raw `load`. In `--revert-strings debug` mode the revert
+//! carries solc's "Non-view function of library called without DELEGATECALL"
+//! message.
 //!
 //! When every selector wrapper starts with the same ABI head-size check, this
 //! pass hoists that check into `entry` and removes the dead wrapper guards. In
