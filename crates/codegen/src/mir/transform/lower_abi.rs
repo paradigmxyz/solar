@@ -1636,10 +1636,11 @@ impl LowerAbiCx {
                 continue;
             }
             match &inst.kind {
-                InstKind::Store(address, value)
-                    if let Some((target, EvmMemoryLayout::DYNAMIC_HEADER_SIZE, index)) =
-                        func.element_address(*address)
-                        && target == object =>
+                InstKind::Store(address, offset, value)
+                    if let Some((target, base, index)) = func.element_address(*address)
+                        && target == object
+                        && base.checked_add(*offset)
+                            == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE) =>
                 {
                     let Value::Inst(and) = func.value(*value) else { return None };
                     let InstKind::And(lhs, rhs) = &func.inst(*and).kind else { return None };
@@ -1651,7 +1652,8 @@ impl LowerAbiCx {
                         return None;
                     };
                     let Value::Inst(load) = func.value(load) else { return None };
-                    let InstKind::Load(load_address, PtrLocation::Calldata) = func.inst(*load).kind
+                    let InstKind::Load(load_address, 0, PtrLocation::Calldata) =
+                        func.inst(*load).kind
                     else {
                         return None;
                     };
@@ -2717,10 +2719,11 @@ impl LowerAbiCx {
         }
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) => true,
-            InstKind::Load(address, PtrLocation::Memory)
-            | InstKind::Store(address, _)
-            | InstKind::Store8(address, _)
-                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            InstKind::Load(address, offset, PtrLocation::Memory)
+            | InstKind::Store(address, offset, _)
+            | InstKind::Store8(address, offset, _)
+                if func.value_u64(*address).and_then(|address| address.checked_add(*offset))
+                    == Some(EvmMemoryLayout::FMP_SLOT) =>
             {
                 true
             }
@@ -2742,8 +2745,10 @@ impl LowerAbiCx {
         for &value in uses {
             tainted.insert(value);
         }
-        // Addresses into the object, a subset of the tainted values.
-        let mut addresses = DenseBitSet::new_empty(func.num_values());
+        // Addresses into the object, a subset of the tainted values, with the header bytes their
+        // accesses still cross.
+        let header = Self::object_header_size(ty);
+        let mut addresses = FxHashMap::<ValueId, u64>::default();
         let mut byte_reads = None;
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
@@ -2753,7 +2758,7 @@ impl LowerAbiCx {
             let tainted_operand = inst.operands().iter().any(|value| tainted.contains(*value));
             if matches!(
                 &inst.kind,
-                InstKind::Load(address, PtrLocation::Memory)
+                InstKind::Load(address, _, PtrLocation::Memory)
                     if func.value_u64(*address).is_some() && !tainted_operand
             ) || matches!(&inst.kind, InstKind::Keccak256(offset, size)
                     if func.value_u64(*offset).is_some()
@@ -2768,39 +2773,41 @@ impl LowerAbiCx {
                 continue;
             }
             let (invalid, propagates) = match &inst.kind {
-                // An object read at its pointer, or an element read at an address into it.
-                InstKind::Load(address, PtrLocation::Memory)
+                // An object read at its pointer, or an element read past the header.
+                InstKind::Load(address, offset, PtrLocation::Memory)
                     if func.value_ty(*address) == Some(MirType::MEMPTR) =>
                 {
-                    let element = addresses.contains(*address).then(|| {
+                    let pending = addresses.get(address).copied();
+                    let element = (pending.is_some() || *offset != 0).then(|| {
                         let word = func.inst_result_value(inst_id);
                         let bytes = byte_reads.get_or_insert_with(|| byte_only_values(func));
-                        (word.is_some_and(|word| bytes.contains(word)), *address)
+                        (word.is_some_and(|word| bytes.contains(word)), *address, *offset)
                     });
-                    (!Self::can_read_calldata_slice_use(func, element, ty), false)
+                    let in_header = element.is_some() && *offset < pending.unwrap_or(header);
+                    (in_header || !Self::can_read_calldata_slice_use(func, element, ty), false)
                 }
-                // An address into the object at a constant word offset or a runtime index, which
-                // rebasing turns into a calldata address.
+                // An address into the object, which rebasing turns into a calldata address.
                 InstKind::PtrAdd(base, offset)
                     if !tainted.contains(*offset)
-                        && (addresses.contains(*base)
-                            || func
-                                .value_u64(*offset)
-                                .is_some_and(|offset| offset >= Self::object_header_size(ty))
-                            || Self::object_header_size(ty) == 0) =>
+                        && (addresses.contains_key(base)
+                            || func.value_ty(*base) == Some(MirType::MEMPTR)) =>
                 {
+                    let pending = addresses.get(base).copied().unwrap_or(header);
+                    let pending = func
+                        .value_u64(*offset)
+                        .map_or(pending, |offset| pending.saturating_sub(offset));
                     if let Some(result) = func.inst_result_value(inst_id) {
-                        addresses.insert(result);
+                        addresses.insert(result, pending);
                         tainted.insert(result);
                     }
                     continue;
                 }
-                _ if inst.operands().iter().any(|value| addresses.contains(*value)) => {
+                _ if inst.operands().iter().any(|value| addresses.contains_key(value)) => {
                     (true, false)
                 }
                 InstKind::SlicePtr(object)
-                | InstKind::Store(object, _)
-                | InstKind::Store8(object, _)
+                | InstKind::Store(object, ..)
+                | InstKind::Store8(object, ..)
                 | InstKind::MemoryZero(object, _)
                 | InstKind::Copy(object, ..)
                 | InstKind::CodeCopy(object, _, _)
@@ -2809,7 +2816,7 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
-                InstKind::Store(_, value) | InstKind::Store8(_, value)
+                InstKind::Store(_, _, value) | InstKind::Store8(_, _, value)
                     if tainted.contains(*value)
                         && (uses.contains(value)
                             || matches!(
@@ -2855,7 +2862,7 @@ impl LowerAbiCx {
                 | InstKind::Add(..)
                 | InstKind::Sub(..)
                 | InstKind::PtrAdd(..)
-                | InstKind::Load(_, PtrLocation::Memory)
+                | InstKind::Load(.., PtrLocation::Memory)
                 | InstKind::Keccak256(..) => (true, false),
                 InstKind::Phi(incoming) if Self::is_scalar_array(ty) => {
                     let Some(result) = func.inst_result_value(inst_id) else {
@@ -2940,14 +2947,16 @@ impl LowerAbiCx {
 
     /// Moves the reads of memory objects that ABI lowering replaced by calldata slices onto
     /// calldata. With `header` the bytes before an object's first element, a read at the object's
-    /// pointer is its length, and an address `header + offset` into it is the slice data plus
-    /// `offset`:
+    /// pointer is its length, and a read `header + k` bytes into it is a read `k` bytes into the
+    /// slice data. An address derived from the object keeps the header bytes its reads still
+    /// cross, `pending`, and a constant offset first covers them:
     ///
     /// ```text
     /// load slice                 -> slice_len slice    (or load calldata (slice_ptr slice))
-    /// ptradd slice, header + k   -> add (slice_ptr slice), k
-    /// ptradd address, offset     -> add address, offset
-    /// load address               -> load calldata address
+    /// load slice+(header + k)    -> load calldata (slice_ptr slice)+k
+    /// ptradd slice, offset       -> add (slice_ptr slice), offset - min(offset, header)
+    /// ptradd address, offset     -> add address, offset - min(offset, pending)
+    /// load address+(pending + k) -> load calldata address+k
     /// ```
     fn rebase_calldata_objects(func: &mut Function, mut headers: FxHashMap<ValueId, u64>) {
         if headers.is_empty() {
@@ -2976,15 +2985,19 @@ impl LowerAbiCx {
                 break;
             }
         }
-        let mut addresses = FxHashSet::default();
+        let mut addresses = FxHashMap::<ValueId, u64>::default();
         loop {
             let mut changed = false;
             for inst in func.instructions() {
-                if let InstKind::PtrAdd(base, _) = func.inst(inst).kind
-                    && (headers.contains_key(&base) || addresses.contains(&base))
+                if let InstKind::PtrAdd(base, offset) = func.inst(inst).kind
+                    && let Some(pending) =
+                        headers.get(&base).or_else(|| addresses.get(&base)).copied()
                     && let Some(result) = func.inst_result_value(inst)
                 {
-                    changed |= addresses.insert(result);
+                    let pending = func
+                        .value_u64(offset)
+                        .map_or(pending, |offset| pending.saturating_sub(offset));
+                    changed |= addresses.insert(result, pending) != Some(pending);
                 }
             }
             if !changed {
@@ -2997,41 +3010,56 @@ impl LowerAbiCx {
             builder.switch_to_block(block);
             for inst in instructions {
                 let rebased = match builder.func().inst(inst).kind {
-                    InstKind::Load(object, PtrLocation::Memory)
+                    InstKind::Load(object, offset, PtrLocation::Memory)
                         if let Some(&header) = headers.get(&object) =>
                     {
-                        Some(if header == 0 {
-                            // load object -> load calldata (slice_ptr object)
-                            let data = builder.slice_ptr(object);
-                            InstKind::Load(data, PtrLocation::Calldata)
-                        } else {
+                        Some(if header != 0 && offset == 0 {
                             // load object -> slice_len object
                             InstKind::SliceLen(object)
+                        } else {
+                            // load object+(header + k) -> load calldata (slice_ptr object)+k
+                            let data = builder.slice_ptr(object);
+                            InstKind::Load(
+                                data,
+                                element_offset(offset, header),
+                                PtrLocation::Calldata,
+                            )
                         })
                     }
                     InstKind::PtrAdd(object, offset)
                         if let Some(&header) = headers.get(&object) =>
                     {
-                        let offset = match builder.func().value_u64(offset) {
-                            // ptradd object, header -> slice_ptr object
-                            Some(offset) if offset == header => None,
+                        Some(match builder.func().value_u64(offset) {
+                            // ptradd object, offset <= header -> slice_ptr object
+                            Some(offset) if offset <= header => InstKind::SlicePtr(object),
                             // ptradd object, header + k -> add (slice_ptr object), k
-                            Some(offset) => Some(builder.imm(offset - header)),
+                            Some(offset) => {
+                                let offset = builder.imm(offset - header);
+                                InstKind::Add(builder.slice_ptr(object), offset)
+                            }
                             // ptradd object, offset -> add (slice_ptr object), offset
-                            None => Some(offset),
-                        };
-                        Some(match offset {
-                            None => InstKind::SlicePtr(object),
-                            Some(offset) => InstKind::Add(builder.slice_ptr(object), offset),
+                            None => InstKind::Add(builder.slice_ptr(object), offset),
                         })
                     }
-                    InstKind::PtrAdd(address, offset) if addresses.contains(&address) => {
+                    InstKind::PtrAdd(address, offset)
+                        if let Some(&pending) = addresses.get(&address) =>
+                    {
+                        // ptradd address, offset -> add address, offset - min(offset, pending)
+                        let offset = match builder.func().value_u64(offset) {
+                            Some(offset) => builder.imm(offset.saturating_sub(pending)),
+                            None => offset,
+                        };
                         Some(InstKind::Add(address, offset))
                     }
-                    InstKind::Load(address, PtrLocation::Memory)
-                        if addresses.contains(&address) =>
+                    InstKind::Load(address, offset, PtrLocation::Memory)
+                        if let Some(&pending) = addresses.get(&address) =>
                     {
-                        Some(InstKind::Load(address, PtrLocation::Calldata))
+                        // load address+(pending + k) -> load calldata address+k
+                        Some(InstKind::Load(
+                            address,
+                            element_offset(offset, pending),
+                            PtrLocation::Calldata,
+                        ))
                     }
                     _ => None,
                 };
@@ -3053,16 +3081,16 @@ impl LowerAbiCx {
     /// zero padding memory holds, so only whole elements and single bytes read the same.
     fn can_read_calldata_slice_use(
         func: &Function,
-        element: Option<(bool, ValueId)>,
+        element: Option<(bool, ValueId, u64)>,
         ty: &crate::mir::AbiParamType,
     ) -> bool {
         // load object: a length, or a fixed array's first element
-        let Some((byte_read, address)) = element else {
+        let Some((byte_read, address, offset)) = element else {
             return matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty);
         };
         match ty {
             crate::mir::AbiParamType::Bytes => byte_read,
-            _ if Self::is_scalar_array(ty) => func.word_access(address).is_some(),
+            _ if Self::is_scalar_array(ty) => func.word_access(address, offset).is_some(),
             _ => false,
         }
     }
@@ -3714,16 +3742,16 @@ fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
 /// The alias root of the object a word store writes, with the word it writes: a word-aligned
 /// constant offset into a fixed array or struct.
 fn fixed_word_store(func: &Function, inst: InstId) -> Option<(ValueId, u64, ValueId)> {
-    let InstKind::Store(address, value) = func.inst(inst).kind else { return None };
-    let (object, offset) = func.object_address(address)?;
-    let slot = EvmMemoryLayout::word_slot(offset)?;
+    let InstKind::Store(address, offset, value) = func.inst(inst).kind else { return None };
+    let (object, base) = func.object_address(address)?;
+    let slot = EvmMemoryLayout::word_slot(base.checked_add(offset)?)?;
     Some((pointer_alias_root(func, object), slot, value))
 }
 
 /// The array a word element load reads: a word at a runtime index, or at a word-aligned constant
 /// offset past the first word, which is a dynamic array's length.
-fn array_word_object(func: &Function, address: ValueId) -> Option<ValueId> {
-    let (object, offset, index) = func.word_access(address)?;
+fn array_word_object(func: &Function, address: ValueId, offset: u64) -> Option<ValueId> {
+    let (object, offset, index) = func.word_access(address, offset)?;
     (index.is_some() || offset != 0).then_some(object)
 }
 
@@ -3810,10 +3838,11 @@ fn memory_writes_stay_private(
                         func,
                         inst,
                         object,
+                        0,
                         aliases.location_size(func, size),
                     ),
-                    InstKind::Store(address, _) => aliases
-                        .memory_location(func, inst, address, LocationSize::Const(32))
+                    InstKind::Store(address, offset, _) => aliases
+                        .memory_location(func, inst, address, offset, LocationSize::Const(32))
                         .filter(|location| location.size.as_const().is_some()),
                     _ => None,
                 };
@@ -3871,7 +3900,7 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
                 continue;
             }
             match *kind {
-                InstKind::Store(base, value) => {
+                InstKind::Store(base, _, value) => {
                     if pointer_alias_root(func, value) == object {
                         pending.push(pointer_alias_root(func, base));
                     } else if pointer_alias_root(func, base) != object {
@@ -3904,9 +3933,9 @@ fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> b
             continue;
         }
         match func.inst(inst).kind {
-            InstKind::SliceLen(object) | InstKind::Load(object, PtrLocation::Memory)
+            InstKind::SliceLen(object) | InstKind::Load(object, _, PtrLocation::Memory)
                 if pointer_alias_root(func, object) == value => {}
-            InstKind::Store(object, stored)
+            InstKind::Store(object, _, stored)
                 if pointer_alias_root(func, stored) == value
                     && pointer_alias_root(func, object) != value
                     && container_keeps_pointer_private(func, object) => {}
@@ -4014,8 +4043,8 @@ fn is_canonical_return_scalar(
     // An element of an array parameter whose words element cleanup proved
     // narrower than the mask is canonical without one.
     if let Value::Inst(inst) = func.value(value)
-        && let InstKind::Load(address, PtrLocation::Memory) = func.inst(*inst).kind
-        && let Some(object) = array_word_object(func, address)
+        && let InstKind::Load(address, offset, PtrLocation::Memory) = func.inst(*inst).kind
+        && let Some(object) = array_word_object(func, address, offset)
         && let Value::Arg(index) = func.value(object)
         && func
             .attributes
@@ -4098,7 +4127,7 @@ fn is_canonical_return_object(
                     return false;
                 }
             }
-            InstKind::Store(base, stored)
+            InstKind::Store(base, _, stored)
                 if pointer_alias_root(func, *stored) == object
                     && container_keeps_pointer_private(func, *base) => {}
             _ if func
@@ -4162,7 +4191,7 @@ fn is_canonical_return_array(
             if !initializers.contains(&inst) || stores.insert(index, value).is_some() {
                 return false;
             }
-        } else if let InstKind::Store(base, stored) = func.inst(inst).kind
+        } else if let InstKind::Store(base, _, stored) = func.inst(inst).kind
             && pointer_alias_root(func, stored) == object
             && container_keeps_pointer_private(func, base)
         {
@@ -4540,11 +4569,9 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         if func.is_object_derivation(inst) {
             continue;
         }
-        let (address, stored) = match func.inst(inst).kind {
-            InstKind::Store(address, stored) => (func.object_address(address)?, stored),
-            _ => return None,
-        };
-        let (base, offset) = address;
+        let InstKind::Store(address, offset, stored) = func.inst(inst).kind else { return None };
+        let (base, address_offset) = func.object_address(address)?;
+        let offset = address_offset.checked_add(offset)?;
         if base != *object {
             return None;
         }
@@ -4668,4 +4695,10 @@ fn materialize_calldata_return(
             options,
         )
     })
+}
+
+/// The offset of a rebased calldata read: `offset` past the `header` bytes that calldata does not
+/// have, which the calldata alias proof requires the read to cross.
+fn element_offset(offset: u64, header: u64) -> u64 {
+    offset.checked_sub(header).expect("calldata alias reads past the object header")
 }

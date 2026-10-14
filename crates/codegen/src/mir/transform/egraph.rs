@@ -1239,7 +1239,7 @@ fn is_node(kind: &InstKind) -> bool {
         && !matches!(kind, InstKind::Phi(_));
     pure || matches!(
         kind,
-        InstKind::Load(_, PtrLocation::Calldata) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
+        InstKind::Load(.., PtrLocation::Calldata) | InstKind::BlockHash(_) | InstKind::BlobHash(_)
     )
 }
 

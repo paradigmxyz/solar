@@ -1246,6 +1246,8 @@ symbols! {
         storage_to_memory,
         storage_write,
         storageptr,
+        store,
+        store8,
         store_recursive_storage,
         store_storage_bytes,
         store_storage_bytes_literal,

@@ -1577,6 +1577,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses an optional non-memory location before a memory access's operands.
+    /// Parses the immediate byte offset of a memory access address, `+offset`, if present.
+    fn parse_address_offset(&mut self) -> PResult<'sess, u64> {
+        if !self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
+            return Ok(0);
+        }
+        Ok(self.parser.parse_uint()?.to::<u64>())
+    }
+
     fn parse_ptr_location(&mut self) -> PtrLocation {
         if self.parser.eat_keyword(kw::Calldata) {
             PtrLocation::Calldata
@@ -1828,6 +1836,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::load => {
                 let location = self.parse_ptr_location();
                 let ptr = self.parse_value(builder)?;
+                let offset = self.parse_address_offset()?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
                     if ty != MirType::MEMPTR {
@@ -1837,7 +1846,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     MirType::I256
                 };
-                (InstKind::Load(ptr, location), Some(ty))
+                (InstKind::Load(ptr, offset, location), Some(ty))
+            }
+            sym::store | sym::store8 => {
+                let ptr = self.parse_value(builder)?;
+                let offset = self.parse_address_offset()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                let kind = if mnemonic == sym::store {
+                    InstKind::Store(ptr, offset, value)
+                } else {
+                    InstKind::Store8(ptr, offset, value)
+                };
+                (kind, None)
             }
             sym::copy => {
                 let location = self.parse_ptr_location();

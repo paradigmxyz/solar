@@ -488,10 +488,10 @@ impl LoopOptimizer {
             // MSIZE in the function could observe; on top of the dependence checks they must
             // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
             // from speculated memory expansion) or paying for work it never did.
-            InstKind::Load(addr, PtrLocation::Memory) => {
+            InstKind::Load(addr, offset, PtrLocation::Memory) => {
                 return !self.function_observes_msize(func)
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
-                    && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
+                    && !self.loop_may_mutate_memory_range(func, ctx, addr, offset, Some(32));
             }
             // A frame slot's address is implicit until frame lowering. Keep the load in place so a
             // store in the loop cannot be missed by the dependence check above.
@@ -503,6 +503,7 @@ impl LoopOptimizer {
                         func,
                         ctx,
                         offset,
+                        0,
                         self.const_addr(func, size),
                     );
             }
@@ -675,7 +676,7 @@ impl LoopOptimizer {
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
             | InstKind::Clz(_) => 5,
-            InstKind::Load(_, _) => 3,
+            InstKind::Load(..) => 3,
             _ => 0,
         }
     }
@@ -755,25 +756,33 @@ impl LoopOptimizer {
         func: &Function,
         ctx: LoopOptContext<'_>,
         load_addr: ValueId,
+        load_offset: u64,
         load_width: Option<u64>,
     ) -> bool {
         let aa = self.alias();
         // The hoist candidate's address is loop-invariant, so its extent and affine range hold
         // for every store the loop makes.
         let load = load_width.map(|width| LoadRange {
-            location: aa.bare_access_extent(func, load_addr, LocationSize::Const(width)),
-            affine: self.affine_range(func, ctx, load_addr, width, None),
+            location: aa.bare_access_extent(
+                func,
+                load_addr,
+                load_offset,
+                LocationSize::Const(width),
+            ),
+            affine: self.affine_range(func, ctx, load_addr, load_offset, width, None),
         });
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.inst(inst_id).kind {
-                    InstKind::Store(addr, _) => {
-                        if self.memory_ranges_may_alias(func, ctx, load, addr, 32, block_id) {
+                    InstKind::Store(addr, offset, _) => {
+                        if self.memory_ranges_may_alias(func, ctx, load, addr, offset, 32, block_id)
+                        {
                             return true;
                         }
                     }
-                    InstKind::Store8(addr, _) => {
-                        if self.memory_ranges_may_alias(func, ctx, load, addr, 1, block_id) {
+                    InstKind::Store8(addr, offset, _) => {
+                        if self.memory_ranges_may_alias(func, ctx, load, addr, offset, 1, block_id)
+                        {
                             return true;
                         }
                     }
@@ -875,14 +884,19 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
         load: Option<LoadRange>,
         write_addr: ValueId,
+        write_offset: u64,
         write_width: u64,
         write_block: BlockId,
     ) -> bool {
         let Some(load) = load else { return true };
         let aa = self.alias();
         if let Some(location) = load.location
-            && let Some(write) =
-                aa.bare_access_extent(func, write_addr, LocationSize::Const(write_width))
+            && let Some(write) = aa.bare_access_extent(
+                func,
+                write_addr,
+                write_offset,
+                LocationSize::Const(write_width),
+            )
         {
             match aa.memory_alias(location, write) {
                 AliasResult::NoAlias => return false,
@@ -894,7 +908,8 @@ impl LoopOptimizer {
         // Scalar evolution can prove disjointness for affine loop addresses beyond value-local
         // BasicAA.
         let Some(load) = load.affine else { return true };
-        let Some(write) = self.affine_range(func, ctx, write_addr, write_width, Some(write_block))
+        let Some(write) =
+            self.affine_range(func, ctx, write_addr, write_offset, write_width, Some(write_block))
         else {
             return true;
         };
@@ -909,10 +924,13 @@ impl LoopOptimizer {
         func: &Function,
         ctx: LoopOptContext<'_>,
         value: ValueId,
+        offset: u64,
         width: u64,
         inst_block: Option<BlockId>,
     ) -> Option<AffineRange> {
-        let expr = ctx.scev.get(value).cloned().or_else(|| self.const_affine_expr(func, value))?;
+        let mut expr =
+            ctx.scev.get(value).cloned().or_else(|| self.const_affine_expr(func, value))?;
+        expr.constant = expr.constant.checked_add(i128::from(offset))?;
         // Non-header blocks only execute after the header guard passed in
         // their iteration, so they observe the induction variable strictly
         // below the bound; everything else (header instructions, deeper
@@ -1033,9 +1051,9 @@ impl LoopOptimizer {
                 let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
-                    InstKind::Load(addr, _)
-                    | InstKind::Store(addr, _)
-                    | InstKind::Store8(addr, _)
+                    InstKind::Load(addr, ..)
+                    | InstKind::Store(addr, ..)
+                    | InstKind::Store8(addr, ..)
                     | InstKind::SLoad(addr)
                     | InstKind::SStore(addr, _)
                     | InstKind::TLoad(addr)

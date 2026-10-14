@@ -363,9 +363,9 @@ pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
 pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::Load(_, PtrLocation::Memory)
-            | InstKind::Store(_, _)
-            | InstKind::Store8(_, _)
+        InstKind::Load(.., PtrLocation::Memory)
+            | InstKind::Store(..)
+            | InstKind::Store8(..)
             | InstKind::MemoryZero(_, _)
             | InstKind::Copy(..)
             | InstKind::DataCopy(_, _, _)

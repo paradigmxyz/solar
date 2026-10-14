@@ -168,8 +168,8 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
     for (func_id, func) in module.functions.iter_enumerated() {
         for (block, data) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in data.instructions.iter().enumerate() {
-                if let InstKind::Store(address, value) = func.inst(inst_id).kind
-                    && is_slot(func, address)
+                if let InstKind::Store(address, offset, value) = func.inst(inst_id).kind
+                    && is_slot(func, address, offset)
                     && func.value_ty(value) == Some(MirType::I256)
                     && uses.address_inputs(func_id)[value] != AddressInput::Other
                 {
@@ -206,8 +206,8 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
 fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
-    let InstKind::Store(address, value) = func.inst(inst).kind else {
-        unreachable!("a floor store is an `mstore`")
+    let InstKind::Store(address, offset, value) = func.inst(inst).kind else {
+        unreachable!("a floor store is a `store`")
     };
     let metadata = func.inst(inst).metadata.clone();
     // floor = heap_floor
@@ -217,7 +217,7 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
     // store 64, clamped
-    func.inst_mut(inst).kind = InstKind::Store(address, clamped);
+    func.inst_mut(inst).kind = InstKind::Store(address, offset, clamped);
 }
 
 /// Raises the words a function's loads read from the slot, and the returned words its calls
@@ -294,7 +294,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             UseSite::Inst(inst) => {
                 let slot_store = matches!(
                     func.inst(*inst).kind,
-                    InstKind::Store(address, _) if is_slot(func, address)
+                    InstKind::Store(address, offset, _) if is_slot(func, address, offset)
                 );
                 let kind = &mut func.inst_mut(*inst).kind;
                 let mut raw = false;
@@ -302,7 +302,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
                     raw = true;
                     swap(operand);
                 });
-                if slot_store && let InstKind::Store(_, value) = kind {
+                if slot_store && let InstKind::Store(_, _, value) = kind {
                     swap(value);
                 }
                 if !raw {
@@ -345,10 +345,10 @@ fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
     };
     let slot =
         func.alloc_value(Value::Immediate(Immediate::I256(U256::from(EvmMemoryLayout::FMP_SLOT))));
-    let (load, word) =
-        func.alloc_value_inst(emit(InstKind::Load(slot, PtrLocation::Memory), Some(MirType::I256)));
+    let (load, word) = func
+        .alloc_value_inst(emit(InstKind::Load(slot, 0, PtrLocation::Memory), Some(MirType::I256)));
     let (clamp, clamped) = floor_max(func, word, &metadata);
-    let store = func.alloc_inst(emit(InstKind::Store(slot, clamped), None));
+    let store = func.alloc_inst(emit(InstKind::Store(slot, 0, clamped), None));
     let position = before
         .map_or(func.blocks[block].instructions.len(), |inst| index_in_block(func, block, inst));
     // word = load 64
@@ -390,8 +390,9 @@ fn index_in_block(func: &Function, block: BlockId, inst: InstId) -> usize {
 }
 
 /// Whether a value is the address of the free memory pointer's slot.
-fn is_slot(func: &Function, address: ValueId) -> bool {
-    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+fn is_slot(func: &Function, address: ValueId, offset: u64) -> bool {
+    func.value_u64(address).and_then(|address| address.checked_add(offset))
+        == Some(EvmMemoryLayout::FMP_SLOT)
 }
 
 /// Whether a function returns to code that ends execution without reading the free memory
@@ -645,7 +646,7 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::PtrAdd(..)
         | InstKind::SlicePtr(..)
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
-        InstKind::Load(address, PtrLocation::Memory) => is_slot(func, address),
+        InstKind::Load(address, offset, PtrLocation::Memory) => is_slot(func, address, offset),
         _ => instruction.result_ty == Some(MirType::MEMPTR),
     }
 }
@@ -728,9 +729,9 @@ fn derives_from(kind: &InstKind, word: ValueId) -> bool {
 fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
     let mut raw = false;
     let mut pointer_uses = 0;
-    kind.visit_raw_memory(|_, offset, size| {
+    kind.visit_raw_memory(|_, address, _, size| {
         raw = true;
-        pointer_uses += usize::from(offset == word);
+        pointer_uses += usize::from(address == word);
         pointer_uses += usize::from(size == RawMemorySize::Value(word));
     });
     if !raw {
@@ -740,8 +741,8 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
         let pointer = is_memory_reference(func.value_ty(word));
         return Reads { pointer, data: !pointer };
     }
-    if let InstKind::Store(address, value) = *kind
-        && is_slot(func, address)
+    if let InstKind::Store(address, offset, value) = *kind
+        && is_slot(func, address, offset)
     {
         pointer_uses += usize::from(value == word);
     }
@@ -1081,7 +1082,7 @@ impl<'a> PointerUses<'a> {
                     &(Terminator::Revert { offset, size }
                     | Terminator::ReturnData { offset, size }),
                 ) => {
-                    if self.may_read_slot(func_id, offset, func.value_u64(size), written) {
+                    if self.may_read_slot(func_id, offset, 0, func.value_u64(size), written) {
                         flow.reads.data = true;
                     }
                 }
@@ -1272,7 +1273,9 @@ impl<'a> PointerUses<'a> {
         let func = &module.functions[func_id];
         let inst = func.inst(inst_id);
         match inst.kind {
-            InstKind::Load(address, PtrLocation::Memory) if is_slot(func, address) => {
+            InstKind::Load(address, offset, PtrLocation::Memory)
+                if is_slot(func, address, offset) =>
+            {
                 let reads = self.load_reads(func_id, inst_id);
                 match (reads.pointer, reads.data) {
                     (true, true) => Effect::LoadsMixed,
@@ -1281,7 +1284,9 @@ impl<'a> PointerUses<'a> {
                     (false, false) => Effect::None,
                 }
             }
-            InstKind::Store(address, _) if is_slot(func, address) => Effect::Replaces,
+            InstKind::Store(address, offset, _) if is_slot(func, address, offset) => {
+                Effect::Replaces
+            }
             InstKind::SetFmp(_) => Effect::Replaces,
             InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
             // The compiler's own pointer reads and allocations, and the builtins and semantic
@@ -1294,13 +1299,20 @@ impl<'a> PointerUses<'a> {
                 // A copy reads its source before it writes its destination, and the visit
                 // yields reads first.
                 let mut reads = self.may_read_object_at_slot(func_id, &inst.kind, *written);
-                inst.kind.visit_raw_memory(|access, offset, size| match access {
+                inst.kind.visit_raw_memory(|access, address, offset, size| match access {
                     RawMemoryAccess::Read => {
                         reads = reads
-                            || self.may_read_slot(func_id, offset, size.constant(func), *written);
+                            || self.may_read_slot(
+                                func_id,
+                                address,
+                                offset,
+                                size.constant(func),
+                                *written,
+                            );
                     }
                     RawMemoryAccess::Write => {
-                        if let Some(start) = func.value_u64(offset)
+                        if let Some(start) =
+                            func.value_u64(address).and_then(|address| address.checked_add(offset))
                             && let Some(size) = size.constant(func)
                         {
                             *written |= slot_bytes(start, size);
@@ -1324,16 +1336,18 @@ impl<'a> PointerUses<'a> {
     fn may_read_slot(
         &mut self,
         func_id: FunctionId,
-        offset: ValueId,
+        address: ValueId,
+        offset: u64,
         size: Option<u64>,
         written: SlotBytes,
     ) -> bool {
         if size == Some(0) {
             return false;
         }
-        let Some(start) = self.module.functions[func_id].value_u64(offset) else {
-            return !self.heap_addresses(func_id).contains(offset);
+        let Some(start) = self.module.functions[func_id].value_u64(address) else {
+            return !self.heap_addresses(func_id).contains(address);
         };
+        let Some(start) = start.checked_add(offset) else { return true };
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
     }
 
@@ -1358,7 +1372,7 @@ impl<'a> PointerUses<'a> {
                 objects.push(operand);
             }
         });
-        objects.into_iter().any(|object| self.may_read_slot(func_id, object, None, written))
+        objects.into_iter().any(|object| self.may_read_slot(func_id, object, 0, None, written))
     }
 
     /// Returns the words `func_id` computes from heap pointers.

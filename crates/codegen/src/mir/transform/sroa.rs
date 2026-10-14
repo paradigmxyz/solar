@@ -133,15 +133,17 @@ impl SroaCx {
                 continue;
             }
             let kind = &func.inst(inst_id).kind;
-            let address = match *kind {
+            let (address, access_offset) = match *kind {
                 InstKind::MemoryZero(base, size) if addresses.get(&base) == Some(&0) => {
                     if func.value_u64(size) != Some(zero_size) {
                         return None;
                     }
                     continue;
                 }
-                InstKind::Load(address, PtrLocation::Memory) => address,
-                InstKind::Store(address, value) if !addresses.contains_key(&value) => address,
+                InstKind::Load(address, offset, PtrLocation::Memory) => (address, offset),
+                InstKind::Store(address, offset, value) if !addresses.contains_key(&value) => {
+                    (address, offset)
+                }
                 _ => {
                     // Any other use of the object (a store of the pointer, a raw address) blocks
                     // scalarization.
@@ -152,7 +154,8 @@ impl SroaCx {
                 }
             };
             let Some(&offset) = addresses.get(&address) else { continue };
-            let slot = EvmMemoryLayout::word_slot(offset).filter(|&slot| slot < words)?;
+            let slot = EvmMemoryLayout::word_slot(offset.checked_add(access_offset)?)
+                .filter(|&slot| slot < words)?;
             slot_of.insert(inst_id, slot);
         }
 
@@ -168,6 +171,7 @@ impl SroaCx {
         let location = Location::Memory(alias.bare_memory_location(
             func,
             object,
+            0,
             LocationSize::Const(zero_size),
         )?);
         for inst in func.instructions() {
@@ -213,7 +217,7 @@ impl SroaCx {
                     }
                 }
                 match func.inst(inst).kind {
-                    InstKind::Store(_, value) if slot_of.contains_key(&inst) => {
+                    InstKind::Store(_, _, value) if slot_of.contains_key(&inst) => {
                         let index = fields.binary_search(&slot_of[&inst]).ok()?;
                         slots[index].note_store(block, inst, value);
                     }

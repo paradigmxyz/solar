@@ -32,7 +32,7 @@ pub(crate) fn absolute_address_inputs(func: &Function) -> IndexVec<ValueId, Addr
         for inst_id in func.instructions() {
             let Some(value) = func.inst_result_value(inst_id) else { continue };
             let input = match &func.inst(inst_id).kind {
-                InstKind::Load(_, PtrLocation::Calldata) | InstKind::CalldataSize => {
+                InstKind::Load(.., PtrLocation::Calldata) | InstKind::CalldataSize => {
                     AddressInput::Calldata
                 }
                 InstKind::Add(lhs, rhs)

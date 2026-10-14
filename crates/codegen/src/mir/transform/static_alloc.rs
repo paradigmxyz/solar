@@ -167,8 +167,8 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
         | InstKind::Fmp
         | InstKind::SetFmp(_)
         | InstKind::ICall { function: Callee::Function(_), .. } => true,
-        InstKind::Load(address, PtrLocation::Memory) => {
-            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        InstKind::Load(address, offset, PtrLocation::Memory) => {
+            func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
         }
         _ => false,
     }
@@ -361,6 +361,9 @@ fn candidate_uses_are_safe(
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
+    let in_range_at = |off: u64, offset: u64, len: u64| {
+        off.checked_add(offset).is_some_and(|off| in_range(off, len))
+    };
     for (&operand, &off) in &derived {
         for &inst_id in &uses.instructions[operand] {
             if inst_id == cand.alloc {
@@ -368,12 +371,14 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let ok = match kind {
-                InstKind::Load(addr, PtrLocation::Memory) => operand == addr && in_range(off, 32),
-                InstKind::Store(addr, value) => {
-                    operand == addr && !derived.contains_key(&value) && in_range(off, 32)
+                InstKind::Load(addr, offset, PtrLocation::Memory) => {
+                    operand == addr && in_range_at(off, offset, 32)
                 }
-                InstKind::Store8(addr, value) => {
-                    operand == addr && !derived.contains_key(&value) && in_range(off, 1)
+                InstKind::Store(addr, offset, value) => {
+                    operand == addr && !derived.contains_key(&value) && in_range_at(off, offset, 32)
+                }
+                InstKind::Store8(addr, offset, value) => {
+                    operand == addr && !derived.contains_key(&value) && in_range_at(off, offset, 1)
                 }
                 InstKind::Keccak256(addr, size)
                 | InstKind::Log { offset: addr, size, .. }

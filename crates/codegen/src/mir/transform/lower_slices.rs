@@ -96,7 +96,7 @@ fn split_slice_phis(
             (pointer, length)
         } else {
             let (len_inst, length) =
-                new_word_inst(func, InstKind::Load(value, PtrLocation::Memory));
+                new_word_inst(func, InstKind::Load(value, 0, PtrLocation::Memory));
             func.blocks[pred].instructions.push(len_inst);
             (value, length)
         };
@@ -732,13 +732,13 @@ impl LowerSlices {
             let physical_object = matches!(ty, MirType::I256);
             let physical_pointer = matches!(ty, MirType::I256);
             let physical_word = matches!(ty, MirType::I256)
-                && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::Load(_, PtrLocation::Memory)));
+                && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::Load(.., PtrLocation::Memory)));
             if physical_word || (physical_pointer && is_ptr) {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, slice);
                 removed.insert(inst);
             } else if physical_object {
-                func.inst_mut(inst).kind = InstKind::Load(slice, PtrLocation::Memory);
+                func.inst_mut(inst).kind = InstKind::Load(slice, 0, PtrLocation::Memory);
             }
         }
         if components.is_empty() {

@@ -1122,7 +1122,7 @@ impl<'a> Validator<'a> {
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
-                    InstKind::Load(_, location) => *location != PtrLocation::Returndata,
+                    InstKind::Load(.., location) => *location != PtrLocation::Returndata,
                     _ => true,
                 };
                 if !valid {

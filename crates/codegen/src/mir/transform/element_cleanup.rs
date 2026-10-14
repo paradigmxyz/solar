@@ -194,12 +194,12 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
 /// offset. The word at a dynamic object's pointer is its length, not an element, so a constant
 /// offset of zero counts only in a fixed-layout allocation.
 fn word_element_object(func: &Function, inst: InstId) -> Option<ValueId> {
-    let (InstKind::Load(address, PtrLocation::Memory) | InstKind::Store(address, _)) =
-        func.inst(inst).kind
+    let (InstKind::Load(address, offset, PtrLocation::Memory)
+    | InstKind::Store(address, offset, _)) = func.inst(inst).kind
     else {
         return None;
     };
-    let (object, offset, index) = func.word_access(address)?;
+    let (object, offset, index) = func.word_access(address, offset)?;
     let length = index.is_none() && offset == 0 && !is_fixed_allocation(func, object);
     (!length && func.value_ty(object) == Some(MirType::MEMPTR)).then_some(object)
 }
@@ -271,7 +271,7 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
             {
                 0
             }
-            InstKind::Store(_, value)
+            InstKind::Store(_, _, value)
                 if word_element_object(func, inst).is_some_and(|object| {
                     objects.is_none_or(|objects| {
                         objects.get(&object).is_some_and(|&bound| bound < FULL_WIDTH)

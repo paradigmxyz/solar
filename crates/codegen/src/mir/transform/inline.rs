@@ -1128,10 +1128,10 @@ fn is_small_literal_return(func: &Function) -> bool {
         if func.is_object_derivation(inst) {
             continue;
         }
-        let (address, value) = match func.inst(inst).kind {
-            InstKind::Store(address, value) => (func.object_address(address), value),
-            _ => return false,
-        };
+        let InstKind::Store(address, offset, value) = func.inst(inst).kind else { return false };
+        let address = func
+            .object_address(address)
+            .and_then(|(base, address_offset)| Some((base, address_offset.checked_add(offset)?)));
         match address {
             Some((base, 0)) if base == object && length.is_none() => {
                 length = func.value_u64(value);
@@ -1439,7 +1439,7 @@ fn is_memory_wrapper(func: &Function) -> bool {
                 func.inst(inst).kind,
                 InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::Load(_, PtrLocation::Memory)
+                    | InstKind::Load(.., PtrLocation::Memory)
                     | InstKind::Store(..)
                     | InstKind::Store8(..)
             )
@@ -2595,8 +2595,9 @@ fn forward_inline_return_loads(
                     offsets.insert(value, offset);
                 }
             }
-            InstKind::Load(address, PtrLocation::Memory) => {
-                if let Some(&offset) = offsets.get(&address)
+            InstKind::Load(address, load_offset, PtrLocation::Memory) => {
+                if let Some(offset) =
+                    offsets.get(&address).and_then(|&offset| offset.checked_add(load_offset))
                     && offset >= 32
                     && offset % 32 == 0
                     && let Some(&value) =

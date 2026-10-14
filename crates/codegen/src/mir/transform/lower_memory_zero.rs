@@ -52,7 +52,7 @@ fn lower_function(func: &mut Function) -> bool {
             if builder.func().value_u64(size) == Some(32) {
                 let zero = builder.imm(0);
                 let instruction = builder.func_mut().inst_mut(inst);
-                instruction.kind = InstKind::Store(dest, zero);
+                instruction.kind = InstKind::Store(dest, 0, zero);
                 instruction.metadata.set_memory_region(None);
                 instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
             } else {

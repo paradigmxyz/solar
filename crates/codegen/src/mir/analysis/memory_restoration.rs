@@ -53,13 +53,13 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
                 return false;
             }
             match &instruction.kind {
-                InstKind::Store(address, value) => {
-                    stores.push((block, position, *address, *value, 32))
+                InstKind::Store(address, offset, value) => {
+                    stores.push((block, position, (*address, *offset), *value, 32))
                 }
-                InstKind::Store8(address, value) => {
-                    stores.push((block, position, *address, *value, 1))
+                InstKind::Store8(address, offset, value) => {
+                    stores.push((block, position, (*address, *offset), *value, 1))
                 }
-                InstKind::Load(_, PtrLocation::Memory) => {}
+                InstKind::Load(.., PtrLocation::Memory) => {}
                 kind if kind.effect_kind() == EffectKind::Pure => {}
                 _ => return false,
             }
@@ -81,7 +81,9 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
         if words.len() == 8 {
             return false;
         }
-        let Some(location) = aa.bare_memory_location(func, address, LocationSize::Const(32)) else {
+        let Some(location) =
+            aa.bare_memory_location(func, address.0, address.1, LocationSize::Const(32))
+        else {
             return false;
         };
         if locations.iter().any(|&other| aa.memory_alias(location, other).may_alias()) {
@@ -91,7 +93,7 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
             if width == 32
                 && store_address == address
                 && let Value::Inst(inst) = func.value(value)
-                && matches!(func.inst(*inst).kind, InstKind::Load(other, PtrLocation::Memory) if other == address)
+                && matches!(func.inst(*inst).kind, InstKind::Load(other, offset, PtrLocation::Memory) if (other, offset) == address)
             {
                 Some((value, *inst))
             } else {
@@ -122,7 +124,8 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
     // every possible mutation. Unknown offsets and bytes outside saved ranges bail.
     let mut store_slots = FxHashMap::default();
     for &(block, position, address, _, width) in &stores {
-        let Some(location) = aa.bare_memory_location(func, address, LocationSize::Const(width))
+        let Some(location) =
+            aa.bare_memory_location(func, address.0, address.1, LocationSize::Const(width))
         else {
             return false;
         };
@@ -159,8 +162,8 @@ pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
         for &inst in &func.blocks[block].instructions {
             if let Some(&slot) = store_slots.get(&inst) {
                 let bit = 1 << (slot + 1);
-                if matches!(func.inst(inst).kind, InstKind::Store(address, value)
-                    if address == words[slot].0 && value == words[slot].1)
+                if matches!(func.inst(inst).kind, InstKind::Store(address, offset, value)
+                    if (address, offset) == words[slot].0 && value == words[slot].1)
                 {
                     state &= !bit;
                 } else {

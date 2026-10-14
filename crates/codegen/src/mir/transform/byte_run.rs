@@ -252,7 +252,7 @@ fn is_byte_leaf(func: &Function, kind: &InstKind) -> bool {
         }
         _ => return false,
     };
-    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Load(_, PtrLocation::Memory)))
+    matches!(*func.value(word), Value::Inst(inst) if matches!(func.inst(inst).kind, InstKind::Load(.., PtrLocation::Memory)))
 }
 
 /// Records one `load` whose low byte the run combines.
@@ -264,7 +264,9 @@ fn push_leaf(
     leaves: &mut Vec<Leaf>,
 ) -> bool {
     let Value::Inst(inst) = *func.value(word) else { return false };
-    let InstKind::Load(address, PtrLocation::Memory) = func.inst(inst).kind else { return false };
+    let InstKind::Load(address, 0, PtrLocation::Memory) = func.inst(inst).kind else {
+        return false;
+    };
     // The read must be reachable from the root with no store in between. A
     // read may be shared with other users; only the interior nodes are
     // consumed, and the lowest address's read is kept.
@@ -372,7 +374,7 @@ fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueI
         return None;
     }
     let Value::Inst(load) = *func.value(word) else { return None };
-    let InstKind::Load(address, PtrLocation::Memory) = func.inst(load).kind else { return None };
+    let InstKind::Load(address, 0, PtrLocation::Memory) = func.inst(load).kind else { return None };
     let (base, offset) = address_key(func, address)?;
     Some((base, offset, word))
 }

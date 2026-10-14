@@ -959,7 +959,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut base = None;
         for (offset, &inst_id) in tail.iter().enumerate() {
             let inst = func.inst(inst_id);
-            if let InstKind::Load(addr, PtrLocation::Memory) = inst.kind
+            if let InstKind::Load(addr, _, PtrLocation::Memory) = inst.kind
                 && func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)
             {
                 base = Some((offset, inst_id));
@@ -988,7 +988,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         return None;
                     }
                 }
-                InstKind::Load(addr, PtrLocation::Memory) if addresses.contains_key(addr) => {
+                InstKind::Load(addr, _, PtrLocation::Memory) if addresses.contains_key(addr) => {
                     let result = func.inst_result_value(inst_id)?;
                     visit(addresses[addr], result);
                     if extras[addresses[addr] - 1].replace(result).is_some() {
@@ -1237,7 +1237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
                 InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
-                InstKind::Load(address, PtrLocation::Memory)
+                InstKind::Load(address, _, PtrLocation::Memory)
                     if Self::heap_prefix_constant(func, *address, 0)
                         == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>
                 {
@@ -1394,7 +1394,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             ) {
                 continue;
             }
-            inst.kind.visit_raw_memory(|access, dest, size| {
+            inst.kind.visit_raw_memory(|access, dest, _, size| {
                 // A copy of no bytes writes no memory, wherever its destination points.
                 if access != RawMemoryAccess::Read
                     && size.constant(func) != Some(0)
@@ -1417,7 +1417,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for inst_id in func.instructions() {
             func.inst(inst_id)
                 .kind
-                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(func)));
+                .visit_raw_memory(|_, offset, _, size| visit(offset, size.constant(func)));
         }
         for block in &func.blocks {
             if let Some(
@@ -1767,9 +1767,9 @@ mod tests {
             }
         }
         for (kind, ty) in [
-            (InstKind::Load(prefix, PtrLocation::Memory), result),
-            (InstKind::Store(prefix, zero), None),
-            (InstKind::Store8(prefix, zero), None),
+            (InstKind::Load(prefix, 0, PtrLocation::Memory), result),
+            (InstKind::Store(prefix, 0, zero), None),
+            (InstKind::Store8(prefix, 0, zero), None),
         ] {
             let mut consumer = function.clone();
             // mload/mstore/mstore8 prefix, ...

@@ -605,8 +605,8 @@ fn return_values_are_fresh(
     let Value::Inst(inst) = func.value(*value) else { return false };
     match func.inst(*inst).kind {
         InstKind::Alloc { .. } => true,
-        InstKind::Load(address, PtrLocation::Memory)
-            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        InstKind::Load(address, offset, PtrLocation::Memory)
+            if func.constant_address(address, offset) == Some(EvmMemoryLayout::FMP_SLOT)
                 && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
         {
             true
@@ -1666,7 +1666,7 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
         InstKind::Alloc { kind: AllocationKind::Object(_), .. } | InstKind::AbiEncode { .. } => {
             false
         }
-        InstKind::Store(address, _) => !literal_word_in_bounds(func, *address),
+        InstKind::Store(address, offset, _) => !literal_word_in_bounds(func, *address, *offset),
         InstKind::MSize => true,
         _ => matches!(
             kind.effect_kind(),
@@ -1682,9 +1682,9 @@ fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
 
 /// A store to a different object is disjoint only inside its fresh allocation. An
 /// unknown or wrapping offset can overwrite a preceding object.
-fn literal_word_in_bounds(func: &Function, address: ValueId) -> bool {
+fn literal_word_in_bounds(func: &Function, address: ValueId, offset: u64) -> bool {
     let Some((object, base)) = func.object_address(address) else { return false };
-    let end = base.checked_add(32);
+    let end = base.checked_add(offset).and_then(|base| base.checked_add(32));
     matches!((func.value(object), end), (Value::Inst(alloc), Some(end))
         if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), size, .. }
             if func.value_u64(size).is_some_and(|size| end <= size)))
@@ -1728,8 +1728,9 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         }
         // Payload offset and stored word.
         let (offset, word) = match func.inst(inst).kind {
-            InstKind::Store(address, word) => {
+            InstKind::Store(address, store_offset, word) => {
                 let (base, offset) = func.object_address(address)?;
+                let offset = offset.checked_add(store_offset)?;
                 (base == object).then_some(())?;
                 if offset == 0 {
                     if length.replace(func.value_u64(word)?).is_some() {

@@ -1,10 +1,12 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
 //! Object allocations become raw allocations, `ptradd` becomes an integer `add` between pointer
-//! casts, and a memory slice of a `memptr` gets its pointer cast to a word. Every memory access is
-//! already a `load`, `store`, or `copy` at an address, so nothing else changes here; the opcode
-//! boundary then casts pointer operands and results. Unreachable blocks are removed first: their
-//! definitions need not obey SSA and can contain cast cycles.
+//! casts, an access's immediate offset becomes an `add` to its address, and a memory slice of a
+//! `memptr` gets its pointer cast to a word. Every memory access is already a `load`, `store`, or
+//! `copy` at an address, so nothing else changes here; the opcode boundary then casts pointer
+//! operands and results, and the casts this leaves unused are removed.
+//! Unreachable blocks are removed first: their definitions need not obey SSA and can contain cast
+//! cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
 //! that still have live SSA structs. The module stays semantic until the final conversion
@@ -17,7 +19,7 @@ use crate::mir::{
     MirType, Module, Value, pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -88,6 +90,27 @@ fn lower_function(func: &mut Function) -> bool {
                     let address = builder.add(base, offset);
                     builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
                 }
+                InstKind::Load(ptr, offset, location) if offset != 0 => {
+                    // address = add (ptrtoint ptr), offset
+                    // result = load location address
+                    let address = builder.cast(ptr, MirType::I256);
+                    let address = builder.add_u64_offset(address, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::Load(address, 0, location);
+                }
+                InstKind::Store(ptr, offset, value) | InstKind::Store8(ptr, offset, value)
+                    if offset != 0 =>
+                {
+                    // address = add (ptrtoint ptr), offset
+                    // store address, value
+                    let address = builder.cast(ptr, MirType::I256);
+                    let address = builder.add_u64_offset(address, offset);
+                    let kind = &mut builder.func_mut().inst_mut(inst).kind;
+                    *kind = if matches!(kind, InstKind::Store(..)) {
+                        InstKind::Store(address, 0, value)
+                    } else {
+                        InstKind::Store8(address, 0, value)
+                    };
+                }
                 InstKind::MakeSlice { ptr, len, location }
                     if builder.func().value_ty(ptr) == Some(MirType::MEMPTR) =>
                 {
@@ -138,7 +161,35 @@ fn lower_function(func: &mut Function) -> bool {
         func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
     coalesce_constant_allocations(func);
     normalize_pointer_operands(func);
+    remove_unused_pointer_casts(func);
     true
+}
+
+/// Removes the pointer casts that folding address casts left without uses, as the `inttoptr` of a
+/// lowered `ptradd` whose every user takes the address word.
+fn remove_unused_pointer_casts(func: &mut Function) {
+    let mut uses = super::egraph::use_counts(func);
+    let mut dead = DenseBitSet::new_empty(func.num_insts());
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for block in func.blocks.iter().rev() {
+            for &inst in block.instructions.iter().rev() {
+                if let InstKind::IntToPtr(operand) | InstKind::PtrToInt(operand, _) =
+                    func.inst(inst).kind
+                    && !dead.contains(inst)
+                    && func.inst_result_value(inst).is_some_and(|value| uses[value] == 0)
+                {
+                    dead.insert(inst);
+                    uses[operand] -= 1;
+                    changed = true;
+                }
+            }
+        }
+    }
+    for block in func.blocks.iter_mut() {
+        block.instructions.retain(|&inst| !dead.contains(inst));
+    }
 }
 
 /// Combines adjacent exact internal allocations before their first observable
@@ -179,7 +230,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 let member =
                     |value: crate::mir::ValueId| owners[value].filter(|&(_, header)| !header);
                 let derived = match func.inst(next_id).kind {
-                    InstKind::Store(address, _) | InstKind::Store8(address, _) => {
+                    InstKind::Store(address, ..) | InstKind::Store8(address, ..) => {
                         let Some((owner, _)) = owners[address] else { break };
                         allocations[owner].2 = true;
                         scan += 1;

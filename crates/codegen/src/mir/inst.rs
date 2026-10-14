@@ -754,6 +754,13 @@ impl Instruction {
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
             InstKind::PtrAdd(..) => Some("pointer arithmetic"),
+            InstKind::Load(_, offset, _)
+            | InstKind::Store(_, offset, _)
+            | InstKind::Store8(_, offset, _)
+                if *offset != 0 =>
+            {
+                Some("pointer arithmetic")
+            }
             InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
@@ -1126,10 +1133,17 @@ impl InstKind {
         self.effects().must_execute(false)
     }
 
-    /// Returns whether this instruction still carries a semantic memory-object operation.
+    /// Returns whether this instruction still carries a semantic memory-object operation: an
+    /// object allocation, pointer arithmetic, or an access at an immediate offset.
     #[must_use]
     pub(crate) const fn is_memory_object_op(&self) -> bool {
-        matches!(self, Self::Alloc { kind: AllocationKind::Object(_), .. } | Self::PtrAdd(..))
+        match self {
+            Self::Alloc { kind: AllocationKind::Object(_), .. } | Self::PtrAdd(..) => true,
+            Self::Load(_, offset, _) | Self::Store(_, offset, _) | Self::Store8(_, offset, _) => {
+                *offset != 0
+            }
+            _ => false,
+        }
     }
 
     /// Returns a conservative effect classification for this instruction.

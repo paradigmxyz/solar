@@ -244,7 +244,7 @@ fn copy_helper_eligible(func: &Function, alias: &AliasAnalysis, inst: InstId) ->
     let size = alias.location_size(func, len);
     [dest, src].into_iter().all(|pointer| {
         alias
-            .bare_memory_location(func, pointer, size)
+            .bare_memory_location(func, pointer, 0, size)
             .is_some_and(|location| helper_owned_base(location.address.base))
     })
 }
@@ -273,10 +273,10 @@ fn copy_direction(
     len: ValueId,
 ) -> CopyDirection {
     let size = alias.location_size(func, len);
-    let Some(dest_location) = alias.bare_memory_location(func, dest, size) else {
+    let Some(dest_location) = alias.bare_memory_location(func, dest, 0, size) else {
         return CopyDirection::Dynamic;
     };
-    let Some(src_location) = alias.bare_memory_location(func, src, size) else {
+    let Some(src_location) = alias.bare_memory_location(func, src, 0, size) else {
         return CopyDirection::Dynamic;
     };
     if alias.memory_alias(dest_location, src_location) == AliasResult::NoAlias {

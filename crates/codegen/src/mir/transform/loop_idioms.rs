@@ -84,11 +84,13 @@ fn length_object(
         if func.inst_result_value(load) != Some(length) {
             return None;
         }
-        let InstKind::Load(object, PtrLocation::Memory) = func.inst(load).kind else { return None };
+        let InstKind::Load(object, 0, PtrLocation::Memory) = func.inst(load).kind else {
+            return None;
+        };
         return Some(object);
     }
     let Value::Inst(load) = func.value(length) else { return None };
-    let InstKind::Load(object, PtrLocation::Memory) = func.inst(*load).kind else { return None };
+    let InstKind::Load(object, 0, PtrLocation::Memory) = func.inst(*load).kind else { return None };
     let instructions = &func.blocks[preheader].instructions;
     let position = instructions.iter().position(|inst| inst == load)?;
     instructions[position + 1..]
@@ -261,7 +263,7 @@ fn match_ascii_loop(func: &Function, header: BlockId) -> Option<AsciiLoop> {
     //       [aligned = shl 248, byte]; rejected = gt byte, 127; jumpi rejected, reject, latch
     let (ptr, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
     let [load_inst, byte_inst, rest @ ..] = rest else { reject!("body shape") };
-    let InstKind::Load(load_ptr, PtrLocation::Memory) = func.inst(*load_inst).kind else {
+    let InstKind::Load(load_ptr, 0, PtrLocation::Memory) = func.inst(*load_inst).kind else {
         reject!("load")
     };
     if load_ptr != ptr {
@@ -341,7 +343,7 @@ fn constant_return(func: &Function, block: BlockId) -> Option<(ReturnShape, Valu
             _ => None,
         },
         ([store], Terminator::ReturnData { offset, size }) => {
-            let InstKind::Store(address, value) = func.inst(*store).kind else { return None };
+            let InstKind::Store(address, 0, value) = func.inst(*store).kind else { return None };
             (same_word(func, address, *offset) && func.value_u64(*size) == Some(32))
                 .then_some((ReturnShape::Lowered { address, size: *size }, value))
         }
@@ -438,7 +440,7 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     let hoisted_length = len_inst.is_none().then_some(length);
     let (pointer, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
     let [load_inst, byte_inst, align_inst, nonzero_inst] = rest else { return None };
-    let InstKind::Load(load_pointer, PtrLocation::Memory) = func.inst(*load_inst).kind else {
+    let InstKind::Load(load_pointer, 0, PtrLocation::Memory) = func.inst(*load_inst).kind else {
         return None;
     };
     if load_pointer != pointer {
@@ -567,7 +569,7 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let pointer = func.inst_result_value(*ptr_inst)?;
-    let InstKind::Load(load_pointer, PtrLocation::Calldata) = func.inst(*load_inst).kind else {
+    let InstKind::Load(load_pointer, 0, PtrLocation::Calldata) = func.inst(*load_inst).kind else {
         return None;
     };
     if load_pointer != pointer {
@@ -1076,7 +1078,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     let mut step = false;
     for &inst in &func.blocks[body].instructions {
         match func.inst(inst).kind {
-            InstKind::Load(address, PtrLocation::Memory) if load.is_none() => {
+            InstKind::Load(address, 0, PtrLocation::Memory) if load.is_none() => {
                 load = Some((address, func.inst_result_value(inst)?));
             }
             InstKind::Byte(position, word)
@@ -1086,7 +1088,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
             {
                 extract = func.inst_result_value(inst);
             }
-            InstKind::Store8(address, value) if store.is_none() && Some(value) == extract => {
+            InstKind::Store8(address, 0, value) if store.is_none() && Some(value) == extract => {
                 store = Some(address);
             }
             InstKind::Add(first, second)
@@ -1137,11 +1139,13 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     let source_place = alias.bare_memory_location(
         func,
         *source_base,
+        0,
         LocationSize::Const(source_offset.checked_add(length)?),
     )?;
     let dest_place = alias.bare_memory_location(
         func,
         *dest_base,
+        0,
         LocationSize::Const(dest_offset.checked_add(length)?),
     )?;
     let disjoint = !AliasAnalysis::memory_alias_locations(source_place, dest_place).may_alias();

@@ -66,7 +66,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // A fixed-width store through a loop-carried pointer that starts below the spill
             // area sweeps every slot the loop reaches; across the iterations it is as unbounded
             // as a variable-length copy.
-            InstKind::Store(dest, _) | InstKind::Store8(dest, _)
+            InstKind::Store(dest, _, _) | InstKind::Store8(dest, _, _)
                 if Self::is_low_sweeping_pointer(func, dest) =>
             {
                 Some(dest)
@@ -199,7 +199,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
                     || matches!(
                         func.inst(inst_id).kind,
-                        InstKind::Store(address, _)
+                        InstKind::Store(address, _, _)
                             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                     )
             });
@@ -355,7 +355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 };
                 match &func.inst(*inst_id).kind {
                     InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
-                    InstKind::Load(address, PtrLocation::Memory)
+                    InstKind::Load(address, _, PtrLocation::Memory)
                         if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
                     {
                         Some(true)
@@ -418,10 +418,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             Self::constant_memory_range_may_overlap_fmp(func.value_u64(offset), Some(size))
         };
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
-            InstKind::Load(offset, PtrLocation::Memory) | InstKind::Store(offset, _) => {
+            InstKind::Load(offset, _, PtrLocation::Memory) | InstKind::Store(offset, _, _) => {
                 overlaps_const(*offset, EvmMemoryLayout::WORD_SIZE)
             }
-            InstKind::Store8(offset, _) => overlaps_const(*offset, 1),
+            InstKind::Store8(offset, _, _) => overlaps_const(*offset, 1),
             InstKind::MemoryZero(offset, size)
             | InstKind::Keccak256(offset, size)
             | InstKind::Copy(offset, _, size, PtrLocation::Calldata | PtrLocation::Returndata)

@@ -391,10 +391,22 @@ fn display_inst_kind<'a>(
         func: &Function,
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
-        if let InstKind::Load(_, location) | InstKind::Copy(.., location) = kind
+        if let InstKind::Load(.., location) | InstKind::Copy(.., location) = kind
             && *location != PtrLocation::Memory
         {
             write!(f, " {location}")?;
+        }
+        if let InstKind::Load(ptr, offset, _)
+        | InstKind::Store(ptr, offset, _)
+        | InstKind::Store8(ptr, offset, _) = *kind
+            && offset != 0
+        {
+            write!(f, " {}+{offset}", display_val(ptr, func))?;
+            return kind
+                .operands()
+                .into_iter()
+                .skip(1)
+                .try_for_each(|operand| write!(f, ", {}", display_val(operand, func)));
         }
         let operands = kind.operands();
         if !operands.is_empty() {
