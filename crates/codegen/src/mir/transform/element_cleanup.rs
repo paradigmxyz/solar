@@ -57,6 +57,9 @@ pub(crate) struct ElementCleanup;
 const MAX_VALUE_DEPTH: u32 = 8;
 /// The width of a word nothing bounds.
 const FULL_WIDTH: u32 = 256;
+/// The widest array length whose element addresses cannot wrap around to the length word: every
+/// index below it addresses at most `32 + 32 * (2^251 - 2)`, under `2^256`.
+const MAX_HEADER_LENGTH_BITS: u32 = 251;
 /// Fixed-point rounds after which every bound is given up as full.
 const MAX_ROUNDS: usize = 16;
 
@@ -209,6 +212,34 @@ fn is_fixed_allocation(func: &Function, object: ValueId) -> bool {
     ))
 }
 
+/// Whether storing `length` into the header of `object` keeps the header out of reach of its
+/// elements: `object` is a direct dynamic allocation, and no index below `length` wraps the
+/// element address around to the header. That holds when `length` fits in
+/// [`MAX_HEADER_LENGTH_BITS`] or is the length the allocation's checked size scales from, as in
+/// `new T[](length)`. A forged length, as from assembly, may let a wrapping index read the header.
+fn is_header_length(func: &Function, object: ValueId, length: ValueId) -> bool {
+    let Value::Inst(alloc) = *func.value(object) else { return false };
+    let InstKind::Alloc { size, .. } = func.inst(alloc).kind else { return false };
+    !is_fixed_allocation(func, object)
+        && (max_bits_with_args(func, length, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
+            <= MAX_HEADER_LENGTH_BITS
+            || scaled_root(func, size) == length)
+}
+
+/// The value `value` scales from through additions, multiplications, and shifts by constants.
+fn scaled_root(func: &Function, mut value: ValueId) -> ValueId {
+    for _ in 0..MAX_VALUE_DEPTH {
+        let Value::Inst(inst) = *func.value(value) else { break };
+        value = match func.inst(inst).kind {
+            InstKind::Add(a, b) | InstKind::Mul(a, b) if func.value_u256(b).is_some() => a,
+            InstKind::Add(a, b) | InstKind::Mul(a, b) if func.value_u256(a).is_some() => b,
+            InstKind::Shl(shift, x) if func.value_u256(shift).is_some() => x,
+            _ => break,
+        };
+    }
+    value
+}
+
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
 fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
     if let InstKind::Zext(narrow) = func.inst(inst).kind
@@ -233,13 +264,10 @@ fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u3
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            // A direct dynamic allocation's header is separate from existing array elements.
             InstKind::Store(..)
-                if func.memory_length_store(inst).is_some_and(|(object, _)| {
-                    matches!(func.value(object), Value::Inst(alloc)
-                        if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. }))
-                        && !is_fixed_allocation(func, object)
-                }) =>
+                if func
+                    .memory_length_store(inst)
+                    .is_some_and(|(object, length)| is_header_length(func, object, length)) =>
             {
                 0
             }
