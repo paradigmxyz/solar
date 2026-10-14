@@ -144,7 +144,7 @@ error: invalid true type
 LL │         uint h = true ? 2**300 : 1;
    ╰╴                        ━━━━━━
 
-error: invalid mobile type
+error[9563]: invalid mobile type
    ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
    │
 LL │         uint[2] memory i = [1, 2**300];
