@@ -247,6 +247,15 @@ pub(crate) enum CodeKind {
     Runtime,
 }
 
+impl From<solar_sema::eval::CodeKind> for CodeKind {
+    fn from(kind: solar_sema::eval::CodeKind) -> Self {
+        match kind {
+            solar_sema::eval::CodeKind::Creation => Self::Creation,
+            solar_sema::eval::CodeKind::Runtime => Self::Runtime,
+        }
+    }
+}
+
 impl CodeKind {
     /// Returns the textual IR keyword.
     pub(crate) fn keyword(self) -> Symbol {

@@ -218,23 +218,22 @@ fn @_schedule(arg0: i256, arg1: i256) {
   bb2:
     jump bb3
   bb3:
-    v2 = icall @getMinDelay
-    v3 = lt arg1, v2
-    jumpi v3, bb4, bb5
+    v1 = icall @getMinDelay
+    v2 = lt arg1, v1
+    jumpi v2, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v4 = timestamp
-    v5 = checked_add u256, v4, arg1
-    v6 = mapping_slot arg0, 1
-    sstore v6, v5 !metadata(storage=symbolic(v6))
+    v3 = timestamp
+    v4 = checked_add u256, v3, arg1
+    v5 = mapping_slot arg0, 1
+    sstore v5, v4 !metadata(storage=symbolic(v5))
     ret
   bb4:
-    icall require<custom_error [word, word]>, false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v2
+    icall require<custom_error [word, word]>, false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v1
     invalid
   bb1:
-    v1 = shl 0, 1
-    icall require<custom_error [word, word]>, false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, v1
+    icall require<custom_error [word, word]>, false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, 1
     invalid
 }
 

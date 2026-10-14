@@ -210,10 +210,7 @@ fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<
     revert_returndata
   bb2:
     v11 = gas
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    store v12, 0
-    v13 = ptrtoint memptr v12 to i256
-    v14 = address_call v9, v12, gas v11
-    v15 = eq v14, false
-    ret v15
+    v12 = address_call v9, memptr 96, gas v11
+    v13 = eq v12, false
+    ret v13
 }

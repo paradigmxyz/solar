@@ -205,10 +205,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_shared_bytes_literal(&mut self, symbol: ByteSymbol) -> Option<ValueId> {
         let bytes = symbol.as_byte_str();
-        let value = if !bytes.is_empty()
-            && bytes.len() <= 32
-            && self.cx.shared_word_literals.contains(&symbol)
-        {
+        if bytes.is_empty() {
+            // A heap object, unlike scratch memory, so that later reads of its length fold.
+            return self.default_object(self.cx.gcx.types.bytes_ref.memory);
+        }
+        let value = if bytes.len() <= 32 && self.cx.shared_word_literals.contains(&symbol) {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
             let length = self.builder.imm(bytes.len() as u64);
@@ -264,6 +265,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = DataDest { base: header, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
         copy_data_to_memory(gcx, module, builder, data, bytes, padded_size, None);
         Some(object)
+    }
+
+    /// Returns a pointer to the zero slot, which holds an empty dynamic object that is only read.
+    pub(super) fn zero_slot(&mut self) -> ValueId {
+        // value = ZERO_SLOT
+        let value = crate::mir::Immediate::for_type(
+            Some(MirType::MEMPTR),
+            U256::from(EvmMemoryLayout::ZERO_SLOT),
+        );
+        self.builder.alloc_value(Value::Immediate(value))
+    }
+
+    /// Lowers the creation or runtime bytecode of a contract to a `bytes` object.
+    pub(super) fn lower_contract_code(
+        &mut self,
+        span: Span,
+        contract_id: hir::ContractId,
+        kind: CodeKind,
+    ) -> Option<ValueId> {
+        // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
+        let code = self.contract_code(span, contract_id, kind)?;
+        Some(Self::build_bytecode(&mut self.builder, code))
     }
 
     /// Returns the deferred data for the creation or runtime bytecode of a contract that
@@ -386,12 +409,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
-            // object = ZERO_SLOT
-            let value = crate::mir::Immediate::for_type(
-                Some(MirType::MEMPTR),
-                U256::from(EvmMemoryLayout::ZERO_SLOT),
-            );
-            return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));
+            return Some(self.zero_slot());
         }
 
         // object = alloc(default_layout)

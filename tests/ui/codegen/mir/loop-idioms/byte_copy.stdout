@@ -295,73 +295,73 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
 
 fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, pure] {
   bb0:
-    v59 = ptrtoint memptr arg0 to i256
-    v0 = load v59
-    v45 = sub v0, arg2
+    v58 = ptrtoint memptr arg0 to i256
+    v0 = load v58
+    v44 = sub v0, arg2
     v1 = gt arg2, v0
-    v46 = zext i1 v1 to i256
-    v47 = mul v46, v45
-    v48 = add arg2, v47
-    v49 = sub v0, arg1
+    v45 = zext i1 v1 to i256
+    v46 = mul v45, v44
+    v47 = add arg2, v46
+    v48 = sub v0, arg1
     v5 = gt arg1, v0
-    v50 = zext i1 v5 to i256
-    v51 = mul v50, v49
-    v52 = add arg1, v51
-    v8 = lt v52, v48
+    v49 = zext i1 v5 to i256
+    v50 = mul v49, v48
+    v51 = add arg1, v50
+    v8 = lt v51, v47
     jumpi v8, bb2, bb1
   bb1:
-    v70 = load 64 !metadata(memory=scratch)
-    v10 = inttoptr i256 v70 to memptr !metadata(memory=scratch)
-    v71 = add v70, 32
-    store 64, v71 !metadata(memory=scratch)
-    store v70, 0
+    v69 = load 64 !metadata(memory=scratch)
+    v10 = inttoptr i256 v69 to memptr !metadata(memory=scratch)
+    v70 = add v69, 32
+    store 64, v70 !metadata(memory=scratch)
+    store v69, 0
     ret v10
   bb2:
-    v39 = sub v48, v52
-    v13 = add v39, 63
-    v14 = lt v13, v39
-    jumpi v14, bb6, bb7
+    v38 = sub v47, v51
+    v12 = add v38, 63
+    v13 = lt v12, v38
+    jumpi v13, bb6, bb7
   bb7:
-    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v64 = load 64 !metadata(memory=scratch)
-    v17 = inttoptr i256 v64 to memptr !metadata(memory=scratch)
-    v65 = add v64, v16
-    v66 = lt v65, v64
-    v67 = gt v65, 0xffffffffffffffff
-    v68 = or v66, v67
-    jumpi v68, bb6, bb12
+    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v63 = load 64 !metadata(memory=scratch)
+    v16 = inttoptr i256 v63 to memptr !metadata(memory=scratch)
+    v64 = add v63, v15
+    v65 = lt v64, v63
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb6, bb12
   bb12:
-    store 64, v65 !metadata(memory=scratch)
-    v72 = calldatasize
-    copy calldata v64, v72, v16
-    store v64, v39
+    store 64, v64 !metadata(memory=scratch)
+    v71 = calldatasize
+    copy calldata v63, v71, v15
+    store v63, v38
     jump bb3
   bb3:
-    v22 = phi [bb12: 0], [bb9: v43]
-    v23 = load v64
-    v24 = lt v22, v23
-    jumpi v24, bb5, bb4
+    v21 = phi [bb12: 0], [bb9: v42]
+    v22 = load v63
+    v23 = lt v21, v22
+    jumpi v23, bb5, bb4
   bb4:
-    ret v17
+    ret v16
   bb5:
-    v41 = add v52, v22
-    v42 = lt v41, v52
-    jumpi v42, bb10, bb11
+    v40 = add v51, v21
+    v41 = lt v40, v51
+    jumpi v41, bb10, bb11
   bb11:
-    v26 = load v59
-    v27 = lt v41, v26
-    jumpi v27, bb9, bb8
+    v25 = load v58
+    v26 = lt v40, v25
+    jumpi v26, bb9, bb8
   bb8:
     tail_call @revert_stub
   bb9:
-    v54 = add v59, v41
-    v55 = add v54, 32
-    v30 = load v55
-    v31 = byte 0, v30
-    v57 = add v64, v22
-    v58 = add v57, 32
-    store8 v58, v31
-    v43 = add v22, 1
+    v53 = add v58, v40
+    v54 = add v53, 32
+    v29 = load v54
+    v30 = byte 0, v29
+    v56 = add v63, v21
+    v57 = add v56, 32
+    store8 v57, v30
+    v42 = add v21, 1
     jump bb3
   bb10:
     store 32, 17 !metadata(memory=scratch)

@@ -73,10 +73,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
         });
         if !fixed_bytes
-            && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if matches!(
-                lit.kind,
-                LitKind::Number(_) | LitKind::Rational(_)
-            ))
+            && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
             let shift = self.builder.imm(224);
             return Some(self.builder.shl(shift, value));
@@ -911,11 +908,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 solar_sema::hir::ElementaryType::Bool => (1, false),
                 solar_sema::hir::ElementaryType::Address(_) => (20, false),
                 solar_sema::hir::ElementaryType::Int(size)
-                | solar_sema::hir::ElementaryType::UInt(size)
-                | solar_sema::hir::ElementaryType::Fixed(size, _)
-                | solar_sema::hir::ElementaryType::UFixed(size, _) => {
-                    (u64::from(size.bytes()), false)
-                }
+                | solar_sema::hir::ElementaryType::UInt(size) => (u64::from(size.bytes()), false),
                 solar_sema::hir::ElementaryType::FixedBytes(size) => {
                     (u64::from(size.bytes()), true)
                 }

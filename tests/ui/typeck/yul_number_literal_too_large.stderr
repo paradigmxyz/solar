@@ -1,0 +1,8 @@
+error[6708]: number literal too large (> 256 bits)
+   ╭▸ ROOT/tests/ui/typeck/yul_number_literal_too_large.sol:LL:CC
+   │
+LL │             s := 0x10000000000000000000000000000000000000000000000000000000000000000
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

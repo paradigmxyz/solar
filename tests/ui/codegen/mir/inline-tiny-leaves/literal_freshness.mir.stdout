@@ -87,11 +87,10 @@ fn @encoded(arg0: i256) -> memptr [selector=0xdbafcb80, pure, abi_params=[u256],
   bb0:
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
     store v2, 0
-    v3 = ptrtoint memptr v2 to i256
-    v4 = abi_encode [memory_bytes, word, memory_bytes], object, selector v0, args v1, arg0, v2
-    ret v4
+    v3 = abi_encode [memory_bytes, word, memory_bytes], object, selector v0, args v1, arg0, v2
+    ret v3
 }
 
 fn @literal() -> memptr [pure] {
@@ -106,9 +105,8 @@ fn @literal() -> memptr [pure] {
 
 fn @empty() -> memptr [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     store v0, 0
-    v1 = ptrtoint memptr v0 to i256
     ret v0
 }
 

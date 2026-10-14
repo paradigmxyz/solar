@@ -291,7 +291,7 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     jump bb1
   bb1:
     v0 = phi [bb0: arg1], [bb10: v0]
-    v1 = phi [bb0: 0], [bb10: v15]
+    v1 = phi [bb0: 0], [bb10: v14]
     v2 = phi [bb0: arg0], [bb10: v2]
     v3 = phi [bb0: 0], [bb10: v6]
     v4 = returndatasize
@@ -303,8 +303,7 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v10 = eq v0, 1
     jumpi v10, bb7, bb8
   bb8:
-    v13 = shl 0, 1
-    v14 = icall ecrecover<>, v13, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v13 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     jump bb9
   bb7:
     v11 = abi_encode [word], object, args v1
@@ -317,11 +316,11 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v9 = icall sha256<>, v8
     jump bb6
   bb6:
-    v15 = checked_add u256, v1, 1
+    v14 = checked_add u256, v1, 1
     jump bb3
   bb3:
-    v16 = lt v15, v2
-    jumpi v16, bb10, bb11
+    v15 = lt v14, v2
+    jumpi v15, bb10, bb11
   bb11:
     jump bb2
   bb2:
@@ -365,19 +364,8 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v21 = add v20, 32
     v22 = load v10
     v23 = keccak256 v21, v22
-    v24 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    store v24, 4
-    v25 = ptrtoint memptr v24 to i256
-    v26 = add v25, 32
-    store v26, 0
-    v27 = ptrtoint memptr v24 to i256
-    v28 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v24
-    v29 = ptrtoint memptr v28 to i256
-    v30 = add v29, 32
-    v31 = load v28
-    v32 = keccak256 v30, v31
-    v33 = eq v23, v32
-    ret v33
+    v24 = eq v23, 0x90941e664046c4fb4064f646fbaafc5dc7ff860596426813c026a5a9c424233
+    ret v24
   bb1:
     ret false
   bb3:

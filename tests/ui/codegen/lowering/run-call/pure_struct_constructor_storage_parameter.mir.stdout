@@ -5,31 +5,24 @@
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    store v0, 7
-    store v0+32, 7
-    store v0+64, 1
-    v1 = mapping_slot 3, 0
-    v2 = load v0
-    sstore v1, v2 !metadata(storage=symbolic(v1))
-    v3 = add v1, 1
-    v4 = load v0+32
-    v5 = sload v3 !metadata(storage=offset(v1, 1))
-    v6 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = and v5, v6
-    v8 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v7, v8
-    sstore v3, v9 !metadata(storage=offset(v1, 1))
-    v10 = add v1, 1
-    v11 = load v0+64
-    v12 = shl 160, 255
-    v13 = sload v10 !metadata(storage=offset(v1, 1))
-    v14 = not v12
-    v15 = and v13, v14
-    v16 = and v11, 255
-    v17 = shl 160, v16
-    v18 = or v15, v17
-    sstore v10, v18 !metadata(storage=offset(v1, 1))
+    v0 = mapping_slot 3, 0
+    sstore v0, 7 !metadata(storage=symbolic(v0))
+    v1 = add v0, 1
+    v2 = sload v1 !metadata(storage=offset(v0, 1))
+    v3 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = and v2, v3
+    v5 = and 7, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = or v4, v5
+    sstore v1, v6 !metadata(storage=offset(v0, 1))
+    v7 = add v0, 1
+    v8 = shl 160, 255
+    v9 = sload v7 !metadata(storage=offset(v0, 1))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = and 1, 255
+    v13 = shl 160, v12
+    v14 = or v11, v13
+    sstore v7, v14 !metadata(storage=offset(v0, 1))
     ret
 }
 

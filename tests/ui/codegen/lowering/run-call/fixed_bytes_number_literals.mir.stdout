@@ -115,9 +115,8 @@ fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word
 
 fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shl 224, 0x41424344
-    v1 = eq v0, 0x4142434400000000000000000000000000000000000000000000000000000000
-    ret v1
+    v0 = eq 0x4142434400000000000000000000000000000000000000000000000000000000, 0x4142434400000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
@@ -219,9 +218,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
 
 fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
-    v0 = shr 96, 0x6d696c6164790000000000000000000000000000000000000000000000000000
-    v1 = trunc i256 v0 to i160
-    ret v1
+    ret i160 0x6d696c6164790000000000000000000000000000
 }
 
 fn @emptyStringCompare() -> i1 [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

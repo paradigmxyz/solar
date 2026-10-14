@@ -27,47 +27,37 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v2 = add v1, 32
     v3 = load v0
     v4 = keccak256 v2, v3
-    v5 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
-    v6 = ptrtoint memptr v5 to i256
-    v7 = add v6, 32
-    v8 = load v5
-    v9 = keccak256 v7, v8
-    v10 = eq v4, v9
-    jumpi v10, bb1, bb2
+    v5 = eq 0xe7eed6879ebbcc949780042a313916d5554b1d334cfdf13575d35c220c4a819, v4
+    jumpi v5, bb1, bb2
   bb2:
     jump bb3
   bb1:
+    v6 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
+    v7 = ptrtoint memptr v6 to i256
+    v8 = add v7, 32
+    v9 = load v6
+    v10 = keccak256 v8, v9
     v11 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
     v12 = ptrtoint memptr v11 to i256
     v13 = add v12, 32
     v14 = load v11
     v15 = keccak256 v13, v14
-    v16 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
-    v17 = ptrtoint memptr v16 to i256
-    v18 = add v17, 32
-    v19 = load v16
-    v20 = keccak256 v18, v19
-    v21 = eq v15, v20
+    v16 = eq v10, v15
     jump bb3
   bb3:
-    v22 = phi [bb1: v21], [bb2: false]
-    jumpi v22, bb4, bb5
+    v17 = phi [bb1: v16], [bb2: false]
+    jumpi v17, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v23 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v24 = ptrtoint memptr v23 to i256
-    v25 = add v24, 32
-    v26 = load v23
-    v27 = keccak256 v25, v26
-    v28 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
-    v29 = ptrtoint memptr v28 to i256
-    v30 = add v29, 32
-    v31 = load v28
-    v32 = keccak256 v30, v31
-    v33 = eq v27, v32
+    v18 = abi_encode [word, word], object, selector 0x432672b200000000000000000000000000000000000000000000000000000000, args 12, 13
+    v19 = ptrtoint memptr v18 to i256
+    v20 = add v19, 32
+    v21 = load v18
+    v22 = keccak256 v20, v21
+    v23 = eq 0x33f67098ce03cc52b18f520e7908cdea910975eeb6d6dd916ab902d18598bf5d, v22
     jump bb6
   bb6:
-    v34 = phi [bb4: v33], [bb5: false]
-    ret v34
+    v24 = phi [bb4: v23], [bb5: false]
+    ret v24
 }

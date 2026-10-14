@@ -5,7 +5,7 @@ uint constant rec2 = rec1;
 
 uint constant bigLiteral = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
-uint constant fails = 0 / 0;
+uint constant fails = 0 / 0; //~ ERROR: cannot apply builtin operator `/`
 
 contract C {
     uint constant zero = x - x;
@@ -16,8 +16,13 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-    int constant signedTwo = 7 / 3;
-    int constant signedNegTwo = (-7) / 3;
+    int constant signedTwo = 6 / 3;
+    int constant signedNegTwo = (-6) / 3;
+    int constant signedFraction = 7 / 3; //~ ERROR: mismatched types
+    int constant signedNegFraction = (-7) / 3; //~ ERROR: mismatched types
+    int constant SEVEN = 7;
+    int constant typedTwo = SEVEN / 3;
+    int constant typedNegTwo = (-SEVEN) / 3;
 
     int8 constant maxInt8 = 127;
     int8 constant minInt8 = -128;
@@ -26,7 +31,7 @@ contract C {
     uint private stateVar = 69;
     uint public stateVarPublic = 420;
 
-    function early(uint[fails] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
+    function early(uint[fails] memory) public {}
 
     function a(uint[x / 0] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
     function a2(uint[x / zeroPublic] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
@@ -34,11 +39,15 @@ contract C {
     function c(uint[x * 2] memory) public {}
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: exponent is too large
+    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: shift amount is too large
     function d5(uint[signedTwo] memory) public {}
     function d6(uint[-signedNegTwo] memory) public {}
     function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
+    function d7c(uint[typedTwo] memory) public {}
+    function d7d(uint[typedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
+    function d7a(uint[signedFraction] memory) public {} //~ ERROR: array length cannot be fractional
+    function d7b(uint[-signedNegFraction] memory) public {} //~ ERROR: array length cannot be fractional
     function d8(uint[maxInt8] memory) public {}
     function d9(uint[maxUint8] memory) public {}
     function d10(uint[-(minInt8 + 1)] memory) public {}
@@ -48,20 +57,27 @@ contract C {
     function d14(uint[(maxInt8 + 1) - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d15(uint[maxUint8 * 2 / 2] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d16(uint[2**300] memory) public {} //~ ERROR: array length is too large
-    function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
-    function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
+    function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: cyclic constant definition
+    function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: cyclic constant definition
 
     function g(uint[0] memory) public {} //~ ERROR: array length must be greater than zero
     function h(uint[zero] memory) public {} //~ ERROR: array length must be greater than zero
     function h2(uint[zeroPublic] memory) public {} //~ ERROR: array length must be greater than zero
 
     function i(uint[block.timestamp] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
-    function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: unsupported literal
-    //~^ ERROR: mismatched types
+    function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: expected an integer
     function k(uint[--x] memory) public {} //~ ERROR: failed to evaluate constant: unsupported unary operation
     //~^ ERROR: cannot assign to a constant variable
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
     function m(uint[stateVarPublic] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
 
     function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: array length must be greater than zero
+
+    function zeroDivision() external pure returns (uint) {
+        return 1 / 0; //~ ERROR: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+    }
+    uint fractional = 0.5; //~ ERROR: mismatched types
+    uint quotient = 7 / 3; //~ ERROR: mismatched types
+    uint shift = 1 << 0.5; //~ ERROR: cannot apply builtin operator
+    uint power = 2 ** 0.5; //~ ERROR: cannot apply builtin operator
 }

@@ -65,14 +65,9 @@ fn @oversized(arg0: i256) -> i1 {
     v8 = add v7, 32
     v9 = load v5
     v10 = keccak256 v8, v9
-    v11 = abi_encode [word], object, selector 0x4e487b7100000000000000000000000000000000000000000000000000000000, args 65
-    v12 = ptrtoint memptr v11 to i256
-    v13 = add v12, 32
-    v14 = load v11
-    v15 = keccak256 v13, v14
-    v16 = eq v10, v15
+    v11 = eq v10, 0x8e6896d848ce77893db8ffe49ed1a378c34c94cda53b83ae7938e28a946cb069
     jump bb3
   bb3:
-    v17 = phi [bb1: v16], [bb2: false]
-    ret v17
+    v12 = phi [bb1: v11], [bb2: false]
+    ret v12
 }

@@ -1,0 +1,14 @@
+error[3558]: constant variable is circular
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/assembly_suffix.sol:LL:CC
+   │
+LL │             let x := A.slot
+   ╰╴                     ━
+
+error[3558]: constant variable is circular
+   ╭▸ ROOT/tests/ui/typeck/constant_cycles/assembly_suffix.sol:LL:CC
+   │
+LL │             let y := B.offset
+   ╰╴                     ━
+
+error: aborting due to 2 previous errors
+

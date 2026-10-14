@@ -84,8 +84,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
-            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
-            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
             kw::Int => ElementaryType::Int(TypeSize::ZERO),
             kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
@@ -100,8 +98,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let bytes = s.as_u32() - kw::Bytes1.as_u32() + 1;
                 ElementaryType::FixedBytes(TypeSize::new_fb_bytes(bytes as u8))
             }
-            s => ElementaryType::parse_fixed_mxn(s)
-                .unwrap_or_else(|| unreachable!("unexpected elementary type: {s}")),
+            // The other elementary type names are fixed-point types.
+            _ => return Err(self.dcx().err("fixed-point types are not supported").span(id.span)),
         };
 
         let sm = self.parse_state_mutability();
@@ -117,11 +115,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 self.dcx().emit_err(id.span.to(self.prev_token.span), msg);
             }
         }
-
-        // TODO: Move to type checking.
-        // if matches!(ty, ElementaryType::Fixed(..) | ElementaryType::UFixed(..)) {
-        //     self.dcx().emit_err(id.span, "`fixed` types are not yet supported");
-        // }
 
         Ok(ty)
     }

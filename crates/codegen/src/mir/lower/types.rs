@@ -52,12 +52,6 @@ impl<'gcx> TypeLowerer<'gcx> {
                 ElementaryType::UInt(size) => {
                     ValueLayout::UInt(TypeSize::new_int_bits(size.bits()))
                 }
-                ElementaryType::Fixed(size, _) => {
-                    ValueLayout::Int(TypeSize::new_int_bits(size.bits()))
-                }
-                ElementaryType::UFixed(size, _) => {
-                    ValueLayout::UInt(TypeSize::new_int_bits(size.bits()))
-                }
                 ElementaryType::FixedBytes(size) => ValueLayout::FixedBytes(size),
                 ElementaryType::String | ElementaryType::Bytes => {
                     ValueLayout::MemoryObject(MemoryObjectKind::Bytes)

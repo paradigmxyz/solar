@@ -1,0 +1,44 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_ternary_literal.sol:ConstantTernaryLiteral ===
+@module ConstantTernaryLiteral
+fn @aligned() -> i256 [selector=0x0d60ac76, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 64
+}
+
+fn @constantValue() -> i256 [selector=0xdc7e9270, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 6
+}
+
+fn @widened() -> i256 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 600
+}
+
+fn @castBranch() -> i256 [selector=0x7ad66a6a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 2
+}
+
+fn @wholeCastBranch() -> i256 [selector=0x0c9e3ad7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr v0 to i256
+    memory_zero v1, 96
+    v2 = checked_add u256, 3, 1
+    ret v2
+}
+
+fn @signedOverflow() -> i256 [selector=0x3a415f03, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = checked_mul i256, 0xc000000000000000000000000000000000000000000000000000000000000000, 4
+    v1 = checked_div i256, v0, 8
+    ret v1
+}
+
+fn @overflow() -> i256 [selector=0x004264c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_mul u8, i8 200, i8 2
+    v1 = zext i8 v0 to i256
+    ret v1
+}

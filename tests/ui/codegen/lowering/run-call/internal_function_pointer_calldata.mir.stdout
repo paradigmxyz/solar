@@ -40,36 +40,35 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     v1 = and 97, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     store v2, 34
-    v3 = shl 248, 7
-    v4 = load v2
-    v5 = lt 2, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = byte 0, v3
-    store8 v2+34, v7
-    v8 = address
-    v9 = gas
-    v10 = abi_encode [memory_bytes], selector 0xa651425900000000000000000000000000000000000000000000000000000000, args v2
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = zext i160 v8 to i256
-    v14 = call v9, v13, 0, v11, v12, 0, 32
-    jumpi v14, bb2, bb1
+    v3 = load v2
+    v4 = lt 2, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x700000000000000000000000000000000000000000000000000000000000000
+    store8 v2+34, v6
+    v7 = address
+    v8 = gas
+    v9 = abi_encode [memory_bytes], selector 0xa651425900000000000000000000000000000000000000000000000000000000, args v2
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = zext i160 v7 to i256
+    v13 = call v8, v12, 0, v10, v11, 0, 32
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = load v17
-    v19 = shl 8, v18
-    v20 = eq v19, 0
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    v22 = shr 248, v18
-    v23 = trunc i256 v22 to i8
-    ret v23
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = load v16
+    v18 = shl 8, v17
+    v19 = eq v18, 0
+    v20 = eq v19, false
+    icall revert_if<empty>, v20
+    v21 = shr 248, v17
+    v22 = trunc i256 v21 to i8
+    ret v22
 }
 
 fn @internal_dispatcher_p_calldataslice_r_bytes1(arg0: i256, arg1: calldataslice) -> i256 [function_pointer_dispatcher] {

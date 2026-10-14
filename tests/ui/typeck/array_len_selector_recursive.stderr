@@ -1,0 +1,36 @@
+error: recursive types cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/array_len_selector_recursive.sol:LL:CC
+   │
+LL │     function f(A calldata) external;
+   ╰╴               ━
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_selector_recursive.sol:LL:CC
+   │
+LL │     uint[internalFn.selector.length] internalSelector;
+   │          ┬──────────────────━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error[5462]: failed to evaluate constant: unsupported expression
+   ╭▸ ROOT/tests/ui/typeck/array_len_selector_recursive.sol:LL:CC
+   │
+LL │     uint[E.selector.length] errorSelector;
+   │          ┬─────────━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error[3417]: recursive types cannot be error parameter types
+   ╭▸ ROOT/tests/ui/typeck/array_len_selector_recursive.sol:LL:CC
+   │
+LL │ error E(A);
+   ╰╴        ━
+
+error: member `selector` not found on type `function (struct A memory) pure`
+   ╭▸ ROOT/tests/ui/typeck/array_len_selector_recursive.sol:LL:CC
+   │
+LL │     uint[internalFn.selector.length] internalSelector;
+   ╰╴                    ━━━━━━━━
+
+error: aborting due to 5 previous errors
+

@@ -631,14 +631,9 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     v1 = add 32, 32
     v2 = load 32 !metadata(memory=scratch)
     v3 = keccak256 v1, v2
-    v4 = not 31
-    v5 = and 64, v4
-    v6 = alloc memorybytes, exact, zeroed, panic, v5
-    store v6, 1
-    v7 = load v6
-    v8 = insert_value struct0, undef struct0, 0, v3
-    v9 = insert_value struct0, v8, 1, v7
-    ret v9
+    v4 = insert_value struct0, undef struct0, 0, v3
+    v5 = insert_value struct0, v4, 1, 1
+    ret v5
 }
 
 fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u256], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
@@ -665,14 +660,9 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[u2
     v15 = shl 248, v14
     v16 = shr 248, v15
     v17 = trunc i256 v16 to i8
-    v18 = not 31
-    v19 = and 64, v18
-    v20 = alloc memorybytes, exact, zeroed, panic, v19
-    store v20, 1
-    v21 = load v20
-    v22 = insert_value struct1, undef struct1, 0, v17
-    v23 = insert_value struct1, v22, 1, v21
-    ret v23
+    v18 = insert_value struct1, undef struct1, 0, v17
+    v19 = insert_value struct1, v18, 1, 1
+    ret v19
 }
 
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -695,14 +685,9 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[u2
     v11 = shl 5, v7
     v12 = ptradd v0, v11
     v13 = load v12+32
-    v14 = not 31
-    v15 = and 64, v14
-    v16 = alloc memorybytes, exact, zeroed, panic, v15
-    store v16, 1
-    v17 = load v16
-    v18 = insert_value struct0, undef struct0, 0, v13
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v14 = insert_value struct0, undef struct0, 0, v13
+    v15 = insert_value struct0, v14, 1, 1
+    ret v15
 }
 
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {

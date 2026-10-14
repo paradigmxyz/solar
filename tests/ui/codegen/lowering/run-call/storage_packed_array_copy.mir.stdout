@@ -13,42 +13,40 @@ fn @constructor() [constructor] {
   bb5:
     jump bb2
   bb2:
-    v21 = shl 192, 2
-    v22 = lt 8, 10
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = div 8, 1
-    v25 = add 3, v24
-    v26 = mod 8, 1
-    v27 = mul v26, 17
-    v28 = mul v27, 8
-    v29 = shl v28, 0xffffffffffffffffffffffffffffffffff
-    v30 = sload v25 !metadata(storage=offset(v24, 3))
-    v31 = not v29
-    v32 = and v30, v31
-    v33 = shr 120, v21
-    v34 = and v33, 0xffffffffffffffffffffffffffffffffff
-    v35 = shl v28, v34
-    v36 = or v32, v35
-    sstore v25, v36 !metadata(storage=offset(v24, 3))
-    v37 = shl 192, 2
-    v38 = lt 9, 10
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = div 9, 1
-    v41 = add 3, v40
-    v42 = mod 9, 1
-    v43 = mul v42, 17
-    v44 = mul v43, 8
-    v45 = shl v44, 0xffffffffffffffffffffffffffffffffff
-    v46 = sload v41 !metadata(storage=offset(v40, 3))
-    v47 = not v45
-    v48 = and v46, v47
-    v49 = shr 120, v37
-    v50 = and v49, 0xffffffffffffffffffffffffffffffffff
-    v51 = shl v44, v50
-    v52 = or v48, v51
-    sstore v41, v52 !metadata(storage=offset(v40, 3))
+    v21 = lt 8, 10
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = div 8, 1
+    v24 = add 3, v23
+    v25 = mod 8, 1
+    v26 = mul v25, 17
+    v27 = mul v26, 8
+    v28 = shl v27, 0xffffffffffffffffffffffffffffffffff
+    v29 = sload v24 !metadata(storage=offset(v23, 3))
+    v30 = not v28
+    v31 = and v29, v30
+    v32 = shr 120, 0x2000000000000000000000000000000000000000000000000
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffff
+    v34 = shl v27, v33
+    v35 = or v31, v34
+    sstore v24, v35 !metadata(storage=offset(v23, 3))
+    v36 = lt 9, 10
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = div 9, 1
+    v39 = add 3, v38
+    v40 = mod 9, 1
+    v41 = mul v40, 17
+    v42 = mul v41, 8
+    v43 = shl v42, 0xffffffffffffffffffffffffffffffffff
+    v44 = sload v39 !metadata(storage=offset(v38, 3))
+    v45 = not v43
+    v46 = and v44, v45
+    v47 = shr 120, 0x2000000000000000000000000000000000000000000000000
+    v48 = and v47, 0xffffffffffffffffffffffffffffffffff
+    v49 = shl v42, v48
+    v50 = or v46, v49
+    sstore v39, v50 !metadata(storage=offset(v38, 3))
     ret
   bb4:
     v2 = trunc i256 v0 to i64

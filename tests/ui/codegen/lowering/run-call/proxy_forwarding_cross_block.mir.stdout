@@ -326,9 +326,8 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v31 = ptrtoint memptr v27 to i256
     v32 = add v31, 32
     v33 = load v32
-    v34 = shl 0, 0x1234
-    v35 = eq v33, v34
-    icall require<short_string>, v35, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    v34 = eq v33, 0x1234
+    icall require<short_string>, v34, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 

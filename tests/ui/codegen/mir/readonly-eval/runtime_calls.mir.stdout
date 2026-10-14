@@ -2,11 +2,10 @@
 @module RuntimeCalls
 fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     store v0, 0
-    v1 = ptrtoint memptr v0 to i256
-    v2 = icall @isEmpty, v0
-    ret v2
+    v1 = icall @isEmpty, v0
+    ret v1
 }
 
 fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

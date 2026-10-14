@@ -23,16 +23,11 @@ fn @signedError() -> i1 [selector=0x09d01655, abi_params=[], abi_returns=[word<b
     v7 = add v6, 32
     v8 = load v4
     v9 = keccak256 v7, v8
-    v10 = abi_encode [word], object, selector 0x3f3cc61800000000000000000000000000000000000000000000000000000000, args 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = ptrtoint memptr v10 to i256
-    v12 = add v11, 32
-    v13 = load v10
-    v14 = keccak256 v12, v13
-    v15 = eq v9, v14
+    v10 = eq v9, 0x95bff50e2a2fa6333bc7685be2aa7d41f1e942ee0b7561121a4d170f5e14161d
     jump bb3
   bb3:
-    v16 = phi [bb1: v15], [bb2: false]
-    ret v16
+    v11 = phi [bb1: v10], [bb2: false]
+    ret v11
 }
 
 fn @identity(arg0: i8) -> i8 [selector=0x87209429, pure, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {

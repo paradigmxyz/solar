@@ -1,81 +1,100 @@
-error: failed to evaluate constant: attempted to divide by zero
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │ uint constant fails = 0 / 0;
-   │                       ───── evaluation of constant value failed here
-   ‡
-LL │     function early(uint[fails] memory) public {}
-   ╰╴                        ━━━━━
+   │                       ┬ ━ ─ int_literal[1]
+   │                       │
+   │                       int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
 
-error: failed to evaluate constant: attempted to divide by zero
+error[5462]: failed to evaluate constant: attempted to divide by zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function a(uint[x / 0] memory) public {}
    ╰╴                    ━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: attempted to divide by zero
+error[5462]: failed to evaluate constant: attempted to divide by zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function a2(uint[x / zeroPublic] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: array length cannot be negative
+error[3658]: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d(uint[0 - 1] memory) public {}
    ╰╴                    ━━━━━
 
-error: failed to evaluate constant: arithmetic overflow
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d2(uint[zeroPublic - 1] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error[6020]: failed to evaluate constant: exponent is too large
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d3(uint[2 ** 4294967295] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error[6020]: failed to evaluate constant: shift amount is too large
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d4(uint[1 << 4294967295] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: array length cannot be negative
+error[3658]: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d7(uint[signedNegTwo] memory) public {}
    ╰╴                     ━━━━━━━━━━━━
 
-error: failed to evaluate constant: arithmetic overflow
+error[3658]: array length cannot be negative
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d7d(uint[typedNegTwo] memory) public {}
+   ╰╴                      ━━━━━━━━━━━
+
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d7a(uint[signedFraction] memory) public {}
+   ╰╴                      ━━━━━━━━━━━━━━
+
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d7b(uint[-signedNegFraction] memory) public {}
+   ╰╴                      ━━━━━━━━━━━━━━━━━━
+
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d11(uint[maxInt8 + 1] memory) public {}
    ╰╴                      ━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error[3667]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d12(uint[-minInt8] memory) public {}
    ╰╴                      ━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d13(uint[maxUint8 + 1] memory) public {}
    ╰╴                      ━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d14(uint[(maxInt8 + 1) - 1] memory) public {}
-   │                       ┬────────────━━━━
-   │                       │
-   ╰╴                      evaluation of constant value failed here
+   │                       ━┬──────────━━━━━
+   │                        │
+   ╰╴                       evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d15(uint[maxUint8 * 2 / 2] memory) public {}
@@ -83,91 +102,93 @@ LL │     function d15(uint[maxUint8 * 2 / 2] memory) public {}
    │                       │
    ╰╴                      evaluation of constant value failed here
 
-error: array length is too large
+error[1847]: array length is too large
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d16(uint[2**300] memory) public {}
-   ╰╴                      ━━━━━━
+   │                       ━━━━━━
+   │
+   ╰ note: the maximum is `2**256 - 1`
 
-error: failed to evaluate constant: recursion limit reached
+error[5210]: failed to evaluate constant: cyclic constant definition
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │ uint constant rec1 = rec1;
-   │                      ──── evaluation of constant value failed here
+   │ ────────────────────────── evaluation of constant value failed here
    ‡
 LL │     function e(uint[rec1] memory) public {}
    ╰╴                    ━━━━
 
-error: failed to evaluate constant: recursion limit reached
+error[5210]: failed to evaluate constant: cyclic constant definition
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │ uint constant rec1 = rec1;
-   │                      ──── evaluation of constant value failed here
+   │ ────────────────────────── evaluation of constant value failed here
    ‡
 LL │     function f(uint[rec2] memory) public {}
    ╰╴                    ━━━━
 
-error: array length must be greater than zero
+error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function g(uint[0] memory) public {}
    ╰╴                    ━
 
-error: array length must be greater than zero
+error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function h(uint[zero] memory) public {}
    ╰╴                    ━━━━
 
-error: array length must be greater than zero
+error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function h2(uint[zeroPublic] memory) public {}
    ╰╴                     ━━━━━━━━━━
 
-error: failed to evaluate constant: unsupported expression
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function i(uint[block.timestamp] memory) public {}
    ╰╴                    ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: unsupported literal
+error[5462]: failed to evaluate constant: expected an integer
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function j(uint["lol"] memory) public {}
    ╰╴                    ━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: unsupported unary operation
+error[5462]: failed to evaluate constant: unsupported unary operation
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function k(uint[--x] memory) public {}
    ╰╴                    ━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: only constant variables are allowed
+error[5462]: failed to evaluate constant: only constant variables are allowed
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function l(uint[stateVar] memory) public {}
    ╰╴                    ━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: only constant variables are allowed
+error[5462]: failed to evaluate constant: only constant variables are allowed
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function m(uint[stateVarPublic] memory) public {}
    ╰╴                    ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: array length must be greater than zero
+error[5462]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function tern(uint[(zero > 0) ? 1 : 0] memory) public {}
    ╰╴                       ━━━━━━━━━━━━━━━━━━
 
-error: array length must be greater than zero
+error[1406]: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     uint[zero] public zeroArray;
    ╰╴         ━━━━
 
-error: failed to evaluate constant: arithmetic overflow
+error[2643]: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     uint[bigLiteral + 1] public tooBig1;
@@ -176,8 +197,14 @@ LL │     uint[bigLiteral + 1] public tooBig1;
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
-LL │     function j(uint["lol"] memory) public {}
-   ╰╴                    ━━━━━ expected `uint256`, found `utf8_string_literal[3]`
+LL │     int constant signedFraction = 7 / 3;
+   ╰╴                                  ━━━━━ expected `int256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     int constant signedNegFraction = (-7) / 3;
+   ╰╴                                     ━━━━━━━━ expected `int256`, found `rational_literal`
 
 error: cannot assign to a constant variable
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -185,5 +212,43 @@ error: cannot assign to a constant variable
 LL │     function k(uint[--x] memory) public {}
    ╰╴                      ━
 
-error: aborting due to 29 previous errors
+error[2271]: cannot apply builtin operator `/` to `int_literal[1]` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │         return 1 / 0;
+   │                ┬ ━ ─ int_literal[1]
+   │                │
+   │                int_literal[1]
+   │
+   ╰ note: attempted to divide by zero
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     uint fractional = 0.5;
+   ╰╴                      ━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     uint quotient = 7 / 3;
+   ╰╴                    ━━━━━ expected `uint256`, found `rational_literal`
+
+error[2271]: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     uint shift = 1 << 0.5;
+   │                  ┬ ━━ ─── rational_literal
+   │                  │
+   ╰╴                 int_literal[1]
+
+error[2271]: cannot apply builtin operator `**` to `int_literal[2]` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     uint power = 2 ** 0.5;
+   │                  ┬ ━━ ─── rational_literal
+   │                  │
+   ╰╴                 int_literal[2]
+
+error: aborting due to 38 previous errors
 
