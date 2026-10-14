@@ -335,6 +335,10 @@ def source(name: str) -> str:
     return (TESTDATA_ROOT / name).read_text()
 
 
+ZONES_TOKEN = "0x20c0000000000000000000000000000000000001"
+ZONES_KEY_X = "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+
+
 TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="factorial",
@@ -1614,6 +1618,34 @@ TEST_CASES: Sequence[TestCase] = (
         runtime_checks=tuple(
             RuntimeCheck(label, f"{signature}({result})", (value,))
             for label, signature, result, value in ALGORITHM_INPUTS
+        ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="tempo-zones-portal",
+        description="Tempo Zones portal encrypted deposits through an ERC-1167 proxy",
+        min_solc="0.8.35",
+        project=PROJECTS["tempo-zones"],
+        source="src/runtime/tempo/ZonePortal.sol",
+        contract_name="ZonePortal",
+        gas_calls=tuple(
+            GasCall(
+                label,
+                "deposit(address,uint128,uint256,(bytes32,uint8,bytes,bytes12,bytes16),address)",
+                (
+                    ZONES_TOKEN,
+                    "10000000",
+                    "0",
+                    f"({ZONES_KEY_X},2,0x{'01' * 64},0x{'01' * 12},0x{'01' * 16})",
+                    DEFAULT_SENDER,
+                ),
+            )
+            for label in ("deposit-first", "deposit-existing")
+        ),
+        runtime_checks=(
+            RuntimeCheck("deposit-count", "depositCount()(uint64)"),
+            RuntimeCheck("deposit-queue", "currentDepositQueueHash()(bytes32)"),
+            RuntimeCheck("encryption-key-count", "encryptionKeyCount()(uint256)"),
         ),
         suite="repository",
     ),
