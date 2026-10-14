@@ -38,52 +38,50 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v22 = sub v18, v20
     v23 = sgt v21, v22
     icall revert_if<calldata_tail_too_short>, v23
-    v24 = add v11, 32
-    v25 = make_calldata_slice v24, v17
-    v26 = slice_len v25
+    v24 = make_calldata_slice v21, v17
+    v25 = slice_len v24
     jump bb3
   bb3:
-    v27 = phi [bb1: v26], [bb2: 0]
-    v28 = gt v0, 1
-    jumpi v28, bb4, bb5
+    v26 = phi [bb1: v25], [bb2: 0]
+    v27 = gt v0, 1
+    jumpi v27, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v29 = slice_len arg0
-    v30 = lt 1, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = slice_ptr arg0
-    v33 = add v32, 32
-    v34 = calldatasize
-    v35 = sub v34, v33
-    v36 = slt v35, 32
-    icall revert_if<calldata_tail_too_short>, v36
-    v37 = calldataload v33
-    v38 = add v32, v37
-    v39 = calldatasize
-    v40 = sub v39, v32
-    v41 = sub v40, 31
-    v42 = slt v37, v41
-    v43 = eq v42, false
-    icall revert_if<invalid_calldata_tail_offset>, v43
-    v44 = calldataload v38
-    v45 = calldatasize
-    v46 = gt v44, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v46
-    v47 = mul v44, 32
-    v48 = add v38, 32
-    v49 = sub v45, v47
-    v50 = sgt v48, v49
-    icall revert_if<calldata_tail_too_short>, v50
-    v51 = add v38, 32
-    v52 = make_calldata_slice v51, v44
-    v53 = slice_len v52
+    v28 = slice_len arg0
+    v29 = lt 1, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = slice_ptr arg0
+    v32 = add v31, 32
+    v33 = calldatasize
+    v34 = sub v33, v32
+    v35 = slt v34, 32
+    icall revert_if<calldata_tail_too_short>, v35
+    v36 = calldataload v32
+    v37 = add v31, v36
+    v38 = calldatasize
+    v39 = sub v38, v31
+    v40 = sub v39, 31
+    v41 = slt v36, v40
+    v42 = eq v41, false
+    icall revert_if<invalid_calldata_tail_offset>, v42
+    v43 = calldataload v37
+    v44 = calldatasize
+    v45 = gt v43, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v45
+    v46 = mul v43, 32
+    v47 = add v37, 32
+    v48 = sub v44, v46
+    v49 = sgt v47, v48
+    icall revert_if<calldata_tail_too_short>, v49
+    v50 = make_calldata_slice v47, v43
+    v51 = slice_len v50
     jump bb6
   bb6:
-    v54 = phi [bb4: v53], [bb5: 0]
-    v55 = insert_value struct0, undef struct0, 0, v0
-    v56 = insert_value struct0, v55, 1, v27
-    v57 = insert_value struct0, v56, 2, v54
-    ret v57
+    v52 = phi [bb4: v51], [bb5: 0]
+    v53 = insert_value struct0, undef struct0, 0, v0
+    v54 = insert_value struct0, v53, 1, v26
+    v55 = insert_value struct0, v54, 2, v52
+    ret v55
 }

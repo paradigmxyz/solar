@@ -502,8 +502,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.validate_calldata_array_head(value, ty, &abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {
-                value =
-                    self.materialize_calldata_argument(ty, value, expr.span, CalldataTail::Encode)?;
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
             }
             if self.is_dynamic_bytes_type(ty) {
                 parts.push(PackedPart::Bytes(value));

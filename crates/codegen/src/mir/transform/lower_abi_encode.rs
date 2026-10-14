@@ -1413,7 +1413,6 @@ fn encode_calldata_bytes_array(
     let head_bytes = builder.mul(len, word);
     let initial_tail = builder.add(element_area, head_bytes);
     let source_base = builder.slice_ptr(value);
-    let calldata_end = builder.calldatasize();
 
     let preheader = builder.current_block();
     let cond = builder.create_block();
@@ -1438,6 +1437,7 @@ fn encode_calldata_bytes_array(
     // data = calldata_tail_data(element_base + 32, length, 1)
     let tail = CalldataTail::Encode;
     let offset = builder.calldataload(source_head);
+    let calldata_end = builder.calldatasize();
     builder.check_calldata_tail_offset(tail, source_base, offset, calldata_end, 32);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);

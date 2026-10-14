@@ -28,38 +28,36 @@ fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=
     v19 = sub v16, v15
     v20 = sgt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
-    v21 = add v9, 32
-    v22 = make_calldata_slice v21, v15
-    v23 = slice_len v22
-    v24 = slice_len arg0
-    v25 = lt 1, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = slice_ptr arg0
-    v28 = add v27, 32
-    v29 = calldatasize
-    v30 = sub v29, v28
-    v31 = slt v30, 32
-    icall revert_if<calldata_tail_too_short>, v31
-    v32 = calldataload v28
-    v33 = add v27, v32
-    v34 = calldatasize
-    v35 = sub v34, v27
-    v36 = sub v35, 31
-    v37 = slt v32, v36
-    v38 = eq v37, false
-    icall revert_if<invalid_calldata_tail_offset>, v38
-    v39 = calldataload v33
-    v40 = calldatasize
-    v41 = gt v39, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v41
-    v42 = add v33, 32
-    v43 = sub v40, v39
-    v44 = sgt v42, v43
-    icall revert_if<calldata_tail_too_short>, v44
-    v45 = add v33, 32
-    v46 = make_calldata_slice v45, v39
-    v47 = slice_len v46
-    v48 = checked_add u256, v23, v47
-    ret v48
+    v21 = make_calldata_slice v18, v15
+    v22 = slice_len v21
+    v23 = slice_len arg0
+    v24 = lt 1, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = slice_ptr arg0
+    v27 = add v26, 32
+    v28 = calldatasize
+    v29 = sub v28, v27
+    v30 = slt v29, 32
+    icall revert_if<calldata_tail_too_short>, v30
+    v31 = calldataload v27
+    v32 = add v26, v31
+    v33 = calldatasize
+    v34 = sub v33, v26
+    v35 = sub v34, 31
+    v36 = slt v31, v35
+    v37 = eq v36, false
+    icall revert_if<invalid_calldata_tail_offset>, v37
+    v38 = calldataload v32
+    v39 = calldatasize
+    v40 = gt v38, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v40
+    v41 = add v32, 32
+    v42 = sub v39, v38
+    v43 = sgt v41, v42
+    icall revert_if<calldata_tail_too_short>, v43
+    v44 = make_calldata_slice v41, v38
+    v45 = slice_len v44
+    v46 = checked_add u256, v22, v45
+    ret v46
 }

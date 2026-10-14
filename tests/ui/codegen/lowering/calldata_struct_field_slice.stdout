@@ -160,47 +160,47 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
     v15 = add v6, 32
     v16 = sub v13, v12
     v17 = sgt v15, v16
-    v76 = or v14, v17
-    jumpi v76, bb3, bb6
+    v74 = or v14, v17
+    jumpi v74, bb3, bb6
   bb6:
-    v21 = lt v12, 20
-    jumpi v21, bb2, bb1
+    v20 = lt v12, 20
+    jumpi v20, bb2, bb1
   bb1:
-    v24 = calldatasize
-    v25 = sub v24, v1
-    v26 = slt v25, 32
-    jumpi v26, bb3, bb7
+    v23 = calldatasize
+    v24 = sub v23, v1
+    v25 = slt v24, 32
+    jumpi v25, bb3, bb7
   bb7:
-    v29 = calldatasize
-    v30 = sub v29, arg0
-    v31 = sub v30, 31
-    v32 = slt v5, v31
-    jumpi v32, bb8, bb3
+    v28 = calldatasize
+    v29 = sub v28, arg0
+    v30 = sub v29, 31
+    v31 = slt v5, v30
+    jumpi v31, bb8, bb3
   bb8:
-    v35 = calldatasize
-    v38 = sub v35, v12
-    v39 = sgt v15, v38
-    v48 = sub v12, 20
-    v49 = add v15, 20
-    v53 = calldatasize
-    v55 = sub v53, v48
-    v56 = sgt v49, v55
-    v77 = or v39, v56
-    jumpi v77, bb3, bb9
+    v34 = calldatasize
+    v37 = sub v34, v12
+    v38 = sgt v15, v37
+    v46 = sub v12, 20
+    v47 = add v15, 20
+    v51 = calldatasize
+    v53 = sub v51, v46
+    v54 = sgt v47, v53
+    v75 = or v38, v54
+    jumpi v75, bb3, bb9
   bb9:
-    v58 = add v48, 63
-    v61 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v74 = mload 64 !metadata(memory=scratch)
-    v75 = add v74, v61
-    mstore 64, v75 !metadata(memory=scratch)
-    mstore v74, v48
-    v66 = add v74, 32
-    calldatacopy v66, v49, v48
-    v63 = keccak256 v66, v48
+    v56 = add v46, 63
+    v59 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = mload 64 !metadata(memory=scratch)
+    v73 = add v72, v59
+    mstore 64, v73 !metadata(memory=scratch)
+    mstore v72, v46
+    v64 = add v72, 32
+    calldatacopy v64, v47, v46
+    v61 = keccak256 v64, v46
     jump bb2
   bb2:
-    v64 = phi [bb6: 0], [bb9: v63]
-    ret v64
+    v62 = phi [bb6: 0], [bb9: v61]
+    ret v62
   bb3:
     revert 0, 0
 }

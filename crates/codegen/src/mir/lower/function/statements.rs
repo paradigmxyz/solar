@@ -611,7 +611,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 parameter_ty,
                                 value,
                                 argument.span,
-                                CalldataTail::Encode,
                             )?;
                             abi_type = self.abi_type_for_value(value, abi_type);
                         }
@@ -642,12 +641,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 abi_type = self.abi_type_for_value(value, abi_type);
                 let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
                 if self.needs_calldata_materialization(value, &abi_type) && !validated_static {
-                    value = self.materialize_calldata_argument(
-                        parameter_ty,
-                        value,
-                        argument.span,
-                        CalldataTail::Encode,
-                    )?;
+                    value =
+                        self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                     abi_type = Self::memory_abi_type(abi_type);
                 }
                 if matches!(abi_type, AbiType::Word(_)) {

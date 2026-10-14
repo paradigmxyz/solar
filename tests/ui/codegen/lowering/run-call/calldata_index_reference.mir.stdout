@@ -80,21 +80,20 @@ fn @nestedDynamic(arg0: calldataslice) -> struct0 [selector=0xd5de94f6, pure, ab
     v20 = sub v16, v18
     v21 = sgt v19, v20
     icall revert_if<calldata_tail_too_short>, v21
-    v22 = add v9, 32
-    v23 = make_calldata_slice v22, v15
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = slice_len v23
-    v27 = lt 1, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = slice_ptr v23
-    v30 = add v29, 32
-    v31 = calldataload v30
-    v32 = insert_value struct0, undef struct0, 0, v24
-    v33 = insert_value struct0, v32, 1, v25
-    v34 = insert_value struct0, v33, 2, v31
-    ret v34
+    v22 = make_calldata_slice v19, v15
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = slice_len v22
+    v26 = lt 1, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = slice_ptr v22
+    v29 = add v28, 32
+    v30 = calldataload v29
+    v31 = insert_value struct0, undef struct0, 0, v23
+    v32 = insert_value struct0, v31, 1, v24
+    v33 = insert_value struct0, v32, 2, v30
+    ret v33
 }
 
 fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -125,23 +124,22 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v19 = sub v16, v15
     v20 = sgt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
-    v21 = add v9, 32
-    v22 = make_calldata_slice v21, v15
-    v23 = slice_ptr v22
-    v24 = slice_len v22
-    v25 = slice_len v22
-    v26 = lt 1, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = slice_ptr v22
-    v29 = calldata_slice_load_word calldata, v22, 1
-    v30 = byte 0, v29
-    v31 = shl 248, v30
-    v32 = shr 248, v31
-    v33 = trunc i256 v32 to i8
-    v34 = zext i8 v33 to i256
-    v35 = insert_value struct0, undef struct0, 0, v23
-    v36 = insert_value struct0, v35, 1, v24
-    v37 = insert_value struct0, v36, 2, v34
-    ret v37
+    v21 = make_calldata_slice v18, v15
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = slice_len v21
+    v25 = lt 1, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = slice_ptr v21
+    v28 = calldata_slice_load_word calldata, v21, 1
+    v29 = byte 0, v28
+    v30 = shl 248, v29
+    v31 = shr 248, v30
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    v34 = insert_value struct0, undef struct0, 0, v22
+    v35 = insert_value struct0, v34, 1, v23
+    v36 = insert_value struct0, v35, 2, v33
+    ret v36
 }

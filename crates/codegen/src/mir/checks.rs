@@ -187,16 +187,18 @@ impl RevertReason {
     }
 }
 
-/// The solc helper whose debug messages the checks of a nested calldata value report. Both
-/// helpers apply the same checks; see [`FunctionBuilder::check_calldata_tail_offset`].
+/// The debug messages that the checks of a nested calldata value report. All variants apply
+/// the same checks; see [`FunctionBuilder::check_calldata_tail_offset`].
 ///
 /// [`FunctionBuilder::check_calldata_tail_offset`]: super::FunctionBuilder::check_calldata_tail_offset
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CalldataTail {
-    /// `access_calldata_tail`, used for index and member access.
+    /// The calldata tail messages, used when HIR lowering accesses or copies calldata.
     Access,
-    /// The ABI encoder's `calldata_access`, used when calldata is re-encoded.
+    /// The "Invalid calldata access" messages, used when the encoder copies `bytes[]`.
     Encode,
+    /// The ABI decoder's messages, used when a returned calldata value is copied to memory.
+    Decode,
 }
 
 impl CalldataTail {
@@ -204,6 +206,7 @@ impl CalldataTail {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailOffset,
             Self::Encode => RevertReason::InvalidCalldataAccessOffset,
+            Self::Decode => RevertReason::InvalidCalldataArrayOffset,
         }
     }
 
@@ -211,6 +214,7 @@ impl CalldataTail {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailLength,
             Self::Encode => RevertReason::InvalidCalldataAccessLength,
+            Self::Decode => RevertReason::InvalidCalldataArrayLength,
         }
     }
 
@@ -218,6 +222,7 @@ impl CalldataTail {
         match self {
             Self::Access => RevertReason::CalldataTailTooShort,
             Self::Encode => RevertReason::InvalidCalldataAccessStride,
+            Self::Decode => RevertReason::InvalidCalldataArrayStride,
         }
     }
 }

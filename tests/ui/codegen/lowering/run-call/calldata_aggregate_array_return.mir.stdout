@@ -94,9 +94,8 @@ fn @row(arg0: calldataslice, arg1: i256) -> calldataslice [selector=0x538f7fda, 
     v28 = sub v24, v26
     v29 = sgt v27, v28
     icall revert_if<calldata_tail_too_short>, v29
-    v30 = add v17, 32
-    v31 = make_calldata_slice v30, v23
-    ret v31
+    v30 = make_calldata_slice v27, v23
+    ret v30
 }
 
 fn @member(arg0: calldataslice) -> calldataslice [selector=0xef3fa208, pure, abi_params=[tuple<array<_, tuple<u256, u256>>, u256>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<u256, u256>>]] {
@@ -125,7 +124,6 @@ fn @member(arg0: calldataslice) -> calldataslice [selector=0xef3fa208, pure, abi
     v18 = sub v14, v16
     v19 = sgt v17, v18
     icall revert_if<calldata_tail_too_short>, v19
-    v20 = add v7, 32
-    v21 = make_calldata_slice v20, v13
-    ret v21
+    v20 = make_calldata_slice v17, v13
+    ret v20
 }

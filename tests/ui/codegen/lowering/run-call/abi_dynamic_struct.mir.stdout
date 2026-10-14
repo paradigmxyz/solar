@@ -45,36 +45,35 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v16 = sub v13, v12
     v17 = sgt v15, v16
     icall revert_if<calldata_tail_too_short>, v17
-    v18 = add v6, 32
-    v19 = make_calldata_slice v18, v12
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = gt v21, v21
-    v23 = lt v21, 1
-    v24 = or v22, v23
-    v25 = zext i1 v24 to i256
-    icall revert_if<empty>, v24
-    v26 = sub v21, 1
-    v27 = add v20, 1
-    v28 = make_calldata_slice v27, v26
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = calldatasize
-    v32 = gt v30, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = sub v31, v30
-    v34 = sgt v29, v33
-    icall revert_if<calldata_tail_too_short>, v34
-    v35 = slice_len v28
-    v36 = add v35, 63
-    v37 = lt v36, v35
-    icall panic_if<0x41>, v37
-    v38 = not 31
-    v39 = and v36, v38
-    v40 = alloc memorybytes, exact, uninitialized, infallible, v39
-    set_memory_object_len memorybytes, v40, v35
-    memory_object_copy_from_slice memorybytes, v40, v28
-    ret v40
+    v18 = make_calldata_slice v15, v12
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = gt v20, v20
+    v22 = lt v20, 1
+    v23 = or v21, v22
+    v24 = zext i1 v23 to i256
+    icall revert_if<empty>, v23
+    v25 = sub v20, 1
+    v26 = add v19, 1
+    v27 = make_calldata_slice v26, v25
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = calldatasize
+    v31 = gt v29, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v31
+    v32 = sub v30, v29
+    v33 = sgt v28, v32
+    icall revert_if<calldata_tail_too_short>, v33
+    v34 = slice_len v27
+    v35 = add v34, 63
+    v36 = lt v35, v34
+    icall panic_if<0x41>, v36
+    v37 = not 31
+    v38 = and v35, v37
+    v39 = alloc memorybytes, exact, uninitialized, infallible, v38
+    set_memory_object_len memorybytes, v39, v34
+    memory_object_copy_from_slice memorybytes, v39, v27
+    ret v39
 }
 
 fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {

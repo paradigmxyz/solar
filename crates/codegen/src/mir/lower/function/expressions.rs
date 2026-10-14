@@ -132,9 +132,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .gcx
                 .type_of_item(id.into())
                 .with_loc_if_ref(self.cx.gcx, DataLocation::Calldata);
-            let checks = fields[field].is_dynamic().then_some(CalldataTail::Access);
-            return self
-                .materialize_calldata_value_at_inner(field_ty, head, base, expr.span, checks);
+            let validate_bounds = fields[field].is_dynamic();
+            return self.materialize_calldata_value_at_inner(
+                field_ty,
+                head,
+                base,
+                expr.span,
+                validate_bounds,
+            );
         }
 
         // value = normalize(mload_field(object, field))

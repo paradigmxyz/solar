@@ -68,26 +68,25 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v51 = sub v48, v47
     v52 = sgt v50, v51
     icall revert_if<calldata_tail_too_short>, v52
-    v53 = add v41, 32
-    v54 = make_calldata_slice v53, v47
-    v55 = slice_ptr v54
-    v56 = slice_len v54
-    v57 = calldatasize
-    v58 = gt v56, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v58
-    v59 = sub v57, v56
-    v60 = sgt v55, v59
-    icall revert_if<calldata_tail_too_short>, v60
-    v61 = slice_len v54
-    v62 = add v61, 63
-    v63 = lt v62, v61
-    icall panic_if<0x41>, v63
-    v64 = not 31
-    v65 = and v62, v64
-    v66 = alloc memorybytes, exact, uninitialized, infallible, v65
-    set_memory_object_len memorybytes, v66, v61
-    memory_object_copy_from_slice memorybytes, v66, v54
-    v67 = insert_value struct0, undef struct0, 0, v18
-    v68 = insert_value struct0, v67, 1, v66
-    ret v68
+    v53 = make_calldata_slice v50, v47
+    v54 = slice_ptr v53
+    v55 = slice_len v53
+    v56 = calldatasize
+    v57 = gt v55, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v57
+    v58 = sub v56, v55
+    v59 = sgt v54, v58
+    icall revert_if<calldata_tail_too_short>, v59
+    v60 = slice_len v53
+    v61 = add v60, 63
+    v62 = lt v61, v60
+    icall panic_if<0x41>, v62
+    v63 = not 31
+    v64 = and v61, v63
+    v65 = alloc memorybytes, exact, uninitialized, infallible, v64
+    set_memory_object_len memorybytes, v65, v60
+    memory_object_copy_from_slice memorybytes, v65, v53
+    v66 = insert_value struct0, undef struct0, 0, v18
+    v67 = insert_value struct0, v66, 1, v65
+    ret v67
 }

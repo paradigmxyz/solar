@@ -583,14 +583,9 @@ Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`; upstream
   the compiler fuses and orders its ABI decoding checks differently from
   solc, so malformed input that fails several checks at once, or that is
   validated lazily on access rather than eagerly, can report a different
-  message than solc. Nested calldata checks report solc's messages:
-  returning or re-encoding nested calldata reports "Invalid calldata access
-  offset", "length" or "stride", and index or member access reports the
-  calldata tail messages. Converting nested calldata to memory also reports
-  the tail messages, where solc reports its ABI decoder's messages. One
-  message is never produced: "ABI encoding: array data too long", because
-  the encoder has no `2**64` length check when re-encoding calldata
-  arrays. `debug` never changes whether an input is
+  message than solc. One message is never produced: "ABI encoding: array
+  data too long", because the encoder has no `2**64` length check when
+  re-encoding calldata arrays. `debug` never changes whether an input is
   accepted. `strip` matches `solc`: a dropped reason is still evaluated for
   its effects and failures, and only the payload, including the copy of a
   storage string that would validate its encoding, is dropped.

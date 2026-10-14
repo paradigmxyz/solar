@@ -295,7 +295,7 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     set_memory_object_len memoryarray, v27, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v62]
+    v28 = phi [bb0: 0], [bb2: v61]
     v29 = lt v28, v6
     jumpi v29, bb2, bb3
   bb3:
@@ -324,25 +324,24 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     v47 = sub v43, v45
     v48 = sgt v46, v47
     icall revert_if<calldata_tail_too_short>, v48
-    v49 = add v36, 32
-    v50 = mul v42, 32
-    v51 = eq 32, 0
-    v52 = div v50, 32
-    v53 = eq v52, v42
-    v54 = or v51, v53
-    v55 = zext i1 v54 to i256
-    v56 = eq v55, 0
-    icall panic_if<0x41>, v56
-    v57 = add 32, v50
-    v58 = lt v57, 32
-    icall panic_if<0x41>, v58
-    v59 = alloc memoryarray<1>, exact, uninitialized, infallible, v57
-    set_memory_object_len memoryarray, v59, v42
-    v60 = make_calldata_slice v49, v50
-    memory_object_copy_from_slice memoryarray, v59, v60
-    v61 = ptrtoint memptr v59 to i256
-    memory_object_store_element memoryarray<1>, v27, v28, v61
-    v62 = add v28, 1
+    v49 = mul v42, 32
+    v50 = eq 32, 0
+    v51 = div v49, 32
+    v52 = eq v51, v42
+    v53 = or v50, v52
+    v54 = zext i1 v53 to i256
+    v55 = eq v54, 0
+    icall panic_if<0x41>, v55
+    v56 = add 32, v49
+    v57 = lt v56, 32
+    icall panic_if<0x41>, v57
+    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, v56
+    set_memory_object_len memoryarray, v58, v42
+    v59 = make_calldata_slice v46, v49
+    memory_object_copy_from_slice memoryarray, v58, v59
+    v60 = ptrtoint memptr v58 to i256
+    memory_object_store_element memoryarray<1>, v27, v28, v60
+    v61 = add v28, 1
     jump bb1
 }
 

@@ -2257,17 +2257,9 @@ impl LowerAbiCx {
                 let (object, layout) =
                     builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
                 let length = builder.imm(*len);
-                let stride = builder
-                    .imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                builder.counted_loop(length, |builder, index| {
-                    let offset = builder.mul(index, stride);
-                    let field = builder.add(head, offset);
-                    let mut current = builder.current_block();
-                    let value = decode(builder, element, field, &mut current);
-                    builder.switch_to_block(current);
-                    let value = Self::encode_memory_scalar(builder, element, value);
-                    builder.memory_object_store_element(object, layout, index, value);
-                });
+                Self::decode_word_array_elements(
+                    builder, element, object, layout, length, head, decode,
+                );
                 object
             }
             crate::mir::AbiParamType::Tuple(fields) => {
@@ -2294,6 +2286,35 @@ impl LowerAbiCx {
                 unreachable!("scalar ABI word handled above")
             }
         }
+    }
+
+    /// Decodes `length` elements with heads at `head + i * stride` into `object`.
+    fn decode_word_array_elements(
+        builder: &mut FunctionBuilder<'_>,
+        element: &crate::mir::AbiParamType,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        length: ValueId,
+        head: ValueId,
+        mut decode: impl FnMut(
+            &mut FunctionBuilder<'_>,
+            &crate::mir::AbiParamType,
+            ValueId,
+            &mut BlockId,
+        ) -> ValueId,
+    ) {
+        let stride =
+            builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+        // for i in 0..length { object[i] = decode(head + i * stride) }
+        builder.counted_loop(length, |builder, index| {
+            let offset = builder.mul(index, stride);
+            let field = builder.add(head, offset);
+            let mut current = builder.current_block();
+            let value = decode(builder, element, field, &mut current);
+            builder.switch_to_block(current);
+            let value = Self::encode_memory_scalar(builder, element, value);
+            builder.memory_object_store_element(object, layout, index, value);
+        });
     }
 
     fn decode_static_memory_argument(
@@ -4491,19 +4512,18 @@ fn materialize_calldata_return(
     base: ValueId,
     has_bitwise_shifting: bool,
 ) -> ValueId {
-    let input_end = builder.calldatasize();
-    let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
-    if let AbiParamType::DynamicArray(_) = ty {
+    if matches!(ty, AbiParamType::DynamicArray(_)) {
         // len = slice_len returned_slice
         // data = slice_ptr returned_slice
         // object = copy_calldata_value(data, len)
         let len = builder.slice_len(base);
         let data = builder.slice_ptr(base);
-        return copy_calldata_value(builder, ty, data, Some(len), options);
+        return copy_calldata_value(builder, ty, data, Some(len), has_bitwise_shifting);
     }
     // base = slice_ptr returned_slice
     // check_range(base, head_size)
     // object = copy_calldata_value(base)
+    let input_end = builder.calldatasize();
     let base = builder.slice_ptr(base);
     let mut current = builder.current_block();
     let reason = LowerAbiCx::aggregate_short_reason(ty, true);
@@ -4516,7 +4536,7 @@ fn materialize_calldata_return(
         reason,
     );
     builder.switch_to_block(current);
-    copy_calldata_value(builder, ty, base, None, options)
+    copy_calldata_value(builder, ty, base, None, has_bitwise_shifting)
 }
 
 /// Copies a calldata value to memory with the checks solc applies when it re-encodes calldata
@@ -4530,7 +4550,7 @@ fn copy_calldata_value(
     ty: &AbiParamType,
     position: ValueId,
     length: Option<ValueId>,
-    options: DecodeOptions<'_>,
+    has_bitwise_shifting: bool,
 ) -> ValueId {
     match ty {
         AbiParamType::Bytes => {
@@ -4557,21 +4577,32 @@ fn copy_calldata_value(
                 return object;
             }
             // for i in 0..length { object[i] = copy_calldata_member(position + i * head_size) }
-            let stride =
-                builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-            builder.counted_loop(length, |builder, index| {
-                let offset = builder.mul(index, stride);
-                let head = builder.add(position, offset);
-                let value = copy_calldata_member(builder, element, position, head, options);
-                let value = LowerAbiCx::encode_memory_scalar(builder, element, value);
-                builder.memory_object_store_element(object, layout, index, value);
-            });
+            LowerAbiCx::decode_word_array_elements(
+                builder,
+                element,
+                object,
+                layout,
+                length,
+                position,
+                |builder, element, head, current| {
+                    let value = copy_calldata_member(
+                        builder,
+                        element,
+                        position,
+                        head,
+                        has_bitwise_shifting,
+                    );
+                    *current = builder.current_block();
+                    value
+                },
+            );
             object
         }
         AbiParamType::FixedArray { .. } | AbiParamType::Tuple(_) if ty.is_dynamic() => {
             // for each member { object.member = copy_calldata_member(position + member_offset) }
             LowerAbiCx::decode_aggregate(builder, ty, position, |builder, member, head, current| {
-                let value = copy_calldata_member(builder, member, position, head, options);
+                let value =
+                    copy_calldata_member(builder, member, position, head, has_bitwise_shifting);
                 *current = builder.current_block();
                 value
             })
@@ -4584,7 +4615,7 @@ fn copy_calldata_value(
                 ty,
                 position,
                 &mut current,
-                options.has_bitwise_shifting,
+                has_bitwise_shifting,
             );
             builder.switch_to_block(current);
             value
@@ -4600,26 +4631,26 @@ fn copy_calldata_member(
     ty: &AbiParamType,
     base: ValueId,
     head: ValueId,
-    options: DecodeOptions<'_>,
+    has_bitwise_shifting: bool,
 ) -> ValueId {
     if !ty.is_dynamic() {
-        return copy_calldata_value(builder, ty, head, None, options);
+        return copy_calldata_value(builder, ty, head, None, has_bitwise_shifting);
     }
     // offset = calldataload(head)
     // check_calldata_tail_offset(base, offset)
     // position = base + offset
-    let tail = CalldataTail::Encode;
+    let tail = CalldataTail::Decode;
     let offset = builder.calldataload(head);
-    // A fresh `calldatasize` keeps `options.input_end` from staying live across copy loops.
+    // A fresh `calldatasize` per member keeps fewer values live across copy loops.
     let end = builder.calldatasize();
     builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
     let position = builder.add(base, offset);
     let Some(stride) = ty.calldata_stride() else {
-        return copy_calldata_value(builder, ty, position, None, options);
+        return copy_calldata_value(builder, ty, position, None, has_bitwise_shifting);
     };
     // length = calldataload(position)
     // data = calldata_tail_data(position + 32, length, stride)
     let length = builder.calldataload(position);
     let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
-    copy_calldata_value(builder, ty, data, Some(length), options)
+    copy_calldata_value(builder, ty, data, Some(length), has_bitwise_shifting)
 }

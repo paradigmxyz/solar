@@ -298,8 +298,8 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// A negative offset may therefore wrap `base + offset` to a valid position, and later reads
     /// past `calldata_end` see zeros. `tail_size` is the value's length word, or the whole head of
-    /// a statically sized aggregate. solc's `access_calldata_tail` and the ABI encoder's
-    /// `calldata_access` apply the same checks with different messages, chosen by `tail`.
+    /// a statically sized aggregate. These are the checks of solc's `access_calldata_tail` and
+    /// the ABI encoder's `calldata_access`; `tail` only picks the debug messages.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2542-L2569>
     /// and <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1435-L1475>
