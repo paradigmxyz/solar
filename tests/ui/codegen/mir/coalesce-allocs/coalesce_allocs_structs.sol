@@ -22,7 +22,9 @@ contract CoalesceAllocsFixture {
     // CHECK-LABEL: fn @combine
     // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 96
     // CHECK: [[FIRST:v[0-9]+]] = mload 64
-    // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
+    // CHECK: [[FIRST_WORD:v[0-9]+]] = add [[FIRST]], 32
+    // CHECK: mstore [[FIRST_WORD]], 1
+    // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST_WORD]], 32
     // CHECK: [[OUTER:v[0-9]+]] = ptrtoint memptr [[OUTER_PTR]] to i256
     // CHECK: mstore [[OUTER]], [[FIRST]]
     // CHECK: mstore {{v[0-9]+}}, [[SECOND]]

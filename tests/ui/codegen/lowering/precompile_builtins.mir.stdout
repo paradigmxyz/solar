@@ -20,7 +20,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore v19, 28
     v22 = add v29, 64
     mstore v22, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v25 = add v29, 96
+    v25 = add v22, 32
     mstore v25, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v5 = add v29, 128
     v6 = gas
@@ -54,7 +54,7 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore v19, 0
     v22 = add v29, 64
     mstore v22, 0
-    v25 = add v29, 96
+    v25 = add v22, 32
     mstore v25, 0
     v5 = add v29, 128
     v6 = gas

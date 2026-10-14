@@ -184,7 +184,7 @@ fn @splatData.body() -> memptr [may_return_memory, pure] {
     mstore v14, 160
     v13 = add v14, 32
     mstore v13, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v4 = add v14, 64
+    v4 = add v13, 32
     mstore v4, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
     v6 = add v14, 96
     mcopy v6, v13, 64
@@ -540,8 +540,8 @@ bb26:
   push bb23
   jump bb30
 bb35 [continuation]:
-  push 64
-  dup 5
+  push 32
+  dup 3
   add
   mstore
   push 64

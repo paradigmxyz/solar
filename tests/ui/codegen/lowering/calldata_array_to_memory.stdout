@@ -379,13 +379,13 @@ bb19:
   dup 1
   dup 4
   mstore
-  dup 4
-  push 32
-  dup 5
-  add
-  mstore
   swap 2
-  push 64
+  push 32
+  add
+  dup 4
+  dup 2
+  mstore
+  push 32
   add
   dup 2
   swap 1

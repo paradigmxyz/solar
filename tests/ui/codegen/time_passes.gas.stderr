@@ -115,6 +115,7 @@ time: <TIME>	MIR TimePasses const-fold changed=false
 time: <TIME>	MIR TimePasses branch-simplify changed=false
 time: <TIME>	MIR TimePasses loop-exit-remat changed=false
 time: <TIME>	MIR TimePasses dce changed=false
+time: <TIME>	MIR TimePasses memory-address-steps changed=false
 time: <TIME>	MIR TimePasses evm-inst-schedule changed=false
 time: <TIME>	EVM IR TimePasses_runtime peephole changed=false
 time: <TIME>	EVM IR TimePasses_runtime coalesce-copies changed=false

@@ -46,7 +46,8 @@ contract PreCancunMemoryCopies {
 
     // SHARED-LABEL: fn @concat(
     // SHARED: [[SOURCE:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // SHARED: [[DEST:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // SHARED: mstore {{v[0-9]+}}, {{v[0-9]+}}
+    // SHARED-NEXT: [[DEST:v[0-9]+]] = add {{v[0-9]+}}, 32
     // SHARED: [[REVERSE:v[0-9]+]] = lt [[SOURCE]], [[DEST]]
     // SHARED-NEXT: jumpi [[REVERSE]],
     function concat() external pure returns (bool) {

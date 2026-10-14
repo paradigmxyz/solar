@@ -288,13 +288,13 @@ bb22:
   dup 3
   mstore
   swap 1
-  swap 2
   push 32
-  dup 4
   add
-  mstore
   swap 1
-  push 64
+  swap 2
+  dup 2
+  mstore
+  push 32
   add
   swap 1
   swap 2

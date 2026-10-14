@@ -16,9 +16,9 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     mstore v59, 3
     v43 = add v59, 32
     mstore v43, 1
-    v45 = add v59, 64
+    v45 = add v43, 32
     mstore v45, 2
-    v47 = add v59, 96
+    v47 = add v45, 32
     mstore v47, 3
     v65 = mload 64
     v22 = add v65, 32
@@ -148,11 +148,11 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     mstore v153, 33
     v50 = add v153, 32
     mstore v50, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-    v4 = add v153, 64
+    v4 = add v50, 32
     mstore v4, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v58 = add v153, 96
+    v58 = add v4, 32
     mstore v58, 2
-    v53 = add v153, 128
+    v53 = add v58, 32
     mstore v53, 0x2223000000000000000000000000000000000000000000000000000000000000
     v14 = mload v153
     v17 = add v14, 2
@@ -296,9 +296,9 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     mstore v0, 70
     v1 = add v0, 32
     mstore v1, 0x101010101010101010101010101010101010101010101010101010101010101
-    v2 = add v0, 64
+    v2 = add v1, 32
     mstore v2, 0x202020202020202020202020202020202020202020202020202020202020202
-    v3 = add v0, 96
+    v3 = add v2, 32
     mstore v3, 0x303030303030303030303030303030303030303030303030303030303030303
     v4 = add v0, 128
     mstore 64, v4
@@ -363,7 +363,7 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
     mstore v82, 64
     v4 = add v82, 32
     mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
-    v6 = add v82, 64
+    v6 = add v4, 32
     mstore v6, 0x2222222222222222222222222222222222222222222222222222222222222222
     mstore 64, v4
     v14 = mload v82
@@ -477,9 +477,9 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
     mstore v46, 3
     v30 = add v46, 32
     mstore v30, 1
-    v32 = add v46, 64
+    v32 = add v30, 32
     mstore v32, 2
-    v34 = add v46, 96
+    v34 = add v32, 32
     mstore v34, 3
     v16 = ne v46, 0
     v17 = zext i1 v16 to i256

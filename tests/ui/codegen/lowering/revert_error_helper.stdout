@@ -202,8 +202,8 @@ bb17:
   push 33
   push 248
   shl
-  push 64
-  dup 4
+  push 32
+  dup 3
   add
   mstore
   push 6
