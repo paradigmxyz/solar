@@ -2280,7 +2280,12 @@ fn inline_call_impl(
     caller.internal_frame_size =
         caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
+    let call_site =
+        caller.inst(call_inst).metadata.source_span().unwrap_or(caller.declaration_span);
+    let parents = caller.inst(call_inst).metadata.inlined_at().unwrap_or_default().to_vec();
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
+    cloner.debug_frame.call_site = call_site;
+    cloner.debug_parents = parents;
     let cloned_entry = cloner.clone_blocks(continuation)?;
     // cloned_entry: object argument views; cloned callee body
     cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
@@ -2327,7 +2332,13 @@ fn inline_literal_call(
     result: ValueId,
 ) -> Option<()> {
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    let call = cloner.caller.blocks[block].instructions[index];
+    cloner.debug_frame.call_site =
+        cloner.caller.inst(call).metadata.source_span().unwrap_or(cloner.caller.declaration_span);
+    cloner.debug_parents =
+        cloner.caller.inst(call).metadata.inlined_at().unwrap_or_default().to_vec();
     let mut instructions = Vec::new();
+    let mut debug_pairs = Vec::new();
     // object = icall @literal
     //   => object = alloc memorybytes, size
     //      set_memory_object_len object, length
@@ -2364,11 +2375,13 @@ fn inline_literal_call(
             cloner.caller.alloc_inst(instruction)
         };
         instructions.push(new_inst);
+        debug_pairs.push((inst, new_inst));
     }
     let Terminator::Return { values } = callee.blocks[BlockId::ENTRY].terminator.as_ref()? else {
         return None;
     };
     let replacement = cloner.clone_value(values[0])?;
+    cloner.clone_debug_bindings(&debug_pairs);
     // prefix; icall @literal; suffix => prefix; initializer; suffix[object/result]
     cloner.caller.blocks[block].instructions.splice(index..=index, instructions);
     cloner.caller.replace_uses(&FxHashMap::from_iter([(result, replacement)]));
@@ -2385,6 +2398,10 @@ pub(super) fn inline_dispatch_route(
     args: Box<[ValueId]>,
 ) -> Option<()> {
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    cloner.debug_frame.call_site = cloner.caller.blocks[block]
+        .terminator_metadata
+        .source_span()
+        .unwrap_or(cloner.caller.declaration_span);
     cloner.external_exit = true;
     let entry = cloner.clone_blocks(BlockId::ENTRY)?;
     // tail_call @wrapper => jump cloned_entry
@@ -2406,6 +2423,8 @@ struct InlineCloner<'a> {
     block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
     external_exit: bool,
+    debug_frame: crate::source_info::DebugInlineFrame,
+    debug_parents: Vec<crate::source_info::DebugInlineFrame>,
 }
 
 impl<'a> InlineCloner<'a> {
@@ -2420,6 +2439,15 @@ impl<'a> InlineCloner<'a> {
         caller.attributes.inline_assembly |= callee.attributes.inline_assembly;
         // Only a callee whose address masks clean elements keeps the caller's claim.
         caller.attributes.cleans_address_elements &= callee.attributes.cleans_address_elements;
+        caller.debug_values.enabled |= callee.debug_values.enabled;
+        let debug_frame = crate::source_info::DebugInlineFrame {
+            function: crate::source_info::DebugFunction {
+                identifier: callee.debug_identifier.unwrap_or(solar_interface::sym::_anonymous),
+                declaration: callee.declaration_span,
+            },
+            call_site: caller.declaration_span,
+            instance: caller.debug_values.allocate_instance(),
+        };
         Self {
             caller,
             callee,
@@ -2430,6 +2458,8 @@ impl<'a> InlineCloner<'a> {
             block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
             external_exit: false,
+            debug_frame,
+            debug_parents: Vec::new(),
         }
     }
 
@@ -2476,7 +2506,45 @@ impl<'a> InlineCloner<'a> {
                 block.terminator_metadata.clone();
         }
 
+        let pairs = self
+            .callee
+            .blocks
+            .iter_enumerated()
+            .flat_map(|(block, data)| {
+                data.instructions
+                    .iter()
+                    .copied()
+                    .zip(self.caller.blocks[self.block_map[block]].instructions.iter().copied())
+            })
+            .collect::<Vec<_>>();
+        self.clone_debug_bindings(&pairs);
         Some(self.block_map[BlockId::ENTRY])
+    }
+
+    fn clone_debug_bindings(&mut self, pairs: &[(InstId, InstId)]) {
+        for &(source, destination) in pairs {
+            if self.caller.debug_values.enabled {
+                let mut chain = SmallVec::from_slice(&self.debug_parents);
+                chain.push(self.debug_frame);
+                chain.extend_from_slice(
+                    self.callee.inst(source).metadata.inlined_at().unwrap_or_default(),
+                );
+                self.caller.inst_mut(destination).metadata.set_inlined_at(chain);
+            }
+            self.caller.debug_values.clone_binding(
+                self.callee,
+                source,
+                destination,
+                self.debug_frame,
+                &self.debug_parents,
+                |value| {
+                    self.value_map.get(&value).copied().or_else(|| match self.callee.value(value) {
+                        Value::Arg(index) => self.args.get(index.index()).copied(),
+                        _ => None,
+                    })
+                },
+            );
+        }
     }
 
     fn clone_value(&mut self, value: ValueId) -> Option<ValueId> {

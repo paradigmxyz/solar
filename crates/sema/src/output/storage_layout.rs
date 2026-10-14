@@ -104,6 +104,12 @@ impl<'gcx> Gcx<'gcx> {
         let types = (!builder.types.is_empty()).then_some(builder.types);
         StorageLayoutOutput { storage, types, namespaces: None }
     }
+    /// Returns the location-independent identifier used by debug type resources.
+    pub fn debug_type_identifier(self, ty: Ty<'gcx>) -> String {
+        let builder = StorageLayoutBuilder::new(self, String::new(), DataLocation::Storage);
+        let key = builder.storage_type_key(ty.with_loc_if_ref(self, DataLocation::Storage));
+        key.replace('(', "$_").replace(')', "_$").replace(',', "_$_")
+    }
 }
 
 struct StorageLayoutBuilder<'gcx> {
@@ -364,6 +370,15 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                     function.state_mutability
                 )
             }
+            TyKind::Tuple(types) => format!(
+                "t_tuple({})",
+                types
+                    .iter()
+                    .map(|ty| self
+                        .storage_type_key(ty.with_loc_if_ref(self.gcx, DataLocation::Storage)))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
             _ => unreachable!("invalid storage type: {ty:?}"),
         }
     }

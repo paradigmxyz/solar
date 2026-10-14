@@ -118,6 +118,16 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             if thread_shared_jumps {
                 changed |= normalize_triangle_branches(module);
             }
+            // NOTE: CFG cleanup retains the memory contents at surviving source operations.
+            // Empty jump thunks and unreachable blocks have no observable spill-store effect.
+            // Stack carriers still need symbolic replay after condition or transfer rewrites.
+            if changed && module.debug_info_is_tracked() {
+                for block in &mut module.blocks {
+                    for inst in &mut block.instructions {
+                        inst.metadata.variable_memory_preserved = true;
+                    }
+                }
+            }
             return changed;
         }
     }
@@ -724,6 +734,12 @@ fn coalesce_blocks(
                 }
             }
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
+            // Concatenating a unique successor removes a balanced transfer, not a stack word.
+            // Both instruction sequences keep their existing physical postconditions.
+            for inst in module.blocks[predecessor].instructions.iter_mut().chain(&mut instructions)
+            {
+                inst.metadata.variable_locations_preserved = true;
+            }
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

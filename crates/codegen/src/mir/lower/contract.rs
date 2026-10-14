@@ -17,7 +17,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, FunctionId, Modu
 
 /// Builds a typed MIR module from one HIR contract.
 #[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
-pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
+pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId, capture_variables: bool) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
@@ -198,6 +198,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let mut scratch_regions = Vec::new();
     let synthetic_ok = (|| {
         let mut context = function::LoweringContext {
+            capture_variables,
             gcx,
             module: &mut module,
             storage: &storage,

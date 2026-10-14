@@ -2,6 +2,10 @@
   "contracts": {
     "ROOT/tests/ui/cli/debug_outputs.sol:C": {
       "ethdebug": {
+        "ethdebug": {
+          "schema": "ethdebug/format/program",
+          "version": "0.1.0-draft.2"
+        },
         "compilation": {
           "id": "solar-COMPILATION_ID"
         },
@@ -117,6 +121,10 @@
     }
   },
   "ethdebug": {
+    "ethdebug": {
+      "schema": "ethdebug/format/info/resources",
+      "version": "0.1.0-draft.2"
+    },
     "compilation": {
       "id": "solar-COMPILATION_ID",
       "compiler": {

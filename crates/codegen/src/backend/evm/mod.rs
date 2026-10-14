@@ -18,8 +18,8 @@ pub use codegen::{EvmArtifact, EvmCodegen};
 mod debug_info;
 pub(crate) use debug_info::DebugInfoBuilder;
 pub use debug_info::{
-    DebugFunction, DebugFunctionExit, DebugInfo, DebugInstruction, DebugInstructions,
-    DebugLocation, DebugSpans, MAX_DEBUG_SPANS,
+    DebugFunction, DebugFunctionExit, DebugInfo, DebugInlineFrame, DebugInstruction,
+    DebugInstructions, DebugLocation, DebugSpans, DebugStackVariable, DebugWord, MAX_DEBUG_SPANS,
 };
 
 mod disasm;

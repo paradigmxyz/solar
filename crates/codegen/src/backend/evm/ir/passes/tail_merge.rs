@@ -401,6 +401,9 @@ impl RunState {
                         for (instruction, site_instruction) in
                             tail.instructions.iter_mut().zip(site_segment)
                         {
+                            instruction
+                                .metadata
+                                .merge_variable_locations(&site_instruction.metadata);
                             instruction.metadata.merge_source_spans(&site_instruction.metadata);
                         }
                     }
@@ -451,6 +454,9 @@ impl RunState {
                 module.blocks[group.representative]
                     .instructions
                     .truncate(instructions.len() - max_common);
+                for inst in &mut module.blocks[group.representative].instructions {
+                    inst.metadata.variable_locations_preserved = true;
+                }
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
                 terminator.metadata.copy_debug_info_from(&representative_debug);
@@ -467,6 +473,9 @@ impl RunState {
                     track_debug_info.then(|| suffix_debug_info(&module.blocks[block], common));
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[block].instructions.truncate(len - common);
+                for inst in &mut module.blocks[block].instructions {
+                    inst.metadata.variable_locations_preserved = true;
+                }
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
                 if let Some(debug_info) = debug_info {
@@ -476,6 +485,15 @@ impl RunState {
             }
         }
         debug_assert!(labels.next().is_none());
+        // NOTE: Exact tail sharing preserves every retained physical postcondition. Shared
+        // tails carry only intersected variable facts; unrelated blocks retain their spills.
+        if track_debug_info {
+            for block in &mut module.blocks {
+                for inst in &mut block.instructions {
+                    inst.metadata.variable_locations_preserved = true;
+                }
+            }
+        }
         true
     }
 }

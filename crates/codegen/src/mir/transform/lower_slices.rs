@@ -537,6 +537,7 @@ impl LowerSlices {
                     let ptr = builder.func_mut().alloc_arg(physical_index);
                     let len = builder.func_mut().alloc_arg(ArgIdx::new(physical_index.index() + 1));
                     components.insert(slice_arg, (ptr, len));
+                    builder.func_mut().debug_values.split_value(slice_arg, &[ptr, len]);
                 }
                 ParamRepr::Word => unreachable!(),
             }
@@ -568,6 +569,9 @@ impl LowerSlices {
     }
 
     fn lower_compact_values(func: &mut Function, raw_heads: &FxHashMap<ValueId, ValueId>) {
+        for &logical in raw_heads.keys() {
+            func.debug_values.compact_calldata(logical);
+        }
         let mut replacements = raw_heads.clone();
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
@@ -753,6 +757,7 @@ impl LowerSlices {
         }
 
         for (&slice, &(ptr, len, constructor)) in &components {
+            func.debug_values.split_value(slice, &[ptr, len]);
             replacements.insert(slice, ptr);
             removed.insert(constructor);
             for (&result, &(projected_slice, inst, is_ptr)) in &projections {

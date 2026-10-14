@@ -13,7 +13,7 @@ const UNKNOWN_PREFIX: &str = "op_";
 
 /// Declarative properties of an EVM operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct OpcodeTraits(u8);
+pub(crate) struct OpcodeTraits(u16);
 
 impl OpcodeTraits {
     /// No additional properties.
@@ -39,6 +39,14 @@ impl OpcodeTraits {
     /// unused result can be dropped. Account, storage and memory reads are not context reads:
     /// they warm what they touch or expand memory.
     pub(crate) const CONTEXT_READ: Self = Self(1 << 6);
+    /// The result depends on memory contents, without changing them.
+    pub(crate) const READS_MEMORY: Self = Self(1 << 7);
+    /// The result depends on persistent or transient storage contents.
+    pub(crate) const READS_STORAGE: Self = Self(1 << 8);
+    /// The result observes the active size of memory, including expansion by reads.
+    pub(crate) const OBSERVES_MEMORY_SIZE: Self = Self(1 << 9);
+    /// The result depends on instruction position or earlier call execution.
+    pub(crate) const EXECUTION_READ: Self = Self(1 << 10);
 
     /// Returns the union of two property sets.
     pub(crate) const fn union(self, other: Self) -> Self {
@@ -344,7 +352,7 @@ opcodes! {
     0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
     0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
     0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9);
-    0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
+    0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits(READS_MEMORY) => gas(keccak) => available(legacy);
     0x30 => ADDRESS => address => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
     0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy) => input_bits(160);
     0x32 => ORIGIN => origin => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
@@ -358,7 +366,7 @@ opcodes! {
     0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
     0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => input_bits(160);
     0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
-    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Byzantium);
+    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits(CONTEXT_READ | EXECUTION_READ) => gas(base) => available(since Byzantium);
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
     0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
@@ -374,18 +382,18 @@ opcodes! {
     0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Cancun);
     0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => gas(base) => available(slot_num);
     0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy) => input_bits(0);
-    0x51 => MLOAD => mload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
+    0x51 => MLOAD => mload => stack_io(1, 1) => traits(READS_MEMORY) => gas(verylow) => available(legacy);
     0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
     0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy) => input_bits(256, 8);
-    0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
+    0x54 => SLOAD => sload => stack_io(1, 1) => traits(READS_STORAGE) => gas(sload) => available(legacy);
     0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(sstore) => available(legacy);
     0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
     0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
-    0x58 => PC => pc => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x59 => MSIZE => msize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
+    0x58 => PC => pc => stack_io(0, 1) => traits(CONTEXT_READ | EXECUTION_READ) => gas(base) => available(legacy);
+    0x59 => MSIZE => msize => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_MEMORY_SIZE) => gas(base) => available(legacy);
     0x5a => GAS => gas => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_GAS) => gas(base) => available(legacy);
     0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
-    0x5c => TLOAD => tload => stack_io(1, 1) => traits() => gas(transient) => available(since Cancun);
+    0x5c => TLOAD => tload => stack_io(1, 1) => traits(READS_STORAGE) => gas(transient) => available(since Cancun);
     0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(transient) => available(since Cancun);
     0x5e => MCOPY => mcopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Cancun);
     0x5f => PUSH0 => push0 => stack_io(0, 1) => traits() => gas(base) => available(since Shanghai);

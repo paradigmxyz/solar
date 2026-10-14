@@ -1,0 +1,927 @@
+{
+  "pointers": {
+    "t_array$_t_struct$_Point_$73_storage_$dyn_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "length": 32,
+            "location": "storage",
+            "name": "length",
+            "offset": 0,
+            "slot": "slot"
+          },
+          {
+            "list": {
+              "count": {
+                "~read": "length"
+              },
+              "each": "index",
+              "is": {
+                "define": {
+                  "slot": {
+                    "~wordsized": {
+                      "~sum": [
+                        {
+                          "~keccak256": [
+                            {
+                              "~wordsized": "slot"
+                            }
+                          ]
+                        },
+                        {
+                          "~product": [
+                            "index",
+                            "0x02"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "in": {
+                  "template": "t_struct$_Point_$73_storage",
+                  "yields": {
+                    "label-data": "item-label-data",
+                    "label-length-flag": "item-label-length-flag",
+                    "label-long-length": "item-label-long-length",
+                    "x": "item-x",
+                    "y": "item-y"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "t_array$_t_uint16_$17_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "list": {
+          "count": "0x11",
+          "each": "index",
+          "is": {
+            "length": 2,
+            "location": "storage",
+            "name": "item",
+            "offset": {
+              "~difference": [
+                32,
+                {
+                  "~product": [
+                    {
+                      "~sum": [
+                        {
+                          "~remainder": [
+                            "index",
+                            16
+                          ]
+                        },
+                        1
+                      ]
+                    },
+                    2
+                  ]
+                }
+              ]
+            },
+            "slot": {
+              "~wordsized": {
+                "~sum": [
+                  "slot",
+                  {
+                    "~quotient": [
+                      "index",
+                      16
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "t_array$_t_uint8_$dyn_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "length": 32,
+            "location": "storage",
+            "name": "length",
+            "offset": 0,
+            "slot": "slot"
+          },
+          {
+            "list": {
+              "count": {
+                "~read": "length"
+              },
+              "each": "index",
+              "is": {
+                "length": 1,
+                "location": "storage",
+                "name": "item",
+                "offset": {
+                  "~difference": [
+                    32,
+                    {
+                      "~product": [
+                        {
+                          "~sum": [
+                            {
+                              "~remainder": [
+                                "index",
+                                32
+                              ]
+                            },
+                            1
+                          ]
+                        },
+                        1
+                      ]
+                    }
+                  ]
+                },
+                "slot": {
+                  "~wordsized": {
+                    "~sum": [
+                      {
+                        "~keccak256": [
+                          {
+                            "~wordsized": "slot"
+                          }
+                        ]
+                      },
+                      {
+                        "~quotient": [
+                          "index",
+                          32
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "t_mapping$_t_address_$_t_uint256_$": {
+      "expect": [
+        "slot",
+        "key"
+      ],
+      "for": {
+        "length": 32,
+        "location": "storage",
+        "name": "value",
+        "offset": 0,
+        "slot": {
+          "~keccak256": [
+            {
+              "~wordsized": "key"
+            },
+            {
+              "~wordsized": "slot"
+            }
+          ]
+        }
+      }
+    },
+    "t_mapping$_t_string_$_t_struct$_Point_$73_storage_$": {
+      "expect": [
+        "slot",
+        "key"
+      ],
+      "for": {
+        "define": {
+          "slot": {
+            "~keccak256": [
+              "key",
+              {
+                "~wordsized": "slot"
+              }
+            ]
+          }
+        },
+        "in": {
+          "template": "t_struct$_Point_$73_storage",
+          "yields": {
+            "label-data": "value-label-data",
+            "label-length-flag": "value-label-length-flag",
+            "label-long-length": "value-label-long-length",
+            "x": "value-x",
+            "y": "value-y"
+          }
+        }
+      }
+    },
+    "t_mapping$_t_uint256_$_t_struct$_Node_$75_storage_$": {
+      "expect": [
+        "slot",
+        "key"
+      ],
+      "for": {
+        "define": {
+          "slot": {
+            "~keccak256": [
+              {
+                "~wordsized": "key"
+              },
+              {
+                "~wordsized": "slot"
+              }
+            ]
+          }
+        },
+        "in": {
+          "template": "t_struct$_Node_$75_storage",
+          "yields": {
+            "children": "value-children",
+            "value": "value-value"
+          }
+        }
+      }
+    },
+    "t_string": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "length": 1,
+            "location": "storage",
+            "name": "length-flag",
+            "offset": 31,
+            "slot": "slot"
+          },
+          {
+            "else": {
+              "length": {
+                "~quotient": [
+                  {
+                    "~read": "length-flag"
+                  },
+                  2
+                ]
+              },
+              "location": "storage",
+              "name": "data",
+              "offset": 0,
+              "slot": "slot"
+            },
+            "if": {
+              "~remainder": [
+                {
+                  "~read": "length-flag"
+                },
+                2
+              ]
+            },
+            "then": {
+              "group": [
+                {
+                  "length": 32,
+                  "location": "storage",
+                  "name": "long-length",
+                  "offset": 0,
+                  "slot": "slot"
+                },
+                {
+                  "define": {
+                    "length": {
+                      "~quotient": [
+                        {
+                          "~read": "long-length"
+                        },
+                        2
+                      ]
+                    }
+                  },
+                  "in": {
+                    "define": {
+                      "start": {
+                        "~keccak256": [
+                          {
+                            "~wordsized": "slot"
+                          }
+                        ]
+                      }
+                    },
+                    "in": {
+                      "list": {
+                        "count": {
+                          "~quotient": [
+                            {
+                              "~sum": [
+                                "length",
+                                31
+                              ]
+                            },
+                            32
+                          ]
+                        },
+                        "each": "index",
+                        "is": {
+                          "else": {
+                            "length": {
+                              "~difference": [
+                                "length",
+                                {
+                                  "~product": [
+                                    "index",
+                                    32
+                                  ]
+                                }
+                              ]
+                            },
+                            "location": "storage",
+                            "name": "data",
+                            "offset": 0,
+                            "slot": {
+                              "~wordsized": {
+                                "~sum": [
+                                  "start",
+                                  "index"
+                                ]
+                              }
+                            }
+                          },
+                          "if": {
+                            "~difference": [
+                              {
+                                "~difference": [
+                                  "length",
+                                  {
+                                    "~product": [
+                                      "index",
+                                      32
+                                    ]
+                                  }
+                                ]
+                              },
+                              32
+                            ]
+                          },
+                          "then": {
+                            "length": 32,
+                            "location": "storage",
+                            "name": "data",
+                            "offset": 0,
+                            "slot": {
+                              "~wordsized": {
+                                "~sum": [
+                                  "start",
+                                  "index"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "t_string_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "length": 1,
+            "location": "storage",
+            "name": "length-flag",
+            "offset": 31,
+            "slot": "slot"
+          },
+          {
+            "else": {
+              "length": {
+                "~quotient": [
+                  {
+                    "~read": "length-flag"
+                  },
+                  2
+                ]
+              },
+              "location": "storage",
+              "name": "data",
+              "offset": 0,
+              "slot": "slot"
+            },
+            "if": {
+              "~remainder": [
+                {
+                  "~read": "length-flag"
+                },
+                2
+              ]
+            },
+            "then": {
+              "group": [
+                {
+                  "length": 32,
+                  "location": "storage",
+                  "name": "long-length",
+                  "offset": 0,
+                  "slot": "slot"
+                },
+                {
+                  "define": {
+                    "length": {
+                      "~quotient": [
+                        {
+                          "~read": "long-length"
+                        },
+                        2
+                      ]
+                    }
+                  },
+                  "in": {
+                    "define": {
+                      "start": {
+                        "~keccak256": [
+                          {
+                            "~wordsized": "slot"
+                          }
+                        ]
+                      }
+                    },
+                    "in": {
+                      "list": {
+                        "count": {
+                          "~quotient": [
+                            {
+                              "~sum": [
+                                "length",
+                                31
+                              ]
+                            },
+                            32
+                          ]
+                        },
+                        "each": "index",
+                        "is": {
+                          "else": {
+                            "length": {
+                              "~difference": [
+                                "length",
+                                {
+                                  "~product": [
+                                    "index",
+                                    32
+                                  ]
+                                }
+                              ]
+                            },
+                            "location": "storage",
+                            "name": "data",
+                            "offset": 0,
+                            "slot": {
+                              "~wordsized": {
+                                "~sum": [
+                                  "start",
+                                  "index"
+                                ]
+                              }
+                            }
+                          },
+                          "if": {
+                            "~difference": [
+                              {
+                                "~difference": [
+                                  "length",
+                                  {
+                                    "~product": [
+                                      "index",
+                                      32
+                                    ]
+                                  }
+                                ]
+                              },
+                              32
+                            ]
+                          },
+                          "then": {
+                            "length": 32,
+                            "location": "storage",
+                            "name": "data",
+                            "offset": 0,
+                            "slot": {
+                              "~wordsized": {
+                                "~sum": [
+                                  "start",
+                                  "index"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "t_struct$_Line_$74_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "define": {
+              "slot": {
+                "~wordsized": {
+                  "~sum": [
+                    "slot",
+                    "0x00"
+                  ]
+                }
+              }
+            },
+            "in": {
+              "template": "t_struct$_Point_$73_storage",
+              "yields": {
+                "label-data": "from-label-data",
+                "label-length-flag": "from-label-length-flag",
+                "label-long-length": "from-label-long-length",
+                "x": "from-x",
+                "y": "from-y"
+              }
+            }
+          },
+          {
+            "define": {
+              "slot": {
+                "~wordsized": {
+                  "~sum": [
+                    "slot",
+                    "0x02"
+                  ]
+                }
+              }
+            },
+            "in": {
+              "template": "t_struct$_Point_$73_storage",
+              "yields": {
+                "label-data": "to-label-data",
+                "label-length-flag": "to-label-length-flag",
+                "label-long-length": "to-label-long-length",
+                "x": "to-x",
+                "y": "to-y"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "t_struct$_Node_$75_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "length": 32,
+            "location": "storage",
+            "name": "value",
+            "offset": 0,
+            "slot": {
+              "~wordsized": {
+                "~sum": [
+                  "slot",
+                  "0x00"
+                ]
+              }
+            }
+          },
+          {
+            "length": 32,
+            "location": "storage",
+            "name": "children",
+            "offset": 0,
+            "slot": {
+              "~wordsized": {
+                "~sum": [
+                  "slot",
+                  "0x01"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "t_struct$_Point_$73_storage": {
+      "expect": [
+        "slot"
+      ],
+      "for": {
+        "group": [
+          {
+            "length": 1,
+            "location": "storage",
+            "name": "x",
+            "offset": 31,
+            "slot": {
+              "~wordsized": {
+                "~sum": [
+                  "slot",
+                  "0x00"
+                ]
+              }
+            }
+          },
+          {
+            "length": 2,
+            "location": "storage",
+            "name": "y",
+            "offset": 29,
+            "slot": {
+              "~wordsized": {
+                "~sum": [
+                  "slot",
+                  "0x00"
+                ]
+              }
+            }
+          },
+          {
+            "define": {
+              "slot": {
+                "~wordsized": {
+                  "~sum": [
+                    "slot",
+                    "0x01"
+                  ]
+                }
+              }
+            },
+            "in": {
+              "template": "t_string_storage",
+              "yields": {
+                "data": "label-data",
+                "length-flag": "label-length-flag",
+                "long-length": "label-long-length"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "types": {
+    "t_address": {
+      "kind": "address",
+      "payable": false
+    },
+    "t_address_payable": {
+      "kind": "address",
+      "payable": true
+    },
+    "t_array$_t_struct$_Point_$73_storage_$dyn_storage": {
+      "contains": {
+        "type": {
+          "id": "t_struct$_Point_$73_storage"
+        }
+      },
+      "kind": "array"
+    },
+    "t_array$_t_uint16_$17_storage": {
+      "contains": {
+        "type": {
+          "id": "t_uint16"
+        }
+      },
+      "count": "0x11",
+      "kind": "array"
+    },
+    "t_array$_t_uint8_$dyn_storage": {
+      "contains": {
+        "type": {
+          "id": "t_uint8"
+        }
+      },
+      "kind": "array"
+    },
+    "t_bool": {
+      "kind": "bool"
+    },
+    "t_bytes4": {
+      "kind": "bytes",
+      "size": 4
+    },
+    "t_bytes_storage": {
+      "kind": "bytes"
+    },
+    "t_enum$_Choice_$76": {
+      "definition": {
+        "name": "Choice"
+      },
+      "kind": "enum",
+      "values": [
+        "No",
+        "Yes"
+      ]
+    },
+    "t_function_external_nonpayable$_t_uint256_$returns$_t_uint256_$": {
+      "contains": {
+        "parameters": {
+          "type": {
+            "id": "t_tuple$_t_uint256_$"
+          }
+        },
+        "returns": {
+          "type": {
+            "id": "t_tuple$_t_uint256_$"
+          }
+        }
+      },
+      "external": true,
+      "internal": false,
+      "kind": "function"
+    },
+    "t_int16": {
+      "bits": 16,
+      "kind": "int"
+    },
+    "t_mapping$_t_address_$_t_uint256_$": {
+      "contains": {
+        "key": {
+          "type": {
+            "id": "t_address"
+          }
+        },
+        "value": {
+          "type": {
+            "id": "t_uint256"
+          }
+        }
+      },
+      "kind": "mapping"
+    },
+    "t_mapping$_t_string_$_t_struct$_Point_$73_storage_$": {
+      "contains": {
+        "key": {
+          "type": {
+            "id": "t_string_storage"
+          }
+        },
+        "value": {
+          "type": {
+            "id": "t_struct$_Point_$73_storage"
+          }
+        }
+      },
+      "kind": "mapping"
+    },
+    "t_mapping$_t_uint256_$_t_struct$_Node_$75_storage_$": {
+      "contains": {
+        "key": {
+          "type": {
+            "id": "t_uint256"
+          }
+        },
+        "value": {
+          "type": {
+            "id": "t_struct$_Node_$75_storage"
+          }
+        }
+      },
+      "kind": "mapping"
+    },
+    "t_string_storage": {
+      "kind": "string"
+    },
+    "t_struct$_Line_$74_storage": {
+      "contains": [
+        {
+          "name": "from",
+          "type": {
+            "id": "t_struct$_Point_$73_storage"
+          }
+        },
+        {
+          "name": "to",
+          "type": {
+            "id": "t_struct$_Point_$73_storage"
+          }
+        }
+      ],
+      "definition": {
+        "name": "Line"
+      },
+      "kind": "struct"
+    },
+    "t_struct$_Node_$75_storage": {
+      "contains": [
+        {
+          "name": "value",
+          "type": {
+            "id": "t_uint256"
+          }
+        },
+        {
+          "name": "children",
+          "type": {
+            "id": "t_mapping$_t_uint256_$_t_struct$_Node_$75_storage_$"
+          }
+        }
+      ],
+      "definition": {
+        "name": "Node"
+      },
+      "kind": "struct"
+    },
+    "t_struct$_Point_$73_storage": {
+      "contains": [
+        {
+          "name": "x",
+          "type": {
+            "id": "t_uint8"
+          }
+        },
+        {
+          "name": "y",
+          "type": {
+            "id": "t_uint16"
+          }
+        },
+        {
+          "name": "label",
+          "type": {
+            "id": "t_string_storage"
+          }
+        }
+      ],
+      "definition": {
+        "name": "Point"
+      },
+      "kind": "struct"
+    },
+    "t_tuple$_t_uint256_$": {
+      "contains": [
+        {
+          "type": {
+            "id": "t_uint256"
+          }
+        }
+      ],
+      "kind": "tuple"
+    },
+    "t_uint16": {
+      "bits": 16,
+      "kind": "uint"
+    },
+    "t_uint256": {
+      "bits": 256,
+      "kind": "uint"
+    },
+    "t_uint32": {
+      "bits": 32,
+      "kind": "uint"
+    },
+    "t_uint64": {
+      "bits": 64,
+      "kind": "uint"
+    },
+    "t_uint8": {
+      "bits": 8,
+      "kind": "uint"
+    },
+    "t_userDefinedValueType$_Amount_$77": {
+      "contains": {
+        "type": {
+          "id": "t_uint64"
+        }
+      },
+      "definition": {
+        "name": "Amount"
+      },
+      "kind": "alias"
+    }
+  }
+}

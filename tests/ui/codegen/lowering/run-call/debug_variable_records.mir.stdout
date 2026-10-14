@@ -1,0 +1,127 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/debug_variable_records.sol:DebugVariableRecords ===
+@module DebugVariableRecords
+fn @composite(arg0: i16) -> i256 [selector=0xf6fc453b, pure, abi_params=[u16], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = zext i16 arg0 to i256
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, 3
+    v3 = memory_object_data memorybytes, v2
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v5 = ptrtoint memptr v2 to i256
+    memory_object_store_field memorystruct<2>, v0, 0, v1
+    memory_object_store_field memorystruct<2>, v0, 1, v5
+    v6 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v6, 2
+    v7 = memory_object_load_field memorystruct<2>, v0, 0
+    v8 = trunc i256 v7 to i16
+    v9 = zext i16 v8 to i256
+    v10 = memory_object_len memoryarray, v6
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    memory_object_store_element memoryarray<1>, v6, 0, v9
+    v13 = memory_object_load_field memorystruct<2>, v0, 1, memptr
+    v14 = memory_object_len memorybytes, v13
+    v15 = memory_object_len memoryarray, v6
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    memory_object_store_element memoryarray<1>, v6, 1, v14
+    v18 = memory_object_len memoryarray, v6
+    v19 = lt 0, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = memory_object_load_element memoryarray<1>, v6, 0
+    v22 = memory_object_len memoryarray, v6
+    v23 = lt 1, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_element memoryarray<1>, v6, 1
+    v26 = checked_add u256, v21, v25
+    v27 = memory_object_len memoryarray, v6
+    v28 = checked_add u256, v26, v27
+    ret v28
+}
+
+fn @inlined(arg0: i256, arg1: i256) -> i256 [selector=0x991daa87, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @helper, arg0
+    v1 = icall @helper, arg1
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @helper(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = mul arg0, arg0
+    v1 = xor v0, 17
+    v2 = add v1, 1
+    ret v2
+}
+
+fn @compute(arg0: i256, arg1: i256) -> i256 [selector=0x7a85644b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = mul v0, arg0
+    ret v1
+}
+
+fn @maybeBytes(arg0: i1) -> i256 [selector=0x3597d487, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 2
+    v1 = memory_object_data memorybytes, v0
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6869000000000000000000000000000000000000000000000000000000000000
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v0], [bb2: memptr 96]
+    mstore 0, 123 !metadata(memory=scratch)
+    v4 = memory_object_len memorybytes, v3
+    ret v4
+}
+
+fn @maybeArray(arg0: i1) -> i256 [selector=0x77de8cf5, inline_assembly, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: memptr 96]
+    mstore 0, 123 !metadata(memory=scratch)
+    v2 = memory_object_len memoryarray, v1
+    ret v2
+}
+
+fn @accumulate(arg0: i256) -> i256 [selector=0xb4e7d02a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = phi [bb0: 0], [bb3: v5]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v4 = checked_add u256, v1, v2
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = checked_add u256, v2, 1
+    jump bb1
+}

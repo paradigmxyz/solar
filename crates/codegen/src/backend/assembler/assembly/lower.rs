@@ -247,6 +247,26 @@ fn lower_evm_ir_once(
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
             if first < program.instructions.len() {
+                if let Some(variables) = &mut program.variables {
+                    let mut records = inst.metadata.variables.clone();
+                    records.retain_mut(|record| {
+                        record.words.iter_mut().all(|word| {
+                            word.rewrite_leaves(&mut |word| {
+                                if let crate::backend::evm::DebugWord::DeferredMemory(id) = *word {
+                                    let id =
+                                        crate::backend::assembler::DeferredConst::new(id as usize);
+                                    let Some(&address) = assembler.deferred_values.get(&id) else {
+                                        return false;
+                                    };
+                                    *word = crate::backend::evm::DebugWord::Memory(address);
+                                }
+                                true
+                            })
+                        })
+                    });
+                    let last = program.instructions.len() - 1;
+                    variables[last] = records;
+                }
                 if let Some(function) = pending_block_invoke.take() {
                     program.set_function_invoke(first, Some(function));
                 }

@@ -382,7 +382,7 @@ fn emit_combined_json(
     }
 
     // Every emitted program references this resource, including its source contents.
-    output.ethdebug = compilation.map(|compilation| compilation.into_resources());
+    output.ethdebug = compilation.map(|compilation| compilation.into_resources(gcx));
     write_output_json(gcx, &output, codegen_requested || output.ethdebug.is_some())
 }
 

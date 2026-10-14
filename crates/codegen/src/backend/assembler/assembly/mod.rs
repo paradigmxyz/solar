@@ -42,6 +42,7 @@ pub(in crate::backend) struct Program {
     pub(in crate::backend) data: IndexVec<DataId, Data>,
     pub(in crate::backend) data_refs: IndexVec<DataRefId, crate::backend::evm::ir::DataRef>,
     pub(in crate::backend) source_spans: Option<Vec<DebugSpans>>,
+    pub(in crate::backend) variables: Option<Vec<Vec<crate::backend::evm::DebugStackVariable>>>,
     pub(in crate::backend) function_invokes: Option<Vec<Option<DebugFunction>>>,
     pub(in crate::backend) function_exits: Option<Vec<Option<DebugFunctionExit>>>,
     pub(in crate::backend) modifier_depths: Option<Vec<u32>>,
@@ -53,6 +54,7 @@ impl Program {
     pub(in crate::backend) fn with_debug_info(capture: bool) -> Self {
         Self {
             source_spans: capture.then(Vec::new),
+            variables: capture.then(Vec::new),
             function_invokes: capture.then(Vec::new),
             function_exits: capture.then(Vec::new),
             modifier_depths: capture.then(Vec::new),
@@ -78,6 +80,9 @@ impl Program {
 
     pub(in crate::backend) fn push(&mut self, inst: AsmInst) {
         self.instructions.push(inst);
+        if let Some(variables) = &mut self.variables {
+            variables.push(Vec::new());
+        }
         if let Some(source_spans) = &mut self.source_spans {
             source_spans.push(self.current_source_spans.clone());
         }

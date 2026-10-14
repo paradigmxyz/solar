@@ -160,10 +160,12 @@ enum Step {
     Filler,
     /// Starts the code of an instruction, for debug metadata.
     Begin(InstId),
+    /// Records a source assignment after its real machine code, emitting no instruction.
+    End(Box<[crate::backend::evm::DebugStackVariable]>),
     /// Emits one opcode of an instruction whose operands are prepared.
-    Op(u8),
+    Op(u8, Box<[crate::backend::evm::DebugStackVariable]>),
     /// Emits the remaining code of an instruction whose operands are prepared.
-    Inst(InstId),
+    Inst(InstId, Box<[crate::backend::evm::DebugStackVariable]>),
     /// Calls an internal function whose arguments are prepared, with the physical height of the
     /// stack below its arguments.
     Call(FunctionId, usize),

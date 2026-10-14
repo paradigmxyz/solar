@@ -467,7 +467,11 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             contract = %gcx.contract_fully_qualified_name(contract_id)
         )
         .entered();
-        let mut module = lower::lower_contract(gcx, contract_id);
+        let mut module = lower::lower_contract_with_debug_info(
+            gcx,
+            contract_id,
+            captures.debug_info.contains(contract_id),
+        );
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
         let needs_backend = captures.bytecode.contains(contract_id)
