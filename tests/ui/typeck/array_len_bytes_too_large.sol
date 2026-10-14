@@ -19,4 +19,6 @@ contract C {
     uint[B11.length] fits;
     uint[B12.length] tooLarge; //~ ERROR: failed to evaluate constant: value is too large
     uint[bytes(S).length] tooLargeString; //~ ERROR: failed to evaluate constant: value is too large
+    // The number of zero values in `new T[](n)` must not overflow while it is counted.
+    uint[new uint[1][](2**63 + 1).length] tooManyValues; //~ ERROR: failed to evaluate constant: value is too large
 }

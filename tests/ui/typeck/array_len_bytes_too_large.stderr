@@ -16,5 +16,13 @@ LL │ string constant S = string.concat(string(B11), string(B11), "x");
 LL │     uint[bytes(S).length] tooLargeString;
    ╰╴         ━━━━━━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error[5462]: failed to evaluate constant: value is too large
+   ╭▸ ROOT/tests/ui/typeck/array_len_bytes_too_large.sol:LL:CC
+   │
+LL │     uint[new uint[1][](2**63 + 1).length] tooManyValues;
+   │          ┬───────────────────────━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error: aborting due to 3 previous errors
 

@@ -403,7 +403,8 @@ fn zero_values(
     let before = *budget;
     let zero = zero_value(gcx, ty, budget)?;
     let per_value = before - *budget;
-    *budget = budget.checked_sub(per_value * (len - 1)).ok_or(EE::ValueTooLarge)?;
+    let rest = per_value.checked_mul(len - 1).ok_or(EE::ValueTooLarge)?;
+    *budget = budget.checked_sub(rest).ok_or(EE::ValueTooLarge)?;
     Ok(vec![zero; len].into())
 }
 
