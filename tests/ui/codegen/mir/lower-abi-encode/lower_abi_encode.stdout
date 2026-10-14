@@ -65,7 +65,7 @@
 +     v4 = ptrtoint memptr v1 to i256
 +     v5 = sub v3, v4
 +     store v1, v5
-+     v6 = slice_len arg0
++     v6 = extract_value calldataslice, arg0, 1
 +     v7 = not 31
 +     v8 = add v6, 31
 +     v9 = and v8, v7
@@ -73,7 +73,7 @@
 +     v11 = add v3, v9
 +     store v11, 0
 +     store v3, v6
-+     v12 = slice_ptr arg0
++     v12 = extract_value calldataslice, arg0, 0
 +     v13 = add v10, v9
 +     copy calldata v10, v12, v6 !metadata(memory=heap)
 +     v14 = ptrtoint memptr v1 to i256
@@ -207,7 +207,7 @@
 +     v6 = ptrtoint memptr v3 to i256
 +     v7 = sub v5, v6
 +     store v3, v7
-+     v8 = slice_len v1
++     v8 = extract_value returndataslice, v1, 1
 +     v9 = not 31
 +     v10 = add v0, 31
 +     v11 = and v10, v9
@@ -215,7 +215,7 @@
 +     v13 = add v5, v11
 +     store v13, 0
 +     store v5, v0
-+     v14 = slice_ptr v1
++     v14 = extract_value returndataslice, v1, 0
 +     v15 = add v12, v11
 +     copy returndata v12, 0, v0
 +     v16 = ptrtoint memptr v3 to i256
@@ -241,11 +241,11 @@
 +     v5 = ptrtoint memptr v2 to i256
 +     v6 = sub v4, v5
 +     store v2, v6
-+     v7 = slice_len v0
++     v7 = extract_value returndataslice, v0, 1
 +     store v4, arg0
 +     v8 = mul arg0, 32
 +     v9 = add v4, 32
-+     v10 = slice_ptr v0
++     v10 = extract_value returndataslice, v0, 0
 +     v11 = add v9, v8
 +     copy returndata v9, 0, v8
 +     v12 = ptrtoint memptr v2 to i256

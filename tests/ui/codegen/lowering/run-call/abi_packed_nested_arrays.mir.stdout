@@ -106,11 +106,11 @@ fn @encodeStructField(arg0: memptr) -> i256 [selector=0xa7ad7e04, pure, abi_para
 
 fn @encodeCalldataIndex(arg0: calldataslice) -> i256 [selector=0x2e694aed, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 0
     v5 = make_calldata_slice v4, 2
     v6 = abi_encode_packed (array<word> calldata v5)

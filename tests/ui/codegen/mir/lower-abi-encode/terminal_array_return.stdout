@@ -13,8 +13,8 @@
     bb0:
       v0 = icall @fresh_array
 -     v1 = abi_encode [memory_array<word>], args v0
--     v2 = slice_ptr v1
--     v3 = slice_len v1
+-     v2 = extract_value memoryslice, v1, 0
+-     v3 = extract_value memoryslice, v1, 1
 -     returndata v2, v3
 +     v4 = load v0
 +     v5 = ptrtoint memptr v0 to i256
@@ -33,16 +33,16 @@
 +     v15 = add v12, 64
 +     v16 = ptrtoint memptr v0 to i256
 +     v17 = make_memory_slice v16, v15
-+     v2 = slice_ptr v17
-+     v3 = slice_len v17
++     v2 = extract_value memoryslice, v17, 0
++     v3 = extract_value memoryslice, v17, 1
 +     returndata v16, v15
   }
   
   fn @borrowed(arg0: memptr) {
     bb0:
 -     v0 = abi_encode [memory_array<word>], args arg0
--     v1 = slice_ptr v0
--     v2 = slice_len v0
+-     v1 = extract_value memoryslice, v0, 0
+-     v2 = extract_value memoryslice, v0, 1
 -     returndata v1, v2
 +     v3 = fmp
 +     v4 = ptrtoint memptr v3 to i256
@@ -72,8 +72,8 @@
 +     v25 = alloc v24 !metadata(preserves_fmp)
 +     v26 = ptrtoint memptr v25 to i256
 +     v27 = make_memory_slice v26, v21
-+     v1 = slice_ptr v27
-+     v2 = slice_len v27
++     v1 = extract_value memoryslice, v27, 0
++     v2 = extract_value memoryslice, v27, 1
 +     returndata v26, v21
   }
   
@@ -95,8 +95,8 @@
     bb0:
       v0 = icall @fresh_bytes_wrapper, arg0
 -     v1 = abi_encode [memory_bytes], args v0
--     v2 = slice_ptr v1
--     v3 = slice_len v1
+-     v2 = extract_value memoryslice, v1, 0
+-     v3 = extract_value memoryslice, v1, 1
 -     returndata v2, v3
 +     v4 = load v0
 +     v5 = ptrtoint memptr v0 to i256
@@ -119,8 +119,8 @@
 +     v18 = add v14, 64
 +     v19 = ptrtoint memptr v0 to i256
 +     v20 = make_memory_slice v19, v18
-+     v2 = slice_ptr v20
-+     v3 = slice_len v20
++     v2 = extract_value memoryslice, v20, 0
++     v3 = extract_value memoryslice, v20, 1
 +     returndata v19, v18
   }
   

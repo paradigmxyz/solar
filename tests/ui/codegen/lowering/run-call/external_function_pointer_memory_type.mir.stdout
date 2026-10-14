@@ -21,8 +21,8 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v10 = add v9, 32
     store v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
     v11 = abi_encode [memory_bytes], selector v5, args v8
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value memoryslice, v11, 0
+    v13 = extract_value memoryslice, v11, 1
     v14 = call v7, v6, 0, v12, v13, 0, 32
     jumpi v14, bb2, bb1
   bb1:

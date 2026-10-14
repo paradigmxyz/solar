@@ -20,8 +20,8 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     icall panic_if<0x32>, v9
     store v0+96, 3
     v10 = abi_encode [memory_array<word>], scratch, args v0
-    v11 = slice_ptr v10
-    v12 = slice_len v10
+    v11 = extract_value memoryslice, v10, 0
+    v12 = extract_value memoryslice, v10, 1
     v13 = keccak256 v11, v12
     v14 = eq v13, 0x62e243217b24f0adeab63b697d9c38d64bd4cbf540c9915772ddc377b45b411c
     ret v14

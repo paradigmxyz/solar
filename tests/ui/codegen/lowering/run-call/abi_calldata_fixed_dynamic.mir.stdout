@@ -2,11 +2,11 @@
 @module AbiCalldataFixedDynamic
 fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
@@ -29,12 +29,12 @@ fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=
     v20 = sgt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = make_calldata_slice v18, v15
-    v22 = slice_len v21
-    v23 = slice_len arg0
+    v22 = extract_value calldataslice, v21, 1
+    v23 = extract_value calldataslice, arg0, 1
     v24 = lt 1, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = slice_ptr arg0
+    v26 = extract_value calldataslice, arg0, 0
     v27 = add v26, 32
     v28 = calldatasize
     v29 = sub v28, v27
@@ -57,7 +57,7 @@ fn @lengths(arg0: calldataslice) -> i256 [selector=0xe718a709, pure, abi_params=
     v43 = sgt v41, v42
     icall revert_if<calldata_tail_too_short>, v43
     v44 = make_calldata_slice v41, v38
-    v45 = slice_len v44
+    v45 = extract_value calldataslice, v44, 1
     v46 = checked_add u256, v22, v45
     ret v46
 }

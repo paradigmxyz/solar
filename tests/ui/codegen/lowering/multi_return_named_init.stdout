@@ -25,12 +25,12 @@ fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
   bb4:
     v6 = trunc i256 v3 to i64
     v7 = shl i64 8, v6
-    v8 = slice_len v1
+    v8 = extract_value calldataslice, v1, 1
     v9 = lt v0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = slice_ptr v1
-    v12 = slice_ptr v1
+    v11 = extract_value calldataslice, v1, 0
+    v12 = extract_value calldataslice, v1, 0
     v13 = add v12, v0
     v14 = load calldata v13
     v15 = byte 0, v14

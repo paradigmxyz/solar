@@ -195,7 +195,7 @@ fn slice_values_are_pairs(module: &Module) -> bool {
                     InstKind::MakeSlice { location: actual, .. } => *actual == location,
                     InstKind::FrameLoad { kind, .. } => kind.result_type() == ty,
                     InstKind::AbiEncode { mode, .. } => mode.result_type() == ty,
-                    InstKind::ExtractValue { ty: aggregate, index, .. } => {
+                    InstKind::ExtractValue { ty: MirType::Struct(aggregate), index, .. } => {
                         module.struct_types[*aggregate].fields[*index as usize] == ty
                     }
                     InstKind::Phi(incoming) => {
@@ -275,11 +275,11 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                 // NOTE: Scalar insertions and projections emit no instruction. Their source
                 // checkpoints disappear with them; do not attach them to unrelated definitions.
                 // insert_value aggregate, index, value -> replace the selected leaf range
-                InstKind::InsertValue { ty, aggregate, index, value } => {
+                InstKind::InsertValue { ty: MirType::Struct(ty), aggregate, index, value } => {
                     let mut leaves = components(aggregate, &aggregates);
                     let inserted =
                         if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
-                            // slice -> slice_ptr(slice), slice_len(slice)
+                            // slice -> (extract_value slice, 0), (extract_value slice, 1)
                             vec![builder.slice_ptr(value), builder.slice_len(value)]
                         } else if layouts.types[ty].fields[index as usize] == MirType::I256
                             && matches!(builder.func().value_ty(value), Some(MirType::MEMPTR))
@@ -293,7 +293,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                     leaves
                 }
                 // extract_value aggregate, index -> selected leaf range
-                InstKind::ExtractValue { ty, aggregate, index } => {
+                InstKind::ExtractValue { ty: MirType::Struct(ty), aggregate, index } => {
                     let leaves =
                         components(aggregate, &aggregates)[layouts.field_range(ty, index)].to_vec();
                     if let MirType::Slice(location) = layouts.types[ty].fields[index as usize] {

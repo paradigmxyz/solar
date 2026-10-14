@@ -78,8 +78,8 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v50 = add v36, 32
     v51 = make_memory_slice v50, v41
     v52 = ptradd v33, 64
-    v53 = slice_ptr v51
-    v54 = slice_len v51
+    v53 = extract_value memoryslice, v51, 0
+    v54 = extract_value memoryslice, v51, 1
     copy v52, v53, v54
     v55 = add 32, v45
     v56 = ptrtoint memptr v33 to i256

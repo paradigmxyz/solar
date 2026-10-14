@@ -2,8 +2,8 @@
 @module ArraySliceCalldataToStorage
 fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50eb, abi_params=[array<_, i256>, u256, u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
@@ -20,8 +20,8 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     icall panic_if<0x41>, v13
     v14 = add v0, v7
     v15 = make_calldata_slice v14, v6
-    v16 = slice_len v15
-    v17 = slice_ptr v15
+    v16 = extract_value calldataslice, v15, 1
+    v17 = extract_value calldataslice, v15, 0
     v18 = mul v16, 32
     v19 = eq 32, 0
     v20 = div v18, 32
@@ -49,8 +49,8 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     store v37, v16
     v38 = make_calldata_slice v17, v28
     v39 = ptradd v37, 32
-    v40 = slice_ptr v38
-    v41 = slice_len v38
+    v40 = extract_value calldataslice, v38, 0
+    v41 = extract_value calldataslice, v38, 1
     copy calldata v39, v40, v41
     v42 = load v37
     v43 = sload 0 !metadata(storage=slot(0))

@@ -340,7 +340,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v51 = ptrtoint memptr v39 to i256
     store v50+32, v51
     v52 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
-    v53 = slice_len v52
+    v53 = extract_value memoryslice, v52, 1
     v54 = datasize ConstructorAggregateMain_creation_code_0
     v55 = add v54, v53
     v56 = lt v55, v54
@@ -353,7 +353,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v61 = alloc v60
     v62 = ptrtoint memptr v61 to i256
     datacopy ConstructorAggregateMain_creation_code_0, v62, v54
-    v63 = slice_ptr v52
+    v63 = extract_value memoryslice, v52, 0
     v64 = ptrtoint memptr v61 to i256
     v65 = add v64, v54
     copy v65, v63, v53 !metadata(memory=heap)
@@ -366,8 +366,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb13:
     v69 = gas
     v70 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v71 = slice_ptr v70
-    v72 = slice_len v70
+    v71 = extract_value memoryslice, v70, 0
+    v72 = extract_value memoryslice, v70, 1
     v73 = zext i160 v67 to i256
     v74 = staticcall v69, v73, v71, v72, 0, 32
     jumpi v74, bb15, bb14

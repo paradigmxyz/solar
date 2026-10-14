@@ -109,8 +109,8 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v9 = shr 32, v6
     v10 = gas
     v11 = abi_encode [], selector v8
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value memoryslice, v11, 0
+    v13 = extract_value memoryslice, v11, 1
     v14 = call v10, v9, 0, v12, v13, 0, 32
     jumpi v14, bb2, bb1
   bb1:
@@ -134,8 +134,8 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v28 = shr 32, v25
     v29 = gas
     v30 = abi_encode [], selector v27
-    v31 = slice_ptr v30
-    v32 = slice_len v30
+    v31 = extract_value memoryslice, v30, 0
+    v32 = extract_value memoryslice, v30, 1
     v33 = call v29, v28, 0, v31, v32, 0, 32
     jumpi v33, bb4, bb3
   bb3:

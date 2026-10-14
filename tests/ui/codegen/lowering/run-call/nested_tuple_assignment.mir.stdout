@@ -91,8 +91,8 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     store v7, 0x90a000000000000000000000000000000000000000000000000000000000000
     v8 = zext i1 arg0 to i256
     v9 = abi_encode [word<bool>, memory_bytes, memory_bytes], selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v8, v2, v5
-    v10 = slice_ptr v9
-    v11 = slice_len v9
+    v10 = extract_value memoryslice, v9, 0
+    v11 = extract_value memoryslice, v9, 1
     v12 = zext i160 v0 to i256
     v13 = staticcall v1, v12, v10, v11, v10, 64
     jumpi v13, bb2, bb1
@@ -131,12 +131,12 @@ fn @slicePair(arg0: i1, arg1: calldataslice, arg2: calldataslice) -> struct2 [se
   bb3:
     v1 = phi [bb1: arg1], [bb2: arg2]
     v2 = phi [bb1: v0], [bb2: i16 256]
-    v3 = slice_len v1
+    v3 = extract_value calldataslice, v1, 1
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = slice_ptr v1
-    v7 = slice_ptr v1
+    v6 = extract_value calldataslice, v1, 0
+    v7 = extract_value calldataslice, v1, 0
     v8 = load calldata v7
     v9 = byte 0, v8
     v10 = shl 248, v9

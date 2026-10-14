@@ -440,17 +440,13 @@ fn display_inst_kind<'a>(
         }
         InstKind::InsertValue { ty, aggregate, index, value } => write!(
             f,
-            "insert_value struct{}, {}, {index}, {}",
-            ty.index(),
+            "insert_value {ty}, {}, {index}, {}",
             display_val(*aggregate, func),
             display_val(*value, func)
         ),
-        InstKind::ExtractValue { ty, aggregate, index } => write!(
-            f,
-            "extract_value struct{}, {}, {index}",
-            ty.index(),
-            display_val(*aggregate, func)
-        ),
+        InstKind::ExtractValue { ty, aggregate, index } => {
+            write!(f, "extract_value {ty}, {}, {index}", display_val(*aggregate, func))
+        }
         InstKind::Trunc(value, _)
         | InstKind::Zext(value)
         | InstKind::Sext(value, _, _)

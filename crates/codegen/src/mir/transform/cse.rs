@@ -269,8 +269,7 @@ enum ExprKey {
     StorageArrayDataSlot(OperandKey),
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, PtrLocation),
-    SlicePtr(OperandKey),
-    SliceLen(OperandKey),
+    ExtractValue(OperandKey, u32),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey, u64),
@@ -965,7 +964,11 @@ impl CommonSubexprEliminator {
                     | InstKind::Sub(..)
                     | InstKind::PtrAdd(..)
                     | InstKind::MakeSlice { .. }
-                    | InstKind::SlicePtr(_)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        index: MirType::SLICE_PTR_FIELD,
+                        ..
+                    }
                     | InstKind::Phi(_)
                     | InstKind::Select(..)
             ) {
@@ -1234,8 +1237,9 @@ impl CommonSubexprEliminator {
             InstKind::MakeSlice { ptr, len, location } => {
                 Some(ExprKey::MakeSlice(operand(*ptr), operand(*len), *location))
             }
-            InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
-            InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
+            InstKind::ExtractValue { aggregate, index, .. } => {
+                Some(ExprKey::ExtractValue(operand(*aggregate), *index))
+            }
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),

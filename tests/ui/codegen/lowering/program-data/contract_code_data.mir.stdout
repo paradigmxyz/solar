@@ -45,8 +45,8 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v13 = zext i160 v12 to i256
     v14 = gas
     v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
+    v16 = extract_value memoryslice, v15, 0
+    v17 = extract_value memoryslice, v15, 1
     v18 = zext i160 v12 to i256
     v19 = staticcall v14, v18, v16, v17, 0, 32
     jumpi v19, bb2, bb1
@@ -69,7 +69,7 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CodeTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)

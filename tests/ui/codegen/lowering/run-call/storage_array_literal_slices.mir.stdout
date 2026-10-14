@@ -6,8 +6,8 @@
 fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array<_, u256>], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc 64
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 0
+    v2 = extract_value calldataslice, arg0, 1
     v3 = gt 1, v2
     v4 = lt 1, 0
     v5 = or v3, v4
@@ -16,8 +16,8 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v7 = sub 1, 0
     v8 = add v1, 0
     v9 = make_calldata_slice v8, v7
-    v10 = slice_len v9
-    v11 = slice_ptr v9
+    v10 = extract_value calldataslice, v9, 1
+    v11 = extract_value calldataslice, v9, 0
     v12 = mul v10, 32
     v13 = eq 32, 0
     v14 = div v12, 32
@@ -45,13 +45,13 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     store v31, v10
     v32 = make_calldata_slice v11, v22
     v33 = ptradd v31, 32
-    v34 = slice_ptr v32
-    v35 = slice_len v32
+    v34 = extract_value calldataslice, v32, 0
+    v35 = extract_value calldataslice, v32, 1
     copy calldata v33, v34, v35
     v36 = ptrtoint memptr v31 to i256
     store v0, v36
-    v37 = slice_ptr arg0
-    v38 = slice_len arg0
+    v37 = extract_value calldataslice, arg0, 0
+    v38 = extract_value calldataslice, arg0, 1
     v39 = gt 3, v38
     v40 = lt 3, 1
     v41 = or v39, v40
@@ -60,8 +60,8 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v43 = sub 3, 1
     v44 = add v37, 32
     v45 = make_calldata_slice v44, v43
-    v46 = slice_len v45
-    v47 = slice_ptr v45
+    v46 = extract_value calldataslice, v45, 1
+    v47 = extract_value calldataslice, v45, 0
     v48 = mul v46, 32
     v49 = eq 32, 0
     v50 = div v48, 32
@@ -89,8 +89,8 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     store v67, v46
     v68 = make_calldata_slice v47, v58
     v69 = ptradd v67, 32
-    v70 = slice_ptr v68
-    v71 = slice_len v68
+    v70 = extract_value calldataslice, v68, 0
+    v71 = extract_value calldataslice, v68, 1
     copy calldata v69, v70, v71
     v72 = ptrtoint memptr v67 to i256
     store v0+32, v72

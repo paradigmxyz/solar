@@ -77,7 +77,7 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -90,8 +90,8 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
@@ -113,7 +113,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -126,8 +126,8 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
@@ -151,7 +151,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -164,8 +164,8 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x295b4e1700000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
@@ -189,7 +189,7 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -202,8 +202,8 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
@@ -234,7 +234,7 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -247,8 +247,8 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xcb94343e00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
@@ -309,7 +309,7 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -323,8 +323,8 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v11 = gas
     v12 = alloc 64
     v13 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
+    v14 = extract_value memoryslice, v13, 0
+    v15 = extract_value memoryslice, v13, 1
     v16 = zext i160 v9 to i256
     v17 = extcodesize v16
     v18 = eq v17, 0
@@ -359,7 +359,7 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -392,7 +392,7 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CallGasCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)

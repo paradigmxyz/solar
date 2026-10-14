@@ -7,7 +7,7 @@
 
 fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = add v0, 32
     v2 = load calldata v1
     v3 = shr 8, v2
@@ -23,7 +23,7 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
 
 fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = add v0, 96
     v2 = calldatasize
     v3 = sub v2, v1
@@ -46,8 +46,8 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v17 = sgt v15, v16
     icall revert_if<calldata_tail_too_short>, v17
     v18 = make_calldata_slice v15, v12
-    v19 = slice_ptr v18
-    v20 = slice_len v18
+    v19 = extract_value calldataslice, v18, 0
+    v20 = extract_value calldataslice, v18, 1
     v21 = gt v20, v20
     v22 = lt v20, 1
     v23 = or v21, v22
@@ -56,15 +56,15 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v25 = sub v20, 1
     v26 = add v19, 1
     v27 = make_calldata_slice v26, v25
-    v28 = slice_ptr v27
-    v29 = slice_len v27
+    v28 = extract_value calldataslice, v27, 0
+    v29 = extract_value calldataslice, v27, 1
     v30 = calldatasize
     v31 = gt v29, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v31
     v32 = sub v30, v29
     v33 = sgt v28, v32
     icall revert_if<calldata_tail_too_short>, v33
-    v34 = slice_len v27
+    v34 = extract_value calldataslice, v27, 1
     v35 = add v34, 63
     v36 = lt v35, v34
     icall panic_if<0x41>, v36
@@ -73,8 +73,8 @@ fn @tail(arg0: calldataslice) -> memptr [selector=0x39663a7e, pure, abi_params=[
     v39 = alloc v38
     store v39, v34
     v40 = ptradd v39, 32
-    v41 = slice_ptr v27
-    v42 = slice_len v27
+    v41 = extract_value calldataslice, v27, 0
+    v42 = extract_value calldataslice, v27, 1
     copy calldata v40, v41, v42
     ret v39
 }

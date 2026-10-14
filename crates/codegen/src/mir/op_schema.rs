@@ -1132,11 +1132,11 @@ define_mir_ops! {
     #[mir_op(mnemonic = "insert_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
     #[operand_types(func => None)]
-    InsertValue { ty: StructId, aggregate: ValueId, index: u32, value: ValueId },
+    InsertValue { ty: MirType, aggregate: ValueId, index: u32, value: ValueId },
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
     #[operand_types(func => None)]
-    ExtractValue { ty: StructId, aggregate: ValueId, index: u32 },
+    ExtractValue { ty: MirType, aggregate: ValueId, index: u32 },
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
@@ -1883,32 +1883,6 @@ define_mir_ops! {
         /// Address space containing the slice data.
         location: PtrLocation,
     },
-    /// Project the data pointer from a slice.
-    #[mir_op(
-        mnemonic = "slice_ptr",
-        result = I256,
-        phases = PhaseSet::SEMANTIC,
-        effect = Pure,
-        traits = OpTraits::NONE,
-        side_effects = false,
-        category = Some("slice")
-    )]
-    #[builder(slice_ptr)]
-    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice)]))]
-    SlicePtr(slice: ValueId),
-    /// Project the logical length from a slice.
-    #[mir_op(
-        mnemonic = "slice_len",
-        result = I256,
-        phases = PhaseSet::SEMANTIC,
-        effect = Pure,
-        traits = OpTraits::NONE,
-        side_effects = false,
-        category = Some("slice")
-    )]
-    #[builder(slice_len)]
-    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice)]))]
-    SliceLen(slice: ValueId),
     /// Address inside the current internal-call frame.
     #[mir_op(
         mnemonic = "internal_frame_addr",

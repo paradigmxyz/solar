@@ -20,7 +20,7 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     PtrLocation, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
@@ -339,7 +339,11 @@ fn candidate_uses_are_safe(
                     };
                     base_offset.checked_add(offset)
                 }
-                InstKind::SlicePtr(slice) => {
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: slice,
+                    index: MirType::SLICE_PTR_FIELD,
+                } => {
                     let Some(&data) = derived.get(&slice) else { continue };
                     derived.insert(result, data);
                     pending.push(result);
@@ -398,11 +402,19 @@ fn candidate_uses_are_safe(
                 | InstKind::PtrAdd(_, _)
                 | InstKind::PtrToInt(_, 256)
                 | InstKind::IntToPtr(_)
-                | InstKind::SlicePtr(_)
+                | InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    index: MirType::SLICE_PTR_FIELD,
+                    ..
+                }
                 | InstKind::MakeSlice { .. } => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
-                InstKind::SliceLen(_) => true,
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    index: MirType::SLICE_LEN_FIELD,
+                    ..
+                } => true,
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }

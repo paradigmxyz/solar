@@ -1523,7 +1523,7 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
         && func.instructions().all(|inst| {
             matches!(
                 func.inst(inst).kind,
-                InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_)
+                InstKind::MakeSlice { .. } | InstKind::ExtractValue { ty: MirType::Slice(_), .. }
             )
         })
     {
@@ -1627,9 +1627,9 @@ fn estimate_inst_cost(
         }
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
+        | InstKind::MakeSlice { .. }
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::PtrAdd(..) => seq(&[op::ADD]),
         InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
         InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
@@ -1788,8 +1788,7 @@ fn estimate_inst_cost(
         | InstKind::IntToPtr(..)
         | InstKind::PtrToInt(_, 256)
         | InstKind::MakeSlice { .. }
-        | InstKind::SlicePtr(_)
-        | InstKind::SliceLen(_) => 0,
+        | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
         InstKind::MappingSlotBytes(..) => 9,

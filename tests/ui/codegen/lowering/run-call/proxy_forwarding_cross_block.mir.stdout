@@ -10,7 +10,7 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x526
   bb0:
     v0 = checked_add u256, arg0, arg1
     v1 = checked_add u256, v0, arg2
-    v2 = slice_len arg3
+    v2 = extract_value calldataslice, arg3, 1
     v3 = checked_add u256, v1, v2
     sstore 1, v3 !metadata(storage=slot(1))
     ret
@@ -81,7 +81,7 @@ fn @fallback() [fallback] {
     v2 = zext i160 v1 to i256
     v3 = calldatasize
     v4 = make_calldata_slice 0, v3
-    v5 = slice_len v4
+    v5 = extract_value calldataslice, v4, 1
     v6 = gt v5, 128
     jumpi v6, bb1, bb2
   bb2:
@@ -132,7 +132,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ForwardingImplementation_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -151,7 +151,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy FixedRangeProxy_creation_code_1, v17, v13
-    v18 = slice_ptr v12
+    v18 = extract_value memoryslice, v12, 0
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
     copy v20, v18, 32 !metadata(memory=heap)
@@ -168,8 +168,8 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v27 = alloc zeroed checked v26
     store v27, 160
     v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v27
-    v29 = slice_ptr v28
-    v30 = slice_len v28
+    v29 = extract_value memoryslice, v28, 0
+    v30 = extract_value memoryslice, v28, 1
     v31 = zext i160 v22 to i256
     v32 = extcodesize v31
     v33 = eq v32, 0
@@ -182,8 +182,8 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
   bb6:
     v36 = gas
     v37 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v38 = slice_ptr v37
-    v39 = slice_len v37
+    v38 = extract_value memoryslice, v37, 0
+    v39 = extract_value memoryslice, v37, 1
     v40 = zext i160 v22 to i256
     v41 = staticcall v36, v40, v38, v39, 0, 32
     jumpi v41, bb8, bb7
@@ -208,7 +208,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ForwardingImplementation_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -227,7 +227,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy CrossBlockProxy_creation_code_2, v17, v13
-    v18 = slice_ptr v12
+    v18 = extract_value memoryslice, v12, 0
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
     copy v20, v18, 32 !metadata(memory=heap)
@@ -244,8 +244,8 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v27 = alloc zeroed checked v26
     store v27, 160
     v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v27
-    v29 = slice_ptr v28
-    v30 = slice_len v28
+    v29 = extract_value memoryslice, v28, 0
+    v30 = extract_value memoryslice, v28, 1
     v31 = zext i160 v22 to i256
     v32 = extcodesize v31
     v33 = eq v32, 0
@@ -258,8 +258,8 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
   bb6:
     v36 = gas
     v37 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v38 = slice_ptr v37
-    v39 = slice_len v37
+    v38 = extract_value memoryslice, v37, 0
+    v39 = extract_value memoryslice, v37, 1
     v40 = zext i160 v22 to i256
     v41 = staticcall v36, v40, v38, v39, 0, 32
     jumpi v41, bb8, bb7
@@ -284,7 +284,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy RevertingProducer_creation_code_3, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -303,7 +303,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy DynamicReturnWrapper_creation_code_4, v17, v13
-    v18 = slice_ptr v12
+    v18 = extract_value memoryslice, v12, 0
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
     copy v20, v18, 32 !metadata(memory=heap)
@@ -356,8 +356,8 @@ fn @bubble() -> memptr [selector=0x4ce637d6, view, abi_params=[], abi_returns=[m
     v0 = loadimmutable producer
     v1 = gas
     v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb2, bb1
   bb1:
@@ -393,11 +393,11 @@ fn @buffer() -> i256 [pure] {
 fn @forward(arg0: i256, arg1: calldataslice) -> i256 [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @buffer
-    v1 = slice_len arg1
-    v2 = slice_ptr arg1
+    v1 = extract_value calldataslice, arg1, 1
+    v2 = extract_value calldataslice, arg1, 0
     v3 = add v0, 64
     copy calldata v3, v2, v1
-    v4 = slice_len arg1
+    v4 = extract_value calldataslice, arg1, 1
     v5 = add 64, v4
     v6 = gas
     v7 = call v6, arg0, 0, v0, v5, 0, 0

@@ -2,8 +2,8 @@
 @module CalldataStructDynamicMemory
 fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -129,8 +129,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     store v63, v47
     v64 = make_calldata_slice v51, v54
     v65 = ptradd v63, 32
-    v66 = slice_ptr v64
-    v67 = slice_len v64
+    v66 = extract_value calldataslice, v64, 0
+    v67 = extract_value calldataslice, v64, 1
     copy calldata v65, v66, v67
     v68 = ptrtoint memptr v63 to i256
     store v36, v68

@@ -908,21 +908,39 @@ impl<'a> Validator<'a> {
                     InstKind::ExtractValue { ty, aggregate, index } => (ty, aggregate, index, None),
                     _ => continue,
                 };
-                let Some(fields) = module.struct_types.get(ty) else {
-                    self.emit_at_inst(
-                        format_args!("undefined struct type `struct{}`", ty.index()),
-                        block,
-                        id,
-                    );
+                let field = match ty {
+                    MirType::Struct(struct_id) => {
+                        let Some(fields) = module.struct_types.get(struct_id) else {
+                            self.emit_at_inst(
+                                format_args!("undefined struct type `{ty}`"),
+                                block,
+                                id,
+                            );
+                            continue;
+                        };
+                        fields.fields.get(index as usize).copied()
+                    }
+                    MirType::Slice(_) if inserted.is_none() => {
+                        MirType::SLICE_FIELDS.get(index as usize).copied()
+                    }
+                    _ => {
+                        let expected =
+                            if inserted.is_some() { "a struct" } else { "a struct or slice" };
+                        self.emit_at_inst(
+                            format_args!("aggregate type must be {expected}"),
+                            block,
+                            id,
+                        );
+                        continue;
+                    }
+                };
+                let Some(field) = field else {
+                    self.emit_at_inst("aggregate field index is out of bounds", block, id);
                     continue;
                 };
-                let Some(&field) = fields.fields.get(index as usize) else {
-                    self.emit_at_inst("struct field index is out of bounds", block, id);
-                    continue;
-                };
-                if func.value_ty(aggregate) != Some(MirType::Struct(ty)) {
+                if func.value_ty(aggregate) != Some(ty) {
                     self.emit_at_inst(
-                        "aggregate operand does not match its declared struct type",
+                        "aggregate operand does not match its declared type",
                         block,
                         id,
                     );
@@ -935,13 +953,13 @@ impl<'a> Validator<'a> {
                             id,
                         );
                     }
-                    MirType::Struct(ty)
+                    ty
                 } else {
                     field
                 };
                 if inst.result_ty != Some(result) {
                     self.emit_at_inst(
-                        format_args!("struct instruction result must have type `{result}`"),
+                        format_args!("aggregate instruction result must have type `{result}`"),
                         block,
                         id,
                     );

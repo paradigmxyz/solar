@@ -51,16 +51,16 @@ fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
 fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
   bb0:
     v0 = ptradd arg0, 32
-    v1 = slice_ptr arg1
-    v2 = slice_len arg1
+    v1 = extract_value memoryslice, arg1, 0
+    v2 = extract_value memoryslice, arg1, 1
     copy v0, v1, v2
     v3 = ptradd arg0, 32
-    v4 = slice_ptr arg2
-    v5 = slice_len arg2
+    v4 = extract_value calldataslice, arg2, 0
+    v5 = extract_value calldataslice, arg2, 1
     copy calldata v3, v4, v5
     v6 = ptradd arg0, 32
-    v7 = slice_ptr arg3
-    v8 = slice_len arg3
+    v7 = extract_value returndataslice, arg3, 0
+    v8 = extract_value returndataslice, arg3, 1
     copy returndata v6, v7, v8
     stop
 }

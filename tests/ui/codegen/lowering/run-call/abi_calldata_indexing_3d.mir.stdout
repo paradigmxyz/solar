@@ -5,12 +5,12 @@
 
 fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 1
     v2 = lt arg1, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_ptr arg0
+    v4 = extract_value calldataslice, arg0, 0
     v5 = mul arg1, 32
     v6 = eq 32, 0
     v7 = div v5, 32
@@ -33,11 +33,11 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v22 = eq v21, false
     icall revert_if<invalid_calldata_tail_offset>, v22
     v23 = make_calldata_slice v17, 2
-    v24 = slice_len arg0
+    v24 = extract_value calldataslice, arg0, 1
     v25 = lt arg1, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = slice_ptr arg0
+    v27 = extract_value calldataslice, arg0, 0
     v28 = mul arg1, 32
     v29 = eq 32, 0
     v30 = div v28, 32
@@ -60,11 +60,11 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v45 = eq v44, false
     icall revert_if<invalid_calldata_tail_offset>, v45
     v46 = make_calldata_slice v40, 2
-    v47 = slice_len v46
+    v47 = extract_value calldataslice, v46, 1
     v48 = lt arg2, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = slice_ptr v46
+    v50 = extract_value calldataslice, v46, 0
     v51 = mul arg2, 32
     v52 = eq 32, 0
     v53 = div v51, 32
@@ -96,12 +96,12 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v75 = sgt v73, v74
     icall revert_if<calldata_tail_too_short>, v75
     v76 = make_calldata_slice v73, v69
-    v77 = slice_len v76
-    v78 = slice_len arg0
+    v77 = extract_value calldataslice, v76, 1
+    v78 = extract_value calldataslice, arg0, 1
     v79 = lt arg1, v78
     v80 = eq v79, false
     icall panic_if<0x32>, v80
-    v81 = slice_ptr arg0
+    v81 = extract_value calldataslice, arg0, 0
     v82 = mul arg1, 32
     v83 = eq 32, 0
     v84 = div v82, 32
@@ -124,11 +124,11 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v99 = eq v98, false
     icall revert_if<invalid_calldata_tail_offset>, v99
     v100 = make_calldata_slice v94, 2
-    v101 = slice_len v100
+    v101 = extract_value calldataslice, v100, 1
     v102 = lt arg2, v101
     v103 = eq v102, false
     icall panic_if<0x32>, v103
-    v104 = slice_ptr v100
+    v104 = extract_value calldataslice, v100, 0
     v105 = mul arg2, 32
     v106 = eq 32, 0
     v107 = div v105, 32
@@ -160,11 +160,11 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v129 = sgt v127, v128
     icall revert_if<calldata_tail_too_short>, v129
     v130 = make_calldata_slice v127, v123
-    v131 = slice_len v130
+    v131 = extract_value calldataslice, v130, 1
     v132 = lt arg3, v131
     v133 = eq v132, false
     icall panic_if<0x32>, v133
-    v134 = slice_ptr v130
+    v134 = extract_value calldataslice, v130, 0
     v135 = mul arg3, 32
     v136 = eq 32, 0
     v137 = div v135, 32

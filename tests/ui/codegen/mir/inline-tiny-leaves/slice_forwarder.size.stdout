@@ -8,7 +8,7 @@
 +     jump bb2
 +   bb2:
 +     v1 = make_calldata_slice arg0, 0
-+     v2 = slice_ptr v1
++     v2 = extract_value calldataslice, v1, 0
 +     v3 = make_calldata_slice v2, arg1
 +     jump bb1
 +   bb1:
@@ -19,7 +19,7 @@
   fn @construct(arg0: i256, arg1: i256) -> calldataslice {
     bb0:
       v0 = make_calldata_slice arg0, 0
-      v1 = slice_ptr v0
+      v1 = extract_value calldataslice, v0, 0
       v2 = make_calldata_slice v1, arg1
       ret v2
   }
@@ -83,7 +83,7 @@
 -     jump bb2
 -   bb2:
       v1 = make_calldata_slice arg0, 0
-      v2 = slice_ptr v1
+      v2 = extract_value calldataslice, v1, 0
       v3 = make_calldata_slice v2, arg1
 -     jump bb1
 -   bb1:
@@ -95,7 +95,7 @@
   fn @construct(arg0: i256, arg1: i256) -> calldataslice {
     bb0:
       v0 = make_calldata_slice arg0, 0
-      v1 = slice_ptr v0
+      v1 = extract_value calldataslice, v0, 0
       v2 = make_calldata_slice v1, arg1
       ret v2
   }
@@ -155,7 +155,7 @@
   fn @caller(arg0: i256, arg1: i256) -> calldataslice {
     bb0:
       v1 = make_calldata_slice arg0, 0
-      v2 = slice_ptr v1
+      v2 = extract_value calldataslice, v1, 0
       v3 = make_calldata_slice v2, arg1
       ret v3
   }
@@ -163,7 +163,7 @@
   fn @construct(arg0: i256, arg1: i256) -> calldataslice {
     bb0:
       v0 = make_calldata_slice arg0, 0
-      v1 = slice_ptr v0
+      v1 = extract_value calldataslice, v0, 0
       v2 = make_calldata_slice v1, arg1
       ret v2
   }

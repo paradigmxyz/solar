@@ -37,8 +37,8 @@
       store 0, 7
       v0 = ptrtoint memptr arg0 to i256
       v1 = add v0, 32
-      v2 = slice_ptr arg1
-      v3 = slice_len arg1
+      v2 = extract_value memoryslice, arg1, 0
+      v3 = extract_value memoryslice, arg1, 1
       copy v1, v2, v3
       store 0, 8
       stop

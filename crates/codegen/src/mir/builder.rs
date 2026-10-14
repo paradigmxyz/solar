@@ -956,7 +956,7 @@ impl<'a> FunctionBuilder<'a> {
         let (data, len) = match self.func.value_slice_location(value) {
             Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
                 // data = fmp
-                // copy location data, slice_ptr value, slice_len value
+                // copy location data, (extract_value value, 0), (extract_value value, 1)
                 let source = self.slice_ptr(value);
                 let len = self.slice_len(value);
                 let data = self.fmp();
@@ -1076,7 +1076,7 @@ impl<'a> FunctionBuilder<'a> {
             if let Some(offset) = self.func.value_u64(offset) {
                 return (data, offset, location);
             }
-            // address = add (slice_ptr value), offset
+            // address = add (extract_value value, 0), offset
             return (self.add(data, offset), 0, location);
         }
         if let Some(offset) = self.func.value_u64(offset) {
@@ -1164,7 +1164,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Copies a slice's bytes to `destination` in memory.
     fn copy_slice(&mut self, destination: ValueId, source: ValueId) {
-        // copy location destination, slice_ptr source, slice_len source
+        // copy location destination, (extract_value source, 0), (extract_value source, 1)
         let location = self.func.value_slice_location(source).unwrap_or(PtrLocation::Memory);
         let source_ptr = self.slice_ptr(source);
         let len = self.slice_len(source);
@@ -1223,10 +1223,8 @@ impl<'a> FunctionBuilder<'a> {
         value: ValueId,
     ) -> ValueId {
         // result = insert_value aggregate, index, value
-        self.emit_inst(
-            InstKind::InsertValue { ty, aggregate, index, value },
-            Some(MirType::Struct(ty)),
-        )
+        let ty = MirType::Struct(ty);
+        self.emit_inst(InstKind::InsertValue { ty, aggregate, index, value }, Some(ty))
     }
 
     /// Projects a field with its declared type from a struct value.
@@ -1238,7 +1236,23 @@ impl<'a> FunctionBuilder<'a> {
         field: MirType,
     ) -> ValueId {
         // result = extract_value aggregate, index
+        let ty = MirType::Struct(ty);
         self.emit_inst(InstKind::ExtractValue { ty, aggregate, index }, Some(field))
+    }
+
+    /// Projects the pointer word from a slice.
+    pub(crate) fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
+        self.slice_field(slice, MirType::SLICE_PTR_FIELD)
+    }
+
+    /// Projects the length word from a slice.
+    pub(crate) fn slice_len(&mut self, slice: ValueId) -> ValueId {
+        self.slice_field(slice, MirType::SLICE_LEN_FIELD)
+    }
+
+    fn slice_field(&mut self, slice: ValueId, index: u32) -> ValueId {
+        // result = extract_value slice_ty, slice, index
+        self.emit_inst(InstKind::slice_field(self.func, slice, index), Some(MirType::I256))
     }
 
     /// Compares a value with zero.

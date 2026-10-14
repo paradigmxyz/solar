@@ -180,8 +180,6 @@ impl InstKind {
             | Self::TStore(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }
-            | Self::SlicePtr(..)
-            | Self::SliceLen(..)
             | Self::InternalFrameAddr(..)
             | Self::FrameLoad { .. }
             | Self::FrameStore { .. }

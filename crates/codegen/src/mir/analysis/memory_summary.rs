@@ -15,8 +15,8 @@ use super::{
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
-    Module, PtrLocation, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
-    utils::IndexLists,
+    MirType, Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout, utils::IndexLists,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -1085,6 +1085,6 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::SLoad(_)
             | InstKind::TLoad(_)
             | InstKind::Keccak256(_, _)
-            | InstKind::SliceLen(_)
+            | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_LEN_FIELD, .. }
     )
 }

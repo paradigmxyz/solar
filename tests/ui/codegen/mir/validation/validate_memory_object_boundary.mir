@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=dce
 //~? ERROR: [fn0] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 //~? ERROR: [fn0] [bb0, inst1] pointer arithmetic instruction `ptradd` survives the `lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst2] slice instruction `slice_len` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst2] slice instruction `extract_value` survives the `lowered` phase boundary
 //~? ERROR: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
 @module ValidateMemoryObjectBoundary
 @phase lowered
@@ -10,7 +10,7 @@ fn @object(arg0: memptr, arg1: memoryslice) -> memptr {
   bb0:
     v1 = alloc 32
     v2 = ptradd arg0, 32
-    v3 = slice_len arg1
+    v3 = extract_value memoryslice, arg1, 1
     store v2, v3
     ret v1
 }

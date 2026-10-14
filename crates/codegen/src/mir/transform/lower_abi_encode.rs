@@ -545,11 +545,13 @@ fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
             let mut projected_size = None;
             for &projection in suffix {
                 let Some(result) = func.inst_result_value(projection) else { continue };
-                match func.inst(projection).kind {
-                    InstKind::SlicePtr(value) if value == encoded => {
+                match func.inst(projection).kind.slice_projection() {
+                    Some((value, MirType::SLICE_PTR_FIELD)) if value == encoded => {
                         projected_offset = Some(result)
                     }
-                    InstKind::SliceLen(value) if value == encoded => projected_size = Some(result),
+                    Some((value, MirType::SLICE_LEN_FIELD)) if value == encoded => {
+                        projected_size = Some(result)
+                    }
                     _ => {}
                 }
             }
@@ -698,14 +700,11 @@ fn fresh_memory_object(
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {
     for inst_id in func.instructions() {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
-        let (slice, is_pointer) = match func.inst(inst_id).kind {
-            InstKind::SlicePtr(slice) => (resolve_replacement(slice, replacements), true),
-            InstKind::SliceLen(slice) => (resolve_replacement(slice, replacements), false),
-            _ => continue,
-        };
+        let Some((slice, index)) = func.inst(inst_id).kind.slice_projection() else { continue };
+        let slice = resolve_replacement(slice, replacements);
         let Value::Inst(make_slice) = func.value(slice) else { continue };
         let InstKind::MakeSlice { ptr, len, .. } = &func.inst(*make_slice).kind else { continue };
-        let replacement = if is_pointer { *ptr } else { *len };
+        let replacement = if index == MirType::SLICE_PTR_FIELD { *ptr } else { *len };
         replacements.insert(result, resolve_replacement(replacement, replacements));
     }
 }
@@ -1586,7 +1585,7 @@ fn copy_source_data(
 
 fn memory_object_len(builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
     if builder.func().value_slice_location(value).is_some() {
-        // len = slice_len value
+        // len = extract_value value, 1
         return builder.slice_len(value);
     }
     let len = builder.memory_len(value);

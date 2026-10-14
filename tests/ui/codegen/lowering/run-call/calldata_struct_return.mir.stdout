@@ -15,7 +15,7 @@ fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_param
     v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
-    v3 = slice_ptr v2
+    v3 = extract_value calldataslice, v2, 0
     v4 = add v3, 64
     v5 = load calldata v4
     v6 = insert_value struct0, undef struct0, 0, v1
@@ -51,8 +51,8 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v9 = ptrtoint memptr v6 to i256
     v10 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v6
     v11 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v10
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value memoryslice, v11, 0
+    v13 = extract_value memoryslice, v11, 1
     v14 = zext i160 v0 to i256
     v15 = staticcall v1, v14, v12, v13, 0, 0
     jumpi v15, bb2, bb1
@@ -87,7 +87,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
 
 fn @decode.3(arg0: calldataslice) -> struct1 [pure] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = make_calldata_slice v0, 0
     v2 = insert_value struct1, undef struct1, 0, true
     v3 = insert_value struct1, v2, 1, v1

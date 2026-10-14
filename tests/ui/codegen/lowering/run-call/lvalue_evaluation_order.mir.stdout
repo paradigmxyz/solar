@@ -112,8 +112,8 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, 0, 32
     jumpi v6, bb2, bb1

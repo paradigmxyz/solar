@@ -2212,27 +2212,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (kind, Some(to))
             }
             sym::insert_value | sym::extract_value => {
-                let MirType::Struct(ty) = self.parse_type()? else {
-                    return Err(self.parser.error("expected a struct type"));
-                };
+                let ty = self.parse_type()?;
+                match ty {
+                    MirType::Struct(_) => {}
+                    MirType::Slice(_) if mnemonic == sym::extract_value => {}
+                    _ if mnemonic == sym::extract_value => {
+                        return Err(self.parser.error("expected a struct or slice type"));
+                    }
+                    _ => return Err(self.parser.error("expected a struct type")),
+                }
                 self.parser.expect(TokenKind::Comma)?;
                 let aggregate = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let index = self.parser.parse_uint()?;
                 let index = u32::try_from(index)
-                    .map_err(|_| self.parser.error("struct field index is too large"))?;
-                let field = self.struct_types[ty]
-                    .fields
-                    .get(index as usize)
-                    .copied()
-                    .ok_or_else(|| self.parser.error("struct field index is out of bounds"))?;
+                    .map_err(|_| self.parser.error("aggregate field index is too large"))?;
+                let field = match ty {
+                    MirType::Struct(id) => self.struct_types[id].fields.get(index as usize),
+                    _ => MirType::SLICE_FIELDS.get(index as usize),
+                }
+                .copied()
+                .ok_or_else(|| self.parser.error("aggregate field index is out of bounds"))?;
                 if mnemonic == sym::insert_value {
                     self.parser.expect(TokenKind::Comma)?;
                     let value = self.parse_value(builder)?;
-                    (
-                        InstKind::InsertValue { ty, aggregate, index, value },
-                        Some(MirType::Struct(ty)),
-                    )
+                    (InstKind::InsertValue { ty, aggregate, index, value }, Some(ty))
                 } else {
                     (InstKind::ExtractValue { ty, aggregate, index }, Some(field))
                 }

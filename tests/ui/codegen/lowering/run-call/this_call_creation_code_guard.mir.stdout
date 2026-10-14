@@ -17,8 +17,8 @@ fn @helper() {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -53,8 +53,8 @@ fn @constructor() [constructor] {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -89,8 +89,8 @@ fn @constructor() [constructor] {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -129,8 +129,8 @@ fn @constructor() [constructor] {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -159,8 +159,8 @@ fn @constructor() [constructor] {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -211,8 +211,8 @@ fn @init() -> i256 {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -254,8 +254,8 @@ fn @constructor() [constructor] {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -297,8 +297,8 @@ fn @helper() {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -352,8 +352,8 @@ fn @helper() {
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
@@ -401,7 +401,7 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationHelper_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -423,7 +423,7 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationDirect_creation_code_1, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -445,7 +445,7 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationModifier_creation_code_2, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -467,7 +467,7 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationDerived_creation_code_3, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -489,7 +489,7 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationInitializer_creation_code_4, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -511,7 +511,7 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationTry_creation_code_5, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -537,7 +537,7 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     v7 = alloc v6
     v8 = ptrtoint memptr v7 to i256
     datacopy SharedHelper_creation_code_6, v8, v4
-    v9 = slice_ptr v3
+    v9 = extract_value memoryslice, v3, 0
     v10 = ptrtoint memptr v7 to i256
     v11 = add v10, v4
     copy v11, v9, 32 !metadata(memory=heap)

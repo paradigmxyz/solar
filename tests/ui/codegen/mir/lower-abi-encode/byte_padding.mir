@@ -6,7 +6,7 @@
 @module BytePadding
 
 // GAS-LABEL: {{^[ +].*}}fn @encode
-// GAS: + [[LEN:v[0-9]+]] = slice_len arg0
+// GAS: + [[LEN:v[0-9]+]] = extract_value calldataslice, arg0, 1
 // GAS: + [[PAD:v[0-9]+]] = and
 // GAS: + [[LAST:v[0-9]+]] = add {{v[0-9]+}}, [[PAD]]
 // GAS-NEXT: + store [[LAST]], 0
@@ -15,7 +15,7 @@
 // GAS: + copy calldata
 // Size mode keeps the guarded store, which can share machine-level encoder tails.
 // SIZE-LABEL: {{^[ +].*}}fn @encode
-// SIZE: + [[LEN:v[0-9]+]] = slice_len arg0
+// SIZE: + [[LEN:v[0-9]+]] = extract_value calldataslice, arg0, 1
 // SIZE-NEXT: + store [[DEST:v[0-9]+]], [[LEN]]
 // SIZE: + [[PAD:v[0-9]+]] = and
 // SIZE: + {{v[0-9]+}} = eq {{v[0-9]+}}, 0

@@ -25,15 +25,15 @@ fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[a
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v2, v4
     sstore 1, v5 !metadata(storage=slot(1))
-    v6 = slice_ptr arg1
-    v7 = slice_len arg1
+    v6 = extract_value calldataslice, arg1, 0
+    v7 = extract_value calldataslice, arg1, 1
     v8 = calldatasize
     v9 = gt v7, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v9
     v10 = sub v8, v7
     v11 = sgt v6, v10
     icall revert_if<calldata_tail_too_short>, v11
-    v12 = slice_len arg1
+    v12 = extract_value calldataslice, arg1, 1
     v13 = add v12, 63
     v14 = lt v13, v12
     icall panic_if<0x41>, v14
@@ -42,8 +42,8 @@ fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[a
     v17 = alloc v16
     store v17, v12
     v18 = ptradd v17, 32
-    v19 = slice_ptr arg1
-    v20 = slice_len arg1
+    v19 = extract_value calldataslice, arg1, 0
+    v20 = extract_value calldataslice, arg1, 1
     copy calldata v18, v19, v20
     icall @store_storage_bytes, 0, v17
     ret

@@ -60,8 +60,8 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
 fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -80,8 +80,8 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4d5b8d5600000000000000000000000000000000000000000000000000000000, args 1
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -107,8 +107,8 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xd4ba105300000000000000000000000000000000000000000000000000000000, args 2
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -127,8 +127,8 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4a3c24da00000000000000000000000000000000000000000000000000000000, args 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -155,8 +155,8 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x23fe6d5e00000000000000000000000000000000000000000000000000000000, args 3
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -179,8 +179,8 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xca34aaa500000000000000000000000000000000000000000000000000000000, args 6
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0
@@ -201,8 +201,8 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc 96
     v1 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v2 = extract_value memoryslice, v1, 0
+    v3 = extract_value memoryslice, v1, 1
     v4 = gas
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = eq v5, 0
@@ -235,8 +235,8 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = eq v4, 0

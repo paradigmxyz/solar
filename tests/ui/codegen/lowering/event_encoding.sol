@@ -13,8 +13,8 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitArray
     // CHECK: [[ARRAY_ENCODED:v[0-9]+]] = abi_encode [array<2, word>], args
-    // CHECK: [[ARRAY_PTR:v[0-9]+]] = slice_ptr [[ARRAY_ENCODED]]
-    // CHECK: [[ARRAY_LEN:v[0-9]+]] = slice_len [[ARRAY_ENCODED]]
+    // CHECK: [[ARRAY_PTR:v[0-9]+]] = extract_value memoryslice, [[ARRAY_ENCODED]], 0
+    // CHECK: [[ARRAY_LEN:v[0-9]+]] = extract_value memoryslice, [[ARRAY_ENCODED]], 1
     // CHECK: log [[ARRAY_PTR]], [[ARRAY_LEN]], 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
     function emitArray(uint256[2] memory values) external {
         emit ArrayEvent(values);
@@ -67,8 +67,8 @@ contract EventEncoding {
 
     // CHECK-LABEL: fn @emitNamed
     // CHECK: [[NAMED_ENCODED:v[0-9]+]] = abi_encode [word, word], args 1, 2
-    // CHECK: [[NAMED_PTR:v[0-9]+]] = slice_ptr [[NAMED_ENCODED]]
-    // CHECK: [[NAMED_LEN:v[0-9]+]] = slice_len [[NAMED_ENCODED]]
+    // CHECK: [[NAMED_PTR:v[0-9]+]] = extract_value memoryslice, [[NAMED_ENCODED]], 0
+    // CHECK: [[NAMED_LEN:v[0-9]+]] = extract_value memoryslice, [[NAMED_ENCODED]], 1
     // CHECK: log [[NAMED_PTR]], [[NAMED_LEN]],
     function emitNamed() external {
         emit NamedEvent({b: 2, a: 1});

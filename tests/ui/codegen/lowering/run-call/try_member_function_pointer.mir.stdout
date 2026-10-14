@@ -43,8 +43,8 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[u256], abi_r
     v10 = shr 32, v7
     v11 = gas
     v12 = abi_encode [word], selector v9, args arg0
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = call v11, v10, 0, v13, v14, 0, 32
     jumpi v15, bb1, bb2
   bb2:
@@ -70,8 +70,8 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x8525855d00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 32
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
@@ -93,8 +93,8 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v18 = shr 32, v15
     v19 = gas
     v20 = abi_encode [], selector v17
-    v21 = slice_ptr v20
-    v22 = slice_len v20
+    v21 = extract_value memoryslice, v20, 0
+    v22 = extract_value memoryslice, v20, 1
     v23 = staticcall v19, v18, v21, v22, 0, 32
     jumpi v23, bb3, bb4
   bb4:

@@ -34,8 +34,8 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
@@ -45,9 +45,9 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = slice_ptr v15
+    v16 = extract_value memoryslice, v15, 0
+    v17 = extract_value memoryslice, v15, 1
+    v18 = extract_value memoryslice, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x8c379a0
@@ -102,8 +102,8 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
@@ -113,9 +113,9 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = slice_ptr v15
+    v16 = extract_value memoryslice, v15, 0
+    v17 = extract_value memoryslice, v15, 1
+    v18 = extract_value memoryslice, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x8c379a0
@@ -170,8 +170,8 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xb443a08500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
@@ -181,9 +181,9 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = slice_ptr v15
+    v16 = extract_value memoryslice, v15, 0
+    v17 = extract_value memoryslice, v15, 1
+    v18 = extract_value memoryslice, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x4e487b71

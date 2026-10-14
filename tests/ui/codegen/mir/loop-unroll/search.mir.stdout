@@ -2,24 +2,24 @@
 @module Search
 fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v21]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
     v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = slice_len v2
+    v5 = extract_value calldataslice, v2, 1
     v6 = lt v1, v5
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb4:
-    v7 = slice_len v2
+    v7 = extract_value calldataslice, v2, 1
     v8 = lt v1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_ptr v2
+    v10 = extract_value calldataslice, v2, 0
     v11 = mul v1, 32
     v12 = eq 32, 0
     v13 = div v11, 32
@@ -56,20 +56,20 @@ fn @findReturn(arg0: calldataslice, arg1: i256) -> i256 [selector=0xc77230d0, pu
     v1 = phi [bb0: 0], [bb3: v20]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
-    v4 = slice_len v2
+    v4 = extract_value calldataslice, v2, 1
     v5 = lt v1, v4
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v21 = slice_len v2
+    v21 = extract_value calldataslice, v2, 1
     ret v21
   bb4:
-    v6 = slice_len v2
+    v6 = extract_value calldataslice, v2, 1
     v7 = lt v1, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = slice_ptr v2
+    v9 = extract_value calldataslice, v2, 0
     v10 = mul v1, 32
     v11 = eq 32, 0
     v12 = div v10, 32
@@ -103,7 +103,7 @@ fn @count(arg0: calldataslice, arg1: i256) -> i256 [selector=0xb77153be, pure, a
     v1 = phi [bb0: 0], [bb3: v23]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v22]
-    v4 = slice_len v2
+    v4 = extract_value calldataslice, v2, 1
     v5 = lt v1, v4
     jumpi v5, bb4, bb5
   bb5:
@@ -117,11 +117,11 @@ fn @count(arg0: calldataslice, arg1: i256) -> i256 [selector=0xb77153be, pure, a
   bb8:
     jump bb2
   bb7:
-    v8 = slice_len v2
+    v8 = extract_value calldataslice, v2, 1
     v9 = lt v1, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = slice_ptr v2
+    v11 = extract_value calldataslice, v2, 0
     v12 = mul v1, 32
     v13 = eq 32, 0
     v14 = div v12, 32

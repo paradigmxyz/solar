@@ -49,7 +49,7 @@ fn @constructor() [constructor] {
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ExternalFunctionPointerAggregateTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -82,8 +82,8 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v7 = shr 32, v4
     v8 = gas
     v9 = abi_encode [], selector v6
-    v10 = slice_ptr v9
-    v11 = slice_len v9
+    v10 = extract_value memoryslice, v9, 0
+    v11 = extract_value memoryslice, v9, 1
     v12 = staticcall v8, v7, v10, v11, 0, 0
     jumpi v12, bb2, bb1
   bb1:
@@ -127,8 +127,8 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v18 = add v17, 32
     store v18, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     v19 = abi_encode [memory_array<word>, memory_bytes], selector v13, args v5, v16
-    v20 = slice_ptr v19
-    v21 = slice_len v19
+    v20 = extract_value memoryslice, v19, 0
+    v21 = extract_value memoryslice, v19, 1
     v22 = staticcall v15, v14, v20, v21, 0, 0
     jumpi v22, bb2, bb1
   bb1:
@@ -156,8 +156,8 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     v2 = shr 32, arg0
     v3 = gas
     v4 = abi_encode [word], selector v1, args arg1
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value memoryslice, v4, 0
+    v6 = extract_value memoryslice, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 32
     jumpi v7, bb2, bb1
   bb1:
@@ -202,8 +202,8 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x2f5f3b3c00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb2, bb1
@@ -217,8 +217,8 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v11 = shr 32, v8
     v12 = gas
     v13 = abi_encode [word], selector v10, args 8
-    v14 = slice_ptr v13
-    v15 = slice_len v13
+    v14 = extract_value memoryslice, v13, 0
+    v15 = extract_value memoryslice, v13, 1
     v16 = call v12, v11, 0, v14, v15, 0, 32
     jumpi v16, bb4, bb3
   bb3:
@@ -249,8 +249,8 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     v10 = shr 32, v7
     v11 = gas
     v12 = abi_encode [word], selector v9, args 8
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = call v11, v10, 0, v13, v14, 0, 32
     jumpi v15, bb2, bb1
   bb1:
@@ -299,8 +299,8 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v24 = shr 32, v21
     v25 = gas
     v26 = abi_encode [word], selector v23, args 3
-    v27 = slice_ptr v26
-    v28 = slice_len v26
+    v27 = extract_value memoryslice, v26, 0
+    v28 = extract_value memoryslice, v26, 1
     v29 = call v25, v24, 0, v27, v28, 0, 32
     jumpi v29, bb2, bb1
   bb1:
@@ -322,8 +322,8 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     v41 = shr 32, v38
     v42 = gas
     v43 = abi_encode [word], selector v40, args 4
-    v44 = slice_ptr v43
-    v45 = slice_len v43
+    v44 = extract_value memoryslice, v43, 0
+    v45 = extract_value memoryslice, v43, 1
     v46 = call v42, v41, 0, v44, v45, 0, 32
     jumpi v46, bb4, bb3
   bb3:
@@ -340,15 +340,15 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
 
 fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = slice_len arg0
+    v6 = extract_value calldataslice, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -357,8 +357,8 @@ fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_pa
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = slice_ptr arg0
-    v14 = slice_len arg0
+    v13 = extract_value calldataslice, arg0, 0
+    v14 = extract_value calldataslice, arg0, 1
     copy calldata v12, v13, v14
     v15 = ptrtoint memptr v11 to i256
     v16 = add v15, 32
@@ -384,8 +384,8 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v10 = add v9, 32
     store v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
     v11 = abi_encode [memory_bytes], selector v5, args v8
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value memoryslice, v11, 0
+    v13 = extract_value memoryslice, v11, 1
     v14 = call v7, v6, 0, v12, v13, 0, 32
     jumpi v14, bb2, bb1
   bb1:

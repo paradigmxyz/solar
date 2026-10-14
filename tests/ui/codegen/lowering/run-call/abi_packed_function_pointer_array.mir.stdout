@@ -23,8 +23,8 @@ fn @memoryEncode() -> memptr [selector=0xe39243fb, pure, abi_params=[], abi_retu
 
 fn @encode(arg0: calldataslice) -> memptr [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32

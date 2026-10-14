@@ -7,8 +7,8 @@ fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = zext i160 arg0 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0
@@ -36,8 +36,8 @@ fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[func
     v5 = add v4, 32
     store v5, 0
     v6 = abi_encode [], selector v1
-    v7 = slice_ptr v6
-    v8 = slice_len v6
+    v7 = extract_value memoryslice, v6, 0
+    v8 = extract_value memoryslice, v6, 1
     v9 = extcodesize v2
     v10 = eq v9, 0
     icall revert_if<target_contract_has_no_code>, v10

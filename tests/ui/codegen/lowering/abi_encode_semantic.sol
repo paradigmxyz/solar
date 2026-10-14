@@ -9,8 +9,8 @@ interface Sink {
 contract AbiEncodeSemantic {
     // CHECK-LABEL: fn @forward{{[( ]}}
     // CHECK: abi_encode [word, calldata_bytes], selector {{.*}}, args {{.*}}
-    // CHECK: slice_ptr
-    // CHECK: slice_len
+    // CHECK: extract_value memoryslice, {{[^,]+}}, 0
+    // CHECK: extract_value memoryslice, {{[^,]+}}, 1
     function forward(Sink sink, uint256 value, bytes calldata data) external {
         sink.consume(value, data);
     }

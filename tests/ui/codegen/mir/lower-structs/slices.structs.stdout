@@ -17,12 +17,12 @@
 -     v4 = insert_value struct2, v3, 2, v1
 -     v5 = insert_value struct2, v4, 3, arg2
 -     ret v5
-+     v6 = slice_ptr arg1
-+     v7 = slice_len arg1
-+     v8 = slice_ptr arg0
-+     v9 = slice_len arg0
-+     v10 = slice_ptr arg2
-+     v11 = slice_len arg2
++     v6 = extract_value calldataslice, arg1, 0
++     v7 = extract_value calldataslice, arg1, 1
++     v8 = extract_value memoryslice, arg0, 0
++     v9 = extract_value memoryslice, arg0, 1
++     v10 = extract_value returndataslice, arg2, 0
++     v11 = extract_value returndataslice, arg2, 1
 +     ret v8, v9, v6, v7, 42, v10, v11
   }
   
@@ -34,9 +34,9 @@
 -     v3 = extract_value struct1, v2, 0
 -     v4 = extract_value struct1, v2, 1
 -     v5 = extract_value struct2, v0, 3
--     v6 = slice_len v1
--     v7 = slice_len v3
--     v8 = slice_len v5
+-     v6 = extract_value memoryslice, v1, 1
+-     v7 = extract_value calldataslice, v3, 1
+-     v8 = extract_value returndataslice, v5, 1
 +     v12 = icall @pack, arg0, arg1, arg2
 +     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v14 = add v13, 32
@@ -54,9 +54,9 @@
 +     v26 = make_memory_slice v12, v15
 +     v27 = make_calldata_slice v17, v19
 +     v28 = make_returndata_slice v23, v25
-+     v6 = slice_len v26
-+     v7 = slice_len v27
-+     v8 = slice_len v28
++     v6 = extract_value memoryslice, v26, 1
++     v7 = extract_value calldataslice, v27, 1
++     v8 = extract_value returndataslice, v28, 1
       v9 = add v6, v7
 -     v10 = add v8, v4
 +     v10 = add v8, v21
@@ -84,13 +84,13 @@
 +     ret v5, v6, v7, v8, v9, v10, v11
     bb2:
 -     v1 = extract_value struct2, v0, 0
--     v2 = slice_ptr v1
+-     v2 = extract_value memoryslice, v1, 0
 +     v12 = make_memory_slice v5, v6
-+     v2 = slice_ptr v12
++     v2 = extract_value memoryslice, v12, 0
       v3 = make_memory_slice v2, 16
 -     v4 = insert_value struct2, v0, 0, v3
-+     v13 = slice_ptr v3
-+     v14 = slice_len v3
++     v13 = extract_value memoryslice, v3, 0
++     v14 = extract_value memoryslice, v3, 1
       jump bb1
   }
   
@@ -114,8 +114,8 @@
 -     v0 = insert_value struct1, undef struct1, 0, undef calldataslice
 -     v1 = insert_value struct1, v0, 1, 42
 -     ret v1
-+     v2 = slice_ptr undef calldataslice
-+     v3 = slice_len undef calldataslice
++     v2 = extract_value calldataslice, undef calldataslice, 0
++     v3 = extract_value calldataslice, undef calldataslice, 1
 +     ret v2, v3, 42
   }
   
@@ -132,8 +132,8 @@
 -     v1 = insert_value struct1, undef struct1, 0, v0
 -     v2 = insert_value struct1, v1, 1, 42
 -     ret v2
-+     v3 = slice_ptr v0
-+     v4 = slice_len v0
++     v3 = extract_value calldataslice, v0, 0
++     v4 = extract_value calldataslice, v0, 1
 +     ret v3, v4, 42
   }
   
@@ -144,8 +144,8 @@
 -     v1 = insert_value struct1, undef struct1, 0, v0
 -     v2 = insert_value struct1, v1, 1, 42
 -     ret v2
-+     v3 = slice_ptr v0
-+     v4 = slice_len v0
++     v3 = extract_value calldataslice, v0, 0
++     v4 = extract_value calldataslice, v0, 1
 +     ret v3, v4, 42
   }
   
@@ -179,8 +179,8 @@
 -     v4 = insert_value struct1, undef struct1, 0, v3
 -     v5 = insert_value struct1, v4, 1, 42
 -     ret v5
-+     v6 = slice_ptr v3
-+     v7 = slice_len v3
++     v6 = extract_value calldataslice, v3, 0
++     v7 = extract_value calldataslice, v3, 1
 +     ret v6, v7, 42
   }
   

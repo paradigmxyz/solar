@@ -222,6 +222,12 @@ impl MirType {
     pub(crate) const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
     /// A memory pointer.
     pub(crate) const MEMPTR: Self = Self::Ptr(PtrLocation::Memory);
+    /// The field types of a slice: its pointer word and its length word.
+    pub(crate) const SLICE_FIELDS: [Self; 2] = [Self::I256, Self::I256];
+    /// The field index of a slice's pointer word.
+    pub(crate) const SLICE_PTR_FIELD: u32 = 0;
+    /// The field index of a slice's length word.
+    pub(crate) const SLICE_LEN_FIELD: u32 = 1;
 
     /// Whether an integer width has a supported native representation.
     pub(crate) const fn valid_integer_width(bits: u32) -> bool {

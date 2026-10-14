@@ -42,7 +42,7 @@ contract DynamicReturnUnused {
     // pre-EIP-150 gas reserve still apply.
     // HOMESTEAD-LABEL: fn @live()
     // HOMESTEAD: create
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -64,7 +64,7 @@ contract DynamicReturnUnused {
     // A bare `catch` around an inaccessible value needs no return data either.
     // HOMESTEAD-LABEL: fn @liveTry()
     // HOMESTEAD: create
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -86,7 +86,7 @@ contract DynamicReturnUnused {
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: store [[ABOVE]], 0
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64

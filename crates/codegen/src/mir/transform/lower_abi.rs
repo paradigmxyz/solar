@@ -417,7 +417,7 @@ impl LowerAbiCx {
     }
 
     /// Rewrites value-carrying returns into a semantic ABI encode followed by
-    /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
+    /// `returndata (extract_value encoded, 0), (extract_value encoded, 1)`.
     fn encode_live_returns(
         &self,
         func: &mut Function,
@@ -689,8 +689,8 @@ impl LowerAbiCx {
                     let result = builder.func().inst_result_value(inst);
                     if let Some(&helper) = decode_helpers.get(&key) {
                         let arg = if passes_slice_base(*data_ty, layout) {
-                            // if slt(slice_len(data), head_size) { revert }
-                            // arg = slice_ptr(data)
+                            // if slt (extract_value data, 1), head_size { revert }
+                            // arg = extract_value data, 0
                             let (base, length) = decode_input(&mut builder, data);
                             let head_size = layout.checked_head_size().expect("checked ABI layout");
                             let head_size = builder.imm(head_size);
@@ -1067,7 +1067,7 @@ impl LowerAbiCx {
                                 index: inserted_index,
                                 value,
                             } = builder.func().inst(*inst).kind
-                            && ty == *id
+                            && ty == MirType::Struct(*id)
                         {
                             if inserted_index == index as u32 {
                                 return value;
@@ -1597,8 +1597,9 @@ impl LowerAbiCx {
         };
         let Some((start, len)) = func.blocks.indices().find_map(|block| {
             func.blocks[block].instructions.iter().copied().find_map(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::SliceLen(object) if object == source)
-                    .then_some((block, inst_id))
+                (func.inst(inst_id).kind.slice_projection()
+                    == Some((source, MirType::SLICE_LEN_FIELD)))
+                .then_some((block, inst_id))
             })
         }) else {
             return;
@@ -2802,7 +2803,11 @@ impl LowerAbiCx {
                 _ if inst.operands().iter().any(|value| addresses.contains_key(value)) => {
                     (true, false)
                 }
-                InstKind::SlicePtr(object)
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: object,
+                    index: MirType::SLICE_PTR_FIELD,
+                }
                 | InstKind::Store(object, ..)
                 | InstKind::Store8(object, ..)
                 | InstKind::MemoryZero(object, _)
@@ -2949,9 +2954,9 @@ impl LowerAbiCx {
     /// cross, `pending`, and a constant offset first covers them:
     ///
     /// ```text
-    /// load slice                 -> slice_len slice    (or load calldata (slice_ptr slice))
-    /// load slice+(header + k)    -> load calldata (slice_ptr slice)+k
-    /// ptradd slice, offset       -> add (slice_ptr slice), offset - min(offset, header)
+    /// load slice                 -> extract_value slice, 1 (or load calldata at field 0)
+    /// load slice+(header + k)    -> load calldata (extract_value slice, 0)+k
+    /// ptradd slice, offset       -> add (extract_value slice, 0), offset - min(offset, header)
     /// ptradd address, offset     -> add address, offset - min(offset, pending)
     /// load address+(pending + k) -> load calldata address+k
     /// ```
@@ -3011,10 +3016,10 @@ impl LowerAbiCx {
                         if let Some(&header) = headers.get(&object) =>
                     {
                         Some(if header != 0 && offset == 0 {
-                            // load object -> slice_len object
-                            InstKind::SliceLen(object)
+                            // load object -> extract_value object, 1
+                            InstKind::slice_field(builder.func(), object, MirType::SLICE_LEN_FIELD)
                         } else {
-                            // load object+(header + k) -> load calldata (slice_ptr object)+k
+                            // load object+(header + k) -> load calldata (extract_value object, 0)+k
                             let data = builder.slice_ptr(object);
                             InstKind::Load(
                                 data,
@@ -3027,14 +3032,18 @@ impl LowerAbiCx {
                         if let Some(&header) = headers.get(&object) =>
                     {
                         Some(match builder.func().value_u64(offset) {
-                            // ptradd object, offset <= header -> slice_ptr object
-                            Some(offset) if offset <= header => InstKind::SlicePtr(object),
-                            // ptradd object, header + k -> add (slice_ptr object), k
+                            // ptradd object, offset <= header -> extract_value object, 0
+                            Some(offset) if offset <= header => InstKind::slice_field(
+                                builder.func(),
+                                object,
+                                MirType::SLICE_PTR_FIELD,
+                            ),
+                            // ptradd object, header + k -> add (extract_value object, 0), k
                             Some(offset) => {
                                 let offset = builder.imm(offset - header);
                                 InstKind::Add(builder.slice_ptr(object), offset)
                             }
-                            // ptradd object, offset -> add (slice_ptr object), offset
+                            // ptradd object, offset -> add (extract_value object, 0), offset
                             None => InstKind::Add(builder.slice_ptr(object), offset),
                         })
                     }
@@ -3157,7 +3166,7 @@ impl LowerAbiCx {
                     });
                     !preserves_calldata
                 }
-                InstKind::SliceLen(_) | InstKind::SlicePtr(_) => false,
+                InstKind::ExtractValue { ty: MirType::Slice(_), .. } => false,
                 InstKind::Load(..) => result.is_some_and(|value| {
                     func.value_ty(value)
                         .is_some_and(|ty| matches!(ty, MirType::MEMPTR | MirType::Slice(_)))
@@ -3332,8 +3341,8 @@ fn passes_slice_base(data_ty: MirType, layout: &AbiParamLayout) -> bool {
 
 /// Returns the base and length of an ABI decode's input, a bytes object or a memory slice.
 fn decode_input(builder: &mut FunctionBuilder<'_>, data: ValueId) -> (ValueId, ValueId) {
-    // base = inttoptr (slice_ptr data | ptrtoint data + 32)
-    // length = slice_len data | load data
+    // base = inttoptr ((extract_value data, 0) | ptrtoint data + 32)
+    // length = (extract_value data, 1) | load data
     let ptr = builder.memory_data(data);
     let base = builder.cast(ptr, MirType::MEMPTR);
     (base, builder.memory_len(data))
@@ -3772,11 +3781,12 @@ fn byte_only_values(func: &Function) -> DenseBitSet<ValueId> {
     bytes
 }
 
-/// Splits a slice word's address, `add (slice_ptr slice), offset`, into the slice and the offset.
+/// Splits a slice word's address, `add (extract_value slice, 0), offset`, into the slice and the
+/// offset.
 fn slice_word(func: &Function, address: ValueId) -> Option<(ValueId, ValueId)> {
     let slice_of = |value| match func.value(value) {
-        Value::Inst(inst) => match func.inst(*inst).kind {
-            InstKind::SlicePtr(slice) => Some(slice),
+        Value::Inst(inst) => match func.inst(*inst).kind.slice_projection() {
+            Some((slice, MirType::SLICE_PTR_FIELD)) => Some(slice),
             _ => None,
         },
         _ => None,
@@ -3787,12 +3797,14 @@ fn slice_word(func: &Function, address: ValueId) -> Option<(ValueId, ValueId)> {
 }
 
 /// Returns the calldata slice a copy of `len` bytes from `data` reads whole:
-/// `copy calldata dest, slice_ptr slice, slice_len slice`.
+/// `copy calldata dest, (extract_value slice, 0), (extract_value slice, 1)`.
 fn calldata_slice_copy(func: &Function, data: ValueId, len: ValueId) -> Option<ValueId> {
     let Value::Inst(ptr) = func.value(data) else { return None };
-    let InstKind::SlicePtr(slice) = func.inst(*ptr).kind else { return None };
+    let Some((slice, MirType::SLICE_PTR_FIELD)) = func.inst(*ptr).kind.slice_projection() else {
+        return None;
+    };
     let Value::Inst(length) = func.value(len) else { return None };
-    (func.inst(*length).kind == InstKind::SliceLen(slice)
+    (func.inst(*length).kind.slice_projection() == Some((slice, MirType::SLICE_LEN_FIELD))
         && func.value_ty(slice) == Some(MirType::Slice(PtrLocation::Calldata)))
     .then_some(slice)
 }
@@ -3901,7 +3913,11 @@ fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
                         return false;
                     }
                 }
-                InstKind::SliceLen(base) if pointer_alias_root(func, base) == object => {}
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: base,
+                    index: MirType::SLICE_LEN_FIELD,
+                } if pointer_alias_root(func, base) == object => {}
                 _ => return false,
             }
         }
@@ -3927,7 +3943,12 @@ fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> b
             continue;
         }
         match func.inst(inst).kind {
-            InstKind::SliceLen(object) | InstKind::Load(object, _, PtrLocation::Memory)
+            InstKind::ExtractValue {
+                ty: MirType::Slice(_),
+                aggregate: object,
+                index: MirType::SLICE_LEN_FIELD,
+            }
+            | InstKind::Load(object, _, PtrLocation::Memory)
                 if pointer_alias_root(func, object) == value => {}
             InstKind::Store(object, _, stored)
                 if pointer_alias_root(func, stored) == value
@@ -4475,7 +4496,8 @@ fn direct_calldata_copy_source(
     let source = source?;
     let [length] = lengths[..] else { return None };
     let Value::Inst(length) = func.value(length) else { return None };
-    (func.inst(*length).kind == InstKind::SliceLen(source)).then_some(source)
+    (func.inst(*length).kind.slice_projection() == Some((source, MirType::SLICE_LEN_FIELD)))
+        .then_some(source)
 }
 
 fn reuse_direct_calldata_returns(
@@ -4637,14 +4659,14 @@ fn materialize_calldata_return(
     has_bitwise_shifting: bool,
 ) -> ValueId {
     if matches!(ty, AbiParamType::DynamicArray(_)) {
-        // len = slice_len returned_slice
-        // data = slice_ptr returned_slice
+        // len = extract_value returned_slice, 1
+        // data = extract_value returned_slice, 0
         // object = copy_calldata_value(data, len)
         let len = builder.slice_len(base);
         let data = builder.slice_ptr(base);
         return copy_calldata_value(builder, ty, data, Some(len), has_bitwise_shifting);
     }
-    // base = slice_ptr returned_slice
+    // base = extract_value returned_slice, 0
     // check_range(base, head_size)
     // object = copy_calldata_value(base)
     let input_end = builder.calldatasize();

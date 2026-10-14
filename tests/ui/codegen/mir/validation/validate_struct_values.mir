@@ -1,5 +1,5 @@
 //@compile-flags: -Zmir-pipeline=none
-//~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
+//~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared type
 //~? ERROR: [fn1] [bb0, inst0] inserted value must have type `i1`
 //~? ERROR: [fn2] [bb0] return values do not match the signature
 //~? ERROR: [fn3] [bb0, inst0] `select` has incompatible scalar types; use an explicit cast

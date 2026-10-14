@@ -8,8 +8,8 @@ contract StorageBytesFromCalldata {
     // CHECK-LABEL: fn @setText{{[( ]}}
     // CHECK: [[TEXT:v[0-9]+]] = alloc
     // CHECK: [[TEXT_DATA:v[0-9]+]] = ptradd [[TEXT]], 32
-    // CHECK-NEXT: [[SRC:v[0-9]+]] = slice_ptr arg0
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = slice_len arg0
+    // CHECK-NEXT: [[SRC:v[0-9]+]] = extract_value calldataslice, arg0, 0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value calldataslice, arg0, 1
     // CHECK-NEXT: copy calldata [[TEXT_DATA]], [[SRC]], [[LEN]]
     // CHECK: icall @store_storage_bytes, 0, [[TEXT]]
     function setText(string calldata value) external {
@@ -19,8 +19,8 @@ contract StorageBytesFromCalldata {
     // CHECK-LABEL: fn @setBlob{{[( ]}}
     // CHECK: [[BLOB:v[0-9]+]] = alloc
     // CHECK: [[BLOB_DATA:v[0-9]+]] = ptradd [[BLOB]], 32
-    // CHECK-NEXT: [[SRC:v[0-9]+]] = slice_ptr arg0
-    // CHECK-NEXT: [[LEN:v[0-9]+]] = slice_len arg0
+    // CHECK-NEXT: [[SRC:v[0-9]+]] = extract_value calldataslice, arg0, 0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value calldataslice, arg0, 1
     // CHECK-NEXT: copy calldata [[BLOB_DATA]], [[SRC]], [[LEN]]
     // CHECK: icall @store_storage_bytes, 1, [[BLOB]]
     function setBlob(bytes calldata value) external {

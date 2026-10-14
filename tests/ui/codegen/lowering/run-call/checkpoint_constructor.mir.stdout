@@ -195,7 +195,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     icall panic_if<0x32>, v6
     store v0+64, 6
     v7 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, 0x1234, 0x48b
-    v8 = slice_len v7
+    v8 = extract_value memoryslice, v7, 1
     v9 = datasize CheckpointTarget_creation_code_0
     v10 = add v9, v8
     v11 = lt v10, v9
@@ -208,7 +208,7 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy CheckpointTarget_creation_code_0, v17, v9
-    v18 = slice_ptr v7
+    v18 = extract_value memoryslice, v7, 0
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v9
     copy v20, v18, v8 !metadata(memory=heap)
@@ -221,8 +221,8 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
   bb2:
     v24 = gas
     v25 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v26 = slice_ptr v25
-    v27 = slice_len v25
+    v26 = extract_value memoryslice, v25, 0
+    v27 = extract_value memoryslice, v25, 1
     v28 = zext i160 v22 to i256
     v29 = staticcall v24, v28, v26, v27, 0, 32
     jumpi v29, bb4, bb3
@@ -250,7 +250,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ConstructorMultiReturn_creation_code_1, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -263,8 +263,8 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 32
     jumpi v16, bb4, bb3

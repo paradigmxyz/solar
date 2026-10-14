@@ -57,7 +57,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Registry_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -70,8 +70,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v11 = gas
     v12 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args 0x1111111111111111111111111111111111111111, 0x2200000000000000000000000000000000000000000000000000000000000033, 0x7a69, 0x4444444444444444444444444444444444444444, 0x5555
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = call v11, v15, 0, v13, v14, 0, 32
     jumpi v16, bb4, bb3

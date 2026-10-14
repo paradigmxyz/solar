@@ -47,8 +47,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v9 = icall @valueOpt
     v10 = icall @arg
     v11 = abi_encode [word], selector v5, args v10
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value memoryslice, v11, 0
+    v13 = extract_value memoryslice, v11, 1
     v14 = extcodesize v6
     v15 = eq v14, 0
     icall revert_if<target_contract_has_no_code>, v15

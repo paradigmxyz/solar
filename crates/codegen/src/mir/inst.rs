@@ -679,10 +679,10 @@ impl Instruction {
             return Some("narrow integer arithmetic");
         }
         match &self.kind {
-            InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
-            InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
+            InstKind::MakeSlice { .. } | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => {
                 Some("slice")
             }
+            InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
             InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
             InstKind::MemoryZero(..) => Some("memory zero"),
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
@@ -1127,6 +1127,23 @@ impl InstKind {
                 | Builtin::Transfer => EffectKind::ExternalCall,
             },
             _ => self.op_def().effect,
+        }
+    }
+
+    /// Projects field `index` of `slice`, typed by the slice's location.
+    #[must_use]
+    pub(crate) fn slice_field(func: &Function, slice: ValueId, index: u32) -> Self {
+        Self::ExtractValue { ty: super::typing::slice_type(func, slice), aggregate: slice, index }
+    }
+
+    /// Returns the slice and field index this instruction projects, if it projects a slice.
+    #[must_use]
+    pub(crate) const fn slice_projection(&self) -> Option<(ValueId, u32)> {
+        match *self {
+            Self::ExtractValue { ty: MirType::Slice(_), aggregate, index } => {
+                Some((aggregate, index))
+            }
+            _ => None,
         }
     }
 }

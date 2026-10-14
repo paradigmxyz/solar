@@ -64,8 +64,8 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -89,8 +89,8 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [word], selector 0x4d5b8d5600000000000000000000000000000000000000000000000000000000, args 1
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -121,8 +121,8 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [word], selector 0xd4ba105300000000000000000000000000000000000000000000000000000000, args 2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -146,8 +146,8 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v2 = add v1, 64
     store v2, 0
     v3 = abi_encode [word], selector 0x4a3c24da00000000000000000000000000000000000000000000000000000000, args 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -179,8 +179,8 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [word], selector 0x23fe6d5e00000000000000000000000000000000000000000000000000000000, args 3
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -208,8 +208,8 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [word], selector 0xca34aaa500000000000000000000000000000000000000000000000000000000, args 6
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -235,8 +235,8 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v3 = add v2, 96
     store v3, 0
     v4 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value memoryslice, v4, 0
+    v6 = extract_value memoryslice, v4, 1
     v7 = extcodesize 0x1111111111111111111111111111111111111111
     v8 = eq v7, 0
     icall revert_if<target_contract_has_no_code>, v8
@@ -274,8 +274,8 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7

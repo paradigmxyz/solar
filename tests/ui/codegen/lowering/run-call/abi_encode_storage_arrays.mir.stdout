@@ -5,8 +5,8 @@
 
 fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 64
     v3 = eq 64, 0
     v4 = div v2, 64
@@ -187,8 +187,8 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
     v31 = add v1, v24
     v32 = alloc 64
     v33 = make_calldata_slice v31, 64
-    v34 = slice_ptr v33
-    v35 = slice_len v33
+    v34 = extract_value calldataslice, v33, 0
+    v35 = extract_value calldataslice, v33, 1
     copy calldata v32, v34, v35
     v36 = ptrtoint memptr v32 to i256
     v37 = shl 5, v22
@@ -200,8 +200,8 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi
 
 fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 64
     v3 = eq 64, 0
     v4 = div v2, 64
@@ -406,8 +406,8 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v31 = add v1, v24
     v32 = alloc 64
     v33 = make_calldata_slice v31, 64
-    v34 = slice_ptr v33
-    v35 = slice_len v33
+    v34 = extract_value calldataslice, v33, 0
+    v35 = extract_value calldataslice, v33, 1
     copy calldata v32, v34, v35
     v36 = ptrtoint memptr v32 to i256
     v37 = shl 5, v22
@@ -419,7 +419,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
 
 fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 128
@@ -538,8 +538,8 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_
     v8 = add v0, v7
     v9 = alloc 64
     v10 = make_calldata_slice v8, 64
-    v11 = slice_ptr v10
-    v12 = slice_len v10
+    v11 = extract_value calldataslice, v10, 0
+    v12 = extract_value calldataslice, v10, 1
     copy calldata v9, v11, v12
     v13 = ptrtoint memptr v9 to i256
     v14 = shl 5, v5

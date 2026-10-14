@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module SliceInsertValue
+
+// Slices are built with `make_*_slice`; only structs take `insert_value`.
+fn @f(arg0: calldataslice) -> calldataslice {
+  bb0:
+    v0 = insert_value calldataslice, arg0, 1, 0 //~ ERROR: expected a struct type
+    ret v0
+}

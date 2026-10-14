@@ -35,8 +35,9 @@ word, so field or element `i` is the word at `v0+32 * i`, and at
 read and rewrite: `load v0` reads the length, the payload starts at `v0+32`, and
 element `i` of a word array is the word 32 bytes past `ptradd v0, shl 5, i`.
 Where a slice value is needed, `make_memory_slice` pairs the payload address
-with the length; `slice_ptr` and `slice_len` project it, and calldata and
-returndata slices work the same way.
+with the length; `extract_value` projects its pointer (field 0) and length
+(field 1) as it projects struct fields, and calldata and returndata slices work
+the same way.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.

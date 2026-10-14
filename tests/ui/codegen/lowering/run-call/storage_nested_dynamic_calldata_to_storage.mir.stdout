@@ -2,11 +2,11 @@
 @module StorageNestedDynamicCalldataToStorage
 fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 32
     v5 = calldatasize
     v6 = sub v5, v4
@@ -30,8 +30,8 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v21 = sgt v19, v20
     icall revert_if<calldata_tail_too_short>, v21
     v22 = make_calldata_slice v19, v15
-    v23 = slice_len v22
-    v24 = slice_ptr v22
+    v23 = extract_value calldataslice, v22, 1
+    v24 = extract_value calldataslice, v22, 0
     v25 = mul v23, 32
     v26 = eq 32, 0
     v27 = div v25, 32
@@ -375,8 +375,8 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v28 = lt v27, v6
     jumpi v28, bb13, bb14
   bb14:
-    v120 = slice_len arg0
-    v121 = slice_ptr arg0
+    v120 = extract_value calldataslice, arg0, 1
+    v121 = extract_value calldataslice, arg0, 0
     v122 = mul v120, 32
     v123 = eq 32, 0
     v124 = div v122, 32

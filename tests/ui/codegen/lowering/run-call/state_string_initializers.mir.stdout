@@ -70,7 +70,7 @@ fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy StateStringInitializers_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -95,7 +95,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy StateStringInitializers_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -108,8 +108,8 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 0
     jumpi v16, bb4, bb3
@@ -120,8 +120,8 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v18 = abi_decode [bytes], v17
     v19 = gas
     v20 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
-    v21 = slice_ptr v20
-    v22 = slice_len v20
+    v21 = extract_value memoryslice, v20, 0
+    v22 = extract_value memoryslice, v20, 1
     v23 = zext i160 v9 to i256
     v24 = staticcall v19, v23, v21, v22, 0, 0
     jumpi v24, bb6, bb5
@@ -132,8 +132,8 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v26 = abi_decode [bytes], v25
     v27 = gas
     v28 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v29 = slice_ptr v28
-    v30 = slice_len v28
+    v29 = extract_value memoryslice, v28, 0
+    v30 = extract_value memoryslice, v28, 1
     v31 = zext i160 v9 to i256
     v32 = staticcall v27, v31, v29, v30, 0, 32
     jumpi v32, bb8, bb7

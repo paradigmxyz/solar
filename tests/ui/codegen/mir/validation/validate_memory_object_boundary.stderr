@@ -4,7 +4,7 @@ error: [fn0] [bb0, inst0] abstract allocation instruction `alloc` survives the `
 
 error: [fn0] [bb0, inst1] pointer arithmetic instruction `ptradd` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst2] slice instruction `slice_len` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst2] slice instruction `extract_value` survives the `lowered` phase boundary
 
 error: [fn1] non-word type `i8` survives the `lowered` phase boundary
 

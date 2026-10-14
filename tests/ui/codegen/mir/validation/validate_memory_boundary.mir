@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=dce
 //~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] slice instruction `extract_value` survives the `lowered` phase boundary
 //~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 //~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
 //~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
@@ -32,7 +32,7 @@
 fn @slice(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
-    v3 = slice_len v2
+    v3 = extract_value memoryslice, v2, 1
     ret v3
 }
 fn @abi(arg0: i256) -> memoryslice {

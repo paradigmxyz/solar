@@ -14,8 +14,8 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
   bb5:
     jump bb6
   bb4:
-    v6 = slice_len arg1
-    v7 = slice_ptr arg1
+    v6 = extract_value calldataslice, arg1, 1
+    v7 = extract_value calldataslice, arg1, 0
     v8 = mul v6, 32
     v9 = eq 32, 0
     v10 = div v8, 32
@@ -89,8 +89,8 @@ fn @choose(arg0: i1, arg1: calldataslice) [selector=0xfbc46747, pure, abi_params
     store v58, v42
     v59 = make_calldata_slice v46, v49
     v60 = ptradd v58, 32
-    v61 = slice_ptr v59
-    v62 = slice_len v59
+    v61 = extract_value calldataslice, v59, 0
+    v62 = extract_value calldataslice, v59, 1
     copy calldata v60, v61, v62
     v63 = ptrtoint memptr v58 to i256
     v64 = shl 5, v28

@@ -19,7 +19,7 @@ fn @constructor() [constructor] {
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryErrorTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -46,8 +46,8 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = zext i160 v1 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0
@@ -61,9 +61,9 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v13 = add v12, 32
     v14 = load v11
     v15 = make_memory_slice v13, v14
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = slice_ptr v15
+    v16 = extract_value memoryslice, v15, 0
+    v17 = extract_value memoryslice, v15, 1
+    v18 = extract_value memoryslice, v15, 0
     v19 = load v18
     v20 = shr 224, v19
     v21 = eq v20, 0x8c379a0

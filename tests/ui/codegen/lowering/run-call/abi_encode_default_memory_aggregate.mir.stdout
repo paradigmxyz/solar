@@ -11,8 +11,8 @@ fn @hashStaticTuple() -> i256 [selector=0x432a72da, pure, abi_params=[], abi_ret
     jumpi v2, bb2, bb3
   bb3:
     v8 = abi_encode [memory_array<tuple<word, word, word>>], scratch, args v0
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value memoryslice, v8, 0
+    v10 = extract_value memoryslice, v8, 1
     v11 = keccak256 v9, v10
     ret v11
   bb2:
@@ -39,8 +39,8 @@ fn @hashDynamicTuple() -> i256 [selector=0xfe92a929, pure, abi_params=[], abi_re
     jumpi v2, bb2, bb3
   bb3:
     v8 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], scratch, args v0
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value memoryslice, v8, 0
+    v10 = extract_value memoryslice, v8, 1
     v11 = keccak256 v9, v10
     ret v11
   bb2:
@@ -67,8 +67,8 @@ fn @hashStaticFixedArray() -> i256 [selector=0x5fdc5289, pure, abi_params=[], ab
     jumpi v2, bb2, bb3
   bb3:
     v9 = abi_encode [memory_array<array<3, word>>], scratch, args v0
-    v10 = slice_ptr v9
-    v11 = slice_len v9
+    v10 = extract_value memoryslice, v9, 0
+    v11 = extract_value memoryslice, v9, 1
     v12 = keccak256 v10, v11
     ret v12
   bb2:
@@ -94,8 +94,8 @@ fn @hashDynamicFixedArray() -> i256 [selector=0x6c0960c7, pure, abi_params=[], a
     jumpi v2, bb2, bb3
   bb3:
     v13 = abi_encode [memory_array<array<3, memory_bytes>>], scratch, args v0
-    v14 = slice_ptr v13
-    v15 = slice_len v13
+    v14 = extract_value memoryslice, v13, 0
+    v15 = extract_value memoryslice, v13, 1
     v16 = keccak256 v14, v15
     ret v16
   bb2:
@@ -131,8 +131,8 @@ fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_ret
     jumpi v2, bb2, bb3
   bb3:
     v10 = abi_encode [memory_array<tuple<tuple<word, word, word>, memory_bytes>>], scratch, args v0
-    v11 = slice_ptr v10
-    v12 = slice_len v10
+    v11 = extract_value memoryslice, v10, 0
+    v12 = extract_value memoryslice, v10, 1
     v13 = keccak256 v11, v12
     ret v13
   bb2:

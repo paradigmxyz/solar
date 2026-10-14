@@ -52,15 +52,15 @@ fn @calldataBytes(arg0: calldataslice) -> memptr [selector=0x7965815f, pure, abi
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 0
+    v2 = extract_value calldataslice, arg0, 1
     v3 = calldatasize
     v4 = gt v2, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v4
     v5 = sub v3, v2
     v6 = sgt v1, v5
     icall revert_if<calldata_tail_too_short>, v6
-    v7 = slice_len arg0
+    v7 = extract_value calldataslice, arg0, 1
     v8 = add v7, 63
     v9 = lt v8, v7
     icall panic_if<0x41>, v9
@@ -69,8 +69,8 @@ fn @calldataBytes(arg0: calldataslice) -> memptr [selector=0x7965815f, pure, abi
     v12 = alloc v11
     store v12, v7
     v13 = ptradd v12, 32
-    v14 = slice_ptr arg0
-    v15 = slice_len arg0
+    v14 = extract_value calldataslice, arg0, 0
+    v15 = extract_value calldataslice, arg0, 1
     copy calldata v13, v14, v15
     jump bb2
   bb2:

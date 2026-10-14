@@ -9,6 +9,6 @@
 fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: i1) -> i256 {
   bb0:
     v3 = select arg2, arg0, arg1 !metadata(span=10..20)
-    v4 = slice_len v3 !metadata(span=20..30)
+    v4 = extract_value calldataslice, v3, 1 !metadata(span=20..30)
     ret v4
 }

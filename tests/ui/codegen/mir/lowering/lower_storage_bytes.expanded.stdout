@@ -197,7 +197,7 @@
 +     v11 = add v10, 32 !metadata(span=40..50, modifier_depth=4)
 +     v12 = load arg2 !metadata(span=40..50, modifier_depth=4)
 +     v13 = make_memory_slice v11, v12 !metadata(span=40..50, modifier_depth=4)
-+     v14 = slice_len v13 !metadata(span=40..50, modifier_depth=4)
++     v14 = extract_value memoryslice, v13, 1 !metadata(span=40..50, modifier_depth=4)
 +     v15 = add v7, 31 !metadata(span=40..50, modifier_depth=4)
 +     v16 = div v15, 32 !metadata(span=40..50, modifier_depth=4)
 +     v17 = add v14, 31 !metadata(span=40..50, modifier_depth=4)
@@ -233,7 +233,7 @@
 +     jumpi v48, bb12, bb16 !metadata(span=40..50, modifier_depth=4)
 +   bb16:
 +     v49 = mul v38, 32 !metadata(span=40..50, modifier_depth=4)
-+     v50 = slice_ptr v13 !metadata(span=40..50, modifier_depth=4)
++     v50 = extract_value memoryslice, v13, 0 !metadata(span=40..50, modifier_depth=4)
 +     v51 = add v50, v49 !metadata(span=40..50, modifier_depth=4)
 +     v52 = load v51 !metadata(span=40..50, modifier_depth=4)
 +     v53 = sub 32, v47 !metadata(span=40..50, modifier_depth=4)
@@ -247,7 +247,7 @@
 +     jump bb12 !metadata(span=40..50, modifier_depth=4)
 +   bb14:
 +     v41 = mul v39, 32 !metadata(span=40..50, modifier_depth=4)
-+     v42 = slice_ptr v13 !metadata(span=40..50, modifier_depth=4)
++     v42 = extract_value memoryslice, v13, 0 !metadata(span=40..50, modifier_depth=4)
 +     v43 = add v42, v41 !metadata(span=40..50, modifier_depth=4)
 +     v44 = load v43 !metadata(span=40..50, modifier_depth=4)
 +     v45 = add v37, v39 !metadata(span=40..50, modifier_depth=4)
@@ -255,7 +255,7 @@
 +     v46 = add v39, 1 !metadata(span=40..50, modifier_depth=4)
 +     jump bb13 !metadata(span=40..50, modifier_depth=4)
 +   bb10:
-+     v25 = slice_ptr v13 !metadata(span=40..50, modifier_depth=4)
++     v25 = extract_value memoryslice, v13, 0 !metadata(span=40..50, modifier_depth=4)
 +     v26 = load v25 !metadata(span=40..50, modifier_depth=4)
 +     v27 = sub 32, v14 !metadata(span=40..50, modifier_depth=4)
 +     v28 = mul v27, 8 !metadata(span=40..50, modifier_depth=4)

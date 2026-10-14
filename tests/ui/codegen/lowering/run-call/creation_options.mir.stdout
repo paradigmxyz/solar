@@ -14,7 +14,7 @@ fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_return
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationOptionsChild_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -31,7 +31,7 @@ fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_return
     v14 = alloc v13
     v15 = ptrtoint memptr v14 to i256
     datacopy CreationOptionsChild_creation_code_0, v15, v12
-    v16 = slice_ptr v11
+    v16 = extract_value memoryslice, v11, 0
     v17 = ptrtoint memptr v14 to i256
     v18 = add v17, v12
     copy v18, v16, 0 !metadata(memory=heap)
@@ -61,7 +61,7 @@ fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_return
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationOptionsChild_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -78,7 +78,7 @@ fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_return
     v14 = alloc v13
     v15 = ptrtoint memptr v14 to i256
     datacopy CreationOptionsChild_creation_code_0, v15, v12
-    v16 = slice_ptr v11
+    v16 = extract_value memoryslice, v11, 0
     v17 = ptrtoint memptr v14 to i256
     v18 = add v17, v12
     copy v18, v16, 0 !metadata(memory=heap)
@@ -108,7 +108,7 @@ fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationOptionsChild_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -125,7 +125,7 @@ fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns
     v14 = alloc v13
     v15 = ptrtoint memptr v14 to i256
     datacopy CreationOptionsChild_creation_code_0, v15, v12
-    v16 = slice_ptr v11
+    v16 = extract_value memoryslice, v11, 0
     v17 = ptrtoint memptr v14 to i256
     v18 = add v17, v12
     copy v18, v16, 0 !metadata(memory=heap)
@@ -155,7 +155,7 @@ fn @differentLiteralSalts() -> i1 [selector=0x3109d26e, abi_params=[], abi_retur
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy CreationOptionsChild_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -173,7 +173,7 @@ fn @differentLiteralSalts() -> i1 [selector=0x3109d26e, abi_params=[], abi_retur
     v15 = alloc v14
     v16 = ptrtoint memptr v15 to i256
     datacopy CreationOptionsChild_creation_code_0, v16, v13
-    v17 = slice_ptr v12
+    v17 = extract_value memoryslice, v12, 0
     v18 = ptrtoint memptr v15 to i256
     v19 = add v18, v13
     copy v19, v17, 0 !metadata(memory=heap)

@@ -39,8 +39,8 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v20 = address
     v21 = gas
     v22 = abi_encode [memory_array<memory_bytes>], selector 0xe3db0bf300000000000000000000000000000000000000000000000000000000, args v0
-    v23 = slice_ptr v22
-    v24 = slice_len v22
+    v23 = extract_value memoryslice, v22, 0
+    v24 = extract_value memoryslice, v22, 1
     v25 = zext i160 v20 to i256
     v26 = staticcall v21, v25, v23, v24, 0, 32
     jumpi v26, bb5, bb4
@@ -68,7 +68,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0xe3db0bf3, pure, abi_params=[arr
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v36]
     v2 = phi [bb0: 0], [bb3: v35]
-    v3 = slice_len v0
+    v3 = extract_value calldataslice, v0, 1
     v4 = lt v1, v3
     jumpi v4, bb4, bb5
   bb5:
@@ -76,11 +76,11 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0xe3db0bf3, pure, abi_params=[arr
   bb2:
     ret v2
   bb4:
-    v5 = slice_len v0
+    v5 = extract_value calldataslice, v0, 1
     v6 = lt v1, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = slice_ptr v0
+    v8 = extract_value calldataslice, v0, 0
     v9 = mul v1, 32
     v10 = eq 32, 0
     v11 = div v9, 32
@@ -150,8 +150,8 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v17 = address
     v18 = gas
     v19 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
-    v20 = slice_ptr v19
-    v21 = slice_len v19
+    v20 = extract_value memoryslice, v19, 0
+    v21 = extract_value memoryslice, v19, 1
     v22 = zext i160 v17 to i256
     v23 = staticcall v18, v22, v20, v21, v20, 64
     jumpi v23, bb5, bb4
@@ -191,11 +191,11 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
 
 fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
@@ -210,7 +210,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_para
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 32
-    v16 = slice_ptr v15
+    v16 = extract_value calldataslice, v15, 0
     v17 = add v16, 64
     v18 = calldatasize
     v19 = sub v18, v17
@@ -233,13 +233,13 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_para
     v33 = sgt v31, v32
     icall revert_if<calldata_tail_too_short>, v33
     v34 = make_calldata_slice v31, v28
-    v35 = slice_len v34
-    v36 = slice_ptr v34
+    v35 = extract_value calldataslice, v34, 1
+    v36 = extract_value calldataslice, v34, 0
     v37 = add v36, v35
-    v38 = slice_len v34
+    v38 = extract_value calldataslice, v34, 1
     v39 = calldatasize
     v40 = make_calldata_slice 0, v39
-    v41 = slice_len v40
+    v41 = extract_value calldataslice, v40, 1
     v42 = gt v37, v41
     v43 = eq v42, false
     v44 = insert_value struct0, undef struct0, 0, v38
@@ -260,8 +260,8 @@ fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_return
     v6 = eq v5, false
     v7 = zext i1 v6 to i256
     v8 = abi_encode [memory_bytes, word<bool>], selector 0xf8c7256500000000000000000000000000000000000000000000000000000000, args v2, v7
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value memoryslice, v8, 0
+    v10 = extract_value memoryslice, v8, 1
     v11 = zext i160 v0 to i256
     v12 = staticcall v1, v11, v9, v10, 0, 32
     jumpi v12, bb2, bb1
@@ -282,13 +282,13 @@ fn @useTuple(arg0: calldataslice, arg1: i1) -> i256 [selector=0xf8c72565, pure, 
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = extract_value struct1, v0, 2
-    v4 = slice_len v3
+    v4 = extract_value calldataslice, v3, 1
     ret v4
 }
 
 fn @_length(arg0: calldataslice) -> i256 [pure] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     ret v0
 }
 
@@ -297,8 +297,8 @@ fn @_decode(arg0: calldataslice, arg1: i1) -> struct1 [pure] {
     v0 = make_calldata_slice 0, 0
     jumpi arg1, bb1, bb2
   bb2:
-    v11 = slice_ptr arg0
-    v12 = slice_len arg0
+    v11 = extract_value calldataslice, arg0, 0
+    v12 = extract_value calldataslice, arg0, 1
     v13 = gt v12, v12
     v14 = lt v12, 2
     v15 = or v13, v14
@@ -309,9 +309,9 @@ fn @_decode(arg0: calldataslice, arg1: i1) -> struct1 [pure] {
     v19 = make_calldata_slice v18, v17
     jump bb3
   bb1:
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
-    v3 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 0
+    v2 = extract_value calldataslice, arg0, 1
+    v3 = extract_value calldataslice, arg0, 1
     v4 = gt v2, v2
     v5 = lt v2, v3
     v6 = or v4, v5

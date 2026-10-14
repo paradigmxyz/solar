@@ -4,8 +4,8 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
   bb0:
     v0 = address
     v1 = gas
-    v2 = slice_len arg0
-    v3 = slice_ptr arg0
+    v2 = extract_value calldataslice, arg0, 1
+    v3 = extract_value calldataslice, arg0, 0
     v4 = mul v2, 32
     v5 = eq 32, 0
     v6 = div v4, 32
@@ -38,8 +38,8 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
     jumpi v25, bb2, bb3
   bb3:
     v37 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
-    v38 = slice_ptr v37
-    v39 = slice_len v37
+    v38 = extract_value memoryslice, v37, 0
+    v39 = extract_value memoryslice, v37, 1
     v40 = zext i160 v0 to i256
     v41 = staticcall v1, v40, v38, v39, 0, 32
     jumpi v41, bb5, bb4
@@ -75,7 +75,7 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
 
 fn @accept(arg0: calldataslice) -> i1 [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = eq v0, 1
     ret v1
 }

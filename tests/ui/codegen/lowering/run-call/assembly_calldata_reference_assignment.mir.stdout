@@ -6,15 +6,15 @@
 
 fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46afc9f8, pure, abi_params=[tuple<u256>, tuple<u256, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = slice_ptr arg1
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg1, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = make_calldata_slice v0, v1
-    v3 = slice_len arg1
+    v3 = extract_value calldataslice, arg1, 1
     v4 = make_calldata_slice 4, v3
-    v5 = slice_ptr v2
+    v5 = extract_value calldataslice, v2, 0
     v6 = add v5, 0
     v7 = load calldata v6
-    v8 = slice_ptr v4
+    v8 = extract_value calldataslice, v4, 0
     v9 = add v8, 0
     v10 = load calldata v9
     v11 = insert_value struct0, undef struct0, 0, v7
@@ -24,34 +24,34 @@ fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46a
 
 fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 4, v0
-    v2 = slice_len v1
+    v2 = extract_value calldataslice, v1, 1
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = slice_ptr v1
+    v5 = extract_value calldataslice, v1, 0
     v6 = add v5, 0
     v7 = make_calldata_slice v6, 2
-    v8 = slice_len v7
+    v8 = extract_value calldataslice, v7, 1
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = slice_ptr v7
+    v11 = extract_value calldataslice, v7, 0
     v12 = add v11, 0
     v13 = load calldata v12
-    v14 = slice_len v1
+    v14 = extract_value calldataslice, v1, 1
     v15 = lt 1, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = slice_ptr v1
+    v17 = extract_value calldataslice, v1, 0
     v18 = add v17, 64
     v19 = make_calldata_slice v18, 2
-    v20 = slice_len v19
+    v20 = extract_value calldataslice, v19, 1
     v21 = lt 1, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = slice_ptr v19
+    v23 = extract_value calldataslice, v19, 0
     v24 = add v23, 32
     v25 = load calldata v24
     v26 = insert_value struct0, undef struct0, 0, v13
@@ -61,37 +61,37 @@ fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, pure, abi_
 
 fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 68, v0
-    v2 = slice_ptr v1
+    v2 = extract_value calldataslice, v1, 0
     v3 = make_calldata_slice v2, 2
-    v4 = slice_len v3
-    v5 = slice_len v3
+    v4 = extract_value calldataslice, v3, 1
+    v5 = extract_value calldataslice, v3, 1
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = slice_ptr v3
+    v8 = extract_value calldataslice, v3, 0
     v9 = add v8, 0
     v10 = make_calldata_slice v9, 2
-    v11 = slice_len v10
+    v11 = extract_value calldataslice, v10, 1
     v12 = lt 0, v11
     v13 = eq v12, false
     icall panic_if<0x32>, v13
-    v14 = slice_ptr v10
+    v14 = extract_value calldataslice, v10, 0
     v15 = add v14, 0
     v16 = load calldata v15
-    v17 = slice_len v3
+    v17 = extract_value calldataslice, v3, 1
     v18 = lt 1, v17
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = slice_ptr v3
+    v20 = extract_value calldataslice, v3, 0
     v21 = add v20, 64
     v22 = make_calldata_slice v21, 2
-    v23 = slice_len v22
+    v23 = extract_value calldataslice, v22, 1
     v24 = lt 1, v23
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = slice_ptr v22
+    v26 = extract_value calldataslice, v22, 0
     v27 = add v26, 32
     v28 = load calldata v27
     v29 = insert_value struct1, undef struct1, 0, v4
@@ -102,12 +102,12 @@ fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, pure, abi
 
 fn @dynamicWords(arg0: calldataslice) -> memptr [selector=0x148d46ad, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 68, v0
-    v2 = slice_ptr v1
+    v2 = extract_value calldataslice, v1, 0
     v3 = make_calldata_slice v2, 2
-    v4 = slice_len v3
-    v5 = slice_ptr v3
+    v4 = extract_value calldataslice, v3, 1
+    v5 = extract_value calldataslice, v3, 0
     v6 = mul v4, 32
     v7 = eq 32, 0
     v8 = div v6, 32
@@ -135,20 +135,20 @@ fn @dynamicWords(arg0: calldataslice) -> memptr [selector=0x148d46ad, pure, abi_
     store v25, v4
     v26 = make_calldata_slice v5, v16
     v27 = ptradd v25, 32
-    v28 = slice_ptr v26
-    v29 = slice_len v26
+    v28 = extract_value calldataslice, v26, 0
+    v29 = extract_value calldataslice, v26, 1
     copy calldata v27, v28, v29
     ret v25
 }
 
 fn @dynamicFixed(arg0: calldataslice) -> memptr [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, u256>>]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 68, v0
-    v2 = slice_ptr v1
+    v2 = extract_value calldataslice, v1, 0
     v3 = make_calldata_slice v2, 2
-    v4 = slice_len v3
-    v5 = slice_ptr v3
+    v4 = extract_value calldataslice, v3, 1
+    v5 = extract_value calldataslice, v3, 0
     v6 = mul v4, 64
     v7 = eq 64, 0
     v8 = div v6, 64
@@ -193,8 +193,8 @@ fn @dynamicFixed(arg0: calldataslice) -> memptr [selector=0x71cafd78, pure, abi_
     v35 = add v5, v28
     v36 = alloc 64
     v37 = make_calldata_slice v35, 64
-    v38 = slice_ptr v37
-    v39 = slice_len v37
+    v38 = extract_value calldataslice, v37, 0
+    v39 = extract_value calldataslice, v37, 1
     copy calldata v36, v38, v39
     v40 = ptrtoint memptr v36 to i256
     v41 = shl 5, v26
@@ -206,12 +206,12 @@ fn @dynamicFixed(arg0: calldataslice) -> memptr [selector=0x71cafd78, pure, abi_
 
 fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, pure, abi_params=[array<_, u8>], abi_returns=[memory_array<word<u8>>], abi_return_params=[array<_, u8>]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 68, v0
-    v2 = slice_ptr v1
+    v2 = extract_value calldataslice, v1, 0
     v3 = make_calldata_slice v2, 2
-    v4 = slice_len v3
-    v5 = slice_ptr v3
+    v4 = extract_value calldataslice, v3, 1
+    v5 = extract_value calldataslice, v3, 0
     v6 = mul v4, 32
     v7 = eq 32, 0
     v8 = div v6, 32
@@ -261,12 +261,12 @@ fn @dynamicNarrow(arg0: calldataslice) -> memptr [selector=0x320b552a, pure, abi
 
 fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 68, v0
-    v2 = slice_ptr v1
+    v2 = extract_value calldataslice, v1, 0
     v3 = make_calldata_slice v2, 2
-    v4 = slice_len v3
-    v5 = slice_ptr v3
+    v4 = extract_value calldataslice, v3, 1
+    v5 = extract_value calldataslice, v3, 0
     v6 = mul v4, 32
     v7 = eq 32, 0
     v8 = div v6, 32
@@ -338,8 +338,8 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
     store v56, v40
     v57 = make_calldata_slice v44, v47
     v58 = ptradd v56, 32
-    v59 = slice_ptr v57
-    v60 = slice_len v57
+    v59 = extract_value calldataslice, v57, 0
+    v60 = extract_value calldataslice, v57, 1
     copy calldata v58, v59, v60
     v61 = ptrtoint memptr v56 to i256
     v62 = shl 5, v26
@@ -351,13 +351,13 @@ fn @dynamicNested(arg0: calldataslice) -> memptr [selector=0x24abb2f5, pure, abi
 
 fn @dynamicOverflow(arg0: calldataslice) -> memptr [selector=0x51072adf, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = make_calldata_slice 68, v0
     v2 = not 0
-    v3 = slice_ptr v1
+    v3 = extract_value calldataslice, v1, 0
     v4 = make_calldata_slice v3, v2
-    v5 = slice_len v4
-    v6 = slice_ptr v4
+    v5 = extract_value calldataslice, v4, 1
+    v6 = extract_value calldataslice, v4, 0
     v7 = mul v5, 32
     v8 = eq 32, 0
     v9 = div v7, 32
@@ -385,8 +385,8 @@ fn @dynamicOverflow(arg0: calldataslice) -> memptr [selector=0x51072adf, pure, a
     store v26, v5
     v27 = make_calldata_slice v6, v17
     v28 = ptradd v26, 32
-    v29 = slice_ptr v27
-    v30 = slice_len v27
+    v29 = extract_value calldataslice, v27, 0
+    v30 = extract_value calldataslice, v27, 1
     copy calldata v28, v29, v30
     ret v26
 }
@@ -394,12 +394,12 @@ fn @dynamicOverflow(arg0: calldataslice) -> memptr [selector=0x51072adf, pure, a
 fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memptr [selector=0x93d2ba08, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = calldatasize
-    v1 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = make_calldata_slice v0, v1
-    v3 = slice_ptr v2
+    v3 = extract_value calldataslice, v2, 0
     v4 = make_calldata_slice v3, 0
-    v5 = slice_len v4
-    v6 = slice_ptr v4
+    v5 = extract_value calldataslice, v4, 1
+    v6 = extract_value calldataslice, v4, 0
     v7 = mul v5, 32
     v8 = eq 32, 0
     v9 = div v7, 32
@@ -427,8 +427,8 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memptr [selector=0x93d2ba08, pure,
     store v26, v5
     v27 = make_calldata_slice v6, v17
     v28 = ptradd v26, 32
-    v29 = slice_ptr v27
-    v30 = slice_len v27
+    v29 = extract_value calldataslice, v27, 0
+    v30 = extract_value calldataslice, v27, 1
     copy calldata v28, v29, v30
     ret v26
 }
@@ -437,12 +437,12 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memptr [selector=0x77beb5ce, pur
   bb0:
     v0 = calldatasize
     v1 = add v0, 1
-    v2 = slice_len arg0
+    v2 = extract_value calldataslice, arg0, 1
     v3 = make_calldata_slice v1, v2
-    v4 = slice_ptr v3
+    v4 = extract_value calldataslice, v3, 0
     v5 = make_calldata_slice v4, 0
-    v6 = slice_len v5
-    v7 = slice_ptr v5
+    v6 = extract_value calldataslice, v5, 1
+    v7 = extract_value calldataslice, v5, 0
     v8 = mul v6, 32
     v9 = eq 32, 0
     v10 = div v8, 32
@@ -470,8 +470,8 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memptr [selector=0x77beb5ce, pur
     store v27, v6
     v28 = make_calldata_slice v7, v18
     v29 = ptradd v27, 32
-    v30 = slice_ptr v28
-    v31 = slice_len v28
+    v30 = extract_value calldataslice, v28, 0
+    v31 = extract_value calldataslice, v28, 1
     copy calldata v29, v30, v31
     ret v27
 }
@@ -479,12 +479,12 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memptr [selector=0x77beb5ce, pur
 fn @dynamicWrappingEnd(arg0: calldataslice) -> memptr [selector=0x4c797599, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = not 0
-    v1 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = make_calldata_slice v0, v1
-    v3 = slice_ptr v2
+    v3 = extract_value calldataslice, v2, 0
     v4 = make_calldata_slice v3, 1
-    v5 = slice_len v4
-    v6 = slice_ptr v4
+    v5 = extract_value calldataslice, v4, 1
+    v6 = extract_value calldataslice, v4, 0
     v7 = mul v5, 32
     v8 = eq 32, 0
     v9 = div v7, 32
@@ -512,8 +512,8 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memptr [selector=0x4c797599, pure
     store v26, v5
     v27 = make_calldata_slice v6, v17
     v28 = ptradd v26, 32
-    v29 = slice_ptr v27
-    v30 = slice_len v27
+    v29 = extract_value calldataslice, v27, 0
+    v30 = extract_value calldataslice, v27, 1
     copy calldata v28, v29, v30
     ret v26
 }
@@ -521,7 +521,7 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memptr [selector=0x4c797599, pure
 fn @returnedSlice(arg0: calldataslice) -> i256 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @slice, arg0, 0
-    v1 = slice_ptr v0
+    v1 = extract_value calldataslice, v0, 0
     v2 = load calldata v1
     v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
     ret v3
@@ -530,7 +530,7 @@ fn @returnedSlice(arg0: calldataslice) -> i256 [selector=0x515c2822, pure, abi_p
 fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
+    v1 = extract_value calldataslice, v0, 0
     v2 = make_calldata_slice v1, 0
     v3 = icall @sliceLength, v2
     ret v3
@@ -538,20 +538,20 @@ fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], ab
 
 fn @sliceLength(arg0: calldataslice) -> i256 [pure] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     ret v0
 }
 
 fn @slice(arg0: calldataslice, arg1: i256) -> calldataslice [pure] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = add v0, arg1
     v2 = make_calldata_slice 0, 0
-    v3 = slice_len v2
+    v3 = extract_value calldataslice, v2, 1
     v4 = make_calldata_slice v1, v3
-    v5 = slice_len arg0
+    v5 = extract_value calldataslice, arg0, 1
     v6 = sub v5, arg1
-    v7 = slice_ptr v4
+    v7 = extract_value calldataslice, v4, 0
     v8 = make_calldata_slice v7, v6
     ret v8
 }

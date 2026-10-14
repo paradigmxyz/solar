@@ -7,11 +7,11 @@ fn @f(arg0: calldataslice) -> i256 [selector=0xc26b6b9a, pure, abi_params=[array
 
 fn @g(arg0: calldataslice) -> i256 [selector=0xebcd97f8, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4

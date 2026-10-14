@@ -2,7 +2,7 @@ error: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
 
 error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst1] slice instruction `extract_value` survives the `lowered` phase boundary
 
 error: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
 

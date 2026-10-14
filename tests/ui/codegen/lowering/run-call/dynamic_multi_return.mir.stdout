@@ -88,7 +88,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Callee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -101,8 +101,8 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x713d228b00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 0
     jumpi v16, bb4, bb3
@@ -131,7 +131,7 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Callee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -144,8 +144,8 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0xed19722c00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 0
     jumpi v16, bb4, bb3
@@ -174,7 +174,7 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Callee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -187,8 +187,8 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x477be19f00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 0
     jumpi v16, bb4, bb3
@@ -218,7 +218,7 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy Callee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -231,8 +231,8 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
   bb2:
     v11 = gas
     v12 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v13 = extract_value memoryslice, v12, 0
+    v14 = extract_value memoryslice, v12, 1
     v15 = zext i160 v9 to i256
     v16 = staticcall v11, v15, v13, v14, 0, 0
     jumpi v16, bb4, bb3

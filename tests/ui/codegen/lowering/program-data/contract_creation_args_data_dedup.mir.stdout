@@ -42,7 +42,7 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
     v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy ChildWithArg_creation_code_0, v5, v1
-    v6 = slice_ptr v0
+    v6 = extract_value memoryslice, v0, 0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
@@ -55,8 +55,8 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
   bb2:
     v12 = gas
     v13 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
+    v14 = extract_value memoryslice, v13, 0
+    v15 = extract_value memoryslice, v13, 1
     v16 = zext i160 v10 to i256
     v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
@@ -80,7 +80,7 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
     v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy ChildWithArg_creation_code_0, v5, v1
-    v6 = slice_ptr v0
+    v6 = extract_value memoryslice, v0, 0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
@@ -94,8 +94,8 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
     v12 = trunc i256 v10 to i160
     v13 = gas
     v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
+    v15 = extract_value memoryslice, v14, 0
+    v16 = extract_value memoryslice, v14, 1
     v17 = zext i160 v12 to i256
     v18 = staticcall v13, v17, v15, v16, 0, 32
     jumpi v18, bb4, bb3
@@ -119,7 +119,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v4 = alloc v3
     v5 = ptrtoint memptr v4 to i256
     datacopy ChildWithArg_creation_code_0, v5, v1
-    v6 = slice_ptr v0
+    v6 = extract_value memoryslice, v0, 0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
     copy v8, v6, 32 !metadata(memory=heap)
@@ -137,7 +137,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v16 = alloc v15
     v17 = ptrtoint memptr v16 to i256
     datacopy ChildWithArg_creation_code_0, v17, v13
-    v18 = slice_ptr v12
+    v18 = extract_value memoryslice, v12, 0
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
     copy v20, v18, 32 !metadata(memory=heap)
@@ -150,8 +150,8 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
   bb4:
     v24 = gas
     v25 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v26 = slice_ptr v25
-    v27 = slice_len v25
+    v26 = extract_value memoryslice, v25, 0
+    v27 = extract_value memoryslice, v25, 1
     v28 = zext i160 v10 to i256
     v29 = staticcall v24, v28, v26, v27, 0, 32
     jumpi v29, bb6, bb5
@@ -165,8 +165,8 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v33 = load v32
     v34 = gas
     v35 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v36 = slice_ptr v35
-    v37 = slice_len v35
+    v36 = extract_value memoryslice, v35, 0
+    v37 = extract_value memoryslice, v35, 1
     v38 = zext i160 v22 to i256
     v39 = staticcall v34, v38, v36, v37, 0, 32
     jumpi v39, bb8, bb7

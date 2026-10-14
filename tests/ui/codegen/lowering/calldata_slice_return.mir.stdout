@@ -9,8 +9,8 @@ fn @whole(arg0: calldataslice) -> calldataslice [selector=0xbbbb2e8a, pure, abi_
 fn @tail(arg0: calldataslice) -> calldataslice [selector=0xba5a0763, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr arg0
-    v2 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 0
+    v2 = extract_value calldataslice, arg0, 1
     v3 = gt v2, v2
     v4 = lt v2, 4
     v5 = or v3, v4

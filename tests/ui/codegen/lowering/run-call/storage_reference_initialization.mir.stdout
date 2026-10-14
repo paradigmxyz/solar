@@ -116,8 +116,8 @@ fn @tryBind(arg0: i1, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool
     v1 = gas
     v2 = zext i1 arg0 to i256
     v3 = abi_encode [word<bool>], selector 0x8aef775200000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = zext i160 v0 to i256
     v7 = extcodesize v6
     v8 = eq v7, 0

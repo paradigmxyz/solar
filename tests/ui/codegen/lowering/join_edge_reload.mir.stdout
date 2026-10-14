@@ -2,24 +2,24 @@
 @module JoinEdgeReload
 fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v21]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
     v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = slice_len v2
+    v5 = extract_value calldataslice, v2, 1
     v6 = lt v1, v5
     jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb4:
-    v7 = slice_len v2
+    v7 = extract_value calldataslice, v2, 1
     v8 = lt v1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = slice_ptr v2
+    v10 = extract_value calldataslice, v2, 0
     v11 = mul v1, 32
     v12 = eq 32, 0
     v13 = div v11, 32

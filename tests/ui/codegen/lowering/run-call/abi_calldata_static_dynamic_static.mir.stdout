@@ -4,15 +4,15 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x15cfcc01, pure, abi_params=[arr
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v2 = extract_value calldataslice, v1, 0
+    v3 = extract_value calldataslice, v1, 1
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
     v7 = sgt v2, v6
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = slice_len v1
+    v8 = extract_value calldataslice, v1, 1
     v9 = add v8, 63
     v10 = lt v9, v8
     icall panic_if<0x41>, v10
@@ -21,8 +21,8 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x15cfcc01, pure, abi_params=[arr
     v13 = alloc v12
     store v13, v8
     v14 = ptradd v13, 32
-    v15 = slice_ptr v1
-    v16 = slice_len v1
+    v15 = extract_value calldataslice, v1, 0
+    v16 = extract_value calldataslice, v1, 1
     copy calldata v14, v15, v16
     ret v13
 }
@@ -31,15 +31,15 @@ fn @f2(arg0: calldataslice) -> memptr [selector=0xdc0ee233, pure, abi_params=[ar
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
+    v2 = extract_value calldataslice, v1, 0
+    v3 = extract_value calldataslice, v1, 1
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
     v7 = sgt v2, v6
     icall revert_if<calldata_tail_too_short>, v7
-    v8 = slice_len v1
+    v8 = extract_value calldataslice, v1, 1
     v9 = add v8, 63
     v10 = lt v9, v8
     icall panic_if<0x41>, v10
@@ -48,8 +48,8 @@ fn @f2(arg0: calldataslice) -> memptr [selector=0xdc0ee233, pure, abi_params=[ar
     v13 = alloc v12
     store v13, v8
     v14 = ptradd v13, 32
-    v15 = slice_ptr v1
-    v16 = slice_len v1
+    v15 = extract_value calldataslice, v1, 0
+    v16 = extract_value calldataslice, v1, 1
     copy calldata v14, v15, v16
     ret v13
 }
@@ -106,8 +106,8 @@ fn @g() -> memptr [selector=0xe2179b8e, view, abi_params=[], abi_returns=[memory
     v31 = address
     v32 = gas
     v33 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
-    v34 = slice_ptr v33
-    v35 = slice_len v33
+    v34 = extract_value memoryslice, v33, 0
+    v35 = extract_value memoryslice, v33, 1
     v36 = zext i160 v31 to i256
     v37 = staticcall v32, v36, v34, v35, 0, 0
     jumpi v37, bb9, bb8
@@ -299,8 +299,8 @@ fn @i() -> memptr [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[memory
     v101 = address
     v102 = gas
     v103 = abi_encode [array<2, memory_array<array<2, word>>>], selector 0xdc0ee23300000000000000000000000000000000000000000000000000000000, args v0
-    v104 = slice_ptr v103
-    v105 = slice_len v103
+    v104 = extract_value memoryslice, v103, 0
+    v105 = extract_value memoryslice, v103, 1
     v106 = zext i160 v101 to i256
     v107 = staticcall v102, v106, v104, v105, 0, 0
     jumpi v107, bb24, bb23

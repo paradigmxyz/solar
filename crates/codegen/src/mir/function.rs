@@ -243,7 +243,11 @@ impl Function {
             value = match self.inst(*inst).kind {
                 InstKind::PtrToInt(base, 256)
                 | InstKind::IntToPtr(base)
-                | InstKind::SlicePtr(base)
+                | InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: base,
+                    index: MirType::SLICE_PTR_FIELD,
+                }
                 | InstKind::MakeSlice { ptr: base, location: PtrLocation::Memory, .. } => base,
                 InstKind::Add(base, delta) | InstKind::PtrAdd(base, delta)
                     if let Some(delta) = self.value_u64(delta) =>
@@ -316,7 +320,11 @@ impl Function {
         match self.inst(inst).kind {
             InstKind::PtrToInt(_, 256)
             | InstKind::IntToPtr(_)
-            | InstKind::SlicePtr(_)
+            | InstKind::ExtractValue {
+                ty: MirType::Slice(_),
+                index: MirType::SLICE_PTR_FIELD,
+                ..
+            }
             | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
             InstKind::Add(_, delta) | InstKind::PtrAdd(_, delta) => self.value_u64(delta).is_some(),
             _ => false,

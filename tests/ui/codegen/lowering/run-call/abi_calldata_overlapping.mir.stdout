@@ -2,8 +2,8 @@
 @module AbiCalldataOverlapping
 fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -118,8 +118,8 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     store v52, v36
     v53 = make_calldata_slice v40, v43
     v54 = ptradd v52, 32
-    v55 = slice_ptr v53
-    v56 = slice_len v53
+    v55 = extract_value calldataslice, v53, 0
+    v56 = extract_value calldataslice, v53, 1
     copy calldata v54, v55, v56
     v57 = ptrtoint memptr v52 to i256
     v58 = shl 5, v22
@@ -131,8 +131,8 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
 
 fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -206,8 +206,8 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     store v52, v36
     v53 = make_calldata_slice v40, v43
     v54 = ptradd v52, 32
-    v55 = slice_ptr v53
-    v56 = slice_len v53
+    v55 = extract_value calldataslice, v53, 0
+    v56 = extract_value calldataslice, v53, 1
     copy calldata v54, v55, v56
     v57 = ptrtoint memptr v52 to i256
     v58 = shl 5, v22

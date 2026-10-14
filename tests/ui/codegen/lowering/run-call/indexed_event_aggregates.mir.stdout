@@ -295,8 +295,8 @@ fn @test_strings() -> memptr [selector=0xcdb50c38, abi_params=[], abi_returns=[m
     v71 = make_memory_slice v70, v61
     v72 = ptradd v49, v52
     v73 = ptradd v72, 32
-    v74 = slice_ptr v71
-    v75 = slice_len v71
+    v74 = extract_value memoryslice, v71, 0
+    v75 = extract_value memoryslice, v71, 1
     copy v73, v74, v75
     v76 = add v52, v65
     v77 = add v51, 1

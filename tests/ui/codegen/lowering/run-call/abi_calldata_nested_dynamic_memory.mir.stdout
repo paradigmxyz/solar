@@ -2,8 +2,8 @@
 @module AbiCalldataNestedDynamicMemory
 fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>], abi_return_params=[array<_, array<_, array<_, u256>>>]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -124,8 +124,8 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
     store v83, v67
     v84 = make_calldata_slice v71, v74
     v85 = ptradd v83, 32
-    v86 = slice_ptr v84
-    v87 = slice_len v84
+    v86 = extract_value calldataslice, v84, 0
+    v87 = extract_value calldataslice, v84, 1
     copy calldata v85, v86, v87
     v88 = ptrtoint memptr v83 to i256
     v89 = shl 5, v53
@@ -137,8 +137,8 @@ fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[arr
 
 fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>], abi_return_params=[array<_, array<_, array<2, u256>>>]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -232,8 +232,8 @@ fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[arr
     v62 = add v40, v55
     v63 = alloc 64
     v64 = make_calldata_slice v62, 64
-    v65 = slice_ptr v64
-    v66 = slice_len v64
+    v65 = extract_value calldataslice, v64, 0
+    v66 = extract_value calldataslice, v64, 1
     copy calldata v63, v65, v66
     v67 = ptrtoint memptr v63 to i256
     v68 = shl 5, v53

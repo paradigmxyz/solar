@@ -128,8 +128,8 @@ fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v9
     store v0+96, 0xfffffffffffffffffffffffffffffc
     v10 = abi_encode [memory_array<word<u120>>], scratch, args v0
-    v11 = slice_ptr v10
-    v12 = slice_len v10
+    v11 = extract_value memoryslice, v10, 0
+    v12 = extract_value memoryslice, v10, 1
     v13 = keccak256 v11, v12
     ret v13
 }
@@ -187,8 +187,8 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     icall panic_if<0x32>, v32
     store v30+32, 0xfffffffffffffffffffffffffffffd
     v33 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
-    v34 = slice_ptr v33
-    v35 = slice_len v33
+    v34 = extract_value memoryslice, v33, 0
+    v35 = extract_value memoryslice, v33, 1
     v36 = keccak256 v34, v35
     ret v36
   bb2:
@@ -224,8 +224,8 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     icall panic_if<0x32>, v9
     store v7+32, 0xfffffffffffffffffffffffffffffc
     v10 = abi_encode [tuple<word<u120>, array<2, word<u120>>>], scratch, args v0
-    v11 = slice_ptr v10
-    v12 = slice_len v10
+    v11 = extract_value memoryslice, v10, 0
+    v12 = extract_value memoryslice, v10, 1
     v13 = keccak256 v11, v12
     ret v13
 }
@@ -233,8 +233,8 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
 fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [word<u8>], scratch, args 2
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = keccak256 v1, v2
     ret v3
 }
@@ -244,8 +244,8 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     v0 = address
     v1 = gas
     v2 = abi_encode [word<u8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args 2
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1

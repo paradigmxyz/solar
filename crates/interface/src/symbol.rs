@@ -1230,8 +1230,6 @@ symbols! {
         short_string,
         sig,
         slice_greater_than_length,
-        slice_len,
-        slice_ptr,
         slice_starts_after_end,
         slot,
         solidity,

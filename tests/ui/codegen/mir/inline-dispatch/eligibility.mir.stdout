@@ -36,8 +36,8 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, pure, abi_params=[u256], abi_ret
 @module WithDynamicInputs
 fn @a(arg0: calldataslice) -> memptr [selector=0x1e3badd9, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -65,8 +65,8 @@ fn @a(arg0: calldataslice) -> memptr [selector=0x1e3badd9, pure, abi_params=[arr
     store v21, v0
     v22 = make_calldata_slice v1, v12
     v23 = ptradd v21, 32
-    v24 = slice_ptr v22
-    v25 = slice_len v22
+    v24 = extract_value calldataslice, v22, 0
+    v25 = extract_value calldataslice, v22, 1
     copy calldata v23, v24, v25
     ret v21
 }

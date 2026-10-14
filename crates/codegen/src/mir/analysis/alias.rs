@@ -839,7 +839,11 @@ impl AliasAnalysis {
                     propagate(*first);
                     propagate(*second);
                 }
-                InstKind::SlicePtr(predecessor)
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: predecessor,
+                    index: MirType::SLICE_PTR_FIELD,
+                }
                 | InstKind::IntToPtr(predecessor)
                 | InstKind::PtrToInt(predecessor, 256) => {
                     propagate(*predecessor);
@@ -878,7 +882,7 @@ impl AliasAnalysis {
             | InstKind::Phi(_)
             | InstKind::Select(_, _, _)
             | InstKind::MakeSlice { .. }
-            | InstKind::SlicePtr(_)
+            | InstKind::ExtractValue { ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, .. }
             | InstKind::IntToPtr(..)
             | InstKind::PtrToInt(_, 256) => false,
             InstKind::Load(address, _, PtrLocation::Memory) => operand != *address,
@@ -1625,7 +1629,11 @@ impl AliasAnalysis {
                 InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) => {
                     self.memory_address_with_depth(func, ptr, depth + 1)
                 }
-                InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
+                InstKind::ExtractValue {
+                    ty: MirType::Slice(_),
+                    aggregate: slice,
+                    index: MirType::SLICE_PTR_FIELD,
+                } => self.slice_pointer_address(func, slice, depth),
                 InstKind::Phi(ref incoming) => self.join_pointer_paths(
                     func,
                     value,
@@ -1768,7 +1776,11 @@ impl AliasAnalysis {
             InstKind::Select(_, first, second) => {
                 self.join_pointer_regions(func, [first, second], depth)
             }
-            InstKind::SlicePtr(slice) => {
+            InstKind::ExtractValue {
+                ty: MirType::Slice(_),
+                aggregate: slice,
+                index: MirType::SLICE_PTR_FIELD,
+            } => {
                 let Value::Inst(slice_inst) = func.value(slice) else {
                     return MemoryRegion::Unknown;
                 };
@@ -1942,7 +1954,11 @@ impl AliasAnalysis {
             // `ptradd` does not wrap, so a runtime offset only moves the pointer up.
             InstKind::PtrAdd(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)?
                 .checked_add(func.value_u64(*offset).unwrap_or(0)),
-            InstKind::SlicePtr(slice) => {
+            InstKind::ExtractValue {
+                ty: MirType::Slice(_),
+                aggregate: slice,
+                index: MirType::SLICE_PTR_FIELD,
+            } => {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.inst(*slice).kind {
                     InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => {

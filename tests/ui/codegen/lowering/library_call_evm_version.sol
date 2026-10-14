@@ -56,7 +56,7 @@ contract C {
     // Before Byzantium the area overlays the call's own input, as in `delegatecall(..., in, 32)`;
     // from Byzantium on the return data length check subsumes the code check.
     // HOMESTEAD-LABEL: fn @one
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
@@ -65,7 +65,7 @@ contract C {
     // From EIP-150 on the forwarded gas is capped, so the reserve goes away while the output area
     // and the code check stay.
     // TANGERINE-LABEL: fn @one
-    // TANGERINE: [[IN:v[0-9]+]] = slice_ptr
+    // TANGERINE: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // TANGERINE: [[GAS:v[0-9]+]] = gas
     // TANGERINE-NOT: sub [[GAS]]
     // TANGERINE: extcodesize
@@ -86,13 +86,13 @@ contract C {
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: store [[ABOVE]], 0
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD-NOT: {{(^|[^a-z_])}}store
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: {{(^|[^a-z_])}}load
     // HOMESTEAD: {{(^|[^a-z_])}}load
     // TANGERINE-LABEL: fn @two
-    // TANGERINE: [[IN:v[0-9]+]] = slice_ptr
+    // TANGERINE: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // TANGERINE-NOT: alloc
     // TANGERINE: delegatecall {{.*}}, [[IN]], 64
     // BYZANTIUM-LABEL: fn @two
@@ -106,7 +106,7 @@ contract C {
     // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc 64{{$}}
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: copy [[BUF]], [[IN]], 64
     // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
@@ -123,7 +123,7 @@ contract C {
     // A returned word is validated where it is read from, so a dirty `bool` reverts before
     // Byzantium as well.
     // HOMESTEAD-LABEL: fn @boolean
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: [[WORD:v[0-9]+]] = load
     // HOMESTEAD: [[CLEAN:v[0-9]+]] = eq [[WORD]],
@@ -139,7 +139,7 @@ contract C {
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc 64{{$}}
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: copy [[BUF]], [[IN]], 64
     // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
@@ -156,7 +156,7 @@ contract C {
     // same overlaid output area.
     // HOMESTEAD-LABEL: fn @attached
     // HOMESTEAD: abi_encode {{.*}}, args 0
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: {{(^|[^a-z_])}}load
@@ -176,7 +176,7 @@ contract C {
     // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
     // HOMESTEAD: store [[ABOVE]], 0
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: delegatecall [[FWD]], {{.*}}, [[IN]], {{.*}}, [[IN]], 192
@@ -192,7 +192,7 @@ contract C {
 
     // A call with no return values declares an empty output area at either version.
     // HOMESTEAD-LABEL: fn @none
-    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[IN:v[0-9]+]] = extract_value memoryslice, {{[^,]+}}, 0
     // HOMESTEAD: extcodesize
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 0
     // BYZANTIUM-LABEL: fn @none

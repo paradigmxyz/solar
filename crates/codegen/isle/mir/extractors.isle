@@ -6,10 +6,10 @@
 (decl inst (Op) Value)
 (extern extractor inst inst_data)
 
-(decl insertvalue (StructId Value u32 Value) Value)
+(decl insertvalue (MirType Value u32 Value) Value)
 (extractor (insertvalue ty aggregate index value) (inst (Op.InsertValue ty aggregate index value)))
 
-(decl extractvalue (StructId Value u32) Value)
+(decl extractvalue (MirType Value u32) Value)
 (extractor (extractvalue ty aggregate index) (inst (Op.ExtractValue ty aggregate index)))
 
 (decl zext (Value) Value)
@@ -197,12 +197,6 @@
 
 (decl makeslice (Value Value PtrLocation) Value)
 (extractor (makeslice ptr len location) (inst (Op.MakeSlice ptr len location)))
-
-(decl sliceptr (Value) Value)
-(extractor (sliceptr slice) (inst (Op.SlicePtr slice)))
-
-(decl slicelen (Value) Value)
-(extractor (slicelen slice) (inst (Op.SliceLen slice)))
 
 (decl internalframeaddr (u64) Value)
 (extractor (internalframeaddr offset) (inst (Op.InternalFrameAddr offset)))

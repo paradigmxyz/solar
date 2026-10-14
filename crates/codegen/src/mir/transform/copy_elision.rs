@@ -17,7 +17,7 @@
 //! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, PtrLocation, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, MirType, Module, PtrLocation, Terminator, Value, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
@@ -237,7 +237,11 @@ impl CopyElisionCx {
                     }
                     InstKind::PtrToInt(value, 256)
                     | InstKind::IntToPtr(value)
-                    | InstKind::SlicePtr(value)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        aggregate: value,
+                        index: MirType::SLICE_PTR_FIELD,
+                    }
                     | InstKind::MakeSlice { ptr: value, .. } => derived.contains(value),
                     _ => false,
                 };
@@ -302,7 +306,12 @@ impl CopyElisionCx {
                         }
                     }
                     // Reads of the allocation keep every write.
-                    InstKind::Load(addr, _, PtrLocation::Memory) | InstKind::SliceLen(addr) => {
+                    InstKind::Load(addr, _, PtrLocation::Memory)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        aggregate: addr,
+                        index: MirType::SLICE_LEN_FIELD,
+                    } => {
                         if derived.contains(addr) {
                             return None;
                         }
@@ -318,7 +327,11 @@ impl CopyElisionCx {
                     | InstKind::PtrAdd(..)
                     | InstKind::PtrToInt(_, 256)
                     | InstKind::IntToPtr(_)
-                    | InstKind::SlicePtr(_)
+                    | InstKind::ExtractValue {
+                        ty: MirType::Slice(_),
+                        index: MirType::SLICE_PTR_FIELD,
+                        ..
+                    }
                     | InstKind::MakeSlice { .. }
                     | InstKind::Alloc { .. } => {}
                     // Any other use of a derived address is treated as a read.

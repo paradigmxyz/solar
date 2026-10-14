@@ -2,8 +2,8 @@
 @module CalldataSliceEncode
 fn @encode(arg0: calldataslice, arg1: i256) -> memptr [selector=0xa8c06a13, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
@@ -12,8 +12,8 @@ fn @encode(arg0: calldataslice, arg1: i256) -> memptr [selector=0xa8c06a13, pure
     v6 = sub v1, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
+    v9 = extract_value calldataslice, v8, 0
+    v10 = extract_value calldataslice, v8, 1
     v11 = calldatasize
     v12 = gt v10, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v12
@@ -26,8 +26,8 @@ fn @encode(arg0: calldataslice, arg1: i256) -> memptr [selector=0xa8c06a13, pure
 
 fn @forward(arg0: calldataslice, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
@@ -37,8 +37,8 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i160) [selector=0xb8467e08, a
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
     v9 = gas
-    v10 = slice_ptr v8
-    v11 = slice_len v8
+    v10 = extract_value calldataslice, v8, 0
+    v11 = extract_value calldataslice, v8, 1
     v12 = calldatasize
     v13 = gt v11, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v13
@@ -46,8 +46,8 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i160) [selector=0xb8467e08, a
     v15 = sgt v10, v14
     icall revert_if<calldata_tail_too_short>, v15
     v16 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
-    v17 = slice_ptr v16
-    v18 = slice_len v16
+    v17 = extract_value memoryslice, v16, 0
+    v18 = extract_value memoryslice, v16, 1
     v19 = zext i160 arg2 to i256
     v20 = extcodesize v19
     v21 = eq v20, 0

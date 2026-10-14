@@ -2,8 +2,8 @@
 @module StorageNestedStructCalldata
 fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -502,8 +502,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
     jumpi v113, bb11, bb12
   bb12:
     v121 = make_calldata_slice v107, 64
-    v122 = slice_ptr v121
-    v123 = slice_len v121
+    v122 = extract_value calldataslice, v121, 0
+    v123 = extract_value calldataslice, v121, 1
     copy calldata v111, v122, v123
     v124 = ptrtoint memptr v111 to i256
     store v67+32, v124
@@ -540,7 +540,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_,
 
 fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 32
@@ -1142,8 +1142,8 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
     jumpi v96, bb11, bb12
   bb12:
     v104 = make_calldata_slice v90, 64
-    v105 = slice_ptr v104
-    v106 = slice_len v104
+    v105 = extract_value calldataslice, v104, 0
+    v106 = extract_value calldataslice, v104, 1
     copy calldata v94, v105, v106
     v107 = ptrtoint memptr v94 to i256
     store v50+32, v107
@@ -1180,8 +1180,8 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[arr
 
 fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 0
     v2 = mul v0, 32
     v3 = eq 32, 0
     v4 = div v2, 32
@@ -1762,8 +1762,8 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_para
     jumpi v100, bb11, bb12
   bb12:
     v108 = make_calldata_slice v94, 64
-    v109 = slice_ptr v108
-    v110 = slice_len v108
+    v109 = extract_value calldataslice, v108, 0
+    v110 = extract_value calldataslice, v108, 1
     copy calldata v98, v109, v110
     v111 = ptrtoint memptr v98 to i256
     store v54+32, v111

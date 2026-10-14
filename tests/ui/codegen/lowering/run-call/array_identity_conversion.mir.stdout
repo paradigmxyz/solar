@@ -184,6 +184,6 @@ fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[
 
 fn @calldataLength(arg0: calldataslice) -> i256 [selector=0x52782626, pure, abi_params=[array<_, tuple<u32, i128>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     ret v0
 }

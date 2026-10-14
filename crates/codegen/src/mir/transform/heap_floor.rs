@@ -646,7 +646,9 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::IntToPtr(_)
         | InstKind::PtrToInt(..)
         | InstKind::PtrAdd(..)
-        | InstKind::SlicePtr(..)
+        | InstKind::ExtractValue {
+            ty: MirType::Slice(_), index: MirType::SLICE_PTR_FIELD, ..
+        }
         | InstKind::MakeSlice { location: PtrLocation::Memory, .. } => true,
         InstKind::Load(address, offset, PtrLocation::Memory) => is_slot(func, address, offset),
         _ => instruction.result_ty == Some(MirType::MEMPTR),
@@ -667,7 +669,11 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
         InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
         InstKind::Zext(operand) | InstKind::IntToPtr(operand) => heap.contains(*operand),
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
-        InstKind::SlicePtr(object)
+        InstKind::ExtractValue {
+            ty: MirType::Slice(_),
+            aggregate: object,
+            index: MirType::SLICE_PTR_FIELD,
+        }
         | InstKind::MakeSlice { ptr: object, location: PtrLocation::Memory, .. } => {
             heap.contains(*object)
         }

@@ -28,8 +28,8 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     v0 = library_address TryLib_0
     v1 = gas
     v2 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = delegatecall v1, v5, v3, v4, 0, 32
     jumpi v6, bb1, bb2
@@ -58,8 +58,8 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi
     v0 = library_address TryLib_0
     v1 = gas
     v2 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0

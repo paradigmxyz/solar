@@ -16,7 +16,7 @@ fn @entry(arg0: calldataslice) [selector=0x12345678] {
 // CHECK: + ret [[LENGTH]]
 fn @len(arg0: calldataslice) -> i256 {
   bb0:
-    v1 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 1
     ret v1
 }
 
@@ -26,8 +26,8 @@ fn @len(arg0: calldataslice) -> i256 {
 // CHECK: + {{v[0-9]+}} = icall @pair_len, [[POINTER]], [[LENGTH]]
 fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
   bb0:
-    v2 = slice_ptr arg0
-    v3 = slice_len arg0
+    v2 = extract_value calldataslice, arg0, 0
+    v3 = extract_value calldataslice, arg0, 1
     v4 = add v2, arg1
     v5 = sub v3, arg1
     v6 = make_calldata_slice v4, v5
@@ -39,7 +39,7 @@ fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
 // CHECK: + ret arg1
 fn @pair_len(arg0: calldataslice) -> i256 {
   bb0:
-    v1 = slice_len arg0
+    v1 = extract_value calldataslice, arg0, 1
     ret v1
 }
 
@@ -49,8 +49,8 @@ fn @pair_len(arg0: calldataslice) -> i256 {
 fn @memory(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = add v3, v4
     ret v5
 }

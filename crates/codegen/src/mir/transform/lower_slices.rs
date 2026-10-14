@@ -2,7 +2,7 @@
 //!
 //! Slices are deliberately a higher-level MIR abstraction. The EVM backend
 //! remains word-based, so this pass expands slice parameters and call
-//! arguments, resolves `slice_ptr`/`slice_len` projections, and erases the
+//! arguments, resolves `extract_value` projections of slices, and erases the
 //! corresponding constructors before machine lowering. SSA structs must have been lowered first;
 //! otherwise expanding a slice would invalidate the struct field's declared type.
 
@@ -89,8 +89,10 @@ fn split_slice_phis(
     let mut len_incoming = Vec::with_capacity(incoming.len());
     for (pred, value) in incoming {
         let (pointer, length) = if func.value_slice_location(value).is_some() {
-            let (ptr_inst, pointer) = new_word_inst(func, InstKind::SlicePtr(value));
-            let (len_inst, length) = new_word_inst(func, InstKind::SliceLen(value));
+            let (ptr_inst, pointer) =
+                new_word_inst(func, InstKind::slice_field(func, value, MirType::SLICE_PTR_FIELD));
+            let (len_inst, length) =
+                new_word_inst(func, InstKind::slice_field(func, value, MirType::SLICE_LEN_FIELD));
             func.blocks[pred].instructions.push(ptr_inst);
             func.blocks[pred].instructions.push(len_inst);
             (pointer, length)
@@ -151,14 +153,9 @@ impl LowerSlices {
             FxHashMap::default();
         for user in func.instructions() {
             let Some(user_result) = func.inst_result_value(user) else { continue };
-            match func.inst(user).kind {
-                InstKind::SlicePtr(slice) => {
-                    projection_users.entry(slice).or_default().push((user, user_result, true));
-                }
-                InstKind::SliceLen(slice) => {
-                    projection_users.entry(slice).or_default().push((user, user_result, false));
-                }
-                _ => {}
+            if let Some((slice, index)) = func.inst(user).kind.slice_projection() {
+                let is_pointer = index == MirType::SLICE_PTR_FIELD;
+                projection_users.entry(slice).or_default().push((user, user_result, is_pointer));
             }
         }
 
@@ -232,10 +229,22 @@ impl LowerSlices {
                     && let Some(location) = func.value_slice_location(a)
                 {
                     let old = func.inst_result_value(inst_id).expect("select has a result");
-                    let (ia, pa) = new_word_inst(func, InstKind::SlicePtr(a));
-                    let (ib, pb) = new_word_inst(func, InstKind::SlicePtr(b));
-                    let (ila, la) = new_word_inst(func, InstKind::SliceLen(a));
-                    let (ilb, lb) = new_word_inst(func, InstKind::SliceLen(b));
+                    let (ia, pa) = new_word_inst(
+                        func,
+                        InstKind::slice_field(func, a, MirType::SLICE_PTR_FIELD),
+                    );
+                    let (ib, pb) = new_word_inst(
+                        func,
+                        InstKind::slice_field(func, b, MirType::SLICE_PTR_FIELD),
+                    );
+                    let (ila, la) = new_word_inst(
+                        func,
+                        InstKind::slice_field(func, a, MirType::SLICE_LEN_FIELD),
+                    );
+                    let (ilb, lb) = new_word_inst(
+                        func,
+                        InstKind::slice_field(func, b, MirType::SLICE_LEN_FIELD),
+                    );
                     let (isp, sp) = new_word_inst(func, InstKind::Select(cond, pa, pb));
                     let (isl, sl) = new_word_inst(func, InstKind::Select(cond, la, lb));
                     let (ims, new_slice) = new_slice_inst(func, sp, sl, location);
@@ -546,11 +555,11 @@ impl LowerSlices {
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
         for inst_id in builder.func().instructions() {
-            let replacement = match builder.func().inst(inst_id).kind {
-                InstKind::SlicePtr(slice) => components.get(&slice).map(|&(ptr, _)| ptr),
-                InstKind::SliceLen(slice) => components.get(&slice).map(|&(_, len)| len),
-                _ => None,
-            };
+            let replacement =
+                builder.func().inst(inst_id).kind.slice_projection().and_then(|(slice, index)| {
+                    let &(ptr, len) = components.get(&slice)?;
+                    Some(if index == MirType::SLICE_PTR_FIELD { ptr } else { len })
+                });
             if let Some(replacement) = replacement
                 && let Some(result) = builder.func().inst_result_value(inst_id)
             {
@@ -578,11 +587,11 @@ impl LowerSlices {
             let mut lengths = FxHashMap::default();
             let mut pointers = FxHashMap::default();
             for inst_id in instructions {
-                let projection = match builder.func().inst(inst_id).kind {
-                    InstKind::SlicePtr(slice) => raw_heads.get(&slice).map(|&head| (head, true)),
-                    InstKind::SliceLen(slice) => raw_heads.get(&slice).map(|&head| (head, false)),
-                    _ => None,
-                };
+                let projection = builder.func().inst(inst_id).kind.slice_projection().and_then(
+                    |(slice, index)| {
+                        raw_heads.get(&slice).map(|&head| (head, index == MirType::SLICE_PTR_FIELD))
+                    },
+                );
                 if let Some((head, is_ptr)) = projection {
                     let replacement = if is_ptr {
                         *pointers.entry(head).or_insert_with(|| builder.add_u64_offset(head, 36))
@@ -704,13 +713,12 @@ impl LowerSlices {
                 InstKind::MakeSlice { ptr, len, .. } => {
                     components.insert(result, (ptr, len, inst));
                 }
-                InstKind::SlicePtr(slice) => {
-                    projections.insert(result, (slice, inst, true));
+                ref kind => {
+                    if let Some((slice, index)) = kind.slice_projection() {
+                        projections
+                            .insert(result, (slice, inst, index == MirType::SLICE_PTR_FIELD));
+                    }
                 }
-                InstKind::SliceLen(slice) => {
-                    projections.insert(result, (slice, inst, false));
-                }
-                _ => {}
             }
         }
 
@@ -720,8 +728,8 @@ impl LowerSlices {
         for &(slice, inst, is_ptr) in projections.values() {
             let Some(ty) = func.value_ty(slice) else { continue };
             if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {
-                // slice_ptr(undef slice) -> undef pointer
-                // slice_len(undef slice) -> undef u256
+                // extract_value undef, 0 -> undef pointer
+                // extract_value undef, 1 -> undef u256
                 let ty = if is_ptr { slice_param_ptr_type(location) } else { MirType::I256 };
                 let value = func.alloc_value(Value::Undef(ty));
                 let result = func.inst_result_value(inst).expect("slice projection has a result");

@@ -10,15 +10,15 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     jumpi v2, bb2, bb3
   bb3:
     v6 = alloc 64
-    v7 = slice_ptr arg0
-    v8 = slice_len arg0
+    v7 = extract_value calldataslice, arg0, 0
+    v8 = extract_value calldataslice, arg0, 1
     v9 = calldatasize
     v10 = gt v8, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v10
     v11 = sub v9, v8
     v12 = sgt v7, v11
     icall revert_if<calldata_tail_too_short>, v12
-    v13 = slice_len arg0
+    v13 = extract_value calldataslice, arg0, 1
     v14 = add v13, 63
     v15 = lt v14, v13
     icall panic_if<0x41>, v15
@@ -27,20 +27,20 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v18 = alloc v17
     store v18, v13
     v19 = ptradd v18, 32
-    v20 = slice_ptr arg0
-    v21 = slice_len arg0
+    v20 = extract_value calldataslice, arg0, 0
+    v21 = extract_value calldataslice, arg0, 1
     copy calldata v19, v20, v21
     v22 = ptrtoint memptr v18 to i256
     store v6, v22
-    v23 = slice_ptr arg1
-    v24 = slice_len arg1
+    v23 = extract_value calldataslice, arg1, 0
+    v24 = extract_value calldataslice, arg1, 1
     v25 = calldatasize
     v26 = gt v24, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v26
     v27 = sub v25, v24
     v28 = sgt v23, v27
     icall revert_if<calldata_tail_too_short>, v28
-    v29 = slice_len arg1
+    v29 = extract_value calldataslice, arg1, 1
     v30 = add v29, 63
     v31 = lt v30, v29
     icall panic_if<0x41>, v31
@@ -49,8 +49,8 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62
     v34 = alloc v33
     store v34, v29
     v35 = ptradd v34, 32
-    v36 = slice_ptr arg1
-    v37 = slice_len arg1
+    v36 = extract_value calldataslice, arg1, 0
+    v37 = extract_value calldataslice, arg1, 1
     copy calldata v35, v36, v37
     v38 = ptrtoint memptr v34 to i256
     store v6+32, v38

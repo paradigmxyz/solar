@@ -9,8 +9,8 @@ fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view
     v0 = address
     v1 = gas
     v2 = abi_encode [word, word], selector 0xe1ee60dd00000000000000000000000000000000000000000000000000000000, args arg0, arg1
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, v3, 96
     jumpi v6, bb2, bb1
@@ -65,8 +65,8 @@ fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xeee93c0200000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
@@ -91,8 +91,8 @@ fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xacf697c300000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
@@ -146,8 +146,8 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x38a62c0100000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
@@ -232,8 +232,8 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x6d4ce63c00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, 0, 0
     jumpi v6, bb2, bb1
@@ -422,8 +422,8 @@ fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, view, abi_params=[], ab
     v3 = eq v2, false
     icall panic_if<0x21>, v3
     v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args 2
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value memoryslice, v4, 0
+    v6 = extract_value memoryslice, v4, 1
     v7 = zext i160 v0 to i256
     v8 = staticcall v1, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
@@ -452,8 +452,8 @@ fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, view, abi_params=
     v2 = address
     v3 = gas
     v4 = abi_encode [tuple<word<enum 2>>], selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v0
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value memoryslice, v4, 0
+    v6 = extract_value memoryslice, v4, 1
     v7 = zext i160 v2 to i256
     v8 = staticcall v3, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
@@ -483,8 +483,8 @@ fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, view, abi_params=[
     v3 = address
     v4 = gas
     v5 = abi_encode [memory_array<word<enum 2>>], selector 0x8529de5100000000000000000000000000000000000000000000000000000000, args v0
-    v6 = slice_ptr v5
-    v7 = slice_len v5
+    v6 = extract_value memoryslice, v5, 0
+    v7 = extract_value memoryslice, v5, 1
     v8 = zext i160 v3 to i256
     v9 = staticcall v4, v8, v6, v7, 0, 32
     jumpi v9, bb2, bb1
@@ -564,8 +564,8 @@ fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[u256]
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x3207938400000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb2, bb1
@@ -589,8 +589,8 @@ fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], a
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xe136590400000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb2, bb1
@@ -615,8 +615,8 @@ fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x839ae55400000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb2, bb1

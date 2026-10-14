@@ -54,8 +54,8 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u25
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x62dc843600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
@@ -81,8 +81,8 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x9510f21200000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 96
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
@@ -119,8 +119,8 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0x62dc843600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
@@ -153,8 +153,8 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256]
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xf4d7be1100000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 96
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256
@@ -187,8 +187,8 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
+    v3 = extract_value memoryslice, v2, 0
+    v4 = extract_value memoryslice, v2, 1
     v5 = alloc 64
     v6 = zext i160 v0 to i256
     v7 = ptrtoint memptr v5 to i256

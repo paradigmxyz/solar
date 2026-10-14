@@ -55,7 +55,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -71,8 +71,8 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v13 = add v12, 32
     store v13, 0
     v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
+    v15 = extract_value memoryslice, v14, 0
+    v16 = extract_value memoryslice, v14, 1
     v17 = zext i160 v9 to i256
     v18 = extcodesize v17
     v19 = eq v18, 0
@@ -106,7 +106,7 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -122,8 +122,8 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v13 = add v12, 64
     store v13, 0
     v14 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
+    v15 = extract_value memoryslice, v14, 0
+    v16 = extract_value memoryslice, v14, 1
     v17 = zext i160 v9 to i256
     v18 = extcodesize v17
     v19 = eq v18, 0
@@ -160,7 +160,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -177,8 +177,8 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v14 = add v13, 64
     store v14, 0
     v15 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
+    v16 = extract_value memoryslice, v15, 0
+    v17 = extract_value memoryslice, v15, 1
     v18 = zext i160 v9 to i256
     v19 = extcodesize v18
     v20 = eq v19, 0
@@ -223,7 +223,7 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -235,8 +235,8 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     revert_returndata
   bb2:
     v11 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
+    v12 = extract_value memoryslice, v11, 0
+    v13 = extract_value memoryslice, v11, 1
     v14 = zext i160 v9 to i256
     v15 = extcodesize v14
     v16 = eq v15, 0
@@ -268,7 +268,7 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -284,8 +284,8 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v13 = add v12, 32
     store v13, 0
     v14 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
+    v15 = extract_value memoryslice, v14, 0
+    v16 = extract_value memoryslice, v14, 1
     v17 = zext i160 v9 to i256
     v18 = extcodesize v17
     v19 = eq v18, 0
@@ -319,7 +319,7 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -341,8 +341,8 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v19 = add v18, 32
     store v19, 0
     v20 = abi_encode [], selector v15
-    v21 = slice_ptr v20
-    v22 = slice_len v20
+    v21 = extract_value memoryslice, v20, 0
+    v22 = extract_value memoryslice, v20, 1
     v23 = extcodesize v16
     v24 = eq v23, 0
     icall revert_if<target_contract_has_no_code>, v24
@@ -374,7 +374,7 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy TryCallee_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -404,8 +404,8 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     v2 = add v1, 32
     store v2, 0
     v3 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
+    v4 = extract_value memoryslice, v3, 0
+    v5 = extract_value memoryslice, v3, 1
     v6 = extcodesize 0
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -432,8 +432,8 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
 fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
+    v1 = extract_value memoryslice, v0, 0
+    v2 = extract_value memoryslice, v0, 1
     v3 = extcodesize 0
     v4 = eq v3, 0
     icall revert_if<target_contract_has_no_code>, v4

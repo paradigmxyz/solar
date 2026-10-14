@@ -48,7 +48,7 @@ fn @scratch(arg0: i256) -> memoryslice {
 // CHECK: + [[DYNAMIC_MEMORY_PTR:v[0-9]+]] = fmp
 // CHECK: + {{v[0-9]+}} = sub
 // CHECK: + store [[DYNAMIC_MEMORY_PTR]], {{v[0-9]+}}
-// CHECK: + [[LENGTH:v[0-9]+]] = slice_len arg0
+// CHECK: + [[LENGTH:v[0-9]+]] = extract_value calldataslice, arg0, 1
 // CHECK: + copy calldata
 // CHECK: + [[ALLOCATED_MEMORY_PTR:v[0-9]+]] = alloc {{v[0-9]+}}
 // CHECK: [[ALLOCATED_MEMORY:v[0-9]+]] = ptrtoint memptr [[ALLOCATED_MEMORY_PTR]] to i256

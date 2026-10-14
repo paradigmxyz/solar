@@ -32,8 +32,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v5 = address
     v6 = gas
     v7 = abi_encode [], selector 0xb8c9d36500000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
+    v8 = extract_value memoryslice, v7, 0
+    v9 = extract_value memoryslice, v7, 1
     v10 = zext i160 v5 to i256
     v11 = staticcall v6, v10, v8, v9, v8, 64
     jumpi v11, bb2, bb1

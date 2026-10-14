@@ -2,7 +2,7 @@
 @module AbiEncodeCallV2
 fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5a61, pure, abi_params=[tuple<array<_, u256>, u256, bytes, bytes, enum<3, u8>>, i256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = slice_ptr arg0
+    v0 = extract_value calldataslice, arg0, 0
     v1 = add v0, 0
     v2 = calldatasize
     v3 = sub v2, v1
@@ -26,11 +26,11 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v18 = sgt v16, v17
     icall revert_if<calldata_tail_too_short>, v18
     v19 = make_calldata_slice v16, v12
-    v20 = slice_len v19
+    v20 = extract_value calldataslice, v19, 1
     v21 = eq v20, 3
     v22 = eq v21, false
     icall panic_if<0x1>, v22
-    v23 = slice_ptr arg0
+    v23 = extract_value calldataslice, arg0, 0
     v24 = add v23, 0
     v25 = calldatasize
     v26 = sub v25, v24
@@ -54,17 +54,17 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v41 = sgt v39, v40
     icall revert_if<calldata_tail_too_short>, v41
     v42 = make_calldata_slice v39, v35
-    v43 = slice_len v42
+    v43 = extract_value calldataslice, v42, 1
     v44 = lt 0, v43
     v45 = eq v44, false
     icall panic_if<0x32>, v45
-    v46 = slice_ptr v42
+    v46 = extract_value calldataslice, v42, 0
     v47 = add v46, 0
     v48 = load calldata v47
     v49 = eq v48, 0
     v50 = eq v49, false
     icall panic_if<0x1>, v50
-    v51 = slice_ptr arg0
+    v51 = extract_value calldataslice, arg0, 0
     v52 = add v51, 0
     v53 = calldatasize
     v54 = sub v53, v52
@@ -88,17 +88,17 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v69 = sgt v67, v68
     icall revert_if<calldata_tail_too_short>, v69
     v70 = make_calldata_slice v67, v63
-    v71 = slice_len v70
+    v71 = extract_value calldataslice, v70, 1
     v72 = lt 1, v71
     v73 = eq v72, false
     icall panic_if<0x32>, v73
-    v74 = slice_ptr v70
+    v74 = extract_value calldataslice, v70, 0
     v75 = add v74, 32
     v76 = load calldata v75
     v77 = eq v76, 1
     v78 = eq v77, false
     icall panic_if<0x1>, v78
-    v79 = slice_ptr arg0
+    v79 = extract_value calldataslice, arg0, 0
     v80 = add v79, 0
     v81 = calldatasize
     v82 = sub v81, v80
@@ -122,23 +122,23 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v97 = sgt v95, v96
     icall revert_if<calldata_tail_too_short>, v97
     v98 = make_calldata_slice v95, v91
-    v99 = slice_len v98
+    v99 = extract_value calldataslice, v98, 1
     v100 = lt 2, v99
     v101 = eq v100, false
     icall panic_if<0x32>, v101
-    v102 = slice_ptr v98
+    v102 = extract_value calldataslice, v98, 0
     v103 = add v102, 64
     v104 = load calldata v103
     v105 = eq v104, 2
     v106 = eq v105, false
     icall panic_if<0x1>, v106
-    v107 = slice_ptr arg0
+    v107 = extract_value calldataslice, arg0, 0
     v108 = add v107, 32
     v109 = load calldata v108
     v110 = eq v109, 6
     v111 = eq v110, false
     icall panic_if<0x1>, v111
-    v112 = slice_ptr arg0
+    v112 = extract_value calldataslice, arg0, 0
     v113 = add v112, 64
     v114 = calldatasize
     v115 = sub v114, v113
@@ -161,15 +161,15 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v129 = sgt v127, v128
     icall revert_if<calldata_tail_too_short>, v129
     v130 = make_calldata_slice v127, v124
-    v131 = slice_ptr v130
-    v132 = slice_len v130
+    v131 = extract_value calldataslice, v130, 0
+    v132 = extract_value calldataslice, v130, 1
     v133 = calldatasize
     v134 = gt v132, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v134
     v135 = sub v133, v132
     v136 = sgt v131, v135
     icall revert_if<calldata_tail_too_short>, v136
-    v137 = slice_len v130
+    v137 = extract_value calldataslice, v130, 1
     v138 = add v137, 63
     v139 = lt v138, v137
     icall panic_if<0x41>, v139
@@ -178,8 +178,8 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v142 = alloc v141
     store v142, v137
     v143 = ptradd v142, 32
-    v144 = slice_ptr v130
-    v145 = slice_len v130
+    v144 = extract_value calldataslice, v130, 0
+    v145 = extract_value calldataslice, v130, 1
     copy calldata v143, v144, v145
     v146 = ptrtoint memptr v142 to i256
     v147 = add v146, 32
@@ -188,7 +188,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v150 = eq v149, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
     v151 = eq v150, false
     icall panic_if<0x1>, v151
-    v152 = slice_ptr arg0
+    v152 = extract_value calldataslice, arg0, 0
     v153 = add v152, 96
     v154 = calldatasize
     v155 = sub v154, v153
@@ -211,15 +211,15 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v169 = sgt v167, v168
     icall revert_if<calldata_tail_too_short>, v169
     v170 = make_calldata_slice v167, v164
-    v171 = slice_ptr v170
-    v172 = slice_len v170
+    v171 = extract_value calldataslice, v170, 0
+    v172 = extract_value calldataslice, v170, 1
     v173 = calldatasize
     v174 = gt v172, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v174
     v175 = sub v173, v172
     v176 = sgt v171, v175
     icall revert_if<calldata_tail_too_short>, v176
-    v177 = slice_len v170
+    v177 = extract_value calldataslice, v170, 1
     v178 = add v177, 63
     v179 = lt v178, v177
     icall panic_if<0x41>, v179
@@ -228,8 +228,8 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v182 = alloc v181
     store v182, v177
     v183 = ptradd v182, 32
-    v184 = slice_ptr v170
-    v185 = slice_len v170
+    v184 = extract_value calldataslice, v170, 0
+    v185 = extract_value calldataslice, v170, 1
     copy calldata v183, v184, v185
     v186 = ptrtoint memptr v182 to i256
     v187 = add v186, 32
@@ -238,7 +238,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memptr) [selector=0x291c5
     v190 = eq v189, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
     v191 = eq v190, false
     icall panic_if<0x1>, v191
-    v192 = slice_ptr arg0
+    v192 = extract_value calldataslice, arg0, 0
     v193 = add v192, 128
     v194 = load calldata v193
     v195 = lt v194, 3

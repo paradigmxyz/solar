@@ -10,8 +10,8 @@ fn @invoke(arg0: i256, arg1: memptr) {
     v2 = shr 32, arg0
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value memoryslice, v4, 0
+    v6 = extract_value memoryslice, v4, 1
     v7 = extcodesize v2
     v8 = eq v7, 0
     icall revert_if<target_contract_has_no_code>, v8
@@ -23,9 +23,9 @@ fn @invoke(arg0: i256, arg1: memptr) {
     v12 = add v11, 32
     v13 = load v10
     v14 = make_memory_slice v12, v13
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = slice_ptr v14
+    v15 = extract_value memoryslice, v14, 0
+    v16 = extract_value memoryslice, v14, 1
+    v17 = extract_value memoryslice, v14, 0
     v18 = load v17
     v19 = shr 224, v18
     jumpi true, bb4, bb5
@@ -74,8 +74,8 @@ fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
     v2 = shr 32, arg0
     v3 = gas
     v4 = abi_encode [tuple<word>], selector v1, args arg1
-    v5 = slice_ptr v4
-    v6 = slice_len v4
+    v5 = extract_value memoryslice, v4, 0
+    v6 = extract_value memoryslice, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:

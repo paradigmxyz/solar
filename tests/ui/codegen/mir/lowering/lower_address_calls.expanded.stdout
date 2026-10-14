@@ -36,8 +36,8 @@
 +     store v12, v7 !metadata(span=30..40, modifier_depth=3)
 +     v13 = make_returndata_slice 0, v7 !metadata(span=30..40, modifier_depth=3)
 +     v14 = ptradd v12, 32 !metadata(span=30..40, modifier_depth=3)
-+     v15 = slice_ptr v13 !metadata(span=30..40, modifier_depth=3)
-+     v16 = slice_len v13 !metadata(span=30..40, modifier_depth=3)
++     v15 = extract_value returndataslice, v13, 0 !metadata(span=30..40, modifier_depth=3)
++     v16 = extract_value returndataslice, v13, 1 !metadata(span=30..40, modifier_depth=3)
 +     copy returndata v14, v15, v16 !metadata(span=30..40, modifier_depth=3)
 +     ret v12
 +   bb1:

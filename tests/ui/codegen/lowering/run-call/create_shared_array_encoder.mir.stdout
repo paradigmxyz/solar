@@ -104,7 +104,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     icall panic_if<0x32>, v13
     store v7+64, 200
     v14 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v0, v7, 17
-    v15 = slice_len v14
+    v15 = extract_value memoryslice, v14, 1
     v16 = datasize Child_creation_code_0
     v17 = add v16, v15
     v18 = lt v17, v16
@@ -117,7 +117,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v23 = alloc v22
     v24 = ptrtoint memptr v23 to i256
     datacopy Child_creation_code_0, v24, v16
-    v25 = slice_ptr v14
+    v25 = extract_value memoryslice, v14, 0
     v26 = ptrtoint memptr v23 to i256
     v27 = add v26, v16
     copy v27, v25, v15 !metadata(memory=heap)
@@ -130,8 +130,8 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
   bb2:
     v31 = gas
     v32 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
-    v33 = slice_ptr v32
-    v34 = slice_len v32
+    v33 = extract_value memoryslice, v32, 0
+    v34 = extract_value memoryslice, v32, 1
     v35 = zext i160 v29 to i256
     v36 = staticcall v31, v35, v33, v34, 0, 32
     jumpi v36, bb4, bb3
@@ -145,8 +145,8 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v40 = load v39
     v41 = gas
     v42 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
-    v43 = slice_ptr v42
-    v44 = slice_len v42
+    v43 = extract_value memoryslice, v42, 0
+    v44 = extract_value memoryslice, v42, 1
     v45 = zext i160 v29 to i256
     v46 = staticcall v41, v45, v43, v44, 0, 32
     jumpi v46, bb6, bb5
@@ -160,8 +160,8 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v50 = load v49
     v51 = gas
     v52 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
-    v53 = slice_ptr v52
-    v54 = slice_len v52
+    v53 = extract_value memoryslice, v52, 0
+    v54 = extract_value memoryslice, v52, 1
     v55 = zext i160 v29 to i256
     v56 = staticcall v51, v55, v53, v54, 0, 32
     jumpi v56, bb8, bb7
@@ -175,8 +175,8 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v60 = load v59
     v61 = gas
     v62 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
-    v63 = slice_ptr v62
-    v64 = slice_len v62
+    v63 = extract_value memoryslice, v62, 0
+    v64 = extract_value memoryslice, v62, 1
     v65 = zext i160 v29 to i256
     v66 = staticcall v61, v65, v63, v64, 0, 32
     jumpi v66, bb10, bb9
@@ -217,7 +217,7 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     store v0+64, 2
     v7 = icall @one, i160 153
     v8 = abi_encode [memory_array<word<u160>>, memory_array<word>, word], args v7, v0, 5
-    v9 = slice_len v8
+    v9 = extract_value memoryslice, v8, 1
     v10 = datasize Child_creation_code_0
     v11 = add v10, v9
     v12 = lt v11, v10
@@ -230,7 +230,7 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v17 = alloc v16
     v18 = ptrtoint memptr v17 to i256
     datacopy Child_creation_code_0, v18, v10
-    v19 = slice_ptr v8
+    v19 = extract_value memoryslice, v8, 0
     v20 = ptrtoint memptr v17 to i256
     v21 = add v20, v10
     copy v21, v19, v9 !metadata(memory=heap)
@@ -243,8 +243,8 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
   bb2:
     v25 = gas
     v26 = abi_encode [], selector 0xbe9a655500000000000000000000000000000000000000000000000000000000
-    v27 = slice_ptr v26
-    v28 = slice_len v26
+    v27 = extract_value memoryslice, v26, 0
+    v28 = extract_value memoryslice, v26, 1
     v29 = zext i160 v23 to i256
     v30 = staticcall v25, v29, v27, v28, 0, 32
     jumpi v30, bb4, bb3
@@ -258,8 +258,8 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v34 = load v33
     v35 = gas
     v36 = abi_encode [], selector 0x3602175c00000000000000000000000000000000000000000000000000000000
-    v37 = slice_ptr v36
-    v38 = slice_len v36
+    v37 = extract_value memoryslice, v36, 0
+    v38 = extract_value memoryslice, v36, 1
     v39 = zext i160 v23 to i256
     v40 = staticcall v35, v39, v37, v38, 0, 32
     jumpi v40, bb6, bb5
@@ -273,8 +273,8 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v44 = load v43
     v45 = gas
     v46 = abi_encode [], selector 0xee49500200000000000000000000000000000000000000000000000000000000
-    v47 = slice_ptr v46
-    v48 = slice_len v46
+    v47 = extract_value memoryslice, v46, 0
+    v48 = extract_value memoryslice, v46, 1
     v49 = zext i160 v23 to i256
     v50 = staticcall v45, v49, v47, v48, 0, 32
     jumpi v50, bb8, bb7
@@ -288,8 +288,8 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v54 = load v53
     v55 = gas
     v56 = abi_encode [], selector 0x659621b500000000000000000000000000000000000000000000000000000000
-    v57 = slice_ptr v56
-    v58 = slice_len v56
+    v57 = extract_value memoryslice, v56, 0
+    v58 = extract_value memoryslice, v56, 1
     v59 = zext i160 v23 to i256
     v60 = staticcall v55, v59, v57, v58, 0, 32
     jumpi v60, bb10, bb9

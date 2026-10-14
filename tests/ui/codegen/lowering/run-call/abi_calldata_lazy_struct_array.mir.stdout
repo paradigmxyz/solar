@@ -2,11 +2,11 @@
 @module AbiCalldataLazyStructArray
 fn @read(arg0: calldataslice) -> i256 [selector=0x7bb08336, pure, abi_params=[array<2, tuple<bytes, bytes>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
@@ -21,7 +21,7 @@ fn @read(arg0: calldataslice) -> i256 [selector=0x7bb08336, pure, abi_params=[ar
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 32
-    v16 = slice_ptr v15
+    v16 = extract_value calldataslice, v15, 0
     v17 = add v16, 0
     v18 = calldatasize
     v19 = sub v18, v17
@@ -44,6 +44,6 @@ fn @read(arg0: calldataslice) -> i256 [selector=0x7bb08336, pure, abi_params=[ar
     v33 = sgt v31, v32
     icall revert_if<calldata_tail_too_short>, v33
     v34 = make_calldata_slice v31, v28
-    v35 = slice_len v34
+    v35 = extract_value calldataslice, v34, 1
     ret v35
 }

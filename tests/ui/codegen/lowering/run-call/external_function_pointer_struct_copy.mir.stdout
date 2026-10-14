@@ -4,8 +4,8 @@ fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     store v0, 96
-    v1 = slice_len arg0
-    v2 = slice_ptr arg0
+    v1 = extract_value calldataslice, arg0, 1
+    v2 = extract_value calldataslice, arg0, 0
     v3 = mul v1, 32
     v4 = eq 32, 0
     v5 = div v3, 32
@@ -72,7 +72,7 @@ fn @constructor() [constructor] {
     v3 = alloc v2
     v4 = ptrtoint memptr v3 to i256
     datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
+    v5 = extract_value memoryslice, v0, 0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
     copy v7, v5, 0 !metadata(memory=heap)
@@ -131,8 +131,8 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v26 = trunc i256 v25 to i160
     v27 = gas
     v28 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
-    v29 = slice_ptr v28
-    v30 = slice_len v28
+    v29 = extract_value memoryslice, v28, 0
+    v30 = extract_value memoryslice, v28, 1
     v31 = zext i160 v26 to i256
     v32 = staticcall v27, v31, v29, v30, 0, 0
     jumpi v32, bb2, bb1

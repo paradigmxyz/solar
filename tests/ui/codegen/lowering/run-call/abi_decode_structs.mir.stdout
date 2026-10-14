@@ -174,12 +174,12 @@ fn @dFixedDyn(arg0: memptr) -> struct5 [selector=0x94edd832, pure, abi_params=[b
 
 fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = slice_len arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
+    v1 = extract_value calldataslice, arg0, 1
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = slice_ptr arg0
+    v4 = extract_value calldataslice, arg0, 0
     v5 = add v4, 0
     v6 = calldatasize
     v7 = sub v6, v5
@@ -194,14 +194,14 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = make_calldata_slice v10, 32
-    v17 = slice_ptr v16
+    v17 = extract_value calldataslice, v16, 0
     v18 = add v17, 0
     v19 = load calldata v18
-    v20 = slice_len arg0
+    v20 = extract_value calldataslice, arg0, 1
     v21 = lt 1, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = slice_ptr arg0
+    v23 = extract_value calldataslice, arg0, 0
     v24 = add v23, 32
     v25 = calldatasize
     v26 = sub v25, v24
@@ -216,7 +216,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct6 [selector=0xa00a84db, pure, ab
     v34 = eq v33, false
     icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = make_calldata_slice v29, 32
-    v36 = slice_ptr v35
+    v36 = extract_value calldataslice, v35, 0
     v37 = add v36, 0
     v38 = load calldata v37
     v39 = insert_value struct6, undef struct6, 0, v0
@@ -466,15 +466,15 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
 
 fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = slice_len arg0
+    v6 = extract_value calldataslice, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -483,8 +483,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct7 [selector=0xf634a16d, pure, ab
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = slice_ptr arg0
-    v14 = slice_len arg0
+    v13 = extract_value calldataslice, arg0, 0
+    v14 = extract_value calldataslice, arg0, 1
     copy calldata v12, v13, v14
     v15 = abi_decode [array<3, array<2, u256>>], v11
     v16 = lt 0, 3
@@ -887,15 +887,15 @@ fn @dFixedNestedDyn(arg0: memptr) -> struct8 [selector=0xf648fcec, pure, abi_par
 
 fn @dCalldataDyn(arg0: calldataslice) -> struct6 [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 0
+    v1 = extract_value calldataslice, arg0, 1
     v2 = calldatasize
     v3 = gt v1, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = sgt v0, v4
     icall revert_if<calldata_tail_too_short>, v5
-    v6 = slice_len arg0
+    v6 = extract_value calldataslice, arg0, 1
     v7 = add v6, 63
     v8 = lt v7, v6
     icall panic_if<0x41>, v8
@@ -904,8 +904,8 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct6 [selector=0xe931c6df, pure, abi
     v11 = alloc v10
     store v11, v6
     v12 = ptradd v11, 32
-    v13 = slice_ptr arg0
-    v14 = slice_len arg0
+    v13 = extract_value calldataslice, arg0, 0
+    v14 = extract_value calldataslice, arg0, 1
     copy calldata v12, v13, v14
     v15 = abi_decode [array<_, u256>], v11
     v16 = load v15

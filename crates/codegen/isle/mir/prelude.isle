@@ -4,7 +4,7 @@
 
 (type Value (primitive Value))
 (type U256 (primitive U256))
-(type StructId (primitive StructId))
+(type MirType (primitive MirType))
 (type CheckedOp (primitive CheckedOp))
 (type ArithmeticKind (primitive ArithmeticKind))
 (type ValueLayout (primitive ValueLayout))
@@ -24,8 +24,8 @@
 (type LogTopics (primitive LogTopics))
 
 (type Op extern (enum
-  (InsertValue (ty StructId) (aggregate Value) (index u32) (value Value))
-  (ExtractValue (ty StructId) (aggregate Value) (index u32))
+  (InsertValue (ty MirType) (aggregate Value) (index u32) (value Value))
+  (ExtractValue (ty MirType) (aggregate Value) (index u32))
   (Zext (operand0 Value))
   (Trunc (operand0 Value) (bits u32))
   (Sext (operand0 Value) (from_bits u32) (to_bits u32))
@@ -88,8 +88,6 @@
   (TStore (slot Value) (value Value))
   (CalldataSize)
   (MakeSlice (ptr Value) (len Value) (location PtrLocation))
-  (SlicePtr (slice Value))
-  (SliceLen (slice Value))
   (InternalFrameAddr (offset u64))
   (FrameLoad (offset u64) (mode FrameMode) (kind FrameSlotKind))
   (FrameStore (offset u64) (mode FrameMode) (kind FrameSlotKind) (value Value))

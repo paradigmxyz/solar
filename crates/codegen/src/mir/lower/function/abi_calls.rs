@@ -55,7 +55,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         needs_validation: bool,
     ) -> bool {
-        // base = slice_ptr(value)
+        // base = extract_value value, 0
         // head = abi_head(ty)
         // check_range(base, head)
         // validate_static(ty, base)

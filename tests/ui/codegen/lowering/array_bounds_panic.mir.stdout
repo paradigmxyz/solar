@@ -115,11 +115,11 @@ fn @stFix(arg0: i256) -> i256 [selector=0xd0c9a47e, view, abi_params=[u256], abi
 
 fn @cdDyn(arg0: calldataslice, arg1: i256) -> i256 [selector=0x1406a581, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt arg1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = mul arg1, 32
     v5 = eq 32, 0
     v6 = div v4, 32
@@ -135,11 +135,11 @@ fn @cdDyn(arg0: calldataslice, arg1: i256) -> i256 [selector=0x1406a581, pure, a
 
 fn @cdFix(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe21341a4, pure, abi_params=[array<3, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt arg1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = mul arg1, 32
     v5 = eq 32, 0
     v6 = div v4, 32
@@ -155,12 +155,12 @@ fn @cdFix(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe21341a4, pure, a
 
 fn @cdBytes(arg0: calldataslice, arg1: i256) -> i256 [selector=0x335b74df, pure, abi_params=[bytes, u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt arg1, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
-    v4 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
+    v4 = extract_value calldataslice, arg0, 0
     v5 = add v4, arg1
     v6 = load calldata v5
     v7 = byte 0, v6

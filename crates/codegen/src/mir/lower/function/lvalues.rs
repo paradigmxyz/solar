@@ -388,12 +388,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 )
             }
             YulSuffix::CalldataOffset => {
-                // value = slice_ptr variable
+                // value = extract_value variable, 0
                 let slice = self.load_variable(id, span)?;
                 Some(self.builder.slice_ptr(slice))
             }
             YulSuffix::CalldataLength => {
-                // value = slice_len variable
+                // value = extract_value variable, 1
                 let slice = self.load_variable(id, span)?;
                 Some(self.builder.slice_len(slice))
             }
@@ -435,14 +435,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(span, "Yul storage offset assignment");
             }
             YulSuffix::CalldataOffset => {
-                // length = slice_len variable
+                // length = extract_value variable, 1
                 // slice = make_calldata_slice value, length
                 let slice = self.load_variable(id, span)?;
                 let length = self.builder.slice_len(slice);
                 self.builder.make_slice(value, length, PtrLocation::Calldata)
             }
             YulSuffix::CalldataLength => {
-                // pointer = slice_ptr variable
+                // pointer = extract_value variable, 0
                 // slice = make_calldata_slice pointer, value
                 let slice = self.load_variable(id, span)?;
                 let pointer = self.builder.slice_ptr(slice);

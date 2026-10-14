@@ -5,11 +5,11 @@
 
 fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = slice_len arg0
+    v0 = extract_value calldataslice, arg0, 1
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
-    v3 = slice_ptr arg0
+    v3 = extract_value calldataslice, arg0, 0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
@@ -24,14 +24,14 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 32
-    v16 = slice_ptr v15
+    v16 = extract_value calldataslice, v15, 0
     v17 = add v16, 0
     v18 = load calldata v17
-    v19 = slice_len arg0
+    v19 = extract_value calldataslice, arg0, 1
     v20 = lt 0, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = slice_ptr arg0
+    v22 = extract_value calldataslice, arg0, 0
     v23 = add v22, 0
     v24 = calldatasize
     v25 = sub v24, v23
@@ -46,7 +46,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v33 = eq v32, false
     icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = make_calldata_slice v28, 32
-    v35 = slice_ptr v34
+    v35 = extract_value calldataslice, v34, 0
     v36 = add v35, 32
     v37 = calldatasize
     v38 = sub v37, v36
@@ -69,15 +69,15 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v52 = sgt v50, v51
     icall revert_if<calldata_tail_too_short>, v52
     v53 = make_calldata_slice v50, v47
-    v54 = slice_ptr v53
-    v55 = slice_len v53
+    v54 = extract_value calldataslice, v53, 0
+    v55 = extract_value calldataslice, v53, 1
     v56 = calldatasize
     v57 = gt v55, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v57
     v58 = sub v56, v55
     v59 = sgt v54, v58
     icall revert_if<calldata_tail_too_short>, v59
-    v60 = slice_len v53
+    v60 = extract_value calldataslice, v53, 1
     v61 = add v60, 63
     v62 = lt v61, v60
     icall panic_if<0x41>, v62
@@ -86,8 +86,8 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v65 = alloc v64
     store v65, v60
     v66 = ptradd v65, 32
-    v67 = slice_ptr v53
-    v68 = slice_len v53
+    v67 = extract_value calldataslice, v53, 0
+    v68 = extract_value calldataslice, v53, 1
     copy calldata v66, v67, v68
     v69 = insert_value struct0, undef struct0, 0, v18
     v70 = insert_value struct0, v69, 1, v65

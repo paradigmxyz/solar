@@ -29,9 +29,9 @@ fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> i2
     v3 = extract_value struct1, v2, 0
     v4 = extract_value struct1, v2, 1
     v5 = extract_value struct2, v0, 3
-    v6 = slice_len v1
-    v7 = slice_len v3
-    v8 = slice_len v5
+    v6 = extract_value memoryslice, v1, 1
+    v7 = extract_value calldataslice, v3, 1
+    v8 = extract_value returndataslice, v5, 1
     v9 = add v6, v7
     v10 = add v8, v4
     v11 = add v9, v10
@@ -46,7 +46,7 @@ fn @loop(arg0: struct2, arg1: i1) -> struct2 {
     jumpi arg1, bb2, bb3
   bb2:
     v1 = extract_value struct2, v0, 0
-    v2 = slice_ptr v1
+    v2 = extract_value memoryslice, v1, 0
     v3 = make_memory_slice v2, 16
     v4 = insert_value struct2, v0, 0, v3
     jump bb1
