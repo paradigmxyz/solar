@@ -36,6 +36,12 @@ contract C {
     uint256 constant C31 = C30;
     uint256 constant C32 = C31;
 
+    // The value of a shallower constant does not let a deep constant through the limit either.
+    function g(uint256 a, uint256 b) public pure returns (uint256) {
+        uint256 m = addmod(a, b, C1); //~ ERROR: arithmetic modulo zero
+        return 7 / C32 + m;
+    }
+
     function f(uint256 x, uint256 a, uint256 b) public pure returns (uint256) {
         uint256 z = x / C32;
         return addmod(a, b, C1) + z; //~ ERROR: arithmetic modulo zero

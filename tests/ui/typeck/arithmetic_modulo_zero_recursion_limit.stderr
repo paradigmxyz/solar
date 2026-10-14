@@ -1,8 +1,14 @@
 error[4195]: arithmetic modulo zero
    ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero_recursion_limit.sol:LL:CC
    │
+LL │         uint256 m = addmod(a, b, C1);
+   ╰╴                    ━━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/arithmetic_modulo_zero_recursion_limit.sol:LL:CC
+   │
 LL │         return addmod(a, b, C1) + z;
    ╰╴               ━━━━━━━━━━━━━━━━
 
-error: aborting due to 1 previous error
+error: aborting due to 2 previous errors
 
