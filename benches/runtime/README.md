@@ -220,6 +220,7 @@ runtime observations.
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
+| `tempo-zones-project` (compile-time only) | `tempoxyz/zones` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43` | 67 |
 
 File counts are each case's sliced closure. Archives below are in `../../testdata/projects/`. The
 OpenZeppelin cases share `openzeppelin-5.6.1.json.gz`, which replaces the earlier extracted

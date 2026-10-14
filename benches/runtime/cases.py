@@ -288,6 +288,11 @@ PROJECTS = {
         "solarray-a547630.json.gz",
         (Source("evmcheb/solarray", "a547630f9bf7837af9e6919d217672afe7abf7f1"),),
     ),
+    "tempo-zones": Project(
+        "tempo-zones",
+        "tempo-zones.json.gz",
+        (Source("tempoxyz/zones", "700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"),),
+    ),
 }
 
 
@@ -1681,6 +1686,14 @@ TEST_CASES: Sequence[TestCase] = (
         description="Solarray full project",
         contract_name="*",
         project=PROJECTS["solarray-a547630"],
+        whole_project=True,
+        suite="heavy",
+    ),
+    TestCase(
+        test_id="tempo-zones-project",
+        description="Tempo Zones full project (viaIR, including tests)",
+        contract_name="*",
+        project=PROJECTS["tempo-zones"],
         whole_project=True,
         suite="heavy",
     ),
