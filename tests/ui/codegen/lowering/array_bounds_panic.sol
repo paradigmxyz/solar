@@ -62,7 +62,7 @@ contract ArrayBoundsPanic {
     // CHECK-NEXT: {{v[0-9]+}} = mload [[X_160]]
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
-        return x[5];
+        return x[uint256(5)];
     }
 
     // CHECK-LABEL: fn @memDyn{{[( ]}}
