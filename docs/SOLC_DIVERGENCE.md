@@ -531,16 +531,21 @@ Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
 Status: intentional.
 
 Difference: `solar` evaluates array lengths, base slots and constant operands
-during type checking like `solc`'s `ConstantEvaluator`, with three exceptions:
+like `solc`'s `ConstantEvaluator`, with these exceptions:
 
 - An array length can read a constant declared after the array type, which
   `solc` rejects with error 5462.
 - When `solc` checks constant operands for a division by zero (1211) or a zero
   `addmod` or `mulmod` modulus (4195), it also reports the arithmetic errors
-  (2643, 3667, 6020) and long chains (5210) it finds in them. `solar` does not.
+  (2643, 3667, 6020), long chains (5210) and `erc7201` arguments that are not
+  strings (9796) it finds in them. `solar` reports only 1211 or 4195.
 - A literal operation without a value in a constant that an array length
   reads, such as `1 / 0`, gets error 2271, as it does wherever the constant is
   used. `solc` reports it as 6020 when it evaluates the array length first.
+- An operation whose operand types have no common type, such as a typed shift
+  by a negative or signed amount or `uint8 + int8`, gets error 2271 from type
+  checking, and an array length that reads it gets 5462 and a base slot 1505.
+  `solc`'s evaluator reports one error 6020 instead.
 
 Rationale: the order of declarations does not change the value of a constant,
 and each error is reported once, where the expression is checked.
@@ -548,6 +553,7 @@ and each error is reported once, where the expression is checked.
 Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
 `tests/ui/typeck/array_len_eval_errors.sol`,
 `tests/ui/typeck/array_len_unsupported.sol`,
+`tests/ui/typeck/array_len_typed_negative_shift.sol`,
 `tests/ui/typeck/division_by_zero_solc_values.sol`,
 `tests/ui/typeck/literal_division_by_zero.sol` and
 `tests/ui/typeck/constant_depth_limit.sol`.
@@ -575,8 +581,9 @@ Status: intentional.
 Difference: `solar` accepts base slots of storage layout specifiers whose value
 its constant evaluator computes after type checking but `solc`'s does not, such
 as conditionals (`layout at true ? 42 : 94`), conversions, member accesses and
-builtins, and the constants they read. `solc` rejects them with error 1505, or
-with error 9796 for `erc7201` of a string its evaluator does not compute.
+builtins, and the constants they read. `solc` rejects them with error 1505,
+and with error 9796 for `erc7201` of a string its evaluator does not
+compute.
 
 Rationale: the base slot has a well-defined value. Errors in a value that
 `solc` does not compute get `solc`'s code for it, 1505.
@@ -818,16 +825,15 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-013
 - Status: intentional
-- Difference: `solc` evaluates the initializer of a constant at every use. Its
-  legacy codegen does so in the arithmetic mode of the use, so a use can wrap
-  inside `unchecked`. `solar` evaluates a constant once at compile time and
-  uses its value. A constant without a value at compile time, because its
-  initializer reverts, as with `uint8 constant C = A + 1` where `A` is `255`,
-  or because `solar` does not compute it, such as
+- Difference: `solc` evaluates the initializer of a constant at every use, in
+  the arithmetic mode of the use. `solar` evaluates a constant once at compile
+  time and uses its value. A constant without a value at compile time, because
+  its initializer reverts, as with `uint8 constant C = A + 1` where `A` is
+  `255`, or because `solar` does not compute it, such as
   `keccak256(type(C).creationCode)` or a byte array larger than 64 KiB, gets a
-  helper function that runs its initializer, and every use calls the helper,
-  as in `solc`'s IR codegen. The helper uses checked arithmetic, so such a
-  constant reverts inside `unchecked` too.
+  helper function that runs its initializer, one per arithmetic mode. Each use
+  calls the one for its mode, as in `solc`'s IR codegen, so such a constant
+  wraps inside `unchecked`.
 - Rationale: a constant is one value, and computing it once is cheaper than
   running its initializer at every use.
 - Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,

@@ -11,6 +11,9 @@ contract C {
     bytes constant HUGE = new bytes(2**64);
 
     // CHECK-LABEL: fn @length(
+    // CHECK-NOT: alloc
+    // CHECK: icall @constant_
+    // CHECK-LABEL: fn @constant_
     // CHECK: alloc memorybytes, exact, zeroed
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 0x10001
     function length() public pure returns (uint256) {

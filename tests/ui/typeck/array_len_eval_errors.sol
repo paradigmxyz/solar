@@ -22,6 +22,16 @@ contract C {
     uint[MAX + 1] tooLargeConstant; //~ ERROR: failed to evaluate constant: arithmetic overflow
 }
 
+// A real error wins over a variable that has no value, in any order, as in solc.
+contract Operands {
+    function f(uint x) public pure {
+        uint[x + (ONE - 2)] memory a; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        uint[(ONE - 2) + x] memory b; //~ ERROR: failed to evaluate constant: arithmetic overflow
+        a;
+        b;
+    }
+}
+
 // Literal arithmetic is exact, so `(7 / 2) * 2` is 7.
 contract Fractional {
     uint[(7 / 2) * 2] intermediate;

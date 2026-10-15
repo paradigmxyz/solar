@@ -43,7 +43,8 @@ contract Child is Base {
     }
 
     // CHECK-LABEL: fn @precompile()
-    // CHECK: icall @constant_
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: {{v[0-9]+}} = icall @constant_
     function precompile() external pure returns (address) {
         return RECOVERED;
     }

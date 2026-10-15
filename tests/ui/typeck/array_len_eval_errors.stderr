@@ -8,19 +8,25 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
    │
 LL │     uint[E.B] enumValue;
-   ╰╴         ━━━ evaluation of constant value failed here
+   │          ━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
    │
 LL │     uint[address(0)] addressValue;
-   ╰╴         ━━━━━━━━━━ evaluation of constant value failed here
+   │          ━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
    │
 LL │     uint[int8(-1)] negative;
-   ╰╴         ━━━━━━━━ evaluation of constant value failed here
+   │          ━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
@@ -28,7 +34,9 @@ error[5462]: failed to evaluate constant: unsupported expression
 LL │     uint[uint8(1) - 2] underflow;
    │          ┬───────━━━━
    │          │
-   ╰╴         evaluation of constant value failed here
+   │          evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
@@ -36,13 +44,17 @@ error[5462]: failed to evaluate constant: unsupported expression
 LL │     uint[type(uint256).max + 1] tooLarge;
    │          ┬────────────────━━━━
    │          │
-   ╰╴         evaluation of constant value failed here
+   │          evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
    │
 LL │     uint[keccak256("x")] hash;
-   ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │          ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[3658]: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
@@ -62,5 +74,21 @@ error[2643]: failed to evaluate constant: arithmetic overflow
 LL │     uint[MAX + 1] tooLargeConstant;
    ╰╴         ━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 10 previous errors
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[x + (ONE - 2)] memory a;
+   │              ━━━━━┬──────━
+   │                   │
+   ╰╴                  evaluation of constant value failed here
+
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[(ONE - 2) + x] memory b;
+   │              ━┬──────━━━━━
+   │               │
+   ╰╴              evaluation of constant value failed here
+
+error: aborting due to 12 previous errors
 

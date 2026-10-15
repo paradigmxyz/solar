@@ -1,5 +1,7 @@
-//@ compile-flags: --emit=bin --allow=5574 --allow=3860
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ codegen-matrix: standard
+//@ compile-flags: --allow=5574 --allow=3860
+//@[mir] filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 // `bytes` and `string` values larger than 64 KiB do not fold, so doubling concatenations stay
 // cheap to compile. Their uses call helpers that compute them at runtime.
 bytes constant B0 = "0123456789abcdef0123456789abcdef";
@@ -19,6 +21,11 @@ string constant S = string.concat(string(B11), string(B11), "x");
 
 // Building the values at runtime copies the folded `B11` into the code.
 contract C {
+    // CHECK-LABEL: fn @lengths()
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: {{v[0-9]+}} = icall @constant_
+    // CHECK: icall @constant_
+    // CHECK: insert_value struct0, undef struct0, 0, 0x10000
     function lengths() external pure returns (uint256, uint256, uint256) {
         return (B11.length, B12.length, bytes(S).length);
     }

@@ -1,20 +1,24 @@
-error[7615]: only direct number constants are supported in inline assembly
+error[7615]: inline assembly can only read constants with a compile-time value
    ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
    │
+LL │     uint256 constant HASH = uint256(keccak256(type(D).creationCode));
+   │                                     ─────────────────────────────── this has no value at compile time
+   ‡
 LL │             r := HASH
-   ╰╴                 ━━━━
+   │                  ━━━━
+   │
+   ╰ note: every use of the constant runs its initializer, which can allocate memory
 
-error[7615]: only direct number constants are supported in inline assembly
+error[7615]: inline assembly can only read constants with a compile-time value
    ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
    │
-LL │             r := add(WRAPPED, h())
-   ╰╴                     ━━━━━━━
-
-error[7615]: only direct number constants are supported in inline assembly
-   ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
-   │
+LL │     uint256 constant HASH = uint256(keccak256(type(D).creationCode));
+   │                                     ─────────────────────────────── this has no value at compile time
+   ‡
 LL │                 v := HASH
-   ╰╴                     ━━━━
+   │                      ━━━━
+   │
+   ╰ note: every use of the constant runs its initializer, which can allocate memory
 
-error: aborting due to 3 previous errors
+error: aborting due to 2 previous errors
 

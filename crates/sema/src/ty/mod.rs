@@ -2241,18 +2241,20 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     }
 
     // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
-    // stays an array when its length fails to evaluate, so solc reports both errors.
+    // stays an array when its length fails to evaluate, so solc reports both errors, unless the
+    // innermost element type fails to resolve.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/analysis/DeclarationTypeChecker.cpp#L527-L535>
-    let mut element = &var.ty;
-    while let hir::TypeKind::Array(array) = &element.kind {
-        element = &array.element;
-    }
+    let innermost_element_resolves = || {
+        let hir::TypeKind::Array(mut array) = var.ty.kind else { return false };
+        while let hir::TypeKind::Array(inner) = array.element.kind {
+            array = inner;
+        }
+        !gcx.type_of_hir_ty(&array.element).references_error()
+    };
     if var.is_constant()
         && !ty.is_value_type()
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
-        && (!ty.references_error()
-            || matches!(var.ty.kind, hir::TypeKind::Array(_))
-                && !gcx.type_of_hir_ty(element).references_error())
+        && (!ty.references_error() || innermost_element_resolves())
     {
         let guar = gcx
             .dcx()

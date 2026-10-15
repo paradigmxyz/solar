@@ -64,9 +64,9 @@
 //! out-of-range conversion, does not fold. Neither does anything that reads state or the
 //! environment, calls a function, builds array literals, or uses the bytes of contract code, nor
 //! a value larger than 64 KiB. Every operand must evaluate, even the branch a conditional does not
-//! take and the second operand of `&&` and `||`, as the branches decide the type of a conditional.
-//! A constant without a value runs its initializer at runtime, which only takes the branches it
-//! needs.
+//! take and the second operand of `&&` and `||`, so whether an expression folds does not depend
+//! on which branch is taken. A constant without a value runs its initializer at runtime, which
+//! skips the operands it does not need.
 
 use crate::{
     hir,
@@ -493,13 +493,22 @@ impl<'gcx> ConstEval<'gcx> {
             _ => cx.unsupported_code(),
         };
         let msg = format!("failed to evaluate constant: {}", err.kind.msg());
-        self.gcx
+        let mut diag = self
+            .gcx
             .dcx()
             .err(msg)
             .code(code)
             .span(expr.span)
-            .span_label(err.span, "evaluation of constant value failed here")
-            .emit()
+            .span_label(err.span, "evaluation of constant value failed here");
+        // Tell the user what solc's evaluator accepts in an array length.
+        if cx == ConstContext::ArrayLength
+            && (err.kind.is_unsupported() || err.kind == EE::NotAnInteger)
+        {
+            diag = diag.help(
+                "array lengths take number literals, integer constants and arithmetic on them",
+            );
+        }
+        diag.emit()
     }
 
     /// Reports the literal binary operation `expr`, which has no value, such as `1 / 0`.
@@ -606,7 +615,8 @@ impl EvalErrorKind {
             Self::ValueTooLarge
             | Self::UnsupportedUnaryOp
             | Self::UnsupportedBinaryOp
-            | Self::UnsupportedExpr => true,
+            | Self::UnsupportedExpr
+            | Self::NonConstantVar => true,
             Self::Cycle
             | Self::DepthLimit
             | Self::ArithmeticOverflow
@@ -621,7 +631,6 @@ impl EvalErrorKind {
             | Self::LiteralPrecision
             | Self::OutOfRange
             | Self::NotAnInteger
-            | Self::NonConstantVar
             | Self::AlreadyEmitted(_) => false,
         }
     }

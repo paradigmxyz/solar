@@ -449,7 +449,7 @@ fn literal_int_binop(l: BigInt, r: BigInt, op: BinOpKind) -> Result<BigInt, EE> 
                 l >> amount
             } else if l.is_zero() {
                 l
-            } else if l.bits() + u64::from(amount) > MAX_INTERMEDIATE_BITS {
+            } else if !shl_fits(&l, amount.into()) {
                 return Err(EE::ShiftTooLarge);
             } else {
                 l << amount
@@ -462,6 +462,16 @@ fn literal_int_binop(l: BigInt, r: BigInt, op: BinOpKind) -> Result<BigInt, EE> 
 /// highest that solc allows.
 fn exceeds_precision(value: &BigInt) -> bool {
     value.magnitude().bits() > MAX_INTERMEDIATE_BITS + 1
+}
+
+/// Returns whether `value << amount` fits in the 4096 bits of solc's rational numbers.
+fn shl_fits(value: &BigInt, amount: u64) -> bool {
+    value.is_zero() || value.bits().saturating_add(amount) <= MAX_INTERMEDIATE_BITS
+}
+
+/// Returns whether `base ** exp` fits in the 4096 bits of solc's rational numbers.
+fn pow_fits(base: &BigInt, exp: u32) -> bool {
+    base.bits().saturating_mul(exp.into()) <= MAX_INTERMEDIATE_BITS
 }
 
 /// Raises a number literal to an integer power by raising its numerator and denominator.
@@ -477,7 +487,7 @@ fn literal_pow(base: Ratio<BigInt>, exp: BigInt) -> Result<Ratio<BigInt>, EE> {
     let negative = exp.is_negative();
     let exp = u32::try_from(exp.magnitude()).map_err(|_| EE::ExponentTooLarge)?;
     let (numer, denom) = base.into_raw();
-    if [&numer, &denom].iter().any(|n| n.bits() * u64::from(exp) > MAX_INTERMEDIATE_BITS) {
+    if ![&numer, &denom].iter().all(|n| pow_fits(n, exp)) {
         return Err(EE::ExponentTooLarge);
     }
     let value = Ratio::new_raw(numer.pow(exp), denom.pow(exp));
@@ -996,15 +1006,12 @@ impl IntScalar {
 
     /// Returns the error of solc's constant evaluator where it does not give the binary operation
     /// the same value or error.
-    ///
-    /// solc gives no value to a shift by more than `u32::MAX` bits, and converts the shift amount
-    /// or exponent of a typed operand to its type first.
     pub(super) fn solc_binop(&self, r: &Self, op: BinOpKind) -> Result<(), EE> {
         match (op, self.ty, r.ty) {
             // solc reports the failed operations of two literals.
             (_, None, None) => Ok(()),
-            // Type checking rejects signed and negative shift amounts, and solc gives no value to a
-            // shift by more than `u32::MAX` bits.
+            // Type checking and solc's evaluator reject signed and negative shift amounts, and solc
+            // gives no value to a shift by more than `u32::MAX` bits.
             (op, ..)
                 if op.is_shift()
                     && (r.is_negative()
@@ -1019,10 +1026,23 @@ impl IntScalar {
             {
                 Err(EE::UnsupportedBinaryOp)
             }
+            // solc gives no value to a result beyond the 4096 bits of its rational numbers.
+            (BinOpKind::Shl, ..) if !self.solc_fits_shl(r) => Err(EE::UnsupportedBinaryOp),
+            (BinOpKind::Pow, ..) if !self.solc_fits_pow(r) => Err(EE::UnsupportedBinaryOp),
             // solc rejects a typed left shift that drops bits, though the EVM drops them.
             (BinOpKind::Shl, ..) if !self.shl_keeps_bits(r) => Err(EE::ArithmeticOverflow),
             _ => Ok(()),
         }
+    }
+
+    /// Returns whether the left shift by `r` fits in the 4096 bits of solc's rational numbers.
+    fn solc_fits_shl(&self, r: &Self) -> bool {
+        u32::try_from(&r.data).is_ok_and(|amount| shl_fits(&self.data, amount.into()))
+    }
+
+    /// Returns whether the power `self ** r` fits in the 4096 bits of solc's rational numbers.
+    fn solc_fits_pow(&self, r: &Self) -> bool {
+        self.data.bits() <= 1 || u32::try_from(&r.data).is_ok_and(|exp| pow_fits(&self.data, exp))
     }
 
     /// Returns whether a typed left shift by `r` keeps every bit of this value in its type.
@@ -1110,7 +1130,7 @@ impl IntScalar {
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
         let exp = u32::try_from(exp).map_err(|_| EE::ArithmeticOverflow)?;
         // Bound the result size before computing the power.
-        if self.data.magnitude().bits().saturating_mul(exp.into()) > MAX_INTERMEDIATE_BITS {
+        if !pow_fits(&self.data, exp) {
             return Err(EE::ArithmeticOverflow);
         }
         Self::checked(self.data.pow(exp))

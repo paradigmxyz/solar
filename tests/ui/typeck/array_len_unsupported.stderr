@@ -2,19 +2,25 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
 LL │         uint[uint8(3)] memory a;
-   ╰╴             ━━━━━━━━ evaluation of constant value failed here
+   │              ━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
 LL │         uint[type(uint8).max] memory b;
-   ╰╴             ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │              ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
 LL │         uint[true ? 1 : 2] memory c;
-   ╰╴             ━━━━━━━━━━━━ evaluation of constant value failed here
+   │              ━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
@@ -22,19 +28,25 @@ error[5462]: failed to evaluate constant: unsupported expression
 LL │         uint[uint(keccak256("x")) % 4 + 1] memory d;
    │              ┬───────────────────━━━━━━━━
    │              │
-   ╰╴             evaluation of constant value failed here
+   │              evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
 LL │         uint[L.C] memory e;
-   ╰╴             ━━━ evaluation of constant value failed here
+   │              ━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
 LL │         uint[M.C] memory f;
-   ╰╴             ━━━ evaluation of constant value failed here
+   │              ━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error[5210]: failed to evaluate constant: constants are nested too deeply
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
@@ -49,7 +61,9 @@ error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/array_len_unsupported.sol:LL:CC
    │
 LL │         uint[uint32(bytes4(0x00000004))] memory h;
-   ╰╴             ━━━━━━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error: aborting due to 8 previous errors
 

@@ -10,18 +10,19 @@ contract C {
 
     function f() external pure returns (uint256 r, uint256 s) {
         assembly {
-            r := HASH //~ ERROR: only direct number constants are supported in inline assembly
+            r := HASH //~ ERROR: inline assembly can only read constants with a compile-time value
             s := FOLDED
         }
     }
 
-    // A constant whose initializer reverts has no value either, also inside a Yul function.
+    // The check covers Yul functions too. A constant whose initializer reverts can be read, as the
+    // read only halts.
     function g() external pure returns (uint256 r) {
         assembly {
             function h() -> v {
-                v := HASH //~ ERROR: only direct number constants are supported in inline assembly
+                v := HASH //~ ERROR: inline assembly can only read constants with a compile-time value
             }
-            r := add(WRAPPED, h()) //~ ERROR: only direct number constants are supported in inline assembly
+            r := add(WRAPPED, h())
         }
     }
 }

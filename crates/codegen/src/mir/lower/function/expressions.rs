@@ -290,17 +290,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             gcx.hir.variable(id).initializer.expect("constant without an initializer");
         let ty = gcx.type_of_item(id.into());
         let mir_ty = types::TypeLowerer::mir_type(ty);
-        // fn @constant_N() -> T { value = <initializer>; ret value }
-        let helper =
-            self.lazy_helper(helper_name(kw::Constant, id.index()), |this, function| {
-                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-                lowerer.builder.replace_source_span(initializer.span);
-                let value = lowerer.lower_typed_expr(initializer, ty)?;
-                lowerer.builder.set_return_type(mir_ty);
-                lowerer.builder.ret([value]);
-                Some(())
-            })?;
-        // value = icall @constant_N
+        // The initializer runs in the arithmetic mode of the use, as in solc. Yul has none, and
+        // assembly may only read a constant whose initializer halts if it fails.
+        let unchecked = self.unchecked && !self.in_inline_assembly;
+        let suffix = if unchecked { "_unchecked" } else { "" };
+        let name = helper_name(kw::Constant, format_args!("{}{suffix}", id.index()));
+        // fn @constant_N[_unchecked]() -> T { value = <initializer>; ret value }
+        let helper = self.lazy_helper(name, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            lowerer.unchecked = unchecked;
+            lowerer.builder.replace_source_span(initializer.span);
+            let value = lowerer.lower_typed_expr(initializer, ty)?;
+            lowerer.builder.set_return_type(mir_ty);
+            lowerer.builder.ret([value]);
+            Some(())
+        })?;
+        // value = icall @constant_N[_unchecked]
         Some(self.builder.icall(helper, Vec::new(), mir_ty))
     }
 

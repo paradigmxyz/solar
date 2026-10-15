@@ -52,14 +52,16 @@ uint256 constant C30 = C29 + 1;
 uint256 constant C31 = C30 + 1;
 uint256 constant C32 = C31 + 1;
 
+uint256 constant D = C31;
+
 contract Depth {
     uint256[C31] deepest;
     uint256[C32] tooDeep; //~ ERROR: failed to evaluate constant: constants are nested too deeply
-    // solc evaluates each constant once, so `D` adds no depth after `C31` is evaluated.
+    // solc evaluates each constant once, so `D` adds no depth after `C31` is evaluated, but the
+    // first path to `C0` through `D` is too deep.
     uint256[C31 + D] shared;
+    uint256[D + C31] sharedFirst; //~ ERROR: failed to evaluate constant: constants are nested too deeply
 }
-
-uint256 constant D = C31;
 
 // The depth counts constants of every type, and constants that solc does not evaluate.
 bytes32 constant B0 = B1;

@@ -19,11 +19,16 @@ contract C {
         // the operation no value.
         uint256[S8 << 256] memory d; //~ ERROR: failed to evaluate constant: unsupported binary operation
         uint256[S8 ** 300] memory e; //~ ERROR: failed to evaluate constant: unsupported binary operation
+        // solc gives no value to results beyond the 4096 bits of its rational numbers either.
+        uint256[S255 << 5000] memory f; //~ ERROR: failed to evaluate constant: unsupported binary operation
+        uint256[S255 ** 600] memory g; //~ ERROR: failed to evaluate constant: unsupported binary operation
         a;
         b;
         c;
         d;
         e;
+        f;
+        g;
     }
 
     function inRange() public pure {

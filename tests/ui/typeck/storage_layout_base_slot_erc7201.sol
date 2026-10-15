@@ -1,5 +1,6 @@
-// `erc7201` of a string that only the evaluation after type checking computes gives a base slot,
-// which solc rejects with error 9796; see CONTRACT-001.
+// `erc7201` of a string literal or constant gives a base slot, like in solc. So does `erc7201` of a
+// string that only the evaluation after type checking computes, which solc rejects with error 9796;
+// see CONTRACT-001.
 string constant NAME = "example.main";
 
 contract Literal layout at erc7201("example.main") {}

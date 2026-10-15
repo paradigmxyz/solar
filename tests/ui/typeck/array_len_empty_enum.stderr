@@ -10,7 +10,9 @@ error[5462]: failed to evaluate constant: unsupported expression
 LL │     uint[uint(type(E).max) + 1] a;
    │          ┬────────────────━━━━
    │          │
-   ╰╴         evaluation of constant value failed here
+   │          evaluation of constant value failed here
+   │
+   ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
 error: aborting due to 2 previous errors
 

@@ -6,7 +6,8 @@
 //@ run-call-fail: divided() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
 //@ run-call-fail: discarded() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: discardedTuple() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@ run-call-fail: inUnchecked() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: inUnchecked => 0
+//@ run-call-fail: inAssembly() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: branch => 1
 //@ run-call: and => false
 //@ run-call-fail: hashFirst() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -32,11 +33,12 @@ contract C {
     uint8 constant WRAPPED = MAX8 + 1;
     uint256 constant HASH_FIRST = HASH + (MAX8 + 1);
     uint256 constant HASH_LAST = (MAX8 + 1) + HASH;
-    // A constant that no code uses has no helper.
+    // A constant that no code uses is not an error, even if its initializer reverts.
     uint256 constant UNUSED = MAX + 2;
 
     // CHECK-LABEL: fn @overflow()
-    // CHECK: icall @constant_
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: {{v[0-9]+}} = icall @constant_
     function overflow() external pure returns (uint256) {
         return OVERFLOW;
     }
@@ -60,7 +62,7 @@ contract C {
         return 1;
     }
 
-    // The helper runs in checked arithmetic, even for a use inside `unchecked`.
+    // A use inside `unchecked` calls a helper that wraps, like in solc.
     function inUnchecked() external pure returns (uint8) {
         unchecked {
             return WRAPPED;
@@ -70,6 +72,15 @@ contract C {
     function branch() external pure returns (int8) {
         unchecked {
             return BRANCH;
+        }
+    }
+
+    // Assembly reads use checked arithmetic, as Yul has no arithmetic mode.
+    function inAssembly() external pure returns (uint8 r) {
+        unchecked {
+            assembly {
+                r := WRAPPED
+            }
         }
     }
 

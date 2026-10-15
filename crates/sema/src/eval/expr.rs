@@ -522,8 +522,8 @@ fn both<T, U>(l: Result<T, EvalError>, r: Result<U, EvalError>) -> Result<(T, U)
 }
 
 /// Returns the values of operands that all must evaluate. Of several errors, it returns the first
-/// that is not [`EE::is_unsupported`], so the reported error does not depend on the order of the
-/// operands.
+/// that is not [`EE::is_unsupported`], so an error that solc also reports wins over an unsupported
+/// operand, whatever the order of the operands.
 fn operands<T, C: FromIterator<T>>(
     results: impl IntoIterator<Item = Result<T, EvalError>>,
 ) -> Result<C, EvalError> {
