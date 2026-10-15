@@ -31,6 +31,7 @@ contract C {
     }
 
     // The number of zero values in `new T[](n)` must not overflow while it is counted.
+    // CHECK-LABEL: fn @tooManyValues()
     function tooManyValues() external pure returns (uint256) {
         return new uint256[1][](2**63 + 1).length;
     }

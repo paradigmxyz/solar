@@ -144,6 +144,8 @@ fn merge_typeck_results<'gcx>(
     for (id, function) in new_results.user_operators {
         results.user_operators.insert(id, function);
     }
+
+    results.base_slots.extend(new_results.base_slots);
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {

@@ -1,0 +1,33 @@
+- // === ROOT/tests/ui/codegen/mir/inline-single-use/fixpoint.mir (before inline-single-use) ===
++ // === ROOT/tests/ui/codegen/mir/inline-single-use/fixpoint.mir (after inline-single-use) ===
+  @module InlineFixpoint
+  fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+-     v0 = icall @wrapper, arg0
+-     ret v0
+- }
+- 
+- fn @wrapper(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = icall @leaf, arg0
+-     ret v0
+- }
+- 
+- fn @leaf(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = add arg0, 1
+-     ret v0
++     jump bb2
++   bb2:
++     jump bb4
++   bb4:
++     v3 = add arg0, 1
++     jump bb3
++   bb3:
++     v4 = phi [bb4: v3]
++     jump bb1
++   bb1:
++     v2 = phi [bb3: v4]
++     ret v2
+  }
+  

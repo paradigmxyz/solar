@@ -90,5 +90,19 @@ LL │         uint[(ONE - 2) + x] memory b;
    │               │
    ╰╴              evaluation of constant value failed here
 
-error: aborting due to 12 previous errors
+error[2643]: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[-ONE + (ONE - 2)] memory c;
+   │              ━━━━━━━━┬──────━
+   │                      │
+   ╰╴                     evaluation of constant value failed here
+
+error: cannot apply unary operator `-` to `uint8`
+   ╭▸ ROOT/tests/ui/typeck/array_len_eval_errors.sol:LL:CC
+   │
+LL │         uint[-ONE + (ONE - 2)] memory c;
+   ╰╴             ━━━━
+
+error: aborting due to 14 previous errors
 

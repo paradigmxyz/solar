@@ -80,7 +80,11 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
                         hir::UnOpKind::Neg | hir::UnOpKind::BitNot,
                         ConstValue::Int(_) | ConstValue::Rational(_),
                     ) => {}
-                    _ => return Err(EE::UnsupportedUnaryOp.into()),
+                    (hir::UnOpKind::Neg | hir::UnOpKind::BitNot, _) => {
+                        return Err(EE::UnsupportedUnaryOp.into());
+                    }
+                    // solc's evaluator takes no other unary operator.
+                    _ => return Err(EE::UnsupportedExpr.into()),
                 }
             }
             Ok(value.unop(op.kind)?)
@@ -90,8 +94,9 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
             let (l, r) = both(ev(lhs), ev(rhs))?;
             let mut solc = Ok(());
             if early {
+                // solc's evaluator takes no comparison or logical operator.
                 if op.kind.is_cmp() || op.kind.is_logical() {
-                    return Err(EE::UnsupportedBinaryOp.into());
+                    return Err(EE::UnsupportedExpr.into());
                 }
                 if let (ConstValue::Int(l), ConstValue::Int(r)) = (&l, &r) {
                     solc = l.solc_binop(r, op.kind);

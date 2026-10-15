@@ -58,6 +58,11 @@ contract C {
         return 1 / D32;
     }
 
+    // solc's evaluator gives a typed division by zero no value, so only the outer one is reported.
+    function typedDividend() public pure returns (uint) {
+        return (D1 / ZERO) / ZERO; //~ ERROR: division by zero
+    }
+
     // solc reports the overflow in the operand; we report the division by zero.
     function failedOperand() public pure returns (uint) {
         return OVERFLOW / 0; //~ ERROR: division by zero

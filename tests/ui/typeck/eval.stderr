@@ -162,7 +162,7 @@ LL │     function j(uint["lol"] memory) public {}
    │
    ╰ help: array lengths take number literals, integer constants and arithmetic on them
 
-error[5462]: failed to evaluate constant: unsupported unary operation
+error[5462]: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function k(uint[--x] memory) public {}
