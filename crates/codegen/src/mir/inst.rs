@@ -576,6 +576,12 @@ impl EffectKind {
             Self::ImmutableWrite => "immutable_write",
         }
     }
+
+    /// Whether this is pure computation or a read of state other than memory.
+    #[must_use]
+    pub(crate) const fn is_non_memory_read(self) -> bool {
+        matches!(self, Self::Pure | Self::StorageRead | Self::TransientRead | Self::EnvironmentRead)
+    }
 }
 
 /// Initialization performed for a newly reserved range.

@@ -19,7 +19,7 @@ use super::{
     immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
-    BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
+    BlockId, Callee, PtrLocation, RawMemoryAccess,
     analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
@@ -954,8 +954,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<()> {
         let tail = func.blocks[block].instructions.get(call_idx + 1..)?;
 
-        // The first effectful instruction after the call must be the buffer
-        // pointer read; nothing may intervene that could publish or clobber.
+        // The first instruction after the call that may touch memory must be the
+        // buffer pointer read; nothing may intervene that could publish or clobber.
         let mut base = None;
         for (offset, &inst_id) in tail.iter().enumerate() {
             let inst = func.inst(inst_id);
@@ -965,7 +965,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 base = Some((offset, inst_id));
                 break;
             }
-            if inst.kind.effect_kind() != EffectKind::Pure {
+            if !inst.kind.effect_kind().is_non_memory_read() {
                 return None;
             }
         }
@@ -998,7 +998,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         break;
                     }
                 }
-                kind if kind.effect_kind() == EffectKind::Pure => {}
+                kind if kind.effect_kind().is_non_memory_read() => {}
                 _ => return None,
             }
         }
