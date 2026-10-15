@@ -25,8 +25,8 @@ fn @entry() [entry] {
 
 fn @allocation() [selector=1, abi_wrapper] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc 64 !metadata(deferred_alloc)
+    v1 = ptrtoint ptr<memory> v0 to i256
     v2 = lt v1, 0x100000
     v3 = zext i1 v2 to i256
     mstore 0, v3

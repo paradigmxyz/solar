@@ -28,17 +28,16 @@ contract ConstantTernaryLiteral {
         return value;
     }
 
-    // A branch that is not a constant makes the ternary a runtime value.
+    // A branch with a conversion still folds, in the common type of both branches.
     function castBranch() external pure returns (uint256) {
         uint256 value = (true ? 1 : uint256(2)) * 2;
         return value;
     }
 
-    // Only an operand needs the common type of both branches, so a whole ternary is a constant
-    // even when the other branch is not.
+    // A whole ternary has the value of the branch it takes.
     function wholeCastBranch() external pure returns (uint256) {
-        uint256[true ? 3 : uint256(2)] memory values;
-        return values.length + CAST;
+        uint256 value = true ? 3 : uint256(2);
+        return value + CAST;
     }
 
     function signedOverflow() external pure returns (int256) {

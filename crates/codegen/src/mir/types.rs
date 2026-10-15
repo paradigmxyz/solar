@@ -33,9 +33,9 @@ impl ImmutableEncoding {
     }
 }
 
-/// Address space containing a dynamically-sized MIR slice.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum SliceLocation {
+/// Address space a pointer or slice refers to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum PtrLocation {
     /// EVM memory.
     Memory,
     /// Call input data.
@@ -46,6 +46,10 @@ pub(crate) enum SliceLocation {
     /// until the next such instruction and must be materialized into memory
     /// before it can be retained.
     Returndata,
+    /// Contract storage, addressed by 256-bit slot.
+    Storage,
+    /// Transient storage, addressed by 256-bit slot.
+    Transient,
 }
 
 /// Physical base used by a semantic mutable-local frame slot.
@@ -65,7 +69,7 @@ pub(crate) enum FrameSlotKind {
     /// A single Solidity word.
     Word,
     /// A two-word pointer/length slice in the given address space.
-    Slice(SliceLocation),
+    Slice(PtrLocation),
 }
 
 impl FrameSlotKind {
@@ -134,12 +138,6 @@ impl MemoryObjectLayout {
         Self::FixedArray { len, element_words: 1 }
     }
 
-    /// Creates a direct-field struct layout.
-    #[must_use]
-    pub(crate) const fn structure(fields: u64) -> Self {
-        Self::Struct { fields }
-    }
-
     /// Returns the nominal object kind represented by this layout.
     #[must_use]
     pub(crate) const fn kind(self) -> MemoryObjectKind {
@@ -178,12 +176,14 @@ impl fmt::Display for MemoryObjectKind {
     }
 }
 
-impl fmt::Display for SliceLocation {
+impl fmt::Display for PtrLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Memory => write!(f, "memory"),
             Self::Calldata => write!(f, "calldata"),
             Self::Returndata => write!(f, "returndata"),
+            Self::Storage => write!(f, "storage"),
+            Self::Transient => write!(f, "transient"),
         }
     }
 }
@@ -207,12 +207,12 @@ pub(crate) enum MirType {
     /// must be truncated or validated before acquiring a narrower type.
     /// Signed operations interpret the top bit; signedness is not part of the type.
     Int(NonZeroU32),
-    /// An opaque memory pointer, with no implied validity or heap provenance.
+    /// An opaque pointer into an address space, with no implied validity or heap provenance.
     ///
-    /// Memory objects are pointers too: the operations that access them carry the object layout.
-    MemPtr,
+    /// Memory objects are memory pointers too, accessed through `ptradd` and `mload`/`mstore`.
+    Ptr(PtrLocation),
     /// A pointer/length pair in the given address space.
-    Slice(SliceLocation),
+    Slice(PtrLocation),
     /// A fixed aggregate declared in the module type table.
     Struct(StructId),
     /// Absence of a function result.
@@ -226,6 +226,12 @@ impl MirType {
     pub(crate) const I160: Self = Self::Int(NonZeroU32::new(160).unwrap());
     /// A 256-bit integer.
     pub(crate) const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
+    /// A memory pointer.
+    pub(crate) const MEMPTR: Self = Self::Ptr(PtrLocation::Memory);
+    /// The field index of a slice's pointer.
+    pub(crate) const SLICE_PTR_FIELD: u32 = 0;
+    /// The field index of a slice's length word.
+    pub(crate) const SLICE_LEN_FIELD: u32 = 1;
 
     /// Whether an integer width has a supported native representation.
     pub(crate) const fn valid_integer_width(bits: u32) -> bool {
@@ -245,7 +251,11 @@ impl MirType {
         match self {
             Self::I1 => ValueLayout::Bool,
             Self::Int(bits) => ValueLayout::UInt(TypeSize::new_int_bits(bits.get() as u16)),
-            Self::MemPtr => ValueLayout::MemPtr,
+            Self::MEMPTR => ValueLayout::MemPtr,
+            Self::Ptr(PtrLocation::Calldata) => ValueLayout::CalldataPtr,
+            Self::Ptr(PtrLocation::Returndata | PtrLocation::Storage | PtrLocation::Transient) => {
+                ValueLayout::uint256()
+            }
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
             Self::Void => ValueLayout::Void,
@@ -253,19 +263,24 @@ impl MirType {
     }
 
     pub(crate) const fn is_pointer(self) -> bool {
-        matches!(self, Self::MemPtr)
+        matches!(self, Self::Ptr(_))
     }
 
     pub(crate) const fn is_word(self) -> bool {
         match self {
             Self::Int(bits) => Self::valid_integer_width(bits.get()),
-            Self::MemPtr => true,
+            Self::Ptr(_) => true,
             _ => false,
         }
     }
 
     pub(crate) const fn is_memory_reference(self) -> bool {
-        matches!(self, Self::MemPtr | Self::Slice(SliceLocation::Memory))
+        matches!(self, Self::MEMPTR | Self::Slice(PtrLocation::Memory))
+    }
+
+    /// Returns the field types of a slice in `location`: its pointer and its length.
+    pub(crate) const fn slice_fields(location: PtrLocation) -> [Self; 2] {
+        [Self::Ptr(location), Self::I256]
     }
 }
 
@@ -273,8 +288,8 @@ impl fmt::Display for MirType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(bits) => write!(f, "i{bits}"),
-            Self::MemPtr => f.write_str("memptr"),
-            Self::Slice(location) => write!(f, "{location}slice"),
+            Self::Ptr(location) => write!(f, "ptr<{location}>"),
+            Self::Slice(location) => write!(f, "slice<{location}>"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => f.write_str("void"),
         }
@@ -303,7 +318,7 @@ pub(crate) enum ValueLayout {
     /// Calldata pointer.
     CalldataPtr,
     /// A `(pointer, length)` pair in the given address space.
-    Slice(SliceLocation),
+    Slice(PtrLocation),
     /// Function type.
     Function,
     /// A fixed aggregate declared in the module type table.
@@ -383,11 +398,11 @@ impl fmt::Display for ValueLayout {
             Self::Bool => write!(f, "bool"),
             Self::Address => write!(f, "address"),
             Self::FixedBytes(size) => write!(f, "bytes{}", size.bytes()),
-            Self::MemPtr => write!(f, "memptr"),
+            Self::MemPtr => MirType::MEMPTR.fmt(f),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::StoragePtr => write!(f, "storageptr"),
-            Self::CalldataPtr => write!(f, "calldataptr"),
-            Self::Slice(location) => write!(f, "{location}slice"),
+            Self::CalldataPtr => MirType::Ptr(PtrLocation::Calldata).fmt(f),
+            Self::Slice(location) => MirType::Slice(*location).fmt(f),
             Self::Function => write!(f, "function"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => write!(f, "void"),
@@ -404,7 +419,7 @@ impl ValueLayout {
             Self::UInt(size) | Self::Int(size) => {
                 MirType::Int(NonZeroU32::new(size.bits() as u32).unwrap())
             }
-            Self::MemPtr | Self::MemoryObject(_) => MirType::MemPtr,
+            Self::MemPtr | Self::MemoryObject(_) => MirType::MEMPTR,
             Self::Slice(location) => MirType::Slice(location),
             Self::Struct(id) => MirType::Struct(id),
             Self::Void => MirType::Void,

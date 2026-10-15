@@ -69,11 +69,11 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType,
-        Module, Terminator, Value, ValueId,
+        ImmutableEncoding, InstId, InstKind, Instruction, MirPhase, MirType, Module, PtrLocation,
+        Terminator, Value, ValueId,
         analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
-        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        memory::EvmMemoryLayout,
         pass::MirPass,
         utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
@@ -1103,46 +1103,45 @@ fn is_small_literal_return(func: &Function) -> bool {
     if func.attributes.no_inline
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
-        || func.return_components() != [MirType::MemPtr]
+        || func.return_components() != [MirType::MEMPTR]
     {
         return false;
     }
     let block = &func.blocks[BlockId::ENTRY];
-    let [alloc, len, rest @ ..] = block.instructions.as_slice() else { return false };
+    let [alloc, rest @ ..] = block.instructions.as_slice() else { return false };
     if func.inst(*alloc).metadata.preserves_fmp() {
         return false;
     }
-    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL, .. } =
-        func.inst(*alloc).kind
+    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL } = func.inst(*alloc).kind
     else {
         return false;
     };
     let Some(object) = func.inst_result_value(*alloc) else { return false };
-    let InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) = func.inst(*len).kind
-    else {
-        return false;
-    };
-    if value != object
-        || !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
+    if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
     {
         return false;
     }
-    let Some(length) = func.value_u64(length) else { return false };
-    if length > 32 || func.value_u64(size) != Some(32 + length.next_multiple_of(32)) {
-        return false;
+    let mut length = None;
+    let mut words = 0;
+    for &inst in rest {
+        if func.is_object_derivation(inst) {
+            continue;
+        }
+        let InstKind::Store(address, value, PtrLocation::Memory) = func.inst(inst).kind else {
+            return false;
+        };
+        match func.object_address(address) {
+            Some((base, 0)) if base == object && length.is_none() => {
+                length = func.value_u64(value);
+            }
+            Some((base, 32)) if base == object && func.value_u256(value).is_some() => words += 1,
+            _ => return false,
+        }
     }
-    match rest {
-        [] => length == 0,
-        [store] => matches!(func.inst(*store).kind,
-            InstKind::MemoryObjectStoreWord { object: value, offset, value: word }
-            if length != 0 && value == object && func.value_u64(offset) == Some(0)
-                && func.value_u256(word).is_some()),
-        [data, store] => matches!((&func.inst(*data).kind, &func.inst(*store).kind),
-            (InstKind::MemoryObjectData(value, MemoryObjectKind::Bytes), InstKind::MStore(ptr, word))
-            if length != 0 && *value == object && func.inst_result_value(*data) == Some(*ptr)
-                && func.value_u256(*word).is_some()),
-        _ => false,
-    }
+    let Some(length) = length else { return false };
+    length <= 32
+        && func.value_u64(size) == Some(32 + length.next_multiple_of(32))
+        && words == usize::from(length != 0)
 }
 
 /// A direct call whose callee cannot resume the caller. Keep tail-call chains
@@ -1189,7 +1188,7 @@ fn summarize_function(
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
         has_reference_return: func.return_components().iter().any(|&ty| match ty {
-            MirType::MemPtr => !objects_lowered,
+            MirType::MEMPTR => !objects_lowered,
             MirType::Slice(_) => true,
             _ => false,
         }),
@@ -1206,7 +1205,7 @@ fn summarize_function(
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
+            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, func, kind);
             summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
@@ -1266,13 +1265,11 @@ fn summarize_function(
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
                 }
-                InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+                InstKind::Store(.., PtrLocation::Storage | PtrLocation::Transient) => {
+                    summary.has_storage_write = true;
+                }
                 InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
-                InstKind::Log0(..)
-                | InstKind::Log1(..)
-                | InstKind::Log2(..)
-                | InstKind::Log3(..)
-                | InstKind::Log4(..) => summary.has_log = true,
+                InstKind::Log { .. } => summary.has_log = true,
                 _ => {}
             }
         }
@@ -1435,16 +1432,19 @@ fn is_memory_wrapper(func: &Function) -> bool {
     rest.len() <= 5
         && matches!(func.inst(*call).kind, InstKind::ICall { function: Callee::Function(_), .. })
         && rest.iter().any(|&inst| {
-            matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
+            matches!(
+                func.inst(inst).kind,
+                InstKind::Store(.., PtrLocation::Memory) | InstKind::Store8(..)
+            )
         })
         && rest.iter().all(|&inst| {
             matches!(
                 func.inst(inst).kind,
                 InstKind::Add(..)
                     | InstKind::Sub(..)
-                    | InstKind::MLoad(..)
-                    | InstKind::MStore(..)
-                    | InstKind::MStore8(..)
+                    | InstKind::Load(_, PtrLocation::Memory)
+                    | InstKind::Store(.., PtrLocation::Memory)
+                    | InstKind::Store8(..)
             )
         })
         && matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() == 1)
@@ -1530,7 +1530,7 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
         && func.instructions().all(|inst| {
             matches!(
                 func.inst(inst).kind,
-                InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_)
+                InstKind::MakeSlice { .. } | InstKind::ExtractValue { ty: MirType::Slice(_), .. }
             )
         })
     {
@@ -1608,7 +1608,12 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 /// emit priced by the target, with the number of MIR instructions the expansion produces.
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
 /// left out throughout, as they are for those.
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, usize) {
+fn estimate_inst_cost(
+    gcx: Gcx<'_>,
+    module: &Module,
+    func: &Function,
+    kind: &InstKind,
+) -> (Cost, usize) {
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
@@ -1625,71 +1630,12 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
+        | InstKind::MakeSlice { .. }
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
-        InstKind::MemoryObjectData(_, kind) => {
-            if EvmMemoryLayout::object_data_offset(*kind) == 0 {
-                Cost::ZERO
-            } else {
-                seq(&[op::ADD])
-            }
-        }
-        InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                Cost::ZERO
-            } else {
-                seq(&[op::ADD])
-            }
-        }
-        InstKind::MemoryObjectElementAddr { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD]).plus(if base { seq(&[op::ADD]) } else { Cost::ZERO })
-        }
-        InstKind::MemoryObjectLoadField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                seq(&[op::MLOAD])
-            } else {
-                seq(&[op::ADD, op::MLOAD])
-            }
-        }
-        InstKind::MemoryObjectStoreField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
-                seq(&[op::MSTORE])
-            } else {
-                seq(&[op::ADD, op::MSTORE])
-            }
-        }
-        InstKind::MemoryObjectLoadElement { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD, op::MLOAD]).plus(if base {
-                seq(&[op::ADD])
-            } else {
-                Cost::ZERO
-            })
-        }
-        InstKind::MemoryObjectStoreElement { layout, .. } => {
-            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
-            seq(&[op::MUL, op::ADD, op::MSTORE]).plus(if base {
-                seq(&[op::ADD])
-            } else {
-                Cost::ZERO
-            })
-        }
-        InstKind::MemoryObjectLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
-        InstKind::MemoryObjectStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
-        InstKind::MemoryObjectStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
-        InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
-        InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
-        InstKind::MemoryObjectCopyFromSlice { .. }
-        | InstKind::MemoryObjectCopyFromSliceAt { .. }
-        | InstKind::MemoryObjectCopy { .. } => seq(&[op::MCOPY]),
-        InstKind::MemoryObjectLen(_, _) | InstKind::Fmp | InstKind::FrameLoad { .. } => {
-            seq(&[op::MLOAD])
-        }
-        InstKind::SetMemoryObjectLen(_, _, _)
-        | InstKind::SetFmp(_)
-        | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
+        InstKind::PtrAdd(..) => seq(&[op::ADD]),
+        InstKind::Fmp | InstKind::FrameLoad { .. } => seq(&[op::MLOAD]),
+        InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
         // Bump the free-memory pointer past the allocation.
         InstKind::Alloc { .. } => seq(&[op::MLOAD, op::ADD, op::MSTORE]),
         // Reserve the buffer, store the selector, produce the slice, store every argument's
@@ -1786,24 +1732,20 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::AbiEncodePacked { parts, .. } => {
             Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
-        InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
-            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
-        }
-        InstKind::Keccak256Bytes(_) => {
-            seq(&[op::DUP1, op::MLOAD, op::SWAP1, op::ADD, op::KECCAK256])
-        }
         InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::MappingSlotMemory(..) => seq(&[
-            op::MLOAD,
-            op::ADD,
-            op::MSTORE,
-            op::MLOAD,
-            op::ADD,
-            op::MSTORE,
-            op::ADD,
-            op::KECCAK256,
-        ]),
-        InstKind::MappingSlotCalldata(..) => seq(&[
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
+            seq(&[
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::ADD,
+                op::KECCAK256,
+            ])
+        }
+        InstKind::MappingSlotBytes(..) => seq(&[
             op::CALLDATALOAD,
             op::ADD,
             op::MSTORE,
@@ -1844,10 +1786,15 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
     };
     let instructions = match kind {
-        InstKind::Zext(_) | InstKind::IntToPtr(..) => 0,
+        // Casts and slice projections emit no code of their own.
+        InstKind::Zext(_)
+        | InstKind::IntToPtr(..)
+        | InstKind::PtrToInt(_, 256)
+        | InstKind::MakeSlice { .. }
+        | InstKind::ExtractValue { ty: MirType::Slice(_), .. } => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
-        InstKind::MappingSlotMemory(..) => 8,
-        InstKind::MappingSlotCalldata(..) => 9,
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
+        InstKind::MappingSlotBytes(..) => 9,
         InstKind::StorageArrayElementSlot { .. } => 4,
         InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
         _ => 1,
@@ -2174,11 +2121,11 @@ fn inline_call_impl(
     // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
-    // the callee's pointer parameters. Materialize the zero-cost view at the cloned entry.
+    // the callee's pointer parameters. Materialize the zero-cost cast at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if ty == MirType::MemPtr && caller.value_ty(*arg) != Some(ty) {
+        if ty == MirType::MEMPTR && caller.value_ty(*arg) != Some(ty) {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
@@ -2229,7 +2176,7 @@ fn inline_call_impl(
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
-    // cloned_entry: object argument views; cloned callee body
+    // cloned_entry: object argument casts; cloned callee body
     cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
 
     // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
@@ -2276,32 +2223,21 @@ fn inline_literal_call(
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
     let mut instructions = Vec::new();
     // object = icall @literal
-    //   => object = alloc memorybytes, size
-    //      set_memory_object_len object, length
-    //      memory_object_store_word object, 0, word
+    //   => object = alloc size
+    //      mstore object, length
+    //      mstore (ptradd object, 32), word
     for &inst in &callee.blocks[BlockId::ENTRY].instructions {
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
         instruction.metadata.copy_debug_context(&source.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
-            // object = alloc memorybytes, size
-            //   => object = alloc memorybytes, size !metadata(preserves_fmp)
+            // object = alloc size
+            //   => object = alloc size !metadata(preserves_fmp)
             //
             // The inlined result escapes the call. Preserve its heap reservation even when a
             // later ABI encoding embeds the literal bytes and removes its initialization stores.
             instruction.metadata.set_preserves_fmp(true);
-        }
-        if let InstKind::MStore(ptr, value) = instruction.kind
-            && let Value::Inst(data) = cloner.caller.value(ptr)
-            && let InstKind::MemoryObjectData(object, MemoryObjectKind::Bytes) =
-                cloner.caller.inst(*data).kind
-        {
-            // mstore memory_object_data(object), word
-            //   => memory_object_store_word object, 0, word
-            let offset =
-                cloner.caller.alloc_value(Value::Immediate(Immediate::I256(Default::default())));
-            instruction.kind = InstKind::MemoryObjectStoreWord { object, offset, value };
         }
         let new_inst = if let Some(value) = callee.inst_result_value(inst) {
             let (new_inst, new_value) = cloner.caller.alloc_value_inst(instruction);
@@ -2599,7 +2535,7 @@ fn insert_return_buffer_stores(
             } else {
                 builder.internal_frame_addr(frame_offset.checked_add(offset)?)
             };
-            builder.mstore(offset, value);
+            builder.store(offset, value);
         }
         let base = if caller_is_external {
             builder.imm(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
@@ -2614,7 +2550,7 @@ fn insert_return_buffer_stores(
     };
     let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
-    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemPtr)) {
+    if return_tys.iter().all(|ty| !matches!(*ty, MirType::Slice(_) | MirType::MEMPTR)) {
         forward_inline_return_loads(caller, continuation, consumer_start, values);
     }
     Some(())
@@ -2661,7 +2597,7 @@ fn forward_inline_return_loads(
                     offsets.insert(value, offset);
                 }
             }
-            InstKind::MLoad(address) => {
+            InstKind::Load(address, PtrLocation::Memory) => {
                 if let Some(&offset) = offsets.get(&address)
                     && offset >= 32
                     && offset % 32 == 0

@@ -7,10 +7,10 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp,
-    ConcatPart, DataId, DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
+    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
-    PanicCode, RevertPayload, RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -22,7 +22,7 @@ use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
-    eval::{ConstValue, EvalErrorKind},
+    eval::ConstValue,
     hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };
@@ -319,7 +319,7 @@ struct StorageAccess {
 enum LValuePlace<'gcx> {
     Variable { id: VariableId, span: Span },
     Storage { ty: Ty<'gcx>, access: StorageAccess, span: Span },
-    MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
+    MemoryField { object: ValueId, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
     YulSuffix { id: VariableId, suffix: YulSuffix, span: Span },
@@ -416,15 +416,14 @@ impl InternalFunctionPointerShape {
     fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        helper_name(
-            sym::internal_dispatcher,
-            format!(
-                "{}p_{}_r_{}",
-                if from_assembly { "asm_" } else { "" },
-                if params.is_empty() { "none" } else { &params },
-                if returns.is_empty() { "none" } else { &returns },
-            ),
-        )
+        let suffix = format!(
+            "{}p_{}_r_{}",
+            if from_assembly { "asm_" } else { "" },
+            if params.is_empty() { "none" } else { &params },
+            if returns.is_empty() { "none" } else { &returns },
+        );
+        // `slice<calldata>` -> `slice_calldata`, keeping the name an identifier.
+        helper_name(sym::internal_dispatcher, suffix.replace('<', "_").replace('>', ""))
     }
 }
 
@@ -693,8 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
         // `lower_constant_variable`.
-        // value = const_eval(expr)
-        let foldable = matches!(
+        let computes = matches!(
             expr.kind,
             ExprKind::Unary(..)
                 | ExprKind::Binary(..)
@@ -704,10 +702,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 | ExprKind::Payable(_)
                 | ExprKind::Index(..)
                 | ExprKind::Tuple(_)
-        ) && ((!self.in_inline_assembly
-            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type()))
-            || is_literal_operation(self.cx.gcx, expr));
-        if foldable
+        );
+        // Inline assembly reads raw words, so only literal arithmetic folds there.
+        let solidity_value = || {
+            !self.in_inline_assembly
+                && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
+        };
+        // value = const_eval(expr)
+        if computes
+            && (solidity_value() || is_literal_operation(self.cx.gcx, expr))
             && let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr)
             && !matches!(value, ConstValue::Bytes(..))
         {
@@ -735,7 +738,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
                     Some(self.builder.slice_ptr(value))
@@ -745,7 +748,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Binary(lhs, op, rhs) => {
                 self.assert_operand_ty_registered(expr);
-                if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
+                if op.kind.is_logical() {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
@@ -979,7 +982,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(rhs_value),
-                        Some(MirType::Slice(SliceLocation::Calldata))
+                        Some(MirType::Slice(PtrLocation::Calldata))
                     );
                 let value = if preserve_calldata_slice {
                     rhs_value
@@ -1215,7 +1218,7 @@ fn reinterpret_word(
     builder.cast(word, carrier)
 }
 
-/// Returns `true` if `expr` is an operation on number literals, including a comparison of them.
+/// Returns `true` if `expr` is a number literal, an operation on them, or a comparison of them.
 ///
 /// Only literal arithmetic has literal types, so this needs no walk of the operands.
 fn is_literal_operation(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {

@@ -5,6 +5,7 @@ trunc: low_bits(operand0, bits)
 sext: sign_extend(operand0, from_bits, to_bits)
 ptrtoint: low_bits(operand0, bits)
 inttoptr: word(operand0)
+ptradd: -
 checked_binary: checked(op, arithmetic, lhs, rhs)
 validate_storage_bytes: -
 load_storage_bytes: -
@@ -40,48 +41,23 @@ slt: opcode(SLT)
 sgt: opcode(SGT)
 eq: opcode(EQ)
 ne: not_equal(a, b)
-mload: opcode(MLOAD)
-mstore: opcode(MSTORE)
+mload: opcode(match location { Memory => MLOAD, Calldata => CALLDATALOAD, Storage => SLOAD, Transient => TLOAD })
+mstore: opcode(match location { Memory => MSTORE, Storage => SSTORE, Transient => TSTORE })
 mstore8: opcode(MSTORE8)
 memory_zero: -
 msize: opcode(MSIZE)
 fmp: -
 set_fmp: -
 heap_floor: heap_floor()
-alloc: allocate(size, kind, semantics)
-memory_object_len: -
-set_memory_object_len: -
-memory_object_data: -
-memory_object_field_addr: -
-memory_object_element_addr: -
-memory_object_load_field: -
-memory_object_store_field: -
-memory_object_load_element: -
-memory_object_load_byte: -
-memory_object_store_element: -
-memory_object_store_byte: -
-memory_object_store_word: -
-memory_slice_load_word: -
-calldata_slice_load_word: -
-memory_object_copy_from_slice: -
-memory_object_copy_from_slice_at: -
-memory_object_copy: -
+alloc: allocate(size, semantics)
 abi_encode: -
 abi_decode: -
 storage_to_memory: -
 memory_to_storage: -
 clear_storage: -
-mcopy: opcode(MCOPY)
-sload: opcode(SLOAD)
-sstore: opcode(SSTORE)
-tload: opcode(TLOAD)
-tstore: opcode(TSTORE)
-calldataload: opcode(CALLDATALOAD)
-calldatacopy: opcode(CALLDATACOPY)
+mcopy: opcode(match location { Memory => MCOPY, Calldata => CALLDATACOPY, Returndata => RETURNDATACOPY })
 calldatasize: opcode(CALLDATASIZE)
 make_memory_slice: -
-slice_ptr: -
-slice_len: -
 internal_frame_addr: -
 frame_load: -
 frame_store: -
@@ -98,7 +74,6 @@ storeimmutable: -
 loadimmutable: -
 library_address: -
 returndatasize: opcode(RETURNDATASIZE)
-returndatacopy: opcode(RETURNDATACOPY)
 caller: opcode(CALLER)
 callvalue: opcode(CALLVALUE)
 origin: opcode(ORIGIN)
@@ -119,10 +94,8 @@ basefee: opcode(BASEFEE)
 blobbasefee: opcode(BLOBBASEFEE)
 blobhash: opcode(BLOBHASH)
 keccak256: opcode(KECCAK256)
-keccak256_bytes: -
 mapping_slot: -
-mapping_slot_memory: -
-mapping_slot_calldata: -
+mapping_slot_bytes: -
 storage_array_data_slot: -
 storage_array_element_slot: -
 call: opcode(CALL)
@@ -132,11 +105,7 @@ delegatecall: opcode(DELEGATECALL)
 icall: call(function, args)
 create: opcode(CREATE)
 create2: opcode(CREATE2)
-log0: opcode(LOG0)
-log1: opcode(LOG1)
-log2: opcode(LOG2)
-log3: opcode(LOG3)
-log4: opcode(LOG4)
+log: log(offset, size, topics)
 phi: phi(incoming)
 select: select(cond, true_val, false_val)
 signextend: opcode(SIGNEXTEND)

@@ -7,7 +7,7 @@ contract CalldataSliceTernary {
     // CHECK-LABEL: fn @pick{{[( ]}}
     // CHECK-NOT: calldatacopy
     // CHECK: phi [
-    // CHECK: slice_len
+    // CHECK: extract_value slice<calldata>, {{[^,]+}}, 1
     // CHECK-NOT: calldatacopy
     function pick(bool c, bytes calldata a, bytes calldata b)
         external
@@ -21,7 +21,13 @@ contract CalldataSliceTernary {
     // A memory-typed ternary adopts a calldata arm by materializing it, so
     // the merge stays a single memory pointer.
     // CHECK-LABEL: fn @adopt{{[( ]}}
-    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: [[COPY:v[0-9]+]] = alloc {{v[0-9]+}}
+    // CHECK-NEXT: mstore [[COPY]], {{v[0-9]+}}
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = ptradd [[COPY]], 32
+    // CHECK-NEXT: [[SRC:v[0-9]+]] = extract_value slice<calldata>, arg1, 0
+    // CHECK-NEXT: [[LEN:v[0-9]+]] = extract_value slice<calldata>, arg1, 1
+    // CHECK-NEXT: calldatacopy [[DATA]], [[SRC]], [[LEN]]
+    // CHECK: phi [bb{{[0-9]+}}: [[COPY]]], [bb{{[0-9]+}}: {{v[0-9]+}}]
     function adopt(bool c, bytes calldata a) external pure returns (bytes memory) {
         bytes memory local = hex"aabb";
         return c ? a : local;

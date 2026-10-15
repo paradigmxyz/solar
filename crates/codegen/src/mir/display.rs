@@ -442,17 +442,13 @@ fn display_inst_kind<'a>(
         }
         InstKind::InsertValue { ty, aggregate, index, value } => write!(
             f,
-            "insert_value struct{}, {}, {index}, {}",
-            ty.index(),
+            "insert_value {ty}, {}, {index}, {}",
             display_val(*aggregate, func),
             display_val(*value, func)
         ),
-        InstKind::ExtractValue { ty, aggregate, index } => write!(
-            f,
-            "extract_value struct{}, {}, {index}",
-            ty.index(),
-            display_val(*aggregate, func)
-        ),
+        InstKind::ExtractValue { ty, aggregate, index } => {
+            write!(f, "extract_value {ty}, {}, {index}", display_val(*aggregate, func))
+        }
         InstKind::Trunc(value, _)
         | InstKind::Zext(value)
         | InstKind::Sext(value, _, _)
@@ -497,132 +493,20 @@ fn display_inst_kind<'a>(
             let name = module.and_then(|module| module.data[size.data].name);
             write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
-        InstKind::Alloc { size, kind, semantics } => {
-            let kind = match kind {
-                crate::mir::AllocationKind::Raw => "raw".to_string(),
-                crate::mir::AllocationKind::Object(layout) => layout.to_string(),
-            };
-            let alignment = match semantics.alignment {
-                crate::mir::AllocationAlignment::Exact => "exact",
-                crate::mir::AllocationAlignment::Word => "word",
-            };
-            let initialization = match semantics.initialization {
-                crate::mir::AllocationInitialization::Uninitialized => "uninitialized",
-                crate::mir::AllocationInitialization::Zeroed => "zeroed",
-            };
-            let failure = match semantics.failure {
-                crate::mir::AllocationFailure::Infallible => "infallible",
-                crate::mir::AllocationFailure::Panic => "panic",
-            };
-            write!(
-                f,
-                "alloc {kind}, {alignment}, {initialization}, {failure}, {}",
-                display_val(*size, func)
-            )
-        }
-        InstKind::MemoryObjectFieldAddr { object, layout, field } => {
-            write!(f, "memory_object_field_addr {layout}, {}, {field}", display_val(*object, func))
-        }
-        InstKind::MemoryObjectElementAddr { object, layout, index } => write!(
-            f,
-            "memory_object_element_addr {layout}, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func)
-        ),
-        InstKind::MemoryObjectLoadField { object, layout, field } => {
-            write!(
-                f,
-                "memory_object_load_field {layout}, {}, {field}",
-                display_val(*object, func)
-            )?;
-            if result_ty == Some(MirType::MemPtr) {
-                write!(f, ", memptr")?;
+        InstKind::Alloc { size, semantics } => {
+            write!(f, "alloc ")?;
+            if semantics.initialization == crate::mir::AllocationInitialization::Zeroed {
+                write!(f, "zeroed ")?;
             }
-            Ok(())
-        }
-        InstKind::MemoryObjectStoreField { object, layout, field, value } => write!(
-            f,
-            "memory_object_store_field {layout}, {}, {field}, {}",
-            display_val(*object, func),
-            display_val(*value, func)
-        ),
-        InstKind::MemoryObjectLoadElement { object, layout, index } => {
-            write!(
-                f,
-                "memory_object_load_element {layout}, {}, {}",
-                display_val(*object, func),
-                display_val(*index, func)
-            )?;
-            if result_ty == Some(MirType::MemPtr) {
-                write!(f, ", memptr")?;
+            if semantics.failure == crate::mir::AllocationFailure::Checked {
+                write!(f, "checked ")?;
             }
-            Ok(())
+            write!(f, "{}", display_val(*size, func))
         }
-        InstKind::MemoryObjectLoadByte { object, index } => write!(
-            f,
-            "memory_object_load_byte memorybytes, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func)
-        ),
-        InstKind::MemoryObjectStoreElement { object, layout, index, value } => write!(
-            f,
-            "memory_object_store_element {layout}, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func),
-            display_val(*value, func)
-        ),
-        InstKind::MemoryObjectStoreByte { object, index, value } => write!(
-            f,
-            "memory_object_store_byte memorybytes, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func),
-            display_val(*value, func)
-        ),
-        InstKind::MemoryObjectStoreWord { object, offset, value } => write!(
-            f,
-            "memory_object_store_word memorybytes, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*offset, func),
-            display_val(*value, func)
-        ),
-        InstKind::MemorySliceLoadWord { slice, offset } => write!(
-            f,
-            "memory_slice_load_word memory, {}, {}",
-            display_val(*slice, func),
-            display_val(*offset, func)
-        ),
-        InstKind::CalldataSliceLoadWord { slice, offset } => write!(
-            f,
-            "calldata_slice_load_word calldata, {}, {}",
-            display_val(*slice, func),
-            display_val(*offset, func)
-        ),
-        InstKind::MemoryObjectCopyFromSlice { object, kind, source } => write!(
-            f,
-            "memory_object_copy_from_slice {kind}, {}, {}",
-            display_val(*object, func),
-            display_val(*source, func)
-        ),
-        InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => write!(
-            f,
-            "memory_object_copy_from_slice_at {kind}, {}, {}, {}",
-            display_val(*object, func),
-            display_val(*offset, func),
-            display_val(*source, func)
-        ),
-        InstKind::MemoryObjectCopy {
-            destination,
-            destination_kind,
-            source,
-            source_kind,
-            length,
-        } => write!(
-            f,
-            "memory_object_copy {destination_kind}, {}, {source_kind}, {}, {}",
-            display_val(*destination, func),
-            display_val(*source, func),
-            display_val(*length, func)
-        ),
+        InstKind::Load(..) if result_ty == Some(MirType::MEMPTR) => {
+            display_inst_operands(f, kind, func)?;
+            write!(f, ", ptr<memory>")
+        }
         InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
             f,
             "store_storage_bytes_literal {}, hex\"{}\"",
@@ -644,18 +528,6 @@ fn display_inst_kind<'a>(
             display_val(*slot, func),
             display_val(*index, func)
         ),
-        InstKind::MemoryObjectLen(object, kind) => {
-            write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
-        }
-        InstKind::SetMemoryObjectLen(object, len, kind) => write!(
-            f,
-            "set_memory_object_len {kind}, {}, {}",
-            display_val(*object, func),
-            display_val(*len, func)
-        ),
-        InstKind::MemoryObjectData(object, kind) => {
-            write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
-        }
         InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
             f,
             "{} {}, {}, {}",
@@ -704,7 +576,6 @@ fn display_inst_kind<'a>(
                 Builtin::Send => write!(f, "send<>")?,
                 Builtin::Transfer => write!(f, "transfer<>")?,
                 Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
-                Builtin::Concat(types) => write!(f, "concat<{}>", types.iter().format(", "))?,
                 Builtin::Check { is_zero, failure } => {
                     let name = match failure {
                         super::RevertKind::Panic(_) => "panic_if",

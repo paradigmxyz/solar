@@ -6,7 +6,7 @@
     bb0:
 -     v0 = internal_frame_addr 192
 +     v0 = internal_frame_addr 160
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, arg0
       v2 = mload v1
 -     v3 = add v2, arg2
@@ -24,7 +24,7 @@
   fn @explicit_slot(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 0
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, arg0
       v2 = mload v1
       ret v2
@@ -39,7 +39,7 @@
   fn @constant_frame(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 0
-      v1 = ptrtoint memptr v0 to i256
+      v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, arg0
       ret 9
   }

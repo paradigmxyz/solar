@@ -6,11 +6,13 @@
 //! - `opcode(NAME)`: the EVM opcode `NAME` applied to the operation's operands in canonical order,
 //!   which is the opcode's pop order. Pure opcodes compute their results with the word semantics of
 //!   the opcode table; memory, storage, environment, and call opcodes act on the machine that runs
-//!   them.
+//!   them. `opcode(match location { Memory => NAME, .. })` picks the opcode by the operation's
+//!   pointer location; a location without an arm has no interpretation.
+//! - `log(offset, size, topics)`: `LOG0` through `LOG4`, by topic count.
 //! - `word(value)`, `low_bits(value, bits)`, and `sign_extend(value, from, to)`: casts.
 //! - `not_equal(a, b)`, `select(condition, if_true, if_false)`, `phi(incoming)`, `call(callee,
 //!   args)`, and `checked(op, arithmetic, lhs, rhs)`.
-//! - `allocate(size, kind, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
+//! - `allocate(size, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
 //!   constant data copied to memory.
 //! - `heap_floor()`: the initial heap floor resolved by backend placement.
 //!
@@ -22,14 +24,14 @@
 //! addresses, immutables, and library addresses.
 //!
 //! Instruction selection picks opcodes on its own, in `isle/mir-to-evm/select.isle`, and a test
-//! checks that it picks each declared opcode. The interpreter therefore gives an operation the
-//! meaning the schema states, not whatever the backend happens to emit for it.
+//! checks that it never picks an opcode other than the declared one. The interpreter therefore
+//! gives an operation the meaning the schema states, not whatever the backend happens to emit for
+//! it.
 //!
 //! [`InstKind::semantics`]: super::InstKind::semantics
 
 use super::{
-    AllocationKind, AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef,
-    ValueId,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, LogTopics, ValueId,
 };
 use smallvec::SmallVec;
 
@@ -56,10 +58,10 @@ pub(crate) enum Semantics<'a> {
     /// The checked arithmetic operation on the operands, which panics when its result does not
     /// fit the arithmetic type or its divisor is zero.
     Checked(CheckedOp, ArithmeticKind, ValueId, ValueId),
-    /// The address of a fresh memory region of the operand's size, of this kind and with these
-    /// alignment, initialization, and failure rules. Lowering bumps the free memory pointer for
+    /// The address of a fresh memory region of the operand's size, with these initialization and
+    /// failure rules. Lowering bumps the free memory pointer for
     /// it, except for the allocations it defers to the backend, which places them in its layout.
-    Allocate(ValueId, &'a AllocationKind, AllocationSemantics),
+    Allocate(ValueId, AllocationSemantics),
     /// The constant data at the reference, copied to memory at the first operand for the second
     /// operand's byte count.
     DataCopy(DataRef, ValueId, ValueId),
@@ -71,6 +73,7 @@ pub(crate) enum Semantics<'a> {
 /// operation's fields by reference.
 pub(super) mod declare {
     use super::*;
+    use crate::backend::evm::op;
 
     /// The operand's word, unchanged.
     pub(crate) fn word(value: &ValueId) -> Semantics<'static> {
@@ -122,12 +125,8 @@ pub(super) mod declare {
     }
 
     /// A fresh memory region.
-    pub(crate) fn allocate<'a>(
-        size: &ValueId,
-        kind: &'a AllocationKind,
-        semantics: &AllocationSemantics,
-    ) -> Semantics<'a> {
-        Semantics::Allocate(*size, kind, *semantics)
+    pub(crate) fn allocate(size: &ValueId, semantics: &AllocationSemantics) -> Semantics<'static> {
+        Semantics::Allocate(*size, *semantics)
     }
 
     /// Constant data copied to memory.
@@ -139,35 +138,73 @@ pub(super) mod declare {
     pub(crate) fn heap_floor() -> Semantics<'static> {
         Semantics::HeapFloor
     }
+
+    /// `LOG0` through `LOG4`, by topic count.
+    pub(crate) fn log(offset: &ValueId, size: &ValueId, topics: &LogTopics) -> Semantics<'static> {
+        let opcode = op::LOG0 + topics.len() as u8;
+        Semantics::Opcode(
+            opcode,
+            [*offset, *size].into_iter().chain(topics.as_slice().iter().copied()).collect(),
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{backend::evm::op, mir::InstKind};
+    use crate::{
+        backend::evm::op,
+        mir::{InstKind, PtrLocation},
+    };
     use std::fmt::Write as _;
 
     #[test]
     fn declared_semantics() {
         let mut table = String::new();
         for (mnemonic, semantics) in InstKind::DECLARED_SEMANTICS {
-            let semantics = if semantics.is_empty() { "-" } else { semantics };
+            // `stringify!` breaks long declarations over several lines.
+            let semantics = semantics.split_whitespace().collect::<Vec<_>>().join(" ");
+            let semantics = if semantics.is_empty() { "-" } else { &semantics };
             writeln!(table, "{mnemonic}: {semantics}").unwrap();
         }
         snapbox::assert_data_eq!(table, snapbox::file!["semantics.snap"]);
     }
 
     #[test]
-    fn opcodes_match_stack_effects() {
-        for &name in InstKind::MNEMONICS {
-            let Some((arity, build)) = InstKind::operand_only(name) else { continue };
-            let operands = (0..arity).map(ValueId::from_usize).collect::<Vec<_>>();
-            let kind = build(&operands);
+    fn opcodes_match_selection_and_stack_effects() {
+        let operands = |count: usize| (0..count).map(ValueId::from_usize).collect::<Vec<_>>();
+        let mut kinds = InstKind::DECLARED_SEMANTICS
+            .iter()
+            .filter_map(|&(name, _)| InstKind::operand_only(name))
+            .map(|(arity, build)| build(&operands(arity)))
+            .collect::<Vec<_>>();
+        let [a, b, c] = [0, 1, 2].map(ValueId::from_usize);
+        for location in [
+            PtrLocation::Memory,
+            PtrLocation::Calldata,
+            PtrLocation::Returndata,
+            PtrLocation::Storage,
+            PtrLocation::Transient,
+        ] {
+            kinds.extend([
+                InstKind::Load(a, location),
+                InstKind::Store(a, b, location),
+                InstKind::Copy(a, b, c, location),
+            ]);
+        }
+        for count in 0..=LogTopics::MAX {
+            let topics = LogTopics::new(&operands(count)).unwrap();
+            kinds.push(InstKind::Log { offset: a, size: b, topics });
+        }
+        for kind in kinds {
             if let Some(Semantics::Opcode(opcode, operands)) = kind.semantics() {
+                // Calls lower outside instruction selection.
+                let selected = kind.evm_opcode();
+                assert!(selected.is_none_or(|selected| selected == opcode), "{kind:?}");
                 let pushes = u8::from(kind.op_def().result.produces_value());
                 let stack_io =
                     op::stack_io(opcode).map(|(pops, pushes)| (usize::from(pops), pushes));
-                assert_eq!(stack_io, Some((operands.len(), pushes)), "{name}");
+                assert_eq!(stack_io, Some((operands.len(), pushes)), "{kind:?}");
             }
         }
     }

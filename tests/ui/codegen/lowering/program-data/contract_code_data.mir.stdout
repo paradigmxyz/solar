@@ -8,13 +8,12 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
     ret 7
 }
 
-fn @payload() -> memptr [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 128
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    datacopy literal_0, v2, 128
+    v0 = alloc 160 !metadata(preserves_fmp)
+    mstore v0, 128
+    v1 = ptradd v0, 32
+    datacopy literal_0, v1, 128
     ret v0
 }
 
@@ -28,37 +27,36 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
   bb0:
     v0 = datasize CodeTarget_creation_code_0
     v1 = datasize CodeTarget_creation_code_0, 63, aligned
-    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, v0
-    v3 = memory_object_data memorybytes, v2
+    v2 = alloc v1 !metadata(preserves_fmp)
+    mstore v2, v0
+    v3 = ptradd v2, 32
     v4 = datasize CodeTarget_creation_code_0, 31, aligned
-    v5 = ptrtoint memptr v2 to i256
+    v5 = ptrtoint ptr<memory> v2 to i256
     v6 = add v5, v4
     mstore v6, 0
-    v7 = ptrtoint memptr v3 to i256
-    datacopy CodeTarget_creation_code_0, v7, v0
-    v8 = ptrtoint memptr v2 to i256
-    v9 = mload v8
-    v10 = ptrtoint memptr v2 to i256
-    v11 = add v10, 32
-    v12 = create 0, v11, v9
-    v13 = zext i160 v12 to i256
-    v14 = gas
-    v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = zext i160 v12 to i256
-    v19 = staticcall v14, v18, v16, v17, 0, 32
-    jumpi v19, bb2, bb1
+    datacopy CodeTarget_creation_code_0, v3, v0
+    v7 = ptrtoint ptr<memory> v2 to i256
+    v8 = mload v2
+    v9 = ptrtoint ptr<memory> v2 to i256
+    v10 = add v9, 32
+    v11 = create 0, v10, v8
+    v12 = zext i160 v11 to i256
+    v13 = gas
+    v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = zext i160 v11 to i256
+    v18 = staticcall v13, v17, v15, v16, 0, 32
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v20 = returndatasize
-    v21 = lt v20, 32
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = add 0, 0
+    v22 = mload v21
+    ret v22
 }
 
 fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -66,34 +64,33 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v0 = abi_encode []
     v1 = datasize CodeTarget_creation_code_0
     v2 = datasize CodeTarget_creation_code_0, 31, aligned
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CodeTarget_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v3 = alloc v2
+    datacopy CodeTarget_creation_code_0, v3, v1
+    v4 = extract_value slice<memory>, v0, 0
+    v5 = ptrtoint ptr<memory> v3 to i256
+    v6 = add v5, v1
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = create 0, v3, v1
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = datasize CodeTarget_runtime_code_1
-    v12 = datasize CodeTarget_runtime_code_1, 63, aligned
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v13, v11
-    v14 = memory_object_data memorybytes, v13
-    v15 = datasize CodeTarget_runtime_code_1, 31, aligned
-    v16 = ptrtoint memptr v13 to i256
-    v17 = add v16, v15
-    mstore v17, 0
-    v18 = ptrtoint memptr v14 to i256
-    datacopy CodeTarget_runtime_code_1, v18, v11
-    v19 = keccak256_bytes v13
-    v20 = zext i160 v9 to i256
-    v21 = extcodehash v20
-    v22 = eq v19, v21
-    ret v22
+    v9 = datasize CodeTarget_runtime_code_1
+    v10 = datasize CodeTarget_runtime_code_1, 63, aligned
+    v11 = alloc v10 !metadata(preserves_fmp)
+    mstore v11, v9
+    v12 = ptradd v11, 32
+    v13 = datasize CodeTarget_runtime_code_1, 31, aligned
+    v14 = ptrtoint ptr<memory> v11 to i256
+    v15 = add v14, v13
+    mstore v15, 0
+    datacopy CodeTarget_runtime_code_1, v12, v9
+    v16 = ptradd v11, 32
+    v17 = mload v11
+    v18 = keccak256 v16, v17
+    v19 = zext i160 v7 to i256
+    v20 = extcodehash v19
+    v21 = eq v18, v20
+    ret v21
 }

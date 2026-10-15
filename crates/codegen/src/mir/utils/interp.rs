@@ -58,9 +58,9 @@
 use crate::{
     backend::evm::op,
     mir::{
-        AllocationKind, AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function,
-        FunctionId, InstId, InstKind, MirPhase, Module, Semantics, Terminator, Value, ValueId,
-        memory::EvmMemoryLayout, utils::eval::eval_semantics,
+        AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId,
+        InstKind, MirPhase, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+        utils::eval::eval_semantics,
     },
 };
 use alloy_primitives::{U256, keccak256};
@@ -693,9 +693,9 @@ impl<'a> Run<'_, 'a, '_> {
                 let (dest, len) = (frame.read(dest)?, frame.read(len)?);
                 return self.data_copy(data, dest, len);
             }
-            Semantics::Allocate(size, kind, _) if self.transaction.is_some() => {
+            Semantics::Allocate(size, _) if self.transaction.is_some() => {
                 let size = frame.read(size)?;
-                self.allocate(body, inst, size, kind)?
+                self.allocate(body, inst, size)?
             }
             semantics => match eval_semantics(semantics, |value| frame.word(value).ok_or(())) {
                 Ok(Some(word)) => word,
@@ -867,12 +867,11 @@ impl<'a> Run<'_, 'a, '_> {
         body: &Function,
         inst: InstId,
         size: U256,
-        kind: &AllocationKind,
     ) -> ControlFlow<Outcome, U256> {
         let Some(_) = &self.transaction else {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         };
-        if !matches!(kind, AllocationKind::Raw) || size > U256::from(MEMORY_LIMIT) {
+        if size > U256::from(MEMORY_LIMIT) {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         }
         if let Some(layout) = &self.machine.module.backend_memory {
@@ -1337,7 +1336,7 @@ fn @entry() [entry] {
     v7 = add v6, 32
     v8 = mload v7
     mstore 0, v8
-    log1 0, 32, v0
+    log 0, 32, v0
     v9 = calldatasize
     v10 = calldataload 1
     v11 = returndatasize
@@ -1388,7 +1387,7 @@ fn @entry() [entry] {
 
 fn @echo() [selector=0x00000001, abi_wrapper] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+    v0 = alloc 32 !metadata(deferred_alloc)
     datacopy literal_0, v0, 2
     v1 = mload v0
     v2 = eq arg0, 0
@@ -1432,7 +1431,7 @@ fn @world(arg0: i256) -> i256 {
     v3 = tload 1
     v4 = callvalue
     mstore 0, v4
-    log2 0, 32, v3, arg0
+    log 0, 32, v3, arg0
     ret v3
 }
 ";

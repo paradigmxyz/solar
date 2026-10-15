@@ -2,7 +2,7 @@
 
 use crate::mir::{
     AbiParamType, AbiType, AbiWordValidator, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, ValueLayout,
+    PtrLocation, ValueLayout,
 };
 use solar_ast::{DataLocation, TypeSize};
 use solar_data_structures::map::FxHashSet;
@@ -39,7 +39,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                     | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
             )
         {
-            return ValueLayout::Slice(SliceLocation::Calldata);
+            return ValueLayout::Slice(PtrLocation::Calldata);
         }
         if matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage)) {
             return ValueLayout::StoragePtr;
@@ -148,11 +148,11 @@ impl<'gcx> TypeLowerer<'gcx> {
         1
     }
 
-    fn abi_slice_location(ty: Ty<'_>) -> SliceLocation {
+    fn abi_slice_location(ty: Ty<'_>) -> PtrLocation {
         if ty.is_ref_at(DataLocation::Calldata) {
-            SliceLocation::Calldata
+            PtrLocation::Calldata
         } else {
-            SliceLocation::Memory
+            PtrLocation::Memory
         }
     }
 

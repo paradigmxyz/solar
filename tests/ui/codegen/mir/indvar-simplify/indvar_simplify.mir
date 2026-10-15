@@ -157,7 +157,7 @@ fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_checked_descending_address{{[( ]}}
 // CHECK: {{^[ +].*}}shl 5,
 // CHECK: {{^[ +].*}}add arg0,
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 // CHECK: {{^[ +].*}}checked_sub u256,
 fn @keep_checked_descending_address(arg0: i256) -> i256 {
   bb0:
@@ -180,8 +180,8 @@ fn @keep_checked_descending_address(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_shared_field_addresses{{[( ]}}
 // CHECK-NOT: + {{.*}}phi
 // CHECK: {{^[ +].*}}shl 5,
-// CHECK: {{^[ +].*}}mstore
-// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
+// CHECK: {{^[ +](.*[^a-z_])?}}mstore
 fn @keep_shared_field_addresses(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -251,7 +251,7 @@ fn @native_counter(arg0: i256) -> i256 {
 // CHECK-LABEL: fn @wrapping_counter
 // CHECK-NOT: + {{.*}}phi
 // CHECK: shl 5,
-// CHECK: mload
+// CHECK: {{(^|[^a-z_])}}mload
 fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
   bb0:
     jump bb1
@@ -631,8 +631,8 @@ fn @keep_narrow_counter_read_after_loop(arg0: i256) -> i256 {
 // CHECK-NOT: {{^[-+]}}
 fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v30 = alloc raw, exact, uninitialized, infallible, 128
-    v0 = ptrtoint memptr v30 to i256
+    v30 = alloc 128
+    v0 = ptrtoint ptr<memory> v30 to i256
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v6]
@@ -663,8 +663,8 @@ fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NEXT: + ret [[INDEX]]
 fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v30 = alloc raw, exact, uninitialized, infallible, 128
-    v0 = ptrtoint memptr v30 to i256
+    v30 = alloc 128
+    v0 = ptrtoint ptr<memory> v30 to i256
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v6]

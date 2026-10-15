@@ -220,25 +220,10 @@ compiler's opcode table on boundary words, with results from the table's word
 semantics, and `test.py` evaluates each line with both the integer and the SMT
 word models. The definitions stay independent; they only have to agree.
 
-Three semantic memory-object address projections are modeled under the selected
-`EvmMemoryLayout` policy: payload, direct struct field, and array element
-addresses. The reader checks their field names and types against the generated
-ISLE prelude, whose hash is recorded. Object operands denote their leading
-pointer words. Payload projection distinguishes a slice's existing payload
-pointer from an object reference preceding its header. The model includes all
-four object kinds, full u32 element strides, full u64 field counts and indices,
-the policy's saturating field-offset multiplication, and full-width wrapping
-address arithmetic. Layout length does not affect element-address calculation.
-Valid field ranges and applicable layout kinds are structural preconditions,
-not assumed equalities between the rewrite's two sides. Removing the actual
-source guards yields independently replayed counterexamples in regression tests.
-
-These proofs establish address-word equality only. They do not establish memory
-contents, allocation safety, bounds checks, aliasing, address-space selection,
-or correctness of typed slice erasure. The Rust layout policy, type definitions,
-memory-object lowering and slice lowering are explicitly fingerprinted trusted
-sources. MIR regression tests compare projection lowering with and without the
-e-graph pass for memory and calldata slices.
+The proofs do not establish memory contents, allocation safety, bounds checks,
+aliasing, address-space selection, or correctness of typed slice erasure. The
+Rust layout policy, type definitions, memory-object lowering and slice lowering
+are explicitly fingerprinted trusted sources.
 
 `ADDRESS`, `BALANCE`, and `SELFBALANCE` use one executing-account address and
 one explicit account-balance snapshot. The address is a 160-bit symbolic input;

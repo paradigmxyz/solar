@@ -1,0 +1,24 @@
+error[7615]: inline assembly can only read constants with a compile-time value
+   ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
+   │
+LL │     uint256 constant HASH = uint256(keccak256(type(D).creationCode));
+   │                                     ─────────────────────────────── this has no value at compile time
+   ‡
+LL │             r := HASH
+   │                  ━━━━
+   │
+   ╰ note: every use of the constant runs its initializer, which can allocate memory
+
+error[7615]: inline assembly can only read constants with a compile-time value
+   ╭▸ ROOT/tests/ui/typeck/assembly_unfolded_constant.sol:LL:CC
+   │
+LL │     uint256 constant HASH = uint256(keccak256(type(D).creationCode));
+   │                                     ─────────────────────────────── this has no value at compile time
+   ‡
+LL │                 v := HASH
+   │                      ━━━━
+   │
+   ╰ note: every use of the constant runs its initializer, which can allocate memory
+
+error: aborting due to 2 previous errors
+

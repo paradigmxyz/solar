@@ -1,8 +1,8 @@
 //! Scalar replacement of non-escaping memory-object allocations.
 //!
-//! A struct or fixed-array memory object that never escapes and is accessed
-//! only through constant field/element addresses can be dissolved into SSA
-//! values: each field store feeds the matching field load directly. The
+//! A constant-size memory allocation that never escapes and is accessed
+//! only by word loads and stores at constant offsets can be dissolved into
+//! SSA values: each field store feeds the matching field load directly. The
 //! backing allocation remains because its free-memory-pointer bump and failure
 //! behavior are observable independently of accesses through its result.
 //!
@@ -10,14 +10,14 @@
 //! shared with frame promotion inserts phis only where a field is live-in and
 //! rejects loads lacking a reaching store on any path. All fields are planned
 //! together before mutation, including full-object zero fills. The allocation
-//! stays in place. Full-width pointer casts retain the same object or field identity;
+//! stays in place. Full-width pointer casts retain the same object identity;
 //! escapes, narrowing casts, dynamic indices and partial/unknown accesses reject promotion.
-//! Run before memory-object lowering, while field identities remain explicit.
+//! Run before memory-object lowering, while `ptradd` keeps object offsets explicit.
 
 use crate::mir::{
-    AllocationKind, Function, Immediate, InstKind, MemoryObjectLayout, Module, Value, ValueId,
-    analysis::{AliasAnalysis, Location, LocationSize},
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+    BlockId, Function, Immediate, InstKind, Module, PtrLocation, Value, ValueId,
+    analysis::{AliasAnalysis, CfgInfo, Location, LocationSize},
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
     transform::frame_promotion::{SlotAccessInfo, promote_object_slots},
 };
@@ -50,44 +50,31 @@ struct SroaCx {
     eliminated: usize,
 }
 
-/// Whether a memory-object layout is a fixed-shape aggregate whose slots are
-/// one word each (a struct or a fixed array). Bytes and dynamic arrays carry
-/// length words and variable data, so they are not scalar-replaced here.
-fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
-    matches!(layout, MemoryObjectLayout::Struct { .. } | MemoryObjectLayout::FixedArray { .. })
-}
-
-fn fixed_aggregate_words(layout: MemoryObjectLayout) -> Option<u64> {
-    match layout {
-        MemoryObjectLayout::FixedArray { len, element_words } => {
-            len.checked_mul(u64::from(element_words))
-        }
-        MemoryObjectLayout::Struct { fields } => Some(fields),
-        MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => None,
-    }
-}
-
 impl SroaCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let mut allocs: Vec<(ValueId, MemoryObjectLayout)> = Vec::new();
+        let mut allocs = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
-                if let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } =
-                    func.inst(inst_id).kind
-                    && is_fixed_aggregate(layout)
+                if let InstKind::Alloc { size, .. } = func.inst(inst_id).kind
+                    && let Some(size) = func.value_u64(size)
+                    && EvmMemoryLayout::word_slot(size).is_some()
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
-                    allocs.push((object, layout));
+                    allocs.push((object, size));
                 }
             }
         }
-        if allocs.is_empty() {
+        if allocs.is_empty()
+            || func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
+        {
             return false;
         }
 
+        // Promotion adds phis but no blocks, so one block order serves every allocation.
+        let order = CfgInfo::new(func).rpo().to_vec();
         let mut changed = false;
-        for (object, layout) in allocs {
-            if self.try_promote(func, alias, object, layout).unwrap_or(false) {
+        for (object, size) in allocs {
+            if self.try_promote(func, alias, &order, object, size).unwrap_or(false) {
                 alias.clear_cached_addresses();
                 self.eliminated += 1;
                 changed = true;
@@ -101,152 +88,83 @@ impl SroaCx {
         &self,
         func: &mut Function,
         alias: &AliasAnalysis,
+        order: &[BlockId],
         object: ValueId,
-        layout: MemoryObjectLayout,
+        zero_size: u64,
     ) -> Option<bool> {
-        if alias.value_escapes(func, object)
-            || func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
-        {
+        if alias.value_escapes(func, object) {
             return None;
         }
 
-        let words = fixed_aggregate_words(layout)?;
-        let zero_size = words.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let words = zero_size / EvmMemoryLayout::WORD_SIZE;
 
-        let mut object_aliases = FxHashSet::from_iter([object]);
+        // Pointer casts and constant `ptradd`s of the object address its words; record each
+        // derived address with its byte offset. A derivation is no phi, so its operand comes
+        // first in reverse postorder.
+        let mut addresses = FxHashMap::from_iter([(object, 0_u64)]);
         let mut address_insts = FxHashSet::default();
-        loop {
-            let mut changed = false;
-            for id in func.instructions() {
-                if let InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) = func.inst(id).kind
-                    && object_aliases.contains(&base)
+        for &block in order {
+            for &id in &func.blocks[block].instructions {
+                let derived = match func.inst(id).kind {
+                    InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                        addresses.get(&base).copied()
+                    }
+                    InstKind::PtrAdd(base, offset) => addresses
+                        .get(&base)
+                        .and_then(|&base| base.checked_add(func.value_u64(offset)?)),
+                    _ => None,
+                };
+                if let Some(offset) = derived
                     && let Some(result) = func.inst_result_value(id)
-                    && object_aliases.insert(result)
                 {
+                    addresses.insert(result, offset);
                     address_insts.insert(id);
-                    changed = true;
                 }
-            }
-            if !changed {
-                break;
             }
         }
 
-        // Map each field address to its constant slot. Object aliases may only feed field
-        // addresses, preserving casts, and full-object zero fills.
-        let mut slot_of: FxHashMap<ValueId, u64> = FxHashMap::default();
+        // Derived addresses may only feed full-object zero fills and word accesses inside the
+        // object; a store must not leak one.
+        let mut slot_of = FxHashMap::default();
         for inst_id in func.instructions() {
             if address_insts.contains(&inst_id) {
                 continue;
             }
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::MemoryZero(base, size) = *kind
-                && object_aliases.contains(&base)
-            {
-                if func.value_u64(size) != Some(zero_size) {
-                    return None;
-                }
-                continue;
-            }
-            let slot = match *kind {
-                InstKind::MemoryObjectFieldAddr { object: base, field, layout: access }
-                    if object_aliases.contains(&base) =>
-                {
-                    if access != layout {
+            let address = match *kind {
+                InstKind::MemoryZero(base, size) if addresses.get(&base) == Some(&0) => {
+                    if func.value_u64(size) != Some(zero_size) {
                         return None;
                     }
-                    EvmMemoryLayout::field_offset(layout, field)
-                        .map(|offset| offset / EvmMemoryLayout::WORD_SIZE)
+                    continue;
                 }
-                InstKind::MemoryObjectElementAddr { object: base, index, layout: access }
-                    if object_aliases.contains(&base) =>
+                InstKind::Load(address, PtrLocation::Memory) => address,
+                InstKind::Store(address, value, PtrLocation::Memory)
+                    if !addresses.contains_key(&value) =>
                 {
-                    if access != layout {
-                        return None;
-                    }
-                    let offset = func
-                        .value_u64(index)?
-                        .checked_mul(EvmMemoryLayout::element_stride(layout)?)?;
-                    Some(offset / EvmMemoryLayout::WORD_SIZE)
+                    address
                 }
                 _ => {
-                    // Any other use of the object (data pointer, length,
-                    // dynamic-index address, a store of the pointer) blocks
+                    // Any other use of the object (a store of the pointer, a raw address) blocks
                     // scalarization.
-                    if kind.any_operand(|value| object_aliases.contains(&value)) {
+                    if kind.any_operand(|value| addresses.contains_key(&value)) {
                         return None;
                     }
                     continue;
                 }
             };
-            let slot = slot?;
-            if slot >= words {
-                return None;
-            }
-            let addr = func.inst_result_value(inst_id)?;
-            slot_of.insert(addr, slot);
-            address_insts.insert(inst_id);
-        }
-
-        // field_word = ptrtoint field_pointer to i256
-        // field_pointer = inttoptr field_word
-        loop {
-            let mut changed = false;
-            for id in func.instructions() {
-                if let InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) = func.inst(id).kind
-                    && let Some(&slot) = slot_of.get(&base)
-                    && let Some(result) = func.inst_result_value(id)
-                    && !slot_of.contains_key(&result)
-                {
-                    slot_of.insert(result, slot);
-                    address_insts.insert(id);
-                    changed = true;
-                }
-            }
-            if !changed {
-                break;
-            }
+            let Some(&offset) = addresses.get(&address) else { continue };
+            let slot = EvmMemoryLayout::word_slot(offset).filter(|&slot| slot < words)?;
+            slot_of.insert(inst_id, slot);
         }
 
         // Non-capturing terminators can still read the object's memory.
         if func.blocks.iter().any(|block| {
             block.terminator.as_ref().is_some_and(|terminator| {
-                terminator.any_operand(|value| {
-                    object_aliases.contains(&value) || slot_of.contains_key(&value)
-                })
+                terminator.any_operand(|value| addresses.contains_key(&value))
             })
         }) {
             return None;
-        }
-
-        // Every field address must be used only as the address of an
-        // `MStore`/`MLoad`.
-        for inst_id in func.instructions() {
-            let inst = func.inst(inst_id);
-            let kind = &inst.kind;
-            if address_insts.contains(&inst_id) {
-                continue;
-            }
-            let addr = match *kind {
-                InstKind::MStore(addr, value) => {
-                    // The address may be a field address; the stored value must
-                    // not be one (that would leak the interior pointer).
-                    if slot_of.contains_key(&value) {
-                        return None;
-                    }
-                    addr
-                }
-                InstKind::MLoad(addr) => addr,
-                _ => {
-                    if kind.any_operand(|op| slot_of.contains_key(&op)) {
-                        return None;
-                    }
-                    continue;
-                }
-            };
-            if !slot_of.contains_key(&addr) && kind.any_operand(|op| slot_of.contains_key(&op)) {
-                return None;
-            }
         }
 
         let location = Location::Memory(alias.bare_memory_location(
@@ -258,8 +176,8 @@ impl SroaCx {
             let kind = &func.inst(inst).kind;
             if func.inst_result_value(inst) == Some(object)
                 || address_insts.contains(&inst)
-                || matches!(*kind, InstKind::MStore(addr, _) | InstKind::MLoad(addr) if slot_of.contains_key(&addr))
-                || matches!(*kind, InstKind::MemoryZero(base, _) if object_aliases.contains(&base))
+                || slot_of.contains_key(&inst)
+                || matches!(*kind, InstKind::MemoryZero(base, _) if addresses.contains_key(&base))
             {
                 continue;
             }
@@ -297,15 +215,17 @@ impl SroaCx {
                     }
                 }
                 match func.inst(inst).kind {
-                    InstKind::MStore(addr, value) if slot_of.contains_key(&addr) => {
-                        let index = fields.binary_search(&slot_of[&addr]).ok()?;
+                    InstKind::Store(_, value, PtrLocation::Memory)
+                        if slot_of.contains_key(&inst) =>
+                    {
+                        let index = fields.binary_search(&slot_of[&inst]).ok()?;
                         slots[index].note_store(block, inst, value);
                     }
-                    InstKind::MLoad(addr) if slot_of.contains_key(&addr) => {
-                        let index = fields.binary_search(&slot_of[&addr]).ok()?;
+                    InstKind::Load(..) if slot_of.contains_key(&inst) => {
+                        let index = fields.binary_search(&slot_of[&inst]).ok()?;
                         slots[index].note_load(block, inst);
                     }
-                    InstKind::MemoryZero(base, _) if object_aliases.contains(&base) => {
+                    InstKind::MemoryZero(base, _) if addresses.contains_key(&base) => {
                         zeros.insert(inst);
                         for slot in &mut slots {
                             slot.note_store(block, inst, zero);
@@ -318,7 +238,7 @@ impl SroaCx {
         if !promote_object_slots(func, &slots) {
             return Some(false);
         }
-        // preserving_cast object; field_addr object, index; memory_zero object, size
+        // preserving_cast object; ptradd object, offset; memory_zero object, size
         // => SSA field values
         for block in &mut func.blocks {
             block

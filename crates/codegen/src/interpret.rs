@@ -238,7 +238,7 @@ fn @twice(arg0: i256) -> i256 {
             "  bb0:
     sstore 1, 2
     tstore 3, 4
-    log0 0, 0
+    log 0, 0
     revert 0, 0
 ",
         );
@@ -247,8 +247,8 @@ fn @twice(arg0: i256) -> i256 {
 
         // An allocation without backend placement cannot be executed faithfully.
         let alloc = "  bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
-    v1 = ptrtoint memptr v0 to i256
+    v0 = alloc 32 !metadata(deferred_alloc)
+    v1 = ptrtoint ptr<memory> v0 to i256
     mstore v1, 7
 ";
         let execution = transact(&format!(

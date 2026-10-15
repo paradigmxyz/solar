@@ -8,13 +8,13 @@
       ret v0
   }
   
-  fn @load(arg0: i256) -> memptr {
+  fn @load(arg0: i256) -> ptr<memory> {
     bb0:
       v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
       ret v0
   }
   
-  fn @edge(arg0: i1, arg1: i256, arg2: memptr) -> memptr {
+  fn @edge(arg0: i1, arg1: i256, arg2: ptr<memory>) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -40,7 +40,7 @@
       ret v0
   }
   
-  fn @store(arg0: i1, arg1: i256, arg2: memptr) -> i256 {
+  fn @store(arg0: i1, arg1: i256, arg2: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

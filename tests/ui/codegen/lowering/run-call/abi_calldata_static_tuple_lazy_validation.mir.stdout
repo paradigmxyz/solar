@@ -1,27 +1,28 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_tuple_lazy_validation.sol:AbiCalldataStaticTupleLazyValidation ===
 @module AbiCalldataStaticTupleLazyValidation
-fn @use(arg0: calldataslice) -> i256 [selector=0x4637216b, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @use(arg0: slice<calldata>) -> i256 [selector=0x4637216b, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = slice_ptr arg0
-    v1 = add v0, 0
-    v2 = calldataload v1
-    v3 = shr 8, v2
-    v4 = eq v3, 0
-    v5 = eq v4, false
-    icall revert_if<empty>, v5
-    v6 = trunc i256 v2 to i8
-    v7 = zext i8 v6 to i256
-    ret v7
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = add v1, 0
+    v3 = calldataload v2
+    v4 = shr 8, v3
+    v5 = eq v4, 0
+    v6 = eq v5, false
+    icall revert_if<empty>, v6
+    v7 = trunc i256 v3 to i8
+    v8 = zext i8 v7 to i256
+    ret v8
 }
 
-fn @unused(arg0: calldataslice) -> i256 [selector=0xb7a18a02, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @unused(arg0: slice<calldata>) -> i256 [selector=0xb7a18a02, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
-fn @encodeWords(arg0: calldataslice) -> i256 [selector=0x5d8a4779, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @encodeWords(arg0: slice<calldata>) -> i256 [selector=0x5d8a4779, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [tuple<word, word>], object, args arg0
-    v1 = memory_object_len memorybytes, v0
+    v1 = mload v0
     ret v1
 }

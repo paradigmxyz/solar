@@ -29,7 +29,7 @@ fn @increment() [selector=0xd09de08a, abi_wrapper] {
     sstore 0, v1
     v2: i256 = caller
     mstore 0, v1
-    log2 0, 32, 0x7a2e4c9bdfb0c1ee2fb7e6d8d0e21e4d2e1c73f3a9a7ff1d6d8b1e8c1b0a9f01, v2
+    log 0, 32, 0x7a2e4c9bdfb0c1ee2fb7e6d8d0e21e4d2e1c73f3a9a7ff1d6d8b1e8c1b0a9f01, v2
     stop
 }
 

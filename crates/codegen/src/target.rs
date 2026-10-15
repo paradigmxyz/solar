@@ -692,7 +692,9 @@ impl Target {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, Terminator, Value};
+    use crate::mir::{
+        Function, Immediate, InstKind, Instruction, MirType, PtrLocation, Terminator, Value,
+    };
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -799,7 +801,7 @@ mod tests {
         assert_eq!(target.opcode_gas_at(op::SLOAD, Warmth::Cold), 2100);
         let mut function = Function::new(Ident::DUMMY);
         let slot = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
-        let load = InstKind::SLoad(slot).op();
+        let load = InstKind::Load(slot, PtrLocation::Storage).op();
         assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
         assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
         for version in [EvmVersion::Istanbul, EvmVersion::Berlin, EvmVersion::Osaka] {

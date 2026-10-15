@@ -3,15 +3,15 @@
   @module AllocationObligation
   fn @movable() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 64
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
       ret v1
   }
   
   fn @reserved() -> i256 {
     bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      v1 = ptrtoint memptr v0 to i256
+      v0 = alloc 64 !metadata(preserves_fmp)
+      v1 = ptrtoint ptr<memory> v0 to i256
       ret v1
   }
   

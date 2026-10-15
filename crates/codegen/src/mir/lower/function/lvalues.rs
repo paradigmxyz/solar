@@ -45,9 +45,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let object = self.lower_expr(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
-                let layout = self.types.memory_layout(receiver_ty)?;
+                // Only a memory object has addressable fields.
+                self.types.memory_layout(receiver_ty)?;
                 let ty = self.cx.gcx.type_of_item(id.into());
-                Some(LValuePlace::MemoryField { object, layout, field: field as u64, ty })
+                Some(LValuePlace::MemoryField { object, field: field as u64, ty })
             }
             ExprKind::Index(receiver, index) => {
                 let Some(index) = index else {
@@ -69,7 +70,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(LValuePlace::MemoryElement { object, layout, index, ty })
                     }
                     MemoryObjectLayout::Bytes => {
-                        let length = self.builder.memory_object_len(object, layout.kind());
+                        let length = self.builder.memory_len(object);
                         self.builder.bounds_check(index, length);
                         let ty = self.type_of_expr_or_variable(expr)?;
                         Some(LValuePlace::MemoryByte { object, index, ty })
@@ -113,19 +114,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match *place {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
-            LValuePlace::MemoryField { object, layout, field, ty } => {
-                // value = memory_object_load_field layout, object, field
-                let value = self.builder.memory_object_load_field_as(
+            LValuePlace::MemoryField { object, field, ty } => {
+                // value = mload (ptradd object, field * 32)
+                let value = self.builder.memory_load_field_as(
                     object,
-                    layout,
                     field,
                     types::TypeLowerer::mir_type(ty),
                 );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                // value = memory_object_load_element layout, object, index
-                let value = self.builder.memory_object_load_element_as(
+                // value = mload (ptradd object, header + shl 5, index)
+                let value = self.builder.memory_load_element_as(
                     object,
                     layout,
                     index,
@@ -134,7 +134,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
-                let value = self.builder.memory_object_load_byte(object, index);
+                let value = self.builder.memory_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
             LValuePlace::YulSuffix { id, suffix, span } => self.load_yul_suffix(id, suffix, span),
@@ -163,14 +163,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 None => self.store_storage_value(ty, access, value, span),
             },
-            LValuePlace::MemoryField { object, layout, field, ty } => {
+            LValuePlace::MemoryField { object, field, ty } => {
                 let value = self.encode_memory_scalar(ty, value);
-                self.builder.memory_object_store_field(object, layout, field, value);
+                self.builder.memory_store_field(object, field, value);
                 Some(())
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
                 let value = self.encode_memory_scalar(ty, value);
-                self.builder.memory_object_store_element(object, layout, index, value);
+                self.builder.memory_store_element(object, layout, index, value);
                 Some(())
             }
             LValuePlace::MemoryByte { object, index, .. } => {
@@ -186,7 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
         let zero = self.builder.imm(U256::ZERO);
         let value = self.builder.byte(zero, value);
-        self.builder.memory_object_store_byte(object, index, value);
+        self.builder.memory_store_byte(object, index, value);
     }
 
     pub(super) fn resolve_storage_byte_place(
@@ -287,14 +287,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
-            if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
+            if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
                 && ty.is_ref_at(DataLocation::Calldata)
             {
                 // slice = calldata(value, previous.length | static.length | 0)
                 let length = match self.values.get(&id).copied() {
                     Some(previous)
                         if self.builder.func().value_slice_location(previous)
-                            == Some(SliceLocation::Calldata) =>
+                            == Some(PtrLocation::Calldata) =>
                     {
                         self.builder.slice_len(previous)
                     }
@@ -305,7 +305,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         _ => self.builder.imm(U256::ZERO),
                     },
                 };
-                value = self.builder.make_slice(value, length, SliceLocation::Calldata);
+                value = self.builder.make_slice(value, length, PtrLocation::Calldata);
             }
             self.dirty_values.insert(value);
         }
@@ -388,12 +388,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 )
             }
             YulSuffix::CalldataOffset => {
-                // value = slice_ptr variable
+                // value = extract_value variable, 0
                 let slice = self.load_variable(id, span)?;
                 Some(self.builder.slice_ptr(slice))
             }
             YulSuffix::CalldataLength => {
-                // value = slice_len variable
+                // value = extract_value variable, 1
                 let slice = self.load_variable(id, span)?;
                 Some(self.builder.slice_len(slice))
             }
@@ -435,18 +435,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(span, "Yul storage offset assignment");
             }
             YulSuffix::CalldataOffset => {
-                // length = slice_len variable
+                // length = extract_value variable, 1
                 // slice = make_calldata_slice value, length
                 let slice = self.load_variable(id, span)?;
                 let length = self.builder.slice_len(slice);
-                self.builder.make_slice(value, length, SliceLocation::Calldata)
+                self.builder.make_slice(value, length, PtrLocation::Calldata)
             }
             YulSuffix::CalldataLength => {
-                // pointer = slice_ptr variable
+                // pointer = extract_value variable, 0
                 // slice = make_calldata_slice pointer, value
                 let slice = self.load_variable(id, span)?;
                 let pointer = self.builder.slice_ptr(slice);
-                self.builder.make_slice(pointer, value, SliceLocation::Calldata)
+                self.builder.make_slice(pointer, value, PtrLocation::Calldata)
             }
             YulSuffix::FunctionAddress => {
                 // address = shl 32, (and value, address_mask)

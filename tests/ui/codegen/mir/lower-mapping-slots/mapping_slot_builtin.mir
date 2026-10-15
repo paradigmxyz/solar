@@ -41,10 +41,10 @@ fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
 // CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
 fn @memory(arg0: i256) -> i256 {
   bb0:
-    v4 = inttoptr i256 arg0 to memptr
-    v1 = mapping_slot_memory v4, 9
+    v4 = inttoptr i256 arg0 to ptr<memory>
+    v1 = mapping_slot_bytes v4, 9
     mstore arg0, 1
-    v2 = mapping_slot_memory v4, 9
+    v2 = mapping_slot_bytes v4, 9
     v3 = add v1, v2
     ret v3
 }
@@ -53,10 +53,10 @@ fn @memory(arg0: i256) -> i256 {
 // CHECK: + [[FIRST:v[0-9]+]] = keccak256
 // CHECK: + [[SECOND:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @calldata(arg0: calldataslice) -> i256 {
+fn @calldata(arg0: slice<calldata>) -> i256 {
   bb0:
-    v1 = mapping_slot_calldata arg0, 11
-    v2 = mapping_slot_calldata arg0, 11
+    v1 = mapping_slot_bytes arg0, 11
+    v2 = mapping_slot_bytes arg0, 11
     v3 = add v1, v2
     ret v3
 }

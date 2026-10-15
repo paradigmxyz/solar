@@ -306,10 +306,11 @@ self.dcx()
 
 ### IR construction and rewrites
 
-- Generated MIR scalars are `i1`, `i160`, `i256`, or `memptr`; structs and
-  slices keep their types. `memptr` is opaque, like LLVM's `ptr`: accessing
-  operations carry the layout. Keep source widths, signedness, and ABI encodings
-  in operation or layout metadata.
+- Generated MIR scalars are `i1`, `i160`, `i256`, or `ptr<memory>`; structs
+  and slices keep their types. `ptr<memory>` is opaque, like LLVM's `ptr`:
+  reach object words with `ptradd` and `mload`/`mstore`, never with integer
+  arithmetic. Keep source widths, signedness, and ABI encodings in operation or
+  layout metadata.
 - `iN` names bit width. MIR syntax accepts any positive 32-bit width, but source
   lowering emits only `i1`, `i160`, and `i256`; other widths need EVM IR
   lowering support first.
@@ -326,7 +327,7 @@ self.dcx()
   and does not test for nonzero.
 - Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Rewrites
   keep value and type; bool-to-word needs `zext i1 v to i256`.
-- `memptr` is not an integer; pointer casts do not establish validity,
+- `ptr<memory>` is not an integer; pointer casts do not establish validity,
   provenance, ownership, or non-wrapping arithmetic.
 - Keep raw Solidity bool and address bits as `i256` where assembly can see them;
   convert to `i1` for logic and branches.
